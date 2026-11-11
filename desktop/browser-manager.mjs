@@ -93,9 +93,17 @@ export class BrowserManager {
       webviewTag: false, navigateOnDragDrop: false,
     } });
     view.setVisible(false);
-    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now() };
+    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now(), consoleMessages: [] };
     this.entries.set(id, entry);
     const wc = view.webContents;
+    wc.on('console-message', (details, level, message, lineNumber, sourceId) => {
+      // Electron 45 passes a details object; retain compatibility with positional events.
+      const item = typeof details.message === 'string' ? details : { level, message, lineNumber, sourceId };
+      entry.consoleMessages.push({ level: item.level, message: String(item.message || '').slice(0, 2048),
+        line: item.lineNumber, source: String(item.sourceId || '').slice(0, 512), timestamp: Date.now() });
+      if (entry.consoleMessages.length > 200) entry.consoleMessages.shift();
+    });
+    wc.on('did-start-navigation', event => { if (event.isMainFrame) entry.lastLoadError = null; });
     const guard = event => {
       try { browserURL(event.url); } catch { event.preventDefault(); this.send(entry, 'Navegación bloqueada: solo HTTP(S) o about:blank'); }
     };
@@ -116,7 +124,7 @@ export class BrowserManager {
       wc.on(event, () => this.send(entry));
     }
     wc.on('did-fail-load', (_event, code, description, _url, mainFrame) => {
-      if (mainFrame && code !== -3) this.send(entry, `${description} (${code})`);
+      if (mainFrame && code !== -3) { entry.lastLoadError = `${description} (${code})`; this.send(entry, entry.lastLoadError); }
     });
     wc.on('render-process-gone', (_event, details) => this.send(entry, `Navegador detenido: ${details.reason}`));
     return entry;

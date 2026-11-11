@@ -86,6 +86,28 @@ export function browserURL(value, { external = false } = {}) {
   return url.href;
 }
 
+export function validateAgentBrowserRequest(payload) {
+  validateJSON(payload, 32 * 1024);
+  if (!payload || Array.isArray(payload) || typeof payload !== 'object') throw new Error('Solicitud no válida');
+  const fields = {
+    context: [], preview: ['url'], open: ['url'], status: [], read: ['selector'],
+    click: ['selector'], fill: ['selector', 'value'], screenshot: ['name'], console: [],
+  };
+  if (!Object.hasOwn(fields, payload.command)) throw new Error('Comando de navegador no permitido');
+  const allowed = new Set(['command', 'workspaceId', 'terminalId', 'token', 'timeoutMs', 'key', ...fields[payload.command]]);
+  if (Object.keys(payload).some(key => !allowed.has(key))) throw new Error('Campo de navegador no permitido');
+  validateID(payload.workspaceId); validateID(payload.terminalId);
+  if (typeof payload.token !== 'string' || !/^[a-f0-9]{64}$/.test(payload.token)) throw new Error('Credencial no válida');
+  if (!Number.isInteger(payload.timeoutMs) || payload.timeoutMs < 250 || payload.timeoutMs > 30000) throw new Error('timeout fuera de límites');
+  if (payload.key !== undefined && (typeof payload.key !== 'string' || !/^[a-zA-Z0-9_.-]{1,80}$/.test(payload.key))) throw new Error('Clave idempotente no válida');
+  if (['preview', 'open'].includes(payload.command)) payload.url = browserURL(payload.url, { external: true });
+  if (payload.selector !== undefined && (typeof payload.selector !== 'string' || !payload.selector.trim() || payload.selector.length > 512 || /[\u0000-\u001f\u007f]/.test(payload.selector))) throw new Error('Selector no válido');
+  if (['click', 'fill'].includes(payload.command) && !payload.selector) throw new Error('Selector requerido');
+  if (payload.command === 'fill' && (typeof payload.value !== 'string' || payload.value.length > 16384 || /[\u0000\u001b]/.test(payload.value))) throw new Error('Valor de input no válido');
+  if (payload.name !== undefined && (typeof payload.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}\.png$/.test(payload.name))) throw new Error('Nombre de captura no válido (solo nombre.png)');
+  return payload;
+}
+
 export function isLocalUIURL(value, uiURL) {
   try {
     const url = new URL(value);

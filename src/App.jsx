@@ -5,7 +5,7 @@ import { PresenceGroup } from './components/Presence';
 import { Inspector } from './components/Inspector';
 import { CommandPalette } from './components/CommandPalette';
 import { VoiceCapture } from './components/VoiceCapture';
-import { api, useWorkspace } from './hooks/useWorkspace';
+import { api, subscribe, useWorkspace } from './hooks/useWorkspace';
 import { findPanelPlacement } from './hooks/panelPlacement';
 import { useInlineName } from './hooks/useInlineName';
 import { overlayPolicy } from './hooks/inputOwnership';
@@ -85,6 +85,18 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     if (!id && focusedRef.current) setSelected(returnSelection.current.filter(id => current.current?.nodes?.some(n => n.id === id && !n.data?.hidden)));
     setFocused(id || null); if (id) setSelected([id]);
   }, [onChange]);
+  const [agentFocus, setAgentFocus] = useState(null);
+  useEffect(() => subscribe(event => {
+    if (event.type !== 'browser.agentFocus') return;
+    setAgentFocus({ id: event.id, workspaceId: event.workspaceId });
+    if (!current.current?.nodes?.some(n => n.id === event.id)) refresh().catch(() => {});
+  }), [refresh]);
+  useEffect(() => {
+    if (!agentFocus || workspace?.id !== agentFocus.workspaceId || !workspace.nodes.some(n => n.id === agentFocus.id && n.type === 'browser')) return;
+    setInspector(null); setPalette(false); setVoice(false); setTray(false); setTools(false);
+    setList(false); setMenu(null); setEdit(null); setSidebar(false);
+    focusPanel(agentFocus.id); setAgentFocus(null);
+  }, [agentFocus, workspace, focusPanel]);
   const openMenu = useCallback((id, x, y) => { if (id && !selectionRef.current.includes(id)) setSelected([id]); setMenu({ id, x, y }); }, []);
   const launching = useRef(new Map());
   const placements = useRef(new Map());
