@@ -4,6 +4,7 @@ import { Search, X } from 'lucide-react';
 import { Button, TOOL_TITLES } from './ToolPanels.jsx';
 import { Presence } from './Presence';
 import '../tools.css';
+import { PLUGIN_MANIFESTS } from '../../shared/plugins.mjs';
 
 export function CommandPalette({ open, onClose, workspace, onAction }) {
   const [query, setQuery] = useState(''), [selected, setSelected] = useState(0);
@@ -12,10 +13,12 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
     { title: 'Abrir carpeta', group: 'Workspace', action: { type: 'openFolder' } },
     { title: 'Personalizar espacio · fondo y apariencia', group: 'Workspace', action: { type: 'appearance' } },
     ...(workspace ? [
+      { title: 'Abrir Centro de Plugins', group: 'Plugins', action: { type: 'create', panelType: 'plugins' } },
+      ...PLUGIN_MANIFESTS.filter(plugin => workspace.plugins?.[plugin.id]?.enabled).flatMap(plugin => plugin.actions.map(action => ({ title: action.name, group: plugin.name, action: { type: 'create', panelType: plugin.panels.find(panel => panel.id === action.panelId).nodeType, data: { pluginId: plugin.id, panelId: action.panelId } } }))),
       { title: 'Ver todo el mapa', group: 'Navegación', action: { type: 'fit-all' } },
       { title: 'Buscar paneles del proyecto', group: 'Navegación', action: { type: 'panels' } },
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
-      ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission').map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
+      ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission' && !PLUGIN_MANIFESTS.some(plugin => plugin.panels.some(panel => panel.nodeType === tab))).map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: `Panel · ${node.type}`, action: { type: 'panel', id: node.id } })),
       ...['terminal', 'browser', 'note', 'tasks', 'context', 'git', 'services', 'docker', 'mission', 'workflows', 'playwright', 'playground'].map(panelType => ({ title: `Crear ${TOOL_TITLES[panelType] || ({ terminal: 'terminal', browser: 'navegador', note: 'nota' })[panelType]}`, group: 'Nuevo panel', action: { type: 'create', panelType } })),
     ] : []),

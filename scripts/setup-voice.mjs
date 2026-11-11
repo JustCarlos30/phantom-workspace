@@ -1,20 +1,19 @@
 #!/usr/bin/env node
 // Explicit installation only. No network or processes run when imported.
 // State path: <PHANTOM_WORKSPACE_HOME or XDG_STATE_HOME/phantom-workspace>/voice-runtime.
-import { access, chmod, copyFile, mkdir, open, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executableOnPath, runCommand, stateDirectory } from '../integrations/run-manager.mjs';
 
-export const HELP = `Usage: node scripts/setup-voice.mjs [--data <app-state-dir>] [--model base|tiny]
-Installs Python venv + faster-whisper CPU int8 + multilingual model in app data.
+export const HELP = `Usage: node scripts/setup-voice.mjs [--data <app-state-dir>] [--model base|tiny|small] [--device cpu|cuda] [--replace]
+Installs Python venv + faster-whisper + multilingual model in app data.
 Default: ${stateDirectory()}/voice-runtime (outside project folders).
 Model provenance: https://huggingface.co/Systran/faster-whisper-{base,tiny}
 Python dependency: https://pypi.org/project/faster-whisper/ (isolated venv only).
-Existing voice-runtime/config.json or settings.localWhisperCommand is never replaced.
-To switch engines, first explicitly move your old config aside; keep it to undo.
+Existing config is preserved unless --replace is supplied; replacement keeps a backup.
 An explicit settings.voiceProvider/localWhisperCommand has precedence over discovery.
 No microphone is accessed. Setup has a total ten-minute deadline.`;
 
@@ -24,7 +23,9 @@ export function parseArgs(argv) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') options.help = true;
     else if (arg === '--data' && argv[index + 1] && !argv[index + 1].startsWith('--')) options.dataDir = path.resolve(argv[++index]);
-    else if (arg === '--model' && ['base', 'tiny'].includes(argv[index + 1])) options.model = argv[++index];
+    else if (arg === '--model' && ['base', 'tiny', 'small'].includes(argv[index + 1])) options.model = argv[++index];
+    else if (arg === '--device' && ['cpu', 'cuda'].includes(argv[index + 1])) options.device = argv[++index];
+    else if (arg === '--replace') options.replace = true;
     else throw new Error(`Argumento inválido: ${arg}\n${HELP}`);
   }
   return options;
@@ -34,15 +35,17 @@ async function exists(filename) {
   try { await access(filename); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
 }
 
-export async function setupVoice({ dataDir = stateDirectory(), model = 'base' } = {}) {
-  if (!['base', 'tiny'].includes(model)) throw new Error('Modelo permitido: base o tiny');
+export async function setupVoice({ dataDir = stateDirectory(), model = 'base', device = 'cpu', replace = false } = {}) {
+  if (!['base', 'tiny', 'small'].includes(model)) throw new Error('Modelo permitido: base, tiny o small');
+  if (!['cpu', 'cuda'].includes(device)) throw new Error('Dispositivo permitido: cpu o cuda');
+  const computeType = device === 'cuda' ? 'int8_float16' : 'int8';
   const root = path.resolve(dataDir);
   const project = await realpath(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
   const relative = path.relative(project, root);
   if (!relative || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) throw new Error('El runtime debe estar en app data, fuera del proyecto');
   const configPath = path.join(root, 'voice-runtime', 'config.json');
   // Inspect only the app's own public config, never unrelated histories/files.
-  if (await exists(configPath)) throw new Error(`Ya hay un motor configurado en ${configPath}. No se reemplazó.\n${HELP}`);
+  if (await exists(configPath) && !replace) throw new Error(`Ya hay un motor configurado en ${configPath}. No se reemplazó.\n${HELP}`);
   const statePath = path.join(root, 'state.json');
   if (await exists(statePath)) {
     const metadata = await stat(statePath);
@@ -78,15 +81,31 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base' } 
     const venvPython = path.join(venv, 'bin', 'python');
     // PyAV 17+ removes metadata_errors, still used by faster-whisper 1.2.1.
     await execute(venvPython, ['-I', '-m', 'pip', '--isolated', '--disable-pip-version-check', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'faster-whisper==1.2.1', 'av>=14,<17'], 300_000);
+    let gpuLibraryPath;
+    if (device === 'cuda') {
+      await execute(venvPython, ['-I', '-m', 'pip', '--isolated', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'nvidia-cublas-cu12', 'nvidia-cudnn-cu12==9.*'], 300_000);
+      gpuLibraryPath = (await execute(venvPython, ['-I', '-c', 'import sysconfig,os; p=sysconfig.get_paths()["purelib"]; print(os.path.join(p,"nvidia/cublas/lib")+":"+os.path.join(p,"nvidia/cudnn/lib"))'], 10_000)).trim();
+      env.LD_LIBRARY_PATH = [gpuLibraryPath, env.LD_LIBRARY_PATH].filter(Boolean).join(path.delimiter);
+    }
     const runner = path.join(engine, 'transcribe.py');
     await copyFile(new URL('./transcribe.py', import.meta.url), runner, constants.COPYFILE_EXCL);
     await chmod(runner, 0o600);
-    const prepared = await execute(venvPython, ['-I', runner, '--prepare', '--model', model, '--cache-dir', path.join(engine, 'cache', 'hub')], 300_000);
+    const streaming = path.join(engine, 'voice-stream.py');
+    await copyFile(new URL('./voice-stream.py', import.meta.url), streaming, constants.COPYFILE_EXCL);
+    await chmod(streaming, 0o600);
+    const hardwareArgs = ['--device', device, '--compute-type', computeType];
+    const prepared = await execute(venvPython, ['-I', runner, '--prepare', '--model', model, '--cache-dir', path.join(engine, 'cache', 'hub'), ...hardwareArgs], 300_000);
     const provenance = JSON.parse(prepared.trim().split('\n').at(-1));
-    const argv = [venvPython, '-I', runner, '{input}', '{outputDir}', '--model', provenance.modelPath];
-    const config = { schemaVersion: 1, engine: 'faster-whisper', model, device: 'cpu', computeType: 'int8', argv, nativeAudio: true, provenance: { ...provenance, source: `https://huggingface.co/${provenance.repo}`, pythonPackage: 'https://pypi.org/project/faster-whisper/1.2.1/' }, createdAt: new Date().toISOString() };
+    const argv = [venvPython, '-I', runner, '{input}', '{outputDir}', '--model', provenance.modelPath, ...hardwareArgs];
+    const streamArgv = [venvPython, '-I', '-u', streaming, '--model', provenance.modelPath, ...hardwareArgs];
+    const config = { schemaVersion: 1, engine: 'faster-whisper', model, device, computeType, argv, streamArgv, gpuLibraryPath, nativeAudio: true, provenance: { ...provenance, source: `https://huggingface.co/${provenance.repo}`, pythonPackage: 'https://pypi.org/project/faster-whisper/1.2.1/' }, createdAt: new Date().toISOString() };
     // Exclusive create protects a config another process/user wrote during setup.
-    await writeFile(configPath, JSON.stringify(config, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    if (replace && await exists(configPath)) {
+      await copyFile(configPath, `${configPath}.${Date.now()}.bak`, constants.COPYFILE_EXCL);
+      const temporary = `${configPath}.${randomUUID()}.tmp`;
+      await writeFile(temporary, JSON.stringify(config, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+      await rename(temporary, configPath);
+    } else await writeFile(configPath, JSON.stringify(config, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     installed = true;
     console.log(JSON.stringify({ configured: true, configPath, engine, modelPath: provenance.modelPath, model, argv }, null, 2));
     return config;

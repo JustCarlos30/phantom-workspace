@@ -19,6 +19,6 @@ STORY: elegir carpeta → localizar panel en la navegación lateral → operar e
 
 FIRST VIEWPORT: rail izquierdo con proyectos y lista compacta de paneles; cabecera reducida con identidad y comandos; canvas oscuro central; creación flotante inferior y zoom separado. Inspector no modal para contexto o apariencia. Fondo se atenúa al enfocar: el gesto distintivo es pasar del estudio personal al trabajo concentrado conservando identidad y cámara.
 
-FORM: dirección fijada por Carlos: Figma moderno, dark y personalización orientada a DX; implementación code-led. seed: none (unavailable). La referencia fija la dirección; no se hace sorteo de estilos ajenos.
+FORM: dirección fijada por Carlos: Figma moderno, dark y personalización orientada a DX; implementación code-led. No se solicitó ni ejecutó una selección aleatoria para esta dirección fijada por el usuario; no hay referencia seed que acreditar. La invocación de validación del revisor generó una mano nueva y no corroboró disponibilidad de una referencia previa; esa mano no define esta implementación.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
