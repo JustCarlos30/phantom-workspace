@@ -30,6 +30,31 @@ El test de voz real es opt-in y requiere el motor preparado (`npm run setup:voic
 
 ## Resultados observados y orden de ejecución
 
+### Cambio actual: navegador integrado por defecto
+
+La evidencia histórica de la tabla siguiente corresponde al paquete anterior, cuyo modo de automatización abría Chromium separado. No acredita esta nueva ruta integrada ni un paquete reconstruido con ella. Los resultados de los checks actuales los publica el controlador Phantom.
+
+Checks declarados para este cambio, desde la raíz:
+
+```sh
+npm ci --no-audit --no-fund
+node --test test/automation.test.mjs
+npm test
+npm run build
+```
+
+`test/automation.test.mjs` cubre el contrato integrado por transporte inyectado: elección predeterminada, secuencia preview/fill/click/open, clave compartida, copia durable de capturas, consola, ausencia de lanzamiento Chromium, trace no soportado, Stop con RPC pendiente, keepOpen, timeout y error sin desktop. Las capturas de ese contrato son bytes sintéticos; no prueban renderizado Electron. La prueba Playwright real elige `mode:"isolated"` explícitamente y conserva PNG/ZIP/visor y parada; si falta el ejecutable Chromium comprueba el error accionable y declara skip.
+
+Para comprobar el puente visible real (requiere display):
+
+```sh
+node test/agent-browser-desktop.mjs
+```
+
+Ese harness prueba Electron y el CLI sobre una fixture HTTP y perfiles propios; no sustituye el contrato de `automation.start`. Para la comprobación manual conjunta: abrir Phantom, activar un proyecto, crear una terminal nueva y ejecutar `node "$PHANTOM_BROWSER_CLI" context`, después `node "$PHANTOM_BROWSER_CLI" preview http://127.0.0.1:5173/ --timeout-ms 15000` con el servidor de ese proyecto activo. Consultar `node "$PHANTOM_BROWSER_CLI" status` y `node "$PHANTOM_BROWSER_CLI" read`; llamar a `automation.start` con el payload integrado del README, usando el mismo workspace/session y clave `preview`. Comprobar que `panelId` coincide con el ID del status, que el DOM visible refleja fill/click, que list/captura/log corresponden al run y que Stop libera `owned` conservando el panel. Repetir con desktop cerrado: debe fallar sin abrir navegador externo. El modo integrado no produce trace; el aislado sí. No hay resultados observados de esta comprobación manual en esta actualización.
+
+Readiness de preview/open usa la primitiva HTTP compartible del puente, sin un segundo sondeo en automation. Servicios conserva su HEAD diagnóstico opcional: no inicia navegación ni espera readiness. La consola integrada es una instantánea retenida, no streaming; no hay auto-wait Playwright, cierre del panel o cancelación de RPC en vuelo (Stop/timeout drenan hasta el límite de transporte de 75 s). No se ha establecido causalidad respecto a Firefox.
+
 | Evidencia | Resultado | Alcance |
 |---|---|---|
 | Suite completa comunicada por el coordinador, con ambas variables opt-in, después de los fixes de foco y preferencia de shell | **87 passed / 0 failed / 0 skipped** | 59 backend/nativo/ASR + 28 estado renderer; incluye nueva regresión con PTY real de precedencia de shell. |

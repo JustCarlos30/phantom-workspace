@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
+import { startAgentBrowser } from './agent-browser.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
@@ -20,6 +21,7 @@ app.setName('Phantom Workspace');
 
 let mainWindow = null;
 let browsers = null;
+let agentBrowser = null;
 let client = null;
 let connecting = null;
 let quitting = false;
@@ -411,13 +413,21 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     quitting = true;
+    if (agentBrowser) {
+      event.preventDefault();
+      const bridge = agentBrowser;
+      agentBrowser = null;
+      // Finish unlinking the private endpoint/socket before Electron exits.
+      bridge.close().catch(error => console.error(error.message)).finally(() => app.quit());
+      return;
+    }
     browsers?.dispose();
     client?.close(); // Disconnect only: the daemon owns and keeps its sessions.
     client = null;
   });
   // Electron waits for the ESM entrypoint to settle before emitting ready; never
   // top-level-await whenReady() here (that deadlocks the main process).
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
   uiSession = session.fromPartition('phantom-local-ui');
   configureUISession(uiSession);
   ipcMain.handle(INVOKE_CHANNEL, async (event, method, payload = {}) => {
@@ -446,7 +456,9 @@ if (!app.requestSingleInstanceLock()) {
     { label: 'Editar', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
     { label: 'Ver', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, ...(!app.isPackaged ? [{ role: 'toggleDevTools' }] : [])] },
   ]));
-  openMainWindow();
+   openMainWindow();
+   agentBrowser = await startAgentBrowser({ dataDir, hostInvoke, getManager: () => browsers, emit,
+     focusWindow: () => { openMainWindow(); } });
   hostInvoke('system.info').catch(error => emit({ type: 'desktop.host', connected: false, error: error.message }));
   }).catch(error => {
     console.error('Phantom desktop startup failed:', error);

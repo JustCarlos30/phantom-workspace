@@ -86,6 +86,13 @@ export function browserURL(value, { external = false } = {}) {
   return url.href;
 }
 
+// Agent RPC is intentionally not part of LOCAL_METHODS: renderer/remote frames
+// cannot mint terminal capabilities or invoke the private automation surface.
+export function browserKey(value = 'preview') {
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(value)) throw new Error('key no válida');
+  return value;
+}
+
 export function isLocalUIURL(value, uiURL) {
   try {
     const url = new URL(value);
