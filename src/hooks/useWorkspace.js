@@ -11,6 +11,7 @@ export const subscribe = callback => window.phantom?.onEvent(callback) || (() =>
 
 export function useWorkspace(notify) {
   const [state, setState] = useState(null);
+  const [stateReadAt, setStateReadAt] = useState(null);
   const [readError, setReadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,7 +36,7 @@ export function useWorkspace(notify) {
     try {
       const next = await api('state.get');
       if (transport.current.revision !== transportRevision) throw new Error('La conexión cambió durante la lectura. Espera a la reconexión.');
-      if (mounted.current && version === generation.current) { setState(overlay(next)); setReadError(''); }
+      if (mounted.current && version === generation.current) { setState(overlay(next)); setStateReadAt(Date.now()); setReadError(''); }
       // Bootstrap only: operation/read errors never define transport status.
       if (transport.current.status === 'connecting' && transportRevision === 0) {
         transport.current.status = 'connected';
@@ -108,5 +109,5 @@ export function useWorkspace(notify) {
   }, [refresh, flush, finishClose]);
   const connectionError = connection.status !== 'connected' && connection.status !== 'connecting'
     ? connection.message || (connection.status === 'reconnecting' ? 'Reconectando con el host local…' : 'Host local desconectado. Tu disposición se conserva en esta ventana.') : '';
-  return { state, error: saveError || connectionError || readError, saveError, connection, saving, refresh, patch, flush, registerBeforeFlush, closeRequest, retryClose: () => closeRequest && finishClose(closeRequest.requestId) };
+  return { state, stateReadAt, error: saveError || connectionError || readError, saveError, connection, saving, refresh, patch, flush, registerBeforeFlush, closeRequest, retryClose: () => closeRequest && finishClose(closeRequest.requestId) };
 }
