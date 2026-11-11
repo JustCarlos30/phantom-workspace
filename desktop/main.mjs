@@ -113,8 +113,8 @@ async function hostInvoke(method, payload = {}) {
     if (transportLost) hostStatus = { connected: false, error: error.message };
     // A failed operation may be a validation error: do not replay mutations automatically.
     if (connected && transportLost) {
-      connected.close();
-      if (client === connected) client = null;
+      // Keep the client's recovery loop alive even when no further IPC arrives.
+      connected.reconnect();
     }
     throw new Error(`Host: ${error.message}`);
   }

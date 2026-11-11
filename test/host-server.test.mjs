@@ -76,3 +76,36 @@ test('client reconnects with fresh events and never replays an ambiguous write o
   const events=[];client=await connectHost({dataDir:root,onEvent:e=>events.push(e)});await assert.rejects(client.invoke('fixture.write'),/outcome unknown/);await until(()=>connections>=2);await client.invoke('fixture.read');assert.equal(writes,1);assert.ok(events.some(e=>e.status==='disconnected'));assert.ok(events.some(e=>e.generation===2));
   await assert.rejects(client.invoke('fixture.reject'),/not retry safe/);assert.equal(rejections,1);
 });
+
+test('desktop transport recovery reconnects without another request and never replays writes', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-recovery-'));
+  const sockets = new Set(), events = [];
+  let client, connections = 0, writes = 0;
+  const server = net.createServer(socket => {
+    sockets.add(socket); connections++;
+    socket.on('close', () => sockets.delete(socket));
+    socket.on('error', () => {});
+    socket.write(JSON.stringify({ event: { type: 'connection', status: 'connected', generation: connections } }) + '\n');
+    socket.on('data', () => { writes++; socket.destroy(); });
+  });
+  await new Promise(resolve => server.listen(path.join(root, 'host.sock'), resolve));
+  t.after(async () => {
+    client?.close();
+    for (const socket of sockets) socket.destroy();
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  client = await connectHost({ dataDir: root, onEvent: event => events.push(event) });
+  await assert.rejects(client.invoke('fixture.write'), /outcome unknown/);
+  // The desktop handles the failed IPC request here. Recovery must remain active.
+  client.reconnect();
+  await until(() => events.some(event => event.generation === 2));
+  assert.equal(writes, 1);
+  // A deadline can expire while the socket is still open: replace that socket too.
+  client.reconnect();
+  await until(() => events.some(event => event.generation === 3));
+  assert.equal(writes, 1);
+  client.close(); client.reconnect();
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.equal(connections, 3);
+});
