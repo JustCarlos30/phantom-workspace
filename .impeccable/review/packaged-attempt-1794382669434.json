@@ -1,0 +1,635 @@
+{
+  "startedAt": "2026-11-11T07:35:23.291Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "resources": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources",
+  "temp": "/tmp/opencode/phantom-packaged-e2e-V0Ussf",
+  "home": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/profile",
+  "workspacePath": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/SYNTHETIC-E2E-workspace",
+  "fixtureURL": "http://127.0.0.1:39297/",
+  "priorEvidenceArchive": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/before-FR02-FR03-1794382523273",
+  "build": {
+    "version": "0.1.0",
+    "node": "v26.11.1",
+    "electron": "45.3.0",
+    "builtAt": "2026-11-11T07:28:40.505Z",
+    "phantom": "0.5.0",
+    "platform": "linux-x64"
+  },
+  "checks": [
+    {
+      "name": "packaged binary, bundled runtime/CLI/browser paths, isolated empty state",
+      "status": "passed",
+      "durationMs": 20,
+      "details": {
+        "info": {
+          "platform": "Linux",
+          "version": "0.1.0",
+          "versions": {
+            "node": "24.22.2",
+            "acorn": "8.18.0",
+            "ada": "4.0.0",
+            "amaro": "1.1.11",
+            "ares": "1.34.9",
+            "brotli": "1.2.0",
+            "cldr": "48.0",
+            "icu": "78.2",
+            "llhttp": "9.4.3",
+            "merve": "1.2.2",
+            "modules": "150",
+            "napi": "10",
+            "nbytes": "0.1.4",
+            "ncrypto": "0.0.1",
+            "nghttp2": "1.70.0",
+            "nghttp3": "",
+            "ngtcp2": "",
+            "openssl": "0.0.0",
+            "simdjson": "4.6.11",
+            "simdutf": "7.7.0",
+            "sqlite": "3.53.4",
+            "tz": "2026e",
+            "undici": "7.30.1",
+            "unicode": "17.0",
+            "uv": "1.52.1",
+            "uvwasi": "0.0.23",
+            "v8": "15.6.75.50-electron.0",
+            "zlib": "1.3.2.1-motley",
+            "zstd": "1.6.0",
+            "electron": "45.3.0",
+            "chrome": "156.0.8078.96"
+          },
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/profile",
+          "packaged": true,
+          "host": {
+            "connected": true,
+            "error": null,
+            "info": {
+              "platform": "linux",
+              "node": "v26.11.1",
+              "pid": 3299767,
+              "dataDir": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/profile"
+            }
+          },
+          "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+        },
+        "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+        "environment": {
+          "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+          "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+        },
+        "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+        "sandboxFlag": false
+      }
+    },
+    {
+      "name": "open synthetic workspace via real authorized chooser bypass",
+      "status": "passed",
+      "durationMs": 193
+    },
+    {
+      "name": "settings UI isolates Phantom data; bundled CLI remains default",
+      "status": "passed",
+      "durationMs": 183
+    },
+    {
+      "name": "UI terminal 1: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 278,
+      "details": {
+        "session": {
+          "id": "09d3bb55-3521-498d-ac93-a08ca2e82aec",
+          "workspaceId": "68c59801-ae4d-4d25-8a82-23352536d576",
+          "nodeId": "9a22542d-d785-4606-b0f4-39bae5ea6bbd",
+          "pid": 3300051,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "9e548818-0fc9-4bcc-b461-6de0a0296552",
+          "createdAt": "2026-11-11T07:35:24.154Z",
+          "seq": 9,
+          "historyTruncated": false,
+          "snapshotSeq": 9
+        },
+        "data": "sh-5.3$ printf '\\nE2E_0_%s\\n' '20'\r\n\r\nE2E_0_20\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 9,
+        "truncated": false
+      }
+    },
+    {
+      "name": "UI terminal 2: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 204,
+      "details": {
+        "session": {
+          "id": "449b98ad-760e-452b-95d1-6abdb854b980",
+          "workspaceId": "68c59801-ae4d-4d25-8a82-23352536d576",
+          "nodeId": "ced3b9e5-1113-49e6-9f22-e7ef92e3a3ce",
+          "pid": 3300060,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "7ada37f2-a2ae-4c3a-82cb-ba176626214d",
+          "createdAt": "2026-11-11T07:35:24.419Z",
+          "seq": 7,
+          "historyTruncated": false,
+          "snapshotSeq": 7
+        },
+        "data": "sh-5.3$ printf '\\nE2E_1_%s\\n' '21'\r\n\r\nE2E_1_21\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 7,
+        "truncated": false
+      }
+    },
+    {
+      "name": "UI terminal 3: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 202,
+      "details": {
+        "session": {
+          "id": "0a3d8650-8499-4b2c-878a-13986915d4ea",
+          "workspaceId": "68c59801-ae4d-4d25-8a82-23352536d576",
+          "nodeId": "45505544-e2c7-45e8-bdcf-f34787f50848",
+          "pid": 3300087,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "929d09f7-e8e9-42fe-92e8-0bf8cd035f9d",
+          "createdAt": "2026-11-11T07:35:24.618Z",
+          "seq": 8,
+          "historyTruncated": false,
+          "snapshotSeq": 8
+        },
+        "data": "sh-5.3$ printf '\\nE2E_2_%s\\n' '22'\r\n\r\nE2E_2_22\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 8,
+        "truncated": false
+      }
+    },
+    {
+      "name": "shell exit 7 and explicit UI stop remain separate",
+      "status": "passed",
+      "durationMs": 901,
+      "details": {
+        "id": "0a3d8650-8499-4b2c-878a-13986915d4ea",
+        "workspaceId": "68c59801-ae4d-4d25-8a82-23352536d576",
+        "nodeId": "45505544-e2c7-45e8-bdcf-f34787f50848",
+        "pid": 3300087,
+        "status": "exited",
+        "cols": 155,
+        "rows": 37,
+        "generation": "929d09f7-e8e9-42fe-92e8-0bf8cd035f9d",
+        "createdAt": "2026-11-11T07:35:24.618Z",
+        "seq": 11,
+        "historyTruncated": false,
+        "snapshotSeq": 11,
+        "exitCode": 7,
+        "signal": 0
+      }
+    },
+    {
+      "name": "note UI and text editing do not move camera",
+      "status": "passed",
+      "durationMs": 645
+    },
+    {
+      "name": "canvas arrange, resize, zoom, keyboard palette find/focus/return",
+      "status": "passed",
+      "durationMs": 1410
+    },
+    {
+      "name": "FR03 panel context Renombrar inline: Enter/blur persist, Escape+blur cancel, header focus restored",
+      "status": "passed",
+      "durationMs": 613,
+      "details": {
+        "enterPersisted": true,
+        "escapeThenBlurCancelled": true,
+        "blurPersisted": true,
+        "modalBackdrops": 0,
+        "keyboardFocus": "panel title button"
+      }
+    },
+    {
+      "name": "FR03 breadcrumb project rename inline: Enter/blur persist, Escape+blur cancel, focus restored",
+      "status": "failed",
+      "durationMs": 6111,
+      "error": "Timed out waiting for project breadcrumb keyboard focus restored",
+      "stack": "Error: Timed out waiting for project breadcrumb keyboard focus restored\n    at poll (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:54:9)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:252:202\n    at async check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:64:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:248:3",
+      "visibleErrors": [],
+      "nativeViews": []
+    },
+    {
+      "name": "local task actual form and persisted doing status",
+      "status": "passed",
+      "durationMs": 126
+    },
+    {
+      "name": "context real scan/read/pin optional hash regression",
+      "status": "passed",
+      "durationMs": 134,
+      "details": [
+        {
+          "kind": "markdown",
+          "path": "E2E.md",
+          "title": "SYNTHETIC E2E fixture",
+          "source": "workspace",
+          "ref": {
+            "path": "E2E.md"
+          },
+          "id": "ff39a838-edaf-4ec5-89cd-d4ae624aec91",
+          "createdAt": "2026-11-11T07:35:34.740Z"
+        }
+      ]
+    },
+    {
+      "name": "bundled Phantom CLI actual decision creation through native form",
+      "status": "passed",
+      "durationMs": 177,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "mem_80d81139-b2ec-4e66-87e4-ea2c25b28668",
+            "title": "SYNTHETIC E2E decision",
+            "kind": "decision",
+            "status": "active",
+            "body": "Bundled CLI isolated native decision",
+            "source": "phantom",
+            "revision": 1,
+            "raw": {
+              "space": "workspace",
+              "key": "synthetic-e2e",
+              "kind": "decision",
+              "title": "SYNTHETIC E2E decision",
+              "body": "Bundled CLI isolated native decision",
+              "scope": ".",
+              "evidence": [],
+              "expiresAt": null,
+              "id": "mem_80d81139-b2ec-4e66-87e4-ea2c25b28668",
+              "workspaceId": "99817149f769f0bb672ea4ba080ce70575e0637020b06d663f25e665f7f1b2dd",
+              "projectId": "99cbe08396922de98c08965e5eaca889bef5112e9be7f27cf7ef87f6d2e55dd0",
+              "revision": 1,
+              "state": "active",
+              "origin": {
+                "kind": "local_operator",
+                "declared": true
+              },
+              "createdAt": "2026-11-11T07:35:34.912Z",
+              "updatedAt": "2026-11-11T07:35:34.913Z",
+              "evidenceMeaning": "Hashes acreditan vigencia de fuentes, no verificación semántica de la afirmación.",
+              "validity": {
+                "status": "current",
+                "changedEvidence": []
+              }
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T07:35:34.923Z"
+      }
+    },
+    {
+      "name": "bundled Phantom CLI native coordinated card via UI, never execute model",
+      "status": "passed",
+      "durationMs": 252,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "task_ea174061-cd15-4e83-a399-9161f9c21a07",
+            "title": "SYNTHETIC E2E card — no model",
+            "kind": "card",
+            "status": "ready",
+            "source": "phantom",
+            "raw": {
+              "id": "task_ea174061-cd15-4e83-a399-9161f9c21a07",
+              "kind": "card",
+              "status": "ready",
+              "contract": {
+                "goal": "SYNTHETIC E2E card — no model",
+                "lane": "coordinated",
+                "workspace": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/SYNTHETIC-E2E-workspace",
+                "scope": [
+                  "E2E.md"
+                ],
+                "checks": [
+                  {
+                    "name": "not-run",
+                    "kind": "acceptance",
+                    "argv": [
+                      "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+                      "--version"
+                    ],
+                    "cwd": ".",
+                    "protect": [],
+                    "timeoutMs": 30000
+                  }
+                ],
+                "dependencies": [],
+                "budget": {
+                  "timeoutMs": 180000,
+                  "maxTurns": 8,
+                  "maxTools": 40,
+                  "maxRepairs": 0
+                }
+              },
+              "createdAt": "2026-11-11T07:35:35.061Z",
+              "updatedAt": "2026-11-11T07:35:35.061Z",
+              "latestRun": null
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T07:35:35.177Z"
+      }
+    },
+    {
+      "name": "bundled Phantom CLI actual native skill via UI",
+      "status": "passed",
+      "durationMs": 178,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "fixture/synthetic-e2e",
+            "title": "Synthetic bundled native skill",
+            "kind": "skill",
+            "status": "published",
+            "source": "phantom",
+            "revision": "1.0.0",
+            "ref": {
+              "scope": "project:99cbe08396922de98c08965e5eaca889bef5112e9be7f27cf7ef87f6d2e55dd0",
+              "id": "fixture/synthetic-e2e",
+              "version": "1.0.0",
+              "sha256": "c986ec218140b3fed87736b3264fd6f956677cab2993107987f02e5935b5c08f"
+            },
+            "raw": {
+              "ref": {
+                "scope": "project:99cbe08396922de98c08965e5eaca889bef5112e9be7f27cf7ef87f6d2e55dd0",
+                "id": "fixture/synthetic-e2e",
+                "version": "1.0.0",
+                "sha256": "c986ec218140b3fed87736b3264fd6f956677cab2993107987f02e5935b5c08f"
+              },
+              "description": "Synthetic bundled native skill",
+              "actions": [
+                "fixture.read"
+              ],
+              "requiresTools": [],
+              "resourceCount": 0,
+              "state": "published"
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T07:35:35.356Z"
+      }
+    },
+    {
+      "name": "native integration validation error stays visible, host remains connected",
+      "status": "passed",
+      "durationMs": 100,
+      "details": "Error invoking remote method 'phantom:invoke': Error: Host: memory.title: invalid text\nDescartar error"
+    },
+    {
+      "name": "Git actual fixture branch/list via UI and API",
+      "status": "passed",
+      "durationMs": 48,
+      "details": {
+        "available": true,
+        "changes": [],
+        "branches": [
+          {
+            "name": "fixture-main",
+            "oid": "e7c1d2ed1b3de03362343b26bb01734ee44d4fb7",
+            "current": true
+          }
+        ],
+        "worktrees": [
+          {
+            "path": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/SYNTHETIC-E2E-workspace",
+            "oid": "e7c1d2ed1b3de03362343b26bb01734ee44d4fb7",
+            "branch": "fixture-main"
+          }
+        ],
+        "observedAt": "2026-11-11T07:35:35.494Z",
+        "root": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/SYNTHETIC-E2E-workspace",
+        "branch": "fixture-main",
+        "dirty": false
+      }
+    },
+    {
+      "name": "Docker actual readonly availability/owned list",
+      "status": "passed",
+      "durationMs": 58,
+      "details": {
+        "available": true,
+        "items": [],
+        "daemon": "unix:///var/run/docker.sock",
+        "context": "default"
+      }
+    },
+    {
+      "name": "Services owner formatting regression, pin and scoped open via real UI",
+      "status": "passed",
+      "durationMs": 365,
+      "details": {
+        "remote": {
+          "url": "http://127.0.0.1:39297/",
+          "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action",
+          "ready": "complete",
+          "phantom": "undefined",
+          "require": "undefined"
+        },
+        "services": {
+          "items": [
+            {
+              "id": "a07afe6d-1085-4c95-97c8-075d64348fdd",
+              "url": "http://127.0.0.1:39297/",
+              "title": "E2E Local Web",
+              "source": "pinned",
+              "status": "unknown",
+              "observedAt": "2026-11-11T07:35:35.873Z"
+            },
+            {
+              "id": "managed:449b98ad-760e-452b-95d1-6abdb854b980:46627",
+              "title": "Managed port 46627",
+              "url": "http://127.0.0.1:46627/",
+              "port": 46627,
+              "source": "managed",
+              "status": "listening",
+              "health": "unknown",
+              "owner": {
+                "pid": 3300060,
+                "sessionId": "449b98ad-760e-452b-95d1-6abdb854b980"
+              },
+              "observedAt": "2026-11-11T07:35:35.873Z"
+            }
+          ],
+          "observedAt": "2026-11-11T07:35:35.873Z",
+          "dockerAvailable": true
+        }
+      }
+    },
+    {
+      "name": "native browser real URL editing/settled content and remote sandbox",
+      "status": "passed",
+      "durationMs": 78,
+      "details": {
+        "url": "http://127.0.0.1:39297/?ui-navigation=1",
+        "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action",
+        "ready": "complete",
+        "phantom": "undefined",
+        "require": "undefined"
+      }
+    },
+    {
+      "name": "native browser hides beneath inspector and keyboard palette",
+      "status": "passed",
+      "durationMs": 253
+    },
+    {
+      "name": "FR02 tasks inspector: terminal click routes Space/Ctrl+C correctly; fields isolate PTY/camera; browser hidden",
+      "status": "passed",
+      "durationMs": 2543,
+      "details": {
+        "correctSession": "449b98ad-760e-452b-95d1-6abdb854b980",
+        "interruptedOwnedChild": 3300837,
+        "otherSessionsUnchanged": true,
+        "inspectorStayedOpen": true,
+        "inspectorInputPTYTraffic": 0,
+        "cameraUnchanged": true,
+        "nativeBrowserHidden": true
+      }
+    },
+    {
+      "name": "FR02 context inspector: terminal click routes Space/Ctrl+C correctly; fields isolate PTY/camera; browser hidden",
+      "status": "failed",
+      "durationMs": 67,
+      "error": "Palette query must uniquely identify E2E T2\n\n18 !== 1\n",
+      "stack": "AssertionError [ERR_ASSERTION]: Palette query must uniquely identify E2E T2\n\n18 !== 1\n\n    at palette (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:100:10)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:308:5\n    at async check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:64:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:307:43",
+      "visibleErrors": [],
+      "nativeViews": [
+        {
+          "visible": false,
+          "url": "http://127.0.0.1:39297/?ui-navigation=1",
+          "loading": false,
+          "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action"
+        }
+      ]
+    },
+    {
+      "name": "packaged Node playground deterministic UI run",
+      "status": "failed",
+      "durationMs": 5022,
+      "error": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.inspector-host').getByRole('button', { name: 'Ejecutar entrada', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"submit\" class=\"tw-button tw-primary\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    10 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+      "stack": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.inspector-host').getByRole('button', { name: 'Ejecutar entrada', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"submit\" class=\"tw-button tw-primary\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    10 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n    at /home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:336:212\n    at async check (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:64:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:335:3",
+      "visibleErrors": [],
+      "nativeViews": [
+        {
+          "visible": false,
+          "url": "http://127.0.0.1:39297/?ui-navigation=1",
+          "loading": false,
+          "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action"
+        }
+      ]
+    },
+    {
+      "name": "bundled Playwright real live browser, completed/stopped trace and internal viewer UI",
+      "status": "failed",
+      "durationMs": 5019,
+      "error": "locator.check: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.inspector-host').getByLabel('Mantener ventana al terminar', { exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <input type=\"checkbox\"/>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    10 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+      "stack": "locator.check: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.inspector-host').getByLabel('Mantener ventana al terminar', { exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <input type=\"checkbox\"/>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    10 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n    at /home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:340:161\n    at async check (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:64:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:339:3",
+      "visibleErrors": [],
+      "nativeViews": [
+        {
+          "visible": false,
+          "url": "http://127.0.0.1:39297/?ui-navigation=1",
+          "loading": false,
+          "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action"
+        }
+      ]
+    }
+  ],
+  "console": [],
+  "pageErrors": [],
+  "screenshots": [],
+  "launchAttempts": [
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-V0Ussf",
+      "started": true
+    }
+  ],
+  "notes": [
+    "Fresh isolated packaged test; original ledger retained unchanged.",
+    "No microphone/cloud/model calls, Docker mutations, source changes, user profiles, or real repository commits.",
+    "One final batched capture round; native browser image captured directly because renderer screenshots can exclude native layers."
+  ],
+  "packaged": {
+    "info": {
+      "platform": "Linux",
+      "version": "0.1.0",
+      "versions": {
+        "node": "24.22.2",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.9",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "150",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.11",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026e",
+        "undici": "7.30.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.6.75.50-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "45.3.0",
+        "chrome": "156.0.8078.96"
+      },
+      "dataDir": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/profile",
+      "packaged": true,
+      "host": {
+        "connected": true,
+        "error": null,
+        "info": {
+          "platform": "linux",
+          "node": "v26.11.1",
+          "pid": 3299767,
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-V0Ussf/profile"
+        }
+      },
+      "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+    },
+    "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+    "environment": {
+      "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+      "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+    },
+    "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+    "sandboxFlag": false
+  },
+  "summary": {
+    "passed": 22,
+    "failed": 4
+  },
+  "lastFailureFocus": {
+    "active": "<input required=\"\" placeholder=\"https://…\" id=\"_r_1d_\" type=\"url\" value=\"http://127.0.0.1:39297/\">",
+    "documentFocused": true,
+    "inlineNames": []
+  },
+  "blocker": {
+    "message": "locator.check: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.inspector-host').getByLabel('Mantener ventana al terminar', { exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <input type=\"checkbox\"/>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    10 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+    "stack": "locator.check: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.inspector-host').getByLabel('Mantener ventana al terminar', { exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <input type=\"checkbox\"/>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    10 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"tw-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n    at /home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:340:161\n    at async check (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:64:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:339:3"
+  },
+  "finishedAt": "2026-11-11T07:35:48.955Z"
+}

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+out/
+.test-artifacts/
+.impeccable/review/*.png
+*.log
+Phantom Workspace.desktop

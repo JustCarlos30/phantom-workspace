@@ -1,0 +1,72 @@
+# Verificación de entrega — 0.1.0
+
+**0.1 usable, implementada y empaquetada para Linux x64; validación personal pendiente.** Evidencia revisada el 2026-11-11. No equivale a fiabilidad de producción demostrada durante varias jornadas.
+
+## Paquete y arranque
+
+Desde `/home/carlosj/Carlos_World/phantom-workspace`:
+
+```sh
+./launch.sh
+# O directamente:
+"./out/Phantom Workspace-linux-x64/phantom-workspace"
+```
+
+`launch.sh` es ejecutable; también existe `Phantom Workspace.desktop` en esta raíz. Uso y datos: [README](README.md). [BUILD.json](out/Phantom%20Workspace-linux-x64/BUILD.json): versión **0.1.0**, `builtAt: 2026-11-11T08:12:00.320Z`, Electron **45.3.0**, Node del host **v26.11.1**, Phantom **0.5.0**, `linux-x64`. Electron informa su Node interno **24.22.2**; es distinto del runtime independiente del daemon. El paquete incluye Node, código Phantom y Chromium completo para Playwright. Git, Docker, shells y otros binarios requieren las herramientas instaladas en el host; Python es necesario para playgrounds Python y para preparar voz en otro perfil.
+
+Estado predeterminado: `${XDG_STATE_HOME:-~/.local/state}/phantom-workspace`; `PHANTOM_WORKSPACE_HOME` aísla un perfil. Los datos de la app quedan fuera del proyecto abierto; la raíz de código no es su almacén de appdata. Phantom conserva su propio almacén canónico.
+
+## Comandos reproducibles
+
+Con dependencias y display disponibles, ejecutar en la raíz de la app:
+
+```sh
+PHANTOM_DESKTOP_SPIKE=1 PHANTOM_TEST_LOCAL_VOICE=1 npm test
+npm run package
+PHANTOM_TEST_EXECUTABLE="$PWD/out/Phantom Workspace-linux-x64/phantom-workspace" npm run test:desktop
+```
+
+El test de voz real es opt-in y requiere el motor preparado (`npm run setup:voice`, mediante `scripts/setup-voice.mjs`). Desktop usa proyectos y perfiles sintéticos en `/tmp/opencode`; no precisa un proyecto personal. Las instrucciones de instalación están en el README.
+
+## Resultados observados y orden de ejecución
+
+| Evidencia | Resultado | Alcance |
+|---|---|---|
+| Suite completa comunicada por el coordinador, con ambas variables opt-in, después de los fixes de foco y preferencia de shell | **87 passed / 0 failed / 0 skipped** | 59 backend/nativo/ASR + 28 estado renderer; incluye nueva regresión con PTY real de precedencia de shell. |
+| Rebuild de ambos fixes y E2E real del paquete final | **34 passed / 0 failed** | [Ledger vigente](.impeccable/review/desktop-checks.final.json), `2026-11-11T08:13:17.891Z`–`08:13:46.704Z`, fixture `phantom-packaged-e2e-yKqZ9s`. |
+| Revisión visual comunicada por el coordinador | Cinco imágenes actuales validadas | RC01 resuelto mediante recapturas válidas; SHIP del reviewer limitado al score FR01/02/03, sin aprobación general de toda la UI. |
+
+Orden final: fixes de foco (`useLayoutEffect`) y preferencia de shell → suite completa 87/0/0 → paquete reconstruido → E2E completo 34/0. `terminal.create` sin shell explícito respeta `settings.shell`; el shell explícito por sesión tiene precedencia. Se persisten shell real y cwd inicial (campo `cwd` del descriptor, no cwd actual inferido). La regresión `configured shell is used for new sessions and explicit per-session shell takes precedence` en `test/host-pty.test.mjs` verifica PTY real y metadata persistida de shell.
+
+Dos ajustes de sincronización del harness evitan falsos negativos: el ACK nativo de cierre puede cerrar CDP antes del resultado de evaluate, por lo que se comprueban cierre real, persistencia y daemon; Trace Viewer hidrata después de load y se espera su UI real. Intentos fallidos anteriores se conservan como historia, no bugs abiertos de la app. Esta sincronización documental no reejecuta tests ni reconstruye el paquete.
+
+### Qué acredita el E2E vigente
+
+- Arranque normal del ejecutable empaquetado, sin flag de sandbox añadido a la app; renderer desde `dist`, daemon con Node propio, CLI Phantom y Chromium propios.
+- Tres PTY reales con IDs/PIDs distintos, input/output xterm, salida 7 y parada explícita diferenciadas; canvas, resize, zoom, lista/paleta y retorno.
+- Los cuatro checks FR02/03 pasan: Tasks y Context mantienen inspector abierto mientras Space/Ctrl+C llegan a la PTY correcta; sus inputs no envían tráfico PTY ni mueven cámara. Rename inline de panel y proyecto persiste Enter/blur, cancela Escape incluso seguido de blur y devuelve foco tras Enter/Escape.
+- Tarea local persistida, escaneo/lectura/pin MD; decisión, card y skill nativas con CLI real en almacén aislado; validación inválida visible sin falsa desconexión.
+- Git de fixture, disponibilidad/lista Docker de solo lectura; pin de servicio y servicio atribuido a PTY; URL interna real y ausencia de `require`/bridge Phantom en web remota; browser nativo oculto bajo overlays.
+- Playground Node real; Playwright con Chromium visible propio, parada, trace real y visor interno. Transcript escrito → revisión → tarea explícita, sin micrófono.
+- Guardado al cerrar de nota/geometría; reattach caliente al **mismo PID/sesión**; cierre ordenado del host → `exited`/PID null; crash inesperado del daemon de fixture → `lost`/PID null. Conserva historial/layout y no crea shells automáticamente.
+- Cero errores renderer no capturados en este recorrido. Las pruebas sintéticas no son observación de uso de Carlos.
+
+## Voz local: prueba real y límite de precisión
+
+Configuración de este equipo: `~/.local/state/phantom-workspace/voice-runtime/config.json`, **faster-whisper 1.2.1**, modelo **base** multilingüe CPU/int8, **PyAV 16.1.0**. Modelo `Systran/faster-whisper-base`, revisión `ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66`.
+
+La suite opt-in transcribió WAV sintético en inglés y WebM/Opus reales. La frase «review the project» pasó a «remove the product»: sustitución ASR real, no precisión perfecta. La UI permite revisar y editar antes de actuar. El E2E del paquete usó texto escrito; no probó captura de micrófono. Calidad del español y micrófono de Carlos pendientes.
+
+## Capturas vigentes
+
+Capturas vigentes registradas por el último E2E, descritas en el [informe E2E](.impeccable/review/E2E-final-report.md): [desktop 1520×980](.impeccable/review/desktop.png), [narrow 1100×760](.impeccable/review/narrow.png), [browser nativo](.impeccable/review/browser-native.png), [terminal enfocado](.impeccable/review/focused-terminal.png), [herramientas](.impeccable/review/tools.png). Fixtures sintéticos, no trabajo personal. Assets UI con hash sin cambios respecto al build revisado, según coordinador; sin cambios de geometría/apariencia ni ampliación del SHIP FR01/02/03. El browser se captura directamente porque la captura renderer puede excluir capas nativas. No se realiza recaptura para esta actualización documental.
+
+Los fallos de ejecuciones anteriores están archivados; el viejo resultado 32/2 no son bugs abiertos del paquete vigente. La discrepancia guía/metadata del CLI de diseño está registrada en [procedencia](.impeccable/review/direction-provenance.md), no es defecto de la app.
+
+## Límites y siguiente validación
+
+No se ejecutaron modelos/cloud, captura real de micrófono ni acciones Docker contra contenedores del usuario. Las APIs de control Phantom y Docker existen, pero este recorrido no acredita ejecución comercial de modelos ni lifecycle de contenedores reales. Dossier/refs no importan automáticamente conversaciones: una identidad de proveedor ausente sigue desconocida.
+
+Pendientes: uso observado y aceptación de Carlos, cinco jornadas de dogfood, workload propuesto de **10 min / 12 PTY / 100 nodos / dos previews** y presupuestos p95/CPU/RSS, comparación runtime Tauri/React Flow, lector de pantalla/IME/TUIs personales completos. El crash probado fue del daemon sintético: **no se reinició el PC del usuario**. La restauración tras reboot real sigue por validar.
+
+**Siguiente paso:** abrir un proyecto real con `./launch.sh`, usar esta versión y registrar dónde cuesta crear, encontrar o retomar trabajo. El [backlog](../harness_engineer/war-room/terminal-canvas/backlog.json) conserva aceptación pendiente por card, sin confundir cobertura de código con cierre del gate diario.

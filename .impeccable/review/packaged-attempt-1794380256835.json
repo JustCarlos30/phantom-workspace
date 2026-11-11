@@ -1,0 +1,557 @@
+{
+  "startedAt": "2026-11-11T06:56:18.048Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "resources": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources",
+  "temp": "/tmp/opencode/phantom-packaged-e2e-BRpsNw",
+  "home": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/profile",
+  "workspacePath": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/SYNTHETIC-E2E-workspace",
+  "fixtureURL": "http://127.0.0.1:39051/",
+  "checks": [
+    {
+      "name": "packaged binary, bundled runtime/CLI/browser paths, isolated empty state",
+      "status": "passed",
+      "durationMs": 16,
+      "details": {
+        "info": {
+          "platform": "Linux",
+          "version": "0.1.0",
+          "versions": {
+            "node": "24.22.2",
+            "acorn": "8.18.0",
+            "ada": "4.0.0",
+            "amaro": "1.1.11",
+            "ares": "1.34.9",
+            "brotli": "1.2.0",
+            "cldr": "48.0",
+            "icu": "78.2",
+            "llhttp": "9.4.3",
+            "merve": "1.2.2",
+            "modules": "150",
+            "napi": "10",
+            "nbytes": "0.1.4",
+            "ncrypto": "0.0.1",
+            "nghttp2": "1.70.0",
+            "nghttp3": "",
+            "ngtcp2": "",
+            "openssl": "0.0.0",
+            "simdjson": "4.6.11",
+            "simdutf": "7.7.0",
+            "sqlite": "3.53.4",
+            "tz": "2026e",
+            "undici": "7.30.1",
+            "unicode": "17.0",
+            "uv": "1.52.1",
+            "uvwasi": "0.0.23",
+            "v8": "15.6.75.50-electron.0",
+            "zlib": "1.3.2.1-motley",
+            "zstd": "1.6.0",
+            "electron": "45.3.0",
+            "chrome": "156.0.8078.96"
+          },
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/profile",
+          "packaged": true,
+          "host": {
+            "connected": true,
+            "error": null,
+            "info": {
+              "platform": "linux",
+              "node": "v26.11.1",
+              "pid": 3236419,
+              "dataDir": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/profile"
+            }
+          },
+          "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+        },
+        "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+        "environment": {
+          "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+          "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+        },
+        "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+        "sandboxFlag": false
+      }
+    },
+    {
+      "name": "open synthetic workspace via real authorized chooser bypass",
+      "status": "passed",
+      "durationMs": 193
+    },
+    {
+      "name": "settings UI isolates Phantom data; bundled CLI remains default",
+      "status": "passed",
+      "durationMs": 194
+    },
+    {
+      "name": "UI terminal 1: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 612,
+      "details": {
+        "session": {
+          "id": "871e5e48-5281-412c-b8af-ad4944f4103b",
+          "workspaceId": "52b0178d-fe0a-4ce6-aaf9-6f2755e934b8",
+          "nodeId": "572270a3-01a6-4d3e-b17a-e0d4bcfbdaaa",
+          "pid": 3236717,
+          "status": "running",
+          "cols": 94,
+          "rows": 20,
+          "generation": "27e51c7a-1dc0-4deb-bb71-fc71e385b21c",
+          "createdAt": "2026-11-11T06:56:18.912Z",
+          "seq": 8,
+          "historyTruncated": false,
+          "snapshotSeq": 8
+        },
+        "data": "sh-5.3$ printf '\\nE2E_0_%s\\n' '20'\r\n\r\nE2E_0_20\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 8,
+        "truncated": false
+      }
+    },
+    {
+      "name": "UI terminal 2: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 552,
+      "details": {
+        "session": {
+          "id": "1c94f151-c0af-4c40-ba93-3f63c1d1147a",
+          "workspaceId": "52b0178d-fe0a-4ce6-aaf9-6f2755e934b8",
+          "nodeId": "f5543501-029c-4d15-8a9b-925c14c04d12",
+          "pid": 3236727,
+          "status": "running",
+          "cols": 94,
+          "rows": 20,
+          "generation": "81c20094-12cc-4281-bcd5-c342baaf08b9",
+          "createdAt": "2026-11-11T06:56:19.506Z",
+          "seq": 9,
+          "historyTruncated": false,
+          "snapshotSeq": 9
+        },
+        "data": "sh-5.3$ printf '\\nE2E_1_%s\\n' '21'\r\n\r\nE2E_1_21\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 9,
+        "truncated": false
+      }
+    },
+    {
+      "name": "UI terminal 3: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 542,
+      "details": {
+        "session": {
+          "id": "174b0bcf-08cc-4d4e-b29e-1d0a160a47a3",
+          "workspaceId": "52b0178d-fe0a-4ce6-aaf9-6f2755e934b8",
+          "nodeId": "844a631c-e2d7-4450-9896-bc1c970200a2",
+          "pid": 3236729,
+          "status": "running",
+          "cols": 94,
+          "rows": 20,
+          "generation": "f447358d-0bf4-46f0-9963-ff308db90f5e",
+          "createdAt": "2026-11-11T06:56:20.053Z",
+          "seq": 8,
+          "historyTruncated": false,
+          "snapshotSeq": 8
+        },
+        "data": "sh-5.3$ printf '\\nE2E_2_%s\\n' '22'\r\n\r\nE2E_2_22\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 8,
+        "truncated": false
+      }
+    },
+    {
+      "name": "shell exit 7 and explicit UI stop remain separate",
+      "status": "failed",
+      "durationMs": 5024,
+      "error": "locator.fill: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('combobox', { name: 'Buscar paneles y herramientas' })\u001b[22m\n",
+      "stack": "locator.fill: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('combobox', { name: 'Buscar paneles y herramientas' })\u001b[22m\n\n    at palette (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:90:79)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:183:5\n    at async check (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:54:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:180:3",
+      "visibleErrors": []
+    },
+    {
+      "name": "note UI and text editing do not move camera",
+      "status": "passed",
+      "durationMs": 975
+    },
+    {
+      "name": "canvas arrange, resize, zoom, keyboard palette find/focus/return",
+      "status": "passed",
+      "durationMs": 1394
+    },
+    {
+      "name": "local task actual form and persisted doing status",
+      "status": "passed",
+      "durationMs": 148
+    },
+    {
+      "name": "context real scan/read/pin optional hash regression",
+      "status": "passed",
+      "durationMs": 118,
+      "details": [
+        {
+          "kind": "markdown",
+          "path": "E2E.md",
+          "title": "SYNTHETIC E2E fixture",
+          "source": "workspace",
+          "ref": {
+            "path": "E2E.md"
+          },
+          "id": "efc917cb-6665-4bbf-a456-e5f4e91819b5",
+          "createdAt": "2026-11-11T06:56:28.223Z"
+        }
+      ]
+    },
+    {
+      "name": "bundled Phantom CLI actual decision creation through native form",
+      "status": "passed",
+      "durationMs": 304,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "mem_70a3ab96-ea46-4999-8c0b-8b224f6e3db7",
+            "title": "SYNTHETIC E2E decision",
+            "kind": "decision",
+            "status": "active",
+            "body": "Bundled CLI isolated native decision",
+            "source": "phantom",
+            "revision": 1,
+            "raw": {
+              "space": "workspace",
+              "key": "synthetic-e2e",
+              "kind": "decision",
+              "title": "SYNTHETIC E2E decision",
+              "body": "Bundled CLI isolated native decision",
+              "scope": ".",
+              "evidence": [],
+              "expiresAt": null,
+              "id": "mem_70a3ab96-ea46-4999-8c0b-8b224f6e3db7",
+              "workspaceId": "ca9e7a4c7ba4b2f062ee4deb34665c1bb857151e1259c20f9c92271b81b4a355",
+              "projectId": "ca6815ec6d029f6f5b85b226ecc11d1fa76b658059e8cbd02840751314f20f4f",
+              "revision": 1,
+              "state": "active",
+              "origin": {
+                "kind": "local_operator",
+                "declared": true
+              },
+              "createdAt": "2026-11-11T06:56:28.396Z",
+              "updatedAt": "2026-11-11T06:56:28.396Z",
+              "evidenceMeaning": "Hashes acreditan vigencia de fuentes, no verificación semántica de la afirmación.",
+              "validity": {
+                "status": "current",
+                "changedEvidence": []
+              }
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T06:56:28.532Z"
+      }
+    },
+    {
+      "name": "bundled Phantom CLI native coordinated card via UI, never execute model",
+      "status": "passed",
+      "durationMs": 178,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "task_46d39c46-bb96-4fcb-a2f4-37152e437c1b",
+            "title": "SYNTHETIC E2E card — no model",
+            "kind": "card",
+            "status": "ready",
+            "source": "phantom",
+            "raw": {
+              "id": "task_46d39c46-bb96-4fcb-a2f4-37152e437c1b",
+              "kind": "card",
+              "status": "ready",
+              "contract": {
+                "goal": "SYNTHETIC E2E card — no model",
+                "lane": "coordinated",
+                "workspace": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/SYNTHETIC-E2E-workspace",
+                "scope": [
+                  "E2E.md"
+                ],
+                "checks": [
+                  {
+                    "name": "not-run",
+                    "kind": "acceptance",
+                    "argv": [
+                      "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+                      "--version"
+                    ],
+                    "cwd": ".",
+                    "protect": [],
+                    "timeoutMs": 30000
+                  }
+                ],
+                "dependencies": [],
+                "budget": {
+                  "timeoutMs": 180000,
+                  "maxTurns": 8,
+                  "maxTools": 40,
+                  "maxRepairs": 0
+                }
+              },
+              "createdAt": "2026-11-11T06:56:28.688Z",
+              "updatedAt": "2026-11-11T06:56:28.689Z",
+              "latestRun": null
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T06:56:28.710Z"
+      }
+    },
+    {
+      "name": "bundled Phantom CLI actual native skill via UI",
+      "status": "passed",
+      "durationMs": 342,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "fixture/synthetic-e2e",
+            "title": "Synthetic bundled native skill",
+            "kind": "skill",
+            "status": "published",
+            "source": "phantom",
+            "revision": "1.0.0",
+            "ref": {
+              "scope": "project:ca6815ec6d029f6f5b85b226ecc11d1fa76b658059e8cbd02840751314f20f4f",
+              "id": "fixture/synthetic-e2e",
+              "version": "1.0.0",
+              "sha256": "c986ec218140b3fed87736b3264fd6f956677cab2993107987f02e5935b5c08f"
+            },
+            "raw": {
+              "ref": {
+                "scope": "project:ca6815ec6d029f6f5b85b226ecc11d1fa76b658059e8cbd02840751314f20f4f",
+                "id": "fixture/synthetic-e2e",
+                "version": "1.0.0",
+                "sha256": "c986ec218140b3fed87736b3264fd6f956677cab2993107987f02e5935b5c08f"
+              },
+              "description": "Synthetic bundled native skill",
+              "actions": [
+                "fixture.read"
+              ],
+              "requiresTools": [],
+              "resourceCount": 0,
+              "state": "published"
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T06:56:29.053Z"
+      }
+    },
+    {
+      "name": "native integration validation error stays visible, host remains connected",
+      "status": "passed",
+      "durationMs": 124,
+      "details": "Error invoking remote method 'phantom:invoke': Error: Host: memory.title: invalid text\nDescartar error"
+    },
+    {
+      "name": "Git actual fixture branch/list via UI and API",
+      "status": "passed",
+      "durationMs": 50,
+      "details": {
+        "available": true,
+        "changes": [],
+        "branches": [
+          {
+            "name": "fixture-main",
+            "oid": "8a7cbfe6351d4757832996731c3e3caf73a6c1a4",
+            "current": true
+          }
+        ],
+        "worktrees": [
+          {
+            "path": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/SYNTHETIC-E2E-workspace",
+            "oid": "8a7cbfe6351d4757832996731c3e3caf73a6c1a4",
+            "branch": "fixture-main"
+          }
+        ],
+        "observedAt": "2026-11-11T06:56:29.214Z",
+        "root": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/SYNTHETIC-E2E-workspace",
+        "branch": "fixture-main",
+        "dirty": false
+      }
+    },
+    {
+      "name": "Docker actual readonly availability/owned list",
+      "status": "passed",
+      "durationMs": 55,
+      "details": {
+        "available": true,
+        "items": [],
+        "daemon": "unix:///var/run/docker.sock",
+        "context": "default"
+      }
+    },
+    {
+      "name": "Services owner formatting regression, pin and scoped open via real UI",
+      "status": "passed",
+      "durationMs": 312,
+      "details": {
+        "remote": {
+          "url": "http://127.0.0.1:39051/",
+          "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action",
+          "ready": "complete",
+          "phantom": "undefined",
+          "require": "undefined"
+        },
+        "services": {
+          "items": [
+            {
+              "id": "1465ff6a-20b2-4eae-b43d-13a126971f04",
+              "url": "http://127.0.0.1:39051/",
+              "title": "E2E Local Web",
+              "source": "pinned",
+              "status": "unknown",
+              "observedAt": "2026-11-11T06:56:29.535Z"
+            },
+            {
+              "id": "managed:1c94f151-c0af-4c40-ba93-3f63c1d1147a:40799",
+              "title": "Managed port 40799",
+              "url": "http://127.0.0.1:40799/",
+              "port": 40799,
+              "source": "managed",
+              "status": "listening",
+              "health": "unknown",
+              "owner": {
+                "pid": 3236727,
+                "sessionId": "1c94f151-c0af-4c40-ba93-3f63c1d1147a"
+              },
+              "observedAt": "2026-11-11T06:56:29.535Z"
+            }
+          ],
+          "observedAt": "2026-11-11T06:56:29.535Z",
+          "dockerAvailable": true
+        }
+      }
+    },
+    {
+      "name": "native browser real URL editing/settled content and remote sandbox",
+      "status": "passed",
+      "durationMs": 78,
+      "details": {
+        "url": "http://127.0.0.1:39051/?ui-navigation=1",
+        "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action",
+        "ready": "complete",
+        "phantom": "undefined",
+        "require": "undefined"
+      }
+    },
+    {
+      "name": "native browser hides beneath inspector and keyboard palette",
+      "status": "passed",
+      "durationMs": 246
+    },
+    {
+      "name": "packaged Node playground deterministic UI run",
+      "status": "passed",
+      "durationMs": 172,
+      "details": {
+        "runtime": "node",
+        "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+        "cwd": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/SYNTHETIC-E2E-workspace",
+        "timeoutMs": 30000,
+        "id": "68d73f64-55f4-4fbd-bf56-e952720b7e17",
+        "workspaceId": "52b0178d-fe0a-4ce6-aaf9-6f2755e934b8",
+        "kind": "playground",
+        "status": "completed",
+        "artifactDir": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/profile/automation/52b0178d-fe0a-4ce6-aaf9-6f2755e934b8/68d73f64-55f4-4fbd-bf56-e952720b7e17",
+        "output": "SYNTHETIC_NODE_RESULT 42\n",
+        "createdAt": "2026-11-11T06:56:30.028Z",
+        "sourcePath": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/profile/automation/52b0178d-fe0a-4ce6-aaf9-6f2755e934b8/68d73f64-55f4-4fbd-bf56-e952720b7e17/source.mjs",
+        "runtimeVersion": "v26.11.1",
+        "exitCode": 0,
+        "exitSignal": null,
+        "finishedAt": "2026-11-11T06:56:30.066Z",
+        "owned": false
+      }
+    },
+    {
+      "name": "bundled Playwright real live browser, completed/stopped trace and internal viewer UI",
+      "status": "failed",
+      "durationMs": 11454,
+      "error": "Timed out waiting for settled native page http://127.0.0.1:46611/",
+      "stack": "Error: Timed out waiting for settled native page http://127.0.0.1:46611/\n    at poll (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:44:9)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:269:20\n    at async check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:54:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:256:3",
+      "visibleErrors": []
+    }
+  ],
+  "console": [],
+  "pageErrors": [],
+  "screenshots": [],
+  "launchAttempts": [
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-BRpsNw",
+      "started": true
+    }
+  ],
+  "notes": [
+    "Fresh isolated packaged test; original ledger retained unchanged.",
+    "No microphone/cloud/model calls, Docker mutations, source changes, user profiles, or real repository commits.",
+    "One final batched capture round; native browser image captured directly because renderer screenshots can exclude native layers."
+  ],
+  "packaged": {
+    "info": {
+      "platform": "Linux",
+      "version": "0.1.0",
+      "versions": {
+        "node": "24.22.2",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.9",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "150",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.11",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026e",
+        "undici": "7.30.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.6.75.50-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "45.3.0",
+        "chrome": "156.0.8078.96"
+      },
+      "dataDir": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/profile",
+      "packaged": true,
+      "host": {
+        "connected": true,
+        "error": null,
+        "info": {
+          "platform": "linux",
+          "node": "v26.11.1",
+          "pid": 3236419,
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-BRpsNw/profile"
+        }
+      },
+      "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+    },
+    "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+    "environment": {
+      "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+      "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+    },
+    "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+    "sandboxFlag": false
+  },
+  "summary": {
+    "passed": 20,
+    "failed": 2
+  },
+  "blocker": {
+    "message": "Timed out waiting for settled native page http://127.0.0.1:46611/",
+    "stack": "Error: Timed out waiting for settled native page http://127.0.0.1:46611/\n    at poll (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:44:9)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:269:20\n    at async check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:54:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:256:3"
+  },
+  "finishedAt": "2026-11-11T06:56:41.563Z"
+}

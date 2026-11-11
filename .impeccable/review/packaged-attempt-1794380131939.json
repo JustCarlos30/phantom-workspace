@@ -1,0 +1,44 @@
+{
+  "startedAt": "2026-11-11T06:55:04.137Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "resources": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources",
+  "temp": "/tmp/opencode/phantom-packaged-e2e-0tgDrR",
+  "home": "/tmp/opencode/phantom-packaged-e2e-0tgDrR/profile",
+  "workspacePath": "/tmp/opencode/phantom-packaged-e2e-0tgDrR/SYNTHETIC-E2E-workspace",
+  "fixtureURL": "http://127.0.0.1:37727/",
+  "checks": [
+    {
+      "name": "packaged binary, bundled runtime/CLI/browser paths, isolated empty state",
+      "status": "failed",
+      "durationMs": 20,
+      "error": "The expression evaluated to a falsy value:\n\n  assert(uiURL.startsWith(`file://${resources}/app/dist/`))\n",
+      "stack": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(uiURL.startsWith(`file://${resources}/app/dist/`))\n\n    at file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:155:31\n    at async check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:53:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:147:3",
+      "visibleErrors": []
+    }
+  ],
+  "console": [],
+  "pageErrors": [],
+  "screenshots": [],
+  "launchAttempts": [
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-0tgDrR",
+      "started": true
+    }
+  ],
+  "notes": [
+    "Fresh isolated packaged test; original ledger retained unchanged.",
+    "No microphone/cloud/model calls, Docker mutations, source changes, user profiles, or real repository commits.",
+    "One final batched capture round; native browser image captured directly because renderer screenshots can exclude native layers."
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  },
+  "blocker": {
+    "message": "The expression evaluated to a falsy value:\n\n  assert(uiURL.startsWith(`file://${resources}/app/dist/`))\n",
+    "stack": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(uiURL.startsWith(`file://${resources}/app/dist/`))\n\n    at file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:155:31\n    at async check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:53:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:147:3"
+  },
+  "finishedAt": "2026-11-11T06:55:04.575Z"
+}

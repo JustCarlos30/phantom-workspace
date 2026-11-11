@@ -1,0 +1,32 @@
+{
+  "finding": "RC-01",
+  "startedAt": "2026-11-11T07:07:04.737Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "build": {
+    "version": "0.1.0",
+    "node": "v26.11.1",
+    "electron": "45.3.0",
+    "builtAt": "2026-11-11T06:49:14.687Z",
+    "phantom": "0.5.0",
+    "platform": "linux-x64"
+  },
+  "fixture": "/tmp/opencode/phantom-rc01-3TEiIX",
+  "profile": "/tmp/opencode/phantom-rc01-3TEiIX/profile",
+  "checks": [],
+  "measurements": [],
+  "screenshots": [],
+  "console": [],
+  "pageErrors": [],
+  "resizeDescription": "One keyboard width resize of the terminal panel in overview between focus cycles; window remains 1520x980.",
+  "priorLedgerModified": false,
+  "blocker": {
+    "message": "page.waitForFunction: Timeout 5000ms exceeded.",
+    "stack": "page.waitForFunction: Timeout 5000ms exceeded.\n    at runRecapture (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:405:125)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:16:3"
+  },
+  "finishedAt": "2026-11-11T07:07:10.179Z",
+  "summary": {
+    "passed": 0,
+    "failed": 0
+  },
+  "agentImageReview": "Pending image reads; pixel checks alone do not substitute for review"
+}

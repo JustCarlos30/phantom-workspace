@@ -1,0 +1,10 @@
+{
+  "fixture": "/tmp/opencode/phantom-e2e-tdbRLS",
+  "status": "failed",
+  "reproduction": "Production Electron isolated profile; three UI-created terminals using inherited /usr/bin/fish; open Services inspector, pin a localhost fixture URL. Services API includes managed owner objects; renderer becomes blank.",
+  "actualError": "Minified React error #31; object with keys {pid, sessionId}",
+  "stack": "lo dist/assets/index-BTr5fg4y.js:8:39497; Q :8:41341; ue :8:42750; Ae :8:44922; Ct :8:69338; iv :8:85510; Pv :8:129576; AS :8:128620; bh :8:128450",
+  "source": "src/components/ToolPanels.jsx Services renders service.owner directly; integrations/services.mjs returns owner:{pid,sessionId} for managed ports and object owner for Compose.",
+  "harnessCorrections": ["Use portable printf rather than bash arithmetic under fish", "Wait for debounced note persistence", "Disambiguate context text locator", "Add required name to native card check", "Bound cleanup and save results incrementally"],
+  "note": "First execution timed out during cleanup after blank renderer; subsequent independent run uses /bin/sh selected through settings UI. This app failure is retained, not treated as a skip or pass."
+}

@@ -1,0 +1,183 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn, execFileSync } from 'node:child_process';
+import { createHost } from '../host/server.mjs';
+import { connectHost } from '../desktop/host-client.mjs';
+
+async function until(fn,ms=5000) {const end=Date.now()+ms;while(Date.now()<end){const value=await fn();if(value)return value;await new Promise(r=>setTimeout(r,30));}throw new Error('Timed out waiting for PTY output');}
+test('new terminals use independent Git branches/worktrees and relaunch preserves uncommitted work', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-worktrees-'));
+  const repository = path.join(root, 'repository'), dataDir = path.join(root, 'state');
+  fs.mkdirSync(repository);
+  const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
+  git(repository, 'init', '-b', 'main');
+  fs.writeFileSync(path.join(repository, 'tracked.txt'), 'committed\n');
+  git(repository, 'add', 'tracked.txt');
+  git(repository, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-m', 'Fixture base');
+  const host = await createHost({ dataDir, handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspace = await host.invoke('workspace.open', { path: repository });
+  const [one, two] = await Promise.all([1, 2].map(() => host.invoke('terminal.create', { workspaceId: workspace.id, shell: '/bin/sh' })));
+  assert.notEqual(one.session.cwd, repository);
+  assert.notEqual(one.session.cwd, two.session.cwd);
+  assert.notEqual(one.session.worktree.branch, two.session.worktree.branch);
+  assert.equal(git(one.session.cwd, 'branch', '--show-current'), one.session.worktree.branch);
+  assert.equal(one.node.data.cwd, one.session.cwd);
+  await host.invoke('terminal.write', { sessionId: one.session.id, data: 'printf "WORKTREE_CWD:%s\\n" "$PWD"\n' });
+  await until(async () => (await host.invoke('terminal.attach', { sessionId: one.session.id })).data.includes(`WORKTREE_CWD:${one.session.cwd}`));
+  fs.writeFileSync(path.join(one.session.cwd, 'tracked.txt'), 'private uncommitted change\n');
+  assert.equal(fs.readFileSync(path.join(two.session.cwd, 'tracked.txt'), 'utf8'), 'committed\n');
+  assert.equal(git(repository, 'status', '--porcelain'), '');
+  await host.invoke('terminal.stop', { sessionId: one.session.id });
+  await until(() => host.terminals.get(one.session.id).status === 'exited');
+  const relaunched = await host.invoke('terminal.create', { workspaceId: workspace.id, nodeId: one.node.id, shell: '/bin/sh' });
+  assert.equal(relaunched.session.cwd, one.session.cwd);
+  assert.equal(fs.readFileSync(path.join(relaunched.session.cwd, 'tracked.txt'), 'utf8'), 'private uncommitted change\n');
+  assert.equal(git(repository, 'worktree', 'list', '--porcelain').match(/^worktree /gm).length, 3);
+  await host.close();
+  const restored = await createHost({ dataDir, handleIntegration: () => ({ handled: false }) });
+  try {
+    const resumed = await restored.invoke('terminal.create', { workspaceId: workspace.id, nodeId: one.node.id, shell: '/bin/sh' });
+    assert.equal(resumed.session.cwd, one.session.cwd);
+    assert.equal(fs.readFileSync(path.join(resumed.session.cwd, 'tracked.txt'), 'utf8'), 'private uncommitted change\n');
+    assert.equal(git(repository, 'worktree', 'list', '--porcelain').match(/^worktree /gm).length, 3);
+  } finally { await restored.close(); }
+});
+
+test('non-Git and unborn repositories open normal terminals with an explicit reason; concurrent launches cannot duplicate a node', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-worktree-fallback-'));
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal' });
+  const results = await Promise.allSettled([1, 2].map(() => host.invoke('terminal.create', { workspaceId: workspace.id, nodeId: node.id, shell: '/bin/sh' })));
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  const normal = results.find(result => result.status === 'fulfilled').value;
+  assert.equal(normal.session.cwd, root);
+  assert.equal(normal.session.worktree, null);
+  assert.match(normal.session.worktreeReason, /sin repositorio Git/);
+  execFileSync('git', ['init', '-b', 'main', root]);
+  const unborn = await host.invoke('terminal.create', { workspaceId: workspace.id, shell: '/bin/sh' });
+  assert.equal(unborn.session.cwd, root);
+  assert.equal(unborn.session.worktree, null);
+  assert.match(unborn.session.worktreeReason, /sin commits/);
+});
+test('configured shell is used for new sessions and explicit per-session shell takes precedence',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-shell-pref-'));
+  const host=await createHost({dataDir:path.join(root,'state'),handleIntegration:()=>({handled:false})});
+  t.after(async()=>{await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  const w=await host.invoke('workspace.open',{path:root});
+  await host.invoke('settings.update',{patch:{shell:'/bin/sh'}});
+  const preferred=await host.invoke('terminal.create',{workspaceId:w.id});
+  assert.equal(preferred.session.shell,'/bin/sh');assert.equal(preferred.session.cwd,w.canonicalPath);
+  await host.invoke('terminal.write',{sessionId:preferred.session.id,data:"printf 'CONFIGURED_SHELL_%s\\n' \"$0\"\n"});
+  await until(async()=>/CONFIGURED_SHELL_.*sh/.test((await host.invoke('terminal.attach',{sessionId:preferred.session.id})).data));
+  const explicit=await host.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'});
+  assert.equal(explicit.session.shell,'/bin/bash');
+  await host.close();
+  const history=JSON.parse(fs.readFileSync(path.join(root,'state','terminals.json'),'utf8'));
+  assert.equal(history.find(s=>s.id===preferred.session.id).shell,'/bin/sh');
+});
+test('real PTY write/resize, isolated output, ANSI reattach, explicit shutdown',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-pty-'));let c;
+  const events=[],host=await createHost({dataDir:path.join(root,'state'),handleIntegration:()=>({handled:false})});t.after(async()=>{c?.close();await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  const a=await host.invoke('workspace.open',{path:root});const otherFolder=path.join(root,'other');fs.mkdirSync(otherFolder);const b=await host.invoke('workspace.open',{path:otherFolder});
+  host.emit=e=>events.push(e);
+  c=await connectHost({dataDir:host.store.dir,onEvent:e=>events.push(e)});
+  const one=await c.invoke('terminal.create',{workspaceId:a.id,shell:'/bin/bash'}),two=await c.invoke('terminal.create',{workspaceId:b.id,shell:'/bin/bash'});
+  assert.ok(one.session.pid>0);await assert.rejects(c.invoke('terminal.create',{workspaceId:a.id,nodeId:one.node.id}),/already/);
+  await c.invoke('terminal.resize',{sessionId:one.session.id,cols:100,rows:32});await assert.rejects(c.invoke('terminal.resize',{sessionId:one.session.id,cols:0,rows:24}),/bounds/);
+  await c.invoke('terminal.write',{sessionId:one.session.id,data:"printf '\\033[31mPTY_MARKER_RED\\033[0m\\n'; stty size\n"});
+  const snap=await until(async()=>{const s=await c.invoke('terminal.attach',{sessionId:one.session.id});return s.data.includes('PTY_MARKER_RED')&&s.data.includes('32 100')?s:null;});assert.equal(snap.session.cols,100);assert.ok(snap.seq>0);assert.match(snap.data,/\x1b\[/);
+  assert.ok(!(await c.invoke('terminal.attach',{sessionId:two.session.id})).data.includes('PTY_MARKER_RED'));
+  assert.ok(events.filter(e=>e.type==='terminal.output'&&e.data.includes('PTY_MARKER_RED')).every(e=>e.workspaceId===a.id));
+  await c.invoke('terminal.write',{sessionId:one.session.id,data:"printf '\\033[?1049h\\033[2J\\033[HALTERNATE_SCREEN_MARKER'; sleep 0.2\n"});
+  await until(async()=>{const s=await c.invoke('terminal.attach',{sessionId:one.session.id});return s.data.includes('ALTERNATE_SCREEN_MARKER')&&s.data.includes('\x1b[?1049h');});
+  await c.invoke('terminal.write',{sessionId:one.session.id,data:"printf '\\033[?1049l'; sleep 60 & printf 'OWNED_CHILD:%s\\n' \"$!\"; wait\n"});
+  const childSnapshot=await until(async()=>{const s=await c.invoke('terminal.attach',{sessionId:one.session.id});return /OWNED_CHILD:\d+/.test(s.data)?s:null;});const childPid=Number(/OWNED_CHILD:(\d+)/.exec(childSnapshot.data)[1]);
+  c.close();const reattach=await connectHost({dataDir:host.store.dir});assert.equal((await reattach.invoke('terminal.attach',{sessionId:one.session.id})).session.pid,one.session.pid);reattach.close();
+  await host.close();assert.equal(host.terminals.get(one.session.id).status,'exited');assert.equal(host.terminals.live.size,0);
+  await until(()=>{try{return fs.readFileSync(`/proc/${childPid}/stat`,'utf8').split(') ')[1].startsWith('Z');}catch{return true;}});
+});
+test('cold daemon restart restores readable snapshot as lost, never spawns restored sessions',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-cold-'));const dataDir=path.join(root,'state');let client,restored;
+  const child=spawn(process.execPath,[new URL('../host/server.mjs',import.meta.url).pathname,'--data',dataDir],{stdio:['ignore','pipe','pipe']});
+  t.after(async()=>{client?.close();if(child.exitCode===null && child.signalCode===null){const done=new Promise(r=>child.once('exit',r));child.kill('SIGKILL');await done;}await restored?.close();fs.rmSync(root,{recursive:true,force:true});});
+  await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);child.once('exit',code=>reject(new Error(`Host exited ${code}`)));});
+  client=await connectHost({dataDir});const w=await client.invoke('workspace.open',{path:root});const {session}=await client.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'});
+  await client.invoke('terminal.write',{sessionId:session.id,data:"printf 'COLD_SCREEN_MARKER\\n'\n"});await until(async()=>{const file=path.join(dataDir,'terminals.json');return fs.existsSync(file)&&fs.readFileSync(file,'utf8').includes('COLD_SCREEN_MARKER');});
+  client.close();const exited=new Promise(r=>child.once('exit',r));child.kill('SIGKILL');await exited;
+  restored=await createHost({dataDir,handleIntegration:()=>({handled:false})});
+  const snap=await restored.invoke('terminal.attach',{sessionId:session.id});assert.equal(snap.session.status,'lost');assert.equal(snap.session.pid,null);assert.match(snap.data,/COLD_SCREEN_MARKER/);assert.equal(restored.terminals.live.size,0);
+  await assert.rejects(restored.invoke('terminal.write',{sessionId:session.id,data:'echo no\n'}),/not running/);
+});
+
+test('same-socket terminal controls and state bypass saturated slow integrations', {timeout:15000},async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-priority-'));let client,started=0,release;
+  const gate=new Promise(r=>{release=r;}),events=[];
+  const host=await createHost({dataDir:path.join(root,'state'),handleIntegration:async(method,p)=>{started++;await gate;return {handled:true,result:{token:p.token}};}});
+  t.after(async()=>{release();client?.close();await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  client=await connectHost({dataDir:host.store.dir,onEvent:e=>events.push(e)});const w=await client.invoke('workspace.open',{path:root}),{session}=await client.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'});
+  const slow=Array.from({length:12},(_,token)=>client.invoke('fixture.slow',{workspaceId:w.id,token}));await until(()=>started===8);
+  const state=await client.invoke('state.get');assert.equal(state.activeWorkspaceId,w.id);
+  await client.invoke('terminal.write',{sessionId:session.id,data:"printf 'PRIORITY_%s\\n' 'READY'\n"});
+  await until(()=>events.some(e=>e.type==='terminal.output'&&e.sessionId===session.id&&e.data.includes('PRIORITY_READY')));
+  assert.equal(started,8);await client.invoke('terminal.stop',{sessionId:session.id});await until(()=>host.terminals.get(session.id).status==='exited');
+  release();assert.deepEqual(await Promise.all(slow),Array.from({length:12},(_,token)=>({token})));
+});
+
+test('removing a live terminal rejects, hiding preserves it, stopped removal keeps history and one exit attention',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-remove-')),host=await createHost({dataDir:path.join(root,'state'),handleIntegration:()=>({handled:false})});t.after(async()=>{await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  const w=await host.invoke('workspace.open',{path:root}),{session,node}=await host.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'});
+  await assert.rejects(host.invoke('node.remove',{workspaceId:w.id,id:node.id}),/hide.*stop/);assert.equal(host.terminals.get(session.id).status,'running');
+  await host.invoke('node.update',{workspaceId:w.id,id:node.id,patch:{data:{...node.data,hidden:true}}});assert.equal(host.terminals.get(session.id).status,'running');
+  await host.invoke('terminal.write',{sessionId:session.id,data:"printf 'REMOVAL_%s\\n' 'HISTORY'; exit 7\n"});await until(()=>host.terminals.get(session.id).status==='exited');
+  await host.invoke('node.remove',{workspaceId:w.id,id:node.id});assert.equal(host.store.getWorkspace(w.id).nodes.length,0);
+  for(let i=0;i<3;i++)assert.match((await host.invoke('terminal.attach',{sessionId:session.id})).data,/REMOVAL_HISTORY/);
+  const attention=await host.invoke('attention.list',{workspaceId:w.id});assert.equal(attention.length,1);assert.equal(attention[0].sessionId,session.id);assert.equal(attention[0].source,'terminal');assert.equal(attention[0].exitCode,7);assert.ok(attention[0].observedAt);
+  await host.close();const restored=await createHost({dataDir:path.join(root,'state'),handleIntegration:()=>({handled:false})});try{assert.match((await restored.invoke('terminal.attach',{sessionId:session.id})).data,/REMOVAL_HISTORY/);assert.equal((await restored.invoke('attention.list',{workspaceId:w.id})).length,1);}finally{await restored.close();}
+});
+
+test('closing a terminal removes its process tree, panel and session without affecting another terminal',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-close-')),dataDir=path.join(root,'state');
+  const host=await createHost({dataDir,handleIntegration:()=>({handled:false})});
+  t.after(async()=>{await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  const w=await host.invoke('workspace.open',{path:root});
+  const one=await host.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'}),two=await host.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'});
+  await host.invoke('terminal.write',{sessionId:one.session.id,data:"sleep 60 & printf 'CLOSE_CHILD:%s\\n' \"$!\"; wait\n"});
+  const snap=await until(async()=>{const s=await host.invoke('terminal.attach',{sessionId:one.session.id});return /CLOSE_CHILD:\d+/.test(s.data)?s:null;});
+  const childPid=Number(/CLOSE_CHILD:(\d+)/.exec(snap.data)[1]);
+  const close=host.invoke('terminal.close',{workspaceId:w.id,nodeId:one.node.id});
+  await assert.rejects(host.invoke('terminal.create',{workspaceId:w.id,nodeId:one.node.id}),/closing/);
+  await close;
+  assert.deepEqual((await host.invoke('terminal.list',{workspaceId:w.id})).map(s=>s.id),[two.session.id]);
+  assert.equal(host.store.getWorkspace(w.id).nodes.some(n=>n.id===one.node.id),false);
+  assert.equal(host.terminals.live.has(one.session.id),false);
+  await until(()=>{try{return fs.readFileSync(`/proc/${childPid}/stat`,'utf8').split(') ')[1].startsWith('Z');}catch{return true;}});
+  await assert.rejects(host.invoke('terminal.attach',{sessionId:one.session.id}),/not found/);
+  await host.invoke('terminal.write',{sessionId:two.session.id,data:"printf 'STILL_%s\\n' 'WRITABLE'\n"});
+  await until(async()=>(await host.invoke('terminal.attach',{sessionId:two.session.id})).data.includes('STILL_WRITABLE'));
+  await host.close();
+  const restored=await createHost({dataDir,handleIntegration:()=>({handled:false})});
+  try {assert.deepEqual((await restored.invoke('terminal.list',{workspaceId:w.id})).map(s=>s.id),[two.session.id]);}
+  finally {await restored.close();}
+});
+
+test('noisy offscreen PTY pauses/resumes instead of dying and an independent shell remains responsive',{timeout:30000},async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-noisy-')),host=await createHost({dataDir:path.join(root,'state'),handleIntegration:()=>({handled:false})});t.after(async()=>{await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  const w=await host.invoke('workspace.open',{path:root}),noisy=await host.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'}),quiet=await host.invoke('terminal.create',{workspaceId:w.id,shell:'/bin/bash'}),entry=host.terminals.live.get(noisy.session.id);
+  // Exercise actual PTY flow control under a deliberately slow headless consumer.
+  const write=entry.terminal.write.bind(entry.terminal);entry.terminal.write=(data,callback)=>write(data,()=>setTimeout(callback,100));
+  let outputTail='';const outputListener=entry.child.onData(data=>{outputTail=(outputTail+data).slice(-1024);});t.after(()=>outputListener.dispose());
+  await host.invoke('terminal.write',{sessionId:noisy.session.id,data:`'${process.execPath}' -e "for(let i=0;i<30000;i++)process.stdout.write('x'.repeat(79)+'\\n');console.log('NOISY_'+'DONE')"\n`});
+  await until(()=>entry.pauseCount>0,10000);assert.equal(host.terminals.get(noisy.session.id).status,'running');entry.terminal.write=write;
+  await host.invoke('terminal.write',{sessionId:quiet.session.id,data:"printf 'QUIET_%s\\n' 'RESPONSIVE'\n"});
+  await until(async()=>{const snapshot=await host.invoke('terminal.attach',{sessionId:quiet.session.id});return snapshot.data.includes('QUIET_RESPONSIVE');},3000);
+  await until(()=>outputTail.includes('NOISY_DONE'),20000);
+  assert.equal(host.terminals.get(noisy.session.id).status,'running');assert.ok(entry.pauseCount>0&&entry.resumeCount>0);assert.ok(entry.maxPending<=512*1024,`Parser backlog exceeded bound: ${entry.maxPending}`);
+  assert.ok(entry.snapshotCount<host.terminals.get(noisy.session.id).seq/2,'Snapshots should not serialize every chunk');
+  const snapshot=await host.invoke('terminal.attach',{sessionId:noisy.session.id});assert.match(snapshot.data,/NOISY_DONE/);assert.ok(snapshot.truncated);assert.ok(snapshot.data.length<=256*1024);await host.terminals.flush();host.terminals.save();assert.ok(fs.statSync(host.terminals.filename).size<9*1024*1024);
+});

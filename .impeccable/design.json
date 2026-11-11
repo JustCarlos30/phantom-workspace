@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T07:57:37Z",
+  "title": "Design System: Phantom Workspace",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Cobalt", "tonalRamp": ["oklch(15% .19 266)", "oklch(26% .19 266)", "oklch(38% .19 266)", "oklch(49% .19 266)", "oklch(61% .19 266)", "oklch(72% .19 266)", "oklch(84% .19 266)", "oklch(95% .19 266)"] },
+      "accent-soft": { "role": "primary", "displayName": "Cobalt wash", "tonalRamp": ["oklch(15% .02 270)", "oklch(26% .02 270)", "oklch(38% .02 270)", "oklch(49% .02 270)", "oklch(61% .02 270)", "oklch(72% .02 270)", "oklch(84% .02 270)", "oklch(95% .02 270)"] },
+      "bg": { "role": "neutral", "displayName": "Mineral", "tonalRamp": ["oklch(15% .01 250)", "oklch(26% .01 250)", "oklch(38% .01 250)", "oklch(49% .01 250)", "oklch(61% .01 250)", "oklch(72% .01 250)", "oklch(84% .01 250)", "oklch(95% .01 250)"] },
+      "surface": { "role": "neutral", "displayName": "White", "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(38% 0 0)", "oklch(49% 0 0)", "oklch(61% 0 0)", "oklch(72% 0 0)", "oklch(84% 0 0)", "oklch(95% 0 0)"] },
+      "surface-2": { "role": "neutral", "displayName": "Cool paper", "tonalRamp": ["oklch(15% .005 260)", "oklch(26% .005 260)", "oklch(38% .005 260)", "oklch(49% .005 260)", "oklch(61% .005 260)", "oklch(72% .005 260)", "oklch(84% .005 260)", "oklch(95% .005 260)"] },
+      "ink": { "role": "neutral", "displayName": "Blue ink", "tonalRamp": ["oklch(15% .03 258)", "oklch(26% .03 258)", "oklch(38% .03 258)", "oklch(49% .03 258)", "oklch(61% .03 258)", "oklch(72% .03 258)", "oklch(84% .03 258)", "oklch(95% .03 258)"] },
+      "muted": { "role": "neutral", "displayName": "Slate", "tonalRamp": ["oklch(15% .035 258)", "oklch(26% .035 258)", "oklch(38% .035 258)", "oklch(49% .035 258)", "oklch(61% .035 258)", "oklch(72% .035 258)", "oklch(84% .035 258)", "oklch(95% .035 258)"] },
+      "line": { "role": "neutral", "displayName": "Seam", "tonalRamp": ["oklch(15% .015 258)", "oklch(26% .015 258)", "oklch(38% .015 258)", "oklch(49% .015 258)", "oklch(61% .015 258)", "oklch(72% .015 258)", "oklch(84% .015 258)", "oklch(95% .015 258)"] },
+      "danger": { "role": "semantic", "displayName": "Danger", "tonalRamp": ["oklch(15% .15 17)", "oklch(26% .15 17)", "oklch(38% .15 17)", "oklch(49% .15 17)", "oklch(61% .15 17)", "oklch(72% .15 17)", "oklch(84% .15 17)", "oklch(95% .15 17)"] },
+      "success": { "role": "semantic", "displayName": "Success", "tonalRamp": ["oklch(15% .085 166)", "oklch(26% .085 166)", "oklch(38% .085 166)", "oklch(49% .085 166)", "oklch(61% .085 166)", "oklch(72% .085 166)", "oklch(84% .085 166)", "oklch(95% .085 166)"] },
+      "warning": { "role": "semantic", "displayName": "Warning", "tonalRamp": ["oklch(15% .105 76)", "oklch(26% .105 76)", "oklch(38% .105 76)", "oklch(49% .105 76)", "oklch(61% .105 76)", "oklch(72% .105 76)", "oklch(84% .105 76)", "oklch(95% .105 76)"] },
+      "rail": { "role": "neutral", "displayName": "Rail ink", "tonalRamp": ["oklch(15% .05 262)", "oklch(26% .05 262)", "oklch(38% .05 262)", "oklch(49% .05 262)", "oklch(61% .05 262)", "oklch(72% .05 262)", "oklch(84% .05 262)", "oklch(95% .05 262)"] },
+      "rail-active": { "role": "neutral", "displayName": "Rail selection", "tonalRamp": ["oklch(15% .05 262)", "oklch(26% .05 262)", "oklch(38% .05 262)", "oklch(49% .05 262)", "oklch(61% .05 262)", "oklch(72% .05 262)", "oklch(84% .05 262)", "oklch(95% .05 262)"] },
+      "terminal-bg": { "role": "neutral", "displayName": "Terminal depth", "tonalRamp": ["oklch(15% .03 259)", "oklch(26% .03 259)", "oklch(38% .03 259)", "oklch(49% .03 259)", "oklch(61% .03 259)", "oklch(72% .03 259)", "oklch(84% .03 259)", "oklch(95% .03 259)"] },
+      "terminal-chrome": { "role": "neutral", "displayName": "Terminal chrome", "tonalRamp": ["oklch(15% .04 260)", "oklch(26% .04 260)", "oklch(38% .04 260)", "oklch(49% .04 260)", "oklch(61% .04 260)", "oklch(72% .04 260)", "oklch(84% .04 260)", "oklch(95% .04 260)"] },
+      "terminal-foreground": { "role": "neutral", "displayName": "Terminal foreground", "tonalRamp": ["oklch(15% .015 258)", "oklch(26% .015 258)", "oklch(38% .015 258)", "oklch(49% .015 258)", "oklch(61% .015 258)", "oklch(72% .015 258)", "oklch(84% .015 258)", "oklch(95% .015 258)"] },
+      "note": { "role": "neutral", "displayName": "Note paper", "tonalRamp": ["oklch(15% .007 96)", "oklch(26% .007 96)", "oklch(38% .007 96)", "oklch(49% .007 96)", "oklch(61% .007 96)", "oklch(72% .007 96)", "oklch(84% .007 96)", "oklch(95% .007 96)"] },
+      "mission-bg": { "role": "semantic", "displayName": "Mission paper", "tonalRamp": ["oklch(15% .01 163)", "oklch(26% .01 163)", "oklch(38% .01 163)", "oklch(49% .01 163)", "oklch(61% .01 163)", "oklch(72% .01 163)", "oklch(84% .01 163)", "oklch(95% .01 163)"] },
+      "mission-ink": { "role": "semantic", "displayName": "Mission ink", "tonalRamp": ["oklch(15% .04 155)", "oklch(26% .04 155)", "oklch(38% .04 155)", "oklch(49% .04 155)", "oklch(61% .04 155)", "oklch(72% .04 155)", "oklch(84% .04 155)", "oklch(95% .04 155)"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Functional headline", "purpose": "Empty-state heading; not a branded display role." },
+      "title": { "displayName": "Tool section title", "purpose": "First-party tool section headings." },
+      "body": { "displayName": "Tool body", "purpose": "System-ui tool prose; shell uses its own native stack without global line-height." },
+      "label": { "displayName": "Field label", "purpose": "Tool field labels." },
+      "panel-title": { "displayName": "Map panel title", "purpose": "Compensates canvas zoom, capped at 2.4×; focus scale is 1." },
+      "tool-button": { "displayName": "Tool control", "purpose": "Compact first-party tool actions." },
+      "code": { "displayName": "Source code", "purpose": "JSON, source details and code fields." },
+      "terminal": { "displayName": "Terminal cells", "purpose": "Actual xterm glyph measurement; not proportional UI text." }
+    },
+    "shadows": [
+      { "name": "node-rest", "value": "0 4px 12px #202c440a", "purpose": "Quiet canvas frame." },
+      { "name": "node-focus", "value": "0 8px 24px #202c4410", "purpose": "Focused panel." },
+      { "name": "creation-dock", "value": "0 5px 20px #202c4420", "purpose": "Floating creation controls." },
+      { "name": "map-controls", "value": "0 3px 12px #202c4412", "purpose": "Zoom and fit navigation." },
+      { "name": "popover", "value": "0 12px 36px #202c4426", "purpose": "Picker, panel list, attention and context menu; --shadow-popover." },
+      { "name": "tool-overlay", "value": "0 18px 64px rgb(15 25 43 / .25)", "purpose": "Palette and voice surfaces." },
+      { "name": "app-dialog", "value": "0 20px 70px #0f1b3555", "purpose": "Mission and close dialogs." },
+      { "name": "narrow-inspector", "value": "-12px 0 35px #202c441c", "purpose": "Right overlay at max-width 1100px." }
+    ],
+    "motion": [
+      { "name": "focus-return", "value": "220ms cubic-bezier(.16,1,.3,1)", "purpose": "Clip/brightness focus entrance; no camera rewrite." },
+      { "name": "rail-drawer", "value": "180ms cubic-bezier(.16,1,.3,1)", "purpose": "Narrow desktop rail transform." },
+      { "name": "tool-control", "value": "140ms ease-out", "purpose": "Tool-button background-color and border-color." },
+      { "name": "spinner", "value": "1s linear infinite", "purpose": "Loading rotation." },
+      { "name": "reduced-motion", "value": ".01ms", "purpose": "Shell animation/transition override; tool button transition is none." }
+    ],
+    "breakpoints": [
+      { "name": "wide-min", "value": "1450px" },
+      { "name": "compact-max", "value": "1270px" },
+      { "name": "inspector-overlay-max", "value": "1100px" },
+      { "name": "rail-drawer-max", "value": "850px" },
+      { "name": "tools-tight-max", "value": "600px" },
+      { "name": "short-height-max", "value": "650px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Shell primary button", "kind": "button", "refersTo": "button-primary",
+      "description": "Shell call to action, including folder and terminal creation.",
+      "html": "<button class=\"ds-shell-primary\">Crear terminal</button>",
+      "css": ".ds-shell-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:35px;padding:0 13px;border:1px solid var(--accent,#345bd5);border-radius:7px;background:var(--accent,#345bd5);color:white;font:550 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:nowrap;cursor:pointer}.ds-shell-primary:hover{background:#284abe}.ds-shell-primary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-shell-primary:disabled{opacity:.42;cursor:default}"
+    },
+    {
+      "name": "Shell secondary button", "kind": "button", "refersTo": "button-secondary",
+      "description": "Quiet bordered shell action.",
+      "html": "<button class=\"ds-shell-secondary\">Escribir nota</button>",
+      "css": ".ds-shell-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:35px;padding:0 13px;border:1px solid #ced7e2;border-radius:7px;background:var(--surface,#fff);color:var(--ink,#202b3b);font:550 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:nowrap;cursor:pointer}.ds-shell-secondary:hover{background:#f6f8fc;border-color:#a7b5ca}.ds-shell-secondary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-shell-secondary:disabled{opacity:.42;cursor:default}"
+    },
+    {
+      "name": "Shell icon button", "kind": "button", "refersTo": "icon-button",
+      "description": "Compact SVG icon action; active state uses cobalt wash.",
+      "html": "<button class=\"ds-icon\" aria-label=\"Cerrar inspector\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 6 6 18M6 6l12 12\"/></svg></button>",
+      "css": ".ds-icon{display:inline-flex;align-items:center;justify-content:center;width:29px;height:29px;border:0;border-radius:6px;background:none;color:var(--muted,#627084);cursor:pointer}.ds-icon:hover{background:#e9eef5;color:var(--ink,#202b3b)}.ds-icon.ds-active{background:var(--accent-soft,#edf1ff);color:var(--accent,#345bd5)}.ds-icon:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-icon:disabled{opacity:.42;cursor:default}"
+    },
+    {
+      "name": "Tool primary button", "kind": "button", "refersTo": "tool-button-primary",
+      "description": "First-party tool submit action.",
+      "html": "<button class=\"ds-tool-primary\">Crear tarea local</button>",
+      "css": ".ds-tool-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--accent,#345bd5);border-radius:5px;background:var(--accent,#345bd5);color:#fff;font:500 12px/1.4 system-ui,sans-serif;white-space:normal;cursor:pointer;transition:background-color 140ms ease-out,border-color 140ms ease-out}.ds-tool-primary:hover:not(:disabled){background:color-mix(in srgb,var(--accent,#345bd5),#000 13%);border-color:var(--muted,#627084)}.ds-tool-primary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-tool-primary:disabled{opacity:.55;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-tool-primary{transition:none}}"
+    },
+    {
+      "name": "Tool secondary button", "kind": "button", "refersTo": "tool-button-secondary",
+      "description": "Shared tool refresh/edit action.",
+      "html": "<button class=\"ds-tool-secondary\">Actualizar</button>",
+      "css": ".ds-tool-secondary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--line,#d8dfe8);border-radius:5px;background:var(--surface,#fff);color:var(--ink,#202b3b);font:500 12px/1.4 system-ui,sans-serif;white-space:normal;cursor:pointer;transition:background-color 140ms ease-out,border-color 140ms ease-out}.ds-tool-secondary:hover:not(:disabled){background:var(--surface-2,#f4f6f9);border-color:var(--muted,#627084)}.ds-tool-secondary:active:not(:disabled){background:var(--accent-soft,#edf1ff)}.ds-tool-secondary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-tool-secondary:disabled{opacity:.55;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-tool-secondary{transition:none}}"
+    },
+    {
+      "name": "Tool field", "kind": "input", "refersTo": "tool-field",
+      "description": "Labelled input shared by tool panels and inspector.",
+      "html": "<label class=\"ds-field\">Título<input placeholder=\"Nombre de tarea\"/></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:5px;margin-bottom:9px;color:var(--ink,#202b3b);font:600 12px/1.5 system-ui,sans-serif}.ds-field input{width:100%;min-width:0;min-height:34px;padding:7px 9px;border:1px solid var(--line,#d8dfe8);border-radius:5px;background:var(--surface,#fff);color:var(--ink,#202b3b);caret-color:var(--accent,#345bd5);font:400 13px/1.5 system-ui,sans-serif}.ds-field input::placeholder{color:var(--muted,#627084);opacity:1}.ds-field input:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}"
+    },
+    {
+      "name": "Project navigation", "kind": "nav", "refersTo": "project-item-active",
+      "description": "Rail row with visible name/path and selected marker.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Proyectos recientes\"><button class=\"ds-project ds-current\"><span class=\"ds-initials\">PW</span><span class=\"ds-project-copy\"><strong>Phantom Workspace</strong><small>/proyectos/phantom-workspace</small></span><span class=\"ds-project-dot\"></span></button><button class=\"ds-project\"><span class=\"ds-initials\">NT</span><span class=\"ds-project-copy\"><strong>Notas</strong><small>/proyectos/notas</small></span></button></nav>",
+      "css": ".ds-rail{display:flex;flex-direction:column;gap:5px;width:202px;padding:12px;background:#202c44;font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-project{display:flex;align-items:center;gap:9px;width:100%;padding:10px 8px;border:0;border-radius:7px;text-align:left;background:none;color:#c5d2e4;cursor:pointer}.ds-project:hover{background:#29374f}.ds-project.ds-current{background:#34435f;color:#fff}.ds-initials{display:grid;place-items:center;flex-shrink:0;width:29px;height:29px;border-radius:6px;background:#394963;color:#dce6f8;font-size:10px;font-weight:650;letter-spacing:.02em}.ds-current .ds-initials{background:#536b9b;color:#fff}.ds-project-copy{flex:1;min-width:0}.ds-project strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:550}.ds-project small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;font-size:10px;color:#b5c4d9}.ds-project-dot{width:5px;height:5px;border-radius:50%;background:#a9bdff;flex-shrink:0}.ds-project:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}"
+    },
+    {
+      "name": "Tool badge", "kind": "chip", "refersTo": "tool-badge",
+      "description": "Noninteractive local/source classification label.",
+      "html": "<span class=\"ds-badge\">Borrador local</span>",
+      "css": ".ds-badge{display:inline-block;padding:2px 6px;border-radius:3px;background:var(--surface-2,#f4f6f9);color:var(--muted,#627084);font:11px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}"
+    },
+    {
+      "name": "Mission membership", "kind": "chip", "refersTo": "mission-chip",
+      "description": "Noninteractive mission chip in a node header.",
+      "html": "<span class=\"ds-mission\" title=\"Misión del proyecto\">Misión del proyecto</span>",
+      "css": ".ds-mission{display:inline-block;max-width:90px;padding:3px 5px;border-radius:4px;background:#eaf2ee;color:#55705f;font:9px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+    },
+    {
+      "name": "Canvas node", "kind": "card", "refersTo": "canvas-node",
+      "description": "Selected spatial frame with inline-editable title and note body; static preview of the actual structure.",
+      "html": "<article class=\"ds-node ds-selected\"><header class=\"ds-node-header\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v6h6\"/></svg><button class=\"ds-node-title\">Nota del proyecto</button></header><textarea class=\"ds-note\" aria-label=\"Nota del proyecto\">Contexto que permanece.</textarea></article>",
+      "css": ".ds-node{display:flex;flex-direction:column;width:320px;height:200px;overflow:hidden;isolation:isolate;border:1px solid #c7d0dd;border-radius:10px;background:var(--surface,#fff);color:var(--ink,#202b3b);box-shadow:0 4px 12px #202c440a;font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-node.ds-selected{border-color:var(--accent,#345bd5);outline:1px solid var(--accent,#345bd5);outline-offset:0}.ds-node-header{display:flex;align-items:center;gap:8px;height:35px;min-height:35px;padding:0 7px 0 12px;background:#f9fafc;border-bottom:1px solid #dce2ea;color:#627188;cursor:grab;user-select:none}.ds-node-title{display:block;max-width:100%;padding:4px 0;border:0;background:none;color:#344158;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 11px/1.1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:text}.ds-node-title:hover{color:var(--accent,#345bd5)}.ds-node-title:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-note{flex:1;min-height:0;width:100%;resize:none;padding:21px 22px;border:0;background:#fffef9;color:var(--ink,#202b3b);caret-color:var(--accent,#345bd5);font:13px/1.8 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-note:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:-3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Atlas de estudio",
+    "overview": "A recoverable project table: an ink-blue project rail anchors a mineral canvas, with precise white panel frames and dark working terminals. Density is that of a desktop tool; compact controls and readable context take precedence over decorative composition. The signature is spatial return: enter a focused panel, then return to its map without replacing the underlying camera or panel identity.\n\nThis is a code-led record of the shipped world. `src/styles.css`, `src/tools.css`, `src/App.jsx`, the components, and the input/edit/save hooks are the implementation authority; the frontmatter records their reusable values. The confirmed direction comes from `.impeccable/surfaces/workspace.md`, with durable identity and input constraints in `PRODUCT.md`. No comparison images supplied the visual authority. `assets/phantom.svg` is the shipping vector brand asset; the rail currently renders its Blocks SVG icon. There are no shipping raster assets: browser thumbnails are runtime captures, and review screenshots are development evidence, not reusable brand imagery.",
+    "keyCharacteristics": [
+      "Mineral map, ink-blue rail, white tool surfaces, dark terminal work area.",
+      "Native system typography for interface text; monospace for terminal and code.",
+      "Compact bordered controls with cobalt selection and visible keyboard focus.",
+      "Persistent project and panel identities with an explicit map-to-focus return.",
+      "First-party tool forms shared between canvas panels and the nonmodal inspector."
+    ],
+    "rules": [
+      { "name": "The Selection Is State Rule", "body": "Use cobalt to identify action, selection and keyboard ownership; retain labels and status text alongside colored indicators.", "section": "colors" },
+      { "name": "The Quiet Frame Rule", "body": "Preserve tonal boundaries and soft ambient elevation; node selection is an outline, not an elevated decorative card.", "section": "elevation" }
+    ],
+    "dos": [
+      "**Do** use the shipped mineral, ink-blue, white and cobalt roles with native interface typography.",
+      "**Do** keep camera/layout identity separate from temporary focus geometry and visible names separate from canonical paths.",
+      "**Do** share first-party tool primitives between canvas panels and the nonmodal inspector.",
+      "**Do** preserve keyboard focus ownership, explicit terminal relaunch and visible source/save failures.",
+      "**Do** consult the final JSON ledger and scoped review verdict before quoting verification status."
+    ],
+    "donts": [
+      "**Don't** turn runtime browser captures, fixture page styling or development screenshots into shipping identity assets.",
+      "**Don't** let canvas navigation or inspector fields consume or forward ordinary terminal keystrokes.",
+      "**Don't** describe a local draft/reference as a native Phantom object or an unknown revision as verified.",
+      "**Don't** infer mobile readiness, exhaustive UX approval or human visual approval from the desktop evidence.",
+      "**Don't** promote sidecar preview tonal ramps into application tokens; they are synthesized panel metadata only."
+    ]
+  }
+}

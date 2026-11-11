@@ -1,0 +1,1747 @@
+{
+  "finding": "RC-01",
+  "startedAt": "2026-11-11T07:08:05.127Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "build": {
+    "version": "0.1.0",
+    "node": "v26.11.1",
+    "electron": "45.3.0",
+    "builtAt": "2026-11-11T06:49:14.687Z",
+    "phantom": "0.5.0",
+    "platform": "linux-x64"
+  },
+  "fixture": "/tmp/opencode/phantom-rc01-HnxRrl",
+  "profile": "/tmp/opencode/phantom-rc01-HnxRrl/profile",
+  "checks": [
+    {
+      "name": "same packaged executable and build; isolated profile; no sandbox flag",
+      "status": "passed",
+      "details": {
+        "platform": "Linux",
+        "version": "0.1.0",
+        "versions": {
+          "node": "24.22.2",
+          "acorn": "8.18.0",
+          "ada": "4.0.0",
+          "amaro": "1.1.11",
+          "ares": "1.34.9",
+          "brotli": "1.2.0",
+          "cldr": "48.0",
+          "icu": "78.2",
+          "llhttp": "9.4.3",
+          "merve": "1.2.2",
+          "modules": "150",
+          "napi": "10",
+          "nbytes": "0.1.4",
+          "ncrypto": "0.0.1",
+          "nghttp2": "1.70.0",
+          "nghttp3": "",
+          "ngtcp2": "",
+          "openssl": "0.0.0",
+          "simdjson": "4.6.11",
+          "simdutf": "7.7.0",
+          "sqlite": "3.53.4",
+          "tz": "2026e",
+          "undici": "7.30.1",
+          "unicode": "17.0",
+          "uv": "1.52.1",
+          "uvwasi": "0.0.23",
+          "v8": "15.6.75.50-electron.0",
+          "zlib": "1.3.2.1-motley",
+          "zstd": "1.6.0",
+          "electron": "45.3.0",
+          "chrome": "156.0.8078.96"
+        },
+        "dataDir": "/tmp/opencode/phantom-rc01-HnxRrl/profile",
+        "packaged": true,
+        "host": {
+          "connected": true,
+          "error": null,
+          "info": {
+            "platform": "linux",
+            "node": "v26.11.1",
+            "pid": 3257598,
+            "dataDir": "/tmp/opencode/phantom-rc01-HnxRrl/profile"
+          }
+        },
+        "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+      }
+    },
+    {
+      "name": "active terminal viewport and screen fill focused host height",
+      "status": "failed",
+      "error": "Expected values to be strictly equal:\n\n1000 !== 1520\n",
+      "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n1000 !== 1520\n\n    at file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:424:14\n    at check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:356:33)\n    at runRecapture (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:422:11)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:16:3"
+    },
+    {
+      "name": "50 portable shell lines independently verified in native history",
+      "status": "passed",
+      "details": {
+        "session": {
+          "id": "0b77a804-ccb5-4480-b497-77ea17d9ba43",
+          "workspaceId": "054250cd-321e-4e5b-a440-8f050b2282df",
+          "nodeId": "cf8a437b-40be-4d48-a32e-1cf74077017b",
+          "pid": 3257915,
+          "status": "running",
+          "cols": 94,
+          "rows": 20,
+          "generation": "1ec1ae72-b9d0-46f5-91ec-575312f16264",
+          "createdAt": "2026-11-11T07:08:06.573Z",
+          "seq": 30,
+          "historyTruncated": false,
+          "snapshotSeq": 30
+        },
+        "verifiedLabels": 50,
+        "seq": 30
+      }
+    },
+    {
+      "name": "lower region has continuous expected background and rendered output after cycle/resize",
+      "status": "failed",
+      "error": "The expression evaluated to a falsy value:\n\n  assert(p.samples > 100000)\n",
+      "stack": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(p.samples > 100000)\n\n    at file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:447:37\n    at check (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:356:33)\n    at runRecapture (file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:446:29)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:16:3"
+    },
+    {
+      "name": "optional tools screenshot uses scoped task target; prior failure was diagnostic, not core",
+      "status": "passed",
+      "details": {
+        "task": {
+          "kind": "draft",
+          "description": "Targeted optional evidence recovery only",
+          "status": "todo",
+          "refs": [],
+          "title": "SYNTHETIC RC01 task",
+          "id": "0d061825-d2d1-42e7-966f-054ed1e31d33",
+          "createdAt": "2026-11-11T07:08:13.589Z"
+        }
+      }
+    },
+    {
+      "name": "no renderer errors in targeted recovery",
+      "status": "passed"
+    }
+  ],
+  "measurements": [
+    {
+      "stage": "initial overview -> focused, >=500ms and dimensions stable",
+      "at": "2026-11-11T07:08:08.709Z",
+      "session": {
+        "id": "0b77a804-ccb5-4480-b497-77ea17d9ba43",
+        "workspaceId": "054250cd-321e-4e5b-a440-8f050b2282df",
+        "nodeId": "cf8a437b-40be-4d48-a32e-1cf74077017b",
+        "pid": 3257915,
+        "status": "running",
+        "cols": 94,
+        "rows": 20,
+        "generation": "1ec1ae72-b9d0-46f5-91ec-575312f16264",
+        "createdAt": "2026-11-11T07:08:06.573Z",
+        "seq": 2,
+        "historyTruncated": false,
+        "snapshotSeq": 2
+      },
+      "dom": {
+        "viewport": {
+          "width": 1000,
+          "height": 673
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 760,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 20
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 279.59375,
+              "y": 202,
+              "width": 7.8125,
+              "height": 18,
+              "bottom": 220
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 279.765625,
+              "y": 202,
+              "width": 7.859375,
+              "height": 18,
+              "bottom": 220
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "sh-5.3$  ",
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 220,
+              "width": 736,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 238,
+              "width": 736,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 256,
+              "width": 736,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 274,
+              "width": 736,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 292,
+              "width": 736,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 310,
+              "width": 736,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 328,
+              "width": 736,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 346,
+              "width": 736,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 364,
+              "width": 736,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 382,
+              "width": 736,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 400,
+              "width": 736,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 418,
+              "width": 736,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 436,
+              "width": 736,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 454,
+              "width": 736,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 472,
+              "width": 736,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 490,
+              "width": 736,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 508,
+              "width": 736,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 526,
+              "width": 736,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 217,
+              "y": 544,
+              "width": 736,
+              "height": 18,
+              "bottom": 562
+            }
+          }
+        ],
+        "canvases": []
+      }
+    },
+    {
+      "stage": "after 50-line output before focus cycle",
+      "at": "2026-11-11T07:08:09.052Z",
+      "session": {
+        "id": "0b77a804-ccb5-4480-b497-77ea17d9ba43",
+        "workspaceId": "054250cd-321e-4e5b-a440-8f050b2282df",
+        "nodeId": "cf8a437b-40be-4d48-a32e-1cf74077017b",
+        "pid": 3257915,
+        "status": "running",
+        "cols": 94,
+        "rows": 20,
+        "generation": "1ec1ae72-b9d0-46f5-91ec-575312f16264",
+        "createdAt": "2026-11-11T07:08:06.573Z",
+        "seq": 30,
+        "historyTruncated": false,
+        "snapshotSeq": 30
+      },
+      "dom": {
+        "viewport": {
+          "width": 1000,
+          "height": 673
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 760,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 20
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 279.625,
+              "y": 544,
+              "width": 7.828125,
+              "height": 18,
+              "bottom": 562
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 279.765625,
+              "y": 544,
+              "width": 7.859375,
+              "height": 18,
+              "bottom": 562
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(167, 186, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "RC01_LINE_33__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "RC01_LINE_34__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 220,
+              "width": 736,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "RC01_LINE_35__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 238,
+              "width": 736,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "RC01_LINE_36__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 256,
+              "width": 736,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "RC01_LINE_37__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 274,
+              "width": 736,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "RC01_LINE_38__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 292,
+              "width": 736,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "RC01_LINE_39__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 310,
+              "width": 736,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "RC01_LINE_40__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 328,
+              "width": 736,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "RC01_LINE_41__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 346,
+              "width": 736,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "RC01_LINE_42__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 364,
+              "width": 736,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "RC01_LINE_43__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 382,
+              "width": 736,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "RC01_LINE_44__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 400,
+              "width": 736,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "RC01_LINE_45__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 418,
+              "width": 736,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "RC01_LINE_46__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 436,
+              "width": 736,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "RC01_LINE_47__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 454,
+              "width": 736,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "RC01_LINE_48__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 472,
+              "width": 736,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "RC01_LINE_49__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 490,
+              "width": 736,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "RC01_LINE_50__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 508,
+              "width": 736,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "RC01_END_CURSOR",
+            "bounds": {
+              "x": 217,
+              "y": 526,
+              "width": 736,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "sh-5.3$  ",
+            "bounds": {
+              "x": 217,
+              "y": 544,
+              "width": 736,
+              "height": 18,
+              "bottom": 562
+            }
+          }
+        ],
+        "canvases": []
+      }
+    },
+    {
+      "stage": "one unfocus/refocus plus one panel resize, settled",
+      "at": "2026-11-11T07:08:10.381Z",
+      "session": {
+        "id": "0b77a804-ccb5-4480-b497-77ea17d9ba43",
+        "workspaceId": "054250cd-321e-4e5b-a440-8f050b2282df",
+        "nodeId": "cf8a437b-40be-4d48-a32e-1cf74077017b",
+        "pid": 3257915,
+        "status": "running",
+        "cols": 94,
+        "rows": 20,
+        "generation": "1ec1ae72-b9d0-46f5-91ec-575312f16264",
+        "createdAt": "2026-11-11T07:08:06.573Z",
+        "seq": 32,
+        "historyTruncated": false,
+        "snapshotSeq": 32
+      },
+      "dom": {
+        "viewport": {
+          "width": 1000,
+          "height": 673
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 760,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 20
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 279.625,
+              "y": 544,
+              "width": 7.828125,
+              "height": 18,
+              "bottom": 562
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 279.765625,
+              "y": 544,
+              "width": 7.859375,
+              "height": 18,
+              "bottom": 562
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "RC01_LINE_33__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "RC01_LINE_34__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 220,
+              "width": 736,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "RC01_LINE_35__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 238,
+              "width": 736,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "RC01_LINE_36__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 256,
+              "width": 736,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "RC01_LINE_37__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 274,
+              "width": 736,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "RC01_LINE_38__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 292,
+              "width": 736,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "RC01_LINE_39__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 310,
+              "width": 736,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "RC01_LINE_40__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 328,
+              "width": 736,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "RC01_LINE_41__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 346,
+              "width": 736,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "RC01_LINE_42__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 364,
+              "width": 736,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "RC01_LINE_43__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 382,
+              "width": 736,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "RC01_LINE_44__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 400,
+              "width": 736,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "RC01_LINE_45__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 418,
+              "width": 736,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "RC01_LINE_46__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 436,
+              "width": 736,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "RC01_LINE_47__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 454,
+              "width": 736,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "RC01_LINE_48__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 472,
+              "width": 736,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "RC01_LINE_49__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 490,
+              "width": 736,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "RC01_LINE_50__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 508,
+              "width": 736,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "RC01_END_CURSOR",
+            "bounds": {
+              "x": 217,
+              "y": 526,
+              "width": 736,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "sh-5.3$  ",
+            "bounds": {
+              "x": 217,
+              "y": 544,
+              "width": 736,
+              "height": 18,
+              "bottom": 562
+            }
+          }
+        ],
+        "canvases": []
+      }
+    },
+    {
+      "stage": "final output, focused viewport settled",
+      "at": "2026-11-11T07:08:13.301Z",
+      "session": {
+        "id": "0b77a804-ccb5-4480-b497-77ea17d9ba43",
+        "workspaceId": "054250cd-321e-4e5b-a440-8f050b2282df",
+        "nodeId": "cf8a437b-40be-4d48-a32e-1cf74077017b",
+        "pid": 3257915,
+        "status": "running",
+        "cols": 94,
+        "rows": 20,
+        "generation": "1ec1ae72-b9d0-46f5-91ec-575312f16264",
+        "createdAt": "2026-11-11T07:08:06.573Z",
+        "seq": 40,
+        "historyTruncated": false,
+        "snapshotSeq": 40
+      },
+      "dom": {
+        "viewport": {
+          "width": 1000,
+          "height": 673
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 770,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 205,
+              "y": 194,
+              "width": 770,
+              "height": 388,
+              "bottom": 582
+            },
+            "clientWidth": 760,
+            "clientHeight": 388,
+            "scrollHeight": 388,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "388px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 360,
+              "bottom": 562
+            },
+            "clientWidth": 736,
+            "clientHeight": 360,
+            "scrollHeight": 360,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "360px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 20
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 279.625,
+              "y": 544,
+              "width": 7.828125,
+              "height": 18,
+              "bottom": 562
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 279.765625,
+              "y": 544,
+              "width": 7.859375,
+              "height": 18,
+              "bottom": 562
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "RC01_LINE_35__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 202,
+              "width": 736,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "RC01_LINE_36__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 220,
+              "width": 736,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "RC01_LINE_37__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 238,
+              "width": 736,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "RC01_LINE_38__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 256,
+              "width": 736,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "RC01_LINE_39__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 274,
+              "width": 736,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "RC01_LINE_40__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 292,
+              "width": 736,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "RC01_LINE_41__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 310,
+              "width": 736,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "RC01_LINE_42__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 328,
+              "width": 736,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "RC01_LINE_43__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 346,
+              "width": 736,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "RC01_LINE_44__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 364,
+              "width": 736,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "RC01_LINE_45__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 382,
+              "width": 736,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "RC01_LINE_46__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 400,
+              "width": 736,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "RC01_LINE_47__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 418,
+              "width": 736,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "RC01_LINE_48__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 436,
+              "width": 736,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "RC01_LINE_49__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 454,
+              "width": 736,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "RC01_LINE_50__LOWER_REGION_OK",
+            "bounds": {
+              "x": 217,
+              "y": 472,
+              "width": 736,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "RC01_END_CURSOR",
+            "bounds": {
+              "x": 217,
+              "y": 490,
+              "width": 736,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "sh-5.3$ printf 'RC01_FINAL_%s\\n' 'CURSOR'",
+            "bounds": {
+              "x": 217,
+              "y": 508,
+              "width": 736,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "RC01_FINAL_CURSOR",
+            "bounds": {
+              "x": 217,
+              "y": 526,
+              "width": 736,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "sh-5.3$  ",
+            "bounds": {
+              "x": 217,
+              "y": 544,
+              "width": 736,
+              "height": 18,
+              "bottom": 562
+            }
+          }
+        ],
+        "canvases": []
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/recapture-initial.png",
+      "purpose": "one initial settled diagnostic, before 50-line stimulus"
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/recapture-final-diagnostic.png",
+      "purpose": "single final diagnostic; required image not replaced"
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/tools.png",
+      "purpose": "optional tools capture completed with scoped locator"
+    }
+  ],
+  "console": [],
+  "pageErrors": [],
+  "resizeDescription": "One keyboard width resize of the terminal panel in overview between focus cycles; window remains 1520x980.",
+  "priorLedgerModified": false,
+  "overviewCamera": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "initialPixels": {
+    "image": {
+      "width": 1000,
+      "height": 673
+    },
+    "region": {
+      "left": 237,
+      "right": 933,
+      "top": 520,
+      "bottom": 552
+    },
+    "samples": 22272,
+    "blackRatio": 0,
+    "expectedBackground": "#131d2c",
+    "expectedBackgroundRatio": 0.8018139367816092,
+    "brightPixels": 4412,
+    "minRowBackgroundRatio": 0.5459770114942529
+  },
+  "output": {
+    "session": {
+      "id": "0b77a804-ccb5-4480-b497-77ea17d9ba43",
+      "workspaceId": "054250cd-321e-4e5b-a440-8f050b2282df",
+      "nodeId": "cf8a437b-40be-4d48-a32e-1cf74077017b",
+      "pid": 3257915,
+      "status": "running",
+      "cols": 94,
+      "rows": 20,
+      "generation": "1ec1ae72-b9d0-46f5-91ec-575312f16264",
+      "createdAt": "2026-11-11T07:08:06.573Z",
+      "seq": 30,
+      "historyTruncated": false,
+      "snapshotSeq": 30
+    },
+    "data": "sh-5.3$ i=1; while [ \"$i\" -le 50 ]; do printf 'RC01_LINE_%02d__LOWER_REGION_OK\\n' \"$i\"; i=$((i+1)); done; printf 'RC01_END_%s\\n' 'CURSOR'\r\nRC01_LINE_01__LOWER_REGION_OK\r\nRC01_LINE_02__LOWER_REGION_OK\r\nRC01_LINE_03__LOWER_REGION_OK\r\nRC01_LINE_04__LOWER_REGION_OK\r\nRC01_LINE_05__LOWER_REGION_OK\r\nRC01_LINE_06__LOWER_REGION_OK\r\nRC01_LINE_07__LOWER_REGION_OK\r\nRC01_LINE_08__LOWER_REGION_OK\r\nRC01_LINE_09__LOWER_REGION_OK\r\nRC01_LINE_10__LOWER_REGION_OK\r\nRC01_LINE_11__LOWER_REGION_OK\r\nRC01_LINE_12__LOWER_REGION_OK\r\nRC01_LINE_13__LOWER_REGION_OK\r\nRC01_LINE_14__LOWER_REGION_OK\r\nRC01_LINE_15__LOWER_REGION_OK\r\nRC01_LINE_16__LOWER_REGION_OK\r\nRC01_LINE_17__LOWER_REGION_OK\r\nRC01_LINE_18__LOWER_REGION_OK\r\nRC01_LINE_19__LOWER_REGION_OK\r\nRC01_LINE_20__LOWER_REGION_OK\r\nRC01_LINE_21__LOWER_REGION_OK\r\nRC01_LINE_22__LOWER_REGION_OK\r\nRC01_LINE_23__LOWER_REGION_OK\r\nRC01_LINE_24__LOWER_REGION_OK\r\nRC01_LINE_25__LOWER_REGION_OK\r\nRC01_LINE_26__LOWER_REGION_OK\r\nRC01_LINE_27__LOWER_REGION_OK\r\nRC01_LINE_28__LOWER_REGION_OK\r\nRC01_LINE_29__LOWER_REGION_OK\r\nRC01_LINE_30__LOWER_REGION_OK\r\nRC01_LINE_31__LOWER_REGION_OK\r\nRC01_LINE_32__LOWER_REGION_OK\r\nRC01_LINE_33__LOWER_REGION_OK\r\nRC01_LINE_34__LOWER_REGION_OK\r\nRC01_LINE_35__LOWER_REGION_OK\r\nRC01_LINE_36__LOWER_REGION_OK\r\nRC01_LINE_37__LOWER_REGION_OK\r\nRC01_LINE_38__LOWER_REGION_OK\r\nRC01_LINE_39__LOWER_REGION_OK\r\nRC01_LINE_40__LOWER_REGION_OK\r\nRC01_LINE_41__LOWER_REGION_OK\r\nRC01_LINE_42__LOWER_REGION_OK\r\nRC01_LINE_43__LOWER_REGION_OK\r\nRC01_LINE_44__LOWER_REGION_OK\r\nRC01_LINE_45__LOWER_REGION_OK\r\nRC01_LINE_46__LOWER_REGION_OK\r\nRC01_LINE_47__LOWER_REGION_OK\r\nRC01_LINE_48__LOWER_REGION_OK\r\nRC01_LINE_49__LOWER_REGION_OK\r\nRC01_LINE_50__LOWER_REGION_OK\r\nRC01_END_CURSOR\r\nsh-5.3$ \u001b[?2004h",
+    "seq": 30,
+    "truncated": false
+  },
+  "finalPixels": {
+    "image": {
+      "width": 1000,
+      "height": 673
+    },
+    "region": {
+      "left": 237,
+      "right": 933,
+      "top": 520,
+      "bottom": 552
+    },
+    "samples": 22272,
+    "blackRatio": 0,
+    "expectedBackground": "#131d2c",
+    "expectedBackgroundRatio": 0.9630926724137931,
+    "brightPixels": 583,
+    "minRowBackgroundRatio": 0.7988505747126436
+  },
+  "diagnosis": {
+    "status": "RC-01 persists or recurs",
+    "sourceOwnership": "src/components/TerminalPanel.jsx resize/fit/paint integration; DOM/pixel/native dimensions recorded, no source patch",
+    "noAppChanges": true
+  },
+  "finishedAt": "2026-11-11T07:08:20.320Z",
+  "summary": {
+    "passed": 4,
+    "failed": 2
+  },
+  "agentImageReview": "Pending image reads; pixel checks alone do not substitute for review"
+}

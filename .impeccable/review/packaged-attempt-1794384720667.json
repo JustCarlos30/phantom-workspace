@@ -1,0 +1,1766 @@
+{
+  "startedAt": "2026-11-11T07:46:06.840Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "resources": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources",
+  "temp": "/tmp/opencode/phantom-packaged-e2e-69LkwH",
+  "home": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile",
+  "workspacePath": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+  "fixtureURL": "http://127.0.0.1:44513/",
+  "priorEvidenceArchive": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/before-FR02-FR03-1794383166822",
+  "build": {
+    "version": "0.1.0",
+    "node": "v26.11.1",
+    "electron": "45.3.0",
+    "builtAt": "2026-11-11T07:46:06.456Z",
+    "phantom": "0.5.0",
+    "platform": "linux-x64"
+  },
+  "checks": [
+    {
+      "name": "packaged binary, bundled runtime/CLI/browser paths, isolated empty state",
+      "status": "passed",
+      "durationMs": 15,
+      "details": {
+        "info": {
+          "platform": "Linux",
+          "version": "0.1.0",
+          "versions": {
+            "node": "24.22.2",
+            "acorn": "8.18.0",
+            "ada": "4.0.0",
+            "amaro": "1.1.11",
+            "ares": "1.34.9",
+            "brotli": "1.2.0",
+            "cldr": "48.0",
+            "icu": "78.2",
+            "llhttp": "9.4.3",
+            "merve": "1.2.2",
+            "modules": "150",
+            "napi": "10",
+            "nbytes": "0.1.4",
+            "ncrypto": "0.0.1",
+            "nghttp2": "1.70.0",
+            "nghttp3": "",
+            "ngtcp2": "",
+            "openssl": "0.0.0",
+            "simdjson": "4.6.11",
+            "simdutf": "7.7.0",
+            "sqlite": "3.53.4",
+            "tz": "2026e",
+            "undici": "7.30.1",
+            "unicode": "17.0",
+            "uv": "1.52.1",
+            "uvwasi": "0.0.23",
+            "v8": "15.6.75.50-electron.0",
+            "zlib": "1.3.2.1-motley",
+            "zstd": "1.6.0",
+            "electron": "45.3.0",
+            "chrome": "156.0.8078.96"
+          },
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile",
+          "packaged": true,
+          "host": {
+            "connected": true,
+            "error": null,
+            "info": {
+              "platform": "linux",
+              "node": "v26.11.1",
+              "pid": 3320228,
+              "dataDir": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile"
+            }
+          },
+          "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+        },
+        "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+        "environment": {
+          "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+          "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+        },
+        "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+        "sandboxFlag": false
+      }
+    },
+    {
+      "name": "open synthetic workspace via real authorized chooser bypass",
+      "status": "passed",
+      "durationMs": 192
+    },
+    {
+      "name": "settings UI isolates Phantom data; bundled CLI remains default",
+      "status": "passed",
+      "durationMs": 187
+    },
+    {
+      "name": "UI terminal 1: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 275,
+      "details": {
+        "session": {
+          "id": "72f77bfc-296b-444d-ae92-83af49398e8f",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "nodeId": "7be4b06c-16f6-4067-b902-7daf3f079553",
+          "pid": 3320544,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "4a58056a-c718-4a03-84bb-01d71192a162",
+          "createdAt": "2026-11-11T07:46:07.707Z",
+          "seq": 9,
+          "historyTruncated": false,
+          "snapshotSeq": 9
+        },
+        "data": "sh-5.3$ printf '\\nE2E_0_%s\\n' '20'\r\n\r\nE2E_0_20\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 9,
+        "truncated": false
+      }
+    },
+    {
+      "name": "UI terminal 2: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 215,
+      "details": {
+        "session": {
+          "id": "ca7f0974-3103-4032-bb35-a43d0e77bc65",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "nodeId": "3abe2a78-cad1-4a2b-92c0-51a4309cb7d3",
+          "pid": 3320546,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "ac537e40-aa51-48db-aeed-77e59eecb294",
+          "createdAt": "2026-11-11T07:46:07.970Z",
+          "seq": 9,
+          "historyTruncated": false,
+          "snapshotSeq": 9
+        },
+        "data": "sh-5.3$ printf '\\nE2E_1_%s\\n' '21'\r\n\r\nE2E_1_21\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 9,
+        "truncated": false
+      }
+    },
+    {
+      "name": "UI terminal 3: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 227,
+      "details": {
+        "session": {
+          "id": "55de3444-7806-4a15-b958-4868b46c470b",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "nodeId": "bde3ae00-f50c-4e4c-8da0-7bdf32f9f491",
+          "pid": 3320548,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "247bb9a2-444c-4eec-9bc5-684d75f2c003",
+          "createdAt": "2026-11-11T07:46:08.188Z",
+          "seq": 8,
+          "historyTruncated": false,
+          "snapshotSeq": 8
+        },
+        "data": "sh-5.3$ printf '\\nE2E_2_%s\\n' '22'\r\n\r\nE2E_2_22\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 8,
+        "truncated": false
+      }
+    },
+    {
+      "name": "shell exit 7 and explicit UI stop remain separate",
+      "status": "passed",
+      "durationMs": 899,
+      "details": {
+        "id": "55de3444-7806-4a15-b958-4868b46c470b",
+        "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+        "nodeId": "bde3ae00-f50c-4e4c-8da0-7bdf32f9f491",
+        "pid": 3320548,
+        "status": "exited",
+        "cols": 155,
+        "rows": 37,
+        "generation": "247bb9a2-444c-4eec-9bc5-684d75f2c003",
+        "createdAt": "2026-11-11T07:46:08.188Z",
+        "seq": 10,
+        "historyTruncated": false,
+        "snapshotSeq": 10,
+        "exitCode": 7,
+        "signal": 0
+      }
+    },
+    {
+      "name": "note UI and text editing do not move camera",
+      "status": "passed",
+      "durationMs": 664
+    },
+    {
+      "name": "canvas arrange, resize, zoom, keyboard palette find/focus/return",
+      "status": "passed",
+      "durationMs": 1442
+    },
+    {
+      "name": "FR03 panel context Renombrar inline: Enter/blur persist, Escape+blur cancel, header focus restored",
+      "status": "passed",
+      "durationMs": 644,
+      "details": {
+        "enterPersisted": true,
+        "escapeThenBlurCancelled": true,
+        "blurPersisted": true,
+        "modalBackdrops": 0,
+        "keyboardFocus": [
+          {
+            "phase": "Enter",
+            "restored": true
+          },
+          {
+            "phase": "Escape",
+            "restored": true
+          },
+          {
+            "phase": "restore original via Enter",
+            "restored": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "FR03 breadcrumb project rename inline: Enter/blur persist, Escape+blur cancel, focus restored",
+      "status": "passed",
+      "durationMs": 280,
+      "details": {
+        "enterPersisted": true,
+        "escapeThenBlurCancelled": true,
+        "blurPersisted": true,
+        "modalBackdrops": 0,
+        "canonicalPath": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+        "keyboardFocus": [
+          {
+            "phase": "Enter",
+            "restored": true
+          },
+          {
+            "phase": "Escape",
+            "restored": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "local task actual form and persisted doing status",
+      "status": "passed",
+      "durationMs": 122
+    },
+    {
+      "name": "context real scan/read/pin optional hash regression",
+      "status": "passed",
+      "durationMs": 153,
+      "details": [
+        {
+          "kind": "markdown",
+          "path": "E2E.md",
+          "title": "SYNTHETIC E2E fixture",
+          "source": "workspace",
+          "ref": {
+            "path": "E2E.md"
+          },
+          "id": "fbf5f5a5-a353-408b-97f6-4c0c8540c99d",
+          "createdAt": "2026-11-11T07:46:12.570Z"
+        }
+      ]
+    },
+    {
+      "name": "bundled Phantom CLI actual decision creation through native form",
+      "status": "passed",
+      "durationMs": 178,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "mem_a474b98e-6f22-482a-bff1-b9b0f3201932",
+            "title": "SYNTHETIC E2E decision",
+            "kind": "decision",
+            "status": "active",
+            "body": "Bundled CLI isolated native decision",
+            "source": "phantom",
+            "revision": 1,
+            "raw": {
+              "space": "workspace",
+              "key": "synthetic-e2e",
+              "kind": "decision",
+              "title": "SYNTHETIC E2E decision",
+              "body": "Bundled CLI isolated native decision",
+              "scope": ".",
+              "evidence": [],
+              "expiresAt": null,
+              "id": "mem_a474b98e-6f22-482a-bff1-b9b0f3201932",
+              "workspaceId": "5f780c905bac7714c4a192eee503d5c18aaa4d5583965e89e6a6fe9722564137",
+              "projectId": "8c2618feb5b74193f4dede82760a8061bb2c893026e470caf68e6b8e85208956",
+              "revision": 1,
+              "state": "active",
+              "origin": {
+                "kind": "local_operator",
+                "declared": true
+              },
+              "createdAt": "2026-11-11T07:46:12.740Z",
+              "updatedAt": "2026-11-11T07:46:12.740Z",
+              "evidenceMeaning": "Hashes acreditan vigencia de fuentes, no verificación semántica de la afirmación.",
+              "validity": {
+                "status": "current",
+                "changedEvidence": []
+              }
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T07:46:12.754Z"
+      }
+    },
+    {
+      "name": "bundled Phantom CLI native coordinated card via UI, never execute model",
+      "status": "passed",
+      "durationMs": 205,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "task_b05ef0c5-be8e-4a83-88a3-4c79143a8c02",
+            "title": "SYNTHETIC E2E card — no model",
+            "kind": "card",
+            "status": "ready",
+            "source": "phantom",
+            "raw": {
+              "id": "task_b05ef0c5-be8e-4a83-88a3-4c79143a8c02",
+              "kind": "card",
+              "status": "ready",
+              "contract": {
+                "goal": "SYNTHETIC E2E card — no model",
+                "lane": "coordinated",
+                "workspace": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+                "scope": [
+                  "E2E.md"
+                ],
+                "checks": [
+                  {
+                    "name": "not-run",
+                    "kind": "acceptance",
+                    "argv": [
+                      "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+                      "--version"
+                    ],
+                    "cwd": ".",
+                    "protect": [],
+                    "timeoutMs": 30000
+                  }
+                ],
+                "dependencies": [],
+                "budget": {
+                  "timeoutMs": 180000,
+                  "maxTurns": 8,
+                  "maxTools": 40,
+                  "maxRepairs": 0
+                }
+              },
+              "createdAt": "2026-11-11T07:46:12.950Z",
+              "updatedAt": "2026-11-11T07:46:12.950Z",
+              "latestRun": null
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T07:46:12.959Z"
+      }
+    },
+    {
+      "name": "bundled Phantom CLI actual native skill via UI",
+      "status": "passed",
+      "durationMs": 300,
+      "details": {
+        "available": true,
+        "items": [
+          {
+            "id": "fixture/synthetic-e2e",
+            "title": "Synthetic bundled native skill",
+            "kind": "skill",
+            "status": "published",
+            "source": "phantom",
+            "revision": "1.0.0",
+            "ref": {
+              "scope": "project:8c2618feb5b74193f4dede82760a8061bb2c893026e470caf68e6b8e85208956",
+              "id": "fixture/synthetic-e2e",
+              "version": "1.0.0",
+              "sha256": "c986ec218140b3fed87736b3264fd6f956677cab2993107987f02e5935b5c08f"
+            },
+            "raw": {
+              "ref": {
+                "scope": "project:8c2618feb5b74193f4dede82760a8061bb2c893026e470caf68e6b8e85208956",
+                "id": "fixture/synthetic-e2e",
+                "version": "1.0.0",
+                "sha256": "c986ec218140b3fed87736b3264fd6f956677cab2993107987f02e5935b5c08f"
+              },
+              "description": "Synthetic bundled native skill",
+              "actions": [
+                "fixture.read"
+              ],
+              "requiresTools": [],
+              "resourceCount": 0,
+              "state": "published"
+            }
+          }
+        ],
+        "observedAt": "2026-11-11T07:46:13.259Z"
+      }
+    },
+    {
+      "name": "native integration validation error stays visible, host remains connected",
+      "status": "passed",
+      "durationMs": 95,
+      "details": "Error invoking remote method 'phantom:invoke': Error: Host: memory.title: invalid text\nDescartar error"
+    },
+    {
+      "name": "Git actual fixture branch/list via UI and API",
+      "status": "passed",
+      "durationMs": 49,
+      "details": {
+        "available": true,
+        "changes": [],
+        "branches": [
+          {
+            "name": "fixture-main",
+            "oid": "d10262b4983009743f2fdf450881c8928bfd5265",
+            "current": true
+          }
+        ],
+        "worktrees": [
+          {
+            "path": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+            "oid": "d10262b4983009743f2fdf450881c8928bfd5265",
+            "branch": "fixture-main"
+          }
+        ],
+        "observedAt": "2026-11-11T07:46:13.391Z",
+        "root": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+        "branch": "fixture-main",
+        "dirty": false
+      }
+    },
+    {
+      "name": "Docker actual readonly availability/owned list",
+      "status": "passed",
+      "durationMs": 57,
+      "details": {
+        "available": true,
+        "items": [],
+        "daemon": "unix:///var/run/docker.sock",
+        "context": "default"
+      }
+    },
+    {
+      "name": "Services owner formatting regression, pin and scoped open via real UI",
+      "status": "passed",
+      "durationMs": 299,
+      "details": {
+        "remote": {
+          "url": "http://127.0.0.1:44513/",
+          "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action",
+          "ready": "complete",
+          "phantom": "undefined",
+          "require": "undefined"
+        },
+        "services": {
+          "items": [
+            {
+              "id": "67ea31cf-a217-40f0-a26b-9215b6192087",
+              "url": "http://127.0.0.1:44513/",
+              "title": "E2E Local Web",
+              "source": "pinned",
+              "status": "unknown",
+              "observedAt": "2026-11-11T07:46:13.705Z"
+            },
+            {
+              "id": "managed:ca7f0974-3103-4032-bb35-a43d0e77bc65:34515",
+              "title": "Managed port 34515",
+              "url": "http://127.0.0.1:34515/",
+              "port": 34515,
+              "source": "managed",
+              "status": "listening",
+              "health": "unknown",
+              "owner": {
+                "pid": 3320546,
+                "sessionId": "ca7f0974-3103-4032-bb35-a43d0e77bc65"
+              },
+              "observedAt": "2026-11-11T07:46:13.705Z"
+            }
+          ],
+          "observedAt": "2026-11-11T07:46:13.705Z",
+          "dockerAvailable": true
+        }
+      }
+    },
+    {
+      "name": "native browser real URL editing/settled content and remote sandbox",
+      "status": "passed",
+      "durationMs": 78,
+      "details": {
+        "url": "http://127.0.0.1:44513/?ui-navigation=1",
+        "text": "SYNTHETIC LOCAL FIXTURE\n\nREAL_NATIVE_BROWSER_SENTINEL\n\nFixture action",
+        "ready": "complete",
+        "phantom": "undefined",
+        "require": "undefined"
+      }
+    },
+    {
+      "name": "native browser hides beneath inspector and keyboard palette",
+      "status": "passed",
+      "durationMs": 239
+    },
+    {
+      "name": "FR02 tasks inspector: terminal click routes Space/Ctrl+C correctly; fields isolate PTY/camera; browser hidden",
+      "status": "passed",
+      "durationMs": 2537,
+      "details": {
+        "correctSession": "ca7f0974-3103-4032-bb35-a43d0e77bc65",
+        "interruptedOwnedChild": 3321139,
+        "otherSessionsUnchanged": true,
+        "inspectorStayedOpen": true,
+        "inspectorInputPTYTraffic": 0,
+        "cameraUnchanged": true,
+        "nativeBrowserHidden": true
+      }
+    },
+    {
+      "name": "FR02 context inspector: terminal click routes Space/Ctrl+C correctly; fields isolate PTY/camera; browser hidden",
+      "status": "passed",
+      "durationMs": 2471,
+      "details": {
+        "correctSession": "ca7f0974-3103-4032-bb35-a43d0e77bc65",
+        "interruptedOwnedChild": 3321194,
+        "otherSessionsUnchanged": true,
+        "inspectorStayedOpen": true,
+        "inspectorInputPTYTraffic": 0,
+        "cameraUnchanged": true,
+        "nativeBrowserHidden": true
+      }
+    },
+    {
+      "name": "packaged Node playground deterministic UI run",
+      "status": "passed",
+      "durationMs": 116,
+      "details": {
+        "runtime": "node",
+        "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+        "cwd": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+        "timeoutMs": 30000,
+        "id": "fb29e2fa-b29d-4e80-a002-c242a3fd8685",
+        "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+        "kind": "playground",
+        "status": "completed",
+        "artifactDir": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile/automation/812aad98-e05c-4a9f-8523-e06bc8f4a2d5/fb29e2fa-b29d-4e80-a002-c242a3fd8685",
+        "output": "SYNTHETIC_NODE_RESULT 42\n",
+        "createdAt": "2026-11-11T07:46:19.142Z",
+        "sourcePath": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile/automation/812aad98-e05c-4a9f-8523-e06bc8f4a2d5/fb29e2fa-b29d-4e80-a002-c242a3fd8685/source.mjs",
+        "runtimeVersion": "v26.11.1",
+        "exitCode": 0,
+        "exitSignal": null,
+        "finishedAt": "2026-11-11T07:46:19.181Z",
+        "owned": false
+      }
+    },
+    {
+      "name": "bundled Playwright real live browser, completed/stopped trace and internal viewer UI",
+      "status": "passed",
+      "durationMs": 1825,
+      "details": {
+        "run": {
+          "url": "http://127.0.0.1:44513/",
+          "actions": [],
+          "headed": true,
+          "keepOpen": true,
+          "timeoutMs": 60000,
+          "keepOpenMs": 300000,
+          "cwd": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+          "lifecycle": "completed con navegador visible hasta Stop o keepOpenMs",
+          "browserOpen": true,
+          "id": "10163ebb-91b9-4a31-90b5-df5acf8377ac",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "kind": "automation",
+          "status": "completed",
+          "artifactDir": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile/automation/812aad98-e05c-4a9f-8523-e06bc8f4a2d5/10163ebb-91b9-4a31-90b5-df5acf8377ac",
+          "output": "goto http://127.0.0.1:44513/\n",
+          "createdAt": "2026-11-11T07:46:19.681Z",
+          "screenshotPath": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile/automation/812aad98-e05c-4a9f-8523-e06bc8f4a2d5/10163ebb-91b9-4a31-90b5-df5acf8377ac/screenshot.png",
+          "tracePath": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile/automation/812aad98-e05c-4a9f-8523-e06bc8f4a2d5/10163ebb-91b9-4a31-90b5-df5acf8377ac/trace.zip",
+          "finishedAt": "2026-11-11T07:46:20.274Z",
+          "owned": true
+        },
+        "chromiumCommands": [
+          [
+            "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers/chromium-1254/chrome-linux64/chrome --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,HttpsUpgrades,HttpsFirstBalancedModeAutoEnable,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,AvoidCorsURLLoaderRestartOnRedirect,TcpPortRandomizationWin,OptimizationHints,NetworkTimeServiceQuerying,AimEnabled,PreconnectToSearch,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface,SkipListAccountsWithoutGaiaCookies --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --disable-updater-scheduler --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --enable-unsafe-swiftshader --edge-skip-compat-layer-relaunch --disable-stack-profiler --disable-infobars --disable-sync --do-not-de-elevate --no-sandbox --user-data-dir=/tmp/playwright_chromiumdev_profile-y7snf5 --remote-debugging-pipe --no-startup-window",
+            ""
+          ]
+        ],
+        "trace": {
+          "path": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile/automation/812aad98-e05c-4a9f-8523-e06bc8f4a2d5/10163ebb-91b9-4a31-90b5-df5acf8377ac/trace.zip"
+        },
+        "viewer": {
+          "url": "http://127.0.0.1:41661/9e64b9729a6900c67a22784804cd45ab/trace/index.html?trace=file%3Fpath%3D%252Ftmp%252Fopencode%252Fphantom-packaged-e2e-69LkwH%252Fprofile%252Fautomation%252F812aad98-e05c-4a9f-8523-e06bc8f4a2d5%252F10163ebb-91b9-4a31-90b5-df5acf8377ac%252Ftrace.zip",
+          "text": "Playwright\n0ms\n2.0s\n4.0s\n6.0s\n8.0s\n10.0s\n12.0s\n14.0s\n16.0s\n18.0s\n20.0s\n22.0s\n24.0s\n26.0s\n28.0s\n30.0s\n32.0s\nAction\nBefore\nAfter\n1x\nabout:blank\nActions\nMetadata\nLocator\nCall\nLog\nErrors\nConsole\nNetwork\nSource\nAttachments\nNo action selected",
+          "ready": "complete",
+          "phantom": "undefined",
+          "require": "undefined"
+        }
+      }
+    },
+    {
+      "name": "typed voice transcript -> reviewed explicit local task without mic/cloud",
+      "status": "passed",
+      "durationMs": 214
+    },
+    {
+      "name": "auto-placement actual native rectangles nonoverlapping",
+      "status": "passed",
+      "durationMs": 3,
+      "details": [
+        {
+          "id": "7be4b06c-16f6-4067-b902-7daf3f079553",
+          "title": "E2E T1",
+          "x": 330,
+          "y": 213,
+          "width": 640,
+          "height": 400
+        },
+        {
+          "id": "3abe2a78-cad1-4a2b-92c0-51a4309cb7d3",
+          "title": "E2E T2",
+          "x": 1002,
+          "y": 213,
+          "width": 640,
+          "height": 400
+        },
+        {
+          "id": "bde3ae00-f50c-4e4c-8da0-7bdf32f9f491",
+          "title": "E2E T3",
+          "x": 330,
+          "y": 645,
+          "width": 640,
+          "height": 400
+        },
+        {
+          "id": "35c3d23b-29f4-47a2-a4fb-714596c80594",
+          "title": "E2E Note",
+          "x": 996,
+          "y": 639,
+          "width": 444,
+          "height": 340
+        },
+        {
+          "id": "febc3daa-b804-4309-8130-4640c59b2da5",
+          "title": "E2E Local Web",
+          "x": 1002,
+          "y": 1011,
+          "width": 800,
+          "height": 520
+        },
+        {
+          "id": "4f0ff162-3d0d-4a5b-b607-0d3cd76d18ae",
+          "title": "Trace · 10163ebb-91b9-4a31-90b5-df5acf8377ac",
+          "x": 170,
+          "y": 1077,
+          "width": 800,
+          "height": 520
+        }
+      ]
+    },
+    {
+      "name": "FINAL batched screenshots: settled native page, desktop/narrow overview, terminal/tools",
+      "status": "passed",
+      "durationMs": 10326
+    },
+    {
+      "name": "immediate native window.close handshake drains note+geometry edits; disk and live PTY",
+      "status": "passed",
+      "durationMs": 339,
+      "details": {
+        "note": {
+          "id": "35c3d23b-29f4-47a2-a4fb-714596c80594",
+          "type": "note",
+          "title": "E2E Note",
+          "x": 996,
+          "y": 639,
+          "width": 444,
+          "height": 364,
+          "groupId": null,
+          "data": {
+            "text": "SYNTHETIC final close-handshake durable note"
+          }
+        },
+        "alivePid": 3320546,
+        "sessionId": "ca7f0974-3103-4032-bb35-a43d0e77bc65"
+      }
+    },
+    {
+      "name": "warm restart same profile reattaches exact SAME PID/session, no new shell, task continuity",
+      "status": "passed",
+      "durationMs": 570,
+      "details": [
+        {
+          "id": "72f77bfc-296b-444d-ae92-83af49398e8f",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "nodeId": "7be4b06c-16f6-4067-b902-7daf3f079553",
+          "pid": 3320544,
+          "status": "exited",
+          "cols": 155,
+          "rows": 37,
+          "generation": "4a58056a-c718-4a03-84bb-01d71192a162",
+          "createdAt": "2026-11-11T07:46:07.707Z",
+          "seq": 9,
+          "historyTruncated": false,
+          "snapshotSeq": 9,
+          "exitCode": 0,
+          "signal": 9
+        },
+        {
+          "id": "ca7f0974-3103-4032-bb35-a43d0e77bc65",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "nodeId": "3abe2a78-cad1-4a2b-92c0-51a4309cb7d3",
+          "pid": 3320546,
+          "status": "running",
+          "cols": 77,
+          "rows": 17,
+          "generation": "ac537e40-aa51-48db-aeed-77e59eecb294",
+          "createdAt": "2026-11-11T07:46:07.970Z",
+          "seq": 80,
+          "historyTruncated": false,
+          "snapshotSeq": 80
+        },
+        {
+          "id": "55de3444-7806-4a15-b958-4868b46c470b",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "nodeId": "bde3ae00-f50c-4e4c-8da0-7bdf32f9f491",
+          "pid": 3320548,
+          "status": "exited",
+          "cols": 155,
+          "rows": 37,
+          "generation": "247bb9a2-444c-4eec-9bc5-684d75f2c003",
+          "createdAt": "2026-11-11T07:46:08.188Z",
+          "seq": 10,
+          "historyTruncated": false,
+          "snapshotSeq": 10,
+          "exitCode": 7,
+          "signal": 0
+        }
+      ]
+    },
+    {
+      "name": "explicit host shutdown -> exited/null PID, retained history/layout, no auto shells",
+      "status": "passed",
+      "durationMs": 2240,
+      "details": {
+        "list": [
+          {
+            "id": "72f77bfc-296b-444d-ae92-83af49398e8f",
+            "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+            "nodeId": "7be4b06c-16f6-4067-b902-7daf3f079553",
+            "pid": null,
+            "status": "exited",
+            "cols": 155,
+            "rows": 37,
+            "generation": "4a58056a-c718-4a03-84bb-01d71192a162",
+            "createdAt": "2026-11-11T07:46:07.707Z",
+            "seq": 9,
+            "historyTruncated": false,
+            "snapshotSeq": 9,
+            "exitCode": 0,
+            "signal": 9
+          },
+          {
+            "id": "ca7f0974-3103-4032-bb35-a43d0e77bc65",
+            "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+            "nodeId": "3abe2a78-cad1-4a2b-92c0-51a4309cb7d3",
+            "pid": null,
+            "status": "exited",
+            "cols": 77,
+            "rows": 17,
+            "generation": "ac537e40-aa51-48db-aeed-77e59eecb294",
+            "createdAt": "2026-11-11T07:46:07.970Z",
+            "seq": 80,
+            "historyTruncated": false,
+            "snapshotSeq": 80,
+            "exitCode": 0,
+            "signal": 9
+          },
+          {
+            "id": "55de3444-7806-4a15-b958-4868b46c470b",
+            "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+            "nodeId": "bde3ae00-f50c-4e4c-8da0-7bdf32f9f491",
+            "pid": null,
+            "status": "exited",
+            "cols": 155,
+            "rows": 37,
+            "generation": "247bb9a2-444c-4eec-9bc5-684d75f2c003",
+            "createdAt": "2026-11-11T07:46:08.188Z",
+            "seq": 10,
+            "historyTruncated": false,
+            "snapshotSeq": 10,
+            "exitCode": 7,
+            "signal": 0
+          }
+        ],
+        "history": "sh-5.3$ printf '\\nE2E_1_%s\\n' '21'\r\n\r\nE2E_1_21\r\nsh-5.3$ printf 'FR02_tasks_%s\\n' 'PTY_OK'\r\nFR02_tasks_PTY_OK\r\nsh-5.3$ sleep 30\r\n^C\r\nsh-5.3$ printf 'FR02_tasks_CTRL_C_%s\\n' 'OK'\r\nFR02_tasks_CTRL_C_OK\r\nsh-5.3$ printf 'FR02_context_%s\\n' 'PTY_OK'\r\nFR02_context_PTY_OK\r\nsh-5.3$ sleep 30\r\n^C\r\nsh-5.3$ printf 'FR02_context_CTRL_C_%s\\n' 'OK'\r\nFR02_context_CTRL_C_OK\r\nsh-5.3$ i=1; while [ \"$i\" -le 50 ]; do printf 'BUILD_LINE_%02d__LOWER_REGION_OK\\n' \"$i\"; i=$((i+1)); done; printf 'BUILD_FINAL_%s\\n' 'CURSOR'\r\nBUILD_LINE_01__LOWER_REGION_OK\r\nBUILD_LINE_02__LOWER_REGION_OK\r\nBUILD_LINE_03__LOWER_REGION_OK\r\nBUILD_LINE_04__LOWER_REGION_OK\r\nBUILD_LINE_05__LOWER_REGION_OK\r\nBUILD_LINE_06__LOWER_REGION_OK\r\nBUILD_LINE_07__LOWER_REGION_OK\r\nBUILD_LINE_08__LOWER_REGION_OK\r\nBUILD_LINE_09__LOWER_REGION_OK\r\nBUILD_LINE_10__LOWER_REGION_OK\r\nBUILD_LINE_11__LOWER_REGION_OK\r\nBUILD_LINE_12__LOWER_REGION_OK\r\nBUILD_LINE_13__LOWER_REGION_OK\r\nBUILD_LINE_14__LOWER_REGION_OK\r\nBUILD_LINE_15__LOWER_REGION_OK\r\nBUILD_LINE_16__LOWER_REGION_OK\r\nBUILD_LINE_17__LOWER_REGION_OK\r\nBUILD_LINE_18__LOWER_REGION_OK\r\nBUILD_LINE_19__LOWER_REGION_OK\r\nBUILD_LINE_20__LOWER_REGION_OK\r\nBUILD_LINE_21__LOWER_REGION_OK\r\nBUILD_LINE_22__LOWER_REGION_OK\r\nBUILD_LINE_23__LOWER_REGION_OK\r\nBUILD_LINE_24__LOWER_REGION_OK\r\nBUILD_LINE_25__LOWER_REGION_OK\r\nBUILD_LINE_26__LOWER_REGION_OK\r\nBUILD_LINE_27__LOWER_REGION_OK\r\nBUILD_LINE_28__LOWER_REGION_OK\r\nBUILD_LINE_29__LOWER_REGION_OK\r\nBUILD_LINE_30__LOWER_REGION_OK\r\nBUILD_LINE_31__LOWER_REGION_OK\r\nBUILD_LINE_32__LOWER_REGION_OK\r\nBUILD_LINE_33__LOWER_REGION_OK\r\nBUILD_LINE_34__LOWER_REGION_OK\r\nBUILD_LINE_35__LOWER_REGION_OK\r\nBUILD_LINE_36__LOWER_REGION_OK\r\nBUILD_LINE_37__LOWER_REGION_OK\r\nBUILD_LINE_38__LOWER_REGION_OK\r\nBUILD_LINE_39__LOWER_REGION_OK\r\nBUILD_LINE_40__LOWER_REGION_OK\r\nBUILD_LINE_41__LOWER_REGION_OK\r\nBUILD_LINE_42__LOWER_REGION_OK\r\nBUILD_LINE_43__LOWER_REGION_OK\r\nBUILD_LINE_44__LOWER_REGION_OK\r\nBUILD_LINE_45__LOWER_REGION_OK\r\nBUILD_LINE_46__LOWER_REGION_OK\r\nBUILD_LINE_47__LOWER_REGION_OK\r\nBUILD_LINE_48__LOWER_REGION_OK\r\nBUILD_LINE_49__LOWER_REGION_OK\r\nBUILD_LINE_50__LOWER_REGION_OK\r\nBUILD_FINAL_CURSOR\r\nsh-5.3$ \u001b[?2004h"
+      }
+    },
+    {
+      "name": "unexpected crash of ONLY known fixture daemon -> lost/null PID and no restored shell",
+      "status": "passed",
+      "durationMs": 1036,
+      "details": {
+        "session": {
+          "id": "09d90bcc-2348-41ff-9200-eef332b1f25e",
+          "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+          "nodeId": "078e6b69-1df1-4609-a559-c635c47389b5",
+          "pid": null,
+          "status": "lost",
+          "cols": 155,
+          "rows": 37,
+          "generation": "52a0970a-f0aa-40a0-9162-5da02d4a9aea",
+          "createdAt": "2026-11-11T07:46:34.789Z",
+          "seq": 9,
+          "historyTruncated": false,
+          "snapshotSeq": 9
+        },
+        "data": "sh-5.3$ printf '\\nCRASH_%s\\n' 'PERSISTED'\r\n\r\nCRASH_PERSISTED\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 9,
+        "truncated": false
+      }
+    },
+    {
+      "name": "no uncaught renderer errors or tool error boundary crashes",
+      "status": "passed",
+      "durationMs": 1,
+      "details": []
+    }
+  ],
+  "console": [],
+  "pageErrors": [],
+  "screenshots": [
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/browser-native.png",
+      "surface": "settled real native local page",
+      "bytes": 20010
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/desktop.png",
+      "width": 1520,
+      "height": 980,
+      "surface": "real app renderer overview, SYNTHETIC fixture",
+      "geometry": [
+        {
+          "title": "E2E T1",
+          "x": 516.8786010742188,
+          "y": 120,
+          "width": 344.5086669921875,
+          "height": 215.31790161132812,
+          "titleHeight": 16.401168823242188,
+          "titleWidth": 36.66290283203125,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E T2",
+          "x": 878.6127319335938,
+          "y": 120,
+          "width": 344.50860595703125,
+          "height": 215.31790161132812,
+          "titleHeight": 16.401168823242188,
+          "titleWidth": 36.66290283203125,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E T3",
+          "x": 516.8786010742188,
+          "y": 352.5433349609375,
+          "width": 344.5086669921875,
+          "height": 215.31793212890625,
+          "titleHeight": 16.401153564453125,
+          "titleWidth": 36.66290283203125,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E Note",
+          "x": 875.3829345703125,
+          "y": 349.3135681152344,
+          "width": 239.0029296875,
+          "height": 183.02023315429688,
+          "titleHeight": 16.401153564453125,
+          "titleWidth": 48.261474609375,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E Local Web",
+          "x": 878.6127319335938,
+          "y": 549.5592651367188,
+          "width": 430.63580322265625,
+          "height": 279.91326904296875,
+          "titleHeight": 16.401123046875,
+          "titleWidth": 78.60784912109375,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "Trace · 10163ebb-91b9-4a31-90b5-df5acf8377ac",
+          "x": 430.75146484375,
+          "y": 585.086669921875,
+          "width": 430.63580322265625,
+          "height": 279.913330078125,
+          "titleHeight": 16.401123046875,
+          "titleWidth": 246.88385009765625,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        }
+      ]
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/narrow.png",
+      "width": 1100,
+      "height": 760,
+      "surface": "real app renderer overview, SYNTHETIC fixture",
+      "geometry": [
+        {
+          "title": "E2E T1",
+          "x": 391.15606689453125,
+          "y": 120,
+          "width": 242.77459716796875,
+          "height": 151.73410034179688,
+          "titleHeight": 14.053184509277344,
+          "titleWidth": 33.38739013671875,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E T2",
+          "x": 646.0693359375,
+          "y": 120,
+          "width": 242.7745361328125,
+          "height": 151.73410034179688,
+          "titleHeight": 14.053184509277344,
+          "titleWidth": 33.38739013671875,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E T3",
+          "x": 391.15606689453125,
+          "y": 283.8728332519531,
+          "width": 242.77459716796875,
+          "height": 151.73410034179688,
+          "titleHeight": 14.053192138671875,
+          "titleWidth": 33.38739013671875,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E Note",
+          "x": 643.7933349609375,
+          "y": 281.5968322753906,
+          "width": 168.4248046875,
+          "height": 128.97396850585938,
+          "titleHeight": 14.053192138671875,
+          "titleWidth": 43.94952392578125,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "E2E Local Web",
+          "x": 646.0693359375,
+          "y": 422.70953369140625,
+          "width": 303.46826171875,
+          "height": 197.25433349609375,
+          "titleHeight": 14.053192138671875,
+          "titleWidth": 71.58770751953125,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        },
+        {
+          "title": "Trace · 10163ebb-91b9-4a31-90b5-df5acf8377ac",
+          "x": 330.4624328613281,
+          "y": 447.74566650390625,
+          "width": 303.4682312011719,
+          "height": 197.25433349609375,
+          "titleHeight": 14.053192138671875,
+          "titleWidth": 224.8272705078125,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        }
+      ]
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/focused-terminal.png",
+      "surface": "settled real running PTY, 50 verified lines and lower-region cursor/output",
+      "width": 1520,
+      "height": 980
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/tools.png",
+      "surface": "real persisted task inspector"
+    }
+  ],
+  "launchAttempts": [
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-69LkwH",
+      "started": true
+    },
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-69LkwH",
+      "started": true
+    },
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-69LkwH",
+      "started": true
+    },
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-69LkwH",
+      "started": true
+    }
+  ],
+  "notes": [
+    "Fresh isolated packaged test; original ledger retained unchanged.",
+    "No microphone/cloud/model calls, Docker mutations, source changes, user profiles, or real repository commits.",
+    "One final batched capture round; native browser image captured directly because renderer screenshots can exclude native layers."
+  ],
+  "packaged": {
+    "info": {
+      "platform": "Linux",
+      "version": "0.1.0",
+      "versions": {
+        "node": "24.22.2",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.9",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "150",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.11",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026e",
+        "undici": "7.30.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.6.75.50-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "45.3.0",
+        "chrome": "156.0.8078.96"
+      },
+      "dataDir": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile",
+      "packaged": true,
+      "host": {
+        "connected": true,
+        "error": null,
+        "info": {
+          "platform": "linux",
+          "node": "v26.11.1",
+          "pid": 3320228,
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-69LkwH/profile"
+        }
+      },
+      "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+    },
+    "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+    "environment": {
+      "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+      "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+    },
+    "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+    "sandboxFlag": false
+  },
+  "summary": {
+    "passed": 34,
+    "failed": 0
+  },
+  "fr03PanelFocus": [
+    {
+      "phase": "Enter",
+      "restored": true
+    },
+    {
+      "phase": "Escape",
+      "restored": true
+    },
+    {
+      "phase": "restore original via Enter",
+      "restored": true
+    }
+  ],
+  "fr03ProjectFocus": [
+    {
+      "phase": "Enter",
+      "restored": true
+    },
+    {
+      "phase": "Escape",
+      "restored": true
+    }
+  ],
+  "focusedTerminalEvidence": {
+    "label": ">=500ms paint and stable actual viewport/PTY after 50-line output",
+    "native": {
+      "session": {
+        "id": "ca7f0974-3103-4032-bb35-a43d0e77bc65",
+        "workspaceId": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+        "nodeId": "3abe2a78-cad1-4a2b-92c0-51a4309cb7d3",
+        "pid": 3320546,
+        "status": "running",
+        "cols": 155,
+        "rows": 37,
+        "generation": "ac537e40-aa51-48db-aeed-77e59eecb294",
+        "createdAt": "2026-11-11T07:46:07.970Z",
+        "seq": 78,
+        "historyTruncated": false,
+        "snapshotSeq": 78
+      },
+      "data": "sh-5.3$ printf '\\nE2E_1_%s\\n' '21'\r\n\r\nE2E_1_21\r\nsh-5.3$ printf 'FR02_tasks_%s\\n' 'PTY_OK'\r\nFR02_tasks_PTY_OK\r\nsh-5.3$ sleep 30\r\n^C\r\nsh-5.3$ printf 'FR02_tasks_CTRL_C_%s\\n' 'OK'\r\nFR02_tasks_CTRL_C_OK\r\nsh-5.3$ printf 'FR02_context_%s\\n' 'PTY_OK'\r\nFR02_context_PTY_OK\r\nsh-5.3$ sleep 30\r\n^C\r\nsh-5.3$ printf 'FR02_context_CTRL_C_%s\\n' 'OK'\r\nFR02_context_CTRL_C_OK\r\nsh-5.3$ i=1; while [ \"$i\" -le 50 ]; do printf 'BUILD_LINE_%02d__LOWER_REGION_OK\\n' \"$i\"; i=$((i+1)); done; printf 'BUILD_FINAL_%s\\n' 'CURSOR'\r\nBUILD_LINE_01__LOWER_REGION_OK\r\nBUILD_LINE_02__LOWER_REGION_OK\r\nBUILD_LINE_03__LOWER_REGION_OK\r\nBUILD_LINE_04__LOWER_REGION_OK\r\nBUILD_LINE_05__LOWER_REGION_OK\r\nBUILD_LINE_06__LOWER_REGION_OK\r\nBUILD_LINE_07__LOWER_REGION_OK\r\nBUILD_LINE_08__LOWER_REGION_OK\r\nBUILD_LINE_09__LOWER_REGION_OK\r\nBUILD_LINE_10__LOWER_REGION_OK\r\nBUILD_LINE_11__LOWER_REGION_OK\r\nBUILD_LINE_12__LOWER_REGION_OK\r\nBUILD_LINE_13__LOWER_REGION_OK\r\nBUILD_LINE_14__LOWER_REGION_OK\r\nBUILD_LINE_15__LOWER_REGION_OK\r\nBUILD_LINE_16__LOWER_REGION_OK\r\nBUILD_LINE_17__LOWER_REGION_OK\r\nBUILD_LINE_18__LOWER_REGION_OK\r\nBUILD_LINE_19__LOWER_REGION_OK\r\nBUILD_LINE_20__LOWER_REGION_OK\r\nBUILD_LINE_21__LOWER_REGION_OK\r\nBUILD_LINE_22__LOWER_REGION_OK\r\nBUILD_LINE_23__LOWER_REGION_OK\r\nBUILD_LINE_24__LOWER_REGION_OK\r\nBUILD_LINE_25__LOWER_REGION_OK\r\nBUILD_LINE_26__LOWER_REGION_OK\r\nBUILD_LINE_27__LOWER_REGION_OK\r\nBUILD_LINE_28__LOWER_REGION_OK\r\nBUILD_LINE_29__LOWER_REGION_OK\r\nBUILD_LINE_30__LOWER_REGION_OK\r\nBUILD_LINE_31__LOWER_REGION_OK\r\nBUILD_LINE_32__LOWER_REGION_OK\r\nBUILD_LINE_33__LOWER_REGION_OK\r\nBUILD_LINE_34__LOWER_REGION_OK\r\nBUILD_LINE_35__LOWER_REGION_OK\r\nBUILD_LINE_36__LOWER_REGION_OK\r\nBUILD_LINE_37__LOWER_REGION_OK\r\nBUILD_LINE_38__LOWER_REGION_OK\r\nBUILD_LINE_39__LOWER_REGION_OK\r\nBUILD_LINE_40__LOWER_REGION_OK\r\nBUILD_LINE_41__LOWER_REGION_OK\r\nBUILD_LINE_42__LOWER_REGION_OK\r\nBUILD_LINE_43__LOWER_REGION_OK\r\nBUILD_LINE_44__LOWER_REGION_OK\r\nBUILD_LINE_45__LOWER_REGION_OK\r\nBUILD_LINE_46__LOWER_REGION_OK\r\nBUILD_LINE_47__LOWER_REGION_OK\r\nBUILD_LINE_48__LOWER_REGION_OK\r\nBUILD_LINE_49__LOWER_REGION_OK\r\nBUILD_LINE_50__LOWER_REGION_OK\r\nBUILD_FINAL_CURSOR\r\nsh-5.3$ \u001b[?2004h",
+      "seq": 78,
+      "truncated": false
+    },
+    "dom": {
+      "viewport": {
+        "width": 1520,
+        "height": 980
+      },
+      "elements": {
+        ".terminal-host": {
+          "bounds": {
+            "x": 245,
+            "y": 194,
+            "width": 1250,
+            "height": 695,
+            "bottom": 889
+          },
+          "background": "rgba(0, 0, 0, 0)",
+          "clientHeight": 695
+        },
+        ".xterm": {
+          "bounds": {
+            "x": 245,
+            "y": 194,
+            "width": 1250,
+            "height": 695,
+            "bottom": 889
+          },
+          "background": "rgba(0, 0, 0, 0)",
+          "clientHeight": 695
+        },
+        ".xterm-viewport": {
+          "bounds": {
+            "x": 245,
+            "y": 194,
+            "width": 1250,
+            "height": 695,
+            "bottom": 889
+          },
+          "background": "rgb(0, 0, 0)",
+          "clientHeight": 695
+        },
+        ".xterm-screen": {
+          "bounds": {
+            "x": 257,
+            "y": 202,
+            "width": 1213,
+            "height": 666,
+            "bottom": 868
+          },
+          "background": "rgba(0, 0, 0, 0)",
+          "clientHeight": 666
+        },
+        ".xterm-cursor": {
+          "bounds": {
+            "x": 319.734375,
+            "y": 850,
+            "width": 7.84375,
+            "height": 18,
+            "bottom": 868
+          },
+          "background": "rgba(0, 0, 0, 0)",
+          "clientHeight": 18
+        }
+      },
+      "rows": [
+        {
+          "text": "BUILD_LINE_16__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 202,
+            "width": 1213,
+            "height": 18,
+            "bottom": 220
+          }
+        },
+        {
+          "text": "BUILD_LINE_17__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 220,
+            "width": 1213,
+            "height": 18,
+            "bottom": 238
+          }
+        },
+        {
+          "text": "BUILD_LINE_18__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 238,
+            "width": 1213,
+            "height": 18,
+            "bottom": 256
+          }
+        },
+        {
+          "text": "BUILD_LINE_19__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 256,
+            "width": 1213,
+            "height": 18,
+            "bottom": 274
+          }
+        },
+        {
+          "text": "BUILD_LINE_20__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 274,
+            "width": 1213,
+            "height": 18,
+            "bottom": 292
+          }
+        },
+        {
+          "text": "BUILD_LINE_21__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 292,
+            "width": 1213,
+            "height": 18,
+            "bottom": 310
+          }
+        },
+        {
+          "text": "BUILD_LINE_22__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 310,
+            "width": 1213,
+            "height": 18,
+            "bottom": 328
+          }
+        },
+        {
+          "text": "BUILD_LINE_23__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 328,
+            "width": 1213,
+            "height": 18,
+            "bottom": 346
+          }
+        },
+        {
+          "text": "BUILD_LINE_24__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 346,
+            "width": 1213,
+            "height": 18,
+            "bottom": 364
+          }
+        },
+        {
+          "text": "BUILD_LINE_25__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 364,
+            "width": 1213,
+            "height": 18,
+            "bottom": 382
+          }
+        },
+        {
+          "text": "BUILD_LINE_26__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 382,
+            "width": 1213,
+            "height": 18,
+            "bottom": 400
+          }
+        },
+        {
+          "text": "BUILD_LINE_27__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 400,
+            "width": 1213,
+            "height": 18,
+            "bottom": 418
+          }
+        },
+        {
+          "text": "BUILD_LINE_28__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 418,
+            "width": 1213,
+            "height": 18,
+            "bottom": 436
+          }
+        },
+        {
+          "text": "BUILD_LINE_29__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 436,
+            "width": 1213,
+            "height": 18,
+            "bottom": 454
+          }
+        },
+        {
+          "text": "BUILD_LINE_30__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 454,
+            "width": 1213,
+            "height": 18,
+            "bottom": 472
+          }
+        },
+        {
+          "text": "BUILD_LINE_31__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 472,
+            "width": 1213,
+            "height": 18,
+            "bottom": 490
+          }
+        },
+        {
+          "text": "BUILD_LINE_32__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 490,
+            "width": 1213,
+            "height": 18,
+            "bottom": 508
+          }
+        },
+        {
+          "text": "BUILD_LINE_33__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 508,
+            "width": 1213,
+            "height": 18,
+            "bottom": 526
+          }
+        },
+        {
+          "text": "BUILD_LINE_34__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 526,
+            "width": 1213,
+            "height": 18,
+            "bottom": 544
+          }
+        },
+        {
+          "text": "BUILD_LINE_35__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 544,
+            "width": 1213,
+            "height": 18,
+            "bottom": 562
+          }
+        },
+        {
+          "text": "BUILD_LINE_36__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 562,
+            "width": 1213,
+            "height": 18,
+            "bottom": 580
+          }
+        },
+        {
+          "text": "BUILD_LINE_37__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 580,
+            "width": 1213,
+            "height": 18,
+            "bottom": 598
+          }
+        },
+        {
+          "text": "BUILD_LINE_38__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 598,
+            "width": 1213,
+            "height": 18,
+            "bottom": 616
+          }
+        },
+        {
+          "text": "BUILD_LINE_39__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 616,
+            "width": 1213,
+            "height": 18,
+            "bottom": 634
+          }
+        },
+        {
+          "text": "BUILD_LINE_40__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 634,
+            "width": 1213,
+            "height": 18,
+            "bottom": 652
+          }
+        },
+        {
+          "text": "BUILD_LINE_41__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 652,
+            "width": 1213,
+            "height": 18,
+            "bottom": 670
+          }
+        },
+        {
+          "text": "BUILD_LINE_42__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 670,
+            "width": 1213,
+            "height": 18,
+            "bottom": 688
+          }
+        },
+        {
+          "text": "BUILD_LINE_43__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 688,
+            "width": 1213,
+            "height": 18,
+            "bottom": 706
+          }
+        },
+        {
+          "text": "BUILD_LINE_44__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 706,
+            "width": 1213,
+            "height": 18,
+            "bottom": 724
+          }
+        },
+        {
+          "text": "BUILD_LINE_45__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 724,
+            "width": 1213,
+            "height": 18,
+            "bottom": 742
+          }
+        },
+        {
+          "text": "BUILD_LINE_46__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 742,
+            "width": 1213,
+            "height": 18,
+            "bottom": 760
+          }
+        },
+        {
+          "text": "BUILD_LINE_47__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 760,
+            "width": 1213,
+            "height": 18,
+            "bottom": 778
+          }
+        },
+        {
+          "text": "BUILD_LINE_48__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 778,
+            "width": 1213,
+            "height": 18,
+            "bottom": 796
+          }
+        },
+        {
+          "text": "BUILD_LINE_49__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 796,
+            "width": 1213,
+            "height": 18,
+            "bottom": 814
+          }
+        },
+        {
+          "text": "BUILD_LINE_50__LOWER_REGION_OK",
+          "bounds": {
+            "x": 257,
+            "y": 814,
+            "width": 1213,
+            "height": 18,
+            "bottom": 832
+          }
+        },
+        {
+          "text": "BUILD_FINAL_CURSOR",
+          "bounds": {
+            "x": 257,
+            "y": 832,
+            "width": 1213,
+            "height": 18,
+            "bottom": 850
+          }
+        },
+        {
+          "text": "sh-5.3$  ",
+          "bounds": {
+            "x": 257,
+            "y": 850,
+            "width": 1213,
+            "height": 18,
+            "bottom": 868
+          }
+        }
+      ]
+    }
+  },
+  "focusedTerminalPixels": {
+    "image": {
+      "width": 1520,
+      "height": 980
+    },
+    "region": {
+      "left": 277,
+      "right": 1450,
+      "top": 535,
+      "bottom": 858
+    },
+    "pixels": 378879,
+    "blackRatio": 0,
+    "expectedBackgroundRatio": 0.9580499315084763,
+    "brightPixels": 11457
+  },
+  "visualInspection": "Pending agent image reads; screenshot write alone is not a visual pass",
+  "savedWorkspace": {
+    "id": "812aad98-e05c-4a9f-8523-e06bc8f4a2d5",
+    "name": "SYNTHETIC-E2E-workspace",
+    "path": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+    "canonicalPath": "/tmp/opencode/phantom-packaged-e2e-69LkwH/SYNTHETIC-E2E-workspace",
+    "createdAt": "2026-11-11T07:46:07.274Z",
+    "updatedAt": "2026-11-11T07:46:28.517Z",
+    "camera": {
+      "x": 85.97543352601157,
+      "y": -35.79841040462428,
+      "zoom": 0.3793352601156069
+    },
+    "nodes": [
+      {
+        "id": "7be4b06c-16f6-4067-b902-7daf3f079553",
+        "type": "terminal",
+        "title": "E2E T1",
+        "x": 330,
+        "y": 213,
+        "width": 640,
+        "height": 400,
+        "groupId": null,
+        "data": {
+          "sessionId": "72f77bfc-296b-444d-ae92-83af49398e8f"
+        }
+      },
+      {
+        "id": "3abe2a78-cad1-4a2b-92c0-51a4309cb7d3",
+        "type": "terminal",
+        "title": "E2E T2",
+        "x": 1002,
+        "y": 213,
+        "width": 640,
+        "height": 400,
+        "groupId": null,
+        "data": {
+          "sessionId": "ca7f0974-3103-4032-bb35-a43d0e77bc65"
+        }
+      },
+      {
+        "id": "bde3ae00-f50c-4e4c-8da0-7bdf32f9f491",
+        "type": "terminal",
+        "title": "E2E T3",
+        "x": 330,
+        "y": 645,
+        "width": 640,
+        "height": 400,
+        "groupId": null,
+        "data": {
+          "sessionId": "55de3444-7806-4a15-b958-4868b46c470b"
+        }
+      },
+      {
+        "id": "35c3d23b-29f4-47a2-a4fb-714596c80594",
+        "type": "note",
+        "title": "E2E Note",
+        "x": 996,
+        "y": 639,
+        "width": 444,
+        "height": 364,
+        "groupId": null,
+        "data": {
+          "text": "SYNTHETIC final close-handshake durable note"
+        }
+      },
+      {
+        "id": "febc3daa-b804-4309-8130-4640c59b2da5",
+        "type": "browser",
+        "title": "E2E Local Web",
+        "x": 1002,
+        "y": 1011,
+        "width": 800,
+        "height": 520,
+        "groupId": null,
+        "data": {
+          "url": "http://127.0.0.1:44513/?ui-navigation=1"
+        }
+      },
+      {
+        "id": "4f0ff162-3d0d-4a5b-b607-0d3cd76d18ae",
+        "type": "browser",
+        "title": "Trace · 10163ebb-91b9-4a31-90b5-df5acf8377ac",
+        "x": 170,
+        "y": 1077,
+        "width": 800,
+        "height": 520,
+        "groupId": null,
+        "data": {
+          "url": "http://127.0.0.1:41661/9e64b9729a6900c67a22784804cd45ab/trace/index.html?trace=file%3Fpath%3D%252Ftmp%252Fopencode%252Fphantom-packaged-e2e-69LkwH%252Fprofile%252Fautomation%252F812aad98-e05c-4a9f-8523-e06bc8f4a2d5%252F10163ebb-91b9-4a31-90b5-df5acf8377ac%252Ftrace.zip"
+        }
+      }
+    ],
+    "tasks": [
+      {
+        "kind": "draft",
+        "description": "Actual packaged UI form",
+        "status": "doing",
+        "refs": [],
+        "title": "SYNTHETIC E2E task",
+        "id": "b086e0a1-2586-4066-adcc-e2895f641979",
+        "createdAt": "2026-11-11T07:46:12.385Z"
+      },
+      {
+        "kind": "draft",
+        "description": "Crear tarea SYNTHETIC voice task",
+        "status": "todo",
+        "refs": [],
+        "title": "SYNTHETIC voice task",
+        "id": "01e88e34-d0a1-4d3d-99f6-a3091b307136",
+        "createdAt": "2026-11-11T07:46:21.209Z"
+      }
+    ],
+    "contextRefs": [
+      {
+        "kind": "markdown",
+        "path": "E2E.md",
+        "title": "SYNTHETIC E2E fixture",
+        "source": "workspace",
+        "ref": {
+          "path": "E2E.md"
+        },
+        "id": "fbf5f5a5-a353-408b-97f6-4c0c8540c99d",
+        "createdAt": "2026-11-11T07:46:12.570Z"
+      }
+    ],
+    "missions": [],
+    "workflows": [],
+    "services": [
+      {
+        "id": "67ea31cf-a217-40f0-a26b-9215b6192087",
+        "url": "http://127.0.0.1:44513/",
+        "title": "E2E Local Web",
+        "source": "pinned",
+        "status": "unknown"
+      }
+    ],
+    "attention": [
+      {
+        "id": "79adc9ce-3edc-4da1-8b2e-01e87177de9a",
+        "eventKey": "terminal:55de3444-7806-4a15-b958-4868b46c470b:exit",
+        "title": "Terminal finalizada (código 7)",
+        "source": "terminal",
+        "ref": "55de3444-7806-4a15-b958-4868b46c470b",
+        "sessionId": "55de3444-7806-4a15-b958-4868b46c470b",
+        "exitCode": 7,
+        "createdAt": "2026-11-11T07:46:08.387Z",
+        "observedAt": "2026-11-11T07:46:08.387Z"
+      },
+      {
+        "id": "09b8700d-9b20-4c59-8b0a-7c83b9f8f85d",
+        "eventKey": "terminal:72f77bfc-296b-444d-ae92-83af49398e8f:exit",
+        "title": "Terminal finalizada (código 0)",
+        "source": "terminal",
+        "ref": "72f77bfc-296b-444d-ae92-83af49398e8f",
+        "sessionId": "72f77bfc-296b-444d-ae92-83af49398e8f",
+        "exitCode": 0,
+        "createdAt": "2026-11-11T07:46:09.208Z",
+        "observedAt": "2026-11-11T07:46:09.208Z"
+      },
+      {
+        "id": "0296cfec-f033-4648-ab80-5fab83d6362a",
+        "eventKey": "tool:fb29e2fa-b29d-4e80-a002-c242a3fd8685:completed",
+        "title": "Proceso de herramienta finalizado",
+        "source": "tool",
+        "ref": "fb29e2fa-b29d-4e80-a002-c242a3fd8685",
+        "runId": "fb29e2fa-b29d-4e80-a002-c242a3fd8685",
+        "status": "completed",
+        "createdAt": "2026-11-11T07:46:19.182Z",
+        "observedAt": "2026-11-11T07:46:19.182Z"
+      },
+      {
+        "id": "7f58e9e2-8737-45c3-83b4-b9a90a58b900",
+        "eventKey": "tool:10163ebb-91b9-4a31-90b5-df5acf8377ac:completed",
+        "title": "Proceso de herramienta finalizado",
+        "source": "tool",
+        "ref": "10163ebb-91b9-4a31-90b5-df5acf8377ac",
+        "runId": "10163ebb-91b9-4a31-90b5-df5acf8377ac",
+        "status": "completed",
+        "createdAt": "2026-11-11T07:46:20.275Z",
+        "observedAt": "2026-11-11T07:46:20.275Z"
+      }
+    ]
+  },
+  "finishedAt": "2026-11-11T07:46:35.774Z"
+}

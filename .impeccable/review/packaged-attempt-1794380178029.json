@@ -1,0 +1,201 @@
+{
+  "startedAt": "2026-11-11T06:55:31.958Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "resources": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources",
+  "temp": "/tmp/opencode/phantom-packaged-e2e-GG9oUu",
+  "home": "/tmp/opencode/phantom-packaged-e2e-GG9oUu/profile",
+  "workspacePath": "/tmp/opencode/phantom-packaged-e2e-GG9oUu/SYNTHETIC-E2E-workspace",
+  "fixtureURL": "http://127.0.0.1:41009/",
+  "checks": [
+    {
+      "name": "packaged binary, bundled runtime/CLI/browser paths, isolated empty state",
+      "status": "passed",
+      "durationMs": 17,
+      "details": {
+        "info": {
+          "platform": "Linux",
+          "version": "0.1.0",
+          "versions": {
+            "node": "24.22.2",
+            "acorn": "8.18.0",
+            "ada": "4.0.0",
+            "amaro": "1.1.11",
+            "ares": "1.34.9",
+            "brotli": "1.2.0",
+            "cldr": "48.0",
+            "icu": "78.2",
+            "llhttp": "9.4.3",
+            "merve": "1.2.2",
+            "modules": "150",
+            "napi": "10",
+            "nbytes": "0.1.4",
+            "ncrypto": "0.0.1",
+            "nghttp2": "1.70.0",
+            "nghttp3": "",
+            "ngtcp2": "",
+            "openssl": "0.0.0",
+            "simdjson": "4.6.11",
+            "simdutf": "7.7.0",
+            "sqlite": "3.53.4",
+            "tz": "2026e",
+            "undici": "7.30.1",
+            "unicode": "17.0",
+            "uv": "1.52.1",
+            "uvwasi": "0.0.23",
+            "v8": "15.6.75.50-electron.0",
+            "zlib": "1.3.2.1-motley",
+            "zstd": "1.6.0",
+            "electron": "45.3.0",
+            "chrome": "156.0.8078.96"
+          },
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-GG9oUu/profile",
+          "packaged": true,
+          "host": {
+            "connected": true,
+            "error": null,
+            "info": {
+              "platform": "linux",
+              "node": "v26.11.1",
+              "pid": 3234810,
+              "dataDir": "/tmp/opencode/phantom-packaged-e2e-GG9oUu/profile"
+            }
+          },
+          "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+        },
+        "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+        "environment": {
+          "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+          "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+        },
+        "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+        "sandboxFlag": false
+      }
+    },
+    {
+      "name": "open synthetic workspace via real authorized chooser bypass",
+      "status": "passed",
+      "durationMs": 196
+    },
+    {
+      "name": "settings UI isolates Phantom data; bundled CLI remains default",
+      "status": "passed",
+      "durationMs": 194
+    },
+    {
+      "name": "UI terminal 1: real xterm printf, independent native output/PID/ID",
+      "status": "passed",
+      "durationMs": 642,
+      "details": {
+        "session": {
+          "id": "24bb5aec-4dde-4af0-b9c3-8b4964342c56",
+          "workspaceId": "fcdd57e0-7319-440d-96d4-2354851b2530",
+          "nodeId": "327eb2f6-5143-40b8-af18-10b406298ec1",
+          "pid": 3235125,
+          "status": "running",
+          "cols": 94,
+          "rows": 20,
+          "generation": "b68075f6-acdc-4765-b88b-6e148e6317a6",
+          "createdAt": "2026-11-11T06:55:32.849Z",
+          "seq": 10,
+          "historyTruncated": false,
+          "snapshotSeq": 10
+        },
+        "data": "sh-5.3$ printf '\\nE2E_0_%s\\n' '20'\r\n\r\nE2E_0_20\r\nsh-5.3$ \u001b[?2004h",
+        "seq": 10,
+        "truncated": false
+      }
+    },
+    {
+      "name": "UI terminal 2: real xterm printf, independent native output/PID/ID",
+      "status": "failed",
+      "durationMs": 5047,
+      "error": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.canvas-node.focused').locator('.title-button')\u001b[22m\n\u001b[2m    - locator resolved to <button class=\"title-button\" title=\"Renombrar panel\">E2E T1</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    9 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n",
+      "stack": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.canvas-node.focused').locator('.title-button')\u001b[22m\n\u001b[2m    - locator resolved to <button class=\"title-button\" title=\"Renombrar panel\">E2E T1</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    9 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\n    at renameFocused (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:96:44)\n    at /home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:172:69\n    at async check (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:54:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:170:31",
+      "visibleErrors": []
+    }
+  ],
+  "console": [],
+  "pageErrors": [],
+  "screenshots": [],
+  "launchAttempts": [
+    {
+      "sandboxFlag": false,
+      "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+      "cwd": "/tmp/opencode/phantom-packaged-e2e-GG9oUu",
+      "started": true
+    }
+  ],
+  "notes": [
+    "Fresh isolated packaged test; original ledger retained unchanged.",
+    "No microphone/cloud/model calls, Docker mutations, source changes, user profiles, or real repository commits.",
+    "One final batched capture round; native browser image captured directly because renderer screenshots can exclude native layers."
+  ],
+  "packaged": {
+    "info": {
+      "platform": "Linux",
+      "version": "0.1.0",
+      "versions": {
+        "node": "24.22.2",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.9",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "150",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.11",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026e",
+        "undici": "7.30.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.6.75.50-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "45.3.0",
+        "chrome": "156.0.8078.96"
+      },
+      "dataDir": "/tmp/opencode/phantom-packaged-e2e-GG9oUu/profile",
+      "packaged": true,
+      "host": {
+        "connected": true,
+        "error": null,
+        "info": {
+          "platform": "linux",
+          "node": "v26.11.1",
+          "pid": 3234810,
+          "dataDir": "/tmp/opencode/phantom-packaged-e2e-GG9oUu/profile"
+        }
+      },
+      "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+    },
+    "execPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/runtime/node",
+    "environment": {
+      "PLAYWRIGHT_BROWSERS_PATH": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/browsers",
+      "PHANTOM_CLI": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/vendor/phantom/bin/phantom.mjs"
+    },
+    "uiURL": "file:///home/carlosj/Carlos_World/phantom-workspace/out/Phantom%20Workspace-linux-x64/resources/app/dist/index.html",
+    "sandboxFlag": false
+  },
+  "summary": {
+    "passed": 4,
+    "failed": 1
+  },
+  "blocker": {
+    "message": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.canvas-node.focused').locator('.title-button')\u001b[22m\n\u001b[2m    - locator resolved to <button class=\"title-button\" title=\"Renombrar panel\">E2E T1</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    9 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n",
+    "stack": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.canvas-node.focused').locator('.title-button')\u001b[22m\n\u001b[2m    - locator resolved to <button class=\"title-button\" title=\"Renombrar panel\">E2E T1</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    9 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\n    at renameFocused (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:96:44)\n    at /home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:172:69\n    at async check (/home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:54:25)\n    at async file:///home/carlosj/Carlos_World/phantom-workspace/test/desktop-smoke.mjs:170:31"
+  },
+  "finishedAt": "2026-11-11T06:55:38.481Z"
+}

@@ -1,0 +1,41 @@
+{
+  "version": "0.1.0",
+  "node": "v26.11.1",
+  "electron": "45.3.0",
+  "builtAt": "2026-11-11T08:12:00.320Z",
+  "phantom": "0.5.0",
+  "platform": "linux-x64",
+  "finalizedAt": "2026-11-11T08:18:12.967Z",
+  "applicationFiles": {
+    "assets/phantom.svg": "51dfe9e4e3d9c31387bfabcaea4d843db0acfa686f3338d0cb327d82420daa05",
+    "desktop/browser-manager.mjs": "d744c70e21654e80dab0505243e2de0b727b664d377827622b35bfda904fb338",
+    "desktop/host-client.mjs": "d079fcfe0883cf015c01d6f79b52dbce5ec4221c6c1e81519b229ef27c3f666b",
+    "desktop/main.mjs": "32b7598a9240dc8712be7ffee4cf7ff9236185543ed34aa4d0afbd21ed23658a",
+    "desktop/preload.cjs": "928ef919e7f9456467fcd37de828a5da9fb5c4fcc03e060412df1c2c16e44781",
+    "desktop/security.mjs": "17aa5faab2f0e8cdad73223c7636fb4b32b8652d1bcdb15382baa4243d3a8145",
+    "dist/assets/index-BKQpGbxG.css": "387f6a3f1940e9736aed955336c276829a278a35588569e9a143603bc5db79fd",
+    "dist/assets/index-CuDaAWhu.js": "89696bfd298a1ea14eae371ffbc44d3c034859c8a200e8f5342de6ab87aebfe4",
+    "dist/index.html": "778bc7499db81e713c281ccd277c2731998ba886b20c61a57b41ca127812edd5",
+    "host/server.mjs": "2799bfa7b8884af1de608c0e4d85a376733e7d0e822364b28eae4c260e095523",
+    "host/store.mjs": "41ed0795dbfb82879049d79916bf6ef30ebbbe821386a1265bd7ec319d0dcfbd",
+    "host/terminals.mjs": "18dfd0fb92c3b9297bee66095647fb209eb93fa8db2738ef35c744e5681e3e08",
+    "integrations/automation.mjs": "ac1b8c7b12eb69495cd474b51f22240a203c7c081b218d2b5031c6b6bfeabcf5",
+    "integrations/common.mjs": "19d6244ef8b7fc751a7276d28eb2fe4e0831d3e956a1f74b92407a3a5ebd49f4",
+    "integrations/context.mjs": "a4ac47d527280cfb660c9c46cb51d81dd24ba6b4ae762adb7d292e1b7a84c4db",
+    "integrations/docker.mjs": "11938d1f2b0f43602ae74a2c8f2d9a615a8c7b3c2b8c4479244a1f01422cadb9",
+    "integrations/git.mjs": "634e4bdc2bc68161a4d5cc3fc1339b38cd80fb1973e97140e0dbd37f7f82e518",
+    "integrations/index.mjs": "242e805ca0c631c17051b922e420cd74e16ac905b63d5c63e7135290c921e1b5",
+    "integrations/phantom.mjs": "e806cf408e1f4dd03e4b4c1ecc67502b82f9a111d32940921da85ef339519962",
+    "integrations/run-manager.mjs": "f1b6779de6538f98cbdec35c4d2f48f039a9fd430e282c84ff1581dbf877bb6d",
+    "integrations/services.mjs": "5e51620b1d289a9be1d42ff01209cb8fe37d7c41f78ef04b7944029f270fcd4f",
+    "integrations/voice.mjs": "a209100ab7337f5b7c9585b0f638d63d38537183edf26d87199b63e9501cc611",
+    "scripts/setup-voice.mjs": "5eb2636ab278582d130b96b6071bd61d00c192a8b5ba4ab8d6e5fb9b6498a0d4",
+    "scripts/transcribe.py": "96168f188b5e6d50bae17ce1ecb7e3b577362d1aea3e3185079d67df9b18ec72"
+  },
+  "e2e": {
+    "passed": 34,
+    "failed": 0
+  },
+  "evidence": ".impeccable/review/desktop-checks.final.json",
+  "docsSyncedWithoutRebuildingApplication": true
+}

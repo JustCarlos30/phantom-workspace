@@ -1,0 +1,3262 @@
+{
+  "finding": "RC-01",
+  "startedAt": "2026-11-11T07:09:45.659Z",
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "build": {
+    "version": "0.1.0",
+    "node": "v26.11.1",
+    "electron": "45.3.0",
+    "builtAt": "2026-11-11T06:49:14.687Z",
+    "phantom": "0.5.0",
+    "platform": "linux-x64"
+  },
+  "fixture": "/tmp/opencode/phantom-rc01-C6wPWM",
+  "profile": "/tmp/opencode/phantom-rc01-C6wPWM/profile",
+  "checks": [
+    {
+      "name": "same packaged executable and build; isolated profile; no sandbox flag",
+      "status": "passed",
+      "details": {
+        "platform": "Linux",
+        "version": "0.1.0",
+        "versions": {
+          "node": "24.22.2",
+          "acorn": "8.18.0",
+          "ada": "4.0.0",
+          "amaro": "1.1.11",
+          "ares": "1.34.9",
+          "brotli": "1.2.0",
+          "cldr": "48.0",
+          "icu": "78.2",
+          "llhttp": "9.4.3",
+          "merve": "1.2.2",
+          "modules": "150",
+          "napi": "10",
+          "nbytes": "0.1.4",
+          "ncrypto": "0.0.1",
+          "nghttp2": "1.70.0",
+          "nghttp3": "",
+          "ngtcp2": "",
+          "openssl": "0.0.0",
+          "simdjson": "4.6.11",
+          "simdutf": "7.7.0",
+          "sqlite": "3.53.4",
+          "tz": "2026e",
+          "undici": "7.30.1",
+          "unicode": "17.0",
+          "uv": "1.52.1",
+          "uvwasi": "0.0.23",
+          "v8": "15.6.75.50-electron.0",
+          "zlib": "1.3.2.1-motley",
+          "zstd": "1.6.0",
+          "electron": "45.3.0",
+          "chrome": "156.0.8078.96"
+        },
+        "dataDir": "/tmp/opencode/phantom-rc01-C6wPWM/profile",
+        "packaged": true,
+        "host": {
+          "connected": true,
+          "error": null,
+          "info": {
+            "platform": "linux",
+            "node": "v26.11.1",
+            "pid": 3260450,
+            "dataDir": "/tmp/opencode/phantom-rc01-C6wPWM/profile"
+          }
+        },
+        "hostPath": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/resources/app/host/server.mjs"
+      }
+    },
+    {
+      "name": "active terminal viewport and screen fill focused host height",
+      "status": "passed",
+      "details": {
+        "stage": "initial overview -> focused, >=500ms and dimensions stable",
+        "at": "2026-11-11T07:09:49.236Z",
+        "session": {
+          "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+          "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+          "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+          "pid": 3260741,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+          "createdAt": "2026-11-11T07:09:47.088Z",
+          "seq": 2,
+          "historyTruncated": false,
+          "snapshotSeq": 2
+        },
+        "dom": {
+          "viewport": {
+            "width": 1520,
+            "height": 980
+          },
+          "elements": {
+            ".terminal-host": {
+              "bounds": {
+                "x": 245,
+                "y": 194,
+                "width": 1250,
+                "height": 695,
+                "bottom": 889
+              },
+              "clientWidth": 1250,
+              "clientHeight": 695,
+              "scrollHeight": 695,
+              "css": {
+                "backgroundColor": "rgba(0, 0, 0, 0)",
+                "height": "695px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px",
+                "overflow": "hidden",
+                "position": "relative",
+                "lineHeight": "normal"
+              },
+              "childCount": 1
+            },
+            ".xterm": {
+              "bounds": {
+                "x": 245,
+                "y": 194,
+                "width": 1250,
+                "height": 695,
+                "bottom": 889
+              },
+              "clientWidth": 1250,
+              "clientHeight": 695,
+              "scrollHeight": 695,
+              "css": {
+                "backgroundColor": "rgba(0, 0, 0, 0)",
+                "height": "695px",
+                "paddingTop": "8px",
+                "paddingBottom": "4px",
+                "overflow": "visible",
+                "position": "relative",
+                "lineHeight": "normal"
+              },
+              "childCount": 2
+            },
+            ".xterm-viewport": {
+              "bounds": {
+                "x": 245,
+                "y": 194,
+                "width": 1250,
+                "height": 695,
+                "bottom": 889
+              },
+              "clientWidth": 1240,
+              "clientHeight": 695,
+              "scrollHeight": 695,
+              "css": {
+                "backgroundColor": "rgb(0, 0, 0)",
+                "height": "695px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px",
+                "overflow": "auto scroll",
+                "position": "absolute",
+                "lineHeight": "normal"
+              },
+              "childCount": 0
+            },
+            ".xterm-screen": {
+              "bounds": {
+                "x": 257,
+                "y": 202,
+                "width": 1213,
+                "height": 666,
+                "bottom": 868
+              },
+              "clientWidth": 1213,
+              "clientHeight": 666,
+              "scrollHeight": 666,
+              "css": {
+                "backgroundColor": "rgba(0, 0, 0, 0)",
+                "height": "666px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px",
+                "overflow": "visible",
+                "position": "relative",
+                "lineHeight": "normal"
+              },
+              "childCount": 7
+            },
+            ".xterm-rows": {
+              "bounds": {
+                "x": 257,
+                "y": 202,
+                "width": 1213,
+                "height": 666,
+                "bottom": 868
+              },
+              "clientWidth": 1213,
+              "clientHeight": 666,
+              "scrollHeight": 666,
+              "css": {
+                "backgroundColor": "rgba(0, 0, 0, 0)",
+                "height": "666px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px",
+                "overflow": "visible",
+                "position": "static",
+                "lineHeight": "normal"
+              },
+              "childCount": 37
+            },
+            ".xterm-helper-textarea": {
+              "bounds": {
+                "x": 319.59375,
+                "y": 202,
+                "width": 7.8125,
+                "height": 18,
+                "bottom": 220
+              },
+              "clientWidth": 8,
+              "clientHeight": 18,
+              "scrollHeight": 18,
+              "css": {
+                "backgroundColor": "rgb(255, 255, 255)",
+                "height": "18px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px",
+                "overflow": "hidden",
+                "position": "absolute",
+                "lineHeight": "18px"
+              },
+              "childCount": 0
+            },
+            ".xterm-cursor": {
+              "bounds": {
+                "x": 319.734375,
+                "y": 202,
+                "width": 7.84375,
+                "height": 18,
+                "bottom": 220
+              },
+              "clientWidth": 8,
+              "clientHeight": 18,
+              "scrollHeight": 18,
+              "css": {
+                "backgroundColor": "rgba(0, 0, 0, 0)",
+                "height": "18px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px",
+                "overflow": "visible",
+                "position": "static",
+                "lineHeight": "18px"
+              },
+              "childCount": 0
+            }
+          },
+          "visibleRows": [
+            {
+              "text": "sh-5.3$  ",
+              "bounds": {
+                "x": 257,
+                "y": 202,
+                "width": 1213,
+                "height": 18,
+                "bottom": 220
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 220,
+                "width": 1213,
+                "height": 18,
+                "bottom": 238
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 238,
+                "width": 1213,
+                "height": 18,
+                "bottom": 256
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 256,
+                "width": 1213,
+                "height": 18,
+                "bottom": 274
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 274,
+                "width": 1213,
+                "height": 18,
+                "bottom": 292
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 292,
+                "width": 1213,
+                "height": 18,
+                "bottom": 310
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 310,
+                "width": 1213,
+                "height": 18,
+                "bottom": 328
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 328,
+                "width": 1213,
+                "height": 18,
+                "bottom": 346
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 346,
+                "width": 1213,
+                "height": 18,
+                "bottom": 364
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 364,
+                "width": 1213,
+                "height": 18,
+                "bottom": 382
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 382,
+                "width": 1213,
+                "height": 18,
+                "bottom": 400
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 400,
+                "width": 1213,
+                "height": 18,
+                "bottom": 418
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 418,
+                "width": 1213,
+                "height": 18,
+                "bottom": 436
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 436,
+                "width": 1213,
+                "height": 18,
+                "bottom": 454
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 454,
+                "width": 1213,
+                "height": 18,
+                "bottom": 472
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 472,
+                "width": 1213,
+                "height": 18,
+                "bottom": 490
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 490,
+                "width": 1213,
+                "height": 18,
+                "bottom": 508
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 508,
+                "width": 1213,
+                "height": 18,
+                "bottom": 526
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 526,
+                "width": 1213,
+                "height": 18,
+                "bottom": 544
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 544,
+                "width": 1213,
+                "height": 18,
+                "bottom": 562
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 562,
+                "width": 1213,
+                "height": 18,
+                "bottom": 580
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 580,
+                "width": 1213,
+                "height": 18,
+                "bottom": 598
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 598,
+                "width": 1213,
+                "height": 18,
+                "bottom": 616
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 616,
+                "width": 1213,
+                "height": 18,
+                "bottom": 634
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 634,
+                "width": 1213,
+                "height": 18,
+                "bottom": 652
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 652,
+                "width": 1213,
+                "height": 18,
+                "bottom": 670
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 670,
+                "width": 1213,
+                "height": 18,
+                "bottom": 688
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 688,
+                "width": 1213,
+                "height": 18,
+                "bottom": 706
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 706,
+                "width": 1213,
+                "height": 18,
+                "bottom": 724
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 724,
+                "width": 1213,
+                "height": 18,
+                "bottom": 742
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 742,
+                "width": 1213,
+                "height": 18,
+                "bottom": 760
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 760,
+                "width": 1213,
+                "height": 18,
+                "bottom": 778
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 778,
+                "width": 1213,
+                "height": 18,
+                "bottom": 796
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 796,
+                "width": 1213,
+                "height": 18,
+                "bottom": 814
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 814,
+                "width": 1213,
+                "height": 18,
+                "bottom": 832
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 832,
+                "width": 1213,
+                "height": 18,
+                "bottom": 850
+              }
+            },
+            {
+              "text": "",
+              "bounds": {
+                "x": 257,
+                "y": 850,
+                "width": 1213,
+                "height": 18,
+                "bottom": 868
+              }
+            }
+          ],
+          "canvases": []
+        }
+      }
+    },
+    {
+      "name": "50 portable shell lines independently verified in native history",
+      "status": "passed",
+      "details": {
+        "session": {
+          "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+          "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+          "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+          "pid": 3260741,
+          "status": "running",
+          "cols": 155,
+          "rows": 37,
+          "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+          "createdAt": "2026-11-11T07:09:47.088Z",
+          "seq": 27,
+          "historyTruncated": false,
+          "snapshotSeq": 27
+        },
+        "verifiedLabels": 50,
+        "seq": 27
+      }
+    },
+    {
+      "name": "lower region has continuous expected background and rendered output after cycle/resize",
+      "status": "passed",
+      "details": {
+        "pixelEvidence": {
+          "image": {
+            "width": 1520,
+            "height": 980
+          },
+          "region": {
+            "left": 277,
+            "right": 1450,
+            "top": 535,
+            "bottom": 858
+          },
+          "samples": 378879,
+          "blackRatio": 0,
+          "expectedBackground": "#131d2c",
+          "expectedBackgroundRatio": 0.9610033810266603,
+          "brightPixels": 10858,
+          "minRowBackgroundRatio": 0.8797953964194374
+        },
+        "labelledLowerRows": [
+          {
+            "text": "RC01_LINE_36__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 526,
+              "width": 1213,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "RC01_LINE_37__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 544,
+              "width": 1213,
+              "height": 18,
+              "bottom": 562
+            }
+          },
+          {
+            "text": "RC01_LINE_38__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 562,
+              "width": 1213,
+              "height": 18,
+              "bottom": 580
+            }
+          },
+          {
+            "text": "RC01_LINE_39__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 580,
+              "width": 1213,
+              "height": 18,
+              "bottom": 598
+            }
+          },
+          {
+            "text": "RC01_LINE_40__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 598,
+              "width": 1213,
+              "height": 18,
+              "bottom": 616
+            }
+          },
+          {
+            "text": "RC01_LINE_41__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 616,
+              "width": 1213,
+              "height": 18,
+              "bottom": 634
+            }
+          },
+          {
+            "text": "RC01_LINE_42__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 634,
+              "width": 1213,
+              "height": 18,
+              "bottom": 652
+            }
+          },
+          {
+            "text": "RC01_LINE_43__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 652,
+              "width": 1213,
+              "height": 18,
+              "bottom": 670
+            }
+          },
+          {
+            "text": "RC01_LINE_44__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 670,
+              "width": 1213,
+              "height": 18,
+              "bottom": 688
+            }
+          },
+          {
+            "text": "RC01_LINE_45__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 688,
+              "width": 1213,
+              "height": 18,
+              "bottom": 706
+            }
+          },
+          {
+            "text": "RC01_LINE_46__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 706,
+              "width": 1213,
+              "height": 18,
+              "bottom": 724
+            }
+          },
+          {
+            "text": "RC01_LINE_47__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 724,
+              "width": 1213,
+              "height": 18,
+              "bottom": 742
+            }
+          },
+          {
+            "text": "RC01_LINE_48__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 742,
+              "width": 1213,
+              "height": 18,
+              "bottom": 760
+            }
+          },
+          {
+            "text": "RC01_LINE_49__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 760,
+              "width": 1213,
+              "height": 18,
+              "bottom": 778
+            }
+          },
+          {
+            "text": "RC01_LINE_50__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 778,
+              "width": 1213,
+              "height": 18,
+              "bottom": 796
+            }
+          },
+          {
+            "text": "RC01_END_CURSOR",
+            "bounds": {
+              "x": 257,
+              "y": 796,
+              "width": 1213,
+              "height": 18,
+              "bottom": 814
+            }
+          },
+          {
+            "text": "sh-5.3$ printf 'RC01_FINAL_%s\\n' 'CURSOR'",
+            "bounds": {
+              "x": 257,
+              "y": 814,
+              "width": 1213,
+              "height": 18,
+              "bottom": 832
+            }
+          },
+          {
+            "text": "RC01_FINAL_CURSOR",
+            "bounds": {
+              "x": 257,
+              "y": 832,
+              "width": 1213,
+              "height": 18,
+              "bottom": 850
+            }
+          }
+        ],
+        "cursor": {
+          "bounds": {
+            "x": 319.734375,
+            "y": 850,
+            "width": 7.84375,
+            "height": 18,
+            "bottom": 868
+          },
+          "clientWidth": 8,
+          "clientHeight": 18,
+          "scrollHeight": 18,
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "height": "18px",
+            "paddingTop": "0px",
+            "paddingBottom": "0px",
+            "overflow": "visible",
+            "position": "static",
+            "lineHeight": "18px"
+          },
+          "childCount": 0
+        }
+      }
+    },
+    {
+      "name": "optional tools screenshot uses scoped task target; prior failure was diagnostic, not core",
+      "status": "passed",
+      "details": {
+        "task": {
+          "kind": "draft",
+          "description": "Targeted optional evidence recovery only",
+          "status": "todo",
+          "refs": [],
+          "title": "SYNTHETIC RC01 task",
+          "id": "48a742b5-404a-4725-9249-62dd58997213",
+          "createdAt": "2026-11-11T07:09:54.173Z"
+        }
+      }
+    },
+    {
+      "name": "no renderer errors in targeted recovery",
+      "status": "passed"
+    }
+  ],
+  "measurements": [
+    {
+      "stage": "initial overview -> focused, >=500ms and dimensions stable",
+      "at": "2026-11-11T07:09:49.236Z",
+      "session": {
+        "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+        "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+        "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+        "pid": 3260741,
+        "status": "running",
+        "cols": 155,
+        "rows": 37,
+        "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+        "createdAt": "2026-11-11T07:09:47.088Z",
+        "seq": 2,
+        "historyTruncated": false,
+        "snapshotSeq": 2
+      },
+      "dom": {
+        "viewport": {
+          "width": 1520,
+          "height": 980
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1240,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 37
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 319.59375,
+              "y": 202,
+              "width": 7.8125,
+              "height": 18,
+              "bottom": 220
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 319.734375,
+              "y": 202,
+              "width": 7.84375,
+              "height": 18,
+              "bottom": 220
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "sh-5.3$  ",
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 220,
+              "width": 1213,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 238,
+              "width": 1213,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 256,
+              "width": 1213,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 274,
+              "width": 1213,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 292,
+              "width": 1213,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 310,
+              "width": 1213,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 328,
+              "width": 1213,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 346,
+              "width": 1213,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 364,
+              "width": 1213,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 382,
+              "width": 1213,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 400,
+              "width": 1213,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 418,
+              "width": 1213,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 436,
+              "width": 1213,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 454,
+              "width": 1213,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 472,
+              "width": 1213,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 490,
+              "width": 1213,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 508,
+              "width": 1213,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 526,
+              "width": 1213,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 544,
+              "width": 1213,
+              "height": 18,
+              "bottom": 562
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 562,
+              "width": 1213,
+              "height": 18,
+              "bottom": 580
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 580,
+              "width": 1213,
+              "height": 18,
+              "bottom": 598
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 598,
+              "width": 1213,
+              "height": 18,
+              "bottom": 616
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 616,
+              "width": 1213,
+              "height": 18,
+              "bottom": 634
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 634,
+              "width": 1213,
+              "height": 18,
+              "bottom": 652
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 652,
+              "width": 1213,
+              "height": 18,
+              "bottom": 670
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 670,
+              "width": 1213,
+              "height": 18,
+              "bottom": 688
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 688,
+              "width": 1213,
+              "height": 18,
+              "bottom": 706
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 706,
+              "width": 1213,
+              "height": 18,
+              "bottom": 724
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 724,
+              "width": 1213,
+              "height": 18,
+              "bottom": 742
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 742,
+              "width": 1213,
+              "height": 18,
+              "bottom": 760
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 760,
+              "width": 1213,
+              "height": 18,
+              "bottom": 778
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 778,
+              "width": 1213,
+              "height": 18,
+              "bottom": 796
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 796,
+              "width": 1213,
+              "height": 18,
+              "bottom": 814
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 814,
+              "width": 1213,
+              "height": 18,
+              "bottom": 832
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 832,
+              "width": 1213,
+              "height": 18,
+              "bottom": 850
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 850,
+              "width": 1213,
+              "height": 18,
+              "bottom": 868
+            }
+          }
+        ],
+        "canvases": []
+      }
+    },
+    {
+      "stage": "after 50-line output before focus cycle",
+      "at": "2026-11-11T07:09:49.577Z",
+      "session": {
+        "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+        "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+        "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+        "pid": 3260741,
+        "status": "running",
+        "cols": 155,
+        "rows": 37,
+        "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+        "createdAt": "2026-11-11T07:09:47.088Z",
+        "seq": 27,
+        "historyTruncated": false,
+        "snapshotSeq": 27
+      },
+      "dom": {
+        "viewport": {
+          "width": 1520,
+          "height": 980
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1240,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 37
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 319.59375,
+              "y": 850,
+              "width": 7.8125,
+              "height": 18,
+              "bottom": 868
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 1315.40625,
+              "y": 202,
+              "width": 7.84375,
+              "height": 18,
+              "bottom": 220
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(167, 186, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "sh-5.3$ i=1; while [ \"$i\" -le 50 ]; do printf 'RC01_LINE_%02d__LOWER_REGION_OK\\n' \"$i\"; i=$((i+1)); done; printf 'RC01_END_%s\\n' 'CURSO ",
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 220,
+              "width": 1213,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 238,
+              "width": 1213,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 256,
+              "width": 1213,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 274,
+              "width": 1213,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 292,
+              "width": 1213,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 310,
+              "width": 1213,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 328,
+              "width": 1213,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 346,
+              "width": 1213,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 364,
+              "width": 1213,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 382,
+              "width": 1213,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 400,
+              "width": 1213,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 418,
+              "width": 1213,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 436,
+              "width": 1213,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 454,
+              "width": 1213,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 472,
+              "width": 1213,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 490,
+              "width": 1213,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 508,
+              "width": 1213,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 526,
+              "width": 1213,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 544,
+              "width": 1213,
+              "height": 18,
+              "bottom": 562
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 562,
+              "width": 1213,
+              "height": 18,
+              "bottom": 580
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 580,
+              "width": 1213,
+              "height": 18,
+              "bottom": 598
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 598,
+              "width": 1213,
+              "height": 18,
+              "bottom": 616
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 616,
+              "width": 1213,
+              "height": 18,
+              "bottom": 634
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 634,
+              "width": 1213,
+              "height": 18,
+              "bottom": 652
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 652,
+              "width": 1213,
+              "height": 18,
+              "bottom": 670
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 670,
+              "width": 1213,
+              "height": 18,
+              "bottom": 688
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 688,
+              "width": 1213,
+              "height": 18,
+              "bottom": 706
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 706,
+              "width": 1213,
+              "height": 18,
+              "bottom": 724
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 724,
+              "width": 1213,
+              "height": 18,
+              "bottom": 742
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 742,
+              "width": 1213,
+              "height": 18,
+              "bottom": 760
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 760,
+              "width": 1213,
+              "height": 18,
+              "bottom": 778
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 778,
+              "width": 1213,
+              "height": 18,
+              "bottom": 796
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 796,
+              "width": 1213,
+              "height": 18,
+              "bottom": 814
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 814,
+              "width": 1213,
+              "height": 18,
+              "bottom": 832
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 832,
+              "width": 1213,
+              "height": 18,
+              "bottom": 850
+            }
+          },
+          {
+            "text": "",
+            "bounds": {
+              "x": 257,
+              "y": 850,
+              "width": 1213,
+              "height": 18,
+              "bottom": 868
+            }
+          }
+        ],
+        "canvases": []
+      }
+    },
+    {
+      "stage": "one unfocus/refocus plus one panel resize, settled",
+      "at": "2026-11-11T07:09:50.934Z",
+      "session": {
+        "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+        "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+        "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+        "pid": 3260741,
+        "status": "running",
+        "cols": 155,
+        "rows": 37,
+        "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+        "createdAt": "2026-11-11T07:09:47.088Z",
+        "seq": 29,
+        "historyTruncated": false,
+        "snapshotSeq": 29
+      },
+      "dom": {
+        "viewport": {
+          "width": 1520,
+          "height": 980
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1240,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 37
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 319.59375,
+              "y": 850,
+              "width": 7.8125,
+              "height": 18,
+              "bottom": 868
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 319.734375,
+              "y": 850,
+              "width": 7.84375,
+              "height": 18,
+              "bottom": 868
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "RC01_LINE_16__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "RC01_LINE_17__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 220,
+              "width": 1213,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "RC01_LINE_18__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 238,
+              "width": 1213,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "RC01_LINE_19__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 256,
+              "width": 1213,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "RC01_LINE_20__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 274,
+              "width": 1213,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "RC01_LINE_21__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 292,
+              "width": 1213,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "RC01_LINE_22__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 310,
+              "width": 1213,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "RC01_LINE_23__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 328,
+              "width": 1213,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "RC01_LINE_24__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 346,
+              "width": 1213,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "RC01_LINE_25__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 364,
+              "width": 1213,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "RC01_LINE_26__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 382,
+              "width": 1213,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "RC01_LINE_27__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 400,
+              "width": 1213,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "RC01_LINE_28__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 418,
+              "width": 1213,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "RC01_LINE_29__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 436,
+              "width": 1213,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "RC01_LINE_30__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 454,
+              "width": 1213,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "RC01_LINE_31__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 472,
+              "width": 1213,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "RC01_LINE_32__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 490,
+              "width": 1213,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "RC01_LINE_33__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 508,
+              "width": 1213,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "RC01_LINE_34__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 526,
+              "width": 1213,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "RC01_LINE_35__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 544,
+              "width": 1213,
+              "height": 18,
+              "bottom": 562
+            }
+          },
+          {
+            "text": "RC01_LINE_36__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 562,
+              "width": 1213,
+              "height": 18,
+              "bottom": 580
+            }
+          },
+          {
+            "text": "RC01_LINE_37__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 580,
+              "width": 1213,
+              "height": 18,
+              "bottom": 598
+            }
+          },
+          {
+            "text": "RC01_LINE_38__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 598,
+              "width": 1213,
+              "height": 18,
+              "bottom": 616
+            }
+          },
+          {
+            "text": "RC01_LINE_39__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 616,
+              "width": 1213,
+              "height": 18,
+              "bottom": 634
+            }
+          },
+          {
+            "text": "RC01_LINE_40__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 634,
+              "width": 1213,
+              "height": 18,
+              "bottom": 652
+            }
+          },
+          {
+            "text": "RC01_LINE_41__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 652,
+              "width": 1213,
+              "height": 18,
+              "bottom": 670
+            }
+          },
+          {
+            "text": "RC01_LINE_42__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 670,
+              "width": 1213,
+              "height": 18,
+              "bottom": 688
+            }
+          },
+          {
+            "text": "RC01_LINE_43__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 688,
+              "width": 1213,
+              "height": 18,
+              "bottom": 706
+            }
+          },
+          {
+            "text": "RC01_LINE_44__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 706,
+              "width": 1213,
+              "height": 18,
+              "bottom": 724
+            }
+          },
+          {
+            "text": "RC01_LINE_45__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 724,
+              "width": 1213,
+              "height": 18,
+              "bottom": 742
+            }
+          },
+          {
+            "text": "RC01_LINE_46__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 742,
+              "width": 1213,
+              "height": 18,
+              "bottom": 760
+            }
+          },
+          {
+            "text": "RC01_LINE_47__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 760,
+              "width": 1213,
+              "height": 18,
+              "bottom": 778
+            }
+          },
+          {
+            "text": "RC01_LINE_48__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 778,
+              "width": 1213,
+              "height": 18,
+              "bottom": 796
+            }
+          },
+          {
+            "text": "RC01_LINE_49__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 796,
+              "width": 1213,
+              "height": 18,
+              "bottom": 814
+            }
+          },
+          {
+            "text": "RC01_LINE_50__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 814,
+              "width": 1213,
+              "height": 18,
+              "bottom": 832
+            }
+          },
+          {
+            "text": "RC01_END_CURSOR",
+            "bounds": {
+              "x": 257,
+              "y": 832,
+              "width": 1213,
+              "height": 18,
+              "bottom": 850
+            }
+          },
+          {
+            "text": "sh-5.3$  ",
+            "bounds": {
+              "x": 257,
+              "y": 850,
+              "width": 1213,
+              "height": 18,
+              "bottom": 868
+            }
+          }
+        ],
+        "canvases": []
+      }
+    },
+    {
+      "stage": "final output, focused viewport settled",
+      "at": "2026-11-11T07:09:53.843Z",
+      "session": {
+        "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+        "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+        "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+        "pid": 3260741,
+        "status": "running",
+        "cols": 155,
+        "rows": 37,
+        "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+        "createdAt": "2026-11-11T07:09:47.088Z",
+        "seq": 36,
+        "historyTruncated": false,
+        "snapshotSeq": 36
+      },
+      "dom": {
+        "viewport": {
+          "width": 1520,
+          "height": 980
+        },
+        "elements": {
+          ".terminal-host": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 1
+          },
+          ".xterm": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1250,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "8px",
+              "paddingBottom": "4px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 2
+          },
+          ".xterm-viewport": {
+            "bounds": {
+              "x": 245,
+              "y": 194,
+              "width": 1250,
+              "height": 695,
+              "bottom": 889
+            },
+            "clientWidth": 1240,
+            "clientHeight": 695,
+            "scrollHeight": 695,
+            "css": {
+              "backgroundColor": "rgb(0, 0, 0)",
+              "height": "695px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "auto scroll",
+              "position": "absolute",
+              "lineHeight": "normal"
+            },
+            "childCount": 0
+          },
+          ".xterm-screen": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "relative",
+              "lineHeight": "normal"
+            },
+            "childCount": 7
+          },
+          ".xterm-rows": {
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 666,
+              "bottom": 868
+            },
+            "clientWidth": 1213,
+            "clientHeight": 666,
+            "scrollHeight": 666,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "666px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "normal"
+            },
+            "childCount": 37
+          },
+          ".xterm-helper-textarea": {
+            "bounds": {
+              "x": 319.59375,
+              "y": 850,
+              "width": 7.8125,
+              "height": 18,
+              "bottom": 868
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgb(255, 255, 255)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "hidden",
+              "position": "absolute",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          },
+          ".xterm-cursor": {
+            "bounds": {
+              "x": 319.734375,
+              "y": 850,
+              "width": 7.84375,
+              "height": 18,
+              "bottom": 868
+            },
+            "clientWidth": 8,
+            "clientHeight": 18,
+            "scrollHeight": 18,
+            "css": {
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "height": "18px",
+              "paddingTop": "0px",
+              "paddingBottom": "0px",
+              "overflow": "visible",
+              "position": "static",
+              "lineHeight": "18px"
+            },
+            "childCount": 0
+          }
+        },
+        "visibleRows": [
+          {
+            "text": "RC01_LINE_18__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 202,
+              "width": 1213,
+              "height": 18,
+              "bottom": 220
+            }
+          },
+          {
+            "text": "RC01_LINE_19__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 220,
+              "width": 1213,
+              "height": 18,
+              "bottom": 238
+            }
+          },
+          {
+            "text": "RC01_LINE_20__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 238,
+              "width": 1213,
+              "height": 18,
+              "bottom": 256
+            }
+          },
+          {
+            "text": "RC01_LINE_21__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 256,
+              "width": 1213,
+              "height": 18,
+              "bottom": 274
+            }
+          },
+          {
+            "text": "RC01_LINE_22__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 274,
+              "width": 1213,
+              "height": 18,
+              "bottom": 292
+            }
+          },
+          {
+            "text": "RC01_LINE_23__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 292,
+              "width": 1213,
+              "height": 18,
+              "bottom": 310
+            }
+          },
+          {
+            "text": "RC01_LINE_24__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 310,
+              "width": 1213,
+              "height": 18,
+              "bottom": 328
+            }
+          },
+          {
+            "text": "RC01_LINE_25__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 328,
+              "width": 1213,
+              "height": 18,
+              "bottom": 346
+            }
+          },
+          {
+            "text": "RC01_LINE_26__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 346,
+              "width": 1213,
+              "height": 18,
+              "bottom": 364
+            }
+          },
+          {
+            "text": "RC01_LINE_27__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 364,
+              "width": 1213,
+              "height": 18,
+              "bottom": 382
+            }
+          },
+          {
+            "text": "RC01_LINE_28__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 382,
+              "width": 1213,
+              "height": 18,
+              "bottom": 400
+            }
+          },
+          {
+            "text": "RC01_LINE_29__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 400,
+              "width": 1213,
+              "height": 18,
+              "bottom": 418
+            }
+          },
+          {
+            "text": "RC01_LINE_30__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 418,
+              "width": 1213,
+              "height": 18,
+              "bottom": 436
+            }
+          },
+          {
+            "text": "RC01_LINE_31__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 436,
+              "width": 1213,
+              "height": 18,
+              "bottom": 454
+            }
+          },
+          {
+            "text": "RC01_LINE_32__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 454,
+              "width": 1213,
+              "height": 18,
+              "bottom": 472
+            }
+          },
+          {
+            "text": "RC01_LINE_33__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 472,
+              "width": 1213,
+              "height": 18,
+              "bottom": 490
+            }
+          },
+          {
+            "text": "RC01_LINE_34__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 490,
+              "width": 1213,
+              "height": 18,
+              "bottom": 508
+            }
+          },
+          {
+            "text": "RC01_LINE_35__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 508,
+              "width": 1213,
+              "height": 18,
+              "bottom": 526
+            }
+          },
+          {
+            "text": "RC01_LINE_36__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 526,
+              "width": 1213,
+              "height": 18,
+              "bottom": 544
+            }
+          },
+          {
+            "text": "RC01_LINE_37__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 544,
+              "width": 1213,
+              "height": 18,
+              "bottom": 562
+            }
+          },
+          {
+            "text": "RC01_LINE_38__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 562,
+              "width": 1213,
+              "height": 18,
+              "bottom": 580
+            }
+          },
+          {
+            "text": "RC01_LINE_39__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 580,
+              "width": 1213,
+              "height": 18,
+              "bottom": 598
+            }
+          },
+          {
+            "text": "RC01_LINE_40__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 598,
+              "width": 1213,
+              "height": 18,
+              "bottom": 616
+            }
+          },
+          {
+            "text": "RC01_LINE_41__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 616,
+              "width": 1213,
+              "height": 18,
+              "bottom": 634
+            }
+          },
+          {
+            "text": "RC01_LINE_42__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 634,
+              "width": 1213,
+              "height": 18,
+              "bottom": 652
+            }
+          },
+          {
+            "text": "RC01_LINE_43__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 652,
+              "width": 1213,
+              "height": 18,
+              "bottom": 670
+            }
+          },
+          {
+            "text": "RC01_LINE_44__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 670,
+              "width": 1213,
+              "height": 18,
+              "bottom": 688
+            }
+          },
+          {
+            "text": "RC01_LINE_45__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 688,
+              "width": 1213,
+              "height": 18,
+              "bottom": 706
+            }
+          },
+          {
+            "text": "RC01_LINE_46__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 706,
+              "width": 1213,
+              "height": 18,
+              "bottom": 724
+            }
+          },
+          {
+            "text": "RC01_LINE_47__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 724,
+              "width": 1213,
+              "height": 18,
+              "bottom": 742
+            }
+          },
+          {
+            "text": "RC01_LINE_48__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 742,
+              "width": 1213,
+              "height": 18,
+              "bottom": 760
+            }
+          },
+          {
+            "text": "RC01_LINE_49__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 760,
+              "width": 1213,
+              "height": 18,
+              "bottom": 778
+            }
+          },
+          {
+            "text": "RC01_LINE_50__LOWER_REGION_OK",
+            "bounds": {
+              "x": 257,
+              "y": 778,
+              "width": 1213,
+              "height": 18,
+              "bottom": 796
+            }
+          },
+          {
+            "text": "RC01_END_CURSOR",
+            "bounds": {
+              "x": 257,
+              "y": 796,
+              "width": 1213,
+              "height": 18,
+              "bottom": 814
+            }
+          },
+          {
+            "text": "sh-5.3$ printf 'RC01_FINAL_%s\\n' 'CURSOR'",
+            "bounds": {
+              "x": 257,
+              "y": 814,
+              "width": 1213,
+              "height": 18,
+              "bottom": 832
+            }
+          },
+          {
+            "text": "RC01_FINAL_CURSOR",
+            "bounds": {
+              "x": 257,
+              "y": 832,
+              "width": 1213,
+              "height": 18,
+              "bottom": 850
+            }
+          },
+          {
+            "text": "sh-5.3$  ",
+            "bounds": {
+              "x": 257,
+              "y": 850,
+              "width": 1213,
+              "height": 18,
+              "bottom": 868
+            }
+          }
+        ],
+        "canvases": []
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/recapture-initial.png",
+      "purpose": "one initial settled diagnostic, before 50-line stimulus"
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/focused-terminal.png",
+      "purpose": "single final required replacement after diagnostics"
+    },
+    {
+      "path": "/home/carlosj/Carlos_World/phantom-workspace/.impeccable/review/tools.png",
+      "purpose": "optional tools capture completed with scoped locator"
+    }
+  ],
+  "console": [],
+  "pageErrors": [],
+  "resizeDescription": "One keyboard width resize of the terminal panel in overview between focus cycles; window remains 1520x980.",
+  "priorLedgerModified": false,
+  "nativeWindowConstraint": {
+    "bounds": {
+      "x": 0,
+      "y": 0,
+      "width": 1520,
+      "height": 1007
+    },
+    "contentSize": [
+      1520,
+      980
+    ],
+    "reason": "Prevent compositor shrinking the diagnostic surface to native minimum while testing fixed 1520x980 viewport"
+  },
+  "overviewCamera": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "initialPixels": {
+    "image": {
+      "width": 1520,
+      "height": 980
+    },
+    "region": {
+      "left": 277,
+      "right": 1450,
+      "top": 535,
+      "bottom": 858
+    },
+    "samples": 378879,
+    "blackRatio": 0,
+    "expectedBackground": "#131d2c",
+    "expectedBackgroundRatio": 0.9892868171632632,
+    "brightPixels": 4057,
+    "minRowBackgroundRatio": 0.7331628303495311
+  },
+  "output": {
+    "session": {
+      "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+      "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+      "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+      "pid": 3260741,
+      "status": "running",
+      "cols": 155,
+      "rows": 37,
+      "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+      "createdAt": "2026-11-11T07:09:47.088Z",
+      "seq": 27,
+      "historyTruncated": false,
+      "snapshotSeq": 27
+    },
+    "data": "sh-5.3$ i=1; while [ \"$i\" -le 50 ]; do printf 'RC01_LINE_%02d__LOWER_REGION_OK\\n' \"$i\"; i=$((i+1)); done; printf 'RC01_END_%s\\n' 'CURSOR'\r\nRC01_LINE_01__LOWER_REGION_OK\r\nRC01_LINE_02__LOWER_REGION_OK\r\nRC01_LINE_03__LOWER_REGION_OK\r\nRC01_LINE_04__LOWER_REGION_OK\r\nRC01_LINE_05__LOWER_REGION_OK\r\nRC01_LINE_06__LOWER_REGION_OK\r\nRC01_LINE_07__LOWER_REGION_OK\r\nRC01_LINE_08__LOWER_REGION_OK\r\nRC01_LINE_09__LOWER_REGION_OK\r\nRC01_LINE_10__LOWER_REGION_OK\r\nRC01_LINE_11__LOWER_REGION_OK\r\nRC01_LINE_12__LOWER_REGION_OK\r\nRC01_LINE_13__LOWER_REGION_OK\r\nRC01_LINE_14__LOWER_REGION_OK\r\nRC01_LINE_15__LOWER_REGION_OK\r\nRC01_LINE_16__LOWER_REGION_OK\r\nRC01_LINE_17__LOWER_REGION_OK\r\nRC01_LINE_18__LOWER_REGION_OK\r\nRC01_LINE_19__LOWER_REGION_OK\r\nRC01_LINE_20__LOWER_REGION_OK\r\nRC01_LINE_21__LOWER_REGION_OK\r\nRC01_LINE_22__LOWER_REGION_OK\r\nRC01_LINE_23__LOWER_REGION_OK\r\nRC01_LINE_24__LOWER_REGION_OK\r\nRC01_LINE_25__LOWER_REGION_OK\r\nRC01_LINE_26__LOWER_REGION_OK\r\nRC01_LINE_27__LOWER_REGION_OK\r\nRC01_LINE_28__LOWER_REGION_OK\r\nRC01_LINE_29__LOWER_REGION_OK\r\nRC01_LINE_30__LOWER_REGION_OK\r\nRC01_LINE_31__LOWER_REGION_OK\r\nRC01_LINE_32__LOWER_REGION_OK\r\nRC01_LINE_33__LOWER_REGION_OK\r\nRC01_LINE_34__LOWER_REGION_OK\r\nRC01_LINE_35__LOWER_REGION_OK\r\nRC01_LINE_36__LOWER_REGION_OK\r\nRC01_LINE_37__LOWER_REGION_OK\r\nRC01_LINE_38__LOWER_REGION_OK\r\nRC01_LINE_39__LOWER_REGION_OK\r\nRC01_LINE_40__LOWER_REGION_OK\r\nRC01_LINE_41__LOWER_REGION_OK\r\nRC01_LINE_42__LOWER_REGION_OK\r\nRC01_LINE_43__LOWER_REGION_OK\r\nRC01_LINE_44__LOWER_REGION_OK\r\nRC01_LINE_45__LOWER_REGION_OK\r\nRC01_LINE_46__LOWER_REGION_OK\r\nRC01_LINE_47__LOWER_REGION_OK\r\nRC01_LINE_48__LOWER_REGION_OK\r\nRC01_LINE_49__LOWER_REGION_OK\r\nRC01_LINE_50__LOWER_REGION_OK\r\nRC01_END_CURSOR\r\nsh-5.3$ \u001b[?2004h",
+    "seq": 27,
+    "truncated": false
+  },
+  "finalPixels": {
+    "image": {
+      "width": 1520,
+      "height": 980
+    },
+    "region": {
+      "left": 277,
+      "right": 1450,
+      "top": 535,
+      "bottom": 858
+    },
+    "samples": 378879,
+    "blackRatio": 0,
+    "expectedBackground": "#131d2c",
+    "expectedBackgroundRatio": 0.9610033810266603,
+    "brightPixels": 10858,
+    "minRowBackgroundRatio": 0.8797953964194374
+  },
+  "diagnosis": {
+    "status": "settled full-height terminal and lower-region output verified",
+    "initialArtifact": "Prior image was consistent with pre-fit capture: settled initial recovery already has full-height fit and no lower black rectangle. Timing cause inferred from evidence, not a source fix or proof that waiting solves every case.",
+    "dimensions": {
+      "initial": {
+        "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+        "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+        "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+        "pid": 3260741,
+        "status": "running",
+        "cols": 155,
+        "rows": 37,
+        "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+        "createdAt": "2026-11-11T07:09:47.088Z",
+        "seq": 2,
+        "historyTruncated": false,
+        "snapshotSeq": 2
+      },
+      "final": {
+        "id": "0fb154fb-b7e3-456e-ab80-e3e400393e38",
+        "workspaceId": "7f2bd343-6912-445c-afc6-557e5daf84be",
+        "nodeId": "74a7d315-dab3-4f29-87fd-ef44bb293cfe",
+        "pid": 3260741,
+        "status": "running",
+        "cols": 155,
+        "rows": 37,
+        "generation": "803bbb2d-1f1e-4bb7-98e2-6a294c72434b",
+        "createdAt": "2026-11-11T07:09:47.088Z",
+        "seq": 36,
+        "historyTruncated": false,
+        "snapshotSeq": 36
+      }
+    },
+    "noAppChanges": true
+  },
+  "finishedAt": "2026-11-11T07:10:00.927Z",
+  "summary": {
+    "passed": 6,
+    "failed": 0
+  },
+  "agentImageReview": {
+    "reviewed": ["focused-terminal.png", "tools.png", "recapture-initial.png"],
+    "focusedTerminal": "Read directly once after capture. Valid 1520x980 real packaged app. RC01_LINE_18 through RC01_LINE_50, END/FINAL markers and final prompt/cursor are visible. Lines 36-50 extend continuously below the previous y508 failure boundary; the large black lower rectangle is absent. Active-cell background is continuous dark blue. A thin default black viewport padding strip remains below the last cell row, not the former large block.",
+    "tools": "Read directly once. Valid 1520x980 real packaged app with the actual SYNTHETIC RC01 task, scoped Estado local control, and lower terminal output visible. No transient toast. Previous optional failure was a diagnostics locator problem, not a failed core task flow; current scoped target check passes.",
+    "initialDiagnostic": "Read directly once. Settled initial focused terminal already has full-height dark-blue active-cell region, without large black rectangle. A preferences toast is present in this diagnostic only; replacement is toast-free.",
+    "requiredSet": ["desktop.png", "narrow.png", "browser-native.png", "focused-terminal.png"],
+    "otherRequiredImages": "Existing valid same-build desktop, narrow and native-browser images retained unchanged; only focused-terminal.png replaced once.",
+    "replacementCount": 1,
+    "appSourceChanged": false,
+    "disposition": "Targeted evidence recovered; ready for reviewer full-set re-review. No persistent lower-output or full-height fit failure reproduced after observable geometry readiness."
+  },
+  "measurementInterpretation": {
+    "nativeViewport": "1520x980, held by native window sizing constraints after an earlier compositor-constrained diagnostic attempt was rejected.",
+    "host": "155 columns x 37 rows, stable both initial and after output/focus/resize cycle.",
+    "geometry": "terminal-host, xterm and xterm-viewport are 1250x695; xterm-screen and 37 DOM rows occupy 1213x666 at 18px per row. Remaining 29px is 8px top padding plus less-than-one-row bottom remainder/padding, not an unfilled old terminal-height rectangle.",
+    "computedBackground": "terminal-host, xterm and xterm-screen are transparent; xterm-viewport is rgb(0,0,0). DOM row painting supplies #131d2c inside active cells. This explains thin black padding strips outside the measured cell area; they are distinguished from RC-01's large lower block.",
+    "lowerPixelRegion": "x277..1449, y535..857: 378879 samples; black=0%, expected #131d2c=96.1003%, 10858 bright glyph/cursor pixels. Every sampled row has at least 87.9795% expected background.",
+    "historicalCauseConfidence": "Earlier pre-fit/paint capture is a supported inference, not a proven historical root cause; the historical screenshot had no accompanying terminal geometry measurements. No claim that waiting alone fixes a persistent source defect.",
+    "cleanup": "Only isolated recovery app/daemon were stopped. Fixture profile directory independently checked afterward: host.lock and host.sock absent. Original desktop-checks.final.json 29/1 ledger untouched."
+  }
+}
