@@ -1,0 +1,46 @@
+{
+  "title": "Phantom · conversaciones en el canvas",
+  "question": "¿Cómo quieres leer y coordinar varias conversaciones? Las tres propuestas usan el estilo dark de Phantom y muestran contenido de ejemplo. Amplía cada boceto para ver el texto.",
+  "options": [
+    {
+      "id": "missions",
+      "kind": "assigned",
+      "label": "Mesas por misión",
+      "kicker": "THE ROLL",
+      "thesis": "Cada objetivo reúne sus conversaciones, contexto compartido y resultados en una zona del canvas.",
+      "palette": ["#15171c", "#202329", "#eceef3", "#8b9dff", "#edbf79"],
+      "materials": ["Superficies opacas", "Sans nativa", "Agrupación espacial"],
+      "viewport": "Dos misiones delimitadas por espacio, una conversación expandida junto a sus compañeras y el siguiente bloqueo visible. Seleccionar contexto permite ver qué recibe cada conversación.",
+      "risk": "Las conversaciones exploratorias necesitan una zona libre antes de pertenecer a una misión.",
+      "html": ".impeccable/mocks/decision/conversations-missions.html",
+      "htmlFrame": "1440x900"
+    },
+    {
+      "id": "reading-lane",
+      "kind": "dealt",
+      "label": "Mapa con lectura lateral",
+      "thesis": "El mapa mantiene visibles todas las conversaciones mientras un hilo amplio se lee a su lado.",
+      "palette": ["#15171c", "#202329", "#eceef3", "#8b9dff", "#edbf79"],
+      "materials": ["Superficies opacas", "Sans nativa", "Lectura persistente"],
+      "viewport": "Canvas de resúmenes a la izquierda y conversación seleccionada a la derecha; cambiar de agente conserva el mapa, el borrador y el punto de lectura.",
+      "risk": "La lectura lateral reduce el espacio disponible para organizar el canvas, especialmente en portátiles.",
+      "html": ".impeccable/mocks/decision/conversations-reading-lane.html",
+      "htmlFrame": "1440x900"
+    },
+    {
+      "id": "semantic-canvas",
+      "kind": "dealt",
+      "label": "Conversaciones con zoom semántico",
+      "thesis": "La misma conversación pasa de resumen legible a hilo editable al acercarte, conservando su lugar.",
+      "palette": ["#15171c", "#202329", "#eceef3", "#8b9dff", "#edbf79"],
+      "materials": ["Superficies opacas", "Sans nativa", "Detalle según escala"],
+      "viewport": "Conversaciones libres con objetivo, último avance y atención pendiente; la seleccionada muestra intercambios y editor en el propio canvas. Foco abre el hilo completo.",
+      "risk": "Hay que diseñar muy bien los umbrales de zoom para que el contenido no salte mientras lees o escribes.",
+      "html": ".impeccable/mocks/decision/conversations-semantic-canvas.html",
+      "htmlFrame": "1440x900"
+    }
+  ],
+  "reroll": true,
+  "steer": true,
+  "buildPath": { "value": "code", "toggle": false }
+}

@@ -2,6 +2,7 @@ import { mkdtemp, writeFile, readFile, readdir, lstat, rm } from 'node:fs/promis
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { getRunManager, requireWorkspace, executableOnPath, runCommand, stateDirectory } from './run-manager.mjs';
+import { handleVoiceStream, shutdownVoiceStreams } from './voice-stream.mjs';
 
 const MAX_AUDIO = 10 * 1024 * 1024;
 const MAX_TEXT = 32 * 1024;
@@ -20,10 +21,11 @@ export async function discoverLocalVoice(context = {}) {
   try { config = JSON.parse(await readFile(configPath, 'utf8')); } catch { throw new Error(`JSON de voz local inválido: ${configPath}`); }
   if (config.schemaVersion !== 1 || !Array.isArray(config.argv)) throw new Error(`Configuración de voz local incompatible: ${configPath}`);
   await localTemplate({ localWhisperCommand: JSON.stringify(config.argv) });
-  return { localWhisperCommand: JSON.stringify(config.argv), nativeAudio: config.engine === 'faster-whisper' && config.nativeAudio === true };
+  return { localWhisperCommand: JSON.stringify(config.argv), nativeAudio: config.engine === 'faster-whisper' && config.nativeAudio === true, gpuLibraryPath: config.gpuLibraryPath };
 }
 
 export async function shutdownVoice() {
+  await shutdownVoiceStreams();
   const jobs = [...active];
   for (const job of jobs) job.abort.abort();
   await Promise.allSettled(jobs.map(job => job.done));
@@ -93,7 +95,9 @@ async function transcribeLocal(audio, settings, directory, cwd, signal) {
     input = wav;
   }
   const [executable, ...args] = template.map(arg => arg.replaceAll('{input}', input).replaceAll('{outputDir}', directory));
-  const result = await runCommand(executable, args, { cwd, signal, timeoutMs: 60_000, outputLimit: 64 * 1024 });
+  const env = { ...process.env };
+  if (settings.gpuLibraryPath) env.LD_LIBRARY_PATH = [settings.gpuLibraryPath, env.LD_LIBRARY_PATH].filter(Boolean).join(path.delimiter);
+  const result = await runCommand(executable, args, { cwd, env, signal, timeoutMs: 60_000, outputLimit: 64 * 1024 });
   if (result.code !== 0) throw new Error(`Motor local falló (código ${result.code}). Revisa el runtime local o ejecuta npm run setup:voice`);
   let text;
   if (settings.localWhisperOutput === 'stdout') text = result.output;
@@ -162,6 +166,7 @@ async function transcribeAPI(audio, settings, signal) {
 }
 
 export async function handleVoice(method, payload = {}, context = {}) {
+  if (method.startsWith('voice.stream.')) return handleVoiceStream(method, payload, context);
   if (!['voice.transcribe', 'voice.intent'].includes(method)) return { handled: false };
   const { workspace, cwd } = await requireWorkspace(payload, context);
   if (method === 'voice.intent') return { handled: true, result: intent(payload.text, workspace.id) };
