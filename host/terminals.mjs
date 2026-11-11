@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { atomicJSON, assert, text, MAX_HISTORY, canonicalFolder, validateHistory } from './store.mjs';
 import { prepareTerminalDirectory } from './worktrees.mjs';
 import { fileURLToPath } from 'node:url';
+import { provisionBrowserTerminal } from './agent-browser.mjs';
 import { bootstrapAgentPolicy } from './agent-policy.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
@@ -68,12 +69,13 @@ export class Terminals {
     const terminal = new Terminal({...size,scrollback:1000,allowProposedApi:true}); const serializer = new SerializeAddon(); terminal.loadAddon(serializer);
     const sessionId = randomUUID();
     const agentCLI = fileURLToPath(new URL('../scripts/agent.mjs', import.meta.url));
+    const browser = provisionBrowserTerminal(this.store.dir, { sessionId, workspaceId: w.id, nodeId: node.id });
     let child;
     try {
       const policyEnv = await bootstrapAgentPolicy({ stateDir:this.store.dir,workspace:w,env:process.env,nodeId:node.id,sessionId,cwd:directory.cwd,branch:directory.worktree?.branch ?? null });
-      child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
+      child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
     }
-    catch (error) { terminal.dispose(); throw error; }
+    catch (error) { browser.revoke(); terminal.dispose(); throw error; }
     const s = {id:sessionId,workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',agentReporting:true,...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};
     const entry = {child,identity:processIdentity(child.pid),terminal,serializer,chain:Promise.resolve(),pending:0,pendingData:'',pumpQueued:false,stopping:false,snapshotDirty:false,paused:false,maxPending:0,pauseCount:0,resumeCount:0,snapshotCount:0}; this.live.set(s.id,entry); this.sessions.push(s);
     // Never evict a live session, and bound persisted closed history.
@@ -96,7 +98,7 @@ export class Terminals {
         });
       }
     });
-    child.onExit(({exitCode,signal}) => {entry.exited=true;entry.chain=entry.chain.then(()=>{
+    child.onExit(({exitCode,signal}) => {browser.revoke();entry.exited=true;entry.chain=entry.chain.then(()=>{
       this.capture(s,entry);s.status='exited';s.exitCode=exitCode;s.signal=signal;this.live.delete(s.id);terminal.dispose();this.save();this.emit({type:'terminal.exit',sessionId:s.id,workspaceId:s.workspaceId,exitCode});
     });});
     this.save(); return this.descriptor(s);

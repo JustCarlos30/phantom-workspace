@@ -7,10 +7,12 @@ import { once, EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
 
 const exec = promisify(execFile);
+const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 async function fixture(t, git = false) {
   const home = await mkdtemp('/tmp/opencode/adapters-');
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -236,7 +238,8 @@ test('Phantom controllers use host Node argv, owned SIGINT, bounded output and r
   };
   f.context.spawn = (file, args, options) => {
     assert.equal(file, process.execPath); assert.equal(options.shell, false);
-    assert.deepEqual(args.slice(1, 5), ['run', 'task_owned', '--model', 'provider/model;literal']);
+    assert.deepEqual(args.slice(0, 2), ['--import', controllerPreload]); assert.ok(path.isAbsolute(args[1])); assert.ok(path.isAbsolute(args[2]));
+    assert.deepEqual(args.slice(3), ['run', 'task_owned', '--model', 'provider/model;literal', '--json']);
     const child = new EventEmitter(); child.pid = 123456; child.stdout = new PassThrough(); child.stderr = new PassThrough();
     child.signals = []; child.kill = signal => { child.signals.push(signal); return true; }; children.push(child); return child;
   };
@@ -308,13 +311,14 @@ test('recover and verify use owned native controller argv without models', async
     if (file === 'git') throw new Error('No Git transport');
     return { stdout: JSON.stringify({ id: 'task_recovery', status: 'recovered', contract: { workspace: f.root } }), stderr: '' };
   };
-  f.context.spawn = (file, args) => {
-    seen.push(args); assert.equal(file, process.execPath); assert.ok(!args.includes('--model'));
+  f.context.spawn = (file, args, options) => {
+    seen.push(args); assert.equal(file, process.execPath); assert.equal(options.shell, false); assert.ok(!args.includes('--model'));
+    assert.deepEqual(args.slice(0, 2), ['--import', controllerPreload]); assert.ok(path.isAbsolute(args[1])); assert.ok(path.isAbsolute(args[2]));
     const child = new EventEmitter(); child.pid = 98765; child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => true; children.push(child); return child;
   };
   for (const action of ['recover', 'verify']) {
     const descriptor = await f.call('phantom.control', { id: 'task_recovery', action });
-    assert.equal(descriptor.action, action); assert.equal(seen.at(-1)[1], action); assert.equal(seen.at(-1)[2], 'task_recovery');
+    assert.equal(descriptor.action, action); assert.deepEqual(seen.at(-1).slice(3), [action, 'task_recovery', '--json']);
     children.at(-1).emit('close', 0, null);
   }
   assert.equal(f.workspace.phantomControllers.length, 2); assert.ok(f.workspace.phantomControllers.every(d => d.status === 'completed'));

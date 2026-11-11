@@ -7,6 +7,7 @@ import { workspaceRoot, safePath, stateHome, externalStatePath, jsonCommand, com
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
+const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 const controllers = new Map(), writes = new Map(), starts = new Map();
 const stable = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
 const identifier = value => { text(value, 'Phantom ID', 200); if (value.startsWith('-')) throw new Error('Invalid Phantom ID'); return value; };
@@ -212,7 +213,7 @@ async function controlOwned(payload, context, c) {
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';
   await context.persist();
   let child;
-  try { child = spawnCommand(context, process.execPath, [c.cli, payload.action, task.id, ...(payload.action === 'run' ? ['--model', payload.model] : []), ...c.flags], { cwd: c.root, stdio: ['ignore', 'pipe', 'pipe'] }); }
+  try { child = spawnCommand(context, process.execPath, ['--import', controllerPreload, c.cli, payload.action, task.id, ...(payload.action === 'run' ? ['--model', payload.model] : []), ...c.flags], { cwd: c.root, stdio: ['ignore', 'pipe', 'pipe'] }); }
   catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; await context.persist(); throw error; }
   descriptor.pid = child.pid;
   controllers.set(descriptor.id, { descriptor, child });

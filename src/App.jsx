@@ -5,7 +5,7 @@ import { PresenceGroup } from './components/Presence';
 import { Inspector } from './components/Inspector';
 import { CommandPalette } from './components/CommandPalette';
 import { VoiceCapture } from './components/VoiceCapture';
-import { api, useWorkspace } from './hooks/useWorkspace';
+import { api, subscribe, useWorkspace } from './hooks/useWorkspace';
 import { findPanelPlacement } from './hooks/panelPlacement';
 import { useInlineName } from './hooks/useInlineName';
 import { overlayPolicy } from './hooks/inputOwnership';
@@ -89,6 +89,14 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     setFocused(id || null); if (id) setSelected([id]);
   }, [onChange]);
   const openMenu = useCallback((id, x, y) => { if (id && !selectionRef.current.includes(id)) setSelected([id]); setMenu({ id, x, y }); }, []);
+  useEffect(() => subscribe(event => {
+    if (event.type !== 'browser.agentFocus' || event.workspaceId !== current.current?.id) return;
+    // The desktop repeats this request until the real native view is attached;
+    // refresh may still be delivering the newly created node on the first event.
+    if (!current.current.nodes?.some(node => node.id === event.id && node.type === 'browser')) { refresh().catch(() => {}); return; }
+    setPalette(false); setVoice(false); setTray(false); setTools(false); setList(false); setMenu(null); setInspector(null); setSidebar(false);
+    focusPanel(event.id);
+  }), [focusPanel, refresh]);
   const launching = useRef(new Map());
   const placements = useRef(new Map());
   const launchTerminal = useCallback(async node => {

@@ -54,10 +54,44 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 | Docker | Contenedores propios, logs y acciones explícitas de iniciar/detener/reiniciar. Muestra ausencia o permisos insuficientes. |
 | Workflows | Plantillas versionadas con tareas o pasos de playground que se ejecutan explícitamente. |
 | Playground | Node, Python o shell en la carpeta seleccionada; ejecución, parada, salida y artefactos identificados. |
-| Playwright | Navegador de ejecución visible en ventana propia, pasos editables y trazas reales. **Ver trace grabado en canvas** abre el visor interno. |
+| Automatización | `automation.start` usa por defecto el navegador integrado visible. `mode: "isolated"` abre Chromium de Playwright separado y permite trazas reales. |
 | Voz | Grabación explícita, transcripción local, texto editable e intención revisada para crear/encontrar trabajo. |
 
 La edición nativa avanzada de cards/skills/decisiones utiliza formularios JSON con validación de Phantom. Una card se reemplaza explícitamente cuando cambia el contrato; la original conserva su evidencia. Los modelos se ejecutan solo mediante una acción de run con configuración válida. Los tests de la app no consumen modelos comerciales.
+
+## Navegador del agente y automatización
+
+En una **terminal nueva creada por Phantom**, el agente descubre `PHANTOM_BROWSER_CLI`, `PHANTOM_BROWSER_ENDPOINT`, `PHANTOM_BROWSER_SESSION` y `PHANTOM_BROWSER_WORKSPACE`. La capacidad privada `PHANTOM_BROWSER_TOKEN` se hereda solo en esa terminal; no debe copiarse a prompts, logs ni archivos del proyecto. Con la ventana abierta y ese proyecto activo:
+
+```sh
+node "$PHANTOM_BROWSER_CLI" help
+node "$PHANTOM_BROWSER_CLI" context
+node "$PHANTOM_BROWSER_CLI" preview http://127.0.0.1:5173/ --timeout-ms 15000
+node "$PHANTOM_BROWSER_CLI" status
+node "$PHANTOM_BROWSER_CLI" read --selector h1
+node "$PHANTOM_BROWSER_CLI" fill --selector '#name' --value 'Ejemplo'
+node "$PHANTOM_BROWSER_CLI" click --selector '#apply'
+node "$PHANTOM_BROWSER_CLI" screenshot
+node "$PHANTOM_BROWSER_CLI" console
+```
+
+`preview` y `open` esperan HTTP 2xx/3xx antes de crear/enfocar la vista y reutilizan el panel de la misma terminal y `--key` (predeterminada: `preview`). Read, click, fill y captura operan sobre el mismo WebContentsView visible y su sesión; los selectores son CSS, deben resolver un elemento para click/fill y no tienen auto-wait de Playwright. No existe ejecución de JavaScript arbitrario ni debugger público. Las capturas del CLI tienen nombres privados generados, límite de 8 MiB y retención por proyecto de 16 PNG/64 MiB.
+
+La API del host acepta estos payloads para `automation.start` (no son subcomandos del CLI browser):
+
+```json
+{"workspaceId":"UUID_DEL_PROYECTO","sessionId":"UUID_TERMINAL_ACTIVA","url":"http://127.0.0.1:5173/","actions":[{"type":"fill","selector":"#name","value":"Ejemplo"},{"type":"click","selector":"#apply"}],"keepOpen":true}
+```
+
+```json
+{"workspaceId":"UUID_DEL_PROYECTO","mode":"isolated","url":"http://127.0.0.1:5173/","headed":false,"actions":[{"type":"screenshot"}]}
+```
+
+El modo omitido es `integrated`: usa el puente del desktop y nunca llama a `chromium.launch`. `sessionId` se obtiene de `terminal.list`; puede omitirse si solo hay una terminal activa del proyecto. `key` comparte la identidad del panel con el CLI. Si faltan desktop, proyecto activo o credenciales de una terminal nueva, devuelve un error accionable, sin navegador externo de fallback. `headed:false` requiere `isolated`, que necesita Chromium instalado (`node node_modules/playwright/cli.js install chromium`).
+
+Ambos modos conservan `automation.list`, `automation.stop`, estado/eventos y logs por run. En integrado, al completar se copia la captura al directorio del run y se recoge una instantánea de la consola retenida (hasta 100 mensajes, puede incluir mensajes anteriores del panel; no es streaming continuo). `keepOpen:true` conserva el controlador hasta Stop o `keepOpenMs`; de lo contrario lo libera al completar. **El panel integrado y su sesión permanecen abiertos en ambos casos**, también después de Stop/error; `panelRetained` lo identifica y `browserOpen` indica control vivo del run, no existencia física de esa vista. El cierre visual se hace desde el canvas. Stop y timeout no pueden cancelar un RPC del puente: esperan que termine el RPC pendiente antes de confirmar y no ejecutan más pasos; puede tardar hasta el límite de transporte de 75 s.
+
+El puente integrado **no soporta trace Playwright**: el descriptor declara `traceSupported:false`, `automation.trace` devuelve error y no se inventa `trace.zip`. Para tests con aislamiento, headless, auto-wait y trace/visor usa explícitamente `mode:"isolated"`; ese modo cierra su navegador al completar salvo `keepOpen:true`. La disponibilidad HTTP de preview se comprueba una sola vez mediante el puente; el sondeo HEAD opcional de Servicios es diagnóstico puntual, no requisito adicional ni garantía de readiness de una aplicación. Este flujo utiliza Electron/Chromium; no establece ninguna causa de fallos observados en Firefox.
 
 ## Dictado local
 
@@ -83,11 +117,22 @@ terminals.json        Historial acotado y descriptores de sesiones
 worktrees/            Árboles Git independientes por workspace y panel de terminal
 host.sock             Conexión privada al daemon
 automation/           Playground, Playwright, logs y trazas por workspace/run
+browser-artifacts/    Capturas del puente browser con retención acotada por proyecto
 voice-runtime/        Motor y modelo local de voz
 electron/             Perfil de la aplicación y contextos de navegador
 ```
 
 `PHANTOM_WORKSPACE_HOME=/ruta/privada` permite aislar otro perfil. Phantom mantiene sus datos canónicos en su almacén habitual, configurable desde Ajustes. La app exporta/importa organización mediante JSON; exportar historial es opt-in. No mueve los documentos originales del proyecto.
+
+## CLI Phantom: ejecuciones largas
+
+Phantom Workspace carga automáticamente `scripts/phantom-fetch.mjs` mediante `--import` con ruta absoluta al iniciar los controladores `run`, `recover` y `verify` con Node, sin shell. Esto evita el límite de headers de Undici (300 s) mientras el agente sigue trabajando. Para iniciar el CLI manualmente con el mismo preload:
+
+```sh
+node --import /RUTA/phantom-workspace/scripts/phantom-fetch.mjs /RUTA/CLI.mjs run ID
+```
+
+Sustituye las rutas por las del preload y el archivo de entrada del CLI, e `ID` por el identificador de sesión. Solo los `POST` HTTP a loopback (`localhost`, `127.0.0.0/8`, `[::1]`) con ruta `/session/ID/message` usan `node:http`, sin timeout implícito de headers. La respuesta conserva un body en stream y la cancelación mediante `AbortSignal` hasta terminarlo. Las demás llamadas se delegan al `fetch` original. No requiere dependencias ni configuración global; se aplica únicamente al proceso iniciado con `--import`.
 
 ## Desarrollo y comprobaciones
 
