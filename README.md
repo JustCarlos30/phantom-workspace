@@ -28,9 +28,17 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 
 - Cerrar la ventana conserva el host y sus sesiones. Volver a abrir conecta a los mismos procesos.
 - **Ocultar vista** conserva el terminal; **Terminar proceso** lo detiene explícitamente y conserva historial.
-- **Cerrar terminal (×)** termina el shell y sus procesos hijos y elimina el panel y sus sesiones, incluido el historial. Las terminales nuevas abren enfocadas y listas para escribir.
+- **Cerrar terminal (×)** termina el shell y sus procesos hijos y elimina el panel y sus sesiones, incluido el historial. Las terminales nuevas abren como paneles de 640 × 400 en el mapa; el botón de enfocar permite ampliarlas.
 - **Detener host y salir** termina los procesos propios. Tras reiniciar el sistema o perder el host se recuperan la disposición y el historial guardado, con sesiones terminadas/perdidas; un shell nuevo se inicia explícitamente.
 - El cierre espera que se guarden notas, nombres y posiciones pendientes. Si el disco/host no confirma, permite reintentar o cancelar.
+
+### Una terminal, un worktree
+
+- En un repositorio con commits, cada panel de terminal nuevo crea una rama `phantom/terminal-<id>` desde `HEAD` y un worktree independiente. Los cambios sin commit de la carpeta original no se copian.
+- El shell arranca en ese worktree y su barra muestra la rama y la ruta. Relanzar una sesión del mismo panel reutiliza su worktree, también después de reiniciar el host.
+- En carpetas sin Git, sin commits o sin Git instalado, abre una terminal normal e indica el motivo en la barra.
+- Ocultar, detener o cerrar una terminal conserva los archivos y la rama del worktree. Los worktrees se almacenan en `worktrees/<workspace>/<panel>` dentro del directorio de estado de la app.
+- Los paneles, menús, inspector, diálogos y avisos tienen entrada y salida breves. La preferencia del sistema de movimiento reducido sustituye desplazamientos por un fundido suave.
 
 ## Herramientas incluidas
 
@@ -72,6 +80,7 @@ Estado predeterminado: `~/.local/state/phantom-workspace` (respeta `XDG_STATE_HO
 ```text
 state.json            Proyectos, disposición, referencias, tareas locales y preferencias
 terminals.json        Historial acotado y descriptores de sesiones
+worktrees/            Árboles Git independientes por workspace y panel de terminal
 host.sock             Conexión privada al daemon
 automation/           Playground, Playwright, logs y trazas por workspace/run
 voice-runtime/        Motor y modelo local de voz
@@ -93,6 +102,7 @@ npm run dev
 
 ```sh
 npm test
+node test/desktop-motion.mjs
 PHANTOM_DESKTOP_SPIKE=1 PHANTOM_TEST_LOCAL_VOICE=1 npm test
 npm run package
 PHANTOM_TEST_EXECUTABLE="$PWD/out/Phantom Workspace-linux-x64/phantom-workspace" npm run test:desktop
