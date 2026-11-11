@@ -83,7 +83,7 @@ export default function BrowserPanel({ node, workspace, api, active, obscured, o
     if (active && error && contentBounds(content.current)) intent.current?.show(contentBounds(content.current)).catch(() => {});
     if (!active) onFocus(node.id);
   };
-  return <div className="browser-panel">
+  return <div className="browser-panel" data-browser-id={node.id} data-agent-preview={node.data?.agentBrowser ? 'true' : undefined}>
     <form className="browser-toolbar" onSubmit={navigate}>
       <button type="button" title="Atrás" aria-label="Atrás" disabled={!active || !info.canGoBack || info.loading} onClick={() => intent.current?.action('browser.back')}><ArrowLeft size={15} /></button>
       <button type="button" title="Adelante" aria-label="Adelante" disabled={!active || !info.canGoForward || info.loading} onClick={() => intent.current?.action('browser.forward')}><ArrowRight size={15} /></button>

@@ -86,6 +86,24 @@ export function browserURL(value, { external = false } = {}) {
   return url.href;
 }
 
+// Agent RPC has a deliberately smaller surface than renderer IPC. Selectors and
+// values are data, never source code; unknown fields (including script) fail closed.
+export function validateAgentRequest(method, payload) {
+  const fields = { preview: ['url'], status: [], read: ['selector'], click: ['selector'],
+    fill: ['selector', 'value'], screenshot: ['name'], console: [] }[method];
+  if (!Array.isArray(fields)) throw new Error('Operación de agente no permitida');
+  if (!payload || Array.isArray(payload) || typeof payload !== 'object') throw new Error('Payload no válido');
+  validateJSON(payload, 24 * 1024);
+  if (Object.keys(payload).some(key => !['id', 'key', 'timeoutMs', ...fields].includes(key))) throw new Error('Campo de agente no permitido');
+  if (payload.id !== undefined) validateID(payload.id);
+  if (payload.key !== undefined && (typeof payload.key !== 'string' || !/^[a-zA-Z0-9_.-]{1,80}$/.test(payload.key))) throw new Error('Clave de idempotencia no válida');
+  if (method === 'preview') browserURL(payload.url, { external: true });
+  if (payload.selector !== undefined && (typeof payload.selector !== 'string' || !payload.selector.length || payload.selector.length > 2048 || /[\u0000-\u001f\u007f]/.test(payload.selector))) throw new Error('Selector no válido');
+  if (['click', 'fill'].includes(method) && !payload.selector) throw new Error('Selector requerido');
+  if (method === 'fill' && (typeof payload.value !== 'string' || payload.value.length > 16000 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(payload.value))) throw new Error('Valor de input no válido');
+  if (payload.name !== undefined && (typeof payload.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}\.png$/.test(payload.name))) throw new Error('Nombre PNG simple requerido; rutas no permitidas');
+}
+
 export function isLocalUIURL(value, uiURL) {
   try {
     const url = new URL(value);

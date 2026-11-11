@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
+import { startAgentBrowserBridge } from './agent-browser.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
@@ -20,6 +21,7 @@ app.setName('Phantom Workspace');
 
 let mainWindow = null;
 let browsers = null;
+let agentBrowserBridge = null;
 let client = null;
 let connecting = null;
 let quitting = false;
@@ -412,6 +414,8 @@ if (!app.requestSingleInstanceLock()) {
     }
     quitting = true;
     browsers?.dispose();
+    agentBrowserBridge?.close();
+    agentBrowserBridge = null;
     client?.close(); // Disconnect only: the daemon owns and keeps its sessions.
     client = null;
   });
@@ -447,6 +451,10 @@ if (!app.requestSingleInstanceLock()) {
     { label: 'Ver', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, ...(!app.isPackaged ? [{ role: 'toggleDevTools' }] : [])] },
   ]));
   openMainWindow();
+  startAgentBrowserBridge({ dataDir, getManager: () => browsers, hostInvoke, emit,
+    focusWindow: () => openMainWindow(),
+  }).then(bridge => { if (quitting) bridge.close(); else agentBrowserBridge = bridge; })
+    .catch(error => { console.error('Agent browser bridge:', error.message); emit({ type: 'desktop.agentBrowserError', message: error.message }); });
   hostInvoke('system.info').catch(error => emit({ type: 'desktop.host', connected: false, error: error.message }));
   }).catch(error => {
     console.error('Phantom desktop startup failed:', error);

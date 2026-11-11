@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { atomicJSON, assert, text, MAX_HISTORY, canonicalFolder, validateHistory } from './store.mjs';
 import { prepareTerminalDirectory } from './worktrees.mjs';
+import { terminalBrowserEnvironment } from './agent-browser.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
 function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
@@ -65,7 +66,7 @@ export class Terminals {
     this.store.transaction(() => { node.data = { ...node.data, ...directory }; });
     const terminal = new Terminal({...size,scrollback:1000,allowProposedApi:true}); const serializer = new SerializeAddon(); terminal.loadAddon(serializer);
     let child;
-    try { child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,TERM:'xterm-256color',COLORTERM:'truecolor'}}); }
+    try { child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...terminalBrowserEnvironment(this.store.dir,w.id,node.id),TERM:'xterm-256color',COLORTERM:'truecolor'}}); }
     catch (error) { terminal.dispose(); throw error; }
     const s = {id:randomUUID(),workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};
     const entry = {child,identity:processIdentity(child.pid),terminal,serializer,chain:Promise.resolve(),pending:0,pendingData:'',pumpQueued:false,stopping:false,snapshotDirty:false,paused:false,maxPending:0,pauseCount:0,resumeCount:0,snapshotCount:0}; this.live.set(s.id,entry); this.sessions.push(s);

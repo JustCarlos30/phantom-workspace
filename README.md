@@ -80,6 +80,16 @@ electron/             Perfil de la aplicación y contextos de navegador
 
 `PHANTOM_WORKSPACE_HOME=/ruta/privada` permite aislar otro perfil. Phantom mantiene sus datos canónicos en su almacén habitual, configurable desde Ajustes. La app exporta/importa organización mediante JSON; exportar historial es opt-in. No mueve los documentos originales del proyecto.
 
+## CLI Phantom: ejecuciones largas
+
+Phantom Workspace carga automáticamente `scripts/phantom-fetch.mjs` mediante `--import` con ruta absoluta al iniciar los controladores `run`, `recover` y `verify` con Node, sin shell. Esto evita el límite de headers de Undici (300 s) mientras el agente sigue trabajando. Para iniciar el CLI manualmente con el mismo preload:
+
+```sh
+node --import /RUTA/phantom-workspace/scripts/phantom-fetch.mjs /RUTA/CLI.mjs run ID
+```
+
+Sustituye las rutas por las del preload y el archivo de entrada del CLI, e `ID` por el identificador de sesión. Solo los `POST` HTTP a loopback (`localhost`, `127.0.0.0/8`, `[::1]`) con ruta `/session/ID/message` usan `node:http`, sin timeout implícito de headers. La respuesta conserva un body en stream y la cancelación mediante `AbortSignal` hasta terminarlo. Las demás llamadas se delegan al `fetch` original. No requiere dependencias ni configuración global; se aplica únicamente al proceso iniciado con `--import`.
+
 ## Desarrollo y comprobaciones
 
 ```sh
