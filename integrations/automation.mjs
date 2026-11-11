@@ -1,7 +1,9 @@
-import { access, writeFile } from 'node:fs/promises';
+import { access, copyFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { getRunManager, requireWorkspace, runCommand, executableOnPath, shutdownAutomation as shutdownRuns } from './run-manager.mjs';
+import { getRunManager, requireWorkspace, requireId, stateDirectory, runCommand, executableOnPath, shutdownAutomation as shutdownRuns } from './run-manager.mjs';
+import { createBrowserClient, credentialFile, endpointFile, privateJSON } from '../host/agent-browser.mjs';
+import { browserKey } from '../desktop/security.mjs';
 import { handleVoice, shutdownVoice } from './voice.mjs';
 
 export async function shutdownAutomation() { await Promise.all([shutdownRuns(), shutdownVoice()]); }
@@ -23,6 +25,8 @@ function httpURL(value) {
 }
 
 function automationInput(payload) {
+  const mode = payload.mode ?? 'integrated';
+  if (!['integrated', 'isolated'].includes(mode)) throw new Error('mode debe ser integrated o isolated');
   const url = httpURL(payload.url);
   const actions = payload.actions ?? [];
   if (!Array.isArray(actions) || actions.length > 50) throw new Error('Máximo 50 acciones');
@@ -38,7 +42,8 @@ function automationInput(payload) {
     return { type: action.type };
   });
   for (const key of ['headed', 'keepOpen']) if (payload[key] !== undefined && typeof payload[key] !== 'boolean') throw new Error(`${key} debe ser booleano`);
-  return { url, actions: normalized, headed: payload.headed !== false, keepOpen: payload.keepOpen === true,
+  if (mode === 'integrated' && payload.headed === false) throw new Error('integrated requiere el panel visible; usa mode: "isolated" para headless');
+  return { mode, url, actions: normalized, headed: payload.headed !== false, keepOpen: payload.keepOpen === true,
     timeoutMs: integer(payload.timeoutMs, 60_000, 100, 120_000, 'timeoutMs'),
     keepOpenMs: integer(payload.keepOpenMs, 300_000, 100, 600_000, 'keepOpenMs') };
 }
@@ -92,8 +97,130 @@ async function startPlayground(payload, context, manager, workspace, cwd) {
   return manager.describe(record);
 }
 
+const integratedOwners = new Set();
+
+async function integratedClient(payload, context, workspace) {
+  if (context.browserClient) return context.browserClient;
+  const sessions = (context.sessions ?? []).filter(s => s.workspaceId === workspace.id && s.status === 'running');
+  const sessionId = payload.sessionId ?? (process.env.PHANTOM_BROWSER_WORKSPACE === workspace.id ? process.env.PHANTOM_BROWSER_SESSION : undefined)
+    ?? (sessions.length === 1 ? sessions[0].id : undefined);
+  if (!sessionId) throw new Error('Navegador integrado: abre Phantom con una terminal activa; indica sessionId si hay varias (terminal.list). Para aislamiento usa mode: "isolated"');
+  requireId(sessionId, 'sessionId');
+  if (!sessions.some(s => s.id === sessionId)) throw new Error('sessionId debe ser una terminal activa de este workspace');
+  const dataDir = stateDirectory(context);
+  let capability;
+  try { capability = privateJSON(credentialFile(dataDir, sessionId)); }
+  catch { throw new Error('Puente browser no disponible: abre una terminal nueva en Phantom Workspace'); }
+  if (capability.workspaceId !== workspace.id) throw new Error('Terminal browser de otro workspace');
+  return createBrowserClient({ env: { PHANTOM_BROWSER_ENDPOINT: endpointFile(dataDir), PHANTOM_BROWSER_TOKEN: capability.token,
+    PHANTOM_BROWSER_SESSION: sessionId, PHANTOM_BROWSER_WORKSPACE: workspace.id } });
+}
+
+async function startIntegrated(payload, input, context, manager, workspace, cwd) {
+  const client = await integratedClient(payload, context, workspace);
+  let discovery;
+  try { discovery = await client.invoke('context'); }
+  catch (error) { throw new Error(`Navegador integrado no disponible: abre la ventana de Phantom, activa este proyecto y usa una terminal nueva. ${error.message}`); }
+  if (!discovery.available || discovery.workspaceId !== workspace.id) throw new Error('Puente browser no disponible para este workspace');
+  const key = browserKey(payload.key);
+  // One action stream per terminal, including across panel keys.
+  const owner = `${workspace.id}:${discovery.sessionId}`;
+  if (integratedOwners.has(owner)) throw new Error('Ya hay una automatización integrada activa en esta terminal');
+  integratedOwners.add(owner);
+  let record;
+  try {
+    record = await manager.create(workspace.id, 'automation', { ...input, cwd, sessionId: discovery.sessionId, key,
+      lifecycle: 'Stop libera el control; el panel integrado y su sesión permanecen visibles', browserOpen: false,
+      traceSupported: false, traceReason: 'El puente integrado no soporta trace Playwright; usa mode: "isolated"' }, context);
+    await manager.prepare(record, context, () => writeFile(path.join(record.artifactDir, 'input.json'), JSON.stringify({ ...input, key, sessionId: discovery.sessionId }, null, 2), { mode: 0o600 }));
+  } catch (error) { integratedOwners.delete(owner); throw error; }
+  const abort = new AbortController();
+  let done, keepTimer, executionTimer, released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(keepTimer);
+    record.browserOpen = false;
+    integratedOwners.delete(owner);
+    if (manager.controllers.get(record.id) === controller) manager.controllers.delete(record.id);
+  };
+  const output = text => {
+    if (!manager.output(record, text, context)) { record.outputExceeded = true; abort.abort(); throw new Error('Salida del navegador excede 65536 bytes'); }
+  };
+  const invoke = async (command, options = {}) => {
+    abort.signal.throwIfAborted();
+    const result = await client.invoke(command, { key, ...options });
+    if (['preview', 'open'].includes(command)) {
+      record.panelId = result.id;
+      record.panelRetained = true;
+    }
+    abort.signal.throwIfAborted();
+    return result;
+  };
+  const capture = async filename => {
+    const artifact = await invoke('screenshot');
+    const target = path.join(record.artifactDir, filename);
+    await copyFile(artifact.path, target);
+    return target;
+  };
+  const controller = { stop: async () => {
+    abort.abort();
+    // The bridge cannot cancel an RPC: drain it before acknowledging Stop.
+    await done;
+    release();
+    await manager.status(record, 'stopped', context);
+    await finishLog(record);
+  } };
+  manager.own(record, controller);
+  done = new Promise(resolve => setTimeout(resolve, 0)).then(async () => {
+    try {
+      abort.signal.throwIfAborted();
+      await manager.status(record, 'running', context);
+      executionTimer = setTimeout(() => { record.timedOut = true; abort.abort(); }, input.timeoutMs);
+      output(`preview ${input.url}\n`);
+      const panel = await invoke('preview', { url: input.url, timeoutMs: Math.min(input.timeoutMs, 60_000) });
+      record.panelId = panel.id;
+      record.panelRetained = true;
+      record.browserOpen = true;
+      for (const [index, action] of input.actions.entries()) {
+        abort.signal.throwIfAborted();
+        output(`Paso ${index + 1}: ${action.type}\n`);
+        if (action.type === 'goto') await invoke('open', { url: action.url, timeoutMs: Math.min(input.timeoutMs, 60_000) });
+        if (action.type === 'click') await invoke('click', { selector: action.selector });
+        if (action.type === 'fill') await invoke('fill', { selector: action.selector, value: action.value });
+        if (action.type === 'wait') await new Promise((resolve, reject) => {
+          const stop = () => { clearTimeout(timer); reject(new Error('Ejecución detenida')); };
+          const timer = setTimeout(() => { abort.signal.removeEventListener('abort', stop); resolve(); }, action.milliseconds);
+          abort.signal.addEventListener('abort', stop, { once: true });
+        });
+        if (action.type === 'screenshot') await capture(`step-${index + 1}.png`);
+      }
+      record.screenshotPath = await capture('screenshot.png');
+      const consoleResult = await invoke('console');
+      for (const message of consoleResult.messages ?? []) output(`[browser ${message.level}] ${message.message ?? message.text ?? ''}\n`);
+      clearTimeout(executionTimer);
+      if (!input.keepOpen) release();
+      await manager.status(record, 'completed', context);
+      if (input.keepOpen) {
+        keepTimer = setTimeout(() => controller.stop().catch(() => {}), input.keepOpenMs);
+        keepTimer.unref();
+      }
+    } catch (error) {
+      release();
+      await manager.status(record, record.timedOut || record.outputExceeded || !abort.signal.aborted ? 'failed' : 'stopped', context,
+        { error: record.timedOut ? `Tiempo límite excedido (${input.timeoutMs} ms); RPC pendiente drenado` : error.message });
+    } finally {
+      clearTimeout(executionTimer);
+      await finishLog(record);
+      await manager.save(record);
+    }
+  }).catch(error => { release(); manager.output(record, `Error de persistencia: ${error.message}\n`, context); });
+  return manager.describe(record);
+}
+
 async function startBrowser(payload, context, manager, workspace, cwd) {
   const input = automationInput(payload);
+  if (input.mode === 'integrated') return startIntegrated(payload, input, context, manager, workspace, cwd);
   let chromium;
   try { ({ chromium } = await import('playwright')); } catch { throw new Error('Playwright no disponible. Incluye playwright como dependencia de producción del host'); }
   // Use the same full Chromium build for headed and headless packaged runs.
@@ -268,6 +395,7 @@ export async function handleAutomation(method, payload = {}, context = {}) {
     const record = manager.get(payload.id, workspace.id, kind);
     if (method.endsWith('.stop')) result = await manager.stop(record);
     else {
+      if (record.mode === 'integrated') throw new Error(record.traceReason);
       const tracePath = path.join(record.artifactDir, 'trace.zip');
       try { await access(tracePath); } catch { throw new Error('Trace aún no disponible; espera a que termine o detén la ejecución'); }
       result = { path: tracePath };

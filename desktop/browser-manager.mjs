@@ -36,7 +36,7 @@ export class BrowserManager {
     // surface for a truthful overview capture. Eviction/disposal removes it.
     entry.view.setVisible(false);
     entry.attached = false;
-    entry.view.webContents.setAudioMuted(true);
+    if (!entry.view.webContents.isDestroyed()) entry.view.webContents.setAudioMuted(true);
   }
 
   invalidate() {
@@ -93,9 +93,17 @@ export class BrowserManager {
       webviewTag: false, navigateOnDragDrop: false,
     } });
     view.setVisible(false);
-    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now() };
+    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now(), console: [], consoleSeq: 0 };
     this.entries.set(id, entry);
     const wc = view.webContents;
+    // Electron 45: the FIRST argument is Event<WebContentsConsoleMessageEventParams>.
+    // Bound both individual strings and retained history; never expose a debugger.
+    wc.on('console-message', details => {
+      entry.console.push({ seq: ++entry.consoleSeq, level: String(details.level).slice(0, 32),
+        message: String(details.message ?? '').slice(0, 2048), source: String(details.sourceId ?? '').slice(0, 1024),
+        line: Number(details.lineNumber) || 0, timestamp: Date.now() });
+      while (entry.console.length > 100) entry.console.shift();
+    });
     const guard = event => {
       try { browserURL(event.url); } catch { event.preventDefault(); this.send(entry, 'Navegación bloqueada: solo HTTP(S) o about:blank'); }
     };
@@ -205,5 +213,64 @@ export class BrowserManager {
     this.generation++;
     this.window.removeListener('resize', this.resize);
     for (const entry of this.entries.values()) this.destroy(entry);
+  }
+
+  // Internal automation surface only. Callers authenticate terminal/workspace in
+  // agent-browser.mjs first; no renderer IPC or client-supplied JS reaches here.
+  agentStatus(id) {
+    const entry = this.entries.get(id);
+    if (!entry || entry.view.webContents.isDestroyed()) return { id, attached: false, available: false };
+    const wc = entry.view.webContents;
+    return { id, workspaceId: entry.workspaceId, webContentsId: wc.id, attached: entry.attached,
+      visible: entry.view.getVisible(), available: true, url: wc.getURL().slice(0, 8192), title: wc.getTitle().slice(0, 1024), loading: wc.isLoading() };
+  }
+
+  async agentInvoke(command, payload) {
+    browserNode(await this.getState(), payload.id, payload.workspaceId);
+    const entry = this.entries.get(payload.id);
+    if (this.disposed || !entry || entry.workspaceId !== payload.workspaceId || entry.view.webContents.isDestroyed()) throw new Error('Panel browser no disponible; ejecuta preview');
+    const wc = entry.view.webContents;
+    if (command === 'console') return { id: entry.id, messages: entry.console.map(item => ({ ...item })), retained: 100, lastSeq: entry.consoleSeq };
+    if (command === 'screenshot') {
+      const image = await wc.capturePage(undefined, { stayHidden: true, stayAwake: false });
+      if (image.isEmpty()) throw new Error('Sin captura renderizada');
+      return image.toPNG();
+    }
+    if (!['read', 'click', 'fill'].includes(command)) throw new Error('Operación interna no permitida');
+    // This fixed function is the entire page-side API. JSON encoding prevents CSS
+    // selectors and input strings from ever becoming executable source.
+    function pageOperation({ command, selector, value }) {
+      try {
+        const matches = selector ? document.querySelectorAll(selector) : null;
+        if (command === 'read') {
+          const element = selector ? matches[0] : document.body;
+          if (!element) throw new Error('Selector sin coincidencias');
+          const text = (element.innerText ?? element.textContent ?? '').slice(0, 32768);
+          const controlSelector = 'input,textarea,select,button,a';
+          const controls = [...(element.matches(controlSelector) ? [element] : []), ...element.querySelectorAll(controlSelector)].slice(0, 100).map(el => ({
+            tag: el.tagName.toLowerCase(), id: el.id.slice(0, 256), name: (el.getAttribute('aria-label') || el.getAttribute('name') || '').slice(0, 256),
+            text: (el.innerText || '').slice(0, 256), value: el.type === 'password' ? '[redacted]' : String(el.value ?? '').slice(0, 512),
+          }));
+          return { url: location.href.slice(0, 8192), title: document.title.slice(0, 1024), text, controls, truncated: text.length === 32768 };
+        }
+        if (matches.length !== 1) throw new Error('El selector debe identificar exactamente un elemento');
+        const el = matches[0];
+        if (!(el instanceof HTMLElement) || !el.getClientRects().length || getComputedStyle(el).visibility !== 'visible' || el.disabled) throw new Error('Elemento no interactuable');
+        el.scrollIntoView({ block: 'center', inline: 'center' });
+        el.focus();
+        if (command === 'click') { el.click(); return { clicked: true }; }
+        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || el.readOnly ||
+          (el instanceof HTMLInputElement && !['text', 'search', 'email', 'url', 'tel', 'password', 'number', 'date', 'datetime-local', 'month', 'time', 'week'].includes(el.type))) throw new Error('El elemento no admite fill');
+        const prototype = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(prototype, 'value').set.call(el, value);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return { filled: true };
+      } catch (error) { return { agentError: String(error.message || error).slice(0, 2048) }; }
+    }
+    const args = { command, ...(payload.selector !== undefined ? { selector: payload.selector } : {}), ...(command === 'fill' ? { value: payload.value } : {}) };
+    const result = await wc.executeJavaScript(`(${pageOperation.toString()})(${JSON.stringify(args)})`, true);
+    if (result?.agentError) throw new Error(result.agentError);
+    return { id: entry.id, webContentsId: wc.id, ...result };
   }
 }
