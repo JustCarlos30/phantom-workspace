@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { atomicJSON, assert, text, MAX_HISTORY, canonicalFolder, validateHistory } from './store.mjs';
 import { prepareTerminalDirectory } from './worktrees.mjs';
+import { fileURLToPath } from 'node:url';
+import { bootstrapAgentPolicy } from './agent-policy.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
 function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
@@ -39,7 +41,7 @@ export class Terminals {
       }
     },1000);this.timer.unref();
   }
-  descriptor(s) { const {snapshot, ...rest} = s; return {...rest}; }
+  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
   async create(w, node, options) {
     assert(!this.creating.has(node.id), 'Node already has a terminal being created');
@@ -64,10 +66,15 @@ export class Terminals {
     // Save allocation before spawn so a failed launch can reuse the same tree.
     this.store.transaction(() => { node.data = { ...node.data, ...directory }; });
     const terminal = new Terminal({...size,scrollback:1000,allowProposedApi:true}); const serializer = new SerializeAddon(); terminal.loadAddon(serializer);
+    const sessionId = randomUUID();
+    const agentCLI = fileURLToPath(new URL('../scripts/agent.mjs', import.meta.url));
     let child;
-    try { child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,TERM:'xterm-256color',COLORTERM:'truecolor'}}); }
+    try {
+      const policyEnv = await bootstrapAgentPolicy({ stateDir:this.store.dir,workspace:w,env:process.env,nodeId:node.id,sessionId,cwd:directory.cwd,branch:directory.worktree?.branch ?? null });
+      child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
+    }
     catch (error) { terminal.dispose(); throw error; }
-    const s = {id:randomUUID(),workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};
+    const s = {id:sessionId,workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',agentReporting:true,...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};
     const entry = {child,identity:processIdentity(child.pid),terminal,serializer,chain:Promise.resolve(),pending:0,pendingData:'',pumpQueued:false,stopping:false,snapshotDirty:false,paused:false,maxPending:0,pauseCount:0,resumeCount:0,snapshotCount:0}; this.live.set(s.id,entry); this.sessions.push(s);
     // Never evict a live session, and bound persisted closed history.
     while (this.sessions.length > 100) { const i = this.sessions.findIndex(v => v.status !== 'running'); if (i < 0) { child.kill(); throw new Error('Too many terminal sessions'); } this.sessions.splice(i,1); }
