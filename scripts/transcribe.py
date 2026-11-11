@@ -20,6 +20,8 @@ def main():
     parser.add_argument("--model", required=True)
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--cache-dir")
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    parser.add_argument("--compute-type", default="int8")
     parser.add_argument("--language", default=None)
     args = parser.parse_args()
     os.umask(0o077)
@@ -27,8 +29,8 @@ def main():
     from faster_whisper import WhisperModel, download_model
 
     if args.prepare:
-        if args.model not in ("base", "tiny") or not args.cache_dir:
-            parser.error("--prepare requires --model base|tiny and --cache-dir")
+        if args.model not in ("base", "tiny", "small") or not args.cache_dir:
+            parser.error("--prepare requires --model base|tiny|small and --cache-dir")
         repo = "Systran/faster-whisper-" + args.model
         # Verify the decoder API too, not just model loading. No microphone.
         import tempfile
@@ -44,8 +46,10 @@ def main():
                 stream.writeframes(b"\x00\x00" * 16000)
             decode_audio(wav)
         model_path = download_model(repo, cache_dir=args.cache_dir)
-        WhisperModel(model_path, device="cpu", compute_type="int8", cpu_threads=4,
-                     local_files_only=True)
+        model = WhisperModel(model_path, device=args.device, compute_type=args.compute_type,
+                             cpu_threads=4, local_files_only=True)
+        import numpy as np
+        list(model.transcribe(np.zeros(16000, dtype=np.float32), beam_size=1)[0])
         print(json.dumps({"modelPath": str(Path(model_path).resolve()),
                           "repo": repo, "revision": Path(model_path).name,
                           "fasterWhisperVersion": importlib.metadata.version("faster-whisper")}))
@@ -61,7 +65,7 @@ def main():
     if not output.is_dir() or not model_path.is_dir():
         parser.error("output/model directory unavailable; run npm run setup:voice")
     # Local path + local_files_only forbids implicit model downloads on dictation.
-    model = WhisperModel(str(model_path), device="cpu", compute_type="int8",
+    model = WhisperModel(str(model_path), device=args.device, compute_type=args.compute_type,
                          cpu_threads=4, num_workers=1, local_files_only=True)
     segments, _info = model.transcribe(str(source), language=args.language,
                                       beam_size=5, vad_filter=True,
