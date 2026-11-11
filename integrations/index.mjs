@@ -3,6 +3,7 @@ import { services } from './services.mjs';
 import { dockerList, dockerOperation } from './docker.mjs';
 import { contextScan, contextRead } from './context.mjs';
 import { phantom, shutdownPhantom } from './phantom.mjs';
+import { opencodeSessions } from './opencode.mjs';
 
 export async function shutdownIntegrations() {
   await shutdownPhantom();
@@ -15,6 +16,7 @@ export async function shutdownIntegrations() {
 export async function handleIntegration(method, payload = {}, context) {
   let result;
   if (method === 'git.inspect') result = await gitInspect(payload, context);
+  else if (method === 'opencode.sessions') result = await opencodeSessions(payload, context);
   else if (['services.list', 'services.pin', 'services.remove'].includes(method)) result = await services(method, payload, context);
   else if (method === 'docker.list') result = await dockerList(payload, context);
   else if (['docker.logs', 'docker.action'].includes(method)) result = await dockerOperation(method, payload, context);
