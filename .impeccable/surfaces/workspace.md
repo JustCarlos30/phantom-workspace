@@ -11,14 +11,14 @@ Modo Operate. Carlos pide Dark + flujo completo, canvas y barras flotantes, orde
 
 ## Direction contract
 
-THESIS: un estudio personal para volver al trabajo; proyectos, paneles y comandos tienen rutas directas sin buscar en menús sucesivos.
+THESIS: lienzo protagonista y continuo; navegación compacta y plegable libera espacio para el trabajo sin perder proyectos, paneles ni comandos.
 
-OWN-WORLD: grafito #15171c, superficies #202329/#292d35, texto #eceef3 y secundarios #a5adbb. Azul iris #8b9dff como selección, menta y ámbar para estado. Sans nativa, controles compactos, marcos precisos. Fondo atmosférico opcional y retícula espacial regulable; sin transparencia en terminales o herramientas.
+OWN-WORLD: grafito #15171c, superficies #202329/#292d35, texto #eceef3 y secundarios #a5adbb. Azul iris #8b9dff como selección, menta y ámbar para estado. Sans nativa, filas jerárquicas compactas, mínimos bordes. Fondo/cabecera/sidebar/canvas comparten atmósfera existente y personalización; terminales y herramientas permanecen opacos.
 
-STORY: elegir carpeta → localizar panel en la navegación lateral → operar en mapa o enfocar → consultar herramientas a la derecha → volver al mismo mapa. Personalizar fondo y acento desde Apariencia, con preferencias locales por proyecto.
+STORY: elegir carpeta → localizar panel → plegar navegación para trabajar → enfocar o consultar inspector → volver al mismo mapa. El plegado local persiste entre proyectos; el drawer estrecho es temporal y devuelve foco al disparador. PTY, cámara y geometría no dependen del plegado.
 
-FIRST VIEWPORT: rail izquierdo con proyectos y lista compacta de paneles; cabecera reducida con identidad y comandos; canvas oscuro central; creación flotante inferior y zoom separado. Inspector no modal para contexto o apariencia. Fondo se atenúa al enfocar: el gesto distintivo es pasar del estudio personal al trabajo concentrado conservando identidad y cámara.
+FIRST VIEWPORT: sidebar de 224px expandido o 56px plegado, marca discreta, comandos, proyectos, paneles y pie ligero. Cabecera integrada sin banda sólida conserva nombre editable, ruta y guardado. Lienzo continuo con marcos livianos, dock inferior flotante y zoom separado; inspector tonal no modal. Desktop mínimo 580px; drawer temporal a 850px o menos, sin propuesta mobile.
 
-FORM: dirección fijada por Carlos: Figma moderno, dark y personalización orientada a DX; implementación code-led. seed: none (unavailable). La referencia fija la dirección; no se hace sorteo de estilos ajenos.
+FORM: usuario fija lienzo protagonista, sidebar compacto plegable, controles flotantes y mínimos bordes. Dirección dark grafito/iris existente, code-led/Operate. seed: none (unavailable). Sin entrevista ni sorteo adicional.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+FINISH: documentar tokens y comportamiento reales en DESIGN.md y design.json; evidencia sintética aislada en .test-artifacts/canvas. El controlador ejecuta checks y la coordinadora revisa capturas; implementación no equivale a aprobación visual ni a pruebas observadas.
