@@ -17,6 +17,7 @@ export default function BrowserPanel({ node, workspace, api, active, obscured, o
   const [info, setInfo] = useState({});
   const [error, setError] = useState('');
   const [capture, setCapture] = useState(previews.get(node.id) || null);
+  const agentRequest = useRef(node.data?.agentRequest);
   const capturePage = useCallback(async () => {
     const controller = intent.current, ticket = controller?.captureTicket();
     if (!ticket) return;
@@ -51,6 +52,11 @@ export default function BrowserPanel({ node, workspace, api, active, obscured, o
     };
   }, [node.id, workspace.id, api, capturePage]);
   useEffect(() => {
+    if (agentRequest.current === node.data?.agentRequest) return;
+    agentRequest.current = node.data?.agentRequest;
+    if (node.data?.agentRequest && isSiteURL(node.data?.url)) intent.current?.navigate(node.data.url).catch(() => {});
+  }, [node.data?.agentRequest, node.data?.url]);
+  useEffect(() => {
     let disposed = false, observer, frame;
     const controller = intent.current;
     if (!controller) return;
@@ -83,7 +89,7 @@ export default function BrowserPanel({ node, workspace, api, active, obscured, o
     if (active && error && contentBounds(content.current)) intent.current?.show(contentBounds(content.current)).catch(() => {});
     if (!active) onFocus(node.id);
   };
-  return <div className="browser-panel">
+  return <div className="browser-panel" data-browser-id={node.id} data-agent-terminal={node.data?.agentTerminalId || undefined}>
     <form className="browser-toolbar" onSubmit={navigate}>
       <button type="button" title="Atrás" aria-label="Atrás" disabled={!active || !info.canGoBack || info.loading} onClick={() => intent.current?.action('browser.back')}><ArrowLeft size={15} /></button>
       <button type="button" title="Adelante" aria-label="Adelante" disabled={!active || !info.canGoForward || info.loading} onClick={() => intent.current?.action('browser.forward')}><ArrowRight size={15} /></button>

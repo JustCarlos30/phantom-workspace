@@ -93,9 +93,22 @@ export class BrowserManager {
       webviewTag: false, navigateOnDragDrop: false,
     } });
     view.setVisible(false);
-    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now() };
+    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now(), console: [], loadError: null };
     this.entries.set(id, entry);
     const wc = view.webContents;
+    wc.on('console-message', (_event, details, message, lineNumber, sourceId) => {
+      const item = typeof details === 'object' ? details : { level: details, message, lineNumber, sourceId };
+      const clean = value => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 512);
+      entry.console.push({ level: clean(item.level), message: clean(item.message), line: item.lineNumber,
+        source: clean(item.sourceId), time: Date.now() });
+      if (entry.console.length > 200) entry.console.shift();
+    });
+    wc.on('did-start-navigation', event => { if (event.isMainFrame) entry.loadError = null; });
+    wc.on('did-finish-load', () => {
+      entry.loadedURL = entry.requestedNavigation;
+      entry.loadedFinalURL = wc.getURL();
+      entry.requestedNavigation = null;
+    });
     const guard = event => {
       try { browserURL(event.url); } catch { event.preventDefault(); this.send(entry, 'Navegación bloqueada: solo HTTP(S) o about:blank'); }
     };
@@ -108,7 +121,7 @@ export class BrowserManager {
     wc.setWindowOpenHandler(({ url }) => {
       try {
         const safe = browserURL(url);
-        setImmediate(() => { if (!wc.isDestroyed()) wc.loadURL(safe).catch(error => this.send(entry, error.message)); });
+        setImmediate(() => { if (!wc.isDestroyed()) { entry.requestedNavigation = safe; wc.loadURL(safe).catch(error => this.send(entry, error.message)); } });
       } catch { this.send(entry, 'Ventana bloqueada: URL no permitida'); }
       return { action: 'deny' };
     });
@@ -116,6 +129,7 @@ export class BrowserManager {
       wc.on(event, () => this.send(entry));
     }
     wc.on('did-fail-load', (_event, code, description, _url, mainFrame) => {
+      if (mainFrame && code !== -3) entry.loadError = `${description} (${code})`;
       if (mainFrame && code !== -3) this.send(entry, `${description} (${code})`);
     });
     wc.on('render-process-gone', (_event, details) => this.send(entry, `Navegador detenido: ${details.reason}`));
@@ -168,6 +182,7 @@ export class BrowserManager {
       // Reattachment must not reset a user's navigation/history to the stored source URL.
       const currentURL = entry.view.webContents.getURL();
       if (!currentURL || (entry.lastRequestedURL !== url && currentURL !== url)) {
+        entry.requestedNavigation = url;
         entry.view.webContents.loadURL(url).catch(error => this.send(entry, error.message));
       }
       entry.lastRequestedURL = url;
@@ -183,7 +198,9 @@ export class BrowserManager {
       return { bounds: this.position(entry, payload.bounds), attached: true };
     }
     if (method === 'browser.navigate') {
-      wc.loadURL(browserURL(payload.url)).catch(error => this.send(entry, error.message));
+      entry.lastRequestedURL = browserURL(payload.url);
+      entry.requestedNavigation = entry.lastRequestedURL;
+      wc.loadURL(entry.lastRequestedURL).catch(error => this.send(entry, error.message));
     } else if (method === 'browser.back') {
       if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     } else if (method === 'browser.forward') {
