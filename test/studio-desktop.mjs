@@ -14,15 +14,23 @@ const secondFolder = path.join(temp, 'SYNTHETIC-Second');
 await mkdir(folder); await mkdir(secondFolder);
 const env = { ...process.env, PHANTOM_WORKSPACE_HOME: path.join(temp, 'profile'), SHELL: '/bin/sh' };
 delete env.ELECTRON_RUN_AS_NODE; delete env.PHANTOM_RENDERER_URL;
-const app = await electron.launch({ args: [root], cwd: root, env });
+const app = await electron.launch({ ...(process.env.PHANTOM_TEST_EXECUTABLE ? { executablePath: process.env.PHANTOM_TEST_EXECUTABLE, args: [], cwd: temp } : { args: [root], cwd: root }), env });
 const page = await app.firstWindow(); page.setDefaultTimeout(10000);
 const errors = []; page.on('pageerror', error => errors.push(error.message));
 const checks = [];
+const passed = message => { checks.push(message); console.log(`PASS ${message}`); };
+const capture = name => process.argv.includes('--no-capture') ? Promise.resolve() : page.screenshot({ path: path.join(evidence, name) });
 const invoke = (method, payload = {}) => page.evaluate(([m, p]) => window.phantom.invoke(m, p), [method, payload]);
 const wait = predicate => page.waitForFunction(predicate);
 const appearance = () => page.getByRole('button', { name: 'Personalizar espacio', exact: false });
 const setting = (name, value) => page.getByRole('button', { name, exact: true }).click().then(() => value && wait(value));
-async function size(width, height) { await app.evaluate(({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0].setContentSize(w, h), [width, height]); }
+async function size(width, height) {
+  await app.evaluate(({ BrowserWindow }, [width, height]) => {
+    const win = BrowserWindow.getAllWindows()[0]; win.setResizable(true); win.setMinimumSize(580, 500); win.setMaximumSize(10000, 10000); win.setContentSize(width, height);
+    const bounds = win.getBounds(); win.setMinimumSize(bounds.width, bounds.height); win.setMaximumSize(bounds.width, bounds.height); win.setResizable(false);
+  }, [width, height]);
+  await page.waitForFunction(([w, h]) => innerWidth === w && innerHeight === h, [width, height]);
+}
 try {
   await page.waitForSelector('.app-shell'); await size(1520, 980);
   const workspace = await invoke('workspace.open', { path: folder });
@@ -36,7 +44,7 @@ try {
   await invoke('node.create', { workspaceId: first.id, type: 'note', title: 'Contexto de la sesión', x: 745, y: 80, width: 350, height: 310, data: { text: 'SYNTHETIC · Fixture de verificación\n\nObjetivo de la sesión\nRevisar la experiencia dark del workspace.\n\nSiguiente paso\nVolver a la terminal sin perder el contexto.' } });
   await page.reload(); await page.waitForSelector('.rail-panel-row');
   assert.equal(await page.locator('.rail-panel-row').count(), 2);
-  checks.push('Real host/PTY and panel navigation loaded');
+  passed('Real host/PTY and panel navigation loaded');
   await appearance().click();
   await setting('Marea', () => document.querySelector('.app-shell').classList.contains('studio-tide'));
   await setting('Acento Menta', () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() === '#7ddbb9');
@@ -44,7 +52,7 @@ try {
   await page.getByLabel('Intensidad del fondo').fill('72');
   await page.reload(); await page.waitForSelector('.app-shell.studio-tide.studio-no-grid');
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()), '#7ddbb9');
-  checks.push('Background, grid, intensity and accent persist after reload');
+  passed('Background, grid, intensity and accent persist after reload');
   await appearance().click();
   assert.equal(await page.getByLabel('Intensidad del fondo').inputValue(), '72');
   await page.getByLabel('Elegir imagen de fondo').setInputFiles({ name: 'invalid.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
@@ -55,14 +63,14 @@ try {
   await page.reload(); await appearance().click();
   await page.getByAltText('Fondo personal seleccionado').waitFor();
   await page.getByLabel('Quitar imagen de fondo').click();
-  checks.push('Valid local image loads and persists; corrupt image rejected; removal works');
+  passed('Valid local image loads and persists; corrupt image rejected; removal works');
   await page.getByRole('button', { name: 'Restablecer apariencia' }).click();
   await page.getByRole('button', { name: 'Cerrar inspector', exact: true }).click();
   await invoke('workspace.open', { path: secondFolder }); await page.reload(); await appearance().click();
   await setting('Brasa', () => document.querySelector('.app-shell').classList.contains('studio-ember'));
   await invoke('workspace.select', { id: first.id }); await page.reload();
   await page.waitForSelector('.studio-aurora');
-  checks.push('Preferences scoped to project; switching does not copy appearance');
+  passed('Preferences scoped to project; switching does not copy appearance');
   await page.locator('.rail-panel-row').first().getByRole('button').first().click();
   await page.waitForSelector('.canvas-node.selected');
   const cameraBefore = await page.evaluate(() => document.querySelector('.canvas-world').style.transform);
@@ -71,31 +79,37 @@ try {
   await wait(() => Math.abs(Number(getComputedStyle(document.querySelector('.canvas-region'), '::before').opacity) - .066) < .001);
   await page.locator('.focus-return button').click();
   assert.equal(await page.evaluate(() => document.querySelector('.canvas-world').style.transform), cameraBefore);
-  checks.push('Focus dims atmosphere; return preserves camera and selected panel');
+  passed('Focus dims atmosphere; return preserves camera and selected panel');
+  await page.bringToFront(); await page.locator('.canvas').focus();
   await page.keyboard.press('Control+k');
   await page.getByRole('combobox', { name: 'Buscar paneles y herramientas' }).fill('personalizar');
   await page.keyboard.press('Enter');
   await page.waitForSelector('.appearance-panel');
-  checks.push('Command palette opens nonmodal appearance inspector');
+  passed('Command palette opens nonmodal appearance inspector');
   await page.getByRole('button', { name: 'Cerrar inspector', exact: true }).click();
+  await size(1520, 980);
   await page.locator('.rail-map-action').click();
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(evidence, 'studio-desktop.png') });
-  await appearance().click(); await page.screenshot({ path: path.join(evidence, 'studio-appearance.png') });
-  await size(1100, 760); await page.waitForTimeout(250);
-  await page.screenshot({ path: path.join(evidence, 'studio-narrow.png') });
+  await page.waitForTimeout(450);
+  await capture('studio-desktop.png');
+  await appearance().click(); await page.waitForSelector('.appearance-panel'); await page.waitForTimeout(450); await capture('studio-appearance.png');
+  await size(1100, 760); await page.waitForTimeout(450);
+  await capture('studio-narrow.png');
   const dock = await page.locator('.dock-main').boundingBox();
   const zoom = await page.locator('.canvas-navigation').boundingBox();
   assert.ok(dock.y > zoom.y + zoom.height, 'Creation dock does not overlap zoom');
+  const inspector = await page.locator('.inspector-host').boundingBox();
+  assert.ok(dock.x + dock.width < inspector.x, 'Creation actions stay visible beside narrow inspector');
   await page.getByRole('button', { name: 'Cerrar inspector', exact: true }).click();
   await size(1520, 980);
   await page.getByRole('button', { name: 'Enfocar Desarrollo local', exact: true }).click();
-  await page.waitForTimeout(350); await page.screenshot({ path: path.join(evidence, 'studio-focused.png') });
+  await page.waitForTimeout(350); await capture('studio-focused.png');
   assert.deepEqual(errors, []);
-  checks.push('Desktop/narrow/focus captured; controls separated; no renderer exceptions');
+  passed(`${process.argv.includes('--no-capture') ? 'Desktop/narrow/focus checked' : 'Desktop/narrow/focus captured'}; controls separated; no renderer exceptions`);
   console.log(JSON.stringify({ checks, errors, profile: temp }, null, 2));
-  await writeFile(path.join(evidence, 'studio-checks.json'), JSON.stringify({ checks, errors, profile: temp, capturedAt: new Date().toISOString() }, null, 2));
+  await writeFile(path.join(evidence, process.argv.includes('--no-capture') ? 'studio-packaged-checks.json' : 'studio-checks.json'), JSON.stringify({ checks, errors, executable: process.env.PHANTOM_TEST_EXECUTABLE || 'development Electron', profile: temp, checkedAt: new Date().toISOString() }, null, 2));
 } finally {
   await invoke('host.shutdown').catch(() => {});
-  await app.close();
+  // The isolated host is stopped above; exit without a second save handshake
+  // against that deliberately disconnected host.
+  await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
 }

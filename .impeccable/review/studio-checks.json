@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Real host/PTY and panel navigation loaded",
+    "Background, grid, intensity and accent persist after reload",
+    "Valid local image loads and persists; corrupt image rejected; removal works",
+    "Preferences scoped to project; switching does not copy appearance",
+    "Focus dims atmosphere; return preserves camera and selected panel",
+    "Command palette opens nonmodal appearance inspector",
+    "Desktop/narrow/focus captured; controls separated; no renderer exceptions"
+  ],
+  "errors": [],
+  "profile": "/tmp/opencode/phantom-studio-mwlV5P",
+  "capturedAt": "2026-11-11T14:53:59.623Z"
+}

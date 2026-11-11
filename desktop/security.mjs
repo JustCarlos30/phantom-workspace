@@ -8,6 +8,7 @@ export const HOST_METHODS = new Set([
   'workspace.open', 'workspace.select', 'workspace.update', 'workspace.relocate',
   'node.create', 'node.update', 'node.remove',
   'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.write', 'terminal.resize', 'terminal.stop', 'terminal.close',
+  'terminal.agent.update', 'terminal.agent.context', 'terminal.agent.report', 'opencode.sessions',
   'task.create', 'task.update', 'task.remove', 'mission.create', 'mission.update', 'mission.remove',
   'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read',
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',

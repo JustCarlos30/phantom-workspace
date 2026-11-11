@@ -122,9 +122,32 @@
 .browser-toolbar input { background: var(--bg); border-color: var(--line); }
 .browser-preview-label { background: #202329ed; color: var(--muted); }
 .browser-preview-label strong { color: var(--ink); }
-.terminal-panel { background: var(--terminal-bg); }
-.terminal-location, .terminal-overview { background: #1c222d; color: var(--muted); }
-.terminal-host .xterm-viewport { scrollbar-color: #566071 var(--terminal-bg); }
+.terminal-panel { background: var(--surface); padding: 0 12px; color: var(--ink); container-type: inline-size; }
+.terminal-toolbar { display: flex; align-items: center; gap: 16px; min-height: 48px; flex-shrink: 0; }
+.terminal-directory { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; color: var(--muted); font-size: 12px; }
+.terminal-directory>svg { flex-shrink: 0; color: var(--accent); }
+.terminal-directory>span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.terminal-type-controls { display: flex; align-items: center; flex-shrink: 0; gap: 2px; }
+.terminal-type-controls button { display: grid; place-items: center; height: 30px; min-width: 30px; border-radius: 5px; color: var(--muted); }
+.terminal-type-controls button:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+.terminal-type-controls button:disabled { opacity: .4; cursor: not-allowed; }
+.terminal-type-controls .terminal-type-reset { display: block; padding: 0 6px; min-width: 48px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.terminal-type-reset span { font-size: 10px; }
+.terminal-panel .terminal-host { border: 1px solid var(--line); border-radius: 7px; background: var(--terminal-bg); }
+.terminal-host>.xterm { padding: 14px 12px 10px 16px; background: var(--terminal-bg); }
+.terminal-session-bar { display: flex; align-items: center; gap: 12px; min-height: 34px; flex-shrink: 0; color: var(--muted); font-size: 11px; }
+.terminal-session-status { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.terminal-session-context { flex: 1; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.terminal-session-bar .terminal-stop { height: 28px; width: 28px; color: var(--muted); flex-shrink: 0; }
+.terminal-session-bar .terminal-stop:hover { background: #41282f; color: var(--danger); }
+.terminal-panel .terminal-message { position: static; flex-shrink: 0; margin: 0 0 12px; background: var(--surface-2); border-color: var(--line); color: var(--ink); font-size: 12px; }
+.terminal-message button { background: var(--accent-soft); color: var(--ink); min-height: 30px; font-size: 12px; }
+.terminal-message button:hover:not(:disabled) { background: var(--accent); color: var(--bg); }
+.terminal-message button:disabled { opacity: .4; cursor: not-allowed; }
+.terminal-overview { inset: 48px 12px 34px; background: var(--terminal-bg); color: var(--ink); border-radius: 7px; }
+.terminal-overview span+span { color: var(--muted); }
+@container (max-width: 420px) { .terminal-directory { font-size: 11px; } .terminal-toolbar { gap: 8px; } .terminal-session-context { font-size: 10px; } }
+.terminal-host .xterm-viewport { background-color: var(--terminal-bg); scrollbar-color: #566071 var(--terminal-bg); }
 .appearance-panel { padding: 24px 20px; overflow: auto; flex: 1; min-height: 0; }
 .appearance-panel h2 { font-size: 18px; font-weight: 600; letter-spacing: -.025em; margin: 0 0 10px; }
 .appearance-panel p { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0 0 24px; }
@@ -161,6 +184,10 @@
 @media (min-width: 1450px) { .project-rail { width: 240px; } }
 @media (max-width: 1270px) { .dock-label { display: none; } .create-dock { left: 50%; } }
 @media (max-width: 1100px) { .project-rail { width: 210px; } .create-dock { left: 50%; } .inspector-host { box-shadow: -12px 0 35px #0004; } }
+@media (min-width: 851px) and (max-width: 1100px) {
+  .studio-inspector-open .create-dock { left: calc((100% - 350px) / 2); }
+  .studio-inspector-open .canvas-navigation { right: 362px; }
+}
 @media (max-width: 850px) { .project-rail { width: 232px; } .workspace-header { padding: 0 13px; } .create-dock { left: 50%; } .canvas-navigation { right: 12px; } }
 @media (max-height: 700px) { .rail-panels { margin-top: 16px; } .rail-panel-row>button:first-child { padding-top: 7px; padding-bottom: 7px; } .studio-appearance-button { margin-top: 8px; padding: 9px; } .rail-bottom { padding-top: 8px; } .host-indicator { padding-bottom: 8px; } }
 @media (prefers-reduced-motion: reduce) { .canvas-region::before { transition: none; } }
