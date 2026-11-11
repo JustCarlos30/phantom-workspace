@@ -45,12 +45,15 @@ try {
       async invoke(method, payload = {}) {
         fixture.calls.push({ method, payload: structuredClone(payload) });
         if (method === 'state.get') return structuredClone(state);
+        if (method === 'terminal.list') return [];
+        if (method === 'git.inspect') return { available: false, branches: [], changes: [], reason: 'SYNTHETIC · no Git comparison' };
          if (method === 'plugin.update') {
            if (fixture.failSave) throw new Error('SYNTHETIC · guardado no disponible');
           workspace.plugins = { phantom: structuredClone(payload.settings) };
           fixture.emit({ type: 'state.changed', workspaceId: workspace.id });
           return structuredClone(payload.settings);
         }
+        if (method === 'plugins.list') return { items: [{ id: 'phantom', name: 'Phantom', version: '1.0.0', ...workspace.plugins?.phantom, config: {}, panels: [], actions: [] }] };
         if (method === 'plugin.get') return structuredClone(workspace.plugins?.phantom || { enabled: false, refreshMs: 4000 });
         if (method === 'node.create') {
           const node = { id: crypto.randomUUID(), title: 'Centro de mando', x: 0, y: 0, width: 800, height: 620, data: {}, ...payload };
@@ -76,7 +79,7 @@ try {
     while (Date.now() < until) { if (await fn()) return; await page.waitForTimeout(50); }
     throw new Error(`Timed out: ${label}`);
   };
-  const count = () => page.evaluate(() => window.__commandCenterFixture.calls.filter(c => ['phantom.list', 'phantom.events'].includes(c.method)).length);
+  const count = () => page.evaluate(() => window.__commandCenterFixture.calls.filter(c => c.method === 'phantom.events').length);
   const shot = async name => {
     const target = path.join(evidence, name);
     await page.screenshot({ path: target, fullPage: true });
@@ -94,14 +97,14 @@ try {
   await page.goto(server.resolvedUrls.local[0]);
   const center = page.locator('.canvas-node.focused .command-center');
   await check('activar plugin y guardar preferencia por proyecto', async () => {
-    await page.keyboard.press('Control+k');
-    await page.getByRole('button', { name: /Abrir Centro de mando/ }).click();
+    await page.getByRole('button', { name: /Comandos/ }).click();
+    await page.getByRole('option', { name: /Abrir Centro de mando/ }).click();
     await center.waitFor();
     await page.evaluate(() => { window.__commandCenterFixture.failSave = true; });
     await center.getByRole('button', { name: 'Reactivar Phantom', exact: true }).click();
     await center.getByRole('alert').waitFor();
     assert.match(await center.getByRole('alert').innerText(), /guardado no disponible/);
-    assert.equal(await count(), 0, 'A failed activation must not start native reads');
+    assert.equal(await count(), 0, 'A failed activation must not read selected task events');
     await page.evaluate(() => { window.__commandCenterFixture.failSave = false; });
     await center.getByRole('button', { name: 'Reintentar guardado', exact: true }).click();
     await wait(() => center.getByRole('button', { name: 'Pausar', exact: true }).isEnabled(), 'activation');

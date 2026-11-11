@@ -200,9 +200,9 @@ test('installed native CLI: isolated cards/replacements, events ownership, immut
 });
 
 test('command-center preferences and native plugin config share durable state without overwriting each other', async t => {
-  const f = await fixture(t);
+  const f = await fixture(t, false);
   const host = await createHost({ dataDir: f.store.dir, handleIntegration });
-  t.after(() => host.close());
+  t.after(async () => { await host.close(); await rm(f.home, { recursive: true, force: true }); });
   const workspaceId = f.workspaces[0].id;
   await host.invoke('plugins.update', { workspaceId, id: 'phantom', patch: { enabled: true, config: { model: 'fixture/model' } } });
   await host.invoke('plugin.update', { workspaceId, id: 'phantom', settings: { enabled: true, refreshMs: 3000 } });

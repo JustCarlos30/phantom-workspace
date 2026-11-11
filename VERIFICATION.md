@@ -1,5 +1,21 @@
 # Verificación de entrega — 0.1.0
 
+## Integración local de todos los worktrees — 2026-11-11
+
+Rama `integrate/all-2026-11-11`. Se preservaron 62 worktrees (incluidos borradores sin commit) en `preserve/2026-11-11/source-*` y un bundle externo. Todas las instantáneas son antecesoras de la rama integrada; `master` conserva `3a8f4f4`. El inventario y las decisiones de precedencia están en [integration-sources.json](docs/integration-sources.json). Las implementaciones anteriores se conservan como historia recuperable; las versiones funcionales actuales se combinan en el árbol final.
+
+Incluye plataforma nativa de plugins/Cards/Skills, centro de mando, identidad/reportes/políticas de agentes, navegador/automatización, actividad, lectura y resumen de conversaciones, controles del lienzo, voz, preparación cancelable de dependencias y Gengar. Las APIs de preferencias comparten estado y conservan configuración e intervalo al actualizarse entre sí.
+
+Validación realizada en el worktree integrado:
+
+- `npm run build`: correcto; aviso de tamaño del bundle.
+- Suite: 171 pruebas pasan, 3 opcionales omitidas, cero fallos.
+- Seis recorridos adicionales pasan: `conversation-windows.mjs`, `plugins-desktop.mjs`, `activity-desktop.mjs`, `agent-browser-desktop.mjs`, `canvas-controls.mjs`, `command-center-desktop.mjs`.
+- Los recorridos usan perfiles y catálogos sintéticos, PTY/IPC/Electron o Chromium reales según el check. No ejecutan modelos comerciales ni modifican el perfil personal.
+- `git diff --check`: correcto. Los worktrees fuente conservaron exactamente sus árboles durante la integración.
+
+Evidencia de escritorio: `/tmp/opencode/conversation-windows-7XCtiv`, `/tmp/opencode/activity-desktop-w6mx1F`, `/tmp/opencode/phantom-canvas-222XQO`, `/tmp/opencode/phantom-command-center-review`. Las secciones siguientes documentan la entrega anterior; no acreditan un nuevo paquete distribuible de esta integración.
+
 **0.1 usable, implementada y empaquetada para Linux x64; validación personal pendiente.** Evidencia revisada el 2026-11-11. No equivale a fiabilidad de producción demostrada durante varias jornadas.
 
 ## Paquete y arranque
