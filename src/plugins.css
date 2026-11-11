@@ -1,0 +1,72 @@
+.plugins-center, .phantom-cards, .phantom-skills, .plugin-detail, .plugin-editor, .plugin-disabled { min-width: 0; container-type: inline-size; }
+.plugin-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.plugin-heading h3, .plugin-detail h3, .plugins-center h3 { font-size: 18px; line-height: 1.4; margin: 0 0 5px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.plugin-heading p, .plugins-center p { margin: 4px 0 10px; }
+.plugin-heading > .tw-button { flex-shrink: 0; }
+.plugin-heading h4 { margin: 0; }
+.plugin-entry { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 20px; }
+.plugin-entry > header { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.plugin-entry > header span { color: var(--muted); font-size: 12px; }
+.plugin-entry > .tw-row { margin: 20px 0 24px; }
+.plugin-connected { color: var(--success); }
+.plugin-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 0 0 18px; }
+.plugin-toolbar > .tw-field { flex: 1 1 180px; }
+.plugin-toolbar .tw-row { margin-bottom: 1px; }
+.plugin-toolbar .tw-button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.plugin-card-list, .plugin-skills-list { display: flex; flex-direction: column; }
+.plugin-card-row { display: flex; flex-direction: column; text-align: left; gap: 9px; padding: 17px 12px; border-bottom: 1px solid var(--line); width: 100%; min-width: 0; color: var(--ink); }
+.plugin-card-row:hover, .plugin-skill-row:hover { background: var(--surface-2); }
+.plugin-card-row strong { font-size: 14px; line-height: 1.5; font-weight: 550; overflow-wrap: anywhere; }
+.plugin-card-row small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.plugin-status { color: var(--accent); font-size: 11px; line-height: 1.5; }
+.plugin-board { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
+.plugin-board-column { flex: 1 0 240px; min-width: 0; max-width: 420px; }
+.plugin-board-column > h4 { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); margin: 0; font-size: 12px; }
+.plugin-board-column > h4 span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.plugin-board-column .plugin-card-row { background: var(--surface-2); margin-top: 10px; border: 1px solid var(--line); border-radius: 7px; }
+.plugin-board-column .plugin-card-row:hover { border-color: var(--accent); }
+.plugin-detail-title { margin: 24px 0; }
+.plugin-detail-title h3 { margin: 10px 0; white-space: pre-wrap; }
+.plugin-detail-title code { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.plugin-detail-title p { overflow-wrap: anywhere; }
+.plugin-form-section { margin: 24px 0; padding-top: 20px; border-top: 1px solid var(--line); }
+.plugin-form-section h4 { font-size: 13px; margin: 0 0 12px; }
+.plugin-check-summary { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; }
+.plugin-check-summary > svg { flex-shrink: 0; color: var(--muted); margin-top: 3px; }
+.plugin-check-summary > div { min-width: 0; flex: 1; }
+.plugin-paths { padding-left: 18px; line-height: 1.8; overflow-wrap: anywhere; }
+.plugin-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.plugin-editor > fieldset > .tw-field, .plugin-editor > fieldset > .tw-check { margin-bottom: 16px; }
+.plugin-editor .plugin-check { border: 1px solid var(--line); padding: 14px; border-radius: 7px; margin: 14px 0; }
+.plugin-check legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
+.plugin-check .tw-field { margin-bottom: 12px; }
+.plugin-arguments { display: flex; flex-direction: column; gap: 9px; margin: 10px 0 16px; }
+.plugin-arguments label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.plugin-arguments .tw-row { align-items: flex-end; flex-wrap: nowrap; }
+.plugin-arguments > .tw-button { align-self: flex-start; }
+.plugin-fields-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+.plugin-fields-pair > * { min-width: 0; }
+.plugin-output { max-height: 280px; overflow: auto; }
+.plugin-empty { padding: 36px 12px; max-width: 65ch; }
+.plugin-empty > svg { color: var(--muted); margin-bottom: 14px; }
+.plugin-empty h4 { font-size: 16px; font-weight: 550; margin: 0 0 10px; }
+.plugin-empty p, .plugin-arguments small { color: var(--muted); line-height: 1.65; }
+.plugin-skill-row { display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 18px 10px; text-align: left; border-bottom: 1px solid var(--line); color: var(--ink); }
+.plugin-skill-row > svg { color: var(--accent); flex-shrink: 0; margin-top: 3px; }
+.plugin-skill-row > span { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.plugin-skill-row strong, .plugin-skill-row span { overflow-wrap: anywhere; }
+.plugin-skill-row small { color: var(--muted); font-size: 11px; }
+.plugin-prose { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; line-height: 1.8; }
+.plugin-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.plugin-tags code { background: var(--surface-2); padding: 5px 8px; border-radius: 4px; overflow-wrap: anywhere; }
+.plugin-resource { border-bottom: 1px solid var(--line); padding: 14px 0; }
+.plugin-resource summary { cursor: pointer; overflow-wrap: anywhere; }
+.plugin-resource small { color: var(--muted); margin-left: 8px; }
+.plugin-save-status { color: var(--success); font-size: 12px; overflow-wrap: anywhere; }
+.plugin-save-status:empty { display: none; }
+.plugin-editor textarea { caret-color: var(--accent); }
+.plugin-disabled { padding: 20px 0; }
+.plugin-evidence { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; font-size: 12px; line-height: 1.7; }
+.plugin-evidence dt { color: var(--muted); }
+.plugin-evidence dd { margin: 0; overflow-wrap: anywhere; }
+@container (max-width: 430px) { .plugin-fields-pair { grid-template-columns: 1fr; } .plugin-heading { flex-wrap: wrap; } .plugin-toolbar { align-items: stretch; } }

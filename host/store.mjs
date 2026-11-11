@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { validateAgent } from './agents.mjs';
+import { validatePluginSettings } from '../src/plugins/registry.js';
 
 export const MAX_HISTORY = 256 * 1024;
-export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground'];
+export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','phantom-cards','phantom-skills'];
 export const dataHome = () => path.resolve(process.env.PHANTOM_WORKSPACE_HOME || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-workspace'));
 export function assert(condition, message) { if (!condition) throw new Error(message); }
 export function object(value) { assert(value && typeof value === 'object' && !Array.isArray(value), 'Expected an object'); return value; }
@@ -40,6 +42,7 @@ export function validateState(input) {
   const ids = new Set(), paths = new Set();
   for (const w of state.workspaces) {
     object(w); assert(uuid(w.id) && !ids.has(w.id), 'Invalid or duplicate workspace ID'); ids.add(w.id);
+    if (w.plugins !== undefined) validatePluginSettings(w.plugins);
     text(w.name, 'workspace name', 512); text(w.path, 'workspace path', 4096); text(w.canonicalPath, 'canonical path', 4096);
     assert(path.isAbsolute(w.path) && path.isAbsolute(w.canonicalPath), 'Workspace paths must be absolute');
     // Missing folders remain restorable; existing aliases resolve to one identity.
@@ -51,7 +54,7 @@ export function validateState(input) {
       assert(Array.isArray(w[key]) && w[key].length <= 10000, `Invalid ${key}`); const seen = new Set();
       for (const item of w[key]) { object(item); assert(uuid(item.id) && !seen.has(item.id), `Invalid ${key} ID`); seen.add(item.id); }
     }
-    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
+    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
     for (const t of w.tasks) { assert(['draft','checklist','phantom'].includes(t.kind) && ['todo','doing','done'].includes(t.status), 'Invalid task'); text(t.title, 'task title', 512);text(t.description,'task description'); assert(Array.isArray(t.refs) && t.refs.length<=1000, 'Invalid refs'); }
     for (const key of ['missions','workflows','attention','contextRefs']) for (const item of w[key]) text(item.title, 'title', 512);
     for (const item of w.missions) {text(item.notes,'mission notes');text(item.nextAction,'next action');assert(Array.isArray(item.refs)&&item.refs.length<=1000,'Invalid mission refs');}

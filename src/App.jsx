@@ -11,13 +11,15 @@ import { useInlineName } from './hooks/useInlineName';
 import { overlayPolicy } from './hooks/inputOwnership';
 import { useAppearance } from './hooks/useAppearance';
 import { Appearance } from './components/Appearance';
-import { Palette, Maximize2 } from 'lucide-react';
+import { Palette, Maximize2, Puzzle, BookOpen } from 'lucide-react';
+import { plugins, panelPlugin, pluginEnabled } from './plugins/registry';
 import './styles.css';
 import './studio.css';
 
 const TYPES = [
   ['terminal', 'Terminal', TerminalSquare, 'Una sesión real en esta carpeta'], ['browser', 'Navegador', Globe, 'Una página junto al trabajo'], ['note', 'Nota', StickyNote, 'Contexto que permanece'],
   ['tasks', 'Tareas', Check, 'Borradores, checklists y Phantom'], ['context', 'Contexto', FileText, 'Archivos, memorias y skills'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees'], ['services', 'Servicios', Activity, 'Sitios y procesos del proyecto'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito'], ['workflows', 'Workflows', Workflow, 'Secuencias de trabajo reutilizables'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente'],
+  ...plugins.flatMap(plugin => plugin.panels.map(panel => [panel.type, panel.name, panel.type.endsWith('skills') ? BookOpen : Check, plugin.description])),
 ];
 const label = type => TYPES.find(t => t[0] === type)?.[1] || type;
 const initials = name => name?.split(/[\s_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
@@ -70,6 +72,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const projectNameButton = useRef(null);
   const projectRename = useInlineName({ stage: (id, name) => patch(id, null, { name }), flush, registerBeforeFlush });
   const workspace = state?.workspaces?.find(w => w.id === state.activeWorkspaceId);
+  const visibleTypes = TYPES.filter(([type]) => !panelPlugin(type) || pluginEnabled(workspace, panelPlugin(type).id));
   const { appearance, update: updateAppearance, reset: resetAppearance } = useAppearance(workspace?.id, notify);
   const current = useRef(workspace); current.current = workspace;
   const selectionRef = useRef(selected); selectionRef.current = selected;
@@ -105,16 +108,18 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const onOpenPanel = useCallback(async (type, data = {}, title) => {
     const w = current.current; if (!w) { notify('Abre una carpeta para crear un panel.'); return null; }
     if (!TYPES.some(t => t[0] === type)) { notify(`Tipo de panel desconocido: ${type}`, 'error'); return null; }
+    const owner = panelPlugin(type);
+    if (owner && !pluginEnabled(w, owner.id)) { setInspector('plugins'); notify('Activa Phantom en Plugins para abrir esta herramienta.'); return null; }
     setTools(false); setMenu(null); setList(false); setTray(false); setInspector(null);
-    const existing = data.focusNodeId && w.nodes?.find(n => n.id === data.focusNodeId);
+    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : ((type === 'tasks' && data.cardId) || owner) && n.type === type && n.data?.cardId === data.cardId);
     if (existing) { focusPanel(existing.id); return existing; }
     setBusy(type);
     let reservationId, created = false;
     try {
       const region = document.querySelector('.canvas')?.getBoundingClientRect();
       const camera = w.camera || { x: 64, y: 64, zoom: 1 };
-      const width = type === 'browser' ? 800 : type === 'note' ? 420 : 640;
-      const height = type === 'browser' ? 520 : type === 'note' ? 340 : 400;
+       const width = owner ? 860 : type === 'browser' ? 800 : type === 'note' ? 420 : 640;
+       const height = owner ? 620 : type === 'browser' ? 520 : type === 'note' ? 340 : 400;
       // Reserve before the RPC so rapid/concurrent creations cannot reuse the
       // same slot while state.get or PTY creation is still in flight.
       for (const [key, item] of placements.current) if (item.workspaceId === w.id && w.nodes?.some(n => n.id === item.nodeId)) placements.current.delete(key);
@@ -223,7 +228,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const connectionLabel = ({ connected: 'Host local conectado', connecting: 'Conectando con el host…', reconnecting: 'Reconectando con el host…', disconnected: 'Host desconectado', error: 'Error de conexión' })[connection.status] || 'Conexión no disponible';
   const saveLabel = saving ? 'Guardando' : saveError ? 'Sin guardar' : connection.status !== 'connected' ? 'Sin conexión' : error ? 'Revisar estado' : 'Guardado';
   const menuNode = workspace?.nodes?.find(n => n.id === menu?.id);
-  const filteredNodes = (workspace?.nodes || []).filter(n => `${n.title} ${label(n.type)} ${workspace?.missions?.find(m => m.id === n.groupId)?.title || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const filteredNodes = (workspace?.nodes || []).filter(n => `${n.title} ${label(n.type)} ${n.data?.agent?.cardTitle || ''} ${n.data?.agent?.step || ''} ${workspace?.missions?.find(m => m.id === n.groupId)?.title || ''}`.toLowerCase().includes(query.toLowerCase()));
   const attention = (workspace?.attention || []).filter(a => !a.acknowledgedAt && !a.acknowledged && !a.acked);
   const closeTransient = () => { setTools(false); setTray(false); setList(false); setMenu(null); };
   const removeView = async node => {
@@ -248,7 +253,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
 
   if (!window.phantom?.invoke) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div><h1>Abre la aplicación de escritorio</h1><p>Phantom Workspace necesita su host local para abrir carpetas,<br />recuperar terminales y navegar dentro del proyecto.</p><div className="desktop-required-note"><TerminalSquare size={16} /> Esta vista web no está conectada al escritorio.</div></div>;
   if (!state) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div>{error ? <><h1>No pudimos conectar con el host</h1><p>{error}</p><button className="button primary" onClick={() => refresh().catch(() => {})}>Reintentar conexión</button></> : <><LoaderCircle className="spinning" size={23} /><h1>Recuperando tu espacio…</h1><p>Conectando con el host local.</p></>}</div>;
-  return <div className={`app-shell studio-${appearance.background} ${focused ? 'studio-focused' : ''} ${appearance.grid ? '' : 'studio-no-grid'}`} style={{ '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
+  return <div className={`app-shell studio-${appearance.background} ${focused ? 'studio-focused' : ''} ${inspector ? 'studio-inspector-open' : ''} ${appearance.grid ? '' : 'studio-no-grid'}`} style={{ '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
     <PresenceGroup>
     {sidebar && <button className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
     <aside className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
@@ -258,6 +263,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       <button className="open-folder" onClick={openFolder} disabled={busy === 'folder'}><FolderOpen size={16} /> Abrir carpeta</button>
       {workspace && <section className="rail-panels" aria-label="Paneles del proyecto"><div className="rail-heading"><span>Paneles <span className="rail-count">{workspace.nodes?.filter(n => !n.data?.hidden).length || 0}</span></span><button aria-label="Buscar en paneles" title="Buscar paneles · Ctrl Mayús F" onClick={() => setList(v => !v)}><Search size={14} /></button></div><nav aria-label="Acceso directo a paneles">{workspace.nodes?.filter(n => !n.data?.hidden).map(n => { const Icon = TYPES.find(t => t[0] === n.type)?.[2] || Layers; return <div key={n.id} className={`rail-panel-row ${selected.includes(n.id) ? 'selected' : ''}`}><button onClick={() => jump(n.id)} title={`${n.title} · Ver en el mapa`} aria-current={selected.includes(n.id) ? 'true' : undefined}><Icon size={14} /><span>{n.title}</span></button><button className="rail-panel-focus" title={`Enfocar ${n.title}`} aria-label={`Enfocar ${n.title}`} onClick={() => focusPanel(n.id)}><Maximize2 size={12} /></button></div>; })}{!workspace.nodes?.some(n => !n.data?.hidden) && <p className="rail-empty">Crea tu primer panel desde la barra inferior.</p>}</nav><button className="rail-map-action" onClick={() => { setFocused(null); setFitRequest(n => n + 1); }}><Layers size={14} /> Ver todo el mapa <kbd>0</kbd></button></section>}
       <button className={`studio-appearance-button ${inspector === 'appearance' ? 'active' : ''}`} onClick={() => setInspector(inspector === 'appearance' ? null : 'appearance')}><Palette size={16} /><span>Personalizar espacio<small>Fondo, acento y retícula</small></span></button>
+      <button className="studio-appearance-button" disabled={!workspace} onClick={() => setInspector(inspector === 'plugins' ? null : 'plugins')}><Puzzle size={16} /><span>Plugins<small>Herramientas para este proyecto</small></span></button>
       <div className="rail-bottom"><span className={`host-indicator ${connection.status}`} title={connection.message} role="status"><i />{connectionLabel}</span><button onClick={() => setInspector('settings')}><Settings2 size={16} /> Configuración</button><button onClick={() => setPalette(true)}><Command size={16} /> Comandos <kbd>Ctrl K</kbd></button></div>
     </aside>
     <main className="main-workspace">
@@ -274,10 +280,10 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {workspace && <div className="create-dock"><div className="dock-main"><span className="dock-label">Crear panel</span><button disabled={!!busy} onClick={() => onOpenPanel('terminal')}><TerminalSquare size={17} /><span>Terminal</span></button><button disabled={!!busy} onClick={() => onOpenPanel('browser')}><Globe size={17} /><span>Navegador</span></button><button disabled={!!busy} onClick={() => onOpenPanel('note')}><StickyNote size={17} /><span>Nota</span></button><i /><button className={tools ? 'active' : ''} onClick={() => { setTools(v => !v); setTray(false); }} aria-expanded={tools}><Plus size={17} /><span>Herramientas</span><ChevronDown size={12} /></button></div></div>}
           {workspace && !focused && <button className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
           {selected.length > 1 && !focused && <button className="group-selection button" onClick={groupSelection}><Target size={15} /> Agrupar en misión</button>}
-          {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><div className="tool-picker"><div className="popover-heading"><strong>Añadir a la mesa</strong><button className="icon-button" aria-label="Cerrar herramientas" onClick={() => setTools(false)}><X size={15} /></button></div><div className="tool-picker-list">{TYPES.map(([type, name, Icon, description]) => <button key={type} disabled={!!busy} onClick={() => onOpenPanel(type)}><Icon size={18} /><span><strong>{name}</strong><small>{description}</small></span><Plus size={13} /></button>)}</div></div></>}
+           {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><div className="tool-picker"><div className="popover-heading"><strong>Añadir a la mesa</strong><button className="icon-button" aria-label="Cerrar herramientas" onClick={() => setTools(false)}><X size={15} /></button></div><div className="tool-picker-list">{visibleTypes.map(([type, name, Icon, description]) => <button key={type} disabled={!!busy} onClick={() => onOpenPanel(type)}><Icon size={18} /><span><strong>{name}</strong><small>{description}</small></span><Plus size={13} /></button>)}</div></div></>}
           {list && <div className="panel-index"><div className="popover-heading"><strong>Paneles del proyecto</strong><button className="icon-button" aria-label="Cerrar lista" onClick={() => setList(false)}><X size={15} /></button></div><label className="index-search"><Search size={15} /><input autoFocus aria-label="Buscar panel por nombre, tipo o misión" placeholder="Buscar nombre, tipo o misión…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="panel-index-items">{filteredNodes.map(n => <div className="index-item" key={n.id}><button onClick={() => jump(n.id)}><span className="index-type">{label(n.type)}{n.data?.hidden ? ' · Vista oculta · clic para recuperar' : ''}</span><strong>{n.title}</strong>{n.groupId && <small>{workspace.missions?.find(m => m.id === n.groupId)?.title}</small>}</button><button className="icon-button" title="Enfocar" aria-label={`Enfocar ${n.title}`} onClick={() => { focusPanel(n.id); setList(false); }}><ExternalLink size={14} /></button></div>)}{!filteredNodes.length && <p className="small-empty">{query ? 'No hay paneles con ese nombre, tipo o misión.' : 'Aún no hay paneles. Crea uno desde la barra inferior.'}</p>}</div><div className="index-footer"><button onClick={() => { setFocused(null); setFitRequest(n => n + 1); setList(false); }}>Ver todo el mapa</button><kbd>Ctrl ⇧ F</kbd></div></div>}
         </PresenceGroup></div>
-        {inspector && <div className="inspector-host"><div className="inspector-switcher"><select aria-label="Herramienta contextual" value={inspector} onChange={e => setInspector(e.target.value)}>{TYPES.filter(t => !['terminal', 'browser', 'note', 'mission'].includes(t[0])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="sessions">Sesiones</option><option value="settings">Configuración</option><option value="appearance">Apariencia</option></select><button className="icon-button" aria-label="Cerrar inspector" onClick={() => setInspector(null)}><X size={16} /></button></div>{inspector === 'appearance' ? <Appearance key={workspace?.id || 'default'} appearance={appearance} update={updateAppearance} reset={resetAppearance} workspace={workspace} /> : <Inspector tab={inspector} workspace={workspace} state={state} api={api} refresh={refresh} onClose={() => setInspector(null)} onOpenPanel={onOpenPanel} notify={notify} />}</div>}
+         {inspector && <div className="inspector-host"><div className="inspector-switcher"><select aria-label="Herramienta contextual" value={inspector} onChange={e => setInspector(e.target.value)}>{visibleTypes.filter(t => !['terminal', 'browser', 'note', 'mission'].includes(t[0])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="plugins">Plugins</option><option value="sessions">Sesiones</option><option value="settings">Configuración</option><option value="appearance">Apariencia</option></select><button className="icon-button" aria-label="Cerrar inspector" onClick={() => setInspector(null)}><X size={16} /></button></div>{inspector === 'appearance' ? <Appearance key={workspace?.id || 'default'} appearance={appearance} update={updateAppearance} reset={resetAppearance} workspace={workspace} /> : <Inspector tab={inspector} workspace={workspace} state={state} api={api} refresh={refresh} onClose={() => setInspector(null)} onOpenPanel={onOpenPanel} notify={notify} />}</div>}
       </PresenceGroup></div>
     </main>
     {tray && <><button className="popover-dismiss top-dismiss" aria-label="Cerrar atención" onClick={() => setTray(false)} /><section className="attention-tray"><div className="popover-heading"><strong>Atención del proyecto</strong><button className="icon-button" aria-label="Cerrar atención" onClick={() => setTray(false)}><X size={16} /></button></div>{attention.length ? attention.map(item => <div className="attention-item" key={item.id}><Bell size={15} /><div><strong>{item.title}</strong><small>{item.source}</small></div><button className="icon-button" aria-label="Marcar como atendido" onClick={() => operation(async () => { await api('attention.ack', { workspaceId: workspace.id, id: item.id }); await refresh(); })}><Check size={16} /></button></div>) : <div className="small-empty"><Check size={22} /><strong>Todo al día</strong><p>Los avisos reales de sesiones y herramientas aparecerán aquí.</p></div>}</section></>}

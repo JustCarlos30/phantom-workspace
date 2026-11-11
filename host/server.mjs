@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome } from './store.mjs';
 import { Terminals } from './terminals.mjs';
+import { agentContext, validateAgent } from './agents.mjs';
+import { pluginById, pluginEnabled, panelPlugin, validatePluginSettings } from '../src/plugins/registry.js';
+import { validateJSON } from '../desktop/security.mjs';
 
 function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
@@ -55,6 +58,49 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   async function invoke(method,p={}) {
     assert(!closingPromise,'Host is shutting down');
     text(method,'method',128); object(p);
+    if (method.startsWith('plugins.')) {
+      validateJSON(p);
+      const allowed = {
+        'plugins.get': ['workspaceId', 'pluginId'],
+        'plugins.update': ['workspaceId', 'pluginId', 'patch'],
+        'plugins.configure': ['workspaceId', 'pluginId', 'patch'],
+        'plugins.invoke': ['workspaceId', 'pluginId', 'operation', 'payload'],
+      }[method];
+      assert(allowed && Object.keys(p).every(key => allowed.includes(key)), 'Invalid plugin request');
+      assert(typeof p.workspaceId === 'string' && /^[0-9a-f-]{36}$/i.test(p.workspaceId), 'Invalid plugin workspace');
+      const w = store.getWorkspace(p.workspaceId);
+      assert(typeof p.pluginId === 'string' && pluginById(p.pluginId), 'Unknown plugin ID');
+      if (method === 'plugins.get') return { enabled: pluginEnabled(w, p.pluginId), preferences: w.plugins?.[p.pluginId]?.preferences ?? {}, connection: { scope: 'host', phantomPath: store.state.settings.phantomPath ?? '', phantomData: store.state.settings.phantomData ?? '' } };
+      if (method === 'plugins.update') return mutate(w.id, () => {
+        object(p.patch); assert(Object.keys(p.patch).every(k => ['enabled', 'preferences'].includes(k)), 'Invalid plugin patch');
+        const old = w.plugins?.[p.pluginId] ?? { enabled: false, preferences: {} };
+        const next = { ...old, ...p.patch, preferences: { ...old.preferences, ...(p.patch.preferences === undefined ? {} : object(p.patch.preferences)) } };
+        validatePluginSettings({ [p.pluginId]: next });
+        w.plugins ??= {}; w.plugins[p.pluginId] = next; return next;
+      });
+      assert(pluginEnabled(w, p.pluginId), 'Plugin desactivado en este proyecto');
+      if (method === 'plugins.configure') return mutate(w.id, () => {
+        object(p.patch); assert(Object.keys(p.patch).length > 0, 'Empty connection patch');
+        for (const [key, value] of Object.entries(p.patch)) {
+          assert(['phantomPath', 'phantomData'].includes(key), 'Invalid connection setting');
+          text(value, key, 4096); assert(path.isAbsolute(value) && !value.includes('\0'), 'Connection requires an absolute path');
+        }
+        Object.assign(store.state.settings, p.patch); return { scope: 'host', ...p.patch };
+      });
+      object(p.payload);
+      const fields = { list: ['topic', 'query', 'allVersions'], detail: ['topic', 'id', 'ref'], create: ['kind', 'input', 'idempotencyKey'], update: ['kind', 'input', 'id', 'ref', 'revision', 'replace', 'idempotencyKey'], control: ['id', 'action', 'model'] }[p.operation];
+      assert(fields && Object.keys(p.payload).every(k => fields.includes(k)), 'Invalid plugin operation payload');
+      const q = p.payload;
+      if (['list', 'detail'].includes(p.operation)) assert(['tasks', 'skills'].includes(q.topic), 'Invalid plugin topic');
+      if (q.query !== undefined) text(q.query, 'query', 500);
+      if (q.allVersions !== undefined) assert(typeof q.allVersions === 'boolean', 'Invalid allVersions');
+      if (['detail', 'update', 'control'].includes(p.operation)) { text(q.id, 'Phantom ID', 200); assert(q.id.length && !q.id.startsWith('-'), 'Invalid Phantom ID'); }
+       if (q.ref !== undefined) {object(q.ref);assert(Object.keys(q.ref).every(k=>['id','scope','version','sha256'].includes(k)), 'Invalid skill reference');for(const k of ['id','version','sha256']) {text(q.ref[k],k,200);assert(q.ref[k].length,'Incomplete skill reference');}assert(q.ref.scope==='global'||/^project:[0-9a-f]{64}$/.test(q.ref.scope),'Invalid skill scope');assert(/^[0-9a-f]{64}$/.test(q.ref.sha256),'Invalid skill hash');assert(q.ref.id===q.id,'Skill reference ID differs');}
+      if (['create', 'update'].includes(p.operation)) {assert(['card', 'skill'].includes(q.kind), 'Invalid plugin object');object(q.input);if(q.idempotencyKey!==undefined)text(q.idempotencyKey,'idempotency key',200);if(q.replace!==undefined)assert(typeof q.replace==='boolean','Invalid replace');if(q.revision!==undefined)text(q.revision,'skill version',200);if(p.operation==='update'&&q.kind==='skill')assert(q.ref&&typeof q.revision==='string','Exact skill reference required');}
+      if (p.operation === 'control') {assert(['run', 'cancel', 'recover', 'verify', 'stop'].includes(q.action), 'Invalid control action');if(q.model!==undefined)text(q.model,'model',200);if(q.action==='run')assert(typeof q.model==='string'&&q.model.trim()&&!/[\x00-\x1f\x7f]/.test(q.model),'Explicit model required');}
+      const answer = await routeIntegration(`phantom.${p.operation}`, { ...q, workspaceId: w.id });
+      assert(answer?.handled, 'Phantom integration unavailable'); return answer.result;
+    }
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
     if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
     if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
@@ -63,9 +109,10 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
+      const owner = panelPlugin(p.type); if (owner) assert(pluginEnabled(store.getWorkspace(p.workspaceId), owner.id), 'Plugin desactivado en este proyecto');
       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='browser'?520:400),groupId:null,data:p.data??{}};w.nodes.push(node);return node;
     });
-    if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');Object.assign(n,p.patch);return n;});
+    if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;}Object.assign(n,patch);return n;});
     if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=w.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
     if(method==='terminal.create') {
       const w=store.getWorkspace(p.workspaceId); let node=p.nodeId?w.nodes.find(n=>n.id===p.nodeId):null; if(p.nodeId) assert(node?.type==='terminal','Terminal node not found');
@@ -73,6 +120,36 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const session=await terminals.create(w,node,p); node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id};return current;}); return {session,node};
     }
     if(method==='terminal.list') {store.getWorkspace(p.workspaceId);return terminals.sessions.filter(s=>s.workspaceId===p.workspaceId).map(s=>terminals.descriptor(s));}
+    if(method==='terminal.agent.context' || method==='terminal.agent.report') {
+      const session=terminals.get(p.sessionId),w=store.getWorkspace(session.workspaceId),node=w.nodes.find(n=>n.id===session.nodeId);
+      assert(node?.type==='terminal','Terminal node not found');
+      if(method==='terminal.agent.context') return agentContext(w,node,session);
+      assert(session.status==='running' && node.data.sessionId===session.id,'Report requires the current live terminal session');
+      object(p.patch);for(const key of Object.keys(p.patch)) assert(['step','status'].includes(key),'Reports may only update step and status');
+      const patch=structuredClone(p.patch);validateAgent(patch);
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return agentContext(w,current,session);});
+    }
+    if(method==='terminal.agent.update') {
+      const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
+      assert(node?.type==='terminal','Terminal node not found');object(p.patch);
+      for(const key of Object.keys(p.patch)) assert(['name','cardId','providerSessionId','step','status'].includes(key),'Unsupported identity field');
+      const patch=structuredClone(p.patch),validated={};
+      if(patch.name!==undefined){text(patch.name,'agent name',512);assert(patch.name.trim()&&!/[\x00-\x1f\x7f]/.test(patch.name),'Invalid agent name');}
+      for(const key of ['step','status']) if(patch[key]!==undefined)validated[key]=patch[key];
+      validateAgent(validated);
+      if(patch.cardId!==undefined) {
+        text(patch.cardId,'card ID',512);
+        if(patch.cardId){const result=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:patch.cardId});assert(result.handled&&result.result?.kind==='card','Expected a Phantom card');validated.cardId=patch.cardId;validated.cardTitle=result.result.contract.goal;}
+        else {validated.cardId='';validated.cardTitle='';}
+      }
+      if(patch.providerSessionId!==undefined) {
+        text(patch.providerSessionId,'OpenCode session',512);
+        if(patch.providerSessionId){const result=await routeIntegration('opencode.sessions',{workspaceId:w.id});assert(result.result?.available&&result.result.items.some(s=>s.id===patch.providerSessionId),'OpenCode session not found in this workspace');validated.provider='opencode';validated.providerSessionId=patch.providerSessionId;}
+        else {validated.providerSessionId='';}
+      }
+      // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');if(patch.name!==undefined)current.title=patch.name.trim();const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
+    }
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);
     if(method==='terminal.write') return terminals.write(p.sessionId,p.data);
     if(method==='terminal.resize') return terminals.resize(p.sessionId,p.cols,p.rows);

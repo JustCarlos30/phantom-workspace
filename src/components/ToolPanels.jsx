@@ -1,8 +1,15 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, FileText, Play, RefreshCw, Square, Trash2, X } from 'lucide-react';
 import '../tools.css';
+import { CardAgents } from './AgentIdentity';
+import Plugins from './Plugins';
+import PhantomCards from './PhantomCards';
+import PhantomSkills from './PhantomSkills';
+import { DisabledPlugin } from './pluginPrimitives';
+import { panelPlugin, pluginEnabled } from '../plugins/registry';
+import '../plugins.css';
 
-export const TOOL_TITLES = { tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
+export const TOOL_TITLES = { plugins: 'Plugins', 'phantom-cards': 'Cards Phantom', 'phantom-skills': 'Skills Phantom', tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
 const json = value => JSON.stringify(value, null, 2);
 const textValue = (value, fallback = 'Desconocido') => typeof value === 'string' && value.trim() ? value : typeof value === 'number' && Number.isFinite(value) ? String(value) : fallback;
 const message = error => textValue(error?.message, typeof error === 'string' ? error : 'La fuente devolvió un error sin mensaje válido.');
@@ -135,6 +142,9 @@ function Tasks(props) {
   const [mode, setMode] = useState('draft'), [title, setTitle] = useState(''), [description, setDescription] = useState(''), [edit, setEdit] = useState(null);
   const source = useResource(api, 'phantom.list', { workspaceId: workspace.id, topic: 'tasks' });
   const op = useOperation(notify);
+  const [cardId, setCardId] = useState(props.node?.data?.cardId || '');
+  useEffect(() => { setCardId(props.node?.data?.cardId || ''); }, [props.node?.data?.cardId]);
+  if (cardId) return <Section title="Card vinculada" action={<Refresh resource={source} />}><Button onClick={() => setCardId('')}>Ver todas las tareas</Button><ResourceState resource={source} empty="" />{itemsOf(source.data).filter(item => item.id === cardId).map(item => <PhantomItem key={item.id} item={item} topic="tasks" kind="card" {...props} onChange={source.reload} />)}{!source.loading && source.data?.available && !itemsOf(source.data).some(item => item.id === cardId) && <p className="tw-warning">La card vinculada ya no aparece en esta carpeta. Actualiza la fuente o revisa el vínculo desde la terminal.</p>}</Section>;
   return <><Section title="Añadir trabajo"><Field label="Tipo de entrada"><select value={mode} onChange={e => { setMode(e.target.value); setEdit(null); }}><option value="draft">Borrador local</option><option value="checklist">Checklist local</option><option value="card">Card nativa Phantom</option><option value="decision">Decisión nativa Phantom</option></select></Field>
     {['card', 'decision'].includes(mode) ? <NativeForm key={mode} kind={mode} {...props} onSaved={source.reload} /> : <form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => { if (!title.trim()) throw new Error('Escribe un título.'); await api(edit ? 'task.update' : 'task.create', { workspaceId: workspace.id, ...(edit ? { id: edit, patch: { title: title.trim(), description, kind: mode } } : { title: title.trim(), description, kind: mode, status: 'todo', refs: [] }) }); await refresh(); setTitle(''); setDescription(''); setEdit(null); }, 'Tarea local guardada'); }}>
       <Field label="Título"><input value={title} onChange={e => setTitle(e.target.value)} required /></Field><Field label="Descripción / checklist"><textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} /></Field><div className="tw-row"><Button type="submit" tone="primary" disabled={op.busy}>{edit ? 'Guardar cambios locales' : 'Crear tarea local'}</Button>{edit && <Button onClick={() => { setEdit(null); setTitle(''); setDescription(''); }}>Cancelar edición</Button>}</div>
@@ -143,7 +153,7 @@ function Tasks(props) {
     <Section title="Cards de Phantom" action={<Refresh resource={source} />}><ResourceState resource={source} empty="Phantom no devuelve cards para esta carpeta. Puedes crear un contrato arriba." />{itemsOf(source.data).map(item => <PhantomItem key={item.id} item={item} topic="tasks" kind="card" {...props} onChange={source.reload} />)}</Section><Attention {...props} /></>;
 }
 
-function PhantomItem({ item, topic, kind, workspace, api, refresh, notify, onChange }) {
+function PhantomItem({ item, topic, kind, workspace, api, refresh, notify, onChange, onOpenPanel }) {
   const [detail, setDetail] = useState(null), [editing, setEditing] = useState(false), [output, setOutput] = useState(null);
   const [model, setModel] = useState('');
   const events = useToolEvents(workspace.id, onChange);
@@ -159,6 +169,7 @@ function PhantomItem({ item, topic, kind, workspace, api, refresh, notify, onCha
       else await api('context.pin', { workspaceId: workspace.id, kind, title: item.title || item.id, ...source, ref: item.raw?.ref || item.ref || { id: item.id, ...(item.revision != null ? { revision: item.revision } : {}) } });
       await refresh();
     }, 'Referencia guardada')}>Vincular referencia</Button></div>
+    {kind === 'card' && <CardAgents cardId={item.id} workspace={workspace} onOpenPanel={onOpenPanel} />}
     {detail && <><DataView value={detail} label="Fuente nativa completa" />{editable && <Button onClick={() => setEditing(!editing)}>{editing ? 'Cerrar edición nativa' : kind === 'card' ? 'Preparar reemplazo de card' : 'Editar JSON nativo'}</Button>}{editing && <NativeForm kind={kind} workspace={workspace} api={api} refresh={refresh} notify={notify} existing={{ ...item, raw: detail }} onSaved={() => { setEditing(false); setDetail(null); onChange?.(); }} />}</>}
     {kind === 'card' && <details className="tw-details"><summary>Control explícito de Phantom</summary><p className="tw-muted">Las acciones se envían al controlador. El estado mostrado procede siempre de Phantom.</p><Field label="Modelo para ejecutar (proveedor/modelo)"><input value={model} onChange={e => setModel(e.target.value)} placeholder="Modelo real configurado en el host" /></Field><div className="tw-row">{['run', 'cancel', 'recover', 'verify', 'stop'].map(action => <Button key={action} disabled={op.busy || (action === 'run' && !model.trim())} onClick={() => op.run(async () => { const value = await api('phantom.control', { workspaceId: workspace.id, id: item.id, action, ...(action === 'run' ? { model: model.trim() } : {}) }); setOutput(value); onChange?.(); }, 'Acción enviada al controlador')}>{({ run: 'Ejecutar', cancel: 'Cancelar', recover: 'Recuperar', verify: 'Verificar', stop: 'Detener' })[action]}</Button>)}</div></details>}
     {output && <DataView value={output} label="Respuesta del controlador" />}{controller && <><p className="tw-muted">Controlador: {controller.status || output?.status || 'estado desconocido'}</p><pre className="tw-code" aria-live="polite">{controller.text || controller.output || 'Sin salida nueva.'}</pre><ErrorNotice error={controller.error} /></>}<OperationState op={op} />
@@ -411,8 +422,9 @@ function Settings({ workspace, state, api, refresh, notify }) {
 
 export function ToolContent({ type, ...props }) {
   if (!props.workspace && type !== 'settings') return <div className="tw-empty">Abre una carpeta para usar las herramientas del workspace.</div>;
-  const components = { tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
-  const Content = components[type];
+  const components = { plugins: Plugins, 'phantom-cards': PhantomCards, 'phantom-skills': PhantomSkills, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
+  const owner = panelPlugin(type);
+  const Content = owner && !pluginEnabled(props.workspace, owner.id) ? DisabledPlugin : components[type];
   const identity = `${props.workspace?.id || 'host'}:${type}:${props.node?.id || 'inspector'}`;
   return <div className="tw-content"><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <><Content {...props} />{type === 'context' && <p className="tw-muted">Las revisiones y hashes solo se muestran cuando la fuente los proporciona. Si no aparecen, son desconocidos; la referencia fijada no acredita una revisión verificada.</p>}</> : <p className="tw-empty">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;
 }

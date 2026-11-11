@@ -4,6 +4,7 @@ import { Search, X } from 'lucide-react';
 import { Button, TOOL_TITLES } from './ToolPanels.jsx';
 import { Presence } from './Presence';
 import '../tools.css';
+import { plugins, panelPlugin, pluginEnabled } from '../plugins/registry';
 
 export function CommandPalette({ open, onClose, workspace, onAction }) {
   const [query, setQuery] = useState(''), [selected, setSelected] = useState(0);
@@ -15,7 +16,8 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
       { title: 'Ver todo el mapa', group: 'Navegación', action: { type: 'fit-all' } },
       { title: 'Buscar paneles del proyecto', group: 'Navegación', action: { type: 'panels' } },
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
-      ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission').map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
+      ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission' && !panelPlugin(tab)).map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
+      ...plugins.filter(plugin => pluginEnabled(workspace, plugin.id)).flatMap(plugin => plugin.actions.map(action => ({ title: action.title, group: `Plugin ${plugin.name}`, action: { type: 'create', panelType: action.id } }))),
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: `Panel · ${node.type}`, action: { type: 'panel', id: node.id } })),
       ...['terminal', 'browser', 'note', 'tasks', 'context', 'git', 'services', 'docker', 'mission', 'workflows', 'playwright', 'playground'].map(panelType => ({ title: `Crear ${TOOL_TITLES[panelType] || ({ terminal: 'terminal', browser: 'navegador', note: 'nota' })[panelType]}`, group: 'Nuevo panel', action: { type: 'create', panelType } })),
     ] : []),
