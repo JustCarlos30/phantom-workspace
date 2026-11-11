@@ -7,6 +7,7 @@ import { prepareTerminalDirectory } from './worktrees.mjs';
 import { fileURLToPath } from 'node:url';
 import { provisionBrowserTerminal } from './agent-browser.mjs';
 import { bootstrapAgentPolicy } from './agent-policy.mjs';
+import { prepareWorktree } from './worktree-setup.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
 function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
@@ -27,7 +28,7 @@ function snapshotOf(entry,session) {
 const HIGH_WATER=256*1024,LOW_WATER=64*1024;
 export class Terminals {
   constructor(store, emit) {
-    this.store = store; this.emit = emit; this.live = new Map(); this.sessions = []; this.dirty = false; this.closingNodes = new Map(); this.creating = new Map();
+    this.store = store; this.emit = emit; this.live = new Map(); this.sessions = []; this.dirty = false; this.closingNodes = new Map(); this.creating = new Map(); this.setupControllers = new Map(); this.closed = false;
     this.filename = path.join(store.dir, 'terminals.json');
     if (store.state.terminalHistory || fs.existsSync(this.filename)) {
       const saved = validateHistory(store.state.terminalHistory ?? JSON.parse(fs.readFileSync(this.filename,'utf8')),store.state.workspaces);
@@ -45,13 +46,16 @@ export class Terminals {
   descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
   async create(w, node, options) {
+    assert(!this.closed, 'Terminal host is closing');
     assert(!this.creating.has(node.id), 'Node already has a terminal being created');
-    const pending = this.createSession(w, node, options);
+    const controller = new AbortController();
+    this.setupControllers.set(node.id, controller);
+    const pending = this.createSession(w, node, options, controller.signal);
     this.creating.set(node.id, pending);
     try { return await pending; }
-    finally { this.creating.delete(node.id); }
+    finally { this.creating.delete(node.id); this.setupControllers.delete(node.id); }
   }
-  async createSession(w, node, options) {
+  async createSession(w, node, options, signal) {
     assert(!process.versions.electron, 'PTY host requires system Node');
     canonicalFolder(w.path);
     assert(!this.closingNodes.has(node.id), 'Terminal is closing');
@@ -66,6 +70,11 @@ export class Terminals {
     assert(this.live.size < 100, 'Too many terminal sessions');
     // Save allocation before spawn so a failed launch can reuse the same tree.
     this.store.transaction(() => { node.data = { ...node.data, ...directory }; });
+    if (directory.worktree) await prepareWorktree(directory.cwd, { signal });
+    signal.throwIfAborted();
+    assert(!this.closed && !this.closingNodes.has(node.id), 'Terminal is closing');
+    assert(this.store.getWorkspace(w.id).nodes.some(n => n.id === node.id), 'Terminal node not found');
+    assert(this.live.size < 100, 'Too many terminal sessions');
     const terminal = new Terminal({...size,scrollback:1000,allowProposedApi:true}); const serializer = new SerializeAddon(); terminal.loadAddon(serializer);
     const sessionId = randomUUID();
     const agentCLI = fileURLToPath(new URL('../scripts/agent.mjs', import.meta.url));
@@ -130,6 +139,7 @@ export class Terminals {
   }
   closeNode(nodeId) {
     if (this.closingNodes.has(nodeId)) return this.closingNodes.get(nodeId);
+    this.setupControllers.get(nodeId)?.abort(new Error('Preparación cancelada al cerrar terminal'));
     const closing = (async () => {
       await this.creating.get(nodeId)?.catch(() => {});
       const sessions = this.sessions.filter(s => s.nodeId === nodeId);
@@ -146,5 +156,5 @@ export class Terminals {
     this.closingNodes.set(nodeId, closing);
     return closing;
   }
-  async close() {clearInterval(this.timer);await Promise.allSettled([...this.creating.values()]);for(const id of this.live.keys())this.stop(id);const end=Date.now()+2500;while(this.live.size&&Date.now()<end)await new Promise(r=>setTimeout(r,25));await new Promise(r=>setTimeout(r,725));await this.flushing;await this.flush();this.save();}
+  async close() {this.closed=true;clearInterval(this.timer);for(const controller of this.setupControllers.values())controller.abort(new Error('Preparación cancelada al cerrar host'));await Promise.allSettled([...this.creating.values()]);for(const id of this.live.keys())this.stop(id);const end=Date.now()+2500;while(this.live.size&&Date.now()<end)await new Promise(r=>setTimeout(r,25));await new Promise(r=>setTimeout(r,725));await this.flushing;await this.flush();this.save();}
 }

@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { dataHome } from '../host/store.mjs';
 
 export function requestTimeout(method) {
+  // Git allocation/validation plus the bounded four-minute dependency setup.
+  if(method==='terminal.create')return 360000;
   // Transcription includes conversion plus a provider request capped at 120s.
   if(method==='voice.transcribe')return 180000;
   if(/^(phantom\.|docker\.|automation\.)/.test(method))return 150000;

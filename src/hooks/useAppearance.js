@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 
 export const BACKGROUNDS = [
+  ['gengar', 'Gengar', 'Arte oficial entre grafito y bruma violeta'],
   ['aurora', 'Aurora', 'Atmósfera azul y violeta'],
   ['tide', 'Marea', 'Profundidad verde petróleo'],
   ['ember', 'Brasa', 'Luz cálida y grafito'],
   ['plain', 'Grafito', 'Sin atmósfera, solo espacio'],
 ];
 export const ACCENTS = [['iris', 'Iris', '#8b9dff'], ['mint', 'Menta', '#7ddbb9'], ['amber', 'Ámbar', '#edbf79'], ['rose', 'Rosa', '#e9a0bf']];
-const defaults = { background: 'aurora', accent: 'iris', grid: true, intensity: 55, image: '' };
+const defaults = { background: 'gengar', accent: 'iris', grid: true, intensity: 55, image: '' };
 const keyFor = id => `phantom:studio:${id || 'default'}`;
 function load(id) {
   try {
