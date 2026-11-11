@@ -102,21 +102,20 @@ async function hostInvoke(method, payload = {}) {
   let connected;
   try {
     connected = await hostClient();
-    const result = await deadline(connected.invoke(method, payload),
-      ['voice.transcribe', 'git.inspect', 'context.scan', 'phantom.list', 'phantom.detail'].includes(method) ? 120_000 : 30_000,
-      `Host no responde a ${method}; la operación puede seguir en curso`);
+    // host-client owns the per-method deadline; an expired request is not a lost transport.
+    const result = await connected.invoke(method, payload);
     hostStatus = { connected: method !== 'host.shutdown', error: null };
     if (method === 'host.shutdown') { connected.close(); client = null; browsers?.invalidate(); }
     return result;
   } catch (error) {
     const transportLost = !connected || isHostTransportError(error);
     if (transportLost) hostStatus = { connected: false, error: error.message };
-    // A failed operation may be a validation error: do not replay mutations automatically.
+    // Validation failures and request timeouts preserve the channel. Never replay mutations:
+    // after a timeout or disconnect their outcome may still be unknown.
     if (connected && transportLost) {
-      // Keep the client's recovery loop alive even when no further IPC arrives.
       connected.reconnect();
     }
-    throw new Error(`Host: ${error.message}`);
+    throw Object.assign(new Error(`Host: ${error.message}`), { code: error.code });
   }
 }
 

@@ -40,8 +40,8 @@ export async function connectHost({dataDir=dataHome(),nodePath='/usr/bin/node',h
   }
   await ensure();
   return {
+    async invoke(method,payload={}) {const id=randomUUID(),line=JSON.stringify({id,method,payload})+'\n';if(Buffer.byteLength(line)>32*1024*1024)throw new Error('Host request too large');await ensure();if(!socket||socket.destroyed)throw new Error('Host unavailable');const transport=socket;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(Object.assign(new Error('Host request timed out; outcome unknown'),{code:'HOST_REQUEST_TIMEOUT'}));},requestTimeout(method));pending.set(id,{resolve,reject,timer,transport});transport.write(line,error=>{if(error){const p=pending.get(id);if(p){pending.delete(id);clearTimeout(timer);reject(error);}}});});},
     reconnect() {if(closed)return;if(socket&&!socket.destroyed)socket.destroy();else reconnect();},
-    async invoke(method,payload={}) {const id=randomUUID(),line=JSON.stringify({id,method,payload})+'\n';if(Buffer.byteLength(line)>32*1024*1024)throw new Error('Host request too large');await ensure();if(!socket||socket.destroyed)throw new Error('Host unavailable');const transport=socket;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Host request timed out; outcome unknown'));},requestTimeout(method));pending.set(id,{resolve,reject,timer,transport});transport.write(line,error=>{if(error){const p=pending.get(id);if(p){pending.delete(id);clearTimeout(timer);reject(error);}}});});},
     close() {closed=true;clearTimeout(reconnectTimer);socket?.destroy();for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('Host client closed'));}pending.clear();}
   };
 }

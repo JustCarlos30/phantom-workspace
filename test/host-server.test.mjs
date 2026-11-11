@@ -4,8 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import { once } from 'node:events';
+import vm from 'node:vm';
 import { createHost } from '../host/server.mjs';
 import { connectHost, requestTimeout } from '../desktop/host-client.mjs';
+import { isHostTransportError } from '../desktop/security.mjs';
 const until=async fn=>{const end=Date.now()+5000;while(Date.now()<end){if(await fn())return;await new Promise(r=>setTimeout(r,25));}throw new Error('Timed out');};
 
 test('private singleton host, request IDs, async integration, disconnect survival, import validation',async t=>{
@@ -51,6 +54,90 @@ test('voice response after 120s remains valid while ordinary requests time out w
   const request=requests.find(r=>r.request.method==='voice.transcribe');request.socket.write(JSON.stringify({id:request.request.id,result:{text:'real response fixture',provider:'fixture'}})+'\n');assert.equal((await voice).text,'real response fixture');assert.equal(requests.filter(r=>r.request.method==='terminal.write').length,1);assert.ok(requestTimeout('voice.transcribe')<=180000);
 });
 
+test('desktop terminal preparation preserves the timeout socket and automatically recovers real transport loss',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-desktop-timeout-'));
+  const sockets=new Set(),requests=[],events=[];let client,desktop,connections=0,closes=0,reconnects=0;
+  const server=net.createServer(socket=>{
+    connections++;sockets.add(socket);socket.on('close',()=>sockets.delete(socket));socket.on('error',()=>{});
+    socket.write(JSON.stringify({event:{type:'connection',status:'connected'}})+'\n');
+    socket.setEncoding('utf8');let buffer='';
+    socket.on('data',chunk=>{
+      buffer+=chunk;let i;
+      while((i=buffer.indexOf('\n'))>=0){
+        const entry={request:JSON.parse(buffer.slice(0,i)),socket};buffer=buffer.slice(i+1);
+        requests.push(entry);server.emit('request',entry);
+      }
+    });
+  });
+  await new Promise(r=>server.listen(path.join(root,'host.sock'),r));
+  t.after(async()=>{t.mock.timers.reset();client?.close();for(const s of sockets)s.destroy();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});});
+  client=await connectHost({dataDir:root,onEvent:e=>{events.push(e);desktop?.receiveHostEvent(e);}});
+  const close=client.close;client.close=()=>{closes++;close();};
+  const reconnect=client.reconnect;client.reconnect=()=>{reconnects++;reconnect();};
+  t.mock.timers.enable({apis:['setTimeout']});
+
+  // Execute the production desktop wrapper without importing Electron or starting a real host.
+  // Include deadline too so a reintroduced outer deadline is exercised by this regression.
+  const main=fs.readFileSync(new URL('../desktop/main.mjs',import.meta.url),'utf8');
+  const deadline=main.slice(main.indexOf('function deadline('),main.indexOf('\nfunction emit('));
+  const receiveHostEvent=main.slice(main.indexOf('function receiveHostEvent('),main.indexOf('\nasync function hostClient('));
+  const hostInvoke=main.slice(main.indexOf('async function hostInvoke('),main.indexOf('\nfunction trustedContents('));
+  assert.ok(deadline.includes('Promise.race'));assert.ok(hostInvoke.includes('connected.invoke'));
+  desktop={hostClient:async()=>client,client,hostStatus:{connected:true,error:null},browsers:null,emit:()=>{},isHostTransportError,setTimeout,clearTimeout};
+  const invoke=vm.runInNewContext(`${deadline}\n${receiveHostEvent}\n${hostInvoke}\nhostInvoke`,desktop);
+  async function start(method,payload={}) {
+    const arrival=once(server,'request'),result=invoke(method,payload);
+    result.catch(()=>{});
+    return {result,entry:(await arrival)[0]};
+  }
+  function reply(entry,result) {entry.socket.write(JSON.stringify({id:entry.request.id,result})+'\n');}
+  const session={id:'existing-session',status:'running'};
+  const preparation=await start('terminal.create',{worktree:{enabled:true}});let settled=false;
+  preparation.result.then(()=>{settled=true;},()=>{settled=true;});
+  t.mock.timers.tick(31000);await new Promise(setImmediate);
+  assert.equal(settled,false);assert.equal(closes,0);assert.equal(desktop.hostStatus.connected,true);
+  const concurrent=await start('terminal.attach',{sessionId:session.id});
+  reply(concurrent.entry,{session,data:'existing terminal output'});
+  assert.deepEqual((await concurrent.result).session,session);
+  // A full four-minute dependency preparation still fits the terminal.create budget.
+  t.mock.timers.tick(210000);await new Promise(setImmediate);assert.equal(settled,false);
+  reply(preparation.entry,{session:{id:'new-session',status:'running'}});
+  assert.equal((await preparation.result).session.id,'new-session');
+
+  const expired=await start('terminal.create',{worktree:{enabled:true}});
+  const timeout=assert.rejects(expired.result,error=>{
+    assert.equal(error.code,'HOST_REQUEST_TIMEOUT');assert.match(error.message,/outcome unknown/);
+    assert.equal(isHostTransportError(error),false);return true;
+  });
+  t.mock.timers.tick(requestTimeout('terminal.create')-1);await new Promise(setImmediate);
+  assert.equal(closes,0);
+  t.mock.timers.tick(1);await timeout;
+  assert.equal(closes,0);assert.equal(desktop.client,client);assert.equal(desktop.hostStatus.connected,true);
+  assert.equal(reconnects,0);
+  assert.equal(events.some(e=>e.status==='disconnected'),false);
+  // Late results are ignored by request ID and must not poison subsequent requests or replay creation.
+  reply(expired.entry,{session:{id:'late-session'}});
+  const after=await start('terminal.attach',{sessionId:session.id});
+  assert.equal(after.entry.socket,expired.entry.socket);
+  reply(after.entry,{session,data:'existing terminal output'});
+  assert.deepEqual((await after.result).session,session);
+  assert.equal(connections,1);assert.equal(requests.filter(r=>r.request.method==='terminal.create').length,2);
+
+  t.mock.timers.reset();
+  const lost=await start('terminal.create',{worktree:{enabled:true}});
+  const disconnected=assert.rejects(lost.result,/Host disconnected; request outcome unknown/);
+  lost.entry.socket.destroy();await disconnected;
+  assert.equal(closes,0);assert.equal(reconnects,1);assert.equal(desktop.client,client);assert.equal(desktop.hostStatus.connected,false);
+  // Recovery must happen with no further IPC, and the ambiguous creation is never replayed.
+  await until(()=>connections===2&&desktop.hostStatus.connected);
+  assert.equal(desktop.client,client);assert.equal(closes,0);assert.equal(requests.length,5);
+  assert.equal(requests.filter(r=>r.request.method==='terminal.create').length,3);
+  const recovered=await start('terminal.attach',{sessionId:session.id});
+  assert.notEqual(recovered.entry.socket,lost.entry.socket);
+  reply(recovered.entry,{session,data:'recovered terminal output'});
+  assert.deepEqual((await recovered.result).session,session);
+});
+
 test('concurrent desktop clients start only one detached daemon, stale socket is safe, shutdown replies',async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-start-'));const clients=[];let shutdown=false;
   t.after(async()=>{if(!shutdown&&clients[0])try{await clients[0].invoke('host.shutdown');}catch{}for(const c of clients)c.close();await until(()=>!fs.existsSync(path.join(root,'host.sock')));fs.rmSync(root,{recursive:true,force:true});});
@@ -75,6 +162,38 @@ test('client reconnects with fresh events and never replays an ambiguous write o
   await new Promise(r=>server.listen(path.join(root,'host.sock'),r));t.after(async()=>{client?.close();for(const s of sockets)s.destroy();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});});
   const events=[];client=await connectHost({dataDir:root,onEvent:e=>events.push(e)});await assert.rejects(client.invoke('fixture.write'),/outcome unknown/);await until(()=>connections>=2);await client.invoke('fixture.read');assert.equal(writes,1);assert.ok(events.some(e=>e.status==='disconnected'));assert.ok(events.some(e=>e.generation===2));
   await assert.rejects(client.invoke('fixture.reject'),/not retry safe/);assert.equal(rejections,1);
+});
+
+test('explicit client reconnect replaces the socket automatically without replay and respects close',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-reconnect-')),sockets=new Set(),requests=[],events=[];let client,connections=0;
+  const server=net.createServer(socket=>{
+    sockets.add(socket);socket.on('close',()=>sockets.delete(socket));socket.on('error',()=>{});
+    connections++;socket.write(JSON.stringify({event:{type:'connection',status:'connected',generation:connections}})+'\n');
+    socket.setEncoding('utf8');let buffer='';
+    socket.on('data',chunk=>{
+      buffer+=chunk;let i;
+      while((i=buffer.indexOf('\n'))>=0){
+        const request=JSON.parse(buffer.slice(0,i));buffer=buffer.slice(i+1);requests.push({request,socket});
+        if(request.method==='fixture.read')socket.write(JSON.stringify({id:request.id,result:{generation:connections}})+'\n');
+        server.emit('request',request);
+      }
+    });
+  });
+  await new Promise(r=>server.listen(path.join(root,'host.sock'),r));
+  t.after(async()=>{client?.close();for(const s of sockets)s.destroy();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});});
+  client=await connectHost({dataDir:root,onEvent:e=>events.push(e)});
+  const arrival=once(server,'request'),ambiguous=assert.rejects(client.invoke('fixture.write',{data:'once'}),/Host disconnected; request outcome unknown/);
+  await arrival;const original=requests[0].socket;
+  client.reconnect();client.reconnect();await ambiguous;
+  // No invoke may drive this recovery: the client's own loop must deliver fresh events.
+  await until(()=>events.some(e=>e.generation===2));
+  assert.equal(connections,2);assert.equal(requests.length,1);assert.ok(original.destroyed);
+  assert.ok(events.some(e=>e.status==='disconnected'));
+  assert.equal((await client.invoke('fixture.read')).generation,2);
+  assert.notEqual(requests[1].socket,original);
+  assert.equal(requests.filter(r=>r.request.method==='fixture.write').length,1);
+  client.close();client.reconnect();await new Promise(r=>setTimeout(r,300));
+  assert.equal(connections,2);await assert.rejects(client.invoke('fixture.read'),/Host client closed/);
 });
 
 test('desktop transport recovery reconnects without another request and never replays writes', async t => {

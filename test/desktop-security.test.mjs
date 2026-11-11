@@ -112,11 +112,15 @@ test('close acknowledgements require a matching outstanding UUID and cannot auth
 });
 
 test('only transport errors mark a known host connection unavailable', () => {
-  for (const error of [new Error('Host disconnected; request outcome unknown'), new Error('Host request timed out; outcome unknown'),
-    new Error('Host no responde a state.get; la operación puede seguir en curso'), Object.assign(new Error('write failed'), { code: 'EPIPE' })]) {
+  for (const error of [new Error('Host disconnected; request outcome unknown'), new Error('Host connection timed out'),
+    new Error('Host startup failed: refused'), Object.assign(new Error('write failed'), { code: 'EPIPE' }),
+    Object.assign(new Error('connection reset'), { code: 'ECONNRESET' }), Object.assign(new Error('socket timed out'), { code: 'ETIMEDOUT' })]) {
     assert.equal(isHostTransportError(error), true);
   }
-  for (const error of [new Error('Node not found'), new Error('Invalid socket path in workspace'),
+  for (const error of [new Error('Host request timed out; outcome unknown'),
+    new Error('Host no responde a state.get; la operación puede seguir en curso'),
+    Object.assign(new Error('Host: request outcome unknown'), { code: 'HOST_REQUEST_TIMEOUT' }),
+    new Error('Node not found'), new Error('Invalid socket path in workspace'),
     new Error('Unsupported workspace patch'), Object.assign(new Error('Not allowed'), { code: 'VALIDATION' })]) {
     assert.equal(isHostTransportError(error), false);
   }
