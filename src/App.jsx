@@ -60,6 +60,34 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [tools, setTools] = useState(false);
   const [list, setList] = useState(false);
   const [sidebar, setSidebar] = useState(false);
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 850px)').matches);
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('phantom:sidebar:collapsed') === 'true'; } catch { return false; } });
+  const sidebarTrigger = useRef(null);
+  const sidebarElement = useRef(null);
+  const closeSidebar = useCallback(() => { setSidebar(false); sidebarTrigger.current?.focus(); }, []);
+  const toggleSidebar = () => {
+    if (narrow) { if (sidebar) closeSidebar(); else setSidebar(true); return; }
+    setCollapsed(value => { const next = !value; try { localStorage.setItem('phantom:sidebar:collapsed', String(next)); } catch { /* The local preference is optional. */ } return next; });
+  };
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 850px)');
+    const change = () => { setNarrow(media.matches); setSidebar(false); if (sidebarElement.current?.contains(document.activeElement)) sidebarTrigger.current?.focus(); };
+    media.addEventListener('change', change); return () => media.removeEventListener('change', change);
+  }, []);
+  useEffect(() => {
+    if (!narrow || !sidebar) return;
+    sidebarElement.current?.querySelector('button')?.focus();
+    const key = event => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); closeSidebar(); }
+      if (event.key === 'Tab') {
+        const controls = [...sidebarElement.current.querySelectorAll('button:not(:disabled),input')].filter(el => el.getClientRects().length);
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    window.addEventListener('keydown', key, true); return () => window.removeEventListener('keydown', key, true);
+  }, [narrow, sidebar, closeSidebar]);
   const [menu, setMenu] = useState(null);
   const [busy, setBusy] = useState('');
   const [fitRequest, setFitRequest] = useState(0);
@@ -148,6 +176,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     } finally { setBusy(''); }
   }), [operation, refresh, flush]);
   const selectWorkspace = id => operation(async () => {
+    if (sidebar) closeSidebar();
     if (id === workspace?.id) return;
     await flush(); await api('workspace.select', { id });
     setFocused(null); setSelected([]); setInspector(null); setMenu(null); setList(false); setSidebar(false); await refresh();
@@ -219,7 +248,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     document.addEventListener('keydown', trap);
     return () => { document.removeEventListener('keydown', trap); if (previous?.isConnected) previous.focus(); };
   }, [edit?.kind]);
-  const { inputBlocked, browserObscured } = overlayPolicy({ inspector, palette, voice, tray, list, menu, tools, edit, sidebar, folder: busy === 'folder', closing: closeRequest?.status === 'saving', disconnected: connection.status !== 'connected' });
+  const { inputBlocked, browserObscured } = overlayPolicy({ inspector, palette, voice, tray, list, menu, tools, edit, sidebar: narrow && sidebar, folder: busy === 'folder', closing: closeRequest?.status === 'saving', disconnected: connection.status !== 'connected' });
   const connectionLabel = ({ connected: 'Host local conectado', connecting: 'Conectando con el host…', reconnecting: 'Reconectando con el host…', disconnected: 'Host desconectado', error: 'Error de conexión' })[connection.status] || 'Conexión no disponible';
   const saveLabel = saving ? 'Guardando' : saveError ? 'Sin guardar' : connection.status !== 'connected' ? 'Sin conexión' : error ? 'Revisar estado' : 'Guardado';
   const menuNode = workspace?.nodes?.find(n => n.id === menu?.id);
@@ -250,18 +279,19 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   if (!state) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div>{error ? <><h1>No pudimos conectar con el host</h1><p>{error}</p><button className="button primary" onClick={() => refresh().catch(() => {})}>Reintentar conexión</button></> : <><LoaderCircle className="spinning" size={23} /><h1>Recuperando tu espacio…</h1><p>Conectando con el host local.</p></>}</div>;
   return <div className={`app-shell studio-${appearance.background} ${focused ? 'studio-focused' : ''} ${appearance.grid ? '' : 'studio-no-grid'}`} style={{ '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
     <PresenceGroup>
-    {sidebar && <button className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
-    <aside className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
+    {narrow && sidebar && <button className="rail-scrim" aria-label="Cerrar proyectos" onClick={closeSidebar} />}
+    <aside id="project-sidebar" ref={sidebarElement} inert={narrow && !sidebar} aria-label="Navegación del espacio" className={`project-rail ${sidebar ? 'rail-open' : ''} ${!narrow && collapsed ? 'rail-collapsed' : ''}`} onClick={e => { if (narrow && sidebar && e.target.closest('button')) closeSidebar(); }}>
       <div className="brand"><span className="brand-mark"><Blocks size={19} /></span><span>Phantom<span>Workspace</span></span><button className="rail-close icon-button" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)}><X size={17} /></button></div>
+      <button className="rail-command" title="Buscar o ejecutar · Ctrl K" aria-label="Buscar o ejecutar" onClick={() => setPalette(true)}><Search size={16} /><span>Buscar o ejecutar</span><kbd>Ctrl K</kbd></button>
       <div className="rail-heading"><span>Proyectos</span><button title="Abrir carpeta" aria-label="Abrir carpeta" onClick={openFolder}><Plus size={16} /></button></div>
-      <nav className="project-list" aria-label="Proyectos recientes">{state.workspaces.map(w => <button key={w.id} className={`project-item ${w.id === workspace?.id ? 'active' : ''}`} onClick={() => selectWorkspace(w.id)} title={`${w.name}\nCarpeta: ${w.path}\nRuta canónica: ${w.canonicalPath || w.path}`}><span className="project-initials">{initials(w.name)}</span><span><strong>{w.name}</strong><small>{w.path}</small></span>{w.id === workspace?.id && <span className="project-active-dot" />}</button>)}{!state.workspaces.length && <p className="rail-empty">Tus carpetas abiertas aparecerán aquí.</p>}</nav>
-      <button className="open-folder" onClick={openFolder} disabled={busy === 'folder'}><FolderOpen size={16} /> Abrir carpeta</button>
+      <nav className="project-list" aria-label="Proyectos recientes">{state.workspaces.map(w => <button key={w.id} aria-label={w.name} aria-current={w.id === workspace?.id ? 'page' : undefined} className={`project-item ${w.id === workspace?.id ? 'active' : ''}`} onClick={() => selectWorkspace(w.id)} title={`${w.name}\nCarpeta: ${w.path}\nRuta canónica: ${w.canonicalPath || w.path}`}><span className="project-initials">{initials(w.name)}</span><span><strong>{w.name}</strong><small>{w.path}</small></span>{w.id === workspace?.id && <span className="project-active-dot" />}</button>)}{!state.workspaces.length && <p className="rail-empty">Tus carpetas abiertas aparecerán aquí.</p>}</nav>
+      <button className="open-folder" title="Abrir carpeta" aria-label="Abrir carpeta" onClick={openFolder} disabled={busy === 'folder'}><FolderOpen size={16} /> Abrir carpeta</button>
       {workspace && <section className="rail-panels" aria-label="Paneles del proyecto"><div className="rail-heading"><span>Paneles <span className="rail-count">{workspace.nodes?.filter(n => !n.data?.hidden).length || 0}</span></span><button aria-label="Buscar en paneles" title="Buscar paneles · Ctrl Mayús F" onClick={() => setList(v => !v)}><Search size={14} /></button></div><nav aria-label="Acceso directo a paneles">{workspace.nodes?.filter(n => !n.data?.hidden).map(n => { const Icon = TYPES.find(t => t[0] === n.type)?.[2] || Layers; return <div key={n.id} className={`rail-panel-row ${selected.includes(n.id) ? 'selected' : ''}`}><button onClick={() => jump(n.id)} title={`${n.title} · Ver en el mapa`} aria-current={selected.includes(n.id) ? 'true' : undefined}><Icon size={14} /><span>{n.title}</span></button><button className="rail-panel-focus" title={`Enfocar ${n.title}`} aria-label={`Enfocar ${n.title}`} onClick={() => focusPanel(n.id)}><Maximize2 size={12} /></button></div>; })}{!workspace.nodes?.some(n => !n.data?.hidden) && <p className="rail-empty">Crea tu primer panel desde la barra inferior.</p>}</nav><button className="rail-map-action" onClick={() => { setFocused(null); setFitRequest(n => n + 1); }}><Layers size={14} /> Ver todo el mapa <kbd>0</kbd></button></section>}
-      <button className={`studio-appearance-button ${inspector === 'appearance' ? 'active' : ''}`} onClick={() => setInspector(inspector === 'appearance' ? null : 'appearance')}><Palette size={16} /><span>Personalizar espacio<small>Fondo, acento y retícula</small></span></button>
-      <div className="rail-bottom"><span className={`host-indicator ${connection.status}`} title={connection.message} role="status"><i />{connectionLabel}</span><button onClick={() => setInspector('settings')}><Settings2 size={16} /> Configuración</button><button onClick={() => setPalette(true)}><Command size={16} /> Comandos <kbd>Ctrl K</kbd></button></div>
+      <button title="Personalizar espacio" aria-label="Personalizar espacio" className={`studio-appearance-button ${inspector === 'appearance' ? 'active' : ''}`} onClick={() => setInspector(inspector === 'appearance' ? null : 'appearance')}><Palette size={16} /><span>Personalizar espacio<small>Fondo, acento y retícula</small></span></button>
+      <div className="rail-bottom"><span className={`host-indicator ${connection.status}`} title={connection.message} role="status"><i />{connectionLabel}</span><button title="Configuración" aria-label="Configuración" onClick={() => setInspector('settings')}><Settings2 size={16} /> Configuración</button><button title="Comandos · Ctrl K" aria-label="Comandos" onClick={() => setPalette(true)}><Command size={16} /> Comandos <kbd>Ctrl K</kbd></button></div>
     </aside>
     <main className="main-workspace">
-      <header className="workspace-header"><button className="icon-button rail-toggle" title="Ver proyectos" aria-label="Ver proyectos" onClick={() => setSidebar(true)}><PanelLeftOpen size={18} /></button>
+      <header className="workspace-header"><button ref={sidebarTrigger} className="icon-button rail-toggle" title={narrow ? 'Ver proyectos' : collapsed ? 'Expandir navegación' : 'Plegar navegación'} aria-label={narrow ? 'Ver proyectos' : collapsed ? 'Expandir navegación' : 'Plegar navegación'} aria-expanded={narrow ? sidebar : !collapsed} aria-controls="project-sidebar" onClick={toggleSidebar}>{!narrow && !collapsed ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}</button>
         <div className="workspace-identity"><div className="breadcrumb"><Folder size={15} /><span>Proyectos</span><ChevronRight size={13} /><div className="project-name-editor">{projectRename.editing ? <><input ref={projectRename.inputRef} className="inline-name-input" aria-label="Nombre del proyecto" aria-invalid={!!projectRename.editing.error} aria-describedby={projectRename.editing.error ? 'project-name-error' : undefined} value={projectRename.editing.value} readOnly={projectRename.editing.saving} onChange={e => projectRename.change(e.target.value)} onBlur={() => projectRename.commit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); projectRename.commit(true); } if (e.key === 'Escape') { e.preventDefault(); projectRename.cancel(); } }} />{projectRename.editing.error && <span className="inline-name-error" id="project-name-error" role="alert">{projectRename.editing.error}</span>}</> : <button ref={projectNameButton} disabled={!workspace} title="Renombrar proyecto · no mueve la carpeta" onClick={() => workspace && projectRename.start(workspace.id, workspace.name, () => projectNameButton.current)}>{workspace?.name || 'Tu espacio'}{workspace && <Pencil size={11} />}</button>}</div></div><div className="workspace-path" title={workspace ? `Carpeta elegida: ${workspace.path}\nRuta canónica: ${workspace.canonicalPath || workspace.path}\nEl nombre visible no mueve la carpeta.` : ''}>{workspace ? workspace.canonicalPath || workspace.path : 'Abre una carpeta para comenzar'}{workspace && workspace.path !== workspace.canonicalPath && workspace.canonicalPath && <span className="path-badge">Ruta canónica</span>}</div></div>
         <div className="header-controls"><span className={`save-state ${error || connection.status !== 'connected' ? 'has-error' : ''}`} title={error || (saving ? 'Guardando cambios de disposición' : connectionLabel)}>{saving ? <LoaderCircle size={12} className="spinning" /> : error || connection.status !== 'connected' ? <AlertCircle size={12} /> : <Check size={12} />}{saveLabel}</span><button className="search-command" onClick={() => setPalette(true)}><Search size={15} /><span>Buscar o ejecutar</span><kbd>Ctrl K</kbd></button><button className="icon-button" title="Capturar por voz" aria-label="Capturar por voz" disabled={!workspace} onClick={() => { closeTransient(); setVoice(true); }}><Mic size={17} /></button><button className={`icon-button attention-button ${tray ? 'active' : ''}`} title="Atención del proyecto" aria-label={`Atención del proyecto${attention.length ? `, ${attention.length} pendientes` : ''}`} disabled={!workspace} onClick={() => { setTray(v => !v); setTools(false); }}><Bell size={17} />{attention.length > 0 && <i />}</button><button className={`icon-button ${inspector ? 'active' : ''}`} title="Herramientas del proyecto" aria-label="Herramientas del proyecto" disabled={!workspace} onClick={() => setInspector(inspector ? null : 'context')}><PanelLeftClose size={18} /></button></div>
       </header>

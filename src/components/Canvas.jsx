@@ -114,6 +114,6 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
         </article>;
       })}</PresenceGroup>
     </div>
-    {!focused && <div className="canvas-navigation"><span><MousePointer2 size={13} /> Mapa</span><button title="Alejar" aria-label="Alejar" onClick={() => zoomAt(camera.zoom / 1.2)}><Minus size={15} /></button><button className="zoom-value" title="Restablecer zoom" onClick={() => zoomAt(1)}>{Math.round(camera.zoom * 100)}%</button><button title="Acercar" aria-label="Acercar" onClick={() => zoomAt(camera.zoom * 1.2)}><Plus size={15} /></button><i /><button title="Ajustar todos los paneles (0)" aria-label="Ajustar todos los paneles" onClick={fit}><LocateFixed size={16} /></button></div>}
+    {!focused && <div className="canvas-navigation" role="group" aria-label="Zoom del lienzo"><span><MousePointer2 size={13} /> Mapa</span><button title="Alejar" aria-label="Alejar" onClick={() => zoomAt(camera.zoom / 1.2)}><Minus size={15} /></button><button className="zoom-value" title="Restablecer zoom" aria-label={`Restablecer zoom · ${Math.round(camera.zoom * 100)}%`} onClick={() => zoomAt(1)}>{Math.round(camera.zoom * 100)}%</button><button title="Acercar" aria-label="Acercar" onClick={() => zoomAt(camera.zoom * 1.2)}><Plus size={15} /></button><i /><button title="Ajustar todos los paneles (0)" aria-label="Ajustar todos los paneles" onClick={fit}><LocateFixed size={16} /></button></div>}
   </section>;
 }
