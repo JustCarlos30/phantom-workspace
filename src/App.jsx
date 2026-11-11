@@ -12,6 +12,7 @@ import { overlayPolicy } from './hooks/inputOwnership';
 import { useAppearance } from './hooks/useAppearance';
 import { Appearance } from './components/Appearance';
 import { Palette, Maximize2 } from 'lucide-react';
+import gengarArtwork from '../assets/gengar.png';
 import './styles.css';
 import './studio.css';
 
@@ -248,7 +249,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
 
   if (!window.phantom?.invoke) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div><h1>Abre la aplicación de escritorio</h1><p>Phantom Workspace necesita su host local para abrir carpetas,<br />recuperar terminales y navegar dentro del proyecto.</p><div className="desktop-required-note"><TerminalSquare size={16} /> Esta vista web no está conectada al escritorio.</div></div>;
   if (!state) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div>{error ? <><h1>No pudimos conectar con el host</h1><p>{error}</p><button className="button primary" onClick={() => refresh().catch(() => {})}>Reintentar conexión</button></> : <><LoaderCircle className="spinning" size={23} /><h1>Recuperando tu espacio…</h1><p>Conectando con el host local.</p></>}</div>;
-  return <div className={`app-shell studio-${appearance.background} ${focused ? 'studio-focused' : ''} ${appearance.grid ? '' : 'studio-no-grid'}`} style={{ '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
+  return <div className={`app-shell studio-${appearance.background} ${appearance.image ? 'studio-personal' : ''} ${focused ? 'studio-focused' : ''} ${appearance.grid ? '' : 'studio-no-grid'}`} style={{ '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none', '--gengar-art': `url("${gengarArtwork}")` }}>
     <PresenceGroup>
     {sidebar && <button className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
     <aside className={`project-rail ${sidebar ? 'rail-open' : ''}`}>

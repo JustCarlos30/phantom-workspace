@@ -6,8 +6,102 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
 import { connectHost } from '../desktop/host-client.mjs';
+import { SETUP_MARKER } from '../host/worktree-setup.mjs';
 
 async function until(fn,ms=5000) {const end=Date.now()+ms;while(Date.now()<end){const value=await fn();if(value)return value;await new Promise(r=>setTimeout(r,30));}throw new Error('Timed out waiting for PTY output');}
+
+function setupRepository(root, mode) {
+  const repository = path.join(root, 'repository');
+  fs.mkdirSync(repository);
+  const git = (...args) => execFileSync('git', ['-C', repository, ...args], { encoding: 'utf8' }).trim();
+  git('init', '-b', 'main');
+  fs.writeFileSync(path.join(repository, 'package.json'), JSON.stringify({ name: 'host-setup-fixture', version: '1.0.0', scripts: { install: 'node install.cjs' } }));
+  fs.writeFileSync(path.join(repository, 'package-lock.json'), JSON.stringify({ name: 'host-setup-fixture', version: '1.0.0', lockfileVersion: 3, requires: true, packages: { '': { name: 'host-setup-fixture', version: '1.0.0', hasInstallScript: true } } }));
+  fs.writeFileSync(path.join(repository, '.npmrc'), 'offline=true\nregistry=http://127.0.0.1:1\nignore-scripts=false\n');
+  fs.writeFileSync(path.join(repository, 'install.cjs'), `const fs=require('node:fs');
+fs.writeFileSync('install-count',String(Number(fs.existsSync('install-count')?fs.readFileSync('install-count','utf8'):0)+1));
+if(fs.existsSync('fail')) {console.error('HOST_SETUP_FIXTURE_FAILED');process.exit(7);}
+if(fs.existsSync('slow')) {
+  const child=require('node:child_process').spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"],{stdio:'ignore'});
+  fs.writeFileSync('descendant-pid',String(child.pid));
+  setInterval(()=>{},1000);
+}
+`);
+  fs.writeFileSync(path.join(repository, mode), 'yes');
+  git('add', '.');
+  git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-m', 'Offline npm fixture');
+  return { repository, git };
+}
+
+test('failed dependency setup persists worktree assignment; retry, attach and host restart preserve it', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-host-setup-'));
+  const { repository, git } = setupRepository(root, 'fail');
+  const dataDir = path.join(root, 'state');
+  let host = await createHost({ dataDir, handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspace = await host.invoke('workspace.open', { path: repository });
+  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal' });
+  const create = () => host.invoke('terminal.create', { workspaceId: workspace.id, nodeId: node.id, shell: '/bin/sh' });
+  await assert.rejects(create(), /HOST_SETUP_FIXTURE_FAILED/);
+  const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'state.json'), 'utf8')).workspaces.find(w => w.id === workspace.id).nodes.find(n => n.id === node.id).data;
+  assert.ok(saved.worktree.branch);
+  assert.equal(saved.cwd, saved.worktree.path);
+  assert.equal(host.terminals.live.size, 0);
+  assert.equal(git('worktree', 'list', '--porcelain').match(/^worktree /gm).length, 2);
+  assert.equal(fs.existsSync(path.join(repository, 'node_modules')), false);
+  fs.writeFileSync(path.join(saved.cwd, 'private-change.txt'), 'preserved');
+  fs.unlinkSync(path.join(saved.cwd, 'fail'));
+  const launched = await create();
+  assert.equal(launched.session.cwd, saved.cwd);
+  assert.equal(launched.session.worktree.branch, saved.worktree.branch);
+  assert.equal(fs.readFileSync(path.join(saved.cwd, 'install-count'), 'utf8'), '2');
+  // A changed lock does not install on attach or a new transport connection.
+  fs.appendFileSync(path.join(saved.cwd, 'package-lock.json'), '\n');
+  const client = await connectHost({ dataDir });
+  try { assert.equal((await client.invoke('terminal.attach', { sessionId: launched.session.id })).session.pid, launched.session.pid); }
+  finally { client.close(); }
+  assert.equal(fs.readFileSync(path.join(saved.cwd, 'install-count'), 'utf8'), '2');
+  await host.close();
+  host = await createHost({ dataDir, handleIntegration: () => ({ handled: false }) });
+  assert.equal(fs.readFileSync(path.join(saved.cwd, 'install-count'), 'utf8'), '2');
+  assert.equal(host.terminals.live.size, 0);
+  const retried = await create();
+  assert.equal(retried.session.cwd, saved.cwd);
+  assert.equal(fs.readFileSync(path.join(saved.cwd, 'install-count'), 'utf8'), '3');
+  assert.equal(fs.readFileSync(path.join(saved.cwd, 'private-change.txt'), 'utf8'), 'preserved');
+  assert.equal(git('worktree', 'list', '--porcelain').match(/^worktree /gm).length, 2);
+});
+
+for (const action of ['host', 'terminal']) test(`closing ${action} during npm ci cancels setup and reaps lifecycle descendants`, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-host-setup-close-'));
+  const { repository } = setupRepository(root, 'slow');
+  const dataDir = path.join(root, 'state');
+  let host = await createHost({ dataDir, handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspace = await host.invoke('workspace.open', { path: repository });
+  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal' });
+  const rejection = assert.rejects(host.invoke('terminal.create', { workspaceId: workspace.id, nodeId: node.id, shell: '/bin/sh' }), /Preparación cancelada al cerrar/);
+  const cwd = await until(() => {
+    const cwd = host.store.getWorkspace(workspace.id).nodes.find(n => n.id === node.id).data.cwd;
+    return cwd && fs.existsSync(path.join(cwd, 'descendant-pid')) && cwd;
+  }, 15000);
+  const pid = Number(fs.readFileSync(path.join(cwd, 'descendant-pid'), 'utf8'));
+  if (action === 'host') await host.close();
+  else await host.invoke('terminal.close', { workspaceId: workspace.id, nodeId: node.id });
+  await rejection;
+  assert.equal(host.terminals.live.size, 0);
+  await until(() => { try { return fs.readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1].startsWith('Z'); } catch { return true; } });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(cwd, 'node_modules', SETUP_MARKER), 'utf8')).state, 'incomplete');
+  if (action === 'host') {
+    host = await createHost({ dataDir, handleIntegration: () => ({ handled: false }) });
+    assert.equal(fs.readFileSync(path.join(cwd, 'install-count'), 'utf8'), '1');
+    fs.unlinkSync(path.join(cwd, 'slow'));
+    const retry = await host.invoke('terminal.create', { workspaceId: workspace.id, nodeId: node.id, shell: '/bin/sh' });
+    assert.equal(retry.session.cwd, cwd);
+    assert.equal(fs.readFileSync(path.join(cwd, 'install-count'), 'utf8'), '2');
+  } else assert.equal(host.store.getWorkspace(workspace.id).nodes.some(n => n.id === node.id), false);
+});
+
 test('new terminals use independent Git branches/worktrees and relaunch preserves uncommitted work', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-worktrees-'));
   const repository = path.join(root, 'repository'), dataDir = path.join(root, 'state');
@@ -49,6 +143,9 @@ test('new terminals use independent Git branches/worktrees and relaunch preserve
 
 test('non-Git and unborn repositories open normal terminals with an explicit reason; concurrent launches cannot duplicate a node', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-worktree-fallback-'));
+  // Even a Node/npm-looking folder must not install without a Git worktree.
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'non-git-node', scripts: { install: 'node -e "process.exit(9)"' } }));
+  fs.writeFileSync(path.join(root, 'package-lock.json'), 'deliberately invalid: setup must not run');
   const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
   t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
   const workspace = await host.invoke('workspace.open', { path: root });
@@ -64,6 +161,7 @@ test('non-Git and unborn repositories open normal terminals with an explicit rea
   assert.equal(unborn.session.cwd, root);
   assert.equal(unborn.session.worktree, null);
   assert.match(unborn.session.worktreeReason, /sin commits/);
+  assert.equal(fs.existsSync(path.join(root, 'node_modules')), false);
 });
 test('configured shell is used for new sessions and explicit per-session shell takes precedence',async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-shell-pref-'));

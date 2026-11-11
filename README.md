@@ -32,6 +32,22 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 - **Detener host y salir** termina los procesos propios. Tras reiniciar el sistema o perder el host se recuperan la disposición y el historial guardado, con sesiones terminadas/perdidas; un shell nuevo se inicia explícitamente.
 - El cierre espera que se guarden notas, nombres y posiciones pendientes. Si el disco/host no confirma, permite reintentar o cancelar.
 
+### Dependencias de terminales en worktrees
+
+En proyectos Git, cada terminal crea o reutiliza su propio worktree. Si contiene `package.json` y `package-lock.json`, Phantom ejecuta automáticamente `npm ci --include=dev --no-audit --no-fund` antes de abrir el shell. La primera apertura puede tardar hasta cuatro minutos, con descargas y compilaciones nativas de npm. Hace falta npm en el PATH del host. La instalación es independiente por worktree: no se copia ni enlaza `node_modules` del proyecto original y la preparación no edita el manifest ni el lock.
+
+Se omiten proyectos sin Git, sin Node, sin `package-lock.json` o con indicaciones de pnpm/yarn/bun (`packageManager`, locks o workspace pnpm). El soporte inicial no incluye `npm-shrinkwrap.json`: su presencia omite la preparación incluso si también hay package-lock. Un marcador dentro de `node_modules` permite reutilizar instalaciones completas que coincidan con package, lock, plataforma, arquitectura y ABI de Node; si cambia esa huella o faltan archivos se repara la instalación gestionada. Reconectar a una sesión viva o reiniciar el host no instala nada; después de reiniciar se solicita una sesión nueva explícitamente.
+
+Si falla npm, el error muestra una salida acotada e instrucciones. La asignación del worktree se guarda **antes** de instalar: corrige el problema y vuelve a crear la sesión en la misma terminal para conservar rama y cambios. Cerrar terminal/host cancela la instalación y termina los procesos npm y sus hijos. Una instalación manual preexistente sin marcador, un marcador ilegible o un `node_modules` enlazado se conservan y bloquean la preparación: mueve o elimina explícitamente `node_modules` para autorizar la instalación. Tras un corte abrupto durante la limpieza de npm puede ser necesaria esa misma recuperación si se perdió el marcador.
+
+Para preparar este checkout mediante la misma API idempotente:
+
+```sh
+node scripts/setup-worktree.mjs
+```
+
+El script informa el resultado o falla con código de salida no cero; no instala al importarse ni crea metadata de preparación fuera de `node_modules`. Más detalles: [host/README.md](host/README.md#terminal-worktree-dependencies).
+
 ## Herramientas incluidas
 
 | Herramienta | Funcionamiento |
