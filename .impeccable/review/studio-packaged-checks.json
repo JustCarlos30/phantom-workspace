@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "Real host/PTY and panel navigation loaded",
+    "Background, grid, intensity and accent persist after reload",
+    "Valid local image loads and persists; corrupt image rejected; removal works",
+    "Preferences scoped to project; switching does not copy appearance",
+    "Focus dims atmosphere; return preserves camera and selected panel",
+    "Command palette opens nonmodal appearance inspector",
+    "Desktop/narrow/focus checked; controls separated; no renderer exceptions"
+  ],
+  "errors": [],
+  "executable": "/home/carlosj/Carlos_World/phantom-workspace/out/Phantom Workspace-linux-x64/phantom-workspace",
+  "profile": "/tmp/opencode/phantom-studio-kfmK9I",
+  "checkedAt": "2026-11-11T15:07:40.679Z"
+}

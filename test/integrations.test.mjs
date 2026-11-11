@@ -193,15 +193,20 @@ test('native Phantom isolated data: cards, decisions/revisions, immutable skills
 
 test('Phantom task catalog excludes unrelated projects but includes known worktree family', async t => {
   const f = await fixture(t, true);
+  // The mocked transport only needs an existing CLI file, independent of any installation.
+  const cliPath = path.join(f.home, 'phantom-cli.mjs');
+  await writeFile(cliPath, '// Inert CLI fixture: execution is supplied by the transport mock.\n');
+  f.context.state.settings.phantomPath = cliPath;
   const linked = path.join(f.home, 'linked'); await f.gitCommand(['worktree', 'add', '-b', 'linked', linked]);
   const other = path.join(f.home, 'unrelated'); await mkdir(other);
   const raw = [f.root, linked, other].map((workspace, i) => ({ id: `task_${i}`, kind: 'card', status: 'blocked', contract: { goal: `Native ${i}`, workspace, lane: 'coordinated' }, nativeExtra: { retained: true } }));
   f.context.execFile = async (file, args, options) => {
     if (file === 'git') return exec(file, args, options);
-    assert.equal(file, process.execPath); assert.ok(args[0].endsWith('/harness_engineer/bin/phantom.mjs')); assert.equal(options.shell, false);
+    assert.equal(file, process.execPath); assert.equal(args[0], cliPath); assert.equal(options.shell, false);
     return { stdout: JSON.stringify(args.includes('show') ? raw[2] : raw), stderr: '' };
   };
   const result = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(result.available, true, result.reason);
   assert.deepEqual(result.items.map(i => i.id), ['task_0', 'task_1']); assert.equal(result.items[0].status, 'blocked'); assert.deepEqual(result.items[0].raw.nativeExtra, { retained: true });
   await assert.rejects(f.call('phantom.detail', { topic: 'tasks', id: 'task_2' }), /another workspace/);
 });

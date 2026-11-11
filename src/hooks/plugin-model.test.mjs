@@ -1,0 +1,168 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  buildCardInput, cardFormOf, emptyCardForm, validateScopePath,
+  cardActions, contractOf, stateOf, refOf, filterCards,
+} from './plugin-model.mjs';
+
+function validForm(overrides = {}) {
+  return {
+    ...emptyCardForm(),
+    goal: 'Actualizar el panel',
+    scope: 'src/components/Panel.jsx',
+    checks: [{ name: 'suite', argv: '["npm","test"]' }],
+    ...overrides,
+  };
+}
+
+test('el formulario conserva argumentos literales, metadatos de checks y límites del contrato', () => {
+  const form = validForm({
+    goal: '  Actualizar el panel  ',
+    scope: ' src/components/Panel.jsx\r\n\r\n assets/icon.svg  ',
+    deps: ' task-a\r\n\n task-b ',
+    checks: [{ name: ' suite ', argv: '["node","--test","test/con espacios.test.mjs","$HOME; echo literal"]', kind: 'acceptance', cwd: '.', timeoutMs: 5000, protect: ['assets/icon.svg'] }],
+    budget: '{"timeoutMs":60000,"maxTurns":12,"maxRepairs":0}',
+    coordination: '{"strategy":"serial"}',
+  });
+  const before = structuredClone(form);
+  assert.deepEqual(buildCardInput(form), {
+    goal: 'Actualizar el panel', lane: 'coordinated',
+    scope: ['src/components/Panel.jsx', 'assets/icon.svg'], dependencies: ['task-a', 'task-b'],
+    checks: [{ name: 'suite', argv: ['node', '--test', 'test/con espacios.test.mjs', '$HOME; echo literal'], kind: 'acceptance', cwd: '.', timeoutMs: 5000, protect: ['assets/icon.svg'] }],
+    budget: { timeoutMs: 60000, maxTurns: 12, maxRepairs: 0 },
+    coordination: { strategy: 'serial' },
+  });
+  assert.deepEqual(form, before);
+});
+
+test('editar una Card preserva campos nativos y permite borrar opciones sin mutar el original', () => {
+  const original = { raw: { contract: {
+    goal: 'Original', lane: 'direct', scope: ['src/old.js'], dependencies: ['old-task'],
+    checks: [{ name: 'suite', argv: ['npm', 'test'], cwd: 'frontend', timeoutMs: 9000 }],
+    budget: { maxTurns: 10 }, coordination: { strategy: 'serial' }, custom: { owner: 'local' },
+  } } };
+  const before = structuredClone(original);
+  const form = cardFormOf(original);
+  assert.equal(form.deps, 'old-task');
+  assert.deepEqual(form.checks[0], { name: 'suite', argv: '["npm","test"]', cwd: 'frontend', timeoutMs: 9000 });
+  assert.deepEqual(buildCardInput(form, original), { ...original.raw.contract, lane: 'coordinated' });
+  Object.assign(form, { goal: 'Reemplazo', scope: 'src/new.js', deps: '', budget: ' ', coordination: '' });
+  const replacement = buildCardInput(form, original);
+  assert.equal(replacement.goal, 'Reemplazo');
+  assert.deepEqual(replacement.scope, ['src/new.js']);
+  assert.deepEqual(replacement.dependencies, []);
+  assert.equal(Object.hasOwn(replacement, 'deps'), false);
+  assert.deepEqual(replacement.custom, { owner: 'local' });
+  assert.equal(Object.hasOwn(replacement, 'budget'), false);
+  assert.equal(Object.hasOwn(replacement, 'coordination'), false);
+  assert.deepEqual(original, before);
+});
+
+test('el reemplazo elimina deps heredado y conserva dependencies nativo', () => {
+  const original = { contract: { goal: 'Original', scope: ['src/a.js'], checks: [{ name: 'suite', argv: ['npm', 'test'] }], dependencies: ['native-task'], deps: ['legacy-task'] } };
+  const result = buildCardInput(cardFormOf(original), original);
+  assert.deepEqual(result.dependencies, ['native-task']);
+  assert.equal(Object.hasOwn(result, 'deps'), false);
+  assert.deepEqual(original.contract.deps, ['legacy-task']);
+});
+
+test('cada formulario nuevo tiene checks independientes', () => {
+  const first = emptyCardForm();
+  first.checks[0].name = 'editado';
+  first.checks.push({ name: 'otro', argv: '[]' });
+  assert.deepEqual(emptyCardForm().checks, [{ name: '', argv: '' }]);
+});
+
+test('scope rechaza escapes Unix y Windows y acepta rutas relativas con espacios', () => {
+  for (const path of ['/etc/passwd', 'C:\\temp\\file', 'D:/temp/file', '../secret', 'src/../secret', 'src\\..\\secret', 'src/\u0000file', 'src/\tfile']) {
+    assert.equal(validateScopePath(path), false, path);
+    assert.throws(() => buildCardInput(validForm({ scope: path })), /Scope:.*rutas relativas/);
+  }
+  for (const path of ['src/a b.js', './src/file.js', 'src\\file.js', 'src/.../file.js']) {
+    assert.equal(validateScopePath(path), true, path);
+  }
+});
+
+test('objetivo, scope y checks vacíos producen errores accionables', () => {
+  assert.throws(() => buildCardInput(validForm({ goal: ' \n ' })), /objetivo/);
+  assert.throws(() => buildCardInput(validForm({ scope: ' \r\n ' })), /Scope:/);
+  assert.throws(() => buildCardInput(validForm({ checks: [] })), /al menos un check real/);
+  for (const checks of [
+    [{ name: ' ', argv: '["node"]' }],
+    [{ name: 'suite', argv: '["node"]' }, { name: ' suite ', argv: '["npm"]' }],
+  ]) assert.throws(() => buildCardInput(validForm({ checks })), /nombre único/);
+});
+
+test('argv exige JSON de argumentos sin ejecutar ni interpretar texto de shell', () => {
+  assert.throws(() => buildCardInput(validForm({ checks: [{ name: 'suite', argv: 'npm test' }] })), /Check suite: argv debe ser un array JSON de strings/);
+  for (const argv of ['"npm test"', '{}', 'null', '[]', '["   "]', '["npm",12]', '["npm",null]', '["npm","line\\nfeed"]', '["npm","carriage\\rreturn"]', '["npm","nul\\u0000byte"]']) {
+    assert.throws(() => buildCardInput(validForm({ checks: [{ name: 'suite', argv }] })), /Check suite: argv requiere un comando y argumentos strings válidos/, argv);
+  }
+});
+
+test('budget rechaza JSON inválido, tipos incorrectos y límites no positivos', () => {
+  assert.throws(() => buildCardInput(validForm({ budget: '{' })), /Budget: JSON inválido/);
+  for (const budget of ['null', '[]', '1', '"limite"']) {
+    assert.throws(() => buildCardInput(validForm({ budget })), /Budget: debe ser un objeto JSON/);
+  }
+  for (const budget of ['{"maxTurns":0}', '{"maxTurns":-1}', '{"maxRepairs":-1}', '{"maxTurns":"12"}', '{"maxTurns":null}', '{"maxTurns":true}', '{"timeoutMs":1e999}']) {
+    assert.throws(() => buildCardInput(validForm({ budget })), /Budget: usa límites numéricos positivos/, budget);
+  }
+});
+
+test('coordinación informa errores de sintaxis y de tipo por su campo', () => {
+  assert.throws(() => buildCardInput(validForm({ coordination: '{' })), /Coordinación: JSON inválido/);
+  for (const coordination of ['null', '[]', 'false', '"serial"']) {
+    assert.throws(() => buildCardInput(validForm({ coordination })), /Coordinación: debe ser un objeto JSON/);
+  }
+});
+
+test('los adaptadores respetan precedencia nativa de contrato, estado y referencia', () => {
+  const contract = { goal: 'Contrato', scope: ['src'] };
+  const spec = { goal: 'Spec' };
+  assert.equal(contractOf({ contract, spec, raw: { contract: spec } }), contract);
+  assert.equal(contractOf({ spec }), spec);
+  assert.equal(contractOf({ raw: { contract } }), contract);
+  assert.equal(contractOf(contract), contract);
+  assert.equal(stateOf({ status: 'failed', state: 'completed' }), 'failed');
+  assert.equal(stateOf({ status: {}, state: 'blocked' }), 'blocked');
+  assert.equal(stateOf(null), 'unknown');
+  const ref = { id: 'card-a', version: 3 };
+  assert.equal(refOf({ ref, raw: { ref: { id: 'stale' } } }), ref);
+  assert.equal(refOf({ raw: { ref } }), ref);
+  assert.equal(refOf({ id: 'card-a', revision: 3 }), null);
+});
+
+test('un controlador activo de la misma Card determina stop e impide otra ejecución', () => {
+  for (const status of ['starting', 'running']) {
+    assert.deepEqual(cardActions({ id: 'a', status: 'failed' }, [{ taskId: 'a', status }]), {
+      run: false, stop: true, cancel: false, recover: false, verify: false,
+    });
+  }
+  for (const controllers of [[{ taskId: 'other', status: 'running' }], [{ taskId: 'a', status: 'completed' }], []]) {
+    assert.deepEqual(cardActions({ id: 'a', status: 'failed' }, controllers), {
+      run: true, stop: false, cancel: false, recover: true, verify: false,
+    });
+  }
+});
+
+test('running permite recuperar, recovered verificar y completed no ofrece acciones', () => {
+  assert.deepEqual(cardActions({ id: 'a', state: 'running' }), { run: false, stop: false, cancel: false, recover: true, verify: false });
+  assert.deepEqual(cardActions({ id: 'a', status: 'completed' }), { run: false, stop: false, cancel: false, recover: false, verify: false });
+  assert.deepEqual(cardActions({ id: 'a', status: 'recovered' }), { run: false, stop: false, cancel: false, recover: false, verify: true });
+  for (const status of ['ready', 'blocked']) assert.equal(cardActions({ status }).cancel, true);
+  for (const status of ['created', 'pending', 'queued', 'running', 'stopped', 'failed']) assert.equal(cardActions({ status }).cancel, false);
+  assert.deepEqual(cardActions({ id: 'a', status: 'unrecognized' }), { run: false, stop: false, cancel: false, recover: false, verify: false });
+});
+
+test('búsqueda combina objetivo del contrato, id y estado nativo sin modificar la lista', () => {
+  const cards = [
+    { id: 'a', status: 'blocked', contract: { goal: 'Reparar PANEL' } },
+    { id: 'panel-b', state: 'completed', spec: { goal: 'Otro trabajo' } },
+    { id: 'c', status: 'completed', contract: { goal: 'Sin coincidencia' } },
+  ];
+  assert.deepEqual(filterCards(cards, ' PANEL ', ''), cards.slice(0, 2));
+  assert.deepEqual(filterCards(cards, 'panel', 'completed'), [cards[1]]);
+  assert.deepEqual(filterCards(cards, '', 'blocked'), [cards[0]]);
+  assert.equal(cards.length, 3);
+});
