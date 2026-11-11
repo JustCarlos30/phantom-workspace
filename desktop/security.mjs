@@ -77,8 +77,9 @@ export function validateCloseReady(payload, outstandingId = payload?.requestId) 
 }
 
 export function isHostTransportError(error) {
+  if (error?.code === 'HOST_REQUEST_TIMEOUT') return false;
   return /^(?:ECONN\w*|EPIPE|ENOTCONN|ETIMEDOUT)$/.test(error?.code || '')
-    || /^(?:Host (?:disconnected|connection timed out|startup failed|unavailable|client closed|request timed out|no disponible|no responde)|Socket (?:closed|disconnected))\b/i.test(error?.message || '');
+    || /^(?:Host (?:disconnected|connection timed out|startup failed|unavailable|client closed|no disponible)|Socket (?:closed|disconnected))\b/i.test(error?.message || '');
 }
 
 export function browserURL(value, { external = false } = {}) {
