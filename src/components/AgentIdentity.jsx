@@ -13,13 +13,15 @@ export function CardAgents({ cardId, workspace, onOpenPanel }) {
   })}</ul>;
 }
 
-export default function AgentIdentity({ node, workspace, api, refresh, flush, onOpenPanel }) {
+export default function AgentIdentity({ node, workspace, api, refresh, flush, onOpenPanel, overview = false }) {
   const id = useId();
   const agent = node.data.agent || {};
   const [open, setOpen] = useState(false), [form, setForm] = useState(null);
   const [catalog, setCatalog] = useState(null), [loading, setLoading] = useState(false), [error, setError] = useState(''), [feedback, setFeedback] = useState(''), [busy, setBusy] = useState(false);
   const request = useRef(0), lock = useRef(false), baseline = useRef(null), toggleRef = useRef(null);
-  const close = () => { setOpen(false);toggleRef.current?.focus(); };
+  const nameRef = useRef(null);
+  useEffect(() => { if (open && !overview) nameRef.current?.focus({ preventScroll: true }); }, [open, overview]);
+  const close = () => { setOpen(false);toggleRef.current?.focus({ preventScroll: true }); };
   const load = async () => {
     const seq = ++request.current;setLoading(true);setError('');
     const results = await Promise.allSettled([api('phantom.list',{workspaceId:workspace.id,topic:'tasks'}),api('opencode.sessions',{workspaceId:workspace.id})]);
@@ -50,11 +52,11 @@ export default function AgentIdentity({ node, workspace, api, refresh, flush, on
     setFeedback('Contexto guardado copiado. Los cambios de este formulario se conservan hasta que los guardes.');
   });
   const change = key => e => setForm(old=>({...old,[key]:e.target.value,...(key==='cardId'&&e.target.value!==old.cardId?{step:'',status:'idle'}:{})}));
-  return <div className="agent-identity">
+  return <div className="agent-identity" hidden={overview} inert={overview ? true : undefined}>
     <div className="agent-identity-bar"><button ref={toggleRef} type="button" className="agent-identity-toggle" aria-expanded={open} aria-controls={`${id}-editor`} onClick={toggle}><Link2 size={14} /><span>{agent.cardTitle || 'Identidad y card'}</span></button>{agent.cardId && <button type="button" className="agent-card-link" title="Ver card vinculada" aria-label="Ver card vinculada" onClick={()=>onOpenPanel?.('tasks',{cardId:agent.cardId},agent.cardTitle)}><ArrowUpRight size={14}/></button>}{agent.status && <span className={`agent-state agent-${agent.status}`}>{AGENT_LABELS[agent.status]}</span>}</div>
     {!open && agent.step && <p className="agent-current-step" title={`${agent.step}\n${agent.source==='agent'?'Reportado por agente':'Declarado manualmente'}${agent.updatedAt?` · ${new Date(agent.updatedAt).toLocaleString()}`:''}`}><span>{agent.step}</span><small>{agent.source==='agent'?'Agente':'Manual'}</small></p>}
-    {open && form && <div id={`${id}-editor`} className="agent-editor" onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}}}><header><strong>Identidad y asignación</strong><button type="button" aria-label="Cerrar identidad" onClick={close}><X size={15}/></button></header><form onSubmit={save}>
-      <div className="agent-field"><label htmlFor={`${id}-name`}>Nombre del agente</label><input id={`${id}-name`} required maxLength={512} value={form.name} onChange={change('name')}/></div>
+    {open && form && <section id={`${id}-editor`} className="agent-editor" aria-labelledby={`${id}-heading`} onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();close();}}}><header><strong id={`${id}-heading`}>Identidad y asignación</strong><button type="button" aria-label="Cerrar identidad" onClick={close}><X size={15}/></button></header><form onSubmit={save}>
+      <div className="agent-field"><label htmlFor={`${id}-name`}>Nombre del agente</label><input ref={nameRef} id={`${id}-name`} required maxLength={512} value={form.name} onChange={change('name')}/></div>
       <div className="agent-field"><label htmlFor={`${id}-card`}>Card de Phantom</label><select id={`${id}-card`} value={form.cardId} onChange={change('cardId')} disabled={loading}><option value="">Sin card</option>{agent.cardId&&!catalog?.cards.items?.some(c=>c.id===agent.cardId)&&<option value={agent.cardId}>{agent.cardTitle || agent.cardId} · vínculo guardado</option>}{catalog?.cards.items?.filter(c=>c.kind==='card').map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></div>
       <div className="agent-field"><label htmlFor={`${id}-session`}>Sesión OpenCode</label><select id={`${id}-session`} value={form.providerSessionId} onChange={change('providerSessionId')} disabled={loading}><option value="">Sin sesión vinculada</option>{agent.providerSessionId&&!catalog?.sessions.items?.some(s=>s.id===agent.providerSessionId)&&<option value={agent.providerSessionId}>{agent.providerSessionId} · vínculo guardado</option>}{catalog?.sessions.items?.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></div>
       <p className="agent-hint">Vincula una sesión de esta carpeta. El vínculo no indica que esté ejecutándose en esta terminal.</p>
@@ -63,6 +65,6 @@ export default function AgentIdentity({ node, workspace, api, refresh, flush, on
       <p className="agent-hint">Este avance es manual. Los reportes del agente muestran su origen; el resultado de la card lo verifica Phantom.</p>
       <div className="agent-actions"><button type="submit" className="tw-button tw-primary" disabled={busy||loading}>{busy?'Procesando…':'Guardar identidad'}</button><button type="button" className="tw-button" disabled={busy||loading} onClick={load} aria-label="Actualizar cards y sesiones"><RefreshCw size={14}/></button><button type="button" className="tw-button" disabled={busy} onClick={copy}><Copy size={14}/>Copiar contexto guardado</button></div>
       {error&&<p className="agent-error" role="alert">{error}</p>}{feedback&&<p className="agent-hint" role="status">{feedback}</p>}
-    </form></div>}
+    </form></section>}
   </div>;
 }

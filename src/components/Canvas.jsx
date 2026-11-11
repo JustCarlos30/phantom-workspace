@@ -41,7 +41,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const live = useRef({ camera, nodes, selected, focused }); live.current = { camera, nodes, selected, focused };
   useEffect(() => {
     if (!navigationMenu) return;
-    const outside = e => { if (!e.target.closest('.canvas-navigation,.canvas-popover')) setNavigationMenu(null); };
+    const outside = e => { if (!e.target.closest('.canvas-navigation,.canvas-popover,.agent-editor')) setNavigationMenu(null); };
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, [navigationMenu]);
@@ -77,7 +77,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   useEffect(() => {
     const el = root.current;
     const wheel = e => {
-      if (inputBlocked || live.current.focused || e.target.closest('.canvas-navigation,.canvas-popover')) return;
+      if (inputBlocked || live.current.focused || e.target.closest('.canvas-navigation,.canvas-popover,.agent-editor')) return;
       // xterm owns wheel gestures, including modified wheel mouse reports.
       if (e.target.closest('.terminal-host')) return;
       const zooming = e.ctrlKey || e.metaKey || e.altKey;
@@ -120,7 +120,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   }, [focused, selected, nodes, onFocus, onSelect, inputBlocked, onMenu, size, zoomAt, navigationMenu]);
   const begin = (e, kind, node) => {
     if (e.button !== 0 && e.button !== 1) return;
-    if (inputBlocked || focused) return;
+    if (inputBlocked || focused || e.target.closest('.agent-editor')) return;
     e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId);
     const ids = node && selected.includes(node.id) ? selected : node ? [node.id] : [];
     if (node) onSelect(e.shiftKey ? [...new Set([...selected, node.id])] : ids);
@@ -164,7 +164,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
             {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" onClick={() => onCloseTerminal(node)}><X size={14} /></button>}
           </header>
           <div className="node-body">
-            {node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onFocus={onFocus} connected={!connection || connection.status === 'connected'} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || !!rename.editing} onFocus={onFocus} onChange={onChange} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
+            {node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onFocus={onFocus} connected={!connection || connection.status === 'connected'} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} overviewZoom={focused ? 1 : camera.zoom} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || !!rename.editing} onFocus={onFocus} onChange={onChange} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
           </div>
           {!focused && <button className="resize-handle" aria-label="Cambiar tamaño del panel" title="Arrastra para cambiar tamaño" onPointerDown={e => begin(e, 'resize', node)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) { e.preventDefault(); onChange(node.id, { width: Math.max(400, node.width + (e.key === 'ArrowRight' ? 24 : e.key === 'ArrowLeft' ? -24 : 0)), height: Math.max(240, node.height + (e.key === 'ArrowDown' ? 24 : e.key === 'ArrowUp' ? -24 : 0)) }); } }} />}
         </article>;

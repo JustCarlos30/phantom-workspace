@@ -174,8 +174,20 @@
 .terminal-message button { background: var(--accent-soft); color: var(--ink); min-height: 30px; font-size: 12px; }
 .terminal-message button:hover:not(:disabled) { background: var(--accent); color: var(--bg); }
 .terminal-message button:disabled { opacity: .4; cursor: not-allowed; }
-.terminal-overview { inset: 48px 12px 34px; background: var(--terminal-bg); color: var(--ink); border-radius: 7px; }
-.terminal-overview span+span { color: var(--muted); }
+.terminal-overview { inset: 0; z-index: 4; padding: calc(5px * var(--overview-scale)); background: var(--terminal-bg); color: var(--ink); border-radius: 7px; align-items: stretch; justify-content: flex-start; gap: calc(3px * var(--overview-scale)); font-size: calc(10px * var(--overview-scale)); line-height: 1.15; overflow: hidden; pointer-events: none; }
+.terminal-overview strong { font-size: calc(12px * var(--overview-scale)); }
+.terminal-overview[data-tier="compact"] strong { font-size: calc(10px * var(--overview-scale)); }
+.terminal-overview-state { font-size: calc(11px * var(--overview-scale)); font-weight: 600; color: var(--accent); }
+.terminal-overview strong, .terminal-overview-state, .terminal-overview dl > div { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; flex-shrink: 0; }
+.terminal-overview dl { display: flex; flex-direction: column; gap: calc(3px * var(--overview-scale)); margin: 0; min-width: 0; }
+.terminal-overview dl > div { min-width: 0; }
+.terminal-overview dt, .terminal-overview dd { display: inline; margin: 0; }
+.terminal-overview dt { color: var(--muted); }
+.terminal-overview dt::after { content: ' · '; }
+.terminal-panel.is-overview > :not(.terminal-overview) { visibility: hidden; }
+.terminal-history-end { position: absolute; right: 24px; bottom: 46px; z-index: 2; display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 5px 10px; border: 1px solid var(--accent); border-radius: 5px; background: var(--surface); color: var(--ink); font-size: 12px; }
+.terminal-history-end:hover { background: var(--surface-2); }
+.terminal-history-end:focus-visible, .terminal-enlarge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @container (max-width: 420px) { .terminal-directory { font-size: 11px; } .terminal-toolbar { gap: 8px; } .terminal-session-context { font-size: 10px; } }
 .terminal-host .xterm-viewport { background-color: var(--terminal-bg); scrollbar-color: #566071 var(--terminal-bg); }
 .appearance-panel { padding: 24px 20px; overflow: auto; flex: 1; min-height: 0; }
