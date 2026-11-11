@@ -234,7 +234,7 @@ test('real Playwright local fixture produces genuine screenshot/trace and owned 
   const { chromium } = await import('playwright');
   try { await access(chromium.executablePath()); } catch {
     const f = await fixture();
-    await assert.rejects(f.invoke('automation.start', { url: 'http://127.0.0.1', headed: false }), /Chromium.*no está descargado/);
+    await assert.rejects(f.invoke('automation.start', { mode: 'isolated', url: 'http://127.0.0.1', headed: false }), /Chromium.*no está descargado/);
     t.skip('Chromium executable absent: actionable failure verified; no downloads performed');
     return;
   }
@@ -243,7 +243,7 @@ test('real Playwright local fixture produces genuine screenshot/trace and owned 
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
   const url = `http://127.0.0.1:${server.address().port}`;
-  const run = await f.invoke('automation.start', { url, headed: false, actions: [{ type: 'fill', selector: '#name', value: 'real owned fixture' }, { type: 'click', selector: 'button' }, { type: 'screenshot' }] });
+  const run = await f.invoke('automation.start', { mode: 'isolated', url, headed: false, actions: [{ type: 'fill', selector: '#name', value: 'real owned fixture' }, { type: 'click', selector: 'button' }, { type: 'screenshot' }] });
   const finished = await waitFor(f.invoke, 'automation', run.id, record => ['failed', 'completed'].includes(record.status) && !record.owned, 30_000);
   assert.equal(finished.status, 'completed', finished.error);
   assert.equal(finished.browserOpen, false);
@@ -258,10 +258,103 @@ test('real Playwright local fixture produces genuine screenshot/trace and owned 
   assert.equal((await fetch(viewer.url)).status, 200);
   await f.invoke('automation.stop', { id: run.id });
   await assert.rejects(fetch(viewer.url));
-  const waiting = await f.invoke('automation.start', { url, headed: false, actions: [{ type: 'wait', milliseconds: 10_000 }] });
+  const waiting = await f.invoke('automation.start', { mode: 'isolated', url, headed: false, actions: [{ type: 'wait', milliseconds: 10_000 }] });
   await waitFor(f.invoke, 'automation', waiting.id, record => record.output.includes('Paso 1'), 30_000);
   const stopped = await f.invoke('automation.stop', { id: waiting.id });
   assert.equal(stopped.status, 'stopped');
   assert.equal(stopped.browserOpen, false);
   await access((await f.invoke('automation.trace', { id: waiting.id })).path);
+});
+
+async function integratedFixture() {
+  const f = await fixture();
+  const calls = [];
+  const sessionId = randomUUID(), panelId = randomUUID();
+  const capturePath = path.join(f.root, 'bridge-capture.png');
+  const captureBytes = Buffer.from('synthetic bridge transport capture');
+  await writeFile(capturePath, captureBytes, { mode: 0o600 });
+  f.context.browserClient = { invoke: async (command, payload) => {
+    calls.push({ command, payload });
+    if (command === 'context') return { available: true, workspaceId: f.workspaces[0].id, sessionId };
+    if (command === 'screenshot') return { id: panelId, path: capturePath };
+    if (command === 'console') return { messages: [{ seq: 1, level: 'info', message: 'bridge console fixture' }] };
+    return { id: panelId, ready: true, reused: true, visible: true };
+  } };
+  return { ...f, calls, sessionId, panelId, captureBytes };
+}
+
+test('default integrated route uses the injected bridge, same preview key and durable captures, never Chromium', async t => {
+  const { chromium } = await import('playwright');
+  t.mock.method(chromium, 'launch', () => { throw new Error('Unexpected isolated launch'); });
+  const f = await integratedFixture();
+  const url = 'http://127.0.0.1:4321/';
+  const run = await f.invoke('automation.start', { url, actions: [
+    { type: 'fill', selector: '#name', value: 'same session' }, { type: 'click', selector: 'button' },
+    { type: 'goto', url: `${url}next` }, { type: 'wait', milliseconds: 0 }, { type: 'screenshot' },
+  ] });
+  const record = await waitFor(f.invoke, 'automation', run.id, r => r.status === 'completed' && !r.owned);
+  assert.equal(record.mode, 'integrated');
+  assert.equal(record.sessionId, f.sessionId);
+  assert.equal(record.panelId, f.panelId);
+  assert.equal(record.panelRetained, true);
+  assert.equal(record.traceSupported, false);
+  assert.equal(record.tracePath, undefined);
+  assert.deepEqual(f.calls.map(call => call.command), ['context', 'preview', 'fill', 'click', 'open', 'screenshot', 'screenshot', 'console']);
+  assert.ok(f.calls.slice(1).every(call => call.payload.key === 'preview'));
+  assert.equal(f.calls[1].payload.url, url);
+  assert.equal(f.calls[2].payload.value, 'same session');
+  assert.deepEqual(await readFile(record.screenshotPath), f.captureBytes);
+  assert.deepEqual(await readFile(path.join(record.artifactDir, 'step-5.png')), f.captureBytes);
+  assert.match(record.output, /bridge console fixture/);
+  await assert.rejects(f.invoke('automation.trace', { id: run.id, openViewer: true }), /no soporta trace.*isolated/);
+  await assert.rejects(access(path.join(record.artifactDir, 'trace.zip')), /ENOENT/);
+});
+
+test('integrated stop drains pending RPC before acknowledgment and prevents subsequent actions', async () => {
+  const f = await integratedFixture();
+  const original = f.context.browserClient.invoke;
+  let releaseRPC, entered;
+  const pending = new Promise(resolve => { entered = resolve; });
+  f.context.browserClient.invoke = async (command, payload) => {
+    const result = await original(command, payload);
+    if (command === 'fill') { entered(); await new Promise(resolve => { releaseRPC = resolve; }); }
+    return result;
+  };
+  const run = await f.invoke('automation.start', { url: 'http://localhost:4321', actions: [
+    { type: 'fill', selector: 'input', value: 'pending' }, { type: 'click', selector: 'button' },
+  ] });
+  await pending;
+  await assert.rejects(f.invoke('automation.start', { url: 'http://localhost:4321' }), /automatización integrada activa/);
+  let stopped = false;
+  const stopping = f.invoke('automation.stop', { id: run.id }).then(result => { stopped = true; return result; });
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(stopped, false);
+  releaseRPC();
+  const record = await stopping;
+  assert.equal(record.status, 'stopped');
+  assert.equal(record.owned, false);
+  assert.equal(record.panelRetained, true);
+  assert.ok(!f.calls.some(call => call.command === 'click' || call.command === 'screenshot'));
+});
+
+test('integrated keepOpen owns control until stop; timeouts and desktop errors remain truthful', async () => {
+  const f = await integratedFixture();
+  const run = await f.invoke('automation.start', { url: 'http://localhost:4321', keepOpen: true });
+  const completed = await waitFor(f.invoke, 'automation', run.id);
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.owned, true);
+  assert.equal((await f.invoke('automation.stop', { id: run.id })).owned, false);
+  const slow = await f.invoke('automation.start', { url: 'http://localhost:4321', timeoutMs: 100, actions: [{ type: 'wait', milliseconds: 10_000 }] });
+  const timedOut = await waitFor(f.invoke, 'automation', slow.id);
+  assert.equal(timedOut.status, 'failed');
+  assert.equal(timedOut.owned, false);
+  assert.match(timedOut.error, /Tiempo límite/);
+  const disconnected = await integratedFixture();
+  disconnected.context.browserClient.invoke = async () => { throw new Error('Ventana Electron no disponible'); };
+  await assert.rejects(disconnected.invoke('automation.start', { url: 'http://localhost' }), /abre la ventana de Phantom/);
+  assert.deepEqual((await disconnected.invoke('automation.list')).items, []);
+  const absent = await fixture();
+  await assert.rejects(absent.invoke('automation.start', { url: 'http://localhost' }), /terminal activa|terminal nueva/);
+  await assert.rejects(absent.invoke('automation.start', { url: 'http://localhost', headed: false }), /isolated/);
+  await assert.rejects(absent.invoke('automation.start', { url: 'http://localhost', mode: 'external' }), /integrated o isolated/);
 });
