@@ -6,12 +6,13 @@ import { ToolPanel } from './ToolPanels';
 import { useInlineName } from '../hooks/useInlineName';
 import { isEditingTarget } from '../hooks/inputOwnership';
 import { Presence, PresenceGroup } from './Presence';
+import { TerminalActivity } from './ActivityNotch';
 
 const icons = { terminal: TerminalSquare, browser: Globe, note: StickyNote };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const editable = isEditingTarget;
 
-export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush }) {
+export default function Canvas({ workspace, activity, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush }) {
   const root = useRef(null);
   const gesture = useRef(null);
   const handledJump = useRef(null);
@@ -103,6 +104,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
           <header className="node-header" onPointerDown={e => { if (!e.target.closest('button,input') && !focused) begin(e, 'move', node); }} onDoubleClick={e => { if (!e.target.closest('button,input')) onFocus(isFocused ? null : node.id); }}>
             <Icon size={15} /><div className="node-title">{rename.editing?.id === node.id ? <><input ref={rename.inputRef} className="inline-name-input" aria-label="Nombre del panel" aria-invalid={!!rename.editing.error} aria-describedby={rename.editing.error ? `name-error-${node.id}` : undefined} value={rename.editing.value} readOnly={rename.editing.saving} onChange={e => rename.change(e.target.value)} onPointerDown={e => e.stopPropagation()} onBlur={() => rename.commit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); rename.commit(true); } if (e.key === 'Escape') { e.preventDefault(); rename.cancel(); } }} />{rename.editing.error && <span className="inline-name-error" id={`name-error-${node.id}`} role="alert">{rename.editing.error}</span>}</> : <button ref={element => { if (element) titleButtons.current.set(node.id, element); else titleButtons.current.delete(node.id); }} className="title-button" title="Renombrar panel" onClick={() => rename.start(node.id, node.title, () => titleButtons.current.get(node.id))}>{node.title}</button>}</div>
             {node.groupId && <span className="mission-chip" title={workspace.missions?.find(m => m.id === node.groupId)?.title}>{workspace.missions?.find(m => m.id === node.groupId)?.title || 'Misión'}</span>}
+            {node.type === 'terminal' && <TerminalActivity connected={connection?.status === 'connected'} session={activity?.sessions.find(s => s.nodeId === node.id)} />}
             <button className="icon-button" aria-label={isFocused ? 'Volver al mapa' : 'Enfocar panel'} title={isFocused ? 'Volver al mapa' : 'Enfocar panel'} onClick={() => onFocus(isFocused ? null : node.id)}>{isFocused ? <ArrowLeft size={14} /> : <Maximize2 size={14} />}</button>
             <button className="icon-button" aria-label="Opciones del panel" title="Opciones del panel" onClick={e => onMenu(node.id, e.clientX, e.clientY)}><MoreHorizontal size={16} /></button>
             {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" onClick={() => onCloseTerminal(node)}><X size={14} /></button>}
