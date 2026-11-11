@@ -22,6 +22,8 @@ Terminales reales; canvas por carpeta; browser interno; cards, decisiones y skil
 
 ## Operating principles
 
+- Preferencia visual confirmada por Carlos: experiencia dark moderna inspirada en Figma, canvas protagonista, barras flotantes, orden y fluidez; fondo y acento personalizables por proyecto con identidad propia centrada en DX.
+
 - Proyecto y sesión conservan identidad a través de paneles y herramientas.
 - Teclado dentro del terminal pertenece al terminal; movimiento por cabecera y navegación explícita.
 - Host vivo permite reconectar; reboot recupera historial/contexto, con relanzamiento explícito.

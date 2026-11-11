@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome } from './store.mjs';
 import { Terminals } from './terminals.mjs';
+import { agentContext, validateAgent } from './agents.mjs';
+import { PHANTOM_PLUGIN } from '../shared/plugins.mjs';
 
 function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
@@ -63,9 +65,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
-      const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='browser'?520:400),groupId:null,data:p.data??{}};w.nodes.push(node);return node;
+      const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const panel=PHANTOM_PLUGIN.panels.find(item=>item.nodeType===p.type);const data=panel?{pluginId:PHANTOM_PLUGIN.id,panelId:panel.id,...p.data}:p.data??{};const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data};w.nodes.push(node);return node;
     });
-    if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');Object.assign(n,p.patch);return n;});
+    if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;}Object.assign(n,patch);return n;});
     if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=w.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
     if(method==='terminal.create') {
       const w=store.getWorkspace(p.workspaceId); let node=p.nodeId?w.nodes.find(n=>n.id===p.nodeId):null; if(p.nodeId) assert(node?.type==='terminal','Terminal node not found');
@@ -73,6 +75,36 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const session=await terminals.create(w,node,p); node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id};return current;}); return {session,node};
     }
     if(method==='terminal.list') {store.getWorkspace(p.workspaceId);return terminals.sessions.filter(s=>s.workspaceId===p.workspaceId).map(s=>terminals.descriptor(s));}
+    if(method==='terminal.agent.context' || method==='terminal.agent.report') {
+      const session=terminals.get(p.sessionId),w=store.getWorkspace(session.workspaceId),node=w.nodes.find(n=>n.id===session.nodeId);
+      assert(node?.type==='terminal','Terminal node not found');
+      if(method==='terminal.agent.context') return agentContext(w,node,session);
+      assert(session.status==='running' && node.data.sessionId===session.id,'Report requires the current live terminal session');
+      object(p.patch);for(const key of Object.keys(p.patch)) assert(['step','status'].includes(key),'Reports may only update step and status');
+      const patch=structuredClone(p.patch);validateAgent(patch);
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return agentContext(w,current,session);});
+    }
+    if(method==='terminal.agent.update') {
+      const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
+      assert(node?.type==='terminal','Terminal node not found');object(p.patch);
+      for(const key of Object.keys(p.patch)) assert(['name','cardId','providerSessionId','step','status'].includes(key),'Unsupported identity field');
+      const patch=structuredClone(p.patch),validated={};
+      if(patch.name!==undefined){text(patch.name,'agent name',512);assert(patch.name.trim()&&!/[\x00-\x1f\x7f]/.test(patch.name),'Invalid agent name');}
+      for(const key of ['step','status']) if(patch[key]!==undefined)validated[key]=patch[key];
+      validateAgent(validated);
+      if(patch.cardId!==undefined) {
+        text(patch.cardId,'card ID',512);
+        if(patch.cardId){const result=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:patch.cardId});assert(result.handled&&['task','card'].includes(result.result?.kind),'Expected a Phantom task or card');validated.cardId=patch.cardId;validated.cardTitle=result.result.contract.goal;}
+        else {validated.cardId='';validated.cardTitle='';}
+      }
+      if(patch.providerSessionId!==undefined) {
+        text(patch.providerSessionId,'OpenCode session',512);
+        if(patch.providerSessionId){const result=await routeIntegration('opencode.sessions',{workspaceId:w.id});assert(result.result?.available&&result.result.items.some(s=>s.id===patch.providerSessionId),'OpenCode session not found in this workspace');validated.provider='opencode';validated.providerSessionId=patch.providerSessionId;}
+        else {validated.providerSessionId='';}
+      }
+      // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');if(patch.name!==undefined)current.title=patch.name.trim();const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
+    }
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);
     if(method==='terminal.write') return terminals.write(p.sessionId,p.data);
     if(method==='terminal.resize') return terminals.resize(p.sessionId,p.cols,p.rows);
@@ -88,6 +120,15 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
        if(p.includeHistory) {await terminals.flush();data.terminalHistory=terminals.sessions.map(s=>({...terminals.descriptor(s),seq:s.snapshotSeq??s.seq,status:s.status==='running'?'lost':s.status,pid:null,snapshot:s.snapshot}));}return data; }
     if(method==='storage.import') {
       let input=p.data;if(typeof input==='string'){assert(Buffer.byteLength(input)<=16*1024*1024,'Import too large');input=JSON.parse(input);}
+      // UI snapshots predating plugins carry no preference authority. Match by
+      // canonical project identity as well as ID, then validate the merged state.
+      input=structuredClone(object(input));
+      if(Array.isArray(input.workspaces)) for(const w of input.workspaces) {
+        let canonical=w.canonicalPath;try{canonical=canonicalFolder(w.path);}catch{/* validateState reports malformed paths. */}
+        const previous=store.state.workspaces.find(item=>item.canonicalPath===canonical);
+        if(previous&&w.plugins===undefined)w.plugins=structuredClone(previous.plugins);
+        if(previous&&w.phantomControllers===undefined)w.phantomControllers=structuredClone(previous.phantomControllers);
+      }
       const next=validateState(input);assert(!terminals.live.size,'Stop active terminals before importing');
       // Journal imported histories with the state atomically. Startup completes the transfer after a crash.
       next.terminalHistory=(next.terminalHistory??[]).map(s=>({...s,pid:null,status:s.status==='running'?'lost':s.status}));
