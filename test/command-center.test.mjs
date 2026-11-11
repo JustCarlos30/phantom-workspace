@@ -181,9 +181,9 @@ test('plugin settings persist per project through host restart and reject invali
   await host.invoke('plugin.update', { workspaceId: a.id, id: 'phantom', settings: { ...settings, enabled: false } });
   await host.close(); host = null;
   const restored = new Store(path.join(home, 'state'));
-  assert.deepEqual(restored.getWorkspace(a.id).plugins.phantom, { enabled: false, refreshMs: 3000 });
+  assert.deepEqual(restored.getWorkspace(a.id).plugins.phantom, { enabled: false, refreshMs: 3000, config: { phantomPath: '', phantomData: '', model: '' } });
   assert.ok(restored.getWorkspace(a.id).nodes.some(n => n.id === node.id));
-  assert.equal(restored.getWorkspace(b.id).plugins, undefined);
+  assert.deepEqual(restored.getWorkspace(b.id).plugins.phantom, { enabled: false, config: { phantomPath: '', phantomData: '', model: '' } });
   for (const method of ['plugin.get', 'plugin.update', 'phantom.events']) assert.ok(HOST_METHODS.has(method));
 });
 

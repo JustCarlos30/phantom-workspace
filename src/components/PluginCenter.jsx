@@ -50,7 +50,7 @@ function PluginCard({ plugin, workspace, api, refresh, notify, onOpenPanel }) {
       <ResourceState resource={status} empty={false} />
       {status.data && <><p className="plugin-status" role="status">{status.data.available ? 'Conexión disponible' : 'Conexión no disponible'}{status.data.cli ? ` · ${status.data.cli}` : ''}{status.data.version ? ` · ${status.data.version}` : ''}</p><DataView value={status.data} label="Resultado observado de conexión" /></>}
     </section>
-    <section className="plugin-panels tw-item" aria-label="Paneles del plugin"><h4>Paneles</h4>{!saved.enabled && <p className="tw-muted">Activa el plugin para abrir sus paneles.</p>}<div className="tw-row">{saved.panels?.map(panel => <Button key={panel.id} icon={ArrowUpRight} disabled={!saved.enabled || op.busy || !onOpenPanel} onClick={() => onOpenPanel(panel.nodeType, { pluginId: 'phantom', panelId: panel.id }, panel.name)}>Abrir {panel.name}</Button>)}</div></section>
+    <section className="plugin-panels tw-item" aria-label="Paneles del plugin"><h4>Paneles</h4>{!saved.enabled && <p className="tw-muted">Activa el plugin para abrir sus paneles.</p>}<div className="tw-row"><Button disabled={!saved.enabled || op.busy || !onOpenPanel} onClick={() => onOpenPanel('command-center')}>Abrir Centro de mando</Button>{saved.panels?.map(panel => <Button key={panel.id} icon={ArrowUpRight} disabled={!saved.enabled || op.busy || !onOpenPanel} onClick={() => onOpenPanel(panel.nodeType, { pluginId: 'phantom', panelId: panel.id }, panel.name)}>Abrir {panel.name}</Button>)}</div></section>
   </article>;
 }
 

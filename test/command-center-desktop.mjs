@@ -94,24 +94,20 @@ try {
   await page.goto(server.resolvedUrls.local[0]);
   const center = page.locator('.canvas-node.focused .command-center');
   await check('activar plugin y guardar preferencia por proyecto', async () => {
-    await page.getByRole('button', { name: 'Plugins', exact: true }).click();
-    const manager = page.getByRole('region', { name: 'Plugins del proyecto' });
-    await manager.waitFor();
-     assert.equal(await manager.getByRole('button', { name: 'Abrir Centro de mando' }).isDisabled(), true);
-     await page.evaluate(() => { window.__commandCenterFixture.failSave = true; });
-     await manager.getByRole('button', { name: 'Activar Phantom', exact: true }).click();
-     await manager.getByRole('alert').waitFor();
-     assert.match(await manager.getByRole('alert').innerText(), /guardado no disponible/);
-     assert.equal(await manager.getByRole('button', { name: 'Abrir Centro de mando' }).isDisabled(), true);
-     assert.equal(await count(), 0, 'A failed activation must not start native reads');
-     await page.evaluate(() => { window.__commandCenterFixture.failSave = false; });
-     await manager.getByRole('button', { name: 'Reintentar guardado', exact: true }).click();
-    await wait(() => manager.getByRole('button', { name: 'Abrir Centro de mando' }).isEnabled(), 'activation');
-    await manager.getByLabel('Frecuencia de actualización').selectOption('3000');
-    await wait(() => page.evaluate(() => window.__commandCenterFixture.state.workspaces[0].plugins.phantom.refreshMs === 3000), 'persisted interval');
-    await wait(() => manager.getByRole('button', { name: 'Abrir Centro de mando' }).isEnabled(), 'saved preferences');
-    await manager.getByRole('button', { name: 'Abrir Centro de mando' }).click();
+    await page.keyboard.press('Control+k');
+    await page.getByRole('button', { name: /Abrir Centro de mando/ }).click();
     await center.waitFor();
+    await page.evaluate(() => { window.__commandCenterFixture.failSave = true; });
+    await center.getByRole('button', { name: 'Reactivar Phantom', exact: true }).click();
+    await center.getByRole('alert').waitFor();
+    assert.match(await center.getByRole('alert').innerText(), /guardado no disponible/);
+    assert.equal(await count(), 0, 'A failed activation must not start native reads');
+    await page.evaluate(() => { window.__commandCenterFixture.failSave = false; });
+    await center.getByRole('button', { name: 'Reintentar guardado', exact: true }).click();
+    await wait(() => center.getByRole('button', { name: 'Pausar', exact: true }).isEnabled(), 'activation');
+    await center.getByLabel('Frecuencia de actualización').selectOption('3000');
+    await wait(() => page.evaluate(() => window.__commandCenterFixture.state.workspaces[0].plugins.phantom.refreshMs === 3000), 'persisted interval');
+
     await wait(async () => await center.locator('.cc-task').count() === 2, 'catalog');
     assert.equal(await page.evaluate(() => window.__commandCenterFixture.calls.filter(c => c.method === 'phantom.events').length), 0);
   });

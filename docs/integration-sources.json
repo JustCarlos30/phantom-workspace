@@ -1,0 +1,514 @@
+{
+  "date": "2026-11-11",
+  "base": "3a8f4f4e5af1e323cebdca5307019eeecf15b5ee",
+  "branch": "integrate/all-2026-11-11",
+  "backup": "/home/carlosj/.local/state/phantom-integration/2026-11-11/sources.bundle",
+  "sources": [
+    {
+      "id": "01",
+      "workspace": "/home/carlosj/Carlos_World/phantom-workspace",
+      "tree": "fc567df45f3961909c2fb934e9087e99bff23f18",
+      "commit": "0958fb7b9b3aeeb826c95d8e413af88af185f9ee",
+      "ref": "preserve/2026-11-11/source-01",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "02",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/1f121d1d-3bd4-40e7-b530-23331127f080",
+      "tree": "8a4e8b3be2b1f3a2041adcc33f50b540cf25d772",
+      "commit": "8452f25864216af3fac024d239146331ff24585c",
+      "ref": "preserve/2026-11-11/source-02",
+      "resolution": "integrated feature source"
+    },
+    {
+      "id": "03",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/2c0c6458-5f30-4950-80ed-fb66554cbffc",
+      "tree": "71591026e99919669d7f39fb433d2a9278abc2b6",
+      "commit": "d2135ef515efbab93c3d9653318f0c2a12db132c",
+      "ref": "preserve/2026-11-11/source-03",
+      "resolution": "integrated feature source"
+    },
+    {
+      "id": "04",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/679469a5-2739-4812-a90a-ef9b75271029",
+      "tree": "3841b48a2c7b5318f853ac6595fd4dfea1294b43",
+      "commit": "ddafd04da7eae18f70a1b84e456e1cb79b182838",
+      "ref": "preserve/2026-11-11/source-04",
+      "resolution": "integrated feature source"
+    },
+    {
+      "id": "05",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/6c06ac74-0b4f-49fc-ada3-f2d67fac856c",
+      "tree": "2bc50825e986db4c77771fcccba679395af45840",
+      "commit": "1e8b56dc40e54c3334a8ea29bfe423e514357a23",
+      "ref": "preserve/2026-11-11/source-05",
+      "resolution": "integrated feature source"
+    },
+    {
+      "id": "06",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/83718aa7-d3e8-4887-9276-88c4effe45a2",
+      "tree": "d4d390087dfd05e2638312c30d08baa9da35a00e",
+      "commit": "551fa55eca1bc11ace2ff4a6287a0d80778dbbcf",
+      "ref": "preserve/2026-11-11/source-06",
+      "resolution": "integrated feature source"
+    },
+    {
+      "id": "07",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/9a6400c0-8e04-4a18-bcbb-5b327a9f3aef",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "978aed69bd4855ff19789e9d7efc9673d2d05f3c",
+      "ref": "preserve/2026-11-11/source-07",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "08",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/aa43b802-b4b3-470b-afda-af3b02bcce51",
+      "tree": "b163ee69ad28bbf0826c87abdf8c4b1ce90ae408",
+      "commit": "a73b00b39c491fd74bcdba831cbf052f03f84a84",
+      "ref": "preserve/2026-11-11/source-08",
+      "resolution": "integrated feature source"
+    },
+    {
+      "id": "09",
+      "workspace": "/home/carlosj/.local/state/phantom-workspace/worktrees/39d76887-7f70-4ab7-a7d8-d37b32476faa/ec1f0932-2d96-40cd-9a1e-e574c0b22086",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "b6c1f98f8694d252551a5f24eeba958457d243a5",
+      "ref": "preserve/2026-11-11/source-09",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "10",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_0581722b-c163-415f-b3ee-baad137e3989/workspaces/child-browser-bridge",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "a18d5095ab2653ac213abeb2677948a33ea77b11",
+      "ref": "preserve/2026-11-11/source-10",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "11",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_0581722b-c163-415f-b3ee-baad137e3989/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "7b2fe744be87b6a42a757baa5cafee7916a0c2c7",
+      "ref": "preserve/2026-11-11/source-11",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "12",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_06c961f8-f227-4427-aedb-9f52209c62ea/workspaces/child-backend",
+      "tree": "2cdec5ace521e2e987055f8a56f5ae91285abb73",
+      "commit": "44a83f6cb464541db81a1f8598ff2710231337cf",
+      "ref": "preserve/2026-11-11/source-12",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "13",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_06c961f8-f227-4427-aedb-9f52209c62ea/workspaces/integration",
+      "tree": "bd5c9fe16662d37aefd484939cda22ca23c2e5c3",
+      "commit": "0ead586e0606f98edcf883129879ecb0fa51c0ac",
+      "ref": "preserve/2026-11-11/source-13",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "14",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_11b8125a-a1e1-426e-88dc-bd00a8bf415c/workspaces/child-integrate-repair",
+      "tree": "bd5c9fe16662d37aefd484939cda22ca23c2e5c3",
+      "commit": "5a319a7c1cdd114d3a089b6adef310c60968de3a",
+      "ref": "preserve/2026-11-11/source-14",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "15",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_11b8125a-a1e1-426e-88dc-bd00a8bf415c/workspaces/integration",
+      "tree": "bd5c9fe16662d37aefd484939cda22ca23c2e5c3",
+      "commit": "bfd20b48c73ec9c25fb8e44b4861835d522d3e06",
+      "ref": "preserve/2026-11-11/source-15",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "16",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_1db2c250-6136-4e9b-932f-54a0aeb6b0c9/workspaces/child-browser-bridge",
+      "tree": "43e015476206f90600d7b9e5d1348c3f384ba348",
+      "commit": "f55241f71281ecd29a54a7431fc13d8072e828d3",
+      "ref": "preserve/2026-11-11/source-16",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "17",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_1db2c250-6136-4e9b-932f-54a0aeb6b0c9/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "8995541a994b2fcb5381189c6b82a55fe42ef9d5",
+      "ref": "preserve/2026-11-11/source-17",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "18",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_231def94-dd13-475c-b4f3-9176cc9be4af/workspaces/child-workspace-canvas",
+      "tree": "3cb1ff9d11c0bc06de35d11496fcb16761379af4",
+      "commit": "01d2993097b556dbf25995653839cf8f00b4a709",
+      "ref": "preserve/2026-11-11/source-18",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "19",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_231def94-dd13-475c-b4f3-9176cc9be4af/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "d0c0f9ffc526275b421a27dc61b9e5d57150a0bd",
+      "ref": "preserve/2026-11-11/source-19",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "20",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_2404d1ef-a373-4050-b1f6-1211d05e270b/workspaces/child-integrate-repair",
+      "tree": "1070d9bf9e7cb9c55a1131c4799bfe9d55227d55",
+      "commit": "7ab3c23cc7a40aceeba1e48d3b89b8f5a0b66127",
+      "ref": "preserve/2026-11-11/source-20",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "21",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_2404d1ef-a373-4050-b1f6-1211d05e270b/workspaces/integration",
+      "tree": "1070d9bf9e7cb9c55a1131c4799bfe9d55227d55",
+      "commit": "ea7a8b078a5f7b499c4e420202f4277abb674b6c",
+      "ref": "preserve/2026-11-11/source-21",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "22",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_38da2bd1-f2fc-4b7a-ad80-9c207e7cccf6/workspaces/child-browser-bridge",
+      "tree": "111f12e8c8be89b62e281c8cd4743fec67079e0b",
+      "commit": "ef3f260c573d157ee74d91733c6ee7037e0c967d",
+      "ref": "preserve/2026-11-11/source-22",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "23",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_38da2bd1-f2fc-4b7a-ad80-9c207e7cccf6/workspaces/integration",
+      "tree": "1211fed9e5049e50bba1852467ccafe72038fccc",
+      "commit": "fb3f004786e960c9497ba3719ecb0b1c4d43f4ea",
+      "ref": "preserve/2026-11-11/source-23",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "24",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_442018ff-a4ad-437e-81b9-46d3812b6afe/workspaces/child-browser-bridge",
+      "tree": "9946b2f2076e6fd37043bfe44b83ee2e93284a79",
+      "commit": "58d12c9a76be07115000779230dc42b9199c5ed4",
+      "ref": "preserve/2026-11-11/source-24",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "25",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_442018ff-a4ad-437e-81b9-46d3812b6afe/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "6c70c4905a6808aef242fcc16bd0ac2f19cea76f",
+      "ref": "preserve/2026-11-11/source-25",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "26",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_5257ad82-d7b4-4850-9e62-7379ccf7e7c9/workspaces/child-activity",
+      "tree": "4640de329946304dc5aaf97363f257b4230e9fee",
+      "commit": "9ba730ab547268b57cdc059748f241da71e99e9e",
+      "ref": "preserve/2026-11-11/source-26",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "27",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_5257ad82-d7b4-4850-9e62-7379ccf7e7c9/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "4dac471221a7bfcd6db2e41bd3581fc7541f87a3",
+      "ref": "preserve/2026-11-11/source-27",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "28",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_6910beb4-2e78-4b4f-939a-763fcd114969/workspaces/child-activity",
+      "tree": "8a6c643cee145fbf06aae442c36ce176c667c894",
+      "commit": "620e2cceae403c71348fa91bd16ca28e16f92d22",
+      "ref": "preserve/2026-11-11/source-28",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "29",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_6910beb4-2e78-4b4f-939a-763fcd114969/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "3c2b7d9a09728151df4257a55b0aeb5339dc901b",
+      "ref": "preserve/2026-11-11/source-29",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "30",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_85825b79-2bd0-421f-a43f-7e3209f45d5e/workspaces/child-workspace-canvas",
+      "tree": "82e84199fcc66a2929534975aecd4d582907e2f4",
+      "commit": "e1a17f086ddcd79cda0ed324360c9791f0430c68",
+      "ref": "preserve/2026-11-11/source-30",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "31",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_85825b79-2bd0-421f-a43f-7e3209f45d5e/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "d0aa2fc120630bde0eebb42eb586a720e7f29fc7",
+      "ref": "preserve/2026-11-11/source-31",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "32",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_898afe00-0873-4fc9-bb92-0c555c3fc390/workspaces/child-automation-integration",
+      "tree": "71591026e99919669d7f39fb433d2a9278abc2b6",
+      "commit": "287e605509c0b92ffc94895ad21f3d2339ce534b",
+      "ref": "preserve/2026-11-11/source-32",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "33",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_898afe00-0873-4fc9-bb92-0c555c3fc390/workspaces/child-browser-bridge",
+      "tree": "1df1ff2e39fd021c90336152375b812739dccf69",
+      "commit": "fa271013942eff915a2c8addbd3be659067fde8c",
+      "ref": "preserve/2026-11-11/source-33",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "34",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_898afe00-0873-4fc9-bb92-0c555c3fc390/workspaces/integration",
+      "tree": "71591026e99919669d7f39fb433d2a9278abc2b6",
+      "commit": "81a85df7e3f69e9345efd79e54193eb4de05fc0b",
+      "ref": "preserve/2026-11-11/source-34",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "35",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_8c891efa-5a7d-4020-bf88-150c14a85656/workspaces/child-integrate-repair",
+      "tree": "34c0e29439c97ea1c3f0461282af1fae16030be3",
+      "commit": "af0a0d2b7b6bfddacf53b8ff2b02522f7e4a715d",
+      "ref": "preserve/2026-11-11/source-35",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "36",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_8c891efa-5a7d-4020-bf88-150c14a85656/workspaces/integration",
+      "tree": "34c0e29439c97ea1c3f0461282af1fae16030be3",
+      "commit": "7d4623019e6630448552932138c7a60c2a40fddc",
+      "ref": "preserve/2026-11-11/source-36",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "37",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_913cf570-efc4-43ad-ad5e-8608562e4f33/workspaces/child-activity",
+      "tree": "2bc50825e986db4c77771fcccba679395af45840",
+      "commit": "587e7e620805d4af39894d4ca0e8e7a9a9ab8d0e",
+      "ref": "preserve/2026-11-11/source-37",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "38",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_913cf570-efc4-43ad-ad5e-8608562e4f33/workspaces/integration",
+      "tree": "2bc50825e986db4c77771fcccba679395af45840",
+      "commit": "2a91e0c4d5c59a4dc349205b79ac8c7a4fa5e107",
+      "ref": "preserve/2026-11-11/source-38",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "39",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_9867bfed-1d8a-4fae-83b9-0ff8d9c83f47/workspaces/child-activity",
+      "tree": "79878cef4ab64ddc4b363d9ac6b62891c92967d2",
+      "commit": "0a65484f702721f4ccd763ccb38b9c1118816f97",
+      "ref": "preserve/2026-11-11/source-39",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "40",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_9867bfed-1d8a-4fae-83b9-0ff8d9c83f47/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "e15492b1e48c72c376ac8ac261ef50c6a0b6c2fd",
+      "ref": "preserve/2026-11-11/source-40",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "41",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_9e96dfbe-6905-4c81-a679-5e5b4178f263/workspaces/child-browser-bridge",
+      "tree": "94c3a7c1ace1def03c7042ec154343d345478acf",
+      "commit": "899b9d6552c1279cf2d75ac0e469cf31523eba18",
+      "ref": "preserve/2026-11-11/source-41",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "42",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_9e96dfbe-6905-4c81-a679-5e5b4178f263/workspaces/integration",
+      "tree": "b7b783aa78efc4f1588f44beb373c51fbdc164cd",
+      "commit": "c590898c16f9a3fdcba95bea8798d353e04b228f",
+      "ref": "preserve/2026-11-11/source-42",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "43",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_a414800f-fe21-4a50-a003-fc5a855e6767/workspaces/child-activity",
+      "tree": "294e6b703557753022b9c17e6baa43ee58683c44",
+      "commit": "9434a7f461a4272ba868cc3b72f293b00fc5bc7e",
+      "ref": "preserve/2026-11-11/source-43",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "44",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_a414800f-fe21-4a50-a003-fc5a855e6767/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "ca52470084c1da59fc007de3fb508af6e11de199",
+      "ref": "preserve/2026-11-11/source-44",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "45",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_b417fe5a-c198-4e1d-9617-11c498c177b7/workspaces/child-activity",
+      "tree": "625012479e436fc17647876ce2294068edac6347",
+      "commit": "e31bab00df034d6f1daff1d90f711e1a4ee57963",
+      "ref": "preserve/2026-11-11/source-45",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "46",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_b417fe5a-c198-4e1d-9617-11c498c177b7/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "edd8925fab51852b9bd68ca5f794ca152085063e",
+      "ref": "preserve/2026-11-11/source-46",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "47",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_cd03cbe3-9839-4cf3-a627-0e3db6d86d21/workspaces/child-workspace-canvas",
+      "tree": "9dd92feed6a659f8cd6297799532d78b5310b8ae",
+      "commit": "fa141b9270312271e477eb84748accab28411890",
+      "ref": "preserve/2026-11-11/source-47",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "48",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_cd03cbe3-9839-4cf3-a627-0e3db6d86d21/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "890963fd8ea23e0775f0f5d09fc490d67b5c68b3",
+      "ref": "preserve/2026-11-11/source-48",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "49",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/child-backend-recovery",
+      "tree": "c31af5a8d893f828b6ccca48da495aeb0b608b13",
+      "commit": "0fbd36aa96c46cfa85cbf94f15b5289469739b4c",
+      "ref": "preserve/2026-11-11/source-49",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "50",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/child-cards",
+      "tree": "3c753bc345c56336bac8a58afb950094b06c7513",
+      "commit": "9767d797b4460f6dd79984aeceadf7fb88501b5b",
+      "ref": "preserve/2026-11-11/source-50",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "51",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/child-desktop",
+      "tree": "2a53f76af75fb3630c2b29ef3d82332be862c832",
+      "commit": "af26c84a1d00048da81020840c7bcf058daf3643",
+      "ref": "preserve/2026-11-11/source-51",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "52",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/child-model-tests",
+      "tree": "1e254cfd4e28e6f27f927fe0ff804e1fdebcbbc6",
+      "commit": "e60adfb949a6991ce10f48e317bbaaefcc630883",
+      "ref": "preserve/2026-11-11/source-52",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "53",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/child-plugin-center",
+      "tree": "b3aba13719ee60ace96fae14d8e9eac1a5037c71",
+      "commit": "e6723d59128ed04aae0780441661f6527f756e3d",
+      "ref": "preserve/2026-11-11/source-53",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "54",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/child-skills",
+      "tree": "8c98c0f9320d4d93d1270c8a2324c30348fa57cc",
+      "commit": "1b52dfe5449c3124e32f3c62a490f95c6a7d3a56",
+      "ref": "preserve/2026-11-11/source-54",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "55",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/child-wiring",
+      "tree": "f3889858c7e51a5ec3034c4effb38188f4f01caa",
+      "commit": "ee6848f6e149454b6ee4032432ea96c60de64501",
+      "ref": "preserve/2026-11-11/source-55",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "56",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_ce055896-5b4f-4c05-b0e7-d26197f1d7a8/workspaces/integration",
+      "tree": "bd5c9fe16662d37aefd484939cda22ca23c2e5c3",
+      "commit": "6c0f1a89b8b0b29629e8f311bf212ce5270c25fd",
+      "ref": "preserve/2026-11-11/source-56",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "57",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_d169b9af-79e5-43a6-9919-e6255794f5db/workspaces/child-backend",
+      "tree": "8a56c175629d16b59d0e40e3b37b22b7ae1bd189",
+      "commit": "c7fdad6474bb2a1f2419c0c053b03d9ba833da9e",
+      "ref": "preserve/2026-11-11/source-57",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "58",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_d169b9af-79e5-43a6-9919-e6255794f5db/workspaces/integration",
+      "tree": "bd5c9fe16662d37aefd484939cda22ca23c2e5c3",
+      "commit": "1471659f0d570aef59f37757a03a62c59ad4a963",
+      "ref": "preserve/2026-11-11/source-58",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "59",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_d5159a41-4e7a-4188-b247-698476800ea7/workspaces/child-workspace-canvas",
+      "tree": "e08af77c056743aab0ce07e872371b697488414f",
+      "commit": "550d8119e86fda23cc20bc753ff189c6b5481cc2",
+      "ref": "preserve/2026-11-11/source-59",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "60",
+      "workspace": "/home/carlosj/.local/state/phantom/artifacts/run_d5159a41-4e7a-4188-b247-698476800ea7/workspaces/integration",
+      "tree": "bce4e926a6673a81cfb12f8f8186b4b6ca083807",
+      "commit": "c7e6a006dadc823e3d12df06eae91871bea8f013",
+      "ref": "preserve/2026-11-11/source-60",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "61",
+      "workspace": "/home/carlosj/Carlos_World/phantom-workspace-plugins",
+      "tree": "54775a9eb5e91afa561bc4341423093a96dbf9af",
+      "commit": "12c8b5b5eee085e6f5ba0a4106a5a67b9e97dbda",
+      "ref": "preserve/2026-11-11/source-61",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    },
+    {
+      "id": "62",
+      "workspace": "/tmp/opencode/phantom-registration",
+      "tree": "3a8a94ba58bdd0cc4cf34a100aa478e5b4ab3a25",
+      "commit": "090a56dd8214de9eac598c957ab8b156672f202c",
+      "ref": "preserve/2026-11-11/source-62",
+      "resolution": "preserved predecessor or overlapping draft; current feature sources take precedence"
+    }
+  ],
+  "additionalArtifacts": {
+    "test/workspace-canvas.mjs": "source-18"
+  },
+  "decisions": [
+    "Use source-04 plugin platform and native controls as the integration base.",
+    "Merge source-02 conversation reading and accessibility while retaining wheel and plugin safeguards.",
+    "Combine agent reporting, policy bootstrap, browser provisioning and cancellable worktree setup before PTY spawn.",
+    "Keep one plugin preference record; command-center compatibility updates preserve native config and refresh interval.",
+    "Retain prior drafts in preserved Git history instead of overwriting newer implementations."
+  ]
+}

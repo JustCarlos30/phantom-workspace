@@ -198,3 +198,18 @@ test('installed native CLI: isolated cards/replacements, events ownership, immut
   assert.equal((await f.call('phantom.list', { topic: 'tasks' }, 1)).items.length, 0);
   assert.equal((await f.call('phantom.list', { topic: 'tasks' })).items.length, 2);
 });
+
+test('command-center preferences and native plugin config share durable state without overwriting each other', async t => {
+  const f = await fixture(t);
+  const host = await createHost({ dataDir: f.store.dir, handleIntegration });
+  t.after(() => host.close());
+  const workspaceId = f.workspaces[0].id;
+  await host.invoke('plugins.update', { workspaceId, id: 'phantom', patch: { enabled: true, config: { model: 'fixture/model' } } });
+  await host.invoke('plugin.update', { workspaceId, id: 'phantom', settings: { enabled: true, refreshMs: 3000 } });
+  let saved = (await host.invoke('state.get')).workspaces.find(w => w.id === workspaceId).plugins.phantom;
+  assert.equal(saved.config.model, 'fixture/model'); assert.equal(saved.refreshMs, 3000);
+  await host.invoke('plugins.update', { workspaceId, id: 'phantom', patch: { enabled: false, config: { model: 'fixture/other' } } });
+  saved = (await host.invoke('state.get')).workspaces.find(w => w.id === workspaceId).plugins.phantom;
+  assert.equal(saved.config.model, 'fixture/other'); assert.equal(saved.refreshMs, 3000); assert.equal(saved.enabled, false);
+  assert.deepEqual(await host.invoke('plugin.get', { workspaceId, id: 'phantom' }), { enabled: false, refreshMs: 3000 });
+});

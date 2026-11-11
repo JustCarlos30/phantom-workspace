@@ -128,7 +128,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     setTools(false); setMenu(null); setList(false); setTray(false); setInspector(null);
     const panel = PLUGIN_PANELS.find(item => item.nodeType === type);
     if (panel) data = { ...data, pluginId: panel.pluginId, panelId: panel.id };
-    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (type === 'plugins' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
+    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (type === 'plugins' || type === 'command-center' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
     if (existing) { focusPanel(existing.id); return existing; }
     setBusy(type);
     let reservationId, created = false;
