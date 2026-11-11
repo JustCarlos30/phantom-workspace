@@ -1,290 +1,95 @@
 ---
 name: Phantom Workspace
-description: Atlas de estudio — a recoverable desktop project table.
+description: Lienzo protagonista — estudio dark continuo y recuperable.
 colors:
-  accent: "#345bd5"
-  accent-soft: "#edf1ff"
-  bg: "#e8edf2"
-  surface: "#fff"
-  surface-2: "#f4f6f9"
-  ink: "#202b3b"
-  muted: "#627084"
-  line: "#d8dfe8"
-  danger: "#b43b48"
-  success: "#28765f"
-  warning: "#946216"
-  rail: "#202c44"
-  rail-active: "#34435f"
-  terminal-bg: "#131d2c"
-  terminal-chrome: "#172335"
-  terminal-foreground: "#e1e8f2"
-  note: "#fffef9"
-  mission-bg: "#eaf2ee"
-  mission-ink: "#55705f"
+  accent: "#8b9dff"
+  accent-soft: "color-mix(in srgb, var(--accent) 15%, var(--surface))"
+  bg: "#15171c"
+  surface: "#202329"
+  surface-2: "#292d35"
+  ink: "#eceef3"
+  muted: "#a5adbb"
+  line: "#373d48"
+  danger: "#ff9da8"
+  success: "#8ad8b6"
+  warning: "#edbf79"
+  terminal-bg: "#151a23"
+  terminal-chrome: "#1c222d"
+  note: "#24252b"
+  mission-bg: "#253c35"
+  mission-ink: "#a4dec4"
 typography:
-  headline:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "24px"
-    fontWeight: 600
-    lineHeight: 1.25
-    letterSpacing: "-.035em"
-  title:
-    fontFamily: "system-ui, sans-serif"
-    fontSize: "15px"
-    fontWeight: 650
-    lineHeight: 1.4
   body:
-    fontFamily: "system-ui, sans-serif"
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
     fontSize: "13px"
-    lineHeight: 1.5
   label:
     fontFamily: "system-ui, sans-serif"
     fontSize: "12px"
     fontWeight: 600
-  panel-title:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "calc(11px * var(--map-label-scale,1))"
-    fontWeight: 600
-    lineHeight: 1.1
-  tool-button:
-    fontFamily: "system-ui, sans-serif"
-    fontSize: "12px"
-    fontWeight: 500
-    lineHeight: 1.4
-  code:
-    fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace"
-    fontSize: "12px"
-    lineHeight: 1.65
   terminal:
     fontFamily: '"DejaVu Sans Mono", "Liberation Mono", monospace'
     fontSize: "13px"
     lineHeight: 1.24
 rounded:
-  badge: "3px"
-  inline: "4px"
   field: "5px"
   icon: "6px"
   button: "7px"
-  menu: "8px"
-  dock: "9px"
   node: "10px"
-  dialog: "11px"
-  overlay: "12px"
+  dock: "12px"
 spacing:
-  compact: "4px"
-  field-gap: "5px"
-  tool-button-gap: "6px"
   control-gap: "8px"
-  form-gap: "10px"
   inset: "12px"
   content: "16px"
   section: "24px"
-components:
-  button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.button}"
-    padding: "0 13px"
-    height: "35px"
-  button-secondary:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.button}"
-    padding: "0 13px"
-    height: "35px"
-  icon-button:
-    textColor: "{colors.muted}"
-    rounded: "{rounded.icon}"
-    size: "29px"
-  tool-button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.surface}"
-    typography: "{typography.tool-button}"
-    rounded: "{rounded.field}"
-    padding: "6px 10px"
-  tool-button-secondary:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.tool-button}"
-    rounded: "{rounded.field}"
-    padding: "6px 10px"
-  tool-field:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body}"
-    rounded: "{rounded.field}"
-    padding: "7px 9px"
-    width: "100%"
-  project-item-active:
-    backgroundColor: "{colors.rail-active}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.button}"
-    padding: "10px 8px"
-    width: "100%"
-  tool-badge:
-    backgroundColor: "{colors.surface-2}"
-    textColor: "{colors.muted}"
-    rounded: "{rounded.badge}"
-    padding: "2px 6px"
-  mission-chip:
-    backgroundColor: "{colors.mission-bg}"
-    textColor: "{colors.mission-ink}"
-    rounded: "{rounded.inline}"
-    padding: "3px 5px"
-  canvas-node:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.node}"
 ---
 
 # Design System: Phantom Workspace
 
-## Overview
+## Dirección y procedencia
 
-**Creative North Star: "Atlas de estudio"**
+**Lienzo protagonista.** Carlos fija sidebar compacto y plegable, controles flotantes y mínimos bordes. Implementación code-led / Operate; seed: none (unavailable). `.impeccable/surfaces/workspace.md` registra el contrato. Este documento sustituye el registro anterior del tema claro; la fuente actual del tema es `src/studio.css`, sobre la estructura de `src/styles.css` y los componentes.
 
-A recoverable project table: an ink-blue project rail anchors a mineral canvas, with precise white panel frames and dark working terminals. Density is that of a desktop tool; compact controls and readable context take precedence over decorative composition. The signature is spatial return: enter a focused panel, then return to its map without replacing the underlying camera or panel identity.
+Grafito e iris, tipografía nativa y superficies operativas opacas. La cabecera y el sidebar desktop son transparentes sobre el mismo fondo del lienzo, sin costuras estructurales. La marca es discreta; los comandos preceden a proyectos y paneles en filas compactas. No se añadieron fondos decorativos ni gradientes: se reutilizan las atmósferas Aurora, Marea, Brasa y Grafito existentes, ahora sobre todo el shell. La retícula permanece solo en el mapa (24px, punto .7px).
 
-This is a code-led record of the shipped world. `src/styles.css`, `src/tools.css`, `src/App.jsx`, the components, and the input/edit/save hooks are the implementation authority; the frontmatter records their reusable values. The confirmed direction comes from `.impeccable/surfaces/workspace.md`, with durable identity and input constraints in `PRODUCT.md`. No comparison images supplied the visual authority. `assets/phantom.svg` is the shipping vector brand asset; the rail currently renders its Blocks SVG icon. There are no shipping raster assets: browser thumbnails are runtime captures, and review screenshots are development evidence, not reusable brand imagery.
+## Tokens y contraste
 
-**Key Characteristics:**
-- Mineral map, ink-blue rail, white tool surfaces, dark terminal work area.
-- Native system typography for interface text; monospace for terminal and code.
-- Compact bordered controls with cobalt selection and visible keyboard focus.
-- Persistent project and panel identities with an explicit map-to-focus return.
-- First-party tool forms shared between canvas panels and the nonmodal inspector.
+Los colores del frontmatter corresponden a `studio.css`. Texto principal `#eceef3`, secundario `#a5adbb`; superficies operativas `#202329` y `#292d35`. Iris `#8b9dff` identifica selección, acciones y foco. Las acciones primarias usan texto oscuro `#171b28`. Estados incluyen texto además de color. El contorno fino `#373d48` delimita nodos; selección mantiene borde y outline de acento.
 
-Evidence boundary: the five current images in `.impeccable/review/` (`desktop.png`, `narrow.png`, `focused-terminal.png`, `tools.png`, `browser-native.png`) were directly inspected for this record. The latest `desktop-checks.final.json` records 34 passed / 0 failed, build `2026-11-11T07:46:06.456Z`, completed `2026-11-11T07:46:35.774Z`. The supplied reviewer finish verdict is **SHIP scoped to FR01/FR02/FR03, all resolved**, retaining the external CLI seed-metadata-format limitation in `direction-provenance.md`. This is not whole-product exhaustive UX approval or observed human visual approval. The older `E2E-final-report.md` still describes the superseded 32/2 run; the newer JSON and current focus-restoration code take precedence.
+Las preferencias existentes por proyecto (`phantom:studio:<id>`) conservan fondo, imagen local, intensidad, retícula y acento. Acentos alternativos: Menta `#7ddbb9`, Ámbar `#edbf79`, Rosa `#e9a0bf`. Intensidad inicial 55%; en enfoque se multiplica por .12. La imagen personal solo afecta el fondo: terminales, notas, herramientas y popovers siguen opacos.
 
-## Colors
+Interfaz base 13px nativa, controles de navegación 11px, marca 13px, rutas y estados 10px. Títulos de nodos conservan compensación de escala `min(2.4, max(1, 1 / zoom))`. xterm conserva sus métricas independientes; no se aplica animación de transformación a su contenido.
 
-Cool, low-chroma structural surfaces distinguish orientation from operation; cobalt marks action and selection rather than filling the workspace. Frontmatter values are normative; not every isolated literal in the CSS is promoted to a reusable token.
+## Layout y navegación
 
-### Primary
-- **Cobalt / accent:** primary actions, selected node border and outline, links, caret, keyboard focus and selected tool tabs.
-- **Cobalt wash / accent-soft:** hover and active icon/dock controls, tool tabs, and selected command results.
+- Mínimo desktop 580px; no es una propuesta mobile.
+- Sidebar desktop: **224px expandido / 56px plegado**, liberando 168px de layout. Expandido por defecto. Preferencia global local `phantom:sidebar-collapsed`, independiente del proyecto y tolerante a errores de almacenamiento (sigue funcionando en la sesión).
+- Toggle siempre visible en cabecera, con nombre, title, `aria-expanded` y `aria-controls`. El rail plegado conserva proyectos por iniciales, crear, buscar, abrir carpeta, paneles, apariencia y configuración. Las etiquetas recortadas siguen accesibles y los controles tienen identificación textual/title.
+- Cabecera 60px, sin banda sólida ni borde estructural: conserva nombre editable, ruta, guardado, errores y comandos. El guardado permanece visible en anchuras compactas.
+- A 850px o menos, sidebar de 224px como drawer temporal con scrim. Oculto es `inert`; abierto limita Tab a sus controles. Escape, scrim o selección cierran y devuelven foco al disparador. Cruzar breakpoint cierra el drawer; el plegado desktop se conserva independientemente.
+- Desktop expandido/plegado no bloquea xterm. Solo el drawer abierto participa en la política de overlays bloqueantes. El browser nativo sigue usando la política de ocultación existente.
+- A 1100px o menos el inspector pasa a overlay derecho de 350px. En desktop ancho consume espacio (370px desde 1450px, 325px en la variante compacta). Superficie tonal `#202329`, sin borde de separación.
+- Dock inferior centrado a 22px del borde, altura 50px, botones 38px; zoom separado arriba, controles de al menos 32px. Navegación usa áreas de 32–36px, proyectos mínimo 42px.
 
-### Neutral
-- **Mineral / bg:** canvas and desktop-required/recovery background.
-- **White / surface:** header, inspector, tool panels, controls and popovers.
-- **Cool paper / surface-2:** secondary controls, code blocks, badges and dialog action areas.
-- **Blue ink / ink:** primary interface text; **Slate / muted:** secondary labels and source context; **Seam / line:** tool dividers and field borders.
-- **Rail ink / rail** and **Rail selection / rail-active:** project navigation context, independent of cobalt canvas selection.
-- **Terminal depth / terminal-bg**, **Terminal chrome / terminal-chrome**, and **Terminal foreground:** xterm work area, location strip/overview, and terminal glyphs respectively. The ANSI palette and cursor/selection colors remain in `TerminalPanel.jsx`; they are terminal semantics, not additional UI action accents.
-- **Note paper / note:** editable note body, distinct from white tool chrome.
+## Continuidad del trabajo
 
-### Semantic states
-- **Danger:** destructive actions, error text and invalid inline-name border. **Success:** reference/mission context and success feedback. **Warning:** unavailable tools and caution notices. Status dots also have explicit lighter colors for contrast on the dark rail/terminal; retain their accompanying text.
-- **Mission paper / mission-bg** and **Mission ink / mission-ink:** compact mission membership chip; tool badges instead use neutral paper/slate.
-- Browser and inline-name errors use the actual pale error pair (`#fff0ef` / `#a13640`); connection banners use (`#fff3ee` / `#943a35`). These are local treatments, not a replacement semantic palette.
+El plegado cambia el ancho del rail, no la cámara, las coordenadas almacenadas, la selección ni la identidad del terminal. El Canvas permanece montado. El resize del viewport usa su observador existente; no hay reconstrucción de xterm por plegado.
 
-**The Selection Is State Rule.** Use cobalt to identify action, selection and keyboard ownership; retain labels and status text alongside colored indicators.
+Mapa: zoom .15–1.8, fit hasta 1; arrastre por cabecera, selección múltiple con Mayús y resize por esquina. Geometrías de creación: terminal/herramienta 640×400, browser 800×520, nota 420×340, con colocación por `findPanelPlacement`. Enfoque usa geometría temporal (24px,55px), ancho `max(320, canvasWidth - 48)` y alto `max(240, canvasHeight - 145)`; el retorno conserva cámara y selección previa. Otros paneles permanecen montados y ocultos durante enfoque.
 
-## Typography
+Nombres se editan en línea: Enter confirma y devuelve foco, Escape cancela, blur confirma sin robar foco. El nombre del proyecto no modifica su carpeta canónica. Notas, layout y cámara usan la cola durable existente; cambios de proyecto esperan flush. Guardado pendiente/error y recuperación permanecen explícitos.
 
-**Body Font:** shell native stack (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif`); tool surfaces explicitly use `system-ui, sans-serif`.
-**Label/Mono Font:** code and terminal stacks are separate, as recorded in frontmatter.
+Las teclas normales del terminal pertenecen a xterm. Solo un stream activo y con foco real dentro de su xterm escribe en PTY. Inspector no modal permite recuperar la terminal por clic; paleta, drawer y demás overlays bloqueantes suspenden input. Ctrl/Cmd+K abre comandos; Ctrl/Cmd+Mayús+F busca paneles. El browser nativo conserva su montaje y política de ocultación bajo overlays.
 
-There is no branded display font, imported Inter, or marketing type ramp. The earlier Inter detector warning was corrected to the native stacks. Do not derive a display-face prescription from the functional empty-state heading.
+## Elevación y movimiento
 
-### Hierarchy
-- **Headline:** functional empty-state heading; desktop-required heading is a local variant (25px, 600, -.03em).
-- **Title:** tool section headings; the shell brand is a separate 15px/650 treatment with -.02em tracking.
-- **Body:** tool prose and controls; tool paragraphs cap at 72ch. Shell base is 13px without a global line-height; note and empty-state prose use 1.8.
-- **Label:** tool field labels; project names use 12px/650, panel names use the recorded scaled panel-title role.
-- **Supporting text:** tool hints and badges (11px); shell paths/status and key hints (9–10px); shell controls mostly 11–12px. Sentence case is normal interface copy, not a system of uppercase kickers.
-- **Code / terminal:** preserve their different line-heights. xterm measures physical glyph cells; never infer its layout from proportional interface text.
-- **Map title compensation:** `--map-label-scale` is `min(2.4, max(1, 1 / zoom))` in overview and 1 in focus. It scales header titles/icons within the transformed canvas, rather than enlarging terminal content.
+Nodos: sombra `0 4px 12px #0002`, sin sombra en enfoque; cabecera del nodo del mismo tono que la superficie. Dock/zoom `0 8px 24px #0005`; popovers `0 16px 40px #0006`; inspector compacto `-12px 0 35px #0004`. La selección es estado, no elevación decorativa.
 
-## Layout
+Plegado de ancho y drawer: 160ms ease-out. Atmósfera: 180ms ease-out. Se conservan transiciones existentes de presencia y herramientas. Reduced-motion desactiva las transiciones nuevas, además del límite global existente de .01ms. No se anima la transformación de xterm ni se desmonta al alternar navegación.
 
-The app fills the window with document scrolling disabled; scrolling belongs to tool content, lists and terminal viewports. The shell has a desktop minimum width (580px). The default project rail is 202px, the header 75px high, and the remaining body is a flex canvas plus optional inspector. Canvas dots are a radial pattern (0.65px dot, 20px grid), not a raster texture. New panels are placed by `findPanelPlacement`; default terminal/tool geometry is 640×400, browser 800×520, note 420×340.
+## Evidencia y límite de verificación
 
-The camera starts at (64,64), zoom 1. Manual zoom clamps to .15–1.8; fit-all caps at 1. Header drag moves panels; Shift adds header selections; a corner handle resizes. Pointer resizing minima are 400px for terminal width, 320px otherwise, and 240px height; keyboard resizing advances by 24px and uses a 400px width minimum. The spacing vocabulary is compact and mixed, not a strict invented modular grid: recurring gaps/insets are recorded above; tools use 16px content padding, 24px section separation, 10px form gaps, and 7px 9px field padding.
+`test/workspace-canvas.mjs` declara integración Electron real, host y PTY aislados, fixtures SYNTHETIC y perfiles en `/tmp/opencode`. Escribe exclusivamente evidencia de esta card en `.test-artifacts/canvas` (ignored): `desktop.png`, `collapsed.png`, `narrow.png`, `drawer.png`, `focused.png`, `checks.json`. Capturas esperadas: 1520×980, 1100×760 y 800×700; el mínimo de BrowserWindow se ajusta solo en el test.
 
-Focus replaces the visible geometry, not stored panel coordinates: inset (24px left, 55px top), width `max(320, canvasWidth - 48)`, height `max(240, canvasHeight - 145)`. Other nodes remain mounted but hidden. Focus removes canvas dots, retains a 42px return strip, and hides map navigation/index controls. Camera and pre-focus selection survive a round trip within the current UI session. Persisted layout is distinct from transient focus/selection.
+El test cubre continuidad de sesión/PID/texto/geometría, ganancia de espacio, preferencia tras reload/cambio de proyecto, escritura real por teclado, enfoque/retorno, inspector/paleta, cierres del drawer, breakpoint, reduced-motion, errores de página y separación de controles. Los checks los ejecuta Phantom; esta documentación no acredita su resultado ni aprobación visual. La sesión coordinadora revisa las capturas de forma independiente. Ledgers anteriores no verifican esta revisión.
 
-### Responsive desktop
-- At **min-width 1450px**, rail becomes 220px, inspector 370px, header side padding 28px, and the creation-dock label appears.
-- At **max-width 1270px**, save-state text hides, header padding becomes 18px, map descriptive text hides, inspector becomes 325px, and dock/zoom controls tighten.
-- At **max-width 1100px**, rail becomes 180px; inspector overlays the right side of the workspace body (350px, full body height) rather than consuming canvas width. Search label hides and the path caps at 340px.
-- At **max-width 850px**, rail becomes an off-canvas 220px drawer with scrim and close control; header becomes 65px with 13px side padding. Breadcrumb context collapses, path caps at 280px, empty headings shrink to 22px, and picker width becomes 370px.
-- At **max-height 650px**, empty-state position/icon/type and picker density compress; heading becomes 21px.
-- Tool CSS has a **max-width 600px** adaptation: 12px content padding and tighter overlays. This does not remove the shell minimum or establish mobile product support. The current narrow screenshot is desktop (1100×760), not mobile verification.
-
-## Elevation & Depth
-
-Depth combines tonal separation, fine borders and soft ambient shadows. Nodes are quiet at rest; floating controls/popovers and modal surfaces sit higher. There are no hard-offset shadows in the observed vocabulary.
-
-### Shadow Vocabulary
-- **Node rest:** `0 4px 12px #202c440a`.
-- **Node focus:** `0 8px 24px #202c4410`.
-- **Creation dock:** `0 5px 20px #202c4420`; **map controls:** `0 3px 12px #202c4412`.
-- **Popover:** `0 12px 36px #202c4426` (`--shadow-popover`), shared by picker, panel index, attention and context menu.
-- **Tool overlay:** `0 18px 64px rgb(15 25 43 / .25)`; **app dialog:** `0 20px 70px #0f1b3555`.
-- **Narrow inspector:** `-12px 0 35px #202c441c`.
-
-**The Quiet Frame Rule.** Preserve tonal boundaries and soft ambient elevation; node selection is an outline, not an elevated decorative card.
-
-Layers are purposeful: selected/focused nodes (2/5), return strip (10), dock (12), header/inspector (20/21), canvas popovers (24–25), rail (30), attention/menu (46/47), narrow rail scrim/drawer (61/62), app modal/close progress (80/95), toasts (100), tool palette/voice overlay (1000). Native browser content is a separate Electron view; CSS z-index alone cannot obscure it.
-
-Focus return animates for 220ms and the narrow rail for 180ms, both `cubic-bezier(.16,1,.3,1)`. Tool buttons transition background/border for 140ms ease-out; loading uses a 1s linear spinner. Reduced motion collapses shell animation/transition duration to .01ms and disables tool-button transitions.
-
-## Shapes
-
-Compact gently rounded rectangles carry precision without pill-shaped everything. Nodes/picker use node radius; dock/index/attention use dock radius; fields/tool controls use field radius; shell text buttons use button radius. Tool badges have badge radius, mission chips inline radius. The generic `--radius:12px` declaration exists, but components mostly set explicit radii; it is not a universal component radius.
-
-Frames normally have a 1px seam. Nodes use `#c7d0dd`; selection adds a cobalt 1px outline at offset 0. Node contents clip to the frame. Focused nodes remove the selection outline, use `#cbd5e2` border, and retain node rounding. Icons are stroked SVGs, not text glyph substitutes; the shipping app icon is vector artwork.
-
-## Components
-
-### Buttons and navigation
-
-Shell text buttons are 35px high, padded 0 13px, weight 550, with a `#ced7e2` border. Secondary hover uses `#f6f8fc` / `#a7b5ca`; primary hover uses `#284abe`. Shell icon buttons are 29px squares, with slate text, a `#e9eef5` hover and cobalt-wash active state. In node headers the later rule makes them 32px high with compensated 24px width.
-
-Tool buttons are a separate compact primitive: minimum height 32px, 6px 10px padding, field radius, 12px/1.4 weight 500. Secondary hover changes to secondary paper and muted border; press changes to cobalt wash. Primary hover is `color-mix(in srgb, var(--accent), #000 13%)`. Danger tone changes text to danger. Disabled shell controls use opacity .42/default cursor; tool buttons use .55/not-allowed.
-
-Project navigation is a vertical list with identity initials, name, truncated path and active marker; default row text `#c5d2e4`, hover `#29374f`, active rail-selection background/white text. The creation dock is 45px high with 35px actions; the panel list provides a text-search route by name, type or mission and can recover hidden terminal views. The command palette uses Ctrl/Cmd+K, selected-result wash and keyboard navigation; the list uses Ctrl/Cmd+Shift+F.
-
-### Fields and inline editing
-
-Tool fields are labelled, full-width, minimum height 34px, 1px seam, field radius; textareas resize vertically with 1.6 line-height. Error notices are bordered in currentColor with source error/retry controls; unavailable-source warnings explain configuration rather than displaying invented results. Loading, empty, unavailable, error and busy are distinct states in `ToolPanels.jsx`.
-
-Focus-visible is a cobalt 2px outline: shell buttons/links/tab stops offset 3px, shell fields offset -1px, tool content controls offset 3px. The note field uses -3px. xterm's helper textarea/screen outlines are intentionally suppressed; terminal focus is its own cursor/input-ownership behavior, not a generic text-field ring.
-
-Project and panel names edit in place, including panel context-menu Rename. Project input is 27px high/240px wide maximum; panel input is 31px high with compensated type; both use inline radius and `#a6b9ef` border. Enter commits and returns focus to the replacement name button after React refs are ready; blur commits without pulling focus back; Escape cancels and restores origin focus, and the ensuing blur cannot save. Names are trimmed, nonempty and limited to 512 characters. Save makes the field readonly; validation/save errors stay inline with `aria-invalid` and an alert. Explicit flush/close prepares outstanding names. Renaming the project does not move or replace its canonical folder identity.
-
-### Canvas, terminal and browser
-
-**Input ownership:** Terminal writes require an active writable stream and actual focus inside that xterm; inspector fields and name inputs never proxy keystrokes into a PTY.
-
-Canvas navigation ignores editing targets, including `.xterm`. Ctrl/Cmd+Shift+Enter explicitly toggles panel focus; ordinary terminal Space, Escape, Ctrl+C, `0` and letters remain terminal input. The inspector is nonmodal: opening it does not globally block terminal input, clicking the visible terminal reclaims its input, and inspector controls retain their own focus. Transient blocking surfaces (palette, voice, menu, picker, panel list, attention, mission dialog, rail drawer, folder chooser, close progress, disconnected transport) block terminal ownership. Escape from inside xterm does not close the inspector. The native browser is hidden under the inspector as well as blocking overlays.
-
-xterm retains mounted session identity through map/focus. Location and state text stay visible; below .45 overview zoom, a noninteractive status summary covers microscopic terminal output. xterm padding is on the xterm element (8px 8px 4px 12px), not its measured host; FitAddon uses layout pixels and does not scale physical columns from canvas transforms. Terminal errors/exits expose reconnect/new-session actions. Hiding a terminal view preserves the session; stopping its process is a separate action with history retained.
-
-Browser panels have a 41px toolbar, 27px address field, explicit HTTP(S) navigation and visible inline errors. Only focused, unobscured panels show the native WebContentsView. Overview uses a settled-page runtime capture at .28 opacity with title, capture URL and focus action; absence is explicitly labelled. The transient cache holds at most 12 previews and is not serialized in workspace JSON. `browser-native.png` depicts a test page owned by that fixture, not Phantom palette/type authority.
-
-### First-party tool panels and persistence
-
-The inspector and canvas tool panels render the same `ToolContent`: Tasks, Context, Sessions/Missions, Git, Services, Docker, Workflows, Playwright, Playground and Settings. Forms, rows, tables, badges, source details and code blocks are native first-party UI. Tool content scrolls independently; rows/forms wrap; long identifiers truncate with full-value title/copy while prose and source data wrap. Tool errors are isolated by an identity-keyed boundary (`workspace:type:node-or-inspector`) with a reset action that rereads the source rather than launching work.
-
-Local notes, draft/checklist state, layout, camera and references belong to workspace persistence; Phantom remains authoritative for native cards/decisions/skills. Source IDs/paths and unknown revisions remain explicit. UI patches overlay the last snapshot and debounce at 350ms; failed saves remain queued in the live window, expose errors and retry on reconnect. Folder/project switches await flush. Close performs a save handshake, shows saving progress and keeps failure visible; UI-boundary retry preserves the model and queue. This is not a claim that unacknowledged edits survive arbitrary renderer termination.
-
-Verified lifecycle semantics in the final ledger: warm UI reopen reconnects to the same live session/PID; deliberate host shutdown restores exited history without launching a shell; daemon loss restores lost history/context without launching a shell. Relaunch is explicit. Focus, selection and popover visibility are transient UI state, not a promise to restore every open interaction after reboot.
-
-## Do's and Don'ts
-
-### Do:
-- **Do** use the shipped mineral, ink-blue, white and cobalt roles with native interface typography.
-- **Do** keep camera/layout identity separate from temporary focus geometry and visible names separate from canonical paths.
-- **Do** share first-party tool primitives between canvas panels and the nonmodal inspector.
-- **Do** preserve keyboard focus ownership, explicit terminal relaunch and visible source/save failures.
-- **Do** consult the final JSON ledger and scoped review verdict before quoting verification status.
-
-### Don't:
-- **Don't** turn runtime browser captures, fixture page styling or development screenshots into shipping identity assets.
-- **Don't** let canvas navigation or inspector fields consume or forward ordinary terminal keystrokes.
-- **Don't** describe a local draft/reference as a native Phantom object or an unknown revision as verified.
-- **Don't** infer mobile readiness, exhaustive UX approval or human visual approval from the desktop evidence.
-- **Don't** promote sidecar preview tonal ramps into application tokens; they are synthesized panel metadata only.
-
-Not canonized or repaired: the external concept CLI emits replay metadata in a format different from the installed guide's SEED REFERENCE contract; provenance is documented, not fabricated. The older E2E prose is stale relative to the final ledger. Neither limitation becomes a visual rule; no unrelated craft-floor defect or aspirational feature is introduced as house style.
+No hay nuevos raster shipping: las capturas son evidencia de desarrollo, no assets de identidad. `assets/phantom.svg` sigue siendo vector de producto; el sidebar utiliza Blocks de Lucide.
