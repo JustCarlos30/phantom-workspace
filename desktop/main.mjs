@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
+import { createAgentBrowserBridge } from './agent-browser.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
@@ -20,6 +21,7 @@ app.setName('Phantom Workspace');
 
 let mainWindow = null;
 let browsers = null;
+let agentBrowser = null;
 let client = null;
 let connecting = null;
 let quitting = false;
@@ -411,13 +413,14 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     quitting = true;
+    agentBrowser?.close();
     browsers?.dispose();
     client?.close(); // Disconnect only: the daemon owns and keeps its sessions.
     client = null;
   });
   // Electron waits for the ESM entrypoint to settle before emitting ready; never
   // top-level-await whenReady() here (that deadlocks the main process).
-  app.whenReady().then(() => {
+   app.whenReady().then(async () => {
   uiSession = session.fromPartition('phantom-local-ui');
   configureUISession(uiSession);
   ipcMain.handle(INVOKE_CHANNEL, async (event, method, payload = {}) => {
@@ -447,6 +450,8 @@ if (!app.requestSingleInstanceLock()) {
     { label: 'Ver', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, ...(!app.isPackaged ? [{ role: 'toggleDevTools' }] : [])] },
   ]));
   openMainWindow();
+  agentBrowser = await createAgentBrowserBridge({ dataDir, hostInvoke, getManager: () => browsers,
+    focusWindow: () => openMainWindow(), emit });
   hostInvoke('system.info').catch(error => emit({ type: 'desktop.host', connected: false, error: error.message }));
   }).catch(error => {
     console.error('Phantom desktop startup failed:', error);

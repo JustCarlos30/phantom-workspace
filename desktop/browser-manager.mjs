@@ -93,9 +93,16 @@ export class BrowserManager {
       webviewTag: false, navigateOnDragDrop: false,
     } });
     view.setVisible(false);
-    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now() };
+    const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now(), console: [], consoleSeq: 0 };
     this.entries.set(id, entry);
     const wc = view.webContents;
+    wc.on('console-message', (_event, details) => {
+      // Electron 45 supplies a details object. Keep a hard memory/output bound.
+      entry.console.push({ seq: ++entry.consoleSeq, level: details.level,
+        message: String(details.message || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').slice(0, 2000),
+        timestamp: Date.now() });
+      if (entry.console.length > 100) entry.console.shift();
+    });
     const guard = event => {
       try { browserURL(event.url); } catch { event.preventDefault(); this.send(entry, 'Navegación bloqueada: solo HTTP(S) o about:blank'); }
     };
@@ -113,10 +120,10 @@ export class BrowserManager {
       return { action: 'deny' };
     });
     for (const event of ['did-start-loading', 'did-stop-loading', 'did-navigate', 'did-navigate-in-page', 'page-title-updated']) {
-      wc.on(event, () => this.send(entry));
+      wc.on(event, () => { if (event === 'did-start-loading') entry.loadError = null; this.send(entry); });
     }
     wc.on('did-fail-load', (_event, code, description, _url, mainFrame) => {
-      if (mainFrame && code !== -3) this.send(entry, `${description} (${code})`);
+      if (mainFrame && code !== -3) { entry.loadError = `${description} (${code})`; this.send(entry, entry.loadError); }
     });
     wc.on('render-process-gone', (_event, details) => this.send(entry, `Navegador detenido: ${details.reason}`));
     return entry;
@@ -205,5 +212,53 @@ export class BrowserManager {
     this.generation++;
     this.window.removeListener('resize', this.resize);
     for (const entry of this.entries.values()) this.destroy(entry);
+  }
+
+  // Internal integrated automation API. Callers must authenticate and validate
+  // command/payload first (desktop/agent-browser.mjs). Uses the exact UI-owned WC;
+  // no debugger port, remote evaluate endpoint, or second browser session.
+  async agentOperation(command, { id, workspaceId, selector, value }, signal) {
+    browserNode(await this.getState(), id, workspaceId);
+    signal?.throwIfAborted();
+    const entry = this.entries.get(id);
+    if (!entry || entry.workspaceId !== workspaceId || entry.view.webContents.isDestroyed()) throw new Error('Panel sin WebContents; vuelve a abrir preview');
+    const wc = entry.view.webContents;
+    if (command === 'status') return { id, workspaceId, webContentsId: wc.id, url: wc.getURL(), title: wc.getTitle(), loading: wc.isLoading(), visible: entry.attached && entry.view.getVisible() };
+    if (command === 'console') return { id, messages: entry.console.slice(), lastSeq: entry.consoleSeq };
+    if (command === 'screenshot') {
+      const image = await wc.capturePage(undefined, { stayHidden: true, stayAwake: false });
+      if (image.isEmpty()) throw new Error('No hay captura renderizada disponible');
+      return image.toPNG();
+    }
+    if (!['read', 'click', 'fill'].includes(command)) throw new Error('Operación DOM no permitida');
+    // All source is application-owned. JSON arguments are data, never source.
+    const operation = ({ command, selector, value }) => {
+      const clean = text => String(text || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '');
+      let elements;
+      try { elements = [...document.querySelectorAll(selector || 'body')]; }
+      catch { throw new Error('Selector CSS inválido'); }
+      if (!elements.length) throw new Error('No se encontró el elemento');
+      if (command === 'read') return {
+        url: location.href, title: document.title,
+        text: clean(elements.slice(0, 20).map(el => el.innerText || el.textContent).join('\n')).slice(0, 24000),
+        controls: [...document.querySelectorAll('input,textarea,button,select,a[href]')].slice(0, 100).map(el => ({
+          tag: el.tagName.toLowerCase(), id: clean(el.id).slice(0, 200), name: clean(el.getAttribute('aria-label') || el.name || el.textContent).slice(0, 200),
+          value: el.type === 'password' ? '[redacted]' : clean(el.value).slice(0, 1000),
+        })),
+      };
+      if (elements.length !== 1) throw new Error('El selector debe identificar un único elemento');
+      const el = elements[0], style = getComputedStyle(el), rect = el.getBoundingClientRect();
+      if (!rect.width || !rect.height || style.visibility !== 'visible' || style.display === 'none' || el.disabled || el.closest('[inert]')) throw new Error('Elemento no interactuable');
+      el.scrollIntoView({ block: 'center' }); el.focus();
+      if (command === 'click') el.click();
+      else {
+        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || el.readOnly || (el instanceof HTMLInputElement && !['text','search','email','url','tel','password','number'].includes(el.type))) throw new Error('fill requiere input de texto o textarea editable');
+        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
+        el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return { ok: true };
+    };
+    return wc.executeJavaScript(`(${operation.toString()})(${JSON.stringify({ command, selector, value })})`, true);
   }
 }

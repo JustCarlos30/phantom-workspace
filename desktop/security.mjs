@@ -86,6 +86,28 @@ export function browserURL(value, { external = false } = {}) {
   return url.href;
 }
 
+// Agent RPC is deliberately narrower than renderer IPC. No method names, source
+// code, filesystem paths or Electron options supplied by the caller are executed.
+export function validateBrowserAgentRequest(command, payload) {
+  const fields = {
+    preview: ['url'], open: ['url'], status: [], context: [], read: ['selector'],
+    click: ['selector'], fill: ['selector', 'value'], screenshot: ['name'], console: [],
+  };
+  if (!Object.hasOwn(fields, command)) throw new Error('Comando de navegador no permitido');
+  if (!payload || Array.isArray(payload) || typeof payload !== 'object') throw new Error('Payload debe ser objeto');
+  validateJSON(payload, 96 * 1024);
+  const allowed = [...fields[command], 'id', 'key', 'timeoutMs'];
+  if (Object.keys(payload).some(key => !allowed.includes(key))) throw new Error('Campo de navegador no permitido');
+  if (payload.id !== undefined) validateID(payload.id);
+  if (payload.key !== undefined && (typeof payload.key !== 'string' || !/^[\w.-]{1,128}$/.test(payload.key))) throw new Error('Clave de idempotencia no válida');
+  if (['open', 'preview'].includes(command)) browserURL(payload.url, { external: true });
+  if (['click', 'fill'].includes(command) || payload.selector !== undefined) {
+    if (typeof payload.selector !== 'string' || !payload.selector.trim() || payload.selector.length > 2000 || /[\u0000-\u001f\u007f]/.test(payload.selector)) throw new Error('Selector CSS no válido');
+  }
+  if (command === 'fill' && (typeof payload.value !== 'string' || payload.value.length > 16000 || /[\u0000\u001b\u007f]/.test(payload.value))) throw new Error('Valor de formulario no válido');
+  if (payload.name !== undefined && (typeof payload.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\.png$/.test(payload.name))) throw new Error('Nombre PNG no válido; no se admiten rutas');
+}
+
 export function isLocalUIURL(value, uiURL) {
   try {
     const url = new URL(value);
