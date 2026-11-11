@@ -39,7 +39,7 @@ async function scopedTask(raw, client, context) {
   try { return roots.has(await realpath(raw.contract?.workspace)); } catch { return false; }
 }
 export function normalizePhantom(raw, topic) {
-  return { id: raw.id ?? raw.ref?.id, title: raw.contract?.goal ?? raw.title ?? raw.description ?? raw.ref?.id ?? raw.id, kind: topic === 'tasks' ? raw.kind : topic === 'memories' ? raw.kind : 'skill', ...(raw.status || raw.state ? { status: raw.status ?? raw.state } : {}), ...(raw.body ? { body: raw.body } : {}), source: 'phantom', ...(raw.revision !== undefined ? { revision: raw.revision } : raw.ref?.version ? { revision: raw.ref.version } : {}), ...(raw.ref ? { ref: raw.ref } : {}), raw };
+  return { id: raw.id ?? raw.ref?.id, title: raw.contract?.goal ?? raw.title ?? raw.description ?? raw.ref?.id ?? raw.id, kind: topic === 'tasks' ? raw.kind : topic === 'memories' ? raw.kind : 'skill', ...(raw.status !== undefined || raw.state !== undefined ? { status: raw.status ?? raw.state } : {}), ...(raw.body ? { body: raw.body } : {}), source: 'phantom', ...(raw.revision !== undefined ? { revision: raw.revision } : raw.ref?.version ? { revision: raw.ref.version } : {}), ...(raw.ref ? { ref: raw.ref } : {}), raw };
 }
 async function list(payload, context, c) {
   const topic = payload.topic;
@@ -53,7 +53,16 @@ async function list(payload, context, c) {
     raw = filtered;
   }
   const query = (payload.query ?? '').toLowerCase();
-  return { available: true, items: raw.map(item => normalizePhantom(item, topic)).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), observedAt: observedAt() };
+  return { available: true, items: raw.map(item => normalizePhantom(item, topic)).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
+}
+async function events(payload, context, c) {
+  // Authorize the canonical task before invoking the CLI event reader. In
+  // particular, never fetch a foreign task's events and filter them afterwards.
+  const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
+  if (task.id !== payload.id) throw new Error('Phantom task ID mismatch');
+  const result = await c.call(['events', payload.id]);
+  if (!Array.isArray(result)) throw new Error('Phantom returned invalid events');
+  return { items: result.slice(-100), observedAt: observedAt(), truncated: result.length > 100 };
 }
 async function detail(payload, context, c) {
   identifier(payload.id);
@@ -216,6 +225,7 @@ async function controlOwned(payload, context, c) {
   await context.persist(); return { ...descriptor };
 }
 export async function phantom(method, payload, context) {
+  if (method === 'phantom.events' && (typeof payload.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/.test(payload.id))) throw new Error('Invalid Phantom ID');
   // Validate topics outside the availability catch; bad API input is not an unavailable backend.
   if (method === 'phantom.list' && !['tasks', 'memories', 'skills'].includes(payload.topic)) throw new Error('topic must be tasks, memories, or skills');
   if (method === 'phantom.list' && payload.query !== undefined && (typeof payload.query !== 'string' || payload.query.length > 500)) throw new Error('Invalid Phantom query');
@@ -225,6 +235,7 @@ export async function phantom(method, payload, context) {
     catch (error) { return { available: false, items: [], reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
   }
   const c = await client(payload, context);
+  if (method === 'phantom.events') return events(payload, context, c);
   if (method === 'phantom.detail') return detail(payload, context, c);
   if (method === 'phantom.control') return control(payload, context, c);
   return writeNative(method, payload, context, c);

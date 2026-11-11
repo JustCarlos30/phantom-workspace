@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { validatePluginSettings } from '../src/plugins/registry.js';
 
 export const MAX_HISTORY = 256 * 1024;
-export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground'];
+export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','command-center'];
 export const dataHome = () => path.resolve(process.env.PHANTOM_WORKSPACE_HOME || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-workspace'));
 export function assert(condition, message) { if (!condition) throw new Error(message); }
 export function object(value) { assert(value && typeof value === 'object' && !Array.isArray(value), 'Expected an object'); return value; }
@@ -40,6 +41,10 @@ export function validateState(input) {
   const ids = new Set(), paths = new Set();
   for (const w of state.workspaces) {
     object(w); assert(uuid(w.id) && !ids.has(w.id), 'Invalid or duplicate workspace ID'); ids.add(w.id);
+    if (w.plugins !== undefined) {
+      object(w.plugins);
+      for (const [id, settings] of Object.entries(w.plugins)) validatePluginSettings(id, settings);
+    }
     text(w.name, 'workspace name', 512); text(w.path, 'workspace path', 4096); text(w.canonicalPath, 'canonical path', 4096);
     assert(path.isAbsolute(w.path) && path.isAbsolute(w.canonicalPath), 'Workspace paths must be absolute');
     // Missing folders remain restorable; existing aliases resolve to one identity.

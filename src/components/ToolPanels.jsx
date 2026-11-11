@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, FileText, Play, RefreshCw, Square, Trash2, X } from 'lucide-react';
 import '../tools.css';
+import Plugins from './Plugins.jsx';
+import CommandCenter from './CommandCenter.jsx';
 
-export const TOOL_TITLES = { tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
+export const TOOL_TITLES = { plugins: 'Plugins', 'command-center': 'Centro de mando', tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
 const json = value => JSON.stringify(value, null, 2);
 const textValue = (value, fallback = 'Desconocido') => typeof value === 'string' && value.trim() ? value : typeof value === 'number' && Number.isFinite(value) ? String(value) : fallback;
 const message = error => textValue(error?.message, typeof error === 'string' ? error : 'La fuente devolvió un error sin mensaje válido.');
@@ -411,12 +413,12 @@ function Settings({ workspace, state, api, refresh, notify }) {
 
 export function ToolContent({ type, ...props }) {
   if (!props.workspace && type !== 'settings') return <div className="tw-empty">Abre una carpeta para usar las herramientas del workspace.</div>;
-  const components = { tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
+  const components = { plugins: Plugins, 'command-center': CommandCenter, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
   const Content = components[type];
   const identity = `${props.workspace?.id || 'host'}:${type}:${props.node?.id || 'inspector'}`;
   return <div className="tw-content"><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <><Content {...props} />{type === 'context' && <p className="tw-muted">Las revisiones y hashes solo se muestran cuando la fuente los proporciona. Si no aparecen, son desconocidos; la referencia fijada no acredita una revisión verificada.</p>}</> : <p className="tw-empty">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;
 }
 
-export function ToolPanel({ node, workspace, api, refresh, onOpenPanel, notify }) {
-  return <div className="tw-tool-panel"><ToolContent type={node.type} node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} /></div>;
+export function ToolPanel({ node, workspace, api, refresh, onOpenPanel, notify, active }) {
+  return <div className="tw-tool-panel"><ToolContent type={node.type} node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} active={active} /></div>;
 }

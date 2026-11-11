@@ -20,7 +20,7 @@ export async function handleIntegration(method, payload = {}, context) {
   else if (['docker.logs', 'docker.action'].includes(method)) result = await dockerOperation(method, payload, context);
   else if (method === 'context.scan') result = await contextScan(payload, context);
   else if (method === 'context.read') result = await contextRead(payload, context);
-  else if (['phantom.list', 'phantom.detail', 'phantom.create', 'phantom.update', 'phantom.control'].includes(method)) result = await phantom(method, payload, context);
+  else if (['phantom.list', 'phantom.detail', 'phantom.events', 'phantom.create', 'phantom.update', 'phantom.control'].includes(method)) result = await phantom(method, payload, context);
   else {
     // Automation is supplied by its independent owner; do not hide missing dependencies inside that module.
     let automation;

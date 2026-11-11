@@ -12,7 +12,8 @@ export const HOST_METHODS = new Set([
   'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read',
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',
   'git.inspect', 'services.list', 'services.pin', 'services.remove', 'docker.list', 'docker.logs', 'docker.action',
-  'phantom.list', 'phantom.detail', 'phantom.create', 'phantom.update', 'phantom.control',
+  'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.create', 'phantom.update', 'phantom.control',
+  'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',
 ]);
