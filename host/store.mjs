@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { validateAgent } from './agents.mjs';
+import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '../shared/plugins.mjs';
 
 export const MAX_HISTORY = 256 * 1024;
-export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground'];
+export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills'];
 export const dataHome = () => path.resolve(process.env.PHANTOM_WORKSPACE_HOME || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-workspace'));
 export function assert(condition, message) { if (!condition) throw new Error(message); }
 export function object(value) { assert(value && typeof value === 'object' && !Array.isArray(value), 'Expected an object'); return value; }
@@ -21,6 +23,12 @@ export function atomicJSON(filename, value) {
 }
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const arrays = ['nodes','tasks','contextRefs','missions','workflows','services','attention'];
+function insideFolder(root, value) {
+  let ancestor = path.resolve(value), suffix = [];
+  for (;;) { try { ancestor = fs.realpathSync(ancestor); break; } catch (error) { if (error.code !== 'ENOENT') throw error; suffix.unshift(path.basename(ancestor)); ancestor = path.dirname(ancestor); } }
+  const relative = path.relative(root, path.join(ancestor, ...suffix));
+  return relative === '' || relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
 export function validateHistory(input, workspaces) {
   assert(Array.isArray(input) && input.length <= 100, 'Invalid terminal history');
   const ids = new Set(); let total=0;
@@ -46,12 +54,15 @@ export function validateState(input) {
     let canonical = path.resolve(w.canonicalPath);
     try { canonical = canonicalFolder(w.path); } catch (e) { if (e.code !== 'ENOENT') throw e; }
     assert(!paths.has(canonical), 'Duplicate canonical workspace path'); paths.add(canonical); w.canonicalPath = canonical;
+    w.plugins = validatePluginPreferences(w.plugins);
+    if (w.plugins.phantom.config.phantomData) assert(!insideFolder(w.canonicalPath, w.plugins.phantom.config.phantomData), 'Integration state must be outside workspace');
     object(w.camera); for (const key of ['x','y','zoom']) assert(Number.isFinite(w.camera[key]), 'Invalid camera'); assert(w.camera.zoom > 0 && w.camera.zoom <= 10, 'Invalid zoom');
     for (const key of arrays) {
       assert(Array.isArray(w[key]) && w[key].length <= 10000, `Invalid ${key}`); const seen = new Set();
       for (const item of w[key]) { object(item); assert(uuid(item.id) && !seen.has(item.id), `Invalid ${key} ID`); seen.add(item.id); }
     }
-    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
+    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
+    for (const n of w.nodes) validatePluginPanel(n.type, n.data);
     for (const t of w.tasks) { assert(['draft','checklist','phantom'].includes(t.kind) && ['todo','doing','done'].includes(t.status), 'Invalid task'); text(t.title, 'task title', 512);text(t.description,'task description'); assert(Array.isArray(t.refs) && t.refs.length<=1000, 'Invalid refs'); }
     for (const key of ['missions','workflows','attention','contextRefs']) for (const item of w[key]) text(item.title, 'title', 512);
     for (const item of w.missions) {text(item.notes,'mission notes');text(item.nextAction,'next action');assert(Array.isArray(item.refs)&&item.refs.length<=1000,'Invalid mission refs');}
@@ -76,7 +87,7 @@ export class Store {
     const canonicalPath = canonicalFolder(folder);
     let w = this.state.workspaces.find(w => w.canonicalPath === canonicalPath);
     if (!w) { const now = new Date().toISOString(); w = {id:randomUUID(), name:path.basename(canonicalPath) || canonicalPath,path:canonicalPath,canonicalPath,createdAt:now,updatedAt:now,camera:{x:0,y:0,zoom:1}}; for (const key of arrays) w[key] = []; this.state.workspaces.push(w); }
-    this.state.activeWorkspaceId = w.id; return w;
+    w.plugins ??= defaultPlugins(); this.state.activeWorkspaceId = w.id; return w;
   }
   transaction(fn) { const before = structuredClone(this.state); try { const result = fn(); validateState(this.state); this.persist(); return result; } catch (e) { this.state = before; throw e; } }
 }
