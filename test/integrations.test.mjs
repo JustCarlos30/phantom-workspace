@@ -193,12 +193,15 @@ test('native Phantom isolated data: cards, decisions/revisions, immutable skills
 
 test('Phantom task catalog excludes unrelated projects but includes known worktree family', async t => {
   const f = await fixture(t, true);
+  const cli = path.join(f.home, 'phantom-fixture.mjs');
+  await writeFile(cli, '// Inert CLI: transport is mocked by this fixture.\n');
+  f.context.state.settings.phantomPath = cli;
   const linked = path.join(f.home, 'linked'); await f.gitCommand(['worktree', 'add', '-b', 'linked', linked]);
   const other = path.join(f.home, 'unrelated'); await mkdir(other);
   const raw = [f.root, linked, other].map((workspace, i) => ({ id: `task_${i}`, kind: 'card', status: 'blocked', contract: { goal: `Native ${i}`, workspace, lane: 'coordinated' }, nativeExtra: { retained: true } }));
   f.context.execFile = async (file, args, options) => {
     if (file === 'git') return exec(file, args, options);
-    assert.equal(file, process.execPath); assert.ok(args[0].endsWith('/harness_engineer/bin/phantom.mjs')); assert.equal(options.shell, false);
+    assert.equal(file, process.execPath); assert.equal(args[0], cli); assert.equal(options.shell, false);
     return { stdout: JSON.stringify(args.includes('show') ? raw[2] : raw), stderr: '' };
   };
   const result = await f.call('phantom.list', { topic: 'tasks' });
