@@ -64,9 +64,13 @@ export function validatePluginPreferences(input = defaultPlugins()) {
   keys(input, ['phantom'], 'workspace plugins');
   const result = defaultPlugins();
   if (input.phantom !== undefined) {
-    keys(input.phantom, ['enabled', 'config'], 'plugin preferences');
+    keys(input.phantom, ['enabled', 'config', 'refreshMs'], 'plugin preferences');
     if (typeof input.phantom.enabled !== 'boolean') fail('Invalid plugin enabled');
-    result.phantom = { enabled: input.phantom.enabled, config: { ...result.phantom.config, ...validatePluginConfig(input.phantom.config) } };
+    result.phantom = { enabled: input.phantom.enabled, config: { ...result.phantom.config, ...validatePluginConfig(input.phantom.config ?? {}) } };
+  }
+  if (input.phantom?.refreshMs !== undefined) {
+    if (!Number.isInteger(input.phantom.refreshMs) || input.phantom.refreshMs < 3000 || input.phantom.refreshMs > 5000) fail('Invalid plugin refreshMs');
+    result.phantom.refreshMs = input.phantom.refreshMs;
   }
   return result;
 }

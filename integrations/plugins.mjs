@@ -30,7 +30,7 @@ export async function plugins(method, payload, context) {
   }
   // Re-read after asynchronous path validation; a concurrent update may have landed.
   const current = validatePluginPreferences(workspace.plugins);
-  const next = validatePluginPreferences({ phantom: { enabled: patch.enabled ?? current.phantom.enabled, config: { ...current.phantom.config, ...patch.config } } });
+  const next = validatePluginPreferences({ phantom: { ...current.phantom, enabled: patch.enabled ?? current.phantom.enabled, config: { ...current.phantom.config, ...patch.config } } });
   const previous = workspace.plugins; workspace.plugins = next;
   try { await context.persist(); } catch (error) { workspace.plugins = previous; throw error; }
   return record(workspace);

@@ -22,6 +22,7 @@ import './activity.css';
 const TYPES = [
   ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto'],
   ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, `Panel nativo de ${panel.pluginId}`]),
+  ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales'],
   ['terminal', 'Terminal', TerminalSquare, 'Una sesión real en esta carpeta'], ['browser', 'Navegador', Globe, 'Una página junto al trabajo'], ['note', 'Nota', StickyNote, 'Contexto que permanece'],
   ['tasks', 'Tareas', Check, 'Borradores, checklists y Phantom'], ['context', 'Contexto', FileText, 'Archivos, memorias y skills'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees'], ['services', 'Servicios', Activity, 'Sitios y procesos del proyecto'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito'], ['workflows', 'Workflows', Workflow, 'Secuencias de trabajo reutilizables'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente'],
 ];

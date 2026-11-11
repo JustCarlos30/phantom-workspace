@@ -62,6 +62,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
     if(method==='workspace.open') return mutate(null,()=>store.open(p.path));
     if(method==='workspace.select') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);store.state.activeWorkspaceId=w.id;return w;});
+    if(method==='plugin.get') { const {getPluginDescriptor,pluginSettings}=await import('../src/plugins/registry.js');assert(getPluginDescriptor(p.id),'Plugin desconocido');return pluginSettings(store.getWorkspace(p.workspaceId),p.id); }
+    if(method==='plugin.update') {
+      const {validatePluginSettings}=await import('../src/plugins/registry.js');const settings=validatePluginSettings(p.id,p.settings);
+      return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId);w.plugins={...w.plugins,[p.id]:{...w.plugins?.[p.id],...settings,config:w.plugins?.[p.id]?.config??{}}};w.updatedAt=new Date().toISOString();return settings;});
+    }
     if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{

@@ -24,6 +24,16 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 4. Enfoca un panel y usa **Volver al mapa** o **Ctrl + Mayús + Enter** para regresar. La lista permite encontrar paneles fuera de la cámara y recuperar vistas ocultas.
 5. **Ctrl + K** abre la paleta. El inspector derecho ofrece contexto, tareas, sesiones, Git, servicios y otras herramientas junto a la terminal.
 
+### Plugin Phantom · Centro de mando
+
+Abre **Plugins** en la barra de proyectos y pulsa **Activar Phantom**. La activación y la frecuencia se guardan por proyecto. **Abrir Centro de mando** crea o recupera su panel del canvas; también está disponible en **Ctrl + K** y en el selector del inspector. En Configuración puedes definir las rutas de la CLI y sus datos nativos; no se instala código externo ni hay marketplace.
+
+El Centro consulta el catálogo de tareas/cards de la familia Git de worktrees y únicamente los eventos de la tarea seleccionada. Prioriza bloqueadas, después activas; conserva por separado el estado nativo y el del controlador local. El detalle muestra objetivo, alcance, checks, evidencias y hasta 100 eventos. La salida del controlador es la recibida realmente por este host, acotada a 64 KiB; no se deduce progreso porcentual. Un controlador terminado no implica que la tarea esté completada.
+
+La consulta automática ocurre cada **4 segundos** (configurable entre 3 y 5), sin solicitudes solapadas y solo con el panel montado, visible y activo. Canvas e inspector comparten lector por proyecto. Los eventos `tool.output` y `tool.status` adelantan la siguiente lectura. Puedes pausar, reanudar o actualizar manualmente. Si falla la conexión se conserva la última lectura válida y se indica que está desactualizada; la reconexión vuelve a consultar. Desactivar detiene las consultas y conserva datos y paneles; el propio panel ofrece **Reactivar Phantom**. Las lecturas conservadas del catálogo viven en esta ventana, no constituyen un historial persistente. Sin CLI disponible se muestra un error recuperable; sin tareas se muestra el estado vacío.
+
+El check `node test/command-center-desktop.mjs` usa fixtures sintéticos explícitos con Vite y `window.phantom` simulado. Cubre activación, salida real, bloqueo, búsqueda, pausa, desactivación, recuperación tras error y catálogo vacío, reconexión y ausencia de desbordamiento en escritorio y compacto. Sus capturas se escriben exclusivamente en `/tmp/opencode/phantom-command-center-review`, fuera del repositorio. `node --test test/command-center.test.mjs` cubre además persistencia, validación, autorización por familia y aislamiento de lecturas tardías; un flujo continuo de salida no debe aplazar indefinidamente el refresco.
+
 ### Sesiones y cierre
 
 - Cerrar la ventana conserva el host y sus sesiones. Volver a abrir conecta a los mismos procesos.

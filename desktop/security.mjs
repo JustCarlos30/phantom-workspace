@@ -15,6 +15,7 @@ export const HOST_METHODS = new Set([
   'git.inspect', 'services.list', 'services.pin', 'services.remove', 'docker.list', 'docker.logs', 'docker.action',
   'plugins.list', 'plugins.update', 'plugins.status', 'plugins.models',
   'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control',
+  'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',
   'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel',
