@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440, initial-scale=1">
+<title>Phantom · Conversaciones con zoom semántico</title>
+<style>
+:root{--bg:#15171c;--rail:#1b1e24;--surface:#202329;--surface2:#292d35;--ink:#eceef3;--muted:#a5adbb;--line:#373d48;--accent:#8b9dff;--success:#8ad8b6;--warning:#edbf79;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;width:1440px;height:900px;overflow:hidden;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,textarea{font:inherit}button{cursor:default;color:inherit;border:0;background:none}button:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}::selection{background:#43518b;color:var(--ink)}svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}h1,h2,h3,p{margin:0}h2{font-size:22px;line-height:1.3;font-weight:600;letter-spacing:-.025em}h3{font-size:20px;line-height:1.35;font-weight:600;letter-spacing:-.02em}.muted{color:var(--muted)}.small{font-size:12px}.row{display:flex;align-items:center;gap:9px}.between{justify-content:space-between}.dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:currentColor;flex-shrink:0}.amber{color:var(--warning)}.mint{color:var(--success)}.accent{color:var(--accent)}
+.rail{position:absolute;inset:0 auto 0 0;width:216px;background:var(--rail);border-right:1px solid var(--line);padding:0 14px}.brand{height:64px;display:flex;align-items:center;gap:10px;padding:0 8px;font-weight:650;font-size:15px;letter-spacing:-.02em}.brand svg{color:var(--accent);width:22px;height:22px}.project{margin-top:24px;padding:12px;background:var(--surface2);border-radius:8px}.project strong{display:block;font-weight:600}.project .small{margin-top:3px}.section-title{margin:29px 10px 11px;display:flex;justify-content:space-between;color:var(--muted);font-size:12px;font-weight:550}.navitem{padding:10px;border-radius:6px;margin:4px 0;line-height:1.4}.navitem span{display:block;font-size:12px;color:var(--muted);margin-top:4px}.navitem.selected{background:#2b3045;color:#c4cdff}.navitem.selected span{color:#b5bdd9}.attention{padding:0 10px}.attention p{margin:11px 0;font-size:13px}.attention .dot{margin-right:7px}.rail-foot{position:absolute;bottom:21px;left:24px;color:var(--muted);font-size:12px}.rail-foot .row{margin-bottom:9px}
+.header{position:absolute;top:0;left:216px;width:1224px;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--line);background:var(--rail)}.header h1{font-size:15px;font-weight:550}.header .trail{color:var(--muted);margin:0 10px}.sample{font-size:12px;color:var(--warning);padding:5px 10px;background:#302b23;border-radius:5px}.header-right{display:flex;gap:22px;align-items:center}.avatar{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--surface2);font-size:12px}
+.canvas{position:absolute;left:216px;top:64px;width:1224px;height:836px;overflow:hidden;background-image:radial-gradient(circle,#606b7d35 .75px,transparent .85px);background-size:24px 24px}.canvas-caption{position:absolute;left:34px;top:27px;color:var(--muted);font-size:13px}.canvas-caption strong{color:var(--ink);font-weight:500}.scale-note{position:absolute;left:34px;top:53px;color:var(--muted);font-size:12px}
+.conversation{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px 24px}.expanded{left:58px;top:130px;width:570px;height:558px;border-color:var(--accent);padding:22px 25px;display:flex;flex-direction:column}.provider{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px}.provider svg{width:15px;height:15px}.expanded h2{margin-top:9px}.context{color:var(--muted);font-size:12px;margin-top:9px;display:flex;gap:16px}.context span{display:flex;align-items:center;gap:5px}.context svg{width:13px;height:13px}.context a{color:#b7c2ff;text-decoration:none}.thread{margin-top:24px}.message-meta{font-size:12px;display:flex;align-items:center;gap:9px;margin-bottom:6px}.message-meta strong{font-size:13px;font-weight:600}.message-meta time{color:var(--muted)}.message{font-size:14px;line-height:1.55}.agent-message{margin-top:19px}.tools{display:flex;gap:7px;align-items:center;color:var(--muted);font-size:12px;margin-top:15px}.tools svg{width:14px;height:14px}.file{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:13px}.file svg{color:var(--accent);width:16px;height:16px}.file .muted{margin-left:auto;font-size:12px}.composer{margin-top:auto;padding-top:14px;border-top:1px solid var(--line)}textarea{display:block;resize:none;border:0;outline:none;background:transparent;width:100%;height:37px;padding:0;color:var(--ink);font-size:14px;caret-color:var(--accent)}textarea::placeholder{color:var(--muted)}.composer-bottom{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)}.send{display:grid;place-items:center;background:var(--accent);color:#171b28;width:29px;height:28px;border-radius:6px}.send svg{width:16px;height:16px}.selected-label{position:absolute;left:59px;top:103px;font-size:12px;color:var(--accent)}
+.decision{left:728px;top:96px;width:370px;min-height:246px}.summary h3{margin:11px 0}.summary p{font-size:14px;line-height:1.55}.state{display:flex;align-items:center;gap:7px;font-size:12px;margin-top:19px}.origin{font-size:12px;color:var(--muted);margin-top:5px}.text-action{font-size:13px;padding:0;margin-top:15px;color:var(--warning)}.review{left:706px;top:408px;width:350px;min-height:231px}.review .text-action{color:var(--success)}.rest{left:98px;top:731px;width:448px;padding:15px 20px}.rest h3{font-size:16px;margin-top:4px}.rest .origin{margin-top:5px}.rest .provider{font-size:12px}.rest-state{color:var(--muted);font-size:12px}
+.toolbar{position:absolute;bottom:24px;right:28px;display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 24px #0005;height:51px}.create{background:var(--accent);color:#171b28;display:flex;align-items:center;gap:8px;border-radius:7px;padding:9px 12px;font-weight:550;font-size:13px}.scales{display:flex;align-items:center;gap:2px;margin:0 8px;font-size:12px;color:var(--muted)}.scales span{padding:6px 8px}.scales .active{background:var(--surface2);color:var(--ink);border-radius:5px}.divider{height:23px;width:1px;background:var(--line);margin:0 7px}.zoom-button{padding:5px;display:grid;place-items:center}.zoom-button svg{width:15px;height:15px}.zoom-value{font-size:12px;font-variant-numeric:tabular-nums;padding:0 4px}
+</style>
+</head>
+<body>
+<aside class="rail" aria-label="Proyecto y conversaciones">
+ <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V5h8l6 6-6 6H9M13 5v6h6"/></svg>Phantom</div>
+ <div class="project"><div class="row between"><strong>Phantom Workspace</strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></div><div class="muted small">phantom-workspace / main</div></div>
+ <div class="section-title">Conversaciones <span>4</span></div>
+ <nav aria-label="Conversaciones">
+  <div class="navitem selected">Recuperar sesiones<span>OpenCode · en trabajo</span></div>
+  <div class="navitem">Diseñar el reingreso<span>Claude Code · pide decisión</span></div>
+  <div class="navitem">Validar reconexión<span>Codex · para revisión</span></div>
+  <div class="navitem">Documentar continuidad<span>OpenCode · en reposo</span></div>
+ </nav>
+ <div class="section-title">Tu atención <span>2</span></div>
+ <div class="attention"><p><span class="dot amber"></span>Una decisión pendiente</p><p><span class="dot mint"></span>Un resultado para revisar</p></div>
+ <div class="rail-foot"><div class="row"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h12M4 17h8"/></svg>Contexto del proyecto</div>Disposición guardada · local</div>
+</aside>
+<header class="header">
+ <h1>Phantom Workspace <span class="trail">/</span> Conversaciones</h1>
+ <div class="header-right"><span class="sample">Boceto · datos de ejemplo</span><span class="muted small">Proveedores conceptuales</span><span class="avatar">CJ</span></div>
+</header>
+<main class="canvas" aria-label="Canvas de conversaciones con zoom semántico">
+ <div class="canvas-caption"><strong>Continuidad de sesiones</strong> <span> · 4 conversaciones en su contexto</span></div>
+ <p class="scale-note">Acercarte revela el hilo. Alejarte conserva el objetivo, el avance y lo pendiente.</p>
+ <div class="selected-label">Seleccionada · hilo de trabajo</div>
+ <article class="conversation expanded" aria-label="Recuperar sesiones, conversación seleccionada">
+  <div class="row between"><div class="provider"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6"/></svg>OpenCode <span>· agente headless</span></div><span class="small accent">En trabajo</span></div>
+  <h2>Recuperar sesiones</h2>
+  <div class="context"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v12a4 4 0 0 0 4 4h8M6 8h9V3"/></svg>worktree / session-recovery</span><span><a href="#card-context">Card PW-42</a></span></div>
+  <section class="thread" aria-label="Hilo corto">
+   <div class="message-meta"><strong>Carlos</strong><time>Hoy · 10:42</time></div>
+   <p class="message">Al reconectar, quiero seguir donde lo dejé. Conserva el hilo y el contexto del worktree; si el proceso terminó, muéstralo antes de volver a iniciarlo.</p>
+   <div class="agent-message"><div class="message-meta"><strong>OpenCode</strong><time>Hoy · 10:44</time></div>
+   <p class="message">Separé la conversación del proceso que la ejecuta. El hilo puede recuperarse con su card y sus archivos; la reconexión solo se ofrece cuando el host conserva una sesión viva.</p></div>
+   <div class="tools"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>Actividad de herramientas · 3 acciones plegadas</div>
+   <div class="file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H5v18h14V8zM14 3v5h5M8 13h8m-8 4h6"/></svg>session-recovery.md <span class="muted">Resultado · 10:44</span></div>
+  </section>
+  <div class="composer"><textarea rows="1" aria-label="Mensaje para OpenCode" placeholder="Continúa esta conversación…"></textarea><div class="composer-bottom"><span id="card-context">Contexto: worktree + card PW-42</span><button class="send" aria-label="Enviar mensaje"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div>
+ </article>
+ <article class="conversation summary decision">
+  <div class="provider">Claude Code · criterio de experiencia</div>
+  <h3>Diseñar el reingreso</h3>
+  <p>¿Volvemos al último hilo activo o abrimos el mapa con lo que necesita atención?</p>
+  <div class="state amber"><span class="dot"></span>Necesita tu decisión</div>
+  <div class="origin">Petición del agente · hoy, 10:38</div>
+  <button class="text-action">Leer propuesta y decidir →</button>
+ </article>
+ <article class="conversation summary review">
+  <div class="provider">Codex · verificación</div>
+  <h3>Validar reconexión</h3>
+  <p>Casos de host vivo y proceso terminado documentados. Queda revisar el informe.</p>
+  <div class="state mint"><span class="dot"></span>Listo para revisión</div>
+  <div class="origin">Informe final del agente · hoy, 10:41</div>
+  <button class="text-action">Abrir resultado →</button>
+ </article>
+ <article class="conversation rest">
+  <div class="row between"><div class="provider">OpenCode · documentación</div><span class="rest-state">En reposo</span></div>
+  <h3>Documentar continuidad</h3>
+  <div class="origin">Último mensaje de Carlos · ayer, 18:20 · esperando retomar</div>
+ </article>
+ <div class="toolbar" aria-label="Creación y escala del canvas">
+  <button class="create"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Crear conversación</button>
+  <div class="scales" aria-label="Escalas conceptuales"><span>Mapa</span><span>/</span><span class="active">Trabajo</span><span>/</span><span>Foco</span></div>
+  <div class="divider"></div>
+  <button class="zoom-button" aria-label="Alejar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button><span class="zoom-value">100%</span><button class="zoom-button" aria-label="Acercar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+ </div>
+</main>
+</body>
+</html>

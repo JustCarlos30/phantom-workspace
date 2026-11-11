@@ -1,55 +1,59 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-11T07:57:37Z",
+  "generatedAt": "2026-11-11T15:02:34Z",
   "title": "Design System: Phantom Workspace",
   "extensions": {
     "colorMeta": {
-      "accent": { "role": "primary", "displayName": "Cobalt", "tonalRamp": ["oklch(15% .19 266)", "oklch(26% .19 266)", "oklch(38% .19 266)", "oklch(49% .19 266)", "oklch(61% .19 266)", "oklch(72% .19 266)", "oklch(84% .19 266)", "oklch(95% .19 266)"] },
-      "accent-soft": { "role": "primary", "displayName": "Cobalt wash", "tonalRamp": ["oklch(15% .02 270)", "oklch(26% .02 270)", "oklch(38% .02 270)", "oklch(49% .02 270)", "oklch(61% .02 270)", "oklch(72% .02 270)", "oklch(84% .02 270)", "oklch(95% .02 270)"] },
-      "bg": { "role": "neutral", "displayName": "Mineral", "tonalRamp": ["oklch(15% .01 250)", "oklch(26% .01 250)", "oklch(38% .01 250)", "oklch(49% .01 250)", "oklch(61% .01 250)", "oklch(72% .01 250)", "oklch(84% .01 250)", "oklch(95% .01 250)"] },
-      "surface": { "role": "neutral", "displayName": "White", "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(38% 0 0)", "oklch(49% 0 0)", "oklch(61% 0 0)", "oklch(72% 0 0)", "oklch(84% 0 0)", "oklch(95% 0 0)"] },
-      "surface-2": { "role": "neutral", "displayName": "Cool paper", "tonalRamp": ["oklch(15% .005 260)", "oklch(26% .005 260)", "oklch(38% .005 260)", "oklch(49% .005 260)", "oklch(61% .005 260)", "oklch(72% .005 260)", "oklch(84% .005 260)", "oklch(95% .005 260)"] },
-      "ink": { "role": "neutral", "displayName": "Blue ink", "tonalRamp": ["oklch(15% .03 258)", "oklch(26% .03 258)", "oklch(38% .03 258)", "oklch(49% .03 258)", "oklch(61% .03 258)", "oklch(72% .03 258)", "oklch(84% .03 258)", "oklch(95% .03 258)"] },
-      "muted": { "role": "neutral", "displayName": "Slate", "tonalRamp": ["oklch(15% .035 258)", "oklch(26% .035 258)", "oklch(38% .035 258)", "oklch(49% .035 258)", "oklch(61% .035 258)", "oklch(72% .035 258)", "oklch(84% .035 258)", "oklch(95% .035 258)"] },
-      "line": { "role": "neutral", "displayName": "Seam", "tonalRamp": ["oklch(15% .015 258)", "oklch(26% .015 258)", "oklch(38% .015 258)", "oklch(49% .015 258)", "oklch(61% .015 258)", "oklch(72% .015 258)", "oklch(84% .015 258)", "oklch(95% .015 258)"] },
-      "danger": { "role": "semantic", "displayName": "Danger", "tonalRamp": ["oklch(15% .15 17)", "oklch(26% .15 17)", "oklch(38% .15 17)", "oklch(49% .15 17)", "oklch(61% .15 17)", "oklch(72% .15 17)", "oklch(84% .15 17)", "oklch(95% .15 17)"] },
-      "success": { "role": "semantic", "displayName": "Success", "tonalRamp": ["oklch(15% .085 166)", "oklch(26% .085 166)", "oklch(38% .085 166)", "oklch(49% .085 166)", "oklch(61% .085 166)", "oklch(72% .085 166)", "oklch(84% .085 166)", "oklch(95% .085 166)"] },
-      "warning": { "role": "semantic", "displayName": "Warning", "tonalRamp": ["oklch(15% .105 76)", "oklch(26% .105 76)", "oklch(38% .105 76)", "oklch(49% .105 76)", "oklch(61% .105 76)", "oklch(72% .105 76)", "oklch(84% .105 76)", "oklch(95% .105 76)"] },
-      "rail": { "role": "neutral", "displayName": "Rail ink", "tonalRamp": ["oklch(15% .05 262)", "oklch(26% .05 262)", "oklch(38% .05 262)", "oklch(49% .05 262)", "oklch(61% .05 262)", "oklch(72% .05 262)", "oklch(84% .05 262)", "oklch(95% .05 262)"] },
-      "rail-active": { "role": "neutral", "displayName": "Rail selection", "tonalRamp": ["oklch(15% .05 262)", "oklch(26% .05 262)", "oklch(38% .05 262)", "oklch(49% .05 262)", "oklch(61% .05 262)", "oklch(72% .05 262)", "oklch(84% .05 262)", "oklch(95% .05 262)"] },
-      "terminal-bg": { "role": "neutral", "displayName": "Terminal depth", "tonalRamp": ["oklch(15% .03 259)", "oklch(26% .03 259)", "oklch(38% .03 259)", "oklch(49% .03 259)", "oklch(61% .03 259)", "oklch(72% .03 259)", "oklch(84% .03 259)", "oklch(95% .03 259)"] },
-      "terminal-chrome": { "role": "neutral", "displayName": "Terminal chrome", "tonalRamp": ["oklch(15% .04 260)", "oklch(26% .04 260)", "oklch(38% .04 260)", "oklch(49% .04 260)", "oklch(61% .04 260)", "oklch(72% .04 260)", "oklch(84% .04 260)", "oklch(95% .04 260)"] },
-      "terminal-foreground": { "role": "neutral", "displayName": "Terminal foreground", "tonalRamp": ["oklch(15% .015 258)", "oklch(26% .015 258)", "oklch(38% .015 258)", "oklch(49% .015 258)", "oklch(61% .015 258)", "oklch(72% .015 258)", "oklch(84% .015 258)", "oklch(95% .015 258)"] },
-      "note": { "role": "neutral", "displayName": "Note paper", "tonalRamp": ["oklch(15% .007 96)", "oklch(26% .007 96)", "oklch(38% .007 96)", "oklch(49% .007 96)", "oklch(61% .007 96)", "oklch(72% .007 96)", "oklch(84% .007 96)", "oklch(95% .007 96)"] },
-      "mission-bg": { "role": "semantic", "displayName": "Mission paper", "tonalRamp": ["oklch(15% .01 163)", "oklch(26% .01 163)", "oklch(38% .01 163)", "oklch(49% .01 163)", "oklch(61% .01 163)", "oklch(72% .01 163)", "oklch(84% .01 163)", "oklch(95% .01 163)"] },
-      "mission-ink": { "role": "semantic", "displayName": "Mission ink", "tonalRamp": ["oklch(15% .04 155)", "oklch(26% .04 155)", "oklch(38% .04 155)", "oklch(49% .04 155)", "oklch(61% .04 155)", "oklch(72% .04 155)", "oklch(84% .04 155)", "oklch(95% .04 155)"] }
+      "accent": { "role": "primary", "displayName": "Iris", "tonalRamp": ["oklch(15% .12 277)", "oklch(26% .12 277)", "oklch(38% .12 277)", "oklch(49% .12 277)", "oklch(61% .12 277)", "oklch(72% .12 277)", "oklch(84% .12 277)", "oklch(95% .12 277)"] },
+      "accent-soft": { "role": "primary", "displayName": "Live accent wash", "purpose": "Runtime mix follows the current project accent and surface; no fixed alternate hex." },
+      "accent-mint": { "role": "primary", "displayName": "Menta", "tonalRamp": ["oklch(15% .09 165)", "oklch(26% .09 165)", "oklch(38% .09 165)", "oklch(49% .09 165)", "oklch(61% .09 165)", "oklch(72% .09 165)", "oklch(84% .09 165)", "oklch(95% .09 165)"] },
+      "accent-amber": { "role": "primary", "displayName": "Ámbar", "tonalRamp": ["oklch(15% .10 80)", "oklch(26% .10 80)", "oklch(38% .10 80)", "oklch(49% .10 80)", "oklch(61% .10 80)", "oklch(72% .10 80)", "oklch(84% .10 80)", "oklch(95% .10 80)"] },
+      "accent-rose": { "role": "primary", "displayName": "Rosa", "tonalRamp": ["oklch(15% .09 350)", "oklch(26% .09 350)", "oklch(38% .09 350)", "oklch(49% .09 350)", "oklch(61% .09 350)", "oklch(72% .09 350)", "oklch(84% .09 350)", "oklch(95% .09 350)"] },
+      "bg": { "role": "neutral", "displayName": "Graphite", "tonalRamp": ["oklch(15% .01 265)", "oklch(26% .01 265)", "oklch(38% .01 265)", "oklch(49% .01 265)", "oklch(61% .01 265)", "oklch(72% .01 265)", "oklch(84% .01 265)", "oklch(95% .01 265)"] },
+      "surface": { "role": "neutral", "displayName": "Working plane", "tonalRamp": ["oklch(15% .01 265)", "oklch(26% .01 265)", "oklch(38% .01 265)", "oklch(49% .01 265)", "oklch(61% .01 265)", "oklch(72% .01 265)", "oklch(84% .01 265)", "oklch(95% .01 265)"] },
+      "surface-2": { "role": "neutral", "displayName": "Raised plane", "tonalRamp": ["oklch(15% .015 265)", "oklch(26% .015 265)", "oklch(38% .015 265)", "oklch(49% .015 265)", "oklch(61% .015 265)", "oklch(72% .015 265)", "oklch(84% .015 265)", "oklch(95% .015 265)"] },
+      "ink": { "role": "neutral", "displayName": "Light ink", "tonalRamp": ["oklch(15% .007 270)", "oklch(26% .007 270)", "oklch(38% .007 270)", "oklch(49% .007 270)", "oklch(61% .007 270)", "oklch(72% .007 270)", "oklch(84% .007 270)", "oklch(95% .007 270)"] },
+      "muted": { "role": "neutral", "displayName": "Slate", "tonalRamp": ["oklch(15% .02 260)", "oklch(26% .02 260)", "oklch(38% .02 260)", "oklch(49% .02 260)", "oklch(61% .02 260)", "oklch(72% .02 260)", "oklch(84% .02 260)", "oklch(95% .02 260)"] },
+      "line": { "role": "neutral", "displayName": "Seam", "tonalRamp": ["oklch(15% .02 265)", "oklch(26% .02 265)", "oklch(38% .02 265)", "oklch(49% .02 265)", "oklch(61% .02 265)", "oklch(72% .02 265)", "oklch(84% .02 265)", "oklch(95% .02 265)"] },
+      "rail": { "role": "neutral", "displayName": "Rail", "tonalRamp": ["oklch(15% .01 265)", "oklch(26% .01 265)", "oklch(38% .01 265)", "oklch(49% .01 265)", "oklch(61% .01 265)", "oklch(72% .01 265)", "oklch(84% .01 265)", "oklch(95% .01 265)"] },
+      "terminal-bg": { "role": "neutral", "displayName": "Terminal depth", "tonalRamp": ["oklch(15% .02 265)", "oklch(26% .02 265)", "oklch(38% .02 265)", "oklch(49% .02 265)", "oklch(61% .02 265)", "oklch(72% .02 265)", "oklch(84% .02 265)", "oklch(95% .02 265)"] },
+      "primary-ink": { "role": "neutral", "displayName": "Primary ink", "tonalRamp": ["oklch(15% .025 270)", "oklch(26% .025 270)", "oklch(38% .025 270)", "oklch(49% .025 270)", "oklch(61% .025 270)", "oklch(72% .025 270)", "oklch(84% .025 270)", "oklch(95% .025 270)"] },
+      "node-border": { "role": "neutral", "displayName": "Node border", "tonalRamp": ["oklch(15% .025 260)", "oklch(26% .025 260)", "oklch(38% .025 260)", "oklch(49% .025 260)", "oklch(61% .025 260)", "oklch(72% .025 260)", "oklch(84% .025 260)", "oklch(95% .025 260)"] },
+      "note": { "role": "neutral", "displayName": "Note", "tonalRamp": ["oklch(15% .01 280)", "oklch(26% .01 280)", "oklch(38% .01 280)", "oklch(49% .01 280)", "oklch(61% .01 280)", "oklch(72% .01 280)", "oklch(84% .01 280)", "oklch(95% .01 280)"] },
+      "danger": { "role": "semantic", "displayName": "Danger", "tonalRamp": ["oklch(15% .11 10)", "oklch(26% .11 10)", "oklch(38% .11 10)", "oklch(49% .11 10)", "oklch(61% .11 10)", "oklch(72% .11 10)", "oklch(84% .11 10)", "oklch(95% .11 10)"] },
+      "success": { "role": "semantic", "displayName": "Success", "tonalRamp": ["oklch(15% .08 165)", "oklch(26% .08 165)", "oklch(38% .08 165)", "oklch(49% .08 165)", "oklch(61% .08 165)", "oklch(72% .08 165)", "oklch(84% .08 165)", "oklch(95% .08 165)"] },
+      "warning": { "role": "semantic", "displayName": "Warning", "tonalRamp": ["oklch(15% .10 80)", "oklch(26% .10 80)", "oklch(38% .10 80)", "oklch(49% .10 80)", "oklch(61% .10 80)", "oklch(72% .10 80)", "oklch(84% .10 80)", "oklch(95% .10 80)"] },
+      "error-bg": { "role": "semantic", "displayName": "Error ground", "tonalRamp": ["oklch(15% .04 5)", "oklch(26% .04 5)", "oklch(38% .04 5)", "oklch(49% .04 5)", "oklch(61% .04 5)", "oklch(72% .04 5)", "oklch(84% .04 5)", "oklch(95% .04 5)"] },
+      "mission-bg": { "role": "semantic", "displayName": "Mission ground", "tonalRamp": ["oklch(15% .03 165)", "oklch(26% .03 165)", "oklch(38% .03 165)", "oklch(49% .03 165)", "oklch(61% .03 165)", "oklch(72% .03 165)", "oklch(84% .03 165)", "oklch(95% .03 165)"] },
+      "mission-ink": { "role": "semantic", "displayName": "Mission ink", "tonalRamp": ["oklch(15% .06 165)", "oklch(26% .06 165)", "oklch(38% .06 165)", "oklch(49% .06 165)", "oklch(61% .06 165)", "oklch(72% .06 165)", "oklch(84% .06 165)", "oklch(95% .06 165)"] }
     },
     "typographyMeta": {
-      "headline": { "displayName": "Functional headline", "purpose": "Empty-state heading; not a branded display role." },
-      "title": { "displayName": "Tool section title", "purpose": "First-party tool section headings." },
-      "body": { "displayName": "Tool body", "purpose": "System-ui tool prose; shell uses its own native stack without global line-height." },
-      "label": { "displayName": "Field label", "purpose": "Tool field labels." },
-      "panel-title": { "displayName": "Map panel title", "purpose": "Compensates canvas zoom, capped at 2.4×; focus scale is 1." },
-      "tool-button": { "displayName": "Tool control", "purpose": "Compact first-party tool actions." },
-      "code": { "displayName": "Source code", "purpose": "JSON, source details and code fields." },
-      "terminal": { "displayName": "Terminal cells", "purpose": "Actual xterm glyph measurement; not proportional UI text." }
+      "headline": { "displayName": "Appearance headline", "purpose": "18px functional heading, not a display-face prescription." },
+      "title": { "displayName": "Tool title", "purpose": "15px first-party tool section headings." },
+      "body": { "displayName": "Tool body", "purpose": "13px/1.5 system-ui tool prose; shell native base has no global line-height." },
+      "appearance-body": { "displayName": "Appearance prose", "purpose": "12px/1.7 supporting explanation." },
+      "label": { "displayName": "Field and legend", "purpose": "12px semibold control labels." },
+      "support": { "displayName": "Support", "purpose": "11px panel navigation, presets, footer and session metadata." },
+      "micro": { "displayName": "Micro", "purpose": "10px paths, upload help, accent names and grid explanation." },
+      "panel-title": { "displayName": "Map panel title", "purpose": "Inverse-zoom compensation capped at 2.4×; focus uses scale 1." },
+      "tool-button": { "displayName": "Tool control", "purpose": "12px/500/1.4 compact first-party actions." }
     },
     "shadows": [
-      { "name": "node-rest", "value": "0 4px 12px #202c440a", "purpose": "Quiet canvas frame." },
-      { "name": "node-focus", "value": "0 8px 24px #202c4410", "purpose": "Focused panel." },
-      { "name": "creation-dock", "value": "0 5px 20px #202c4420", "purpose": "Floating creation controls." },
-      { "name": "map-controls", "value": "0 3px 12px #202c4412", "purpose": "Zoom and fit navigation." },
-      { "name": "popover", "value": "0 12px 36px #202c4426", "purpose": "Picker, panel list, attention and context menu; --shadow-popover." },
-      { "name": "tool-overlay", "value": "0 18px 64px rgb(15 25 43 / .25)", "purpose": "Palette and voice surfaces." },
-      { "name": "app-dialog", "value": "0 20px 70px #0f1b3555", "purpose": "Mission and close dialogs." },
-      { "name": "narrow-inspector", "value": "-12px 0 35px #202c441c", "purpose": "Right overlay at max-width 1100px." }
+      { "name": "node-rest", "value": "0 6px 18px #0002", "purpose": "Map panel frame." },
+      { "name": "node-focus", "value": "0 10px 30px #0003", "purpose": "Focused panel frame." },
+      { "name": "float", "value": "0 8px 24px #0005", "purpose": "Creation dock and zoom; --shadow-float." },
+      { "name": "popover", "value": "0 16px 40px #0006", "purpose": "Picker, panel list, attention and context menu; --shadow-popover." },
+      { "name": "tool-overlay", "value": "0 18px 64px #0007", "purpose": "Command palette and voice." },
+      { "name": "narrow-inspector", "value": "-12px 0 35px #0004", "purpose": "Inspector overlay at widths ≤1100px." },
+      { "name": "app-dialog-retained", "value": "0 20px 70px #0f1b3555", "purpose": "Local base dialog shadow, retained by cascade." },
+      { "name": "inline-error-retained", "value": "0 4px 14px #202c4420", "purpose": "Local inline-name error shadow retained from base." },
+      { "name": "canvas-busy-retained", "value": "0 4px 15px #202c441a", "purpose": "Local canvas busy shadow retained from base." }
     ],
     "motion": [
-      { "name": "focus-return", "value": "220ms cubic-bezier(.16,1,.3,1)", "purpose": "Clip/brightness focus entrance; no camera rewrite." },
-      { "name": "rail-drawer", "value": "180ms cubic-bezier(.16,1,.3,1)", "purpose": "Narrow desktop rail transform." },
-      { "name": "tool-control", "value": "140ms ease-out", "purpose": "Tool-button background-color and border-color." },
-      { "name": "spinner", "value": "1s linear infinite", "purpose": "Loading rotation." },
-      { "name": "reduced-motion", "value": ".01ms", "purpose": "Shell animation/transition override; tool button transition is none." }
+      { "name": "atmosphere", "value": "220ms cubic-bezier(.16,1,.3,1)", "purpose": "Background opacity only; no frame-pacing claim." },
+      { "name": "rail-drawer", "value": "180ms cubic-bezier(.16,1,.3,1)", "purpose": "Retained narrow drawer transform." },
+      { "name": "tool-control", "value": "140ms ease-out", "purpose": "Tool-button background and border colors." },
+      { "name": "reduced-motion", "value": ".01ms", "purpose": "Base duration override; atmosphere and tool-button transitions are none." }
     ],
     "breakpoints": [
       { "name": "wide-min", "value": "1450px" },
@@ -57,98 +61,142 @@
       { "name": "inspector-overlay-max", "value": "1100px" },
       { "name": "rail-drawer-max", "value": "850px" },
       { "name": "tools-tight-max", "value": "600px" },
-      { "name": "short-height-max", "value": "650px" }
-    ]
+      { "name": "studio-short-height-max", "value": "700px" },
+      { "name": "base-short-height-max", "value": "650px" }
+    ],
+    "layout": {
+      "rail": { "default": "232px", "wide": "240px", "narrow": "210px", "drawer": "232px" },
+      "header": { "height": "64px", "padding": "0 24px", "drawerPadding": "0 13px" },
+      "inspector": { "default": "350px", "wide": "370px", "compact": "325px", "overlay": "350px" },
+      "dock": { "height": "50px", "bottom": "22px", "padding": "5px 7px", "actionHeight": "38px" },
+      "zoom": { "height": "32px", "top": "17px", "right": "20px", "inspectorOpenRight851to1100": "362px" },
+      "appearance": { "padding": "24px 20px", "columns": "1fr 1fr", "gap": "10px", "previewHeight": "58px" },
+      "terminalContainerMax": "420px",
+      "minimumShellWidth": "580px"
+    },
+    "appearance": {
+      "defaults": { "background": "aurora", "accent": "iris", "grid": true, "intensity": 55, "image": "" },
+      "backgrounds": [
+        { "id": "aurora", "name": "Aurora", "value": "radial-gradient(ellipse at 68% 24%, #434688 0%, transparent 62%), radial-gradient(ellipse at 16% 90%, #1f586c 0%, transparent 58%)" },
+        { "id": "tide", "name": "Marea", "value": "radial-gradient(ellipse at 75% 28%, #245c63 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #283f62 0%, transparent 58%)" },
+        { "id": "ember", "name": "Brasa", "value": "radial-gradient(ellipse at 72% 28%, #744535 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #49354d 0%, transparent 58%)" },
+        { "id": "plain", "name": "Grafito", "value": "none" }
+      ],
+      "accentTokenById": { "iris": "accent", "mint": "accent-mint", "amber": "accent-amber", "rose": "accent-rose" },
+      "focusOpacity": "calc(var(--background-intensity, .55) * .12)",
+      "grid": "radial-gradient(#7d879a42 .7px, transparent .7px) / 24px 24px",
+      "storage": {
+        "key": "phantom:studio:${workspaceId || 'default'}",
+        "medium": "localStorage in this machine/browser profile; separate from host workspace JSON",
+        "projectSwitch": "Load target preferences without copying the previous project; Appearance remounts by project key.",
+        "loadValidation": "Known preset/accent; boolean grid; finite intensity clamped 0–100; malformed JSON falls back to defaults.",
+        "writeFailure": "Notify and return false before applying state; no cloud-sync or arbitrary-loss durability claim."
+      },
+      "upload": {
+        "mimeTypes": ["image/png", "image/jpeg", "image/webp"],
+        "maxBytes": 2097152,
+        "reloadDataUrlMaxCharactersExclusive": 2800000,
+        "validation": "Decode via createImageBitmap, then FileReader data URL; reload requires matching base64 image data URL.",
+        "errors": "Visible type/size, read/decode and save errors; storage error also notifies. File input disabled while reading.",
+        "lifecycle": "Unmount/reset invalidate outstanding requests; choosing a preset clears image, removal preserves preset.",
+        "rendering": "Local image covers/centers above CSS atmosphere with shared intensity/focus attenuation; no added shipping rasters."
+      }
+    },
+    "evidence": {
+      "imagesOpened": [".impeccable/review/studio-desktop.png", ".impeccable/review/studio-appearance.png", ".impeccable/review/studio-narrow.png", ".impeccable/review/studio-focused.png"],
+      "dimensions": { "desktopAppearanceFocused": "1520×980", "narrow": "1100×760" },
+      "checks": ".impeccable/review/studio-checks.json",
+      "capturedAt": "2026-11-11T14:53:59.623Z",
+      "checksScope": "Seven recorded checks, errors empty: real Electron/host/PTY, persistence, valid/corrupt/removal upload, project isolation, focus camera/selection return, command route and captures. Read, not rerun by documenter.",
+      "review": ".impeccable/review/studio-review.md",
+      "verdict": "SHIP; sole provenance fix resolved; studio theme, appearance/persistence and App integration only.",
+      "generalSuite": "Supplied status: 84 passed / 1 failed / 3 skipped; unrelated task-catalog failure reported, not whole-suite clean.",
+      "limits": "Synthetic fixtures; narrow desktop not mobile; no whole-product or frame-pacing approval. Old 34-pass light-world ledger does not verify studio styling."
+    },
+    "previewRampPolicy": "Synthesized OKLCH preview metadata only, not application tokens; live accent wash is not frozen to a ramp."
   },
   "components": [
     {
       "name": "Shell primary button", "kind": "button", "refersTo": "button-primary",
-      "description": "Shell call to action, including folder and terminal creation.",
-      "html": "<button class=\"ds-shell-primary\">Crear terminal</button>",
-      "css": ".ds-shell-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:35px;padding:0 13px;border:1px solid var(--accent,#345bd5);border-radius:7px;background:var(--accent,#345bd5);color:white;font:550 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:nowrap;cursor:pointer}.ds-shell-primary:hover{background:#284abe}.ds-shell-primary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-shell-primary:disabled{opacity:.42;cursor:default}"
+      "description": "Accent action with dark ink, not the superseded white-on-cobalt treatment.",
+      "html": "<button class=\"ds-primary\">Crear terminal</button>",
+      "css": ".ds-primary{height:35px;padding:0 13px;border:1px solid var(--accent,#8b9dff);border-radius:7px;background:var(--accent,#8b9dff);color:#171b28;font:550 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-primary:hover{background:color-mix(in srgb,var(--accent,#8b9dff),white 12%)}.ds-primary:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}.ds-primary:disabled{opacity:.42;cursor:default}"
     },
     {
       "name": "Shell secondary button", "kind": "button", "refersTo": "button-secondary",
-      "description": "Quiet bordered shell action.",
-      "html": "<button class=\"ds-shell-secondary\">Escribir nota</button>",
-      "css": ".ds-shell-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:35px;padding:0 13px;border:1px solid #ced7e2;border-radius:7px;background:var(--surface,#fff);color:var(--ink,#202b3b);font:550 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:nowrap;cursor:pointer}.ds-shell-secondary:hover{background:#f6f8fc;border-color:#a7b5ca}.ds-shell-secondary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-shell-secondary:disabled{opacity:.42;cursor:default}"
-    },
-    {
-      "name": "Shell icon button", "kind": "button", "refersTo": "icon-button",
-      "description": "Compact SVG icon action; active state uses cobalt wash.",
-      "html": "<button class=\"ds-icon\" aria-label=\"Cerrar inspector\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 6 6 18M6 6l12 12\"/></svg></button>",
-      "css": ".ds-icon{display:inline-flex;align-items:center;justify-content:center;width:29px;height:29px;border:0;border-radius:6px;background:none;color:var(--muted,#627084);cursor:pointer}.ds-icon:hover{background:#e9eef5;color:var(--ink,#202b3b)}.ds-icon.ds-active{background:var(--accent-soft,#edf1ff);color:var(--accent,#345bd5)}.ds-icon:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-icon:disabled{opacity:.42;cursor:default}"
+      "description": "Opaque quiet shell action; appearance footer uses an 11px text variant.",
+      "html": "<button class=\"ds-secondary\">Escribir nota</button>",
+      "css": ".ds-secondary{height:35px;padding:0 13px;border:1px solid var(--line,#373d48);border-radius:7px;background:var(--surface,#202329);color:var(--ink,#eceef3);font:550 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-secondary:hover{background:var(--surface-2,#292d35);border-color:var(--muted,#a5adbb)}.ds-secondary:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}.ds-secondary:disabled{opacity:.42;cursor:default}"
     },
     {
       "name": "Tool primary button", "kind": "button", "refersTo": "tool-button-primary",
-      "description": "First-party tool submit action.",
+      "description": "Compact first-party submit control with studio color overrides.",
       "html": "<button class=\"ds-tool-primary\">Crear tarea local</button>",
-      "css": ".ds-tool-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--accent,#345bd5);border-radius:5px;background:var(--accent,#345bd5);color:#fff;font:500 12px/1.4 system-ui,sans-serif;white-space:normal;cursor:pointer;transition:background-color 140ms ease-out,border-color 140ms ease-out}.ds-tool-primary:hover:not(:disabled){background:color-mix(in srgb,var(--accent,#345bd5),#000 13%);border-color:var(--muted,#627084)}.ds-tool-primary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-tool-primary:disabled{opacity:.55;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-tool-primary{transition:none}}"
+      "css": ".ds-tool-primary{min-height:32px;padding:6px 10px;border:1px solid var(--accent,#8b9dff);border-radius:5px;background:var(--accent,#8b9dff);color:#171b28;font:500 12px/1.4 system-ui,sans-serif;cursor:pointer;transition:background-color 140ms ease-out,border-color 140ms ease-out}.ds-tool-primary:hover:not(:disabled){background:color-mix(in srgb,var(--accent,#8b9dff),white 12%);border-color:var(--muted,#a5adbb)}.ds-tool-primary:active:not(:disabled){background:var(--accent,#8b9dff)}.ds-tool-primary:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}.ds-tool-primary:disabled{opacity:.55;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-tool-primary{transition:none}}"
     },
     {
       "name": "Tool secondary button", "kind": "button", "refersTo": "tool-button-secondary",
-      "description": "Shared tool refresh/edit action.",
+      "description": "Shared refresh/edit action with accent-wash press state.",
       "html": "<button class=\"ds-tool-secondary\">Actualizar</button>",
-      "css": ".ds-tool-secondary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--line,#d8dfe8);border-radius:5px;background:var(--surface,#fff);color:var(--ink,#202b3b);font:500 12px/1.4 system-ui,sans-serif;white-space:normal;cursor:pointer;transition:background-color 140ms ease-out,border-color 140ms ease-out}.ds-tool-secondary:hover:not(:disabled){background:var(--surface-2,#f4f6f9);border-color:var(--muted,#627084)}.ds-tool-secondary:active:not(:disabled){background:var(--accent-soft,#edf1ff)}.ds-tool-secondary:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-tool-secondary:disabled{opacity:.55;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-tool-secondary{transition:none}}"
+      "css": ".ds-tool-secondary{min-height:32px;padding:6px 10px;border:1px solid var(--line,#373d48);border-radius:5px;background:var(--surface,#202329);color:var(--ink,#eceef3);font:500 12px/1.4 system-ui,sans-serif;cursor:pointer;transition:background-color 140ms ease-out,border-color 140ms ease-out}.ds-tool-secondary:hover:not(:disabled){background:var(--surface-2,#292d35);border-color:var(--muted,#a5adbb)}.ds-tool-secondary:active:not(:disabled){background:var(--accent-soft,color-mix(in srgb,var(--accent,#8b9dff) 15%,var(--surface,#202329)))}.ds-tool-secondary:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}.ds-tool-secondary:disabled{opacity:.55;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-tool-secondary{transition:none}}"
     },
     {
       "name": "Tool field", "kind": "input", "refersTo": "tool-field",
-      "description": "Labelled input shared by tool panels and inspector.",
-      "html": "<label class=\"ds-field\">Título<input placeholder=\"Nombre de tarea\"/></label>",
-      "css": ".ds-field{display:flex;flex-direction:column;gap:5px;margin-bottom:9px;color:var(--ink,#202b3b);font:600 12px/1.5 system-ui,sans-serif}.ds-field input{width:100%;min-width:0;min-height:34px;padding:7px 9px;border:1px solid var(--line,#d8dfe8);border-radius:5px;background:var(--surface,#fff);color:var(--ink,#202b3b);caret-color:var(--accent,#345bd5);font:400 13px/1.5 system-ui,sans-serif}.ds-field input::placeholder{color:var(--muted,#627084);opacity:1}.ds-field input:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}"
+      "description": "Labelled opaque input shared by inspector and canvas tools.",
+      "html": "<div class=\"ds-field\"><label for=\"ds-title\">Título</label><input id=\"ds-title\" placeholder=\"Nombre de tarea\" /></div>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:5px;color:var(--ink,#eceef3);font:13px/1.5 system-ui,sans-serif}.ds-field label{font-size:12px;font-weight:600}.ds-field input{width:100%;min-width:0;min-height:34px;padding:7px 9px;border:1px solid var(--line,#373d48);border-radius:5px;background:var(--surface,#202329);color:var(--ink,#eceef3);caret-color:var(--accent,#8b9dff);font:inherit}.ds-field input::placeholder{color:var(--muted,#a5adbb);opacity:1}.ds-field input:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}"
     },
     {
       "name": "Project navigation", "kind": "nav", "refersTo": "project-item-active",
-      "description": "Rail row with visible name/path and selected marker.",
-      "html": "<nav class=\"ds-rail\" aria-label=\"Proyectos recientes\"><button class=\"ds-project ds-current\"><span class=\"ds-initials\">PW</span><span class=\"ds-project-copy\"><strong>Phantom Workspace</strong><small>/proyectos/phantom-workspace</small></span><span class=\"ds-project-dot\"></span></button><button class=\"ds-project\"><span class=\"ds-initials\">NT</span><span class=\"ds-project-copy\"><strong>Notas</strong><small>/proyectos/notas</small></span></button></nav>",
-      "css": ".ds-rail{display:flex;flex-direction:column;gap:5px;width:202px;padding:12px;background:#202c44;font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-project{display:flex;align-items:center;gap:9px;width:100%;padding:10px 8px;border:0;border-radius:7px;text-align:left;background:none;color:#c5d2e4;cursor:pointer}.ds-project:hover{background:#29374f}.ds-project.ds-current{background:#34435f;color:#fff}.ds-initials{display:grid;place-items:center;flex-shrink:0;width:29px;height:29px;border-radius:6px;background:#394963;color:#dce6f8;font-size:10px;font-weight:650;letter-spacing:.02em}.ds-current .ds-initials{background:#536b9b;color:#fff}.ds-project-copy{flex:1;min-width:0}.ds-project strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:550}.ds-project small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;font-size:10px;color:#b5c4d9}.ds-project-dot{width:5px;height:5px;border-radius:50%;background:#a9bdff;flex-shrink:0}.ds-project:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}"
+      "description": "Selected project uses raised graphite; initial and dot retain current accent.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Proyectos\"><button class=\"ds-project\" aria-current=\"true\"><span class=\"ds-initials\">PW</span><span class=\"ds-project-copy\"><strong>Phantom Workspace</strong><small>/proyectos/phantom-workspace</small></span><span class=\"ds-dot\"></span></button></nav>",
+      "css": ".ds-rail{width:232px;padding:20px 12px 12px;background:var(--rail,#1b1e24);font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-project{display:flex;align-items:center;gap:9px;width:100%;padding:10px 8px;border:0;border-radius:7px;text-align:left;background:var(--surface-2,#292d35);color:var(--ink,#eceef3);cursor:pointer}.ds-project:hover{background:var(--surface-2,#292d35)}.ds-initials{display:grid;place-items:center;width:29px;height:29px;flex-shrink:0;border-radius:6px;background:var(--accent-soft,color-mix(in srgb,var(--accent,#8b9dff) 15%,var(--surface,#202329)));color:var(--accent,#8b9dff);font-size:10px;font-weight:650}.ds-project-copy{min-width:0;flex:1}.ds-project strong,.ds-project small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-project strong{font-size:12px;font-weight:550}.ds-project small{font-size:10px;margin-top:4px;color:var(--muted,#a5adbb)}.ds-dot{width:5px;height:5px;border-radius:50%;background:var(--accent,#8b9dff)}.ds-project:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}"
     },
     {
       "name": "Tool badge", "kind": "chip", "refersTo": "tool-badge",
-      "description": "Noninteractive local/source classification label.",
+      "description": "Noninteractive local/source classification, not a fabricated native object.",
       "html": "<span class=\"ds-badge\">Borrador local</span>",
-      "css": ".ds-badge{display:inline-block;padding:2px 6px;border-radius:3px;background:var(--surface-2,#f4f6f9);color:var(--muted,#627084);font:11px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}"
-    },
-    {
-      "name": "Mission membership", "kind": "chip", "refersTo": "mission-chip",
-      "description": "Noninteractive mission chip in a node header.",
-      "html": "<span class=\"ds-mission\" title=\"Misión del proyecto\">Misión del proyecto</span>",
-      "css": ".ds-mission{display:inline-block;max-width:90px;padding:3px 5px;border-radius:4px;background:#eaf2ee;color:#55705f;font:9px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+      "css": ".ds-badge{display:inline-block;padding:2px 6px;border-radius:3px;background:var(--surface-2,#292d35);color:var(--muted,#a5adbb);font:11px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}"
     },
     {
       "name": "Canvas node", "kind": "card", "refersTo": "canvas-node",
-      "description": "Selected spatial frame with inline-editable title and note body; static preview of the actual structure.",
-      "html": "<article class=\"ds-node ds-selected\"><header class=\"ds-node-header\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v6h6\"/></svg><button class=\"ds-node-title\">Nota del proyecto</button></header><textarea class=\"ds-note\" aria-label=\"Nota del proyecto\">Contexto que permanece.</textarea></article>",
-      "css": ".ds-node{display:flex;flex-direction:column;width:320px;height:200px;overflow:hidden;isolation:isolate;border:1px solid #c7d0dd;border-radius:10px;background:var(--surface,#fff);color:var(--ink,#202b3b);box-shadow:0 4px 12px #202c440a;font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-node.ds-selected{border-color:var(--accent,#345bd5);outline:1px solid var(--accent,#345bd5);outline-offset:0}.ds-node-header{display:flex;align-items:center;gap:8px;height:35px;min-height:35px;padding:0 7px 0 12px;background:#f9fafc;border-bottom:1px solid #dce2ea;color:#627188;cursor:grab;user-select:none}.ds-node-title{display:block;max-width:100%;padding:4px 0;border:0;background:none;color:#344158;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 11px/1.1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:text}.ds-node-title:hover{color:var(--accent,#345bd5)}.ds-node-title:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:3px}.ds-note{flex:1;min-height:0;width:100%;resize:none;padding:21px 22px;border:0;background:#fffef9;color:var(--ink,#202b3b);caret-color:var(--accent,#345bd5);font:13px/1.8 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-note:focus-visible{outline:2px solid var(--accent,#345bd5);outline-offset:-3px}"
+      "description": "Opaque note frame with selected map outline; static spatial preview.",
+      "html": "<article class=\"ds-node\"><header class=\"ds-node-header\"><button class=\"ds-node-title\">Contexto de la sesión</button></header><textarea class=\"ds-note\" aria-label=\"Nota de la sesión\">Contexto que permanece.</textarea></article>",
+      "css": ".ds-node{display:flex;flex-direction:column;width:320px;height:200px;overflow:hidden;border:1px solid var(--accent,#8b9dff);outline:1px solid var(--accent,#8b9dff);outline-offset:0;border-radius:10px;background:var(--surface,#202329);box-shadow:0 6px 18px #0002;color:var(--ink,#eceef3);font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-node-header{display:flex;align-items:center;height:35px;min-height:35px;padding:0 7px 0 12px;background:var(--surface-2,#292d35);border-bottom:1px solid var(--line,#373d48)}.ds-node-title{padding:4px 0;border:0;background:none;color:var(--ink,#eceef3);font:600 11px/1.1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:text}.ds-node-title:hover{color:var(--accent,#8b9dff)}.ds-node-title:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}.ds-note{flex:1;min-height:0;resize:none;padding:21px 22px;border:0;background:#24252b;color:var(--ink,#eceef3);caret-color:var(--accent,#8b9dff);font:13px/1.8 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-note:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:-3px}"
+    },
+    {
+      "name": "Background preset", "kind": "button", "refersTo": "background-option",
+      "description": "Illustrative Aurora preview with explicit pressed state and checkmark.",
+      "html": "<button class=\"ds-preset\" aria-pressed=\"true\"><span class=\"ds-preview\"></span><span>Aurora</span><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m20 6-11 11-5-5\"/></svg></button>",
+      "css": ".ds-preset{position:relative;width:155px;text-align:left;padding:5px 5px 9px;border:1px solid var(--line,#373d48);border-radius:8px;background:none;color:var(--ink,#eceef3);font:11px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-preset:hover{border-color:var(--muted,#a5adbb)}.ds-preset[aria-pressed=true]{border-color:var(--accent,#8b9dff);color:var(--accent,#8b9dff)}.ds-preview{display:block;height:58px;margin-bottom:9px;border-radius:4px;background-color:var(--bg,#15171c);background-image:radial-gradient(ellipse at 75% 20%,#434688,transparent 75%),radial-gradient(ellipse at 10% 90%,#1f586c,transparent 75%)}.ds-preset>span:nth-child(2){margin-left:4px}.ds-preset>svg{position:absolute;bottom:9px;right:8px}.ds-preset:focus-visible{outline:2px solid var(--accent,#8b9dff);outline-offset:3px}"
     }
   ],
   "narrative": {
-    "northStar": "Atlas de estudio",
-    "overview": "A recoverable project table: an ink-blue project rail anchors a mineral canvas, with precise white panel frames and dark working terminals. Density is that of a desktop tool; compact controls and readable context take precedence over decorative composition. The signature is spatial return: enter a focused panel, then return to its map without replacing the underlying camera or panel identity.\n\nThis is a code-led record of the shipped world. `src/styles.css`, `src/tools.css`, `src/App.jsx`, the components, and the input/edit/save hooks are the implementation authority; the frontmatter records their reusable values. The confirmed direction comes from `.impeccable/surfaces/workspace.md`, with durable identity and input constraints in `PRODUCT.md`. No comparison images supplied the visual authority. `assets/phantom.svg` is the shipping vector brand asset; the rail currently renders its Blocks SVG icon. There are no shipping raster assets: browser thumbnails are runtime captures, and review screenshots are development evidence, not reusable brand imagery.",
+    "northStar": "Dark studio",
+    "overview": "A personal development studio: graphite navigation and opaque working planes over an optional atmospheric canvas. Compact native controls keep projects, panels and commands within reach. Focusing a panel quiets the personal background while preserving spatial identity and the route back to the map.\n\nThis replaces the superseded light “Atlas de estudio” world at the user's request. `.impeccable/surfaces/workspace.md` records the pinned dark, Figma-inspired DX direction; it is code-led, not a randomly selected concept or comp reproduction. `src/styles.css` remains the layout/input base and imports `src/tools.css`; `src/App.jsx` imports `src/studio.css` after that base. **The shipping visual authority is the resulting cascade with `studio.css` overrides**, not the light literals left in the base. Appearance state comes from `src/hooks/useAppearance.js`, `src/components/Appearance.jsx` and their App integration. Frontmatter captures reusable values; the sidecar extends it with previews, depth and behavior.",
     "keyCharacteristics": [
-      "Mineral map, ink-blue rail, white tool surfaces, dark terminal work area.",
-      "Native system typography for interface text; monospace for terminal and code.",
-      "Compact bordered controls with cobalt selection and visible keyboard focus.",
-      "Persistent project and panel identities with an explicit map-to-focus return.",
-      "First-party tool forms shared between canvas panels and the nonmodal inspector."
+      "Graphite shell, opaque tools, iris selection and optional personal atmosphere.",
+      "Native interface sans with compact support text; monospace for terminal/code.",
+      "Direct project/panel routes and separate floating creation and zoom controls.",
+      "Project-local appearance and focus attenuation without camera replacement."
     ],
     "rules": [
-      { "name": "The Selection Is State Rule", "body": "Use cobalt to identify action, selection and keyboard ownership; retain labels and status text alongside colored indicators.", "section": "colors" },
-      { "name": "The Quiet Frame Rule", "body": "Preserve tonal boundaries and soft ambient elevation; node selection is an outline, not an elevated decorative card.", "section": "elevation" }
+      { "name": "The Selection Is State Rule", "body": "Use the current accent for action, selection and keyboard ownership; keep accompanying labels and status text.", "section": "colors" },
+      { "name": "The Opaque Work Rule", "body": "Personal atmosphere belongs behind the canvas; terminal and tool operating planes stay opaque.", "section": "elevation" }
     ],
     "dos": [
-      "**Do** use the shipped mineral, ink-blue, white and cobalt roles with native interface typography.",
-      "**Do** keep camera/layout identity separate from temporary focus geometry and visible names separate from canonical paths.",
-      "**Do** share first-party tool primitives between canvas panels and the nonmodal inspector.",
-      "**Do** preserve keyboard focus ownership, explicit terminal relaunch and visible source/save failures.",
-      "**Do** consult the final JSON ledger and scoped review verdict before quoting verification status."
+      "**Do** apply the studio override palette and current project accent over the retained layout base.",
+      "**Do** keep working planes opaque and attenuate only the background when focusing.",
+      "**Do** preserve camera identity, direct panel routes and nonmodal inspector input ownership.",
+      "**Do** expose local appearance save/upload failures and retain named, checkmarked choices.",
+      "**Do** quote the studio evidence and scoped verdict with their verification limits."
     ],
     "donts": [
-      "**Don't** turn runtime browser captures, fixture page styling or development screenshots into shipping identity assets.",
-      "**Don't** let canvas navigation or inspector fields consume or forward ordinary terminal keystrokes.",
-      "**Don't** describe a local draft/reference as a native Phantom object or an unknown revision as verified.",
-      "**Don't** infer mobile readiness, exhaustive UX approval or human visual approval from the desktop evidence.",
-      "**Don't** promote sidecar preview tonal ramps into application tokens; they are synthesized panel metadata only."
+      "**Don't** restore the superseded light palette from base CSS literals or old documentation.",
+      "**Don't** treat optional local uploads, runtime captures or review screenshots as shipping identity assets.",
+      "**Don't** redirect terminal keystrokes through canvas navigation or inspector fields.",
+      "**Don't** infer mobile readiness, whole-product approval or a clean general suite from this packet.",
+      "**Don't** promote sidecar preview ramps into application tokens; they are synthesized metadata only."
     ]
   }
 }

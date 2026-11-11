@@ -1,0 +1,32 @@
+.plugin-surface { width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; background: var(--surface); color: var(--ink); font: 13px/1.5 system-ui, sans-serif; container-type: inline-size; }
+.plugin-surface *, .plugin-surface *::before, .plugin-surface *::after { box-sizing: border-box; }
+.plugin-surface .tw-content { min-width: 0; height: auto; overflow: visible; padding: 16px; }
+.plugin-surface h2 { font-size: 18px; margin: 0; }
+.plugin-surface h3 { font-size: 15px; }
+.plugin-surface h4 { font-size: 13px; margin: 0 0 10px; }
+.plugin-surface p, .plugin-surface dd, .plugin-surface small { overflow-wrap: anywhere; }
+.plugin-surface .tw-section, .plugin-surface .tw-item { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 12px; margin-bottom: 12px; min-width: 0; }
+.plugin-surface .tw-item { background: var(--surface-2); }
+.plugin-surface .tw-heading, .plugin-surface .tw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plugin-surface .tw-heading { justify-content: space-between; margin-bottom: 12px; }
+.plugin-surface .tw-form, .plugin-surface fieldset { display: grid; gap: 10px; min-width: 0; }
+.plugin-surface fieldset { border: 0; padding: 0; margin: 0; }
+.plugin-surface .tw-field { min-width: 0; }
+.plugin-surface .plugin-filters .tw-field { flex: 1 1 180px; }
+.plugin-surface input:not([type=checkbox]), .plugin-surface select, .plugin-surface textarea { width: 100%; min-width: 0; min-height: 34px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; padding: 7px 9px; font: inherit; }
+.plugin-surface textarea { resize: vertical; }
+.plugin-surface label { font-size: 12px; font-weight: 600; }
+.plugin-surface .tw-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; min-height: 32px; }
+.plugin-surface :is(button,input,select,textarea,summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.plugin-surface :disabled { opacity: .55; cursor: not-allowed; }
+.plugin-surface .plugin-identity { color: var(--muted); overflow-wrap: anywhere; }
+.plugin-surface dl.plugin-identity { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 12px; }
+.plugin-surface dd { margin: 0; }
+.plugin-surface .plugin-board { max-width: 100%; padding-bottom: 12px; overscroll-behavior: contain; }
+.plugin-surface .plugin-board-column { flex: 0 0 260px; background: var(--surface-2); padding: 10px; border-radius: 7px; }
+.plugin-surface .tw-code { max-width: 100%; max-height: 360px; overflow: auto; background: var(--bg); color: var(--ink); }
+.plugin-surface .plugin-gate { margin: 16px; }
+.plugin-surface .tw-error { background: var(--error-bg); color: var(--danger); overflow-wrap: anywhere; }
+.plugin-surface .tw-warning { color: var(--warning); }
+@container (max-width: 440px) { .plugin-surface .tw-content { padding: 12px; } .plugin-surface .plugin-filters .tw-field { flex-basis: 100%; } .plugin-surface .tw-heading { align-items: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .plugin-surface *, .plugin-surface *::before, .plugin-surface *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

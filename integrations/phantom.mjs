@@ -1,19 +1,32 @@
-import { realpath, readFile, writeFile, mkdir, mkdtemp, rm, rename } from 'node:fs/promises';
+import { realpath, stat, readFile, writeFile, mkdir, mkdtemp, rm, rename } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { workspaceRoot, safePath, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
+import { validatePluginPreferences } from '../shared/plugins.mjs';
 
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
 const controllers = new Map(), writes = new Map(), starts = new Map();
 const stable = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
 const identifier = value => { text(value, 'Phantom ID', 200); if (value.startsWith('-')) throw new Error('Invalid Phantom ID'); return value; };
+export async function discoverPhantomCLI(explicit) {
+  const candidates = explicit ? [explicit] : process.env.PHANTOM_CLI ? [process.env.PHANTOM_CLI] : [path.join(homedir(), '.local/lib/node_modules/phantom-harness/bin/phantom.mjs'), defaultCLI];
+  for (const candidate of candidates) {
+    try { const resolved = await realpath(candidate); if ((await stat(resolved)).isFile()) return resolved; } catch { /* Try next installation candidate. */ }
+  }
+  throw new Error(`Phantom CLI not found. Configure phantomPath or PHANTOM_CLI. Tried: ${candidates.join(', ')}`);
+}
+function configuration(workspace, context) {
+  const config = validatePluginPreferences(workspace.plugins).phantom.config;
+  return Object.fromEntries(['phantomPath', 'phantomData', 'model'].map(key => [key, config[key] || context.state?.settings?.[key] || undefined]));
+}
 async function client(payload, context) {
   const { root, workspace } = await workspaceRoot(context, payload);
-  const cli = await realpath(context.state?.settings?.phantomPath ?? process.env.PHANTOM_CLI ?? defaultCLI);
+  const config = configuration(workspace, context);
+  const cli = await discoverPhantomCLI(config.phantomPath);
   const flags = ['--json'];
-  const data = context.state?.settings?.phantomData;
+  const data = config.phantomData;
   const nativeHome = await externalStatePath(data ?? process.env.PHANTOM_HOME ?? path.join(process.env.XDG_STATE_HOME ?? path.join(homedir(), '.local/state'), 'phantom'), root);
   if (data !== undefined) {
     text(data, 'phantomData', 4096);
@@ -22,7 +35,19 @@ async function client(payload, context) {
     flags.push('--data', home);
   }
   const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root });
-  return { root, workspace, cli, flags, call, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+  return { root, workspace, cli, flags, call, config, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+}
+export async function phantomStatus(payload, context) {
+  await workspaceRoot(context, payload);
+  try {
+    const c = await client(payload, context);
+    // Actually contact the native backend, rather than reporting file presence as health.
+    const catalog = await c.call(['list']);
+    if (!Array.isArray(catalog)) throw new Error('Phantom returned an invalid catalog');
+    let version;
+    try { const pkg = JSON.parse(await readFile(path.resolve(path.dirname(c.cli), '../package.json'), 'utf8')); if (typeof pkg.version === 'string') version = pkg.version; } catch { /* Optional package metadata. */ }
+    return { available: true, source: 'phantom', cli: c.cli, ...(version ? { version } : {}), observedAt: observedAt() };
+  } catch (error) { return { available: false, source: 'phantom', reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
 }
 async function family(client, context) {
   const roots = new Set([client.root]);
@@ -178,7 +203,7 @@ async function controlOwned(payload, context, c) {
   if (!['run', 'cancel', 'recover', 'verify'].includes(payload.action)) throw new Error('Unknown Phantom control action');
   const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
   if (payload.action === 'cancel') return c.call(['cancel', task.id]);
-  if (payload.action === 'run') text(payload.model, 'model', 200);
+  if (payload.action === 'run') { payload = { ...payload, model: payload.model || c.config.model }; text(payload.model, 'model', 200); }
   const active = [...controllers.values()].find(p => p.descriptor.workspaceId === c.workspace.id && p.descriptor.backend === c.backend && p.descriptor.taskId === task.id && p.descriptor.status === 'running');
   if (active) return active.descriptor;
   const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '' };
@@ -216,6 +241,11 @@ async function controlOwned(payload, context, c) {
   await context.persist(); return { ...descriptor };
 }
 export async function phantom(method, payload, context) {
+  if (payload.pluginId !== undefined) {
+    if (payload.pluginId !== 'phantom') throw new Error('Unknown plugin');
+    const { workspace } = await workspaceRoot(context, payload);
+    if (['phantom.create', 'phantom.update', 'phantom.control'].includes(method) && !validatePluginPreferences(workspace.plugins).phantom.enabled) throw new Error('Phantom plugin is disabled for this workspace');
+  }
   // Validate topics outside the availability catch; bad API input is not an unavailable backend.
   if (method === 'phantom.list' && !['tasks', 'memories', 'skills'].includes(payload.topic)) throw new Error('topic must be tasks, memories, or skills');
   if (method === 'phantom.list' && payload.query !== undefined && (typeof payload.query !== 'string' || payload.query.length > 500)) throw new Error('Invalid Phantom query');
@@ -226,6 +256,20 @@ export async function phantom(method, payload, context) {
   }
   const c = await client(payload, context);
   if (method === 'phantom.detail') return detail(payload, context, c);
+  if (method === 'phantom.events') {
+    identifier(payload.id);
+    await detail({ topic: 'tasks', id: payload.id }, context, c);
+    const events = await c.call(['events', payload.id]);
+    if (!Array.isArray(events)) throw new Error('Phantom returned invalid events');
+    return { id: payload.id, source: 'phantom', events, observedAt: observedAt() };
+  }
+  if (method === 'phantom.controllers') {
+    let changed = false;
+    const items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
+    for (const item of items) if (item.status === 'running' && !controllers.has(item.id)) { item.status = 'lost'; changed = true; }
+    if (changed) await context.persist();
+    return { items: structuredClone(items), observedAt: observedAt() };
+  }
   if (method === 'phantom.control') return control(payload, context, c);
   return writeNative(method, payload, context, c);
 }
