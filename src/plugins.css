@@ -252,3 +252,6 @@
 .pc-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pc-budget { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
 .pc-budget .tw-field { margin: 0; }
+/* Cards scattered across worktrees: where each one lives. */
+.pc-where { display: inline-flex; align-items: center; gap: 3px; max-width: 160px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; font-size: 10px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-place select { max-width: 190px; }

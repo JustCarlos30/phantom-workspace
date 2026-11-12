@@ -8,6 +8,7 @@ import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES
 import { Terminals } from './terminals.mjs';
 import { Chats, validateChat, validateModel } from './chats.mjs';
 import { Merges } from './merges.mjs';
+import { Branches } from './branches.mjs';
 import { agentContext, validateAgent } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
 
@@ -28,7 +29,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,chats,merges,server,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,branches,server,closingPromise,ownsSocket=false;
   const clients=new Set();
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
@@ -153,6 +154,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat={...current.data.chat,...patch};if(p.model!==undefined){assert(chat.provider,'Elige Claude u OpenCode primero');const models={...chat.models};if(p.model===null)delete models[chat.provider];else models[chat.provider]=p.model;chat.models=models;}current.data={...current.data,chat};return current;});
     }
     if(method.startsWith('merge.')) return merges.handle(method,p);
+    if(method.startsWith('branch.')) return branches.handle(method,p);
     if(method==='storage.export') { const data=structuredClone(store.state); // Runtime settings may contain credentials: export only portable presentation settings.
       data.settings=Object.fromEntries(Object.entries(data.settings).filter(([k])=>['theme','fontSize','terminalFontSize','language'].includes(k)));
        if(p.includeHistory) {await terminals.flush();data.terminalHistory=terminals.sessions.map(s=>({...terminals.descriptor(s),seq:s.snapshotSeq??s.seq,status:s.status==='running'?'lost':s.status,pid:null,snapshot:s.snapshot}));}return data; }
@@ -201,7 +203,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>merges.agentContext(w,node));
+    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>merges.agentContext(w,node));
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};

@@ -3,6 +3,7 @@
   --sk-project: var(--success, #8ad8b6);
   --sk-phantom: var(--accent, #8b9dff);
   --sk-installed: var(--warning, #edbf79);
+  --sk-worktree: var(--working, #7cc7e8);
   display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0;
   font: 13px/1.5 system-ui, sans-serif; color: var(--ink);
 }
@@ -11,6 +12,8 @@
 .sk-project { --sk-tone: var(--sk-project); }
 .sk-phantom { --sk-tone: var(--sk-phantom); }
 .sk-installed { --sk-tone: var(--sk-installed); }
+.sk-worktree { --sk-tone: var(--sk-worktree); }
+.sk-chip.is-drift { color: var(--sk-worktree); border-color: color-mix(in srgb, var(--sk-worktree) 40%, var(--line)); }
 
 /* Header & toolbar */
 .sk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 10px; }

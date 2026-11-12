@@ -4,8 +4,12 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { command } from './common.mjs';
 
 const MAX_DEPTH = 4, MAX_PER_ROOT = 400, MAX_SKILL_BYTES = 512 * 1024, MAX_FILES = 200;
+const PROJECT_ROOTS = [['.claude/skills', 'Claude Code'], ['.agents/skills', 'Agentes'], ['.codex/skills', 'Codex'], ['.opencode/skill', 'OpenCode'], ['.opencode/skills', 'OpenCode'], ['skills', 'Carpeta']];
+const MAX_WORKTREES = 40;
 const SKIP = new Set(['node_modules', '.git', '.venv', '__pycache__', 'dist', 'out']);
 
 async function exists(target) { try { await fs.access(target); return true; } catch { return false; } }
@@ -16,7 +20,7 @@ export async function skillRoots({ workspacePath, home = os.homedir() } = {}) {
   const roots = [];
   const add = (dir, origin, agent, label, extra = {}) => roots.push({ dir, origin, agent, label, ...extra });
   if (workspacePath) {
-    for (const [rel, agent] of [['.claude/skills', 'Claude Code'], ['.agents/skills', 'Agentes'], ['.codex/skills', 'Codex'], ['.opencode/skill', 'OpenCode'], ['.opencode/skills', 'OpenCode'], ['skills', 'Carpeta']]) {
+    for (const [rel, agent] of PROJECT_ROOTS) {
       add(path.join(workspacePath, rel), 'project', agent, `${rel}`);
     }
   }
@@ -130,6 +134,31 @@ async function describe(file, root) {
   };
 }
 
+// Other worktrees of the same repository: where terminals write Skills before they are integrated.
+async function linkedWorktrees(main, context) {
+  let stdout;
+  try { ({ stdout } = await command(context, 'git', ['--no-optional-locks', 'worktree', 'list', '--porcelain', '-z'], { cwd: main })); } catch { return []; }
+  const trees = []; let tree;
+  for (const field of String(stdout).split('\0')) {
+    if (field.startsWith('worktree ')) { tree = { path: field.slice(9), branch: null }; trees.push(tree); }
+    else if (tree && field.startsWith('branch ')) tree.branch = field.slice(7).replace(/^refs\/heads\//, '');
+  }
+  const linked = [];
+  for (const item of trees.slice(0, MAX_WORKTREES)) {
+    try { const real = await fs.realpath(item.path); if (real !== main) linked.push({ ...item, path: real }); } catch { /* Removed worktree. */ }
+  }
+  return linked;
+}
+// Content identity of a skill folder: SKILL.md bytes plus the names and sizes of its files.
+async function signature(dir) {
+  try {
+    const hash = createHash('sha256').update(await fs.readFile(path.join(dir, 'SKILL.md')));
+    for (const file of await listFiles(dir)) hash.update(`\0${file.path}\0${file.size}`);
+    return hash.digest('hex');
+  } catch { return null; }
+}
+const shortBranch = branch => branch ? branch.replace(/^phantom\/terminal-([0-9a-f]{8})[0-9a-f-]*$/, 'terminal $1') : 'HEAD separado';
+
 export async function skillsCatalog(payload, context) {
   const workspace = context.workspace;
   if (!workspace) throw new Error('Workspace not found');
@@ -145,7 +174,30 @@ export async function skillsCatalog(payload, context) {
       try { items.push(await describe(file, { ...root, dir: real })); } catch { /* Unreadable skill is skipped, root still listed. */ }
     }
   }
-  return { items, roots: scanned, observedAt: new Date().toISOString() };
+  // Skills that only exist, or differ, in another worktree. Identical copies of
+  // the project's own Skills are not repeated.
+  let main; try { main = await fs.realpath(workspace.canonicalPath || workspace.path); } catch { main = null; }
+  const worktrees = [];
+  for (const tree of main ? await linkedWorktrees(main, context) : []) {
+    const owner = (workspace.nodes || []).find(node => node.type === 'terminal' && tree.branch && node.data?.worktree?.branch === tree.branch);
+    const label = owner?.title || shortBranch(tree.branch), summary = { path: tree.path, branch: tree.branch, label, nodeId: owner?.id ?? null, new: 0, modified: 0 };
+    for (const [rel, agent] of PROJECT_ROOTS) {
+      const dir = path.join(tree.path, rel);
+      if (!await exists(dir)) continue;
+      for (const file of await findSkillFiles(dir)) {
+        if (seen.has(file)) continue; seen.add(file);
+        const relative = path.relative(tree.path, path.dirname(file)), original = path.join(main, relative);
+        const drift = !await exists(path.join(original, 'SKILL.md')) ? 'new' : await signature(original) !== await signature(path.dirname(file)) ? 'modified' : null;
+        if (!drift) continue;
+        try {
+          items.push({ ...await describe(file, { dir, origin: 'worktree', agent, label: `En rama · ${label}` }), drift, branch: tree.branch, worktree: tree.path, worktreeLabel: label, nodeId: owner?.id ?? null, projectPath: relative });
+          summary[drift]++;
+        } catch { /* Unreadable skill is skipped. */ }
+      }
+    }
+    worktrees.push(summary);
+  }
+  return { items, roots: scanned, worktrees, observedAt: new Date().toISOString() };
 }
 
 export async function skillsRead(payload, context) {

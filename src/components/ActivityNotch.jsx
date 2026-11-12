@@ -80,6 +80,7 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
       </section>}
       {show('integration') && <section aria-labelledby="activity-integration"><h2 id="activity-integration"><GitBranch size={15} />Integración <b>{activity.branches.length} ramas</b></h2>
         <button onClick={() => navigate('incorporaciones')}>Revisar incorporaciones</button>
+        <button onClick={() => navigate('branches')}>Ordenar ramas y worktrees</button>
         <form className="activity-base" onSubmit={e => { e.preventDefault(); activity.setBase(draftBase.trim()); if (activity.base === draftBase.trim()) activity.retry(); }}><label>Base explícita<input aria-label="Base de integración" value={draftBase} maxLength={512} onChange={e => setDraftBase(e.target.value)} placeholder="p. ej. main" /></label><button disabled={!activity.connected || activity.sources.git.loading}>Comparar</button></form>
         <Source name="Git · git.inspect" source={activity.sources.git} activity={activity} />
         <p className="activity-empty">Base: {activity.sources.git.data?.base || activity.base || 'sin elegir'} · {activity.pendingBranches} no integradas · {activity.unknownBranches} desconocidas. No integrada no implica lista para merge.</p>

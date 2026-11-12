@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Copy, ExternalLink, FileText, Folder, RefreshCw, Search, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, FileText, Folder, GitBranch, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { useResource } from './PluginPrimitives';
 import { Markdown } from './SkillsMarkdown';
-import { ORIGINS, ORDER, buildCatalog, phantomEntry, textOf, bytes } from '../hooks/skills-model.mjs';
+import { ORIGINS, ORDER, DRIFT, buildCatalog, phantomEntry, textOf, bytes } from '../hooks/skills-model.mjs';
 import '../skills.css';
 
 function Monogram({ entry, large }) {
@@ -19,7 +19,8 @@ function Row({ entry, active, copies, onSelect }) {
     <span className="sk-row-main">
       <span className="sk-row-title"><strong>{entry.name}</strong>{entry.version && <span className="sk-tag">v{entry.version}</span>}</span>
       <span className="sk-row-desc">{entry.description || 'Sin descripción declarada.'}</span>
-      {(entry.folders.length > 0 || copies.length > 0) && <span className="sk-row-meta">
+      {(entry.folders.length > 0 || copies.length > 0 || entry.drift) && <span className="sk-row-meta">
+        {entry.drift && <span className="sk-chip is-drift"><GitBranch size={10} />{DRIFT[entry.drift]}</span>}
         {entry.folders.slice(0, 3).map(folder => <span key={folder} className="sk-chip"><Folder size={10} />{folder}</span>)}
         {copies.length > 0 && <span className="sk-chip is-copy" title={copies.map(copy => copy.group).join('\n')}>También en {copies.length === 1 ? copies[0].agent : `${copies.length} lugares`}</span>}
       </span>}
@@ -31,7 +32,7 @@ function Fact({ label, children }) {
   return <div className="sk-fact"><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
-function FileDetail({ entry, api, notify }) {
+function FileDetail({ entry, api, notify, onOpenPanel }) {
   const detail = useResource(api, 'skills.read', { workspaceId: entry.workspaceId, id: entry.id });
   const [filesOpen, setFilesOpen] = useState(false);
   const copy = async () => {
@@ -41,6 +42,7 @@ function FileDetail({ entry, api, notify }) {
   const data = detail.data;
   return <>
     <dl className="sk-facts">
+      {entry.origin === 'worktree' && <Fact label="Rama"><span className="sk-path" title={entry.branch || entry.worktree}>{entry.worktreeLabel} · {DRIFT[entry.drift]?.toLowerCase()}</span>{onOpenPanel && <button type="button" className="sk-icon" aria-label="Ver esta rama en Ramas" title="Ver en Ramas" onClick={() => onOpenPanel('branches', entry.branch ? { branch: entry.branch } : {})}><GitBranch size={13} /></button>}</Fact>}
       <Fact label="Agente">{entry.agent}{entry.plugin ? ` · plugin ${entry.plugin}` : ''}</Fact>
       <Fact label="Archivos">{entry.fileCount ? `${entry.fileCount} de apoyo` : 'Solo SKILL.md'}{data?.size ? ` · ${bytes(data.size)}` : ''}</Fact>
       {entry.allowedTools && <Fact label="Herramientas">{entry.allowedTools}</Fact>}
@@ -94,7 +96,7 @@ function Detail({ entry, copies, api, notify, onOpenPanel, onClose, onSelect }) 
     </header>
     {entry.description && <p className="sk-lede">{entry.description}</p>}
     {copies.length > 0 && <div className="sk-copies"><span>También disponible en</span>{copies.map(copy => <button type="button" key={copy.id} className="sk-chip is-button" onClick={() => onSelect(copy.id)}>{copy.group}</button>)}</div>}
-    {entry.origin === 'phantom' ? <PhantomDetail entry={entry} api={api} onOpenPanel={onOpenPanel} /> : <FileDetail entry={entry} api={api} notify={notify} />}
+    {entry.origin === 'phantom' ? <PhantomDetail entry={entry} api={api} onOpenPanel={onOpenPanel} /> : <>{entry.origin === 'worktree' && <p className="sk-notice">{entry.drift === 'new' ? 'Esta Skill solo existe en el worktree de esta rama.' : 'Esta copia difiere de la que hay en la carpeta del proyecto.'} Llegará al proyecto cuando la rama se integre.</p>}<FileDetail entry={entry} api={api} notify={notify} onOpenPanel={onOpenPanel} /></>}
   </article>;
 }
 
@@ -129,7 +131,7 @@ export default function SkillsCatalog({ workspace, api, notify, onOpenPanel }) {
     </header>
     <div className="sk-toolbar">
       <div className="sk-segments" role="tablist" aria-label="Origen">
-        {[['all', 'Todas', catalog.total], ...ORDER.map(key => [key, ORIGINS[key].label, catalog.counts[key]])].map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={origin === key} title={ORIGINS[key]?.hint} className={`sk-segment${key !== 'all' ? ` sk-${key}` : ''}`} onClick={() => setOrigin(key)}>{key !== 'all' && <i />}{label}<span>{count}</span></button>)}
+        {[['all', 'Todas', catalog.total], ...ORDER.filter(key => key !== 'worktree' || catalog.counts.worktree).map(key => [key, ORIGINS[key].label, catalog.counts[key]])].map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={origin === key} title={ORIGINS[key]?.hint} className={`sk-segment${key !== 'all' ? ` sk-${key}` : ''}`} onClick={() => setOrigin(key)}>{key !== 'all' && <i />}{label}<span>{count}</span></button>)}
       </div>
       <label className="sk-search"><Search size={13} /><input ref={search} type="search" placeholder="Buscar por nombre, descripción o grupo" aria-label="Buscar Skills" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} /></label>
       {catalog.agents.length > 1 && <div className="sk-agents" aria-label="Agente">
