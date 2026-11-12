@@ -56,7 +56,7 @@ test('buildCatalog filters, groups by origin and reports copies', () => {
   ];
   const all = buildCatalog(entries);
   assert.deepEqual(all.groups.map(group => group.origin), ['project', 'phantom', 'installed', 'installed']);
-  assert.deepEqual(all.counts, { project: 1, phantom: 1, installed: 2 });
+  assert.deepEqual(all.counts, { project: 1, worktree: 0, phantom: 1, installed: 2 });
   assert.equal(all.copiesOf(entries[0])[0].id, '2');
   assert.equal(buildCatalog(entries, { agent: 'Codex' }).visible, 1);
   assert.equal(buildCatalog(entries, { query: 'mine' }).visible, 1);
@@ -68,4 +68,27 @@ test('markdown parser recognizes the common skill blocks', () => {
   assert.deepEqual(blocks.map(block => block.type), ['heading', 'paragraph', 'list', 'code', 'quote', 'table', 'rule']);
   assert.equal(blocks[3].text, 'x()');
   assert.deepEqual(blocks[5].rows, [['1', '2']]);
+});
+
+test('Skills that only exist or differ in another worktree are listed once, with their branch', async t => {
+  const { execFileSync } = await import('node:child_process'); const fsp = fs.promises;
+  const root = await fsp.realpath(await fsp.mkdtemp(path.join(os.tmpdir(), 'phantom-skills-trees-'))), repo = path.join(root, 'repo'), tree = path.join(root, 'tree'), home = path.join(root, 'home');
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const write = async (dir, name, description) => { await fsp.mkdir(path.join(dir, '.claude/skills', name), { recursive: true }); await fsp.writeFile(path.join(dir, '.claude/skills', name, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\nBody\n`); };
+  await fsp.mkdir(repo, { recursive: true }); await fsp.mkdir(home);
+  const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { stdio: 'pipe' });
+  git(repo, 'init', '-b', 'main'); git(repo, 'config', 'user.name', 'Fixture'); git(repo, 'config', 'user.email', 'fixture@localhost');
+  await write(repo, 'same', 'Same'); await write(repo, 'changed', 'Original'); git(repo, 'add', '.'); git(repo, 'commit', '-m', 'Base');
+  const branch = 'phantom/terminal-362f2765-6c0b-498c-81c8-aab82e02f145';
+  git(repo, 'worktree', 'add', '-b', branch, tree, 'HEAD');
+  await write(tree, 'changed', 'Edited in the branch'); await write(tree, 'fresh', 'Only here');
+  const workspace = { path: repo, canonicalPath: repo, nodes: [{ id: 'n1', type: 'terminal', title: 'Sidebar', data: { worktree: { branch } } }] };
+  const catalog = await skillsCatalog({}, { workspace, home });
+  assert.deepEqual(catalog.items.filter(item => item.origin === 'project').map(item => item.name).sort(), ['changed', 'same']);
+  const drifted = catalog.items.filter(item => item.origin === 'worktree');
+  assert.deepEqual(drifted.map(item => [item.name, item.drift, item.branch, item.worktreeLabel, item.group]).sort(), [['changed', 'modified', branch, 'Sidebar', 'En rama · Sidebar'], ['fresh', 'new', branch, 'Sidebar', 'En rama · Sidebar']]);
+  assert.deepEqual(catalog.worktrees.map(item => [item.label, item.new, item.modified]), [['Sidebar', 1, 1]]);
+  // A worktree copy is readable through the same authorization as any discovered skill.
+  const detail = await skillsRead({ id: drifted.find(item => item.name === 'fresh').id }, { workspace, home });
+  assert.equal(detail.description, 'Only here');
 });

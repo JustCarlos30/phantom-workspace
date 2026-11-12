@@ -2,10 +2,12 @@
 // Three origins, one vocabulary. Labels always accompany the color.
 export const ORIGINS = {
   project: { label: 'Proyecto', hint: 'Skills dentro de esta carpeta' },
+  worktree: { label: 'En ramas', hint: 'Skills nuevas o modificadas en el worktree de una terminal que aún no están en la carpeta del proyecto' },
   phantom: { label: 'Phantom · MCP', hint: 'Catálogo nativo de Phantom, el mismo que exponen sus herramientas MCP' },
   installed: { label: 'Instaladas', hint: 'Claude Code, plugins, Codex, OpenCode y agentes compartidos' },
 };
-export const ORDER = ['project', 'phantom', 'installed'];
+export const ORDER = ['project', 'worktree', 'phantom', 'installed'];
+export const DRIFT = { new: 'Nueva en esta rama', modified: 'Modificada en esta rama' };
 
 export const textOf = value => typeof value === 'string' ? value : '';
 export const bytes = size => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -28,7 +30,7 @@ export function buildCatalog(entries, { origin = 'all', agent = 'all', query = '
   const copies = new Map();
   for (const entry of entries) copies.set(entry.name.toLowerCase(), [...(copies.get(entry.name.toLowerCase()) || []), entry]);
   const visible = entries.filter(entry => (origin === 'all' || entry.origin === origin) && (agent === 'all' || entry.agent === agent)
-    && (!text || `${entry.name}\n${entry.description}\n${entry.group}\n${entry.agent}`.toLowerCase().includes(text)));
+    && (!text || `${entry.name}\n${entry.description}\n${entry.group}\n${entry.agent}\n${entry.branch || ''}`.toLowerCase().includes(text)));
   const groups = [];
   for (const key of ORDER) {
     const byGroup = new Map();

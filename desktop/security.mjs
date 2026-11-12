@@ -17,6 +17,8 @@ export const HOST_METHODS = new Set([
   'plugins.list', 'plugins.update', 'plugins.status', 'plugins.models',
   // Incorporaciones: the renderer observes and toggles; queue actions belong to terminal sessions.
   'merge.status', 'merge.configure',
+  // Ramas: the user's own Git decisions from the panel; the host never forces or discards.
+  'branch.overview', 'branch.commit', 'branch.integrate', 'branch.update', 'branch.remove',
   'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control',
   'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',

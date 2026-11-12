@@ -50,12 +50,17 @@ export async function phantomStatus(payload, context) {
     return { available: true, source: 'phantom', cli: c.cli, ...(version ? { version } : {}), observedAt: observedAt() };
   } catch (error) { return { available: false, source: 'phantom', reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
 }
+// Every checkout of this repository, keyed by canonical path, with the branch it holds.
 async function family(client, context) {
-  const roots = new Set([client.root]);
+  const roots = new Map([[client.root, { path: client.root, branch: null, main: true }]]);
   try {
     const { stdout } = await command(context, 'git', ['--no-optional-locks', 'worktree', 'list', '--porcelain', '-z'], { cwd: client.root });
-    for (const entry of stdout.split('\0')) if (entry.startsWith('worktree ')) {
-      try { roots.add(await realpath(entry.slice(9))); } catch { /* Removed worktree. */ }
+    let current = null;
+    for (const entry of stdout.split('\0')) {
+      if (entry.startsWith('worktree ')) {
+        current = null;
+        try { const real = await realpath(entry.slice(9)); current = roots.get(real) ?? { path: real, branch: null, main: false }; roots.set(real, current); } catch { /* Removed worktree. */ }
+      } else if (current && entry.startsWith('branch ')) current.branch = entry.slice(7).replace(/^refs\/heads\//, '');
     }
   } catch { /* A non-Git workspace still has an exact canonical scope. */ }
   return roots;
@@ -71,15 +76,16 @@ async function list(payload, context, c) {
   const topic = payload.topic;
   if (!['tasks', 'memories', 'skills'].includes(topic)) throw new Error('topic must be tasks, memories, or skills');
   if (payload.query !== undefined && (typeof payload.query !== 'string' || payload.query.length > 500)) throw new Error('Invalid Phantom query');
+  const locations = new Map();
   let raw = await c.call(topic === 'tasks' ? ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
   if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
   if (topic === 'tasks') {
     const roots = await family(c, context), filtered = [];
-    for (const item of raw) { try { if (roots.has(await realpath(item.contract?.workspace))) filtered.push(item); } catch { /* Not this workspace. */ } }
+    for (const item of raw) { try { const home = roots.get(await realpath(item.contract?.workspace)); if (home) { filtered.push(item); locations.set(item, home); } } catch { /* Not this workspace. */ } }
     raw = filtered;
   }
   const query = (payload.query ?? '').toLowerCase();
-  return { available: true, items: raw.map(item => normalizePhantom(item, topic)).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
+  return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
 }
 async function events(payload, context, c) {
   // Authorize the canonical task before invoking the CLI event reader. In

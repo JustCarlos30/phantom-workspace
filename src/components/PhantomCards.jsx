@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Clock, Columns3, ExternalLink, FileText, Layers, LayoutDashboard, Pause, Play, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Square, X, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, GitBranch, Clock, Columns3, ExternalLink, FileText, Layers, LayoutDashboard, Pause, Play, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Square, X, XCircle } from 'lucide-react';
 import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from './PluginPrimitives';
 import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions } from '../hooks/plugin-model.mjs';
 import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf } from '../hooks/phantom-desk.mjs';
+import { cardLocations } from '../hooks/branches-model.mjs';
 
 const POLL_MS = 4000;
 
@@ -192,7 +193,7 @@ function useCatalog(api, workspaceId, reading) {
   return { ...state, reload: read, fresh, seen };
 }
 
-function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy }) {
+function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy, where }) {
   const metaId = useId();
   const decide = card.zone === 'decide', live = card.zone === 'live';
   const line = live ? lastLine(card.controller?.output) : '';
@@ -201,7 +202,7 @@ function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy 
     {live && <span className="pc-pulse" aria-hidden="true" />}
     <span className="pc-card-main">
       <span className="pc-card-goal">{card.goal}</span>
-      <span className="pc-card-meta" id={metaId}><StatusPill status={card.status} /><code>{card.id}</code>{fresh && <span className="pc-new">Cambió de estado</span>}{card.updatedAt && <span>{relative(card.updatedAt, now)}</span>}</span>
+      <span className="pc-card-meta" id={metaId}><StatusPill status={card.status} /><code>{card.id}</code>{fresh && <span className="pc-new">Cambió de estado</span>}{card.updatedAt && <span>{relative(card.updatedAt, now)}</span>}{where && <span className="pc-where" title={where.branch || 'Carpeta del proyecto'}><GitBranch size={10} aria-hidden="true" />{where.label}</span>}</span>
       {decide && <span className="pc-card-reason">{card.reason || 'Phantom bloqueó esta Card. Abre el contrato para ver qué admite ahora.'}</span>}
       {live && <span className="pc-card-line">{line || (card.controller ? 'Sin salida recibida todavía.' : 'Ejecución registrada por Phantom fuera de este host.')}</span>}
     </span>
@@ -223,7 +224,7 @@ function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy 
 export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, node, plugin, active = true }) {
   const root = useRef(null);
   const [selected, setSelected] = useState(node?.data?.cardId || '');
-  const [query, setQuery] = useState(''), [view, setView] = useState('desk'), [creating, setCreating] = useState(false), [paused, setPaused] = useState(false);
+  const [query, setQuery] = useState(''), [place, setPlace] = useState(''), [view, setView] = useState('desk'), [creating, setCreating] = useState(false), [paused, setPaused] = useState(false);
   const [wide, setWide] = useState(true), [now, setNow] = useState(Date.now());
   useEffect(() => { setSelected(node?.data?.cardId || ''); }, [workspace?.id, node?.data?.cardId]);
   const visible = useVisible(root);
@@ -237,7 +238,12 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
   }, []);
   const items = itemsOf(source.data);
   const controllers = Array.isArray(source.data?.controllers) ? source.data.controllers : [];
-  const desk = useMemo(() => buildDesk(items, controllers, query), [items, controllers, query]);
+  // Cards belong to the checkout they were created in: the project folder or a terminal's worktree.
+  const places = useMemo(() => cardLocations(items, workspace?.nodes), [items, workspace?.nodes]);
+  const scattered = places.length > 1 || places.some(item => !item.main);
+  const placeOf = card => scattered ? places.find(item => item.key === card.location) : null;
+  useEffect(() => { if (place && !places.some(item => item.key === place)) setPlace(''); }, [place, places]);
+  const desk = useMemo(() => buildDesk(items, controllers, query, place), [items, controllers, query, place]);
   const lookup = useMemo(() => new Map(buildDesk(items, controllers).cards.map(card => [card.id, card])), [items, controllers]);
   const select = id => { setSelected(id); source.seen(id); setCreating(false); };
   const runOp = useOperation(notify);
@@ -256,6 +262,7 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
       <div className="pc-title"><Layers size={16} aria-hidden="true" /><div><h2>Cards</h2>
         <p className={stale ? 'is-stale' : ''}>{source.loading && !source.data ? 'Leyendo Phantom…' : paused ? 'Lectura en pausa' : source.error ? `Sin conexión · última lectura ${relative(source.observedAt, now) || 'ninguna'}` : !visible ? 'En pausa mientras el panel no se ve' : `Leído ${relative(source.observedAt, now)} · cada ${POLL_MS / 1000} s`}</p></div></div>
       <label className="pc-search"><Search size={13} aria-hidden="true" /><input type="search" aria-label="Buscar por objetivo o ID" placeholder="Buscar objetivo, ID o ruta" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setQuery(''); }} /></label>
+      {scattered && <label className="pc-select pc-place"><GitBranch size={13} aria-hidden="true" /><select aria-label="Filtrar por rama o worktree" value={place} onChange={e => setPlace(e.target.value)}><option value="">Todas las ramas · {items.length}</option>{places.map(item => <option key={item.key} value={item.key}>{item.label} · {item.count}</option>)}</select></label>}
       <div className="pc-views" role="group" aria-label="Vista">
         <button type="button" aria-pressed={view === 'desk'} onClick={() => setView('desk')}><LayoutDashboard size={13} aria-hidden="true" />Mesa</button>
         <button type="button" aria-pressed={view === 'board'} onClick={() => setView('board')}><Columns3 size={13} aria-hidden="true" />Tablero</button>
@@ -272,14 +279,14 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
         {unavailable && <p className="pc-notice">Phantom no está disponible: {source.data.reason || 'sin motivo informado'}.</p>}
         {source.loading && !source.data && <div className="pc-skeleton is-desk" role="status" aria-label="Leyendo Cards"><i /><i /><i /></div>}
         {source.data && !unavailable && !items.length && <div className="pc-empty"><Layers size={22} aria-hidden="true" /><strong>No hay tareas ni Cards nativas para este proyecto.</strong><p>Una Card es un contrato con objetivo, rutas y checks. Crea la primera para que Phantom la ejecute y la verifique.</p><Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Crear la primera Card</Button></div>}
-        {items.length > 0 && !desk.total && <div className="pc-empty"><Search size={20} aria-hidden="true" /><strong>Sin resultados para «{query}»</strong><Button onClick={() => setQuery('')}>Limpiar búsqueda</Button></div>}
+        {items.length > 0 && !desk.total && <div className="pc-empty"><Search size={20} aria-hidden="true" /><strong>{query ? `Sin resultados para «${query}»` : 'Sin Cards en esta rama'}</strong><Button onClick={() => { setQuery(''); setPlace(''); }}>Limpiar filtros</Button></div>}
         {desk.total > 0 && view === 'desk' && ZONES.map(zone => <section key={zone.id} className={`pc-zone pc-zone-${zone.id}`} aria-label={zone.title}>
           <h3 className="pc-zone-title"><i aria-hidden="true" />{zone.title}<span>{desk.zones[zone.id].length}</span></h3>
-          {desk.zones[zone.id].length ? <div className="pc-zone-items">{desk.zones[zone.id].map(card => <DeskCard key={card.id} card={card} now={now} selected={card.id === selected} fresh={source.fresh.has(card.id)} onSelect={select} runModel={runModel} onRun={runCard} busy={runOp.busy} />)}</div> : <p className="pc-zone-empty">{zone.empty}</p>}
+          {desk.zones[zone.id].length ? <div className="pc-zone-items">{desk.zones[zone.id].map(card => <DeskCard key={card.id} card={card} now={now} selected={card.id === selected} fresh={source.fresh.has(card.id)} onSelect={select} runModel={runModel} onRun={runCard} busy={runOp.busy} where={placeOf(card)} />)}</div> : <p className="pc-zone-empty">{zone.empty}</p>}
         </section>)}
         {desk.total > 0 && view === 'board' && <div className="plugin-board pc-board">{states.map(state => <section key={state} className="plugin-board-column pc-column" aria-label={statusLabel(state)}>
           <h3 className="pc-zone-title"><StatusPill status={state} /><span>{desk.cards.filter(card => card.status === state).length}</span></h3>
-          {desk.cards.filter(card => card.status === state).map(card => <DeskCard key={card.id} card={{ ...card, zone: 'queue' }} now={now} selected={card.id === selected} fresh={source.fresh.has(card.id)} onSelect={select} />)}
+          {desk.cards.filter(card => card.status === state).map(card => <DeskCard key={card.id} card={{ ...card, zone: 'queue' }} now={now} selected={card.id === selected} fresh={source.fresh.has(card.id)} onSelect={select} where={placeOf(card)} />)}
         </section>)}</div>}
       </div>}
       {creating ? <div className="pc-side"><CardForm workspace={workspace} api={api} notify={notify} onSaved={() => { source.reload(); refresh?.(); }} onClose={() => setCreating(false)} /></div>

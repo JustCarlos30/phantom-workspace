@@ -1,6 +1,7 @@
 // Pure model for the Phantom Cards desk ("Mesa del ahora").
 // Native status stays the authority; zones only order what Phantom reports.
 import { stateOf, goalOf, contractOf } from './plugin-model.mjs';
+import { locationKey } from './branches-model.mjs';
 
 export const STATUS = {
   blocked: { label: 'Bloqueada', tone: 'blocked' },
@@ -29,7 +30,7 @@ export function zoneOf(status, controllerStatus) {
 const time = value => { const t = Date.parse(value); return Number.isFinite(t) ? t : 0; };
 const queueRank = status => status === 'ready' ? 0 : status === 'unknown' ? 1 : 2;
 
-export function buildDesk(items = [], controllers = [], query = '') {
+export function buildDesk(items = [], controllers = [], query = '', location = '') {
   const text = query.trim().toLowerCase();
   const cards = items.map(item => {
     const raw = item.raw || {};
@@ -40,9 +41,9 @@ export function buildDesk(items = [], controllers = [], query = '') {
       reason: [raw.reason, raw.blockReason, raw.blockedReason, raw.admission?.reason].find(value => typeof value === 'string' && value.trim()) || '',
       updatedAt: raw.updatedAt || raw.createdAt || null, controller,
       dependencies: Array.isArray(contractOf(raw).dependencies) ? contractOf(raw).dependencies : [],
-      zone: zoneOf(status, controller?.status), item,
+      zone: zoneOf(status, controller?.status), item, location: locationKey(item),
     };
-  }).filter(card => !text || `${card.goal}\n${card.id}\n${(contractOf(card.item.raw).scope || []).join('\n')}`.toLowerCase().includes(text));
+  }).filter(card => !location || card.location === location).filter(card => !text || `${card.goal}\n${card.id}\n${(contractOf(card.item.raw).scope || []).join('\n')}`.toLowerCase().includes(text));
   const zones = Object.fromEntries(ZONES.map(zone => [zone.id, []]));
   for (const card of cards) zones[card.zone].push(card);
   zones.decide.sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
