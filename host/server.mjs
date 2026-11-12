@@ -8,7 +8,7 @@ import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES
 import { Terminals } from './terminals.mjs';
 import { Chats, validateChat, validateModel } from './chats.mjs';
 import { Merges } from './merges.mjs';
-import { agentContext, validateAgent } from './agents.mjs';
+import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
 
 function publicSettings(settings) {
@@ -119,7 +119,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         else {validated.providerSessionId='';}
       }
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
-      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');if(patch.name!==undefined)current.title=patch.name.trim();const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;if(patch.name!==undefined)current.title=patch.name.trim();else if(changedCard&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(validated.cardTitle||'');if(named)current.title=named;}current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
     }
     if(method==='terminal.setup.retry') return terminals.retrySetup(p.sessionId);
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);

@@ -48,7 +48,7 @@ La asignación se almacena en `node.data.agent`:
 }
 ```
 
-Los campos son opcionales. Desvincular o cambiar la card reinicia el paso declarado. El nombre se mantiene en `node.title`; no se duplica. Los descriptores de terminal incluyen el nombre y la asignación actuales. Cerrar el host conserva los últimos reportes como historial: no acredita que el agente siga activo al restaurar. El estado de la PTY se muestra por separado.
+Los campos son opcionales. Desvincular o cambiar la card reinicia el paso declarado. El nombre se mantiene en `node.title`; no se duplica. Al vincular una card, si el panel conserva el nombre genérico «Terminal» y no se envía un nombre, toma el título de la card (una línea, máximo 80 caracteres). Un nombre puesto a mano nunca se reemplaza, y desvincular la card no restaura «Terminal». Los descriptores de terminal incluyen el nombre y la asignación actuales. Cerrar el host conserva los últimos reportes como historial: no acredita que el agente siga activo al restaurar. El estado de la PTY se muestra por separado.
 
 Las actualizaciones de presentación mediante `node.update` conservan la asignación actual, evitando que un cambio de tamaño de texto o un guardado antiguo borre un reporte reciente. El editor guarda únicamente campos modificados desde su apertura.
 

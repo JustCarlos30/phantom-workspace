@@ -15,6 +15,14 @@ export function validateAgent(agent) {
   return agent;
 }
 
+// Panels keep the generic type label until someone names them; only those
+// adopt a linked card's title so manual names are never overwritten.
+export const isDefaultTerminalTitle = title => !title || /^terminal$/i.test(title.trim());
+export function cardPanelTitle(cardTitle, max = 80) {
+  const flat = cardTitle.replace(/[\x00-\x1f\x7f\s]+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
+}
+
 export function agentContext(workspace, node, session) {
   return {
     nodeId: node.id, name: node.title, workspaceId: workspace.id,
