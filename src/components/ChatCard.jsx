@@ -46,8 +46,8 @@ function PermissionRow({ part, onAnswer }) {
   </div>;
 }
 
-// Who answers in this card: an agent to chat with, or the plain terminal.
-export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
+// Who answers in this card: shared by the segmented switch and the compact one.
+function useModeChoice({ node, workspace, api, notify, disabled }) {
   const current = node.data?.chat?.provider ?? null;
   const [pending, setPending] = useState(undefined);
   const choosing = useRef(false);
@@ -63,6 +63,12 @@ export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
     finally { choosing.current = false; }
   };
   useEffect(() => { setPending(undefined); }, [current]);
+  return { active, pending, choosing, choose };
+}
+
+// An agent to chat with, or the plain terminal: the prominent choice.
+export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
+  const { active, pending, choosing, choose } = useModeChoice({ node, workspace, api, notify, disabled });
   const navigate = event => {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault(); event.stopPropagation();
@@ -76,6 +82,43 @@ export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
   const activeMode = CARD_MODES.find(mode => mode.id === active) || CARD_MODES[0];
   return <div className="pc-modes" data-active={activeMode.key} style={{ '--mode-index': CARD_MODES.indexOf(activeMode), '--mode-count': CARD_MODES.length }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
     {CARD_MODES.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
+  </div>;
+}
+
+// The same choice, compact: "Claude ▾" opening a short menu downward.
+function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
+  const { active, choose } = useModeChoice({ node, workspace, api, notify, disabled });
+  const [open, setOpen] = useState(false);
+  const root = useRef(null), trigger = useRef(null), menu = useRef(null);
+  const mode = CARD_MODES.find(item => item.id === active) || CARD_MODES[0];
+  const items = () => [...(menu.current?.querySelectorAll('[role="menuitemradio"]') || [])];
+  useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
+  useEffect(() => {
+    if (!open) return;
+    (items().find(item => item.getAttribute('aria-checked') === 'true') || items()[0])?.focus({ preventScroll: true });
+    const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]);
+  const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
+  const onKeyDown = event => {
+    if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); close(); return; }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) { if (event.key === 'Tab') setOpen(false); return; }
+    event.preventDefault(); event.stopPropagation();
+    if (!open) { if (!disabled && event.key !== 'Home' && event.key !== 'End') setOpen(true); return; }
+    const list = items(), index = list.indexOf(document.activeElement);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? list.length - 1 : (index + (event.key === 'ArrowUp' ? list.length - 1 : 1)) % list.length;
+    list[next]?.focus({ preventScroll: true });
+  };
+  return <div ref={root} className="pc-agent" onKeyDown={onKeyDown} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+    <button ref={trigger} type="button" className="pc-agent-trigger" aria-haspopup="menu" aria-expanded={open} aria-label={`Quién responde: ${mode.label}`} title="Quién responde en esta card" disabled={disabled} onClick={() => setOpen(value => !value)}>
+      <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={11} aria-hidden="true" />
+    </button>
+    {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Quién responde en esta card">
+      {CARD_MODES.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
+        <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={13} aria-hidden="true" />}
+      </button>)}
+    </div>}
   </div>;
 }
 
@@ -189,12 +232,11 @@ export const Message = React.memo(function Message({ message, label, provider, m
 
 function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const streaming = message.status === 'streaming', usage = message.usage;
-  const elapsed = useElapsed(message.createdAt, streaming);
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
   return <article className={`pc-message is-agent is-${message.status}`}>
     <header className="pc-turn-head"><span className="pc-avatar" aria-hidden="true"><ProviderGlyph provider={provider} size={13} /></span><strong>{label}</strong>{(message.model || model) && <span className="pc-mono">{message.model || model}</span>}<time dateTime={message.createdAt}>{clock(message.createdAt)}</time></header>
-    {groupParts(message.parts).map((group, i) => group.type === 'tools'
+    {groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending'))).map((group, i) => group.type === 'tools'
       ? <ul key={i} className="pc-tools" aria-label="Herramientas usadas">{group.items.map(part => <ToolRow key={part.id} part={part} />)}</ul>
       : group.type === 'permission'
         ? <PermissionRow key={group.id} part={group} onAnswer={onAnswer} />
@@ -203,7 +245,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} />)}
-    {streaming && <p className="pc-working" role="status"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'} · <span className="pc-num">{formatElapsed(elapsed)}</span></p>}
+    {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
     {!streaming && (facts.length > 0 || text) && <footer className="pc-turn-foot"><span className="pc-num">{facts.join(' · ')}</span>{text && <CopyButton text={text} label="Copiar respuesta" />}</footer>}
@@ -322,11 +364,21 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const autoApprove = node.data.chat.autoApprove ?? (provider === 'claude' && !!node.data.worktree);
   const waitingOn = messages.flatMap(message => message.parts || []).find(part => (part.type === 'permission' || part.type === 'question') && part.status === 'pending');
   const waiting = waitingOn ? (waitingOn.type === 'question' ? 'Espera tu respuesta' : 'Espera tu permiso') : '';
+  const pendingAsks = messages.flatMap(message => (message.parts || []).filter(part => part.type === 'permission' && part.status === 'pending'));
   const { cwd, folder, branch } = locationOf(node, workspace);
+  // Announce transitions only, never the state found on mount.
+  const [announcement, setAnnouncement] = useState('');
+  const phase = !running ? 'idle' : waiting ? 'waiting' : 'running', seenPhase = useRef(null);
+  useEffect(() => {
+    if (!chat) return;
+    const before = seenPhase.current; seenPhase.current = phase;
+    if (before === null || before === phase) return;
+    setAnnouncement(phase === 'running' ? `${label} está respondiendo` : phase === 'waiting' ? `${label} ${waiting.toLowerCase()}` : `${label} terminó de responder`);
+  }, [phase, chat, label]);
   const last = messages.at(-1);
   const elapsed = useElapsed(last?.createdAt, running);
   // Follow the reply while the reader is at the end; never yank them back up.
-  useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, overview, focused]);
+  useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, overview, focused, pendingAsks.length]);
   useEffect(() => { pinned.current = true; }, [provider]);
   useEffect(() => { if (focused) input.current?.focus({ preventScroll: true }); }, [focused, provider]);
   useLayoutEffect(() => {
@@ -346,38 +398,41 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     return <div className="pt-card pc is-overview" data-agent={running ? 'working' : 'idle'}>
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
-        {running && <span className="pt-state is-working"><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
+        {running && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{lastText.slice(-240)}</p>}
       </div>
     </div>;
   }
   const Shield = autoApprove ? ShieldCheck : ShieldOff;
+  const permissionText = autoApprove ? (provider === 'claude' ? 'Autónomo' : 'Puede editar') : (provider === 'claude' ? 'Pregunta todo' : 'Solo lectura');
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
     <div className="pc-bar">
-      <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
-      {running && <span className="pt-state is-working" role="status"><i aria-hidden="true" />{waiting || 'Respondiendo'}<span className="pc-num">{formatElapsed(elapsed)}</span></span>}
+      <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
+      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      {running && (waiting
+        ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
+        : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
       <span className="pc-bar-space" />
       <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>
     </div>
-    <div className="pc-session-bar" aria-label="Contexto de la conversación">
-      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
-      <button type="button" className="pc-permission" aria-pressed={autoApprove} title={AUTO_APPROVE[provider]?.[autoApprove ? 'on' : 'off']} onClick={() => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, autoApprove: !autoApprove }).catch(e => notify?.(e.message, 'error'))}><Shield size={13} aria-hidden="true" /><span>{autoApprove ? (provider === 'claude' ? 'Autónomo' : 'Puede editar') : (provider === 'claude' ? 'Pregunta todo' : 'Solo lectura')}</span></button>
-    </div>
+    <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
     <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && <div className="pc-empty">
           <h3>{chat && <ProviderTile provider={provider} />}{chat ? `Conversación nueva con ${label}` : connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</h3>
+          {chat && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />}
           {chat && <dl>
             <div><dt>Carpeta</dt><dd title={cwd}>{cwd}</dd></div>
             {branch && <div><dt>Rama</dt><dd>{branch}</dd></div>}
             <div><dt>Permisos</dt><dd className="is-prose">{AUTO_APPROVE[provider]?.[autoApprove ? 'on' : 'off']}</dd></div>
-            <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}; cámbialo en la barra de abajo</dd></div>
+            <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
           </dl>}
         </div>}
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
+    {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
@@ -386,6 +441,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <div className="pc-settings">
             <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
             <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
+            <button type="button" className="pc-permission" aria-pressed={autoApprove} aria-label={permissionText} title={AUTO_APPROVE[provider]?.[autoApprove ? 'on' : 'off']} onClick={() => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, autoApprove: !autoApprove }).catch(e => notify?.(e.message, 'error'))}><Shield size={13} aria-hidden="true" /><span>{permissionText}</span></button>
           </div>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}
           {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={15} /></button>}
