@@ -16,7 +16,7 @@ import { useActivity } from './hooks/useActivity';
 import { useReadyBranches } from './hooks/useReadyBranches';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
-import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Sparkles, Film } from 'lucide-react';
 import { PhantomGlyph as Ghost } from './components/Glyphs';
 import { PANEL_ICONS } from './components/PanelIcons';
 import { structuralShare } from './hooks/structuralShare';
@@ -40,6 +40,7 @@ const TYPES = [
   ['terminal', 'Terminal', TerminalSquare, 'Una sesión real en esta carpeta', 'space'], ['browser', 'Navegador', Globe, 'Una página junto al trabajo', 'space'], ['note', 'Nota', StickyNote, 'Contexto que permanece', 'space'],
   ['zone', 'Zona', Frame, 'Área con nombre que agrupa paneles', 'space'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito', 'space'],
   ['tasks', 'Tareas', ListChecks, 'Borradores, checklists y Phantom', 'project'], ['context', 'Contexto', FileText, 'Archivos, memorias y skills', 'project'], ['repo', 'Repositorio', GitBranch, 'Grafo, worktrees, cambios, editor e integraciones en una vista', 'project'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees', 'project'], ['branches', 'Ramas', GitBranch, 'Todas las ramas y worktrees: guardar, integrar y limpiar', 'project'], ['incorporaciones', 'Incorporaciones', GitMerge, 'Qué se incorpora, en qué orden y qué se planea', 'project'], ['services', 'Servicios', Server, 'Sitios y procesos del proyecto', 'project'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta', 'project'],
+  ['review', 'Revisión de video', Film, 'Frames, zonas y comentarios del taller de videos', 'project'],
   ['workflows', 'Workflows', Workflow, 'Secuencias de trabajo reutilizables', 'automation'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales', 'automation'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente', 'automation'],
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales', 'phantom'],
   ['skills-catalog', 'Skills', Sparkles, 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],

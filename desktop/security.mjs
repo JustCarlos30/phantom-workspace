@@ -1,5 +1,10 @@
 import path from 'node:path';
-import { realpath } from 'node:fs/promises';
+import { open, realpath } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { Readable } from 'node:stream';
+import { verifyReviewRender } from '../integrations/video-review.mjs';
+import { safePath } from '../integrations/common.mjs';
 
 export const INVOKE_CHANNEL = 'phantom:invoke';
 export const EVENT_CHANNEL = 'phantom:event';
@@ -15,6 +20,7 @@ export const HOST_METHODS = new Set([
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',
   'git.inspect', 'services.list', 'services.pin', 'services.remove', 'docker.list', 'docker.logs', 'docker.action',
   'plugins.list', 'plugins.update', 'plugins.status', 'plugins.models',
+  'review.projects', 'review.export', 'review.add', 'review.list', 'review.resolve',
   // Incorporaciones: the renderer observes and toggles; queue actions belong to terminal sessions.
   'merge.status', 'merge.configure',
   // Ramas: the user's own Git decisions from the panel; the host never forces or discards.
@@ -31,6 +37,47 @@ export const HOST_METHODS = new Set([
 ]);
 // Reference files are served to the local UI only, by workspace and content-hash name.
 export const REFERENCE_SCHEME = 'phantom-ref';
+export const REVIEW_SCHEME = 'phantom-review';
+// Capabilities are minted by main after a verified host export; paths never come from the renderer.
+export function createReviewMedia() {
+  const tokens = new Map();
+  return {
+    async issue(root, slug, pkg) {
+      root = await realpath(root);
+      const handle = await verifyReviewRender(root, slug, pkg);
+      const identity = handle.reviewIdentity;
+      await handle.close();
+      const token = randomBytes(32).toString('hex');
+      if (tokens.size >= 128) tokens.delete(tokens.keys().next().value);
+      tokens.set(token, { root, exports: path.join(root, 'projects', slug, 'exports'), ...identity });
+      return `${REVIEW_SCHEME}://media/${token}`;
+    },
+    async respond(request) {
+      let handle, token;
+      try {
+        if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
+        // Exact syntax also rejects URL-normalized traversal and escaped components.
+        const match = /^phantom-review:\/\/media\/([a-f0-9]{64})$/.exec(request.url);
+        const target = match && tokens.get(match[1]);
+        if (!target) return new Response(null, { status: 403 });
+        token = match[1];
+        const file = await safePath(target.root, path.relative(target.root, target.file));
+        if (!isWithin(file, target.exports) || await realpath(file) !== target.file) throw new Error('Render fuera de exports.');
+        handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+        const stat = await handle.stat();
+        if (!stat.isFile() || ['dev', 'ino', 'size', 'mtimeMs'].some(key => stat[key] !== target[key])) throw new Error('El render cambió.');
+        const { size } = stat, header = request.headers.get('range'), range = byteRange(header, size);
+        const headers = { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' };
+        if (header && !range) { await handle.close(); handle = null; return new Response(null, { status: 416, headers: { ...headers, 'Content-Range': `bytes */${size}` } }); }
+        const { start, end } = range || { start: 0, end: size - 1 };
+        let body = null;
+        if (request.method === 'HEAD' || !size) { await handle.close(); handle = null; }
+        else { body = Readable.toWeb(handle.createReadStream({ start, end, autoClose: true })); handle = null; }
+        return new Response(body, { status: range ? 206 : 200, headers: { ...headers, 'Content-Length': String(size ? end - start + 1 : 0), ...(range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}) } });
+      } catch { if (token) tokens.delete(token); if (handle) await handle.close(); return new Response(null, { status: 404 }); }
+    },
+  };
+}
 export const REFERENCE_FILE = /^[0-9a-f]{32}\.(png|jpg|gif|webp|avif|mp4|mov|webm)$/;
 export const REFERENCE_TYPES = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
 // phantom-ref://<workspace id>/<file> → the two validated segments, or null.
@@ -206,5 +253,5 @@ export function contentSecurityPolicy(devURL) {
     const url = new URL(devURL);
     connect += ` ${url.origin} ${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}`;
   }
-  return `default-src 'self'; script-src 'self'${devURL ? " 'unsafe-inline'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: phantom-ref:; font-src 'self' data:; connect-src ${connect}; media-src 'self' blob: phantom-ref:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'`;
+  return `default-src 'self'; script-src 'self'${devURL ? " 'unsafe-inline'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: phantom-ref:; font-src 'self' data:; connect-src ${connect}; media-src 'self' blob: phantom-ref: phantom-review:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'`;
 }

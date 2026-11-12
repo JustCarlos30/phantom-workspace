@@ -1,16 +1,124 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, symlink, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, open, readFile, rename, stat, utimes, writeFile, symlink, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import {
-  authorizedPath, browserNode, browserURL, clampBounds, contentSecurityPolicy,
+  authorizedPath, browserNode, browserURL, clampBounds, contentSecurityPolicy, createReviewMedia,
   isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, validateCloseReady, validateInvocation, validateJSON,
 } from '../desktop/security.mjs';
 
 const workspaceId = 'e080ca45-0510-41c0-a861-c735db9ca2a5';
 const id = '8955a666-b72a-410d-bf23-02740ac48212';
 const ui = 'file:///opt/phantom/dist/index.html';
+
+test('review media requires a verified capability and supports only GET/HEAD and bounded ranges', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'phantom-review-media-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dir = path.join(root, 'projects/demo/exports');
+  await mkdir(dir, { recursive: true });
+  const bytes = Buffer.from('0123456789'), file = path.join(dir, 'render.mp4');
+  await writeFile(file, bytes);
+  const revision = 'a'.repeat(64);
+  const pkg = { revision, origin: { kind: 'render', file: 'exports/render.mp4', revision, sha256: createHash('sha256').update(bytes).digest('hex') } };
+  const media = createReviewMedia(), url = await media.issue(root, 'demo', pkg);
+  assert.match(url, /^phantom-review:\/\/media\/[a-f0-9]{64}$/);
+  const respond = (target = url, method = 'GET', range) => media.respond({ url: target, method, headers: new Headers(range ? { range } : {}) });
+  const full = await respond();
+  assert.equal(full.status, 200);
+  assert.equal(full.headers.get('content-type'), 'video/mp4');
+  assert.equal(full.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(full.headers.get('cache-control'), 'no-store');
+  assert.equal(await full.text(), bytes.toString());
+  const head = await respond(url, 'HEAD');
+  assert.equal(head.status, 200);
+  assert.equal(head.headers.get('content-length'), '10');
+  assert.equal(await head.text(), '');
+  for (const [range, expected, contentRange] of [['bytes=2-4', '234', 'bytes 2-4/10'], ['bytes=7-', '789', 'bytes 7-9/10'], ['bytes=-3', '789', 'bytes 7-9/10'], ['bytes=8-100', '89', 'bytes 8-9/10']]) {
+    const response = await respond(url, 'GET', range);
+    assert.equal(response.status, 206);
+    assert.equal(response.headers.get('content-range'), contentRange);
+    assert.equal(await response.text(), expected);
+  }
+  for (const range of ['bytes=10-', 'bytes=4-2', 'bytes=-0', 'bytes=0-1,4-5', 'invalid']) {
+    const response = await respond(url, 'GET', range);
+    assert.equal(response.status, 416);
+    assert.equal(response.headers.get('content-range'), 'bytes */10');
+  }
+  assert.equal((await respond(url, 'POST')).status, 405);
+  for (const target of [`${url}/../secret.mp4`, `${url}?path=/etc/passwd`, `${url}/%2e%2e/file`, 'phantom-review://media/' + '0'.repeat(64), 'phantom-review://media/projects/demo/exports/render.mp4']) assert.equal((await respond(target)).status, 403);
+  await assert.rejects(media.issue(root, '../demo', pkg));
+  await assert.rejects(media.issue(root, 'demo', { ...pkg, origin: { ...pkg.origin, file: 'exports/../render.mp4' } }));
+  await writeFile(file, 'changed');
+  assert.equal((await respond()).status, 404);
+  assert.equal((await respond()).status, 403, 'a changed render invalidates the token');
+  await assert.rejects(media.issue(root, 'demo', pkg), /hash/);
+  await writeFile(file, bytes);
+  const symlinkURL = await media.issue(root, 'demo', pkg);
+  await rm(file);
+  const other = path.join(root, 'other.mp4');
+  await writeFile(other, bytes);
+  await symlink(other, file);
+  assert.equal((await respond(symlinkURL)).status, 404);
+  await assert.rejects(media.issue(root, 'demo', pkg), /Symlink/);
+  await rm(file);
+  await writeFile(file, bytes);
+  const directoryURL = await media.issue(root, 'demo', pkg);
+  await rm(dir, { recursive: true });
+  const otherDir = path.join(root, 'other');
+  await mkdir(otherDir); await writeFile(path.join(otherDir, 'render.mp4'), bytes);
+  await symlink(otherDir, dir);
+  assert.equal((await respond(directoryURL)).status, 404);
+  await assert.rejects(media.issue(root, 'demo', pkg), /Symlink/);
+  for (const method of ['review.projects', 'review.export', 'review.add', 'review.list', 'review.resolve']) assert.doesNotThrow(() => validateInvocation(method, {}));
+  assert.match(contentSecurityPolicy(), /media-src[^;]*phantom-review:/);
+});
+
+test('review ranges reuse the verified identity and reject changed mtime or replacement inode', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'phantom-review-identity-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dir = path.join(root, 'projects/demo/exports');
+  await mkdir(dir, { recursive: true });
+  const file = path.join(dir, 'render.mp4'), bytes = Buffer.from('0123456789');
+  await writeFile(file, bytes);
+  const probe = await open(file, 'r'), prototype = Object.getPrototypeOf(probe);
+  await probe.close();
+  const createReadStream = prototype.createReadStream;
+  let hashReads = 0;
+  t.mock.method(prototype, 'createReadStream', function (options) {
+    if (options?.autoClose === false) hashReads++;
+    return createReadStream.call(this, options);
+  });
+  const revision = 'a'.repeat(64);
+  const pkg = { revision, origin: { kind: 'render', file: 'exports/render.mp4', revision, sha256: createHash('sha256').update(bytes).digest('hex') } };
+  const media = createReviewMedia(), url = await media.issue(root, 'demo', pkg);
+  assert.equal(hashReads, 1, 'issuance hashes the render once');
+  const respond = target => media.respond({ url: target, method: 'GET', headers: new Headers({ range: 'bytes=2-4' }) });
+  for (let i = 0; i < 2; i++) {
+    const response = await respond(url);
+    assert.equal(response.status, 206);
+    assert.equal(await response.text(), '234');
+  }
+  assert.equal(hashReads, 1, 'seeking never rehashes the MP4');
+  const original = await stat(file);
+  await writeFile(file, '9876543210');
+  await utimes(file, original.atime, new Date(original.mtimeMs + 2000));
+  assert.equal((await stat(file)).size, original.size);
+  assert.equal((await respond(url)).status, 404, 'in-place changes invalidate the capability');
+  assert.equal((await respond(url)).status, 403);
+
+  await writeFile(file, bytes);
+  const replacementURL = await media.issue(root, 'demo', pkg), before = await stat(file);
+  const replacement = path.join(dir, 'replacement.mp4');
+  await writeFile(replacement, bytes);
+  assert.notEqual((await stat(replacement)).ino, before.ino);
+  assert.equal((await stat(replacement)).size, before.size);
+  await rename(replacement, file);
+  assert.equal((await respond(replacementURL)).status, 404, 'even identical bytes at a different inode require a new token');
+  assert.equal((await respond(replacementURL)).status, 403);
+  assert.equal(hashReads, 2, 'only the two issuances hash the render');
+});
 
 test('desktop notifications accept bounded text and only the branches target', () => {
   for (const payload of [{ title: 'L' }, { title: 'Lista para integrar', body: '', target: 'branches' },
