@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
 import { layoutGraph, parseDiff, parseRefs, diffStats } from '../src/hooks/repo-graph.mjs';
+import { changeMix } from '../src/hooks/branches-model.mjs';
 
 const clean = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PHANTOM_')));
 const run = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env: clean(), stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -63,6 +64,15 @@ test('Repositorio: graph, commit files, diffs and guarded edits inside worktrees
   await assert.rejects(host.invoke('repo.file.read', { workspaceId, tree, path: 'link.txt' }), /fuera del worktree/);
   fs.writeFileSync(path.join(tree, 'bin.dat'), Buffer.from([1, 0, 2]));
   assert.equal((await host.invoke('repo.file.read', { workspaceId, tree, path: 'bin.dat' })).editable, false);
+
+  // Large worktrees retain an exact type summary even when only 200 files are listed.
+  for (let index = 0; index < 205; index++) fs.writeFileSync(path.join(tree, `untracked-${index}.txt`), 'new\n');
+  const overview = await host.invoke('branch.overview', { workspaceId });
+  const row = overview.branches.find(branch => branch.name === 'feature');
+  assert.equal(row.changes.length, 200);
+  assert.ok(row.changeCount > row.changes.length);
+  assert.equal(row.changeSummary['??'], 208); // u.txt, link.txt, bin.dat and the 205 files
+  assert.equal(changeMix(row.changes, row.changeSummary).reduce((sum, kind) => sum + kind.count, 0), row.changeCount);
 });
 
 test('Repositorio: lanes follow branches and merges', () => {
