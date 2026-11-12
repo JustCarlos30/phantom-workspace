@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, Terminal } from 'lucide-react';
+import { Bot, Terminal, Code } from 'lucide-react';
 
 // One glyph and one hue per provider, wherever it appears (mode switch, card
 // identity, chat avatar). Drawn on lucide's 24px grid so they sit with the rest.
@@ -13,13 +13,14 @@ export function OpenCodeGlyph({ size = 14, ...props }) {
   return <svg width={size} height={size} {...base} {...props}><rect x="5" y="3.5" width="14" height="17" rx="2.5" /><path d="M9.5 12.5h5v4h-5z" fill="currentColor" stroke="none" /></svg>;
 }
 
-const GLYPHS = { claude: ClaudeGlyph, opencode: OpenCodeGlyph, agent: Bot, shell: Terminal };
+const GLYPHS = { claude: ClaudeGlyph, opencode: OpenCodeGlyph, codex: Code, agent: Bot, shell: Terminal };
 
 // Maps a provider id or a detected process name to its identity key.
 export function providerKey(name, kind = 'shell') {
   const value = String(name || '').toLowerCase();
   if (value.includes('claude')) return 'claude';
   if (value.includes('opencode')) return 'opencode';
+  if (value.includes('codex')) return 'codex';
   return kind === 'agent' ? 'agent' : 'shell';
 }
 

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { atomicJSON, assert, text } from './store.mjs';
 import { permissionDecision } from './chat-permissions.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
+import { validReasoning } from '../shared/chat-options.mjs';
 
 // Chat cards drive an agent CLI headlessly, one process per turn, and render
 // its structured event stream. No PTY is involved: the conversation lives in
@@ -13,6 +14,7 @@ import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 export const CHAT_PROVIDERS = {
   claude: { label: 'Claude', bin: 'claude', setting: 'claudePath' },
   opencode: { label: 'OpenCode', bin: 'opencode', setting: 'opencodePath' },
+  codex: { label: 'Codex', bin: 'codex', setting: 'codexPath' },
 };
 const MAX_MESSAGES = 400, MAX_PART = 200_000, MAX_OUTPUT = 6000, MAX_LINE = 8 * 1024 * 1024, MAX_TURNS = 16;
 
@@ -23,7 +25,11 @@ export function validateModel(model) {
 }
 export function validateChat(chat) {
   assert(chat && typeof chat === 'object' && !Array.isArray(chat), 'Invalid chat settings');
-  for (const key of Object.keys(chat)) assert(['provider', 'autoApprove', 'models'].includes(key), 'Unknown chat field');
+  for (const key of Object.keys(chat)) assert(['provider', 'autoApprove', 'models', 'reasoning'].includes(key), 'Unknown chat field');
+  if (chat.reasoning !== undefined) {
+    assert(chat.reasoning && typeof chat.reasoning === 'object' && !Array.isArray(chat.reasoning), 'Invalid reasoning settings');
+    for (const [provider, value] of Object.entries(chat.reasoning)) assert(validReasoning(provider, value), 'Effort/variant inválido');
+  }
   if (chat.models !== undefined) {
     assert(chat.models && typeof chat.models === 'object' && !Array.isArray(chat.models), 'Invalid chat models');
     for (const [provider, model] of Object.entries(chat.models)) { assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider'); validateModel(model); }
@@ -52,12 +58,19 @@ export function gateConfig({ token, socketPath }) {
 }
 // OpenCode's headless run cannot route a question back, so it keeps the
 // explicit switch: --auto only when the card says so.
-export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, message, cwd, model, gate, instructions }) {
+export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, message, cwd, model, reasoning, gate, instructions }) {
+  assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
+  if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
+  if (provider === 'codex') return ['exec', ...(sessionId ? ['resume'] : []), '--json', '--skip-git-repo-check',
+    '-c', `sandbox_mode=${JSON.stringify(autoApprove ? 'workspace-write' : 'read-only')}`, '-c', 'approval_policy="never"',
+    ...(model ? ['--model', model] : []), ...(reasoning ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoning)}`] : []),
+    ...(instructions ? ['-c', `developer_instructions=${JSON.stringify(instructions)}`] : []), ...(sessionId ? [sessionId] : []), '-'];
   if (provider === 'claude') return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    ...(reasoning ? ['--effort', reasoning] : []),
     ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' ? ['--permission-mode', 'acceptEdits'] : []),
     ...(gate ? ['--mcp-config', JSON.stringify(gateConfig(gate)), '--permission-prompt-tool', GATE_TOOL] : [])];
   // A leading dash would be parsed as a flag; the space is invisible to the model.
-  return ['run', '--format', 'json', ...(cwd ? ['--dir', cwd] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--session', sessionId] : []), ...(autoApprove ? ['--auto'] : []), message.startsWith('-') ? ` ${message}` : message];
+  return ['run', '--format', 'json', ...(cwd ? ['--dir', cwd] : []), ...(model ? ['--model', model] : []), ...(reasoning ? ['--variant', reasoning] : []), ...(sessionId ? ['--session', sessionId] : []), ...(autoApprove ? ['--auto'] : []), message.startsWith('-') ? ` ${message}` : message];
 }
 
 // One line that says what a tool call is doing, from its most telling input.
@@ -170,6 +183,31 @@ export function applyOpenCodeEvent(turn, event) {
   return false;
 }
 
+export function applyCodexEvent(turn, event) {
+  if (event.type === 'thread.started' && typeof event.thread_id === 'string') { turn.sessionId = event.thread_id; return true; }
+  if (event.type === 'error' || event.type === 'turn.failed') { turn.error = String(event.error?.message || event.message || 'Codex terminó con error').slice(0, 2000); return true; }
+  if (event.type === 'turn.completed') {
+    const usage = event.usage || {};
+    turn.contextTokens = sum(usage.input_tokens, usage.output_tokens);
+    turn.usage = { outputTokens: usage.output_tokens }; return true;
+  }
+  const item = event.item;
+  if (!item || !['item.started', 'item.updated', 'item.completed'].includes(event.type)) return false;
+  if (['agent_message', 'reasoning'].includes(item.type)) {
+    let part = turn.message.parts.find(p => p.id === item.id);
+    if (!part) { part = { id: item.id, type: item.type === 'reasoning' ? 'thinking' : 'text', text: '' }; turn.message.parts.push(part); }
+    part.text = String(item.text || '').slice(0, MAX_PART); return true;
+  }
+  if (['command_execution', 'file_change', 'mcp_tool_call', 'web_search'].includes(item.type)) {
+    const part = toolPart(turn.message, item.id, item.type === 'command_execution' ? 'shell' : item.type === 'file_change' ? 'edit' : item.tool || 'web_search');
+    part.detail = String(item.command || item.query || (item.changes || []).map(change => change.path).join(', ') || toolDetail(item.arguments, turn.cwd)).slice(0, 240);
+    part.status = item.status === 'failed' || (Number.isInteger(item.exit_code) && item.exit_code !== 0) ? 'error' : event.type === 'item.completed' ? 'done' : 'running';
+    const output = toolOutput(item.aggregated_output || item.error?.message || item.result?.content); if (output) part.output = output;
+    return true;
+  }
+  return false;
+}
+
 export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
   constructor(store, emit, role = () => ({ env: {}, instructions: '' })) {
@@ -201,7 +239,7 @@ export class Chats {
   }
   send(workspace, node, message) {
     assert(!this.closed, 'Host is shutting down');
-    const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige Claude u OpenCode antes de escribir');
+    const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente antes de escribir');
     text(message, 'chat message', 64 * 1024); assert(message.trim(), 'Escribe un mensaje');
     assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
     assert(this.turns.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
@@ -218,7 +256,7 @@ export class Chats {
     const publish = extra => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: this.turns.has(node.id), meta: meta(), messages: [structuredClone(reply)], ...extra });
     const schedule = () => { this.dirty = true; turn.timer ??= setTimeout(() => { turn.timer = null; publish(); }, 40); };
     turn.schedule = schedule;
-    const apply = provider === 'claude' ? applyClaudeEvent : applyOpenCodeEvent;
+    const apply = provider === 'claude' ? applyClaudeEvent : provider === 'codex' ? applyCodexEvent : applyOpenCodeEvent;
     const finish = (code, failure) => {
       if (turn.finished) return; turn.finished = true;
       clearTimeout(turn.timer); clearTimeout(turn.killTimer); this.turns.delete(node.id);
@@ -252,7 +290,7 @@ export class Chats {
       // Own process group: stopping a turn must also stop the tools it launched.
       if (turn.token) this.gates.set(turn.token, turn);
       const role = this.role(workspace, node);
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, autoApprove: node.data.chat.autoApprove === true, message, cwd, model: node.data.chat.models?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, autoApprove: node.data.chat.autoApprove === true, message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env: { ...process.env, PWD: cwd, ...role.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000) } : {}) }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
@@ -261,7 +299,7 @@ export class Chats {
     child.on('error', error => finish(null, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : error.message));
     child.stdin.on('error', () => {});
     // Claude reads the prompt from stdin, so any text is safe from flag parsing.
-    child.stdin.end(provider === 'claude' ? message : '');
+    child.stdin.end(provider === 'claude' || provider === 'codex' ? message : '');
     let buffer = '';
     const line = raw => { if (!raw.trim()) return; let event; try { event = JSON.parse(raw); } catch { return; } if (event && typeof event === 'object' && apply(turn, event)) schedule(); };
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
@@ -279,7 +317,8 @@ export class Chats {
   // Models the selected provider can run. Claude takes aliases for its latest
   // models (any full model name is also valid); OpenCode lists its own catalog.
   async models(node) {
-    const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige Claude u OpenCode primero');
+    const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente primero');
+    if (provider === 'codex') return { provider, items: [], note: 'Escribe el identificador del modelo o usa el predeterminado de Codex.' };
     if (provider === 'claude') return { provider, items: ['fable', 'opus', 'sonnet', 'haiku'].map(id => ({ id, group: 'Alias del modelo más reciente' })) };
     const cached = this.catalog;
     if (cached && Date.now() - cached.at < 5 * 60_000) return cached.value;

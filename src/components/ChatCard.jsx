@@ -5,20 +5,23 @@ import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } f
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import { ProviderGlyph, ProviderTile } from './Glyphs';
+import { EFFORTS } from '../../shared/chat-options.mjs';
 
 export const CARD_MODES = [
   { id: 'claude', key: 'claude', label: 'Claude', hint: 'Conversar con Claude Code en esta carpeta' },
   { id: 'opencode', key: 'opencode', label: 'OpenCode', hint: 'Conversar con OpenCode en esta carpeta' },
+  { id: 'codex', key: 'codex', label: 'Codex', hint: 'Conversar con Codex en esta carpeta' },
   { id: null, key: 'shell', label: 'Terminal', hint: 'Usar la sesión de terminal de esta card' },
 ];
 const MODE_KEY = 'phantom.cardMode';
 // New cards open in the mode chosen last; chat with Claude until one is chosen.
 export function preferredCardMode() {
-  try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : saved === 'opencode' ? 'opencode' : 'claude'; } catch { return 'claude'; }
+  try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : ['opencode', 'codex'].includes(saved) ? saved : 'claude'; } catch { return 'claude'; }
 }
 const AUTO_APPROVE = {
   claude: { on: 'Trabaja libremente dentro de su carpeta (ediciones, git local, npm, tests) y te pide permiso aquí antes de tocar algo fuera: otras carpetas, push, red o sistema.', off: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.' },
   opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', off: 'OpenCode no puede pedir permisos en modo headless: solo lee y responde.' },
+  codex: { on: 'Codex puede editar dentro de la carpeta con sandbox workspace-write. Los permisos que requieren confirmación se deniegan en modo headless.', off: 'Codex usa sandbox de solo lectura y no solicita aprobaciones en modo headless.' },
 };
 const PERMISSION_STATUS = { allowed: 'Aprobado', always: 'Aprobado siempre', denied: 'Rechazado', cancelled: 'Sin respuesta' };
 
@@ -170,6 +173,7 @@ function ModelPicker({ node, workspace, api, notify, provider, label, observed, 
         {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
         {failure && <p role="alert">{failure}. Puedes escribir el nombre del modelo.</p>}
         {catalog && !items.length && !custom && <p>Ningún modelo coincide.</p>}
+        {catalog?.note && <p>{catalog.note}</p>}
       </div>
     </div>}
   </div>;
@@ -177,6 +181,21 @@ function ModelPicker({ node, workspace, api, notify, provider, label, observed, 
 
 // How much of the model's window the conversation occupies, as read from the
 // provider. Without a known window only the occupied tokens are stated.
+function ReasoningPicker({ node, workspace, api, notify, provider, disabled }) {
+  const selected = node.data.chat.reasoning?.[provider] || '';
+  const [value, setValue] = useState(selected);
+  useEffect(() => { setValue(selected); }, [selected, provider]);
+  const save = async next => {
+    if (next === selected) return;
+    try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, reasoning: next || null }); }
+    catch (error) { setValue(selected); notify?.(error.message, 'error'); }
+  };
+  const label = provider === 'opencode' ? 'Variant' : 'Effort';
+  return <label className="pc-reasoning"><span>{label}</span>{provider === 'opencode'
+    ? <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="predeterminado" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
+    : <select aria-label={`Effort de ${provider}`} value={selected} disabled={disabled} onChange={e => save(e.target.value)}><option value="">predeterminado</option>{(EFFORTS[provider] || []).map(effort => <option key={effort} value={effort}>{effort}</option>)}</select>}</label>;
+}
+
 function ContextMeter({ meta }) {
   const use = contextUse(meta);
   if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
@@ -257,6 +276,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo…` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         <div className="pc-status">
           <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
+          <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
           <ContextMeter meta={meta} />
           {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
           <span className="pc-bar-space" />

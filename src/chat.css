@@ -229,3 +229,10 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .pc-ask.is-denied .pc-ask-state { color: var(--danger); }
 .pc-ask:is(.is-allowed, .is-always) .pc-ask-state { color: var(--success); }
 @container (max-width: 460px) { .pc-ask { flex-wrap: wrap; } .pc-ask-actions { width: 100%; justify-content: flex-end; } }
+.pc-reasoning { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font-size: 11px; }
+.pc-reasoning select, .pc-reasoning input { min-width: 0; width: 112px; max-width: 100%; height: 28px; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--surface); color: var(--ink); font: inherit; }
+.pc-reasoning :disabled { opacity: .55; }
+.pc-modes { flex-wrap: wrap; height: auto; min-height: 30px; }
+.pc-status { flex-wrap: wrap; }
+[data-provider="codex"] { --hue: var(--hue-agent); }
+.pc[data-provider="codex"] { --pc-hue: var(--hue-agent); }

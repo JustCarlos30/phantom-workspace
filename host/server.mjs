@@ -150,7 +150,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(patch.provider===undefined||patch.provider===(node.data.chat?.provider??null)||!chats.running(node.id),'Detén la respuesta antes de cambiar de agente');
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
       if(p.model!==undefined&&p.model!==null)validateModel(p.model);
-      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat={...current.data.chat,...patch};if(p.model!==undefined){assert(chat.provider,'Elige Claude u OpenCode primero');const models={...chat.models};if(p.model===null)delete models[chat.provider];else models[chat.provider]=p.model;chat.models=models;}current.data={...current.data,chat};return current;});
+      assert((p.model===undefined&&p.reasoning===undefined)||!chats.running(node.id),'Detén la respuesta antes de cambiar modelo o effort/variant');
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat={...current.data.chat,...patch};for(const [field,key] of [['model','models'],['reasoning','reasoning']])if(p[field]!==undefined){assert(chat.provider,'Elige un agente primero');const values={...chat[key]};if(p[field]===null)delete values[chat.provider];else values[chat.provider]=p[field];chat[key]=values;}validateChat(chat);current.data={...current.data,chat};return current;});
     }
     if(method.startsWith('merge.')) return merges.handle(method,p);
     if(method==='storage.export') { const data=structuredClone(store.state); // Runtime settings may contain credentials: export only portable presentation settings.
