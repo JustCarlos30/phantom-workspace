@@ -152,7 +152,7 @@ components:
 ## Compositor del chat en dos niveles (2026-11-11)
 
 - **Dentro del campo, solo lo que configura el próximo turno.** `.pc-controls`: modelo y Effort/Variant a la izquierda (`.pc-settings`, una sola línea; el nombre del modelo se trunca con elipsis antes de que nada salte de línea), micrófono y enviar a la derecha. Sustituye a `.pc-status`, que chocaba con la clase homónima de `plugins.css`.
-- **Effort/Variant es la misma pastilla que el modelo**: 28 px, `--fill`, icono `Gauge` en el tono del proveedor (atenuado si es «auto»), valor en mono, `select`/`input` nativos sin borde con `field-sizing: content`. «predeterminado» pasa a «auto». La palabra «Effort»/«Variant» se oculta a ≤460 px de contenedor; el nombre accesible y el `title` la conservan.
+- **Effort/Variant es la misma pastilla que el modelo**: 28 px, `--fill`, valor en mono. Effort (Claude, Codex) no usa `select` nativo: es un botón con un medidor de barras ascendentes en el tono del proveedor (vacío si es «auto») que abre hacia arriba un `listbox` propio como el del modelo, con el mismo medidor por nivel, flechas/Home/End/Enter/Esc y check en el elegido. Variant (OpenCode) es texto libre: icono `Gauge` e `input` sin borde con `field-sizing: content`. «predeterminado» pasa a «auto». La palabra «Effort»/«Variant» se oculta a ≤460 px de contenedor; el nombre accesible y el `title` la conservan.
 - **Debajo del campo, lo que mide la conversación.** `.pc-meta`, sin fondo: barra y cifras de contexto, costo tras un punto separador y, en cards anchas, la pista de teclado. El costo ya no se oculta en el dock.
 
 ## Dock de creación como fila de herramientas (2026-11-11)

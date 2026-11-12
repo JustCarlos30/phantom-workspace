@@ -309,13 +309,61 @@ export function ReasoningPicker({ node, workspace, api, notify, provider, disabl
     try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, reasoning: next || null }); }
     catch (error) { setValue(selected); notify?.(error.message, 'error'); }
   };
-  const label = provider === 'opencode' ? 'Variant' : 'Effort';
-  return <label className={`pc-reasoning ${(provider === 'opencode' ? value : selected) ? '' : 'is-empty'}`} data-disabled={disabled || undefined}>
-    <Gauge size={12} aria-hidden="true" /><span className="pc-reasoning-label">{label}</span>
-    {provider === 'opencode'
-      ? <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="auto" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
-      : <><select aria-label={`Effort de ${provider}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" value={selected} disabled={disabled} onChange={e => save(e.target.value)}><option value="">auto</option>{(EFFORTS[provider] || []).map(effort => <option key={effort} value={effort}>{effort}</option>)}</select><ChevronDown size={11} aria-hidden="true" /></>}
+  if (provider === 'opencode') return <label className={`pc-reasoning ${value ? '' : 'is-empty'}`} data-disabled={disabled || undefined}>
+    <Gauge size={12} aria-hidden="true" /><span className="pc-reasoning-label">Variant</span>
+    <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="auto" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
   </label>;
+  return <EffortMenu key={provider} provider={provider} selected={selected} disabled={disabled} onChoose={save} />;
+}
+
+// Levels as a short ascending meter: the pill reads at a glance, the menu
+// lines every option up against the same scale.
+function EffortMeter({ level, total }) {
+  const bars = Math.min(total, 5), filled = level < 0 ? 0 : Math.max(1, Math.round((level + 1) / total * bars));
+  return <span className="pc-effort-meter" aria-hidden="true">{Array.from({ length: bars }, (_, i) => <i key={i} className={i < filled ? 'is-on' : ''} style={{ height: `${4 + i * 2}px` }} />)}</span>;
+}
+
+function EffortMenu({ provider, selected, disabled, onChoose }) {
+  const levels = EFFORTS[provider] || [], options = ['', ...levels];
+  const [open, setOpen] = useState(false), [active, setActive] = useState(0);
+  const root = useRef(null), list = useRef(null), trigger = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    setActive(Math.max(0, options.indexOf(selected)));
+    list.current?.focus({ preventScroll: true });
+    const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
+  const choose = value => { close(); onChoose(value); };
+  const keys = e => {
+    const move = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (move) { e.preventDefault(); setActive(i => (i + move + options.length) % options.length); }
+    else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); setActive(e.key === 'Home' ? 0 : options.length - 1); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(options[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === 'Tab') setOpen(false);
+  };
+  const level = levels.indexOf(selected);
+  return <div ref={root} className="pc-effort">
+    <button ref={trigger} type="button" className={`pc-reasoning ${selected ? '' : 'is-empty'} ${open ? 'is-open' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-label={`Effort de ${provider}: ${selected || 'auto'}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" disabled={disabled}
+      onClick={() => setOpen(value => !value)} onKeyDown={e => { if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); setOpen(true); } }}>
+      <EffortMeter level={level} total={levels.length} />
+      <span className="pc-reasoning-label">Effort</span>
+      <span className="pc-reasoning-value">{selected || 'auto'}</span>
+      <ChevronDown size={11} aria-hidden="true" />
+    </button>
+    {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={`Effort de ${provider}`} aria-activedescendant={`pc-effort-${provider}-${active}`} onKeyDown={keys}>
+      <h4>Esfuerzo de razonamiento</h4>
+      {options.map((option, i) => <div key={option || 'auto'} id={`pc-effort-${provider}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
+        <EffortMeter level={i - 1} total={levels.length} />
+        <span>{option || 'auto'}</span>
+        {!option && <small>predeterminado</small>}
+        {option === selected && <Check size={12} aria-hidden="true" />}
+      </div>)}
+    </div>}
+  </div>;
 }
 
 export function ContextMeter({ meta }) {
