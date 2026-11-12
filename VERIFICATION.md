@@ -1,5 +1,16 @@
 # Verificación de entrega — 0.1.0
 
+## Revisión audiovisual — checks del run controlado
+
+Implementación y pruebas añadidas para revisión normalizada de imagen/video, identidad SHA-256 inmutable, versiones enlazadas, brief persistido y reintento explícito. No se ejecutaron checks desde el ejecutor; Phantom controla su ejecución y cierre. Las verificaciones históricas inferiores no acreditan esta entrega.
+
+- `review-tests`: `node --test test/references.test.mjs test/canvas-cli.test.mjs test/video-review.test.mjs`. Cubre geometría con zoom y bandas, FPS/frame, validación, captura persistida, aislamiento de proyectos/versiones, fallo de guardado, deduplicación de altas/respuestas, reintento concurrente y recuperación de acuse incierto tras reinicio; integra CLI y host.
+- `production-build`: `npm run build`.
+- `review-interaction`: `node test/video-review-desktop.mjs`. Electron de producción y host reales, perfil temporal, WebM VP8 sintético de 24 FPS/2 s generado con WebCodecs y muxado con duración explícita. Recorre pausa/paso de frame, rectángulo fuera del chrome/bandas, alcance y fuente, fallo real de escritura con conservación de borrador, cola llena con proveedor local inerte, reintento sin duplicados, importación/comparación de render, aislamiento/recarga e imagen anotable. Escritorio 1520×980 y compacto 1100×760. El único diálogo sustituido es el selector de archivo; no se simula el bridge ni se usan proveedores comerciales.
+- Evidencia prevista exclusivamente en `/tmp/opencode/video-review-*`: capturas de fallo/desktop/compacto, `checks.json` o `failure.json`, y `detector.json`. El fixture invoca el detector una vez al finalizar mediante argv sin shell; `PHANTOM_IMPECCABLE_BIN` permite al controlador indicar su launcher. Los hallazgos del detector no equivalen a revisión visual aprobada.
+
+Límites explícitos: FPS declarados/rejilla nominal, compatibilidad del decoder, captura PNG condicionada al origen y tamaño; comparación sin sincronización automática; sin detección semántica, tracking ni modificación de fuente acreditada. Persistir un handoff en cola no acredita que el proveedor haya completado la petición. Solo el usuario decide resolver.
+
 ## Integración local de todos los worktrees — 2026-11-11
 
 Rama `integrate/all-2026-11-11`. Se preservaron 62 worktrees (incluidos borradores sin commit) en `preserve/2026-11-11/source-*` y un bundle externo. Todas las instantáneas son antecesoras de la rama integrada; `master` conserva `3a8f4f4`. El inventario y las decisiones de precedencia están en [integration-sources.json](docs/integration-sources.json). Las implementaciones anteriores se conservan como historia recuperable; las versiones funcionales actuales se combinan en el árbol final.

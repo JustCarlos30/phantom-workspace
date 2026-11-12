@@ -1,5 +1,6 @@
 // Pure helpers for the canvas board: what a paste or a drop means, and how
 // references and comment times are shown. No DOM state lives here.
+import { reviewBrief } from '../../shared/video-review.mjs';
 export const referenceURL = (workspaceId, file) => `phantom-ref://${workspaceId}/${file}`;
 export const INLINE_LIMIT = 11 * 1024 * 1024;
 const WEB = /^https?:\/\/[^\s]+$/i;
@@ -41,6 +42,7 @@ export function visibleComments(comments, nodes, spaceId = null) {
 // What an agent needs to act on a thread: the panel, its file and the words.
 export function commentBrief(comment, node, filePath) {
   const where = node ? `${node.type === 'reference' ? 'Referencia' : 'Panel'} "${node.title}"${filePath ? ` (${filePath})` : node.data?.url ? ` (${node.data.url})` : ''}` : 'Canvas';
-  const at = [node ? `posición ${Math.round(comment.x * 100)}%, ${Math.round(comment.y * 100)}%` : '', comment.time !== undefined ? `minuto ${timecode(comment.time)}` : ''].filter(Boolean).join(' · ');
-  return [`Comentario en ${where}${at ? ` — ${at}` : ''}:`, ...comment.messages.map(m => `- ${m.author}: ${m.text}`)].join('\n');
+  const at = [node ? `posición ${Math.round(comment.x * 100)}%, ${Math.round(comment.y * 100)}%${comment.review ? ' del contenido normalizado' : ''}` : '', comment.time !== undefined ? `minuto ${timecode(comment.time)}` : ''].filter(Boolean).join(' · ');
+  const capture = comment.review?.capture && filePath ? `${filePath.slice(0, filePath.lastIndexOf('/') + 1)}${comment.review.capture}` : null;
+  return [`Comentario en ${where}${at ? ` — ${at}` : ''}:`, ...(comment.review ? [reviewBrief(comment.review)] : []), ...(capture ? [`Captura: ${capture}`] : []), ...comment.messages.map(m => `- ${m.author}: ${m.text}`)].join('\n');
 }

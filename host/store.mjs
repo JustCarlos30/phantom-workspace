@@ -103,6 +103,13 @@ export class Store {
     this.dir = path.resolve(dir); fs.mkdirSync(this.dir, {recursive:true, mode:0o700}); fs.chmodSync(this.dir, 0o700);
     this.filename = path.join(this.dir, 'state.json');
     this.state = fs.existsSync(this.filename) ? validateState(JSON.parse(fs.readFileSync(this.filename, 'utf8'))) : {schemaVersion:1,activeWorkspaceId:null,workspaces:[],settings:{},lastSavedAt:null};
+    // A restart cannot establish whether an in-flight delivery reached the chat.
+    // Keep the brief and expose uncertainty rather than silently delivering again.
+    let interrupted = false;
+    for (const w of this.state.workspaces) for (const c of w.comments || []) if (c.handoff?.status === 'sending') {
+      c.handoff = { ...c.handoff, status: 'uncertain', error: 'Host reiniciado durante el envío. Revisa el chat de Phantom antes de volver a pedirlo.', updatedAt: new Date().toISOString() }; interrupted = true;
+    }
+    if (interrupted) this.persist();
   }
   persist() { this.state.lastSavedAt = new Date().toISOString(); atomicJSON(this.filename, this.state); }
   getWorkspace(id) { const w = this.state.workspaces.find(w => w.id === id); assert(w, 'Workspace not found'); return w; }

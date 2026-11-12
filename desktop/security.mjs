@@ -27,7 +27,7 @@ export const HOST_METHODS = new Set([
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',
   'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel',
   // Canvas board: references (image, video, link) and comment pins.
-  'reference.add', 'reference.link', 'comment.add', 'comment.reply', 'comment.update', 'comment.remove',
+  'reference.add', 'reference.link', 'reference.identity', 'comment.add', 'comment.reply', 'comment.update', 'comment.remove', 'comment.retry',
 ]);
 // Reference files are served to the local UI only, by workspace and content-hash name.
 export const REFERENCE_SCHEME = 'phantom-ref';

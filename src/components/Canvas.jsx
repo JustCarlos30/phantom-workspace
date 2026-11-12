@@ -63,7 +63,11 @@ const ChatCard = React.memo(ChatCardContent);
 const sameIds = (a, b) => a.length === b.length && a.every((id, index) => id === b[index]);
 const BrowserPanel = React.memo(BrowserPanelContent);
 const ToolPanel = React.memo(ToolPanelContent);
-const ReferencePanel = React.memo(ReferencePanelContent);
+const ReferencePanel = React.memo(function ReviewReference(props) {
+  const review = React.useContext(ReviewContext);
+  return <ReferencePanelContent {...props} {...review} />;
+});
+const ReviewContext = React.createContext(null);
 // A reference hugs its media: header and caption around the picture's own ratio.
 const REFERENCE_CHROME = 70;
 const NO_COMMENTS = [];
@@ -331,8 +335,11 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   // Comment tool: a click drops a pin on the panel under it (as a fraction of
   // its box, so the pin follows the panel) or on the canvas itself.
   const placeComment = e => {
-    e.preventDefault(); e.stopPropagation();
     const element = e.target.closest('[data-node-id]');
+    // Rich media owns its marking controls even while the board comment tool
+    // is selected. Do not swallow their pointer event in the capture phase.
+    if (element?.dataset.type === 'reference' && element.querySelector('[data-review-media]')) return;
+    e.preventDefault(); e.stopPropagation();
     if (element) {
       const r = element.getBoundingClientRect(), media = element.querySelector('[data-reference-video]');
       media?.pause();
@@ -407,6 +414,8 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   // Closing a thread or a draft hands the keyboard back to the canvas, so Esc, C and V keep working.
   const openThread = useCallback(id => { setDraft(null); setOpenComment(id); if (!id) root.current?.focus({ preventScroll: true }); }, []);
   const writeDraft = useCallback(next => { setDraft(next); if (!next) root.current?.focus({ preventScroll: true }); }, []);
+  const reviewDraft = useCallback(next => { setTool('select'); setOpenComment(null); setDraft(next); }, []);
+  const reviewContext = useMemo(() => ({ workspace, api, notify, onReviewDraft: reviewDraft }), [workspace, api, notify, reviewDraft]);
   const handlers = useMemo(() => ({
     begin: (...args) => latest.current.begin(...args),
     menu: (...args) => latest.current.onMenu(...args),
@@ -436,7 +445,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={Layers} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
     <PixelField targets={pixelTargets} cameraRef={cameraRef} paintRef={fieldPaint} hidden={!!focused} />
     <div ref={world} className="canvas-world">
-      <PresenceGroup>{nodes.map(node => {
+      <ReviewContext.Provider value={reviewContext}><PresenceGroup>{nodes.map(node => {
         const isFocused = focused === node.id;
         if (node.type === 'zone') {
           if (focused) return null;
@@ -453,7 +462,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
         const editing = rename.editing?.id === node.id ? rename.editing : null;
         const sharedWorkspace = node.type === 'terminal' || node.type === 'browser' || node.type === 'note' || node.type === 'reference' ? panelWorkspace : workspace;
         return <CanvasNode key={node.id} node={node} preview={preview[node.id]} focusSize={isFocused ? size : null} anyFocused={!!focused} selected={selected.includes(node.id)} small={tier > 0} compact={tier > 1} magnified={tier < 0} missionTitle={node.groupId ? workspace.missions?.find(m => m.id === node.groupId)?.title : undefined} activity={node.type === 'terminal' ? terminalActivity[node.id] : undefined} chatPulse={chatPulses[node.id]} editing={editing} anyEditing={!!rename.editing} workspace={sharedWorkspace} handlers={handlers} api={api} refresh={refresh} flush={flush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onRelaunch={onRelaunch} connected={connected} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} obscured={obscured} comments={node.type === 'reference' ? commentsByNode.get(node.id) || NO_COMMENTS : undefined} />;
-      })}</PresenceGroup>
+      })}</PresenceGroup></ReviewContext.Provider>
       <CommentLayer comments={comments} draft={draft} open={openComment} active={tool === 'comment'} geometryOf={geometryOf} nodeOf={id => nodes.find(n => n.id === id)} pathOf={node => node.data?.file && dataDir ? `${dataDir}/references/${workspace.id}/${node.data.file}` : null} api={api} workspaceId={workspace.id} notify={notify} onOpen={openThread} onDraft={writeDraft} seek={seek} />
     </div>
     {importing > 0 && <div className="reference-importing" role="status"><LoaderCircle size={14} className="spinning" />Añadiendo {importing === 1 ? 'referencia' : `${importing} referencias`}…</div>}
