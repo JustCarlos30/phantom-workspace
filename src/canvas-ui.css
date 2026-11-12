@@ -908,3 +908,55 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
   .activity-dock .activity-unread { display: none; }
   .activity-filters { padding-inline: 10px; gap: 2px; }
 }
+
+/* ---------- Creation dock: a tool row, not a call to action ----------
+   Every action has the same weight: drawn icon over a short word, like a
+   design tool's toolbar. No tinted pill marks one action as "primary"; the
+   row reads left to right and the word is always there to say what it does. */
+.activity-dock .dock-main { height: auto; gap: 2px; padding: 6px; }
+.activity-dock .dock-main .dock-action {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-width: 64px; height: 52px; padding: 0 10px; border-radius: var(--r-md);
+  background: transparent; color: var(--muted); font-size: 11px; font-weight: 550; letter-spacing: .005em;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out);
+}
+.activity-dock .dock-main .dock-action > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; line-height: 1; white-space: nowrap; }
+.activity-dock .dock-main .dock-action svg { transition: translate var(--dur) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.activity-dock .dock-main .dock-action:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); transform: none; }
+.activity-dock .dock-main .dock-action:hover:not(:disabled) svg { translate: 0 -1px; color: var(--accent); }
+.activity-dock .dock-main .dock-action:active:not(:disabled) { background: var(--fill-3); scale: .96; }
+.activity-dock .dock-main .dock-action.active { background: var(--fill-3); color: var(--ink); }
+.activity-dock .dock-main .dock-action.active svg { color: var(--accent); }
+.activity-dock .dock-main .dock-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.activity-dock .dock-main > i { width: 1px; height: 28px; margin: 0 4px; background: var(--hairline-strong); }
+@media (max-width: 760px) {
+  .activity-dock .dock-main .dock-action { min-width: 48px; padding: 0 6px; }
+  .activity-dock .dock-main .dock-more > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-dock .dock-main .dock-action, .activity-dock .dock-main .dock-action svg { transition: none; }
+  .activity-dock .dock-main .dock-action:hover:not(:disabled) svg { translate: none; }
+  .activity-dock .dock-main .dock-action:active:not(:disabled) { scale: none; }
+}
+
+/* Activity strip: what needs you is the only loud thing in the dock. The
+   other readings stay quiet counts until there is something to act on. */
+.activity-dock .activity-strip .activity-notch.needs-you {
+  flex: 0 1 auto; padding-inline: 10px 8px; color: var(--attention);
+  background: color-mix(in srgb, var(--attention) 14%, transparent);
+}
+.activity-dock .activity-strip .activity-notch.needs-you::before {
+  content: ''; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--attention);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--attention) 60%, transparent); animation: needs-you 2.4s var(--ease-out) infinite;
+}
+.activity-dock .activity-strip .activity-notch.needs-you > svg:first-child { display: none; }
+.activity-dock .activity-strip .activity-notch.needs-you strong { font-weight: 600; }
+.activity-dock .activity-strip .activity-notch.needs-you:hover, .activity-dock .activity-strip .activity-notch.needs-you[aria-expanded=true] {
+  background: color-mix(in srgb, var(--attention) 22%, transparent); color: var(--attention);
+}
+.activity-dock .activity-strip:has(.needs-you) .activity-summary-action { color: color-mix(in srgb, var(--muted) 80%, transparent); }
+@keyframes needs-you { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--attention) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
+@media (prefers-reduced-motion: reduce) { .activity-dock .activity-strip .activity-notch.needs-you::before { animation: none; } }
+/* The dock is a little taller with labels; what opens above it clears it. */
+.activity-tray, .tool-picker, .zone-selection, .group-selection { bottom: calc(var(--gutter) + 112px); }
+.tool-picker { max-height: calc(100% - 184px); }

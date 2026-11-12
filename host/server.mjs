@@ -137,7 +137,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     // driven headlessly. data.chat changes only through chat.configure.
     // The approval gate of a running turn proves itself with that turn's token.
     if(method==='chat.permission.request') return chats.requestPermission(p);
-    if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.models','chat.permission.answer'].includes(method)) {
+    if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.models','chat.permission.answer','chat.question.answer'].includes(method)) {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Chat card not found');
       if(method==='chat.get') return chats.get(node);
@@ -146,6 +146,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='chat.clear') return chats.clear(w,node);
       if(method==='chat.models') return chats.models(node);
       if(method==='chat.permission.answer') return chats.answerPermission(node,p.requestId,p.decision);
+      if(method==='chat.question.answer') return chats.answerQuestion(node,p.requestId,p.answers===undefined?null:p.answers);
       const patch={};for(const key of ['provider','autoApprove']) if(p[key]!==undefined)patch[key]=p[key];validateChat(patch);
       assert(patch.provider===undefined||patch.provider===(node.data.chat?.provider??null)||!chats.running(node.id),'Detén la respuesta antes de cambiar de agente');
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
@@ -205,7 +206,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};
-      const priority=new Set(['terminal.attach','terminal.setup.retry','terminal.write','terminal.stop','terminal.close','terminal.resize','chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.permission.answer','state.get','system.info','host.shutdown']);
+      const priority=new Set(['terminal.attach','terminal.setup.retry','terminal.write','terminal.stop','terminal.close','terminal.resize','chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.permission.answer','chat.question.answer','state.get','system.info','host.shutdown']);
       function dispatch(lane) {
         while(!socket.destroyed&&active[lane]<8&&queues[lane].length) {
           const {request,bytes}=queues[lane].shift();active[lane]++;

@@ -15,7 +15,7 @@ import ActivityNotch, { ActivityTray } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
-import { Palette, Maximize2, Frame, GitMerge, ListChecks, Server, Sparkles } from 'lucide-react';
+import { Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Sparkles } from 'lucide-react';
 import { PhantomGlyph as Ghost } from './components/Glyphs';
 import { PANEL_ICONS } from './components/PanelIcons';
 import { structuralShare } from './hooks/structuralShare';
@@ -44,6 +44,9 @@ const TYPES = [
   ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, `Panel nativo de ${panel.pluginId}`, 'phantom']),
 ].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);
 const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find(t => t[0] === id));
+// The creation dock: one weight for every action, the icon names the panel and
+// a short word under it says it. Hints are the launcher's own descriptions.
+const DOCK_ACTIONS = QUICK_TYPES.map(([type, name, , hint]) => [type, name, hint]);
 const initials = name => name?.split(/[\s_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
 const label = type => TYPES.find(t => t[0] === type)?.[1] || type;
 
@@ -134,7 +137,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const onCamera = useCallback((camera, workspaceId) => { if (workspaceId || current.current) patch(workspaceId || current.current.id, null, { camera }); }, [patch]);
   const spaces = useSpaces({ workspace, patch, onChange });
   const spacesRef = useRef(spaces); spacesRef.current = spaces;
-  const view = spaces.view;
+  const [closingIds, setClosingIds] = useState(() => new Set());
+  const view = useMemo(() => closingIds.size && spaces.view?.nodes ? { ...spaces.view, nodes: spaces.view.nodes.filter(n => !closingIds.has(n.id)) } : spaces.view, [spaces.view, closingIds]);
   const focusPanel = useCallback(id => {
     if (id) spacesRef.current.reveal(id);
     const node = current.current?.nodes?.find(n => n.id === id);
@@ -345,14 +349,21 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     await refresh();
     notify(node.type === 'terminal' ? 'Vista ocultada. Recupérala desde la lista de paneles o Sesiones.' : 'Panel eliminado.');
   };
+  // The card leaves the canvas at once; the host ends the session behind it.
+  // If closing fails, the card comes back and the error says why.
   const closeTerminal = async node => {
     const workspaceId = current.current?.id;
-    await flush();
-    await api('terminal.close', { workspaceId, nodeId: node.id });
+    setClosingIds(ids => new Set(ids).add(node.id));
     setMenu(null); setSelected(s => s.filter(id => id !== node.id));
     if (focusedRef.current === node.id) setFocused(null);
-    await refresh();
-    notify('Terminal cerrada y sesión terminada.');
+    try {
+      await flush();
+      await api('terminal.close', { workspaceId, nodeId: node.id });
+      await refresh();
+      notify('Terminal cerrada y sesión terminada.');
+    } finally {
+      setClosingIds(ids => { const next = new Set(ids); next.delete(node.id); return next; });
+    }
   };
   const closeTerminalRef = useRef(closeTerminal); closeTerminalRef.current = closeTerminal;
   const onCloseTerminal = useCallback(node => operation(() => closeTerminalRef.current(node)), [operation]);
@@ -391,7 +402,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
           {workspace && <div key="create-dock" className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} />
-            <div className="dock-main"><span className="dock-label">Crear panel</span><button disabled={!!busy} onClick={() => onOpenPanel('terminal')}><TerminalSquare size={17} /><span>Terminal</span></button><button disabled={!!busy} onClick={() => onOpenPanel('browser')}><Globe size={17} /><span>Navegador</span></button><button disabled={!!busy} onClick={() => onOpenPanel('note')}><StickyNote size={17} /><span>Nota</span></button><button disabled={!!busy} onClick={() => selected.length > 1 ? zoneFromSelection() : onOpenPanel('zone')} title={selected.length > 1 ? 'Crear zona alrededor de la selección' : 'Crear zona'}><Frame size={17} /><span>Zona</span></button><i /><button className={tools ? 'active' : ''} onClick={() => { setTools(v => !v); setTray(false); }} aria-expanded={tools}><Plus size={17} /><span>Herramientas</span><ChevronDown size={12} /></button></div>
+            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" /><button className={`dock-action dock-more ${tools ? 'active' : ''}`} title="Tareas, Git, servicios, Docker y más" onClick={() => { setTools(v => !v); setTray(false); }} aria-expanded={tools} aria-haspopup="dialog"><LayoutGrid size={18} aria-hidden="true" /><span>Herramientas</span></button></div>
           </div>}
           {workspace && !focused && <button key="panel-index-button" className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
           {selected.length > 1 && !focused && <button key="zone-selection" className="zone-selection button" onClick={zoneFromSelection}><Frame size={15} /> Crear zona</button>}
