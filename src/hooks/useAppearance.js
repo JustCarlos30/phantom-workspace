@@ -7,7 +7,7 @@ export const BACKGROUNDS = [
   ['ember', 'Brasa', 'Luz cálida y grafito'],
   ['plain', 'Grafito', 'Sin atmósfera, solo espacio'],
 ];
-export const ACCENTS = [['lilac', 'Violeta', '#a78bda'], ['iris', 'Iris', '#8fa2ff'], ['mint', 'Menta', '#6fdcb4'], ['amber', 'Arena', '#e8c48a'], ['rose', 'Rosa', '#f29ac4'], ['cyan', 'Cian', '#6fe3f2']];
+export const ACCENTS = [['lilac', 'Violeta', '#a78bda'], ['iris', 'Iris', '#8fa2ff'], ['mint', 'Menta', '#7cc9a0'], ['amber', 'Arena', '#e3bf86'], ['rose', 'Rosa', '#f29ac4'], ['cyan', 'Cian', '#6fe3f2']];
 // v2 (Fantasma violeta): Lila replaced Iris as the default accent.
 const VERSION = 2;
 const defaults = { background: 'gengar', accent: 'lilac', grid: true, intensity: 55, image: '' };

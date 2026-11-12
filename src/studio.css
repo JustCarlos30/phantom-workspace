@@ -28,8 +28,8 @@
   --c-lilac: #a78bda;
   --c-iris: #8fa2ff;
   --c-sky: #7cc4ff;
-  --c-mint: #6fdcb4;
-  --c-sand: #e8c48a;
+  --c-mint: #7cc9a0;
+  --c-sand: #e3bf86;
   --c-rose: #f29ac4;
   --c-slate: #a3a8bd;
   --accent: var(--c-lilac);
@@ -37,9 +37,9 @@
   /* State ladder: working is calm and cool, attention is warm and saturated,
      danger is a true red (no longer a pink beside the lilac accent). */
   --working: #6cb8ff;
-  --attention: #ffab40;
+  --attention: #e9b46a;
   --danger: #ee788a;
-  --success: #5fe0a5;
+  --success: #7cc9a0;
   --warning: var(--attention);
   --idle: #6f6b8a;
   --danger-soft: color-mix(in srgb, var(--danger) 12%, var(--surface));
@@ -140,7 +140,7 @@
 .node-body, .inspector-host, .tool-picker, .panel-index, .attention-tray, .context-menu, .app-dialog, .toast, .canvas-busy { background: var(--surface); }
 .node-title input, .project-name-editor .inline-name-input { background: var(--surface); border-color: var(--accent); }
 .note-editor { background: #211d2c; color: var(--ink); }
-.mission-chip { background: #233a33; color: #a4dec4; }
+.mission-chip { background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); }
 .focus-return { color: var(--muted); }
 .focus-return>span { border-color: var(--line-soft); }
 .dock-main, .canvas-navigation { background: var(--surface); box-shadow: var(--shadow-float); }
@@ -259,3 +259,5 @@
 .host-indicator i { background: var(--success); }
 .host-indicator.disconnected i, .host-indicator.error i { background: var(--danger); }
 .host-indicator.connecting i, .host-indicator.reconnecting i { background: var(--warning); }
+.status-dot.running, .host-indicator i { background: var(--success); }
+.status-dot.connecting, .status-dot.disconnected, .host-indicator.connecting i, .host-indicator.reconnecting i { background: var(--attention); }

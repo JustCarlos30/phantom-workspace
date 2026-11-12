@@ -1,9 +1,9 @@
 /* Repositorio · a Git client inside the canvas: sidebar, graph with file tabs, detail. */
 .rp-root {
   --rp-mono: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  --rp-add: var(--success, #5fe0a5);
+  --rp-add: var(--success);
   --rp-del: var(--danger, #ee788a);
-  --rp-dirty: var(--warning, #e8c48a);
+  --rp-dirty: var(--warning);
   display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; container-type: inline-size;
   font: 12.5px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--surface);
 }
@@ -121,7 +121,7 @@
 .rp-ref.is-base { border-color: color-mix(in srgb, var(--rp-add) 55%, transparent); background: color-mix(in srgb, var(--rp-add) 14%, transparent); }
 .rp-ref.is-head { font-weight: 700; }
 .rp-ref.is-remote { border-color: var(--line); background: var(--surface-2); color: var(--muted); }
-.rp-ref.is-tag { border-color: color-mix(in srgb, var(--c-sand, #e8c48a) 50%, transparent); background: color-mix(in srgb, var(--c-sand, #e8c48a) 12%, transparent); }
+.rp-ref.is-tag { border-color: color-mix(in srgb, var(--c-sand) 50%, transparent); background: color-mix(in srgb, var(--c-sand) 12%, transparent); }
 .rp-ref.is-dirty, .rp-ref.is-wip { border-style: dashed; border-color: var(--rp-dirty); }
 .rp-ref.is-wip { background: color-mix(in srgb, var(--rp-dirty) 12%, transparent); }
 .rp-ref.is-more { background: var(--surface-2); border-color: var(--line); color: var(--muted); }

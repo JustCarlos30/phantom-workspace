@@ -1,8 +1,8 @@
 /* Ramas · every branch on one rail. Tone always travels with a text label. */
 .br-root {
   --br-behind: var(--muted, #8a8fa3);
-  --br-ahead: var(--success, #8ad8b6);
-  --br-unsaved: var(--warning, #edbf79);
+  --br-ahead: var(--success);
+  --br-unsaved: var(--warning);
   display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0;
   font: 13px/1.5 system-ui, sans-serif; color: var(--ink);
 }

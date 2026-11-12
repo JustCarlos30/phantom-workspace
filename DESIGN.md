@@ -4,8 +4,8 @@ description: Night glass — a personal spatial workspace; frosted chrome over t
 colors:
   accent: "#a78bda"
   accent-soft: "color-mix(in srgb, var(--accent) 15%, var(--surface))"
-  accent-mint: "#7ddbb9"
-  accent-amber: "#edbf79"
+  accent-mint: "#7cc9a0"
+  accent-amber: "#e3bf86"
   accent-rose: "#e9a0bf"
   accent-cyan: "#6fe3f2"
   bg: "#0b0910"
@@ -29,11 +29,11 @@ colors:
   node-border: "#372c44"
   note: "#211d2c"
   danger: "#ee788a"
-  success: "#5fe0a5"
-  warning: "#ffab40"
+  success: "#7cc9a0"
+  warning: "#e9b46a"
   error-bg: "color-mix(in srgb, var(--danger) 15%, var(--surface))"
-  mission-bg: "#233a33"
-  mission-ink: "#a4dec4"
+  mission-bg: "color-mix(in srgb, var(--success) 14%, var(--surface))"
+  mission-ink: "var(--success)"
 typography:
   headline:
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
