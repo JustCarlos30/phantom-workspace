@@ -1,0 +1,37 @@
+import { _electron as electron } from 'playwright';
+import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os';
+const repo = process.argv[2], out = process.argv[3];
+const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-ui-')), home = path.join(temp, 'home'), proj = path.join(temp, 'mi-proyecto');
+fs.mkdirSync(proj);
+const claude = path.join(temp, 'claude');
+fs.writeFileSync(claude, `#!${process.execPath}\nlet i='';process.stdin.on('data',c=>i+=c);process.stdin.on('end',()=>{const o=e=>console.log(JSON.stringify(e));o({type:'system',subtype:'init',session_id:'s1',model:'claude-opus-x'});setTimeout(()=>{o({type:'assistant',message:{id:'m',model:'claude-opus-x',usage:{input_tokens:12000,output_tokens:40},content:[{type:'text',text:'Este proyecto está **vacío** por ahora. Puedo:\\n\\n1. Crear la estructura inicial\\n2. Revisar las cards de Phantom\\n\\n¿Qué prefieres?'}]}});o({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'s1',duration_ms:1500,total_cost_usd:.04,usage:{output_tokens:40},modelUsage:{'claude-opus-x':{contextWindow:200000}}});},400);});`, { mode: 0o755 });
+const app = await electron.launch({ executablePath: path.join(repo, 'node_modules/.bin/electron'), args: [repo, '--user-data-dir=' + path.join(temp, 'ud')], cwd: repo, env: { ...process.env, PHANTOM_WORKSPACE_HOME: home }, timeout: 30000 });
+const page = await app.firstWindow();
+page.on('pageerror', e => console.log('PAGEERROR', e.message));
+page.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text()); });
+await page.setViewportSize?.({ width: 1440, height: 900 }).catch(() => {});
+const invoke = (m, p = {}) => page.evaluate(([m, p]) => window.phantom.invoke(m, p), [m, p]);
+await page.waitForFunction(() => window.phantom?.invoke, null, { timeout: 30000 });
+for (let i = 0; i < 100; i++) { try { await invoke('state.get'); break; } catch { await new Promise(r => setTimeout(r, 200)); } }
+await invoke('settings.update', { patch: { claudePath: claude } });
+await invoke('workspace.open', { path: proj });
+await page.reload(); await page.waitForSelector('.workspace-header', { timeout: 20000 });
+await page.getByLabel('Abrir chat con Phantom').click();
+await page.waitForSelector('.phantom-chat');
+await new Promise(r => setTimeout(r, 600));
+await page.screenshot({ path: path.join(out, 'empty.png') });
+await page.getByLabel('Mensaje para Phantom').fill('¿En qué estado está este proyecto?');
+await page.keyboard.press('Enter');
+await page.waitForSelector('.phantom-chat .pc-message.is-agent.is-done', { timeout: 15000 });
+await new Promise(r => setTimeout(r, 400));
+await page.screenshot({ path: path.join(out, 'reply.png') });
+// Keyboard: close and reopen.
+await page.keyboard.press('Control+Shift+Space');
+await new Promise(r => setTimeout(r, 400));
+console.log('closed:', await page.locator('.phantom-chat').count());
+await page.keyboard.press('Control+Shift+Space');
+await page.waitForSelector('.phantom-chat');
+console.log('reopened, messages:', await page.locator('.phantom-chat .pc-message').count(), 'focus in chat:', await page.evaluate(() => !!document.activeElement?.closest('.phantom-chat')));
+await page.setViewportSize?.({ width: 800, height: 800 }).catch(() => {});
+await app.close();
+fs.rmSync(temp, { recursive: true, force: true });

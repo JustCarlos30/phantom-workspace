@@ -78,7 +78,7 @@ export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
 }
 
 // Seconds since a turn started, ticking only while it runs.
-function useElapsed(since, active) {
+export function useElapsed(since, active) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!active) return;
@@ -180,7 +180,7 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
   if (message.role === 'user') return <div className="pc-message is-user"><p>{message.parts.map(part => part.text).join('\n')}</p></div>;
   return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} />;
 });
@@ -210,7 +210,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
 
 // The model for this provider in this card. The list comes from the provider
 // (OpenCode's catalog, Claude's aliases); any other model name can be typed.
-function ModelPicker({ node, workspace, api, notify, provider, label, observed, disabled }) {
+export function ModelPicker({ node, workspace, api, notify, provider, label, observed, disabled }) {
   const selected = node.data.chat.models?.[provider] || null;
   const [open, setOpen] = useState(false), [catalog, setCatalog] = useState(null), [failure, setFailure] = useState(''), [query, setQuery] = useState('');
   const root = useRef(null), search = useRef(null);
@@ -269,7 +269,7 @@ function ReasoningPicker({ node, workspace, api, notify, provider, disabled }) {
     : <select aria-label={`Effort de ${provider}`} value={selected} disabled={disabled} onChange={e => save(e.target.value)}><option value="">predeterminado</option>{(EFFORTS[provider] || []).map(effort => <option key={effort} value={effort}>{effort}</option>)}</select>}</label>;
 }
 
-function ContextMeter({ meta }) {
+export function ContextMeter({ meta }) {
   const use = contextUse(meta);
   if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';

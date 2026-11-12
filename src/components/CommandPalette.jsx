@@ -19,6 +19,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
       ...PLUGIN_MANIFESTS.filter(plugin => workspace.plugins?.[plugin.id]?.enabled).flatMap(plugin => plugin.actions.map(action => ({ title: action.name, group: plugin.name, action: { type: 'create', panelType: plugin.panels.find(panel => panel.id === action.panelId).nodeType, data: { pluginId: plugin.id, panelId: action.panelId } } }))),
       { title: 'Ver todo el mapa', group: 'Navegación', action: { type: 'fit-all' } },
       { title: 'Buscar paneles del proyecto', group: 'Navegación', action: { type: 'panels' } },
+      { title: 'Preguntar a Phantom', group: workspace.name, action: { type: 'phantom-chat' } },
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
       ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission' && tab !== 'skills-catalog' && !PLUGIN_MANIFESTS.some(plugin => plugin.panels.some(panel => panel.nodeType === tab))).map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: `Panel · ${node.type}`, action: { type: 'panel', id: node.id } })),
