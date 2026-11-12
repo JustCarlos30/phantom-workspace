@@ -97,3 +97,99 @@ test('the main Phantom chat also approves OpenCode requests, and questions wait 
   const finished = await f.idle();
   assert.deepEqual(JSON.parse(finished.messages.at(-1).parts.find(p => p.type === 'text').text), [{ rejected: true }]);
 });
+
+test('OpenCode subtask failures and tentative main errors leave successful parent replies done', async t => {
+  const f = await setup(t);
+  for (const message of ['subtask-fail', 'child-abort', 'main-recovered', 'main-failed', 'main-transport-failed']) {
+    await f.send(message);
+    const reply = (await f.idle()).messages.at(-1);
+    const failed = message === 'main-failed' || message === 'main-transport-failed';
+    assert.equal(reply.status, failed ? 'error' : 'done');
+    if (failed) assert.match(reply.error, /Bad Gateway/);
+    else assert.equal(reply.error, undefined);
+    if (message === 'main-failed') assert.match(reply.error, /Final failure/);
+    if (message !== 'main-transport-failed') assert.match(reply.parts.find(p => p.type === 'text').text, /Respuesta final/);
+    if (message === 'subtask-fail' || message === 'child-abort') {
+      const tool = reply.parts.find(p => p.type === 'tool');
+      assert.equal(tool.status, 'error'); assert.match(tool.output, /Subagent failed/);
+    }
+  }
+});
+
+test('OpenCode control replies retry transient failures only, with a bounded attempt count', async t => {
+  const f = await setup(t);
+  for (const message of ['transient', 'network-transient', 'persistent', 'gone', 'question-transient', 'question-reject-transient']) {
+    await f.send(message);
+    if (message.includes('question')) {
+      const part = await until(async () => (await f.get()).messages.at(-1)?.parts.find(p => p.type === 'question' && p.status === 'pending'));
+      await f.host.invoke('chat.question.answer', { ...f.ref, requestId: part.id, answers: message.includes('reject') ? null : { '¿Cómo continuar?': 'Revisar' } });
+    } else await f.answer(await f.ask(), 'allow');
+    const reply = (await f.idle()).messages.at(-1);
+    const counts = JSON.parse(fs.readFileSync(path.join(f.root, 'control.json')));
+    assert.equal(reply.status, message === 'persistent' ? 'error' : 'done');
+    assert.equal(counts.attempts, message === 'persistent' || message === 'network-transient' ? 3 : message === 'gone' ? 1 : 2);
+    assert.equal(counts.delivered, message === 'persistent' ? 0 : 1);
+    if (message === 'persistent') assert.match(reply.error, /OpenCode.*HTTP 503/);
+  }
+});
+
+test('OpenCode reconnects SSE and catches pending requests exactly once', async t => {
+  const f = await setup(t);
+  for (const message of ['sse-drop', 'sse-drop-question']) {
+    await f.send(message);
+    if (message.includes('question')) {
+      const question = await until(async () => (await f.get()).messages.at(-1)?.parts.find(p => p.type === 'question' && p.status === 'pending'));
+      await f.host.invoke('chat.question.answer', { ...f.ref, requestId: question.id, answers: { '¿Cómo continuar?': 'Revisar' } });
+    } else await f.answer(await f.ask(), 'allow');
+    const reply = (await f.idle()).messages.at(-1);
+    const counts = JSON.parse(fs.readFileSync(path.join(f.root, 'control.json')));
+    assert.equal(reply.status, 'done'); assert.equal(counts.connections, 2);
+    assert.equal(counts.delivered, 1); assert.equal(counts.attempts, 1);
+    assert.equal(reply.parts.filter(p => p.type === 'permission' || p.type === 'question').length, 1);
+  }
+});
+
+test('OpenCode fails after bounded SSE reconnections and closes its server', async t => {
+  const f = await setup(t);
+  await f.send('sse-exhausted');
+  const reply = (await f.idle()).messages.at(-1);
+  assert.equal(reply.status, 'error'); assert.match(reply.error, /OpenCode/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.root, 'control.json'))).connections, 4);
+  const { pid } = JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json')));
+  assert.throws(() => process.kill(pid, 0), /ESRCH/);
+});
+
+test('OpenCode recovered subtasks let queued messages continue', async t => {
+  const f = await setup(t);
+  await f.send('subtask-fail');
+  const queued = await f.send('main-recovered'); assert.equal(queued.queued, true);
+  const chat = await until(async () => { const chat = await f.get(); return !chat.running && chat.messages.filter(m => m.role === 'assistant').length === 2 && chat; });
+  assert.deepEqual(chat.messages.filter(m => m.role === 'assistant').map(m => m.status), ['done', 'done']);
+  assert.equal(chat.queue.length, 0);
+});
+
+test('OpenCode remembers denied permission keys within the turn and rejects children without feedback', async t => {
+  const f = await setup(t);
+  for (const message of ['child-denied', 'main-denied']) {
+    await f.send(message); await f.answer(await f.ask(), 'deny');
+    const reply = (await f.idle()).messages.at(-1);
+    assert.equal(reply.status, 'done');
+    assert.equal(reply.parts.filter(p => p.type === 'permission').length, 1);
+    const verdict = message === 'child-denied' ? { reply: 'reject' } : { reply: 'reject', message: 'El usuario rechazó este permiso en Phantom Workspace.' };
+    assert.deepEqual(JSON.parse(reply.parts.find(p => p.type === 'text').text), [verdict, verdict]);
+  }
+});
+
+test('OpenCode cancellation interrupts retry backoff and leaves no server or later attempts', async t => {
+  const f = await setup(t);
+  await f.send('cancel-backoff'); await f.answer(await f.ask(), 'allow');
+  const counts = () => JSON.parse(fs.readFileSync(path.join(f.root, 'control.json')));
+  await until(() => counts().attempts === 1);
+  const { pid } = JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json')));
+  await f.host.invoke('chat.stop', f.ref);
+  const reply = (await f.idle()).messages.at(-1);
+  assert.equal(reply.status, 'stopped'); assert.equal(reply.error, undefined);
+  assert.throws(() => process.kill(pid, 0), /ESRCH/);
+  await new Promise(resolve => setTimeout(resolve, 250));
+  assert.equal(counts().attempts, 1);
+});

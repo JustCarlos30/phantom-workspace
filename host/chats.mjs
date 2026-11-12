@@ -197,6 +197,7 @@ export function applyClaudeEvent(turn, event) {
 }
 
 export function applyOpenCodeEvent(turn, event) {
+  if (turn.stopped || turn.finished) return false;
   const { message } = turn, part = event.part || {};
   if (typeof event.sessionID === 'string') turn.sessionId = event.sessionID;
   if (event.type === 'text' && part.text) { appendText(message, part.text, true); return true; }
@@ -382,6 +383,7 @@ export class Chats {
       for (const part of reply.parts) if (part.type === 'tool' && part.status === 'running') part.status = 'stopped';
       reply.status = turn.stopped ? 'stopped' : error ? 'error' : 'done';
       if (error && !turn.stopped) reply.error = error;
+      else delete reply.error;
       reply.finishedAt = now();
       if (turn.model) reply.model = turn.model;
       reply.usage = { durationMs: Number.isFinite(turn.usage?.durationMs) ? turn.usage.durationMs : Date.now() - started, ...(Number.isFinite(turn.usage?.costUsd) ? { costUsd: turn.usage.costUsd } : {}), ...(turn.usage?.outputTokens ? { outputTokens: turn.usage.outputTokens } : {}) };
@@ -430,9 +432,11 @@ export class Chats {
       if (buffer.length > MAX_LINE) buffer = '';
     });
     child.stderr.on('data', chunk => { turn.stderr = (turn.stderr + chunk).slice(-8000); });
+    if (provider === 'opencode') turn.controller = new AbortController();
     if (provider === 'opencode') driveOpenCode(child, {
+      signal: turn.controller.signal,
       cwd, sessionId: thread.sessionId, message, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], password: env.OPENCODE_SERVER_PASSWORD,
-      onEvent: event => { if (!turn.finished && apply(turn, event)) schedule(); },
+      onEvent: event => { if (!turn.finished && !turn.stopped && apply(turn, event)) schedule(); },
       onPermission: request => this.requestOpenCodePermission(turn, request),
       onQuestion: async request => {
         if (turn.finished || turn.stopped) return { behavior: 'deny' };
@@ -483,16 +487,23 @@ export class Chats {
     turn.message.parts.push(part); turn.schedule();
     return new Promise(resolve => turn.pending.set(part.id, { part, input, resolve }));
   }
-  requestOpenCodePermission(turn, request) {
+  async requestOpenCodePermission(turn, request) {
     if (turn.finished || turn.stopped) return { behavior: 'deny', message: 'La respuesta se detuvo en Phantom Workspace.' };
     const patterns = Array.isArray(request.patterns) ? request.patterns.filter(p => typeof p === 'string') : [];
     // Keep grants exact: approving /tmp/a must not also approve /tmp/b or a
     // different permission. OpenCode's explicit deny rules still take precedence.
     const key = `OpenCode:${JSON.stringify([request.permission, [...patterns].sort()])}`;
+    turn.denied ??= new Set();
+    if (turn.denied.has(key)) return { behavior: 'deny', ...(request.child ? {} : { message: 'El usuario rechazó este permiso en Phantom Workspace.' }) };
     if (turn.autoApprove || turn.thread.grants?.includes(key)) return { behavior: 'allow' };
     const part = { type: 'permission', id: randomUUID(), tool: String(request.permission).slice(0, 120), detail: patterns.join(', ').slice(0, 240), reason: 'OpenCode solicita tu aprobación', key, status: 'pending', ...(request.tool?.callID ? { toolUseId: request.tool.callID } : {}) };
     turn.message.parts.push(part); turn.schedule();
-    return new Promise(resolve => turn.pending.set(part.id, { part, input: {}, resolve }));
+    const decision = await new Promise(resolve => turn.pending.set(part.id, { part, input: {}, resolve }));
+    if (decision.behavior !== 'allow') {
+      turn.denied.add(key);
+      if (request.child) return { behavior: 'deny' };
+    }
+    return decision;
   }
   askQuestion(turn, input, toolUseId) {
     const part = { type: 'question', id: randomUUID(), questions: normalizeQuestions(input.questions), status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
@@ -539,6 +550,7 @@ export class Chats {
     const turn = this.turns.get(nodeId);
     if (!turn || turn.stopped) return { ok: true };
     turn.stopped = true;
+    turn.controller?.abort(new Error('La respuesta se detuvo en Phantom Workspace.'));
     const signal = name => { try { process.kill(-turn.child.pid, name); } catch { try { turn.child.kill(name); } catch { /* Already gone. */ } } };
     signal('SIGTERM'); turn.killTimer = setTimeout(() => signal('SIGKILL'), 1500); turn.killTimer.unref();
     return { ok: true };
