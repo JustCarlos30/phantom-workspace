@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { AlertCircle, ArrowDown, Folder, GitBranch, Minus, Plus, RotateCcw, Square } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { subscribe } from '../hooks/useWorkspace';
@@ -24,7 +25,17 @@ function phantomTheme() {
     brightBlack: '#5d5888', brightRed: '#ffa3c8', brightGreen: '#9df4d4', brightYellow: '#f8dca8', brightBlue: '#a0c0ff', brightMagenta: '#d6b8ff', brightCyan: '#98ecf6', brightWhite: '#e4e2f7' };
 }
 
-export default function TerminalPanel({ node, workspace, api, active, overview = false, inputBlocked = false, onRelaunch, onChange, notify, refresh, flush, onOpenPanel, onEnlarge, connected = true, focusRequested = false }) {
+// The DOM renderer re-lays out thousands of spans per write and re-rasters them
+// under the canvas scale. WebGL is far cheaper, but browsers cap live contexts
+// (~16 per page), so only readable terminals hold one, up to a budget.
+const WEBGL_BUDGET = 8;
+let webglContexts = 0;
+const webglSupported = typeof WebGL2RenderingContext !== 'undefined';
+// DOM stays the default: it is crisp at any zoom and its rows are what the
+// desktop suites assert on. Opt in with localStorage 'phantom.terminalRenderer' = 'webgl'.
+const webglPreferred = () => { try { return localStorage.getItem('phantom.terminalRenderer') === 'webgl'; } catch { return false; } };
+
+export default function TerminalPanel({ node, workspace, api, active, overview = false, magnified = false, inputBlocked = false, onRelaunch, onChange, notify, refresh, flush, onOpenPanel, onEnlarge, connected = true, focusRequested = false }) {
   const host = useRef(null), terminal = useRef(null), streamRef = useRef(null);
   const resizeRef = useRef(null);
   const cancelAnchorRef = useRef(null);
@@ -130,6 +141,26 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     });
     return () => { disposed = true; offSetup(); cancelAnchor(); cancelAnchorRef.current = null; stream?.dispose(); streamRef.current = null; resizeRef.current = null; observer.disconnect(); clearTimeout(fitting); data.dispose(); historySubscriptions.forEach(subscription => subscription.dispose()); term.dispose(); terminal.current = null; };
   }, [sessionId, api]);
+  // Hidden overview terminals don't need a context; above 100% zoom the scaled
+  // WebGL bitmap would blur, so the crisp DOM renderer takes over there.
+  const gpu = webglSupported && !overview && !magnified && webglPreferred();
+  useEffect(() => {
+    const term = terminal.current;
+    if (!gpu || !term || webglContexts >= WEBGL_BUDGET) return;
+    let addon;
+    try { addon = new WebglAddon(); term.loadAddon(addon); }
+    catch { try { addon?.dispose(); } catch {} return; }
+    webglContexts++;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true; webglContexts--;
+      try { addon.dispose(); } catch {}
+    };
+    // A lost GPU context falls back to the DOM renderer for this terminal.
+    const lost = addon.onContextLoss(release);
+    return () => { lost.dispose(); release(); };
+  }, [gpu, sessionId, api]);
   useEffect(() => {
     if (!terminal.current) return;
     terminal.current.options.fontSize = fontSize;

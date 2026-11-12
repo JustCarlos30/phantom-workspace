@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame, Sparkles } from 'lucide-react';
 import Minimap from './Minimap';
 import TerminalPanelContent from './TerminalPanel';
@@ -9,7 +9,7 @@ import { ToolPanel as ToolPanelContent } from './ToolPanels';
 import { useInlineName } from '../hooks/useInlineName';
 import { isEditingTarget } from '../hooks/inputOwnership';
 import { Presence, PresenceGroup } from './Presence';
-import { useCanvasCamera } from '../hooks/useCanvasCamera';
+import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
 
 const icons = { zone: Frame, terminal: TerminalSquare, browser: Globe, note: StickyNote, plugins: Layers, 'phantom-cards': Layers, 'phantom-skills': Layers, 'skills-catalog': Sparkles };
@@ -51,12 +51,39 @@ const TerminalCard = React.memo(function CanvasTerminalCard({ node, onFocus, ...
 });
 // A card whose agent is chosen talks as a chat, on the map and in focus alike.
 const ChatCard = React.memo(ChatCardContent);
+const sameIds = (a, b) => a.length === b.length && a.every((id, index) => id === b[index]);
 const BrowserPanel = React.memo(BrowserPanelContent);
 const ToolPanel = React.memo(ToolPanelContent);
 
+// One panel on the map. Memoized: camera movement, other panels' edits and
+// selection changes elsewhere must not re-render this panel or its terminal.
+const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, anyFocused, selected, small, compact, magnified, missionTitle, activity, editing, anyEditing, workspace, handlers, api, refresh, flush, notify, onOpenPanel, onChange, onRelaunch, connected, active, inputBlocked, obscured }) {
+  const Icon = icons[node.type] || Layers, isFocused = !!focusSize;
+  const geometry = isFocused ? { x: 12, y: 72, width: Math.max(320, focusSize.width - 24), height: Math.max(240, focusSize.height - 160) } : preview ? { ...node, ...preview } : node;
+  const titleRef = useCallback(element => handlers.titleButton(node.id, element), [handlers, node.id]);
+  const enlarge = useCallback(() => handlers.focus(node.id), [handlers, node.id]);
+  return <article className={`canvas-node ${selected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${small ? 'overview' : ''} ${preview ? 'is-dragging' : ''} ${pulseState(node, activity)}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height, display: anyFocused && !isFocused ? 'none' : undefined }} onPointerDown={() => { if (!selected) handlers.select([node.id]); }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); handlers.menu(node.id, e.clientX, e.clientY); }}>
+    <header className="node-header" onPointerDown={e => { if (!e.target.closest('button,input') && !anyFocused) handlers.begin(e, 'move', node); }} onDoubleClick={e => { if (!e.target.closest('button,input')) handlers.focus(isFocused ? null : node.id); }}>
+      <span className="node-glyph" data-type={node.type} aria-hidden="true"><Icon size={14} /></span><div className="node-title">{editing ? <><input ref={handlers.renameInput} className="inline-name-input" aria-label="Nombre del panel" aria-invalid={!!editing.error} aria-describedby={editing.error ? `name-error-${node.id}` : undefined} value={editing.value} readOnly={editing.saving} onChange={e => handlers.renameChange(e.target.value)} onPointerDown={e => e.stopPropagation()} onBlur={() => handlers.renameCommit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); handlers.renameCommit(true); } if (e.key === 'Escape') { e.preventDefault(); handlers.renameCancel(); } }} />{editing.error && <span className="inline-name-error" id={`name-error-${node.id}`} role="alert">{editing.error}</span>}</> : <button ref={titleRef} className="title-button" title="Renombrar panel" onClick={() => handlers.renameStart(node)}>{node.title}</button>}</div>
+      {node.groupId && <span className="mission-chip" title={missionTitle}>{missionTitle || 'Misión'}</span>}
+      {node.type === 'terminal' && <TerminalActivityStatus session={activity} />}
+      <button className="icon-button" aria-label={isFocused ? 'Volver al mapa' : 'Enfocar panel'} title={isFocused ? 'Volver al mapa' : 'Enfocar panel'} onClick={() => handlers.focus(isFocused ? null : node.id)}>{isFocused ? <ArrowLeft size={14} /> : <Maximize2 size={14} />}</button>
+      <button className="icon-button" aria-label="Opciones del panel" title="Opciones del panel" onClick={e => handlers.menu(node.id, e.clientX, e.clientY)}><MoreHorizontal size={16} /></button>
+      {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" onClick={() => handlers.closeTerminal(node)}><X size={14} /></button>}
+    </header>
+    <div className="node-body">
+      {node.type === 'terminal' && node.data?.chat?.provider ? <ChatCard node={node} workspace={workspace} api={api} notify={notify} overview={small} focused={isFocused} connected={connected} /> : node.type === 'terminal' && !isFocused ? <TerminalCard node={node} workspace={workspace} api={api} notify={notify} onFocus={handlers.focus} onRelaunch={onRelaunch} overview={small} connected={connected} /> : node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onEnlarge={enlarge} onFocus={handlers.focus} connected={connected} active={active} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} compact={compact} magnified={magnified} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || anyEditing} onFocus={handlers.focus} onChange={onChange} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
+    </div>
+    {!anyFocused && <button className="resize-handle" aria-label="Cambiar tamaño del panel" title="Arrastra para cambiar tamaño" onPointerDown={e => handlers.begin(e, 'resize', node)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) { e.preventDefault(); onChange(node.id, { width: Math.max(400, node.width + (e.key === 'ArrowRight' ? 24 : e.key === 'ArrowLeft' ? -24 : 0)), height: Math.max(240, node.height + (e.key === 'ArrowDown' ? 24 : e.key === 'ArrowUp' ? -24 : 0)) }); } }} />}
+  </article>;
+});
+
 export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {} }) {
   const root = useRef(null);
+  const world = useRef(null);
+  const zoomLabel = useRef(null);
   const gesture = useRef(null);
+  const gestureFrame = useRef(null);
   const finishRef = useRef(null);
   const handledJump = useRef(null);
   const [frameRequest, setFrameRequest] = useState(null);
@@ -76,11 +103,30 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const toggleMinimap = () => setMinimap(on => { try { localStorage.setItem('phantom.minimap', on ? 'off' : 'on'); } catch { /* per-viewer preference only */ } return !on; });
   const stopInertia = useCallback(() => { cancelAnimationFrame(inertia.current); inertia.current = null; }, []);
   useEffect(() => stopInertia, [stopInertia]);
-  const visibleNodes = (workspace.nodes || []).filter(n => !n.data?.hidden);
-  // Zones paint first so every panel sits above the area that groups it.
-  const nodes = [...visibleNodes.filter(n => n.type === 'zone'), ...visibleNodes.filter(n => n.type !== 'zone')];
+  const nodes = useMemo(() => (workspace.nodes || []).filter(n => !n.data?.hidden).sort((a, b) => Number(b.type === 'zone') - Number(a.type === 'zone')), [workspace.nodes]);
+  // Terminals and browsers only read these fields; a stable object keeps
+  // edits to other panels from re-rendering every terminal.
+  const panelWorkspace = useMemo(() => ({ id: workspace.id, path: workspace.path, canonicalPath: workspace.canonicalPath, missions: workspace.missions }), [workspace.id, workspace.path, workspace.canonicalPath, workspace.missions]);
+  const focusedRef = useRef(focused); focusedRef.current = focused;
+  // Camera frames are painted straight to the DOM. React re-renders the map
+  // only when the zoom tier changes or navigation settles.
+  const paintCamera = useCallback(c => {
+    const el = world.current;
+    if (el) {
+      const unfocused = !focusedRef.current;
+      el.style.transform = unfocused ? `translate(${snap(c.x)}px, ${snap(c.y)}px) scale(${c.zoom})` : 'none';
+      el.style.setProperty('--map-label-scale', unfocused ? String(Math.min(2.4, Math.max(1, 1 / c.zoom))) : '1');
+      el.style.setProperty('--overview-scale', unfocused ? String(1 / c.zoom) : '1');
+    }
+    if (root.current) for (const [key, value] of Object.entries(gridStyle(c))) root.current.style.setProperty(key, value);
+    if (zoomLabel.current) {
+      zoomLabel.current.textContent = `${Math.round(c.zoom * 100)}`;
+      zoomLabel.current.parentElement?.setAttribute('aria-label', `Zoom ${Math.round(c.zoom * 100)}%. Opciones de zoom`);
+    }
+  }, []);
   const commitCamera = useCallback(next => onCamera(next, workspace.id), [onCamera, workspace.id]);
-  const { camera, cameraRef, updateCamera, navigate, flushCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera);
+  const { camera, cameraRef, updateCamera, navigate, flushCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera, paintCamera);
+  useLayoutEffect(() => { paintCamera(cameraRef.current); });
   useEffect(() => registerBeforeFlush?.(flushCamera), [registerBeforeFlush, flushCamera]);
   // See studio.css: a layer while panning, never across a zoom change. An
   // attribute, not a class, so React's className updates cannot drop it.
@@ -203,24 +249,22 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     else if (kind !== 'pan' && !e.shiftKey) onSelect([]);
     root.current.focus({ preventScroll: true });
     setNavigationMenu(null);
-    gesture.current = { kind, startX: e.clientX, startY: e.clientY, camera: { ...cameraRef.current }, originals: nodes.filter(n => moving(ids).has(n.id)).map(n => ({ ...n })), node, selection: e.shiftKey ? selected : [], pointerId: e.pointerId, samples: [{ x: e.clientX, y: e.clientY, t: performance.now() }] };
+    gesture.current = { kind, startX: e.clientX, startY: e.clientY, camera: { ...cameraRef.current }, originals: nodes.filter(n => moving(ids).has(n.id)).map(n => ({ ...n })), node, selection: e.shiftKey ? selected : [], pointerId: e.pointerId, last: null, samples: [{ x: e.clientX, y: e.clientY, t: performance.now() }] };
     if (kind === 'pan') setPanning(true);
   };
-  const move = e => {
-    const g = gesture.current; if (!g) return;
-    const dx = e.clientX - g.startX, dy = e.clientY - g.startY;
-    if (g.kind === 'pan') {
-      updateCamera({ ...g.camera, x: g.camera.x + dx, y: g.camera.y + dy });
-      const now = performance.now();
-      g.samples.push({ x: e.clientX, y: e.clientY, t: now });
-      while (g.samples.length > 2 && now - g.samples[0].t > 90) g.samples.shift();
-    }
-    else if (g.kind === 'select') {
+  // Pointer events can outpace the display; apply at most one gesture step per frame.
+  const step = () => {
+    gestureFrame.current = null;
+    const g = gesture.current; if (!g?.last) return;
+    const { clientX, clientY } = g.last;
+    const dx = clientX - g.startX, dy = clientY - g.startY;
+    if (g.kind === 'select') {
       const r = root.current.getBoundingClientRect();
-      const box = { x: Math.min(g.startX, e.clientX) - r.left, y: Math.min(g.startY, e.clientY) - r.top, width: Math.abs(dx), height: Math.abs(dy) };
+      const box = { x: Math.min(g.startX, clientX) - r.left, y: Math.min(g.startY, clientY) - r.top, width: Math.abs(dx), height: Math.abs(dy) };
       setMarquee(box);
       const c = g.camera;
-      onSelect([...new Set([...g.selection, ...nodes.filter(n => n.type === 'zone' ? n.x * c.zoom + c.x >= box.x && (n.x + n.width) * c.zoom + c.x <= box.x + box.width && n.y * c.zoom + c.y >= box.y && (n.y + n.height) * c.zoom + c.y <= box.y + box.height : n.x * c.zoom + c.x < box.x + box.width && (n.x + n.width) * c.zoom + c.x > box.x && n.y * c.zoom + c.y < box.y + box.height && (n.y + n.height) * c.zoom + c.y > box.y).map(n => n.id)])]);
+      const next = [...new Set([...g.selection, ...nodes.filter(n => n.type === 'zone' ? n.x * c.zoom + c.x >= box.x && (n.x + n.width) * c.zoom + c.x <= box.x + box.width && n.y * c.zoom + c.y >= box.y && (n.y + n.height) * c.zoom + c.y <= box.y + box.height : n.x * c.zoom + c.x < box.x + box.width && (n.x + n.width) * c.zoom + c.x > box.x && n.y * c.zoom + c.y < box.y + box.height && (n.y + n.height) * c.zoom + c.y > box.y).map(n => n.id)])];
+      if (!sameIds(next, live.current.selected)) onSelect(next);
     } else {
       previewRef.current = g.kind === 'move' ? Object.fromEntries(g.originals.map(n => [n.id, { x: Math.round(n.x + dx / g.camera.zoom), y: Math.round(n.y + dy / g.camera.zoom) }])) : { [g.node.id]: { width: Math.round(Math.max(g.node.type === 'terminal' ? 400 : g.node.type === 'zone' ? 240 : 320, g.node.width + dx / g.camera.zoom)), height: Math.round(Math.max(g.node.type === 'zone' ? 160 : 240, g.node.height + dy / g.camera.zoom)) } };
       setPreview(previewRef.current);
@@ -244,17 +288,54 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     };
     inertia.current = requestAnimationFrame(tick);
   };
-  const finish = e => { if (!gesture.current) return; if (gesture.current.kind === 'pan' && e?.type === 'pointerup') glide(gesture.current); Object.entries(previewRef.current).forEach(([id, patch]) => onChange(id, patch)); previewRef.current = {}; setPreview({}); gesture.current = null; setPanning(false); setMarquee(null); flushCamera(); if (e?.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); };
+  const move = e => {
+    const g = gesture.current; if (!g) return;
+    // Panning already coalesces per frame inside the camera hook.
+    if (g.kind === 'pan') {
+      updateCamera({ ...g.camera, x: g.camera.x + e.clientX - g.startX, y: g.camera.y + e.clientY - g.startY });
+      const now = performance.now();
+      g.samples.push({ x: e.clientX, y: e.clientY, t: now });
+      while (g.samples.length > 2 && now - g.samples[0].t > 90) g.samples.shift();
+      return;
+    }
+    g.last = { clientX: e.clientX, clientY: e.clientY };
+    if (gestureFrame.current === null) gestureFrame.current = requestAnimationFrame(step);
+  };
+  const finish = e => {
+    if (!gesture.current) return;
+    if (gestureFrame.current !== null) { cancelAnimationFrame(gestureFrame.current); step(); }
+    if (gesture.current.kind === 'pan' && e?.type === 'pointerup') glide(gesture.current);
+    Object.entries(previewRef.current).forEach(([id, patch]) => onChange(id, patch)); previewRef.current = {}; setPreview({}); gesture.current = null; setPanning(false); setMarquee(null); flushCamera();
+    if (e?.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
   finishRef.current = finish;
+  useEffect(() => () => cancelAnimationFrame(gestureFrame.current), []);
+  // Stable callbacks for memoized nodes; they always call the latest closure.
+  const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename };
+  const handlers = useMemo(() => ({
+    begin: (...args) => latest.current.begin(...args),
+    menu: (...args) => latest.current.onMenu(...args),
+    focus: id => latest.current.onFocus(id),
+    select: ids => latest.current.onSelect(ids),
+    closeTerminal: node => latest.current.onCloseTerminal(node),
+    titleButton: (id, element) => { if (element) titleButtons.current.set(id, element); else titleButtons.current.delete(id); },
+    renameStart: node => latest.current.rename.start(node.id, node.title, () => titleButtons.current.get(node.id)),
+    renameChange: value => latest.current.rename.change(value),
+    renameCommit: returnFocus => latest.current.rename.commit(returnFocus),
+    renameCancel: () => latest.current.rename.cancel(),
+    renameInput: element => { latest.current.rename.inputRef.current = element; },
+  }), []);
   const focusedNode = nodes.find(n => n.id === focused);
   const frameNode = useCallback(id => setFrameRequest({ id, nonce: Date.now() }), []);
   useEffect(() => { if (focusedNode?.type === 'zone') { onFocus(null); frameNode(focusedNode.id); } }, [focusedNode, onFocus, frameNode]);
+  const tier = focused ? 0 : cameraTier(camera.zoom);
+  const connected = !connection || connection.status === 'connected';
   return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
     <Presence>{focusedNode && <div className="focus-return"><button onClick={() => onFocus(null)}><ArrowLeft size={15} /> Volver al mapa</button><span>{focusedNode.title}</span><kbd>Ctrl ⇧ ↵</kbd></div>}</Presence>
     {!nodes.length && <div className="canvas-empty"><div className="empty-symbol"><Layers size={30} strokeWidth={1.4} /></div><h2>Tu mesa de trabajo, en un lugar</h2><p>Abre una terminal, toma una nota o conecta una herramienta.<br />Cada panel conserva su lugar en este proyecto.</p><div className="empty-actions"><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></div><span className="empty-hint">Arrastra una cabecera para organizar · Ctrl + rueda para acercar</span></div>}
-    <div className="canvas-world" style={focused ? { transform: 'none' } : { transform: `translate(${snap(camera.x)}px, ${snap(camera.y)}px) scale(${camera.zoom})` }}>
+    <div ref={world} className="canvas-world">
       <PresenceGroup>{nodes.map(node => {
-        const Icon = icons[node.type] || Layers, isFocused = focused === node.id, small = !focused && camera.zoom < .45;
+        const isFocused = focused === node.id;
         if (node.type === 'zone') {
           if (focused) return null;
           const g = { ...node, ...preview[node.id] }, color = ZONE_COLORS.includes(node.data?.color) ? node.data.color : 'iris';
@@ -267,21 +348,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
             <button className="resize-handle zone-resize" aria-label="Cambiar tamaño de la zona" title="Arrastra para cambiar tamaño" onPointerDown={e => begin(e, 'resize', node)} />
           </section>;
         }
-        const geometry = isFocused ? { x: 12, y: 72, width: Math.max(320, size.width - 24), height: Math.max(240, size.height - 72 - 88) } : { ...node, ...preview[node.id] };
-        return <article key={node.id} className={`canvas-node ${selected.includes(node.id) ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${small ? 'overview' : ''} ${preview[node.id] ? 'is-dragging' : ''} ${pulseState(node, terminalActivity[node.id])}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height, '--map-label-scale': focused ? 1 : Math.min(2.4, Math.max(1, 1 / camera.zoom)), display: focused && !isFocused ? 'none' : undefined }} onPointerDown={() => { if (!selected.includes(node.id)) onSelect([node.id]); }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onMenu(node.id, e.clientX, e.clientY); }}>
-          <header className="node-header" onPointerDown={e => { if (!e.target.closest('button,input') && !focused) begin(e, 'move', node); }} onDoubleClick={e => { if (!e.target.closest('button,input')) onFocus(isFocused ? null : node.id); }}>
-            <span className="node-glyph" data-type={node.type} aria-hidden="true"><Icon size={14} /></span><div className="node-title">{rename.editing?.id === node.id ? <><input ref={rename.inputRef} className="inline-name-input" aria-label="Nombre del panel" aria-invalid={!!rename.editing.error} aria-describedby={rename.editing.error ? `name-error-${node.id}` : undefined} value={rename.editing.value} readOnly={rename.editing.saving} onChange={e => rename.change(e.target.value)} onPointerDown={e => e.stopPropagation()} onBlur={() => rename.commit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); rename.commit(true); } if (e.key === 'Escape') { e.preventDefault(); rename.cancel(); } }} />{rename.editing.error && <span className="inline-name-error" id={`name-error-${node.id}`} role="alert">{rename.editing.error}</span>}</> : <button ref={element => { if (element) titleButtons.current.set(node.id, element); else titleButtons.current.delete(node.id); }} className="title-button" title="Renombrar panel" onClick={() => rename.start(node.id, node.title, () => titleButtons.current.get(node.id))}>{node.title}</button>}</div>
-            {node.groupId && <span className="mission-chip" title={workspace.missions?.find(m => m.id === node.groupId)?.title}>{workspace.missions?.find(m => m.id === node.groupId)?.title || 'Misión'}</span>}
-            {node.type === 'terminal' && <TerminalActivityStatus session={terminalActivity[node.id]} />}
-            <button className="icon-button" aria-label={isFocused ? 'Volver al mapa' : 'Enfocar panel'} title={isFocused ? 'Volver al mapa' : 'Enfocar panel'} onClick={() => onFocus(isFocused ? null : node.id)}>{isFocused ? <ArrowLeft size={14} /> : <Maximize2 size={14} />}</button>
-            <button className="icon-button" aria-label="Opciones del panel" title="Opciones del panel" onClick={e => onMenu(node.id, e.clientX, e.clientY)}><MoreHorizontal size={16} /></button>
-            {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" onClick={() => onCloseTerminal(node)}><X size={14} /></button>}
-          </header>
-          <div className="node-body">
-            {node.type === 'terminal' && node.data?.chat?.provider ? <ChatCard node={node} workspace={workspace} api={api} notify={notify} overview={small} focused={isFocused} connected={!connection || connection.status === 'connected'} /> : node.type === 'terminal' && !isFocused ? <TerminalCard node={node} workspace={workspace} api={api} notify={notify} onFocus={onFocus} onRelaunch={onRelaunch} overview={small} connected={!connection || connection.status === 'connected'} /> : node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onFocus={onFocus} connected={!connection || connection.status === 'connected'} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} overviewZoom={focused ? 1 : camera.zoom} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || !!rename.editing} onFocus={onFocus} onChange={onChange} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
-          </div>
-          {!focused && <button className="resize-handle" aria-label="Cambiar tamaño del panel" title="Arrastra para cambiar tamaño" onPointerDown={e => begin(e, 'resize', node)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) { e.preventDefault(); onChange(node.id, { width: Math.max(400, node.width + (e.key === 'ArrowRight' ? 24 : e.key === 'ArrowLeft' ? -24 : 0)), height: Math.max(240, node.height + (e.key === 'ArrowDown' ? 24 : e.key === 'ArrowUp' ? -24 : 0)) }); } }} />}
-        </article>;
+        const editing = rename.editing?.id === node.id ? rename.editing : null;
+        const sharedWorkspace = node.type === 'terminal' || node.type === 'browser' || node.type === 'note' ? panelWorkspace : workspace;
+        return <CanvasNode key={node.id} node={node} preview={preview[node.id]} focusSize={isFocused ? size : null} anyFocused={!!focused} selected={selected.includes(node.id)} small={tier > 0} compact={tier > 1} magnified={tier < 0} missionTitle={node.groupId ? workspace.missions?.find(m => m.id === node.groupId)?.title : undefined} activity={node.type === 'terminal' ? terminalActivity[node.id] : undefined} editing={editing} anyEditing={!!rename.editing} workspace={sharedWorkspace} handlers={handlers} api={api} refresh={refresh} flush={flush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onRelaunch={onRelaunch} connected={connected} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} obscured={obscured} />;
       })}</PresenceGroup>
     </div>
     {marquee && <div className="canvas-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
@@ -290,7 +359,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       <button aria-label="Herramienta de selección" title="Seleccionar · V" aria-pressed={tool === 'select'} onClick={() => { setTool('select'); root.current.focus(); }}><MousePointer2 size={16} /></button>
       <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /></button><i />
       <button title="Alejar (−)" aria-label="Alejar" disabled={camera.zoom <= .15} onClick={() => zoomAt(cameraRef.current.zoom / 1.2)}><Minus size={15} /></button>
-      <button className="zoom-value" aria-label={`Zoom ${Math.round(camera.zoom * 100)}%. Opciones de zoom`} aria-expanded={navigationMenu === 'zoom'} aria-controls="canvas-zoom-options" onClick={() => setNavigationMenu(menu => menu === 'zoom' ? null : 'zoom')}>{Math.round(camera.zoom * 100)}%<ChevronDown size={12} /></button>
+      <button className="zoom-value" aria-label={`Zoom ${Math.round(camera.zoom * 100)}%. Opciones de zoom`} aria-expanded={navigationMenu === 'zoom'} aria-controls="canvas-zoom-options" onClick={() => setNavigationMenu(menu => menu === 'zoom' ? null : 'zoom')}><span ref={zoomLabel}>{Math.round(camera.zoom * 100)}</span>%<ChevronDown size={12} /></button>
       <button title="Acercar (+)" aria-label="Acercar" disabled={camera.zoom >= 1.8} onClick={() => zoomAt(cameraRef.current.zoom * 1.2)}><Plus size={15} /></button><i />
       <button title="Ajustar todos los paneles · 0" aria-label="Ajustar todos los paneles" onClick={() => fit()}><LocateFixed size={17} /></button>
       <button title="Minimapa" aria-label="Mostrar minimapa" aria-pressed={minimap} onClick={toggleMinimap}><MapIcon size={16} /></button>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createSaveQueue } from './saveQueue';
 import { createCloseHandler } from './closeProtocol';
 import { createDraftRegistry } from './inlineName';
+import { structuralShare } from './structuralShare';
 
 export const api = (method, payload = {}) => {
   if (!window.phantom?.invoke) return Promise.reject(new Error('Abre la aplicación de escritorio'));
@@ -36,7 +37,7 @@ export function useWorkspace(notify) {
     try {
       const next = await api('state.get');
       if (transport.current.revision !== transportRevision) throw new Error('La conexión cambió durante la lectura. Espera a la reconexión.');
-      if (mounted.current && version === generation.current) { setState(overlay(next)); setStateReadAt(Date.now()); setReadError(''); }
+      if (mounted.current && version === generation.current) { setState(previous => structuralShare(previous, overlay(next))); setStateReadAt(Date.now()); setReadError(''); }
       // Bootstrap only: operation/read errors never define transport status.
       if (transport.current.status === 'connecting' && transportRevision === 0) {
         transport.current.status = 'connected';
@@ -69,7 +70,7 @@ export function useWorkspace(notify) {
   const patch = useCallback((workspaceId, id, change) => {
     const key = id ? `${workspaceId}:${id}` : `workspace:${workspaceId}`;
     queue.current.enqueue(key, id ? 'node.update' : 'workspace.update', id ? { workspaceId, id } : { id: workspaceId }, change);
-    setState(s => s ? overlay(s) : s);
+    setState(s => s ? structuralShare(s, overlay(s)) : s);
     clearTimeout(timer.current); timer.current = setTimeout(() => { if (transport.current.status === 'connected') flush({ prepare: false }).catch(() => {}); }, 350);
   }, [flush, overlay]);
   const closeHandler = useRef(null);
