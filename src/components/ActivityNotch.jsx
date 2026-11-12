@@ -1,5 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Activity, AlertCircle, Bell, Check, ChevronDown, Gauge, GitBranch, LoaderCircle, RefreshCw, TerminalSquare, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, AlertCircle, Bell, Check, ChevronDown, Gauge, GitBranch, GitMerge, LoaderCircle, RefreshCw, TerminalSquare, X } from 'lucide-react';
+import RepoGraph, { branchColor } from './RepoGraph.jsx';
+import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
+import { buildBranches, commitsText, filesText, shortBranch } from '../hooks/branches-model.mjs';
 
 export function TerminalActivityStatus({ session, compact = false }) {
   return <span className={`terminal-activity-status ${session?.tone || 'unknown'} ${compact ? 'compact' : ''}`} title={`Host · terminal.list${session?.linkedTasks?.length ? ' + Phantom · phantom.list (vínculo explícito)' : ''} · ${session?.label || 'Estado desconocido'}`}><i />{session?.label || 'Estado desconocido'}</span>;
@@ -17,7 +20,7 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
       {activity.needs.length || errors ? <AlertCircle size={14} /> : <Activity size={14} />}
       <strong>{!activity.connected ? 'Host desconectado' : uncertain ? 'Actividad sin confirmar' : unseen ? 'Recuperando actividad…' : activity.needs.length ? `${activity.needs.length} ${activity.needs.length === 1 ? 'necesita' : 'necesitan'} de ti` : 'Actividad'}</strong><ChevronDown size={12} />
     </button>
-    <button className="activity-summary-action" aria-expanded={expanded('integration')} aria-controls="activity-tray" onClick={() => onToggle('integration')} title="Revisar ramas e incorporaciones"><GitBranch size={14} /><span>{!activity.connected || activity.sources.git.error || !activity.base || stale ? 'Integraciones' : `${activity.pendingBranches} por integrar`}</span></button>
+    <button className="activity-summary-action" aria-label="Integraciones" aria-expanded={expanded('integration')} aria-controls="activity-tray" onClick={() => onToggle('integration')} title="Revisar ramas e incorporaciones"><GitBranch size={14} /><span>{!activity.connected || activity.sources.git.error || !activity.base || stale ? 'Integraciones' : `${activity.pendingBranches} por integrar`}</span></button>
     <button className={`activity-summary-action ${peak ? `limit-${limitLevel(peak.percent)}` : ''}`} aria-label="Límites" aria-expanded={expanded('limits')} aria-controls="activity-tray" title={peak ? `Uso más alto: ${peak.provider} · ${peak.label} · ${Math.round(peak.percent)}%` : 'Límites de tus planes'} onClick={() => onToggle('limits')}><Gauge size={14} /><span>Límites{peak ? ` · ${Math.round(peak.percent)}%` : ''}</span></button>
     {activity.unread > 0 && <button className="activity-summary-action activity-unread" aria-label={`${activity.unread} avisos sin leer`} aria-expanded={expanded('notices')} aria-controls="activity-tray" onClick={() => onToggle('notices')}><Bell size={13} /><span>{activity.unread}</span></button>}
   </div>;
@@ -64,7 +67,75 @@ function Source({ name, source, activity }) {
   </div>;
 }
 
-export function ActivityTray({ activity, workspace, filter = 'all', onFilter, onClose, onTerminal, onInspector, onPanel, onRead }) {
+function IntegrationHistory({ activity, workspace, api, notify, navigate, openRepository, children }) {
+  const enabled = Boolean(api && workspace?.id && activity.connected);
+  const overview = useResource(api, 'branch.overview', { workspaceId: workspace.id }, { enabled });
+  const history = useResource(api, 'repo.graph', { workspaceId: workspace.id, limit: 40 }, { enabled });
+  const model = useMemo(() => buildBranches(overview.data), [overview.data]);
+  const trees = useMemo(() => [model.baseRow, ...model.groups.flatMap(group => group.rows)].filter(Boolean), [model]);
+  const pending = trees.filter(tree => !tree.isBase && (tree.ahead > 0 || tree.changeCount > 0 || tree.error));
+  const op = useOperation(notify), busy = useRef(false);
+  busy.current = op.busy;
+  const [notices, setNotices] = useState({});
+  const gitAt = activity.sources.git.at;
+  const lastGitAt = useRef(gitAt);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && !busy.current) { overview.reload(); history.reload(); }
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [enabled, overview.reload, history.reload]);
+  useEffect(() => {
+    if (lastGitAt.current === gitAt) return;
+    lastGitAt.current = gitAt;
+    if (enabled && !busy.current) { overview.reload(); history.reload(); }
+  }, [gitAt, enabled, overview.reload, history.reload]);
+  const reload = () => Promise.all([overview.reload(), history.reload()]);
+  const integrate = tree => op.run(async () => {
+    try {
+      const result = await api('branch.integrate', { workspaceId: workspace.id, branch: tree.name });
+      const notice = result.status === 'conflict'
+        ? { tone: 'warn', text: `No se hizo: choca en ${result.conflicts.slice(0, 4).join(', ')}. El merge se deshizo y nada cambió.` }
+        : result.status === 'checks-failed'
+          ? { tone: 'warn', text: `No se integró: los checks fallaron (${result.checks.command}, código ${result.checks.code}). El merge se deshizo y nada cambió.` }
+          : { tone: 'ok', text: result.status === 'merged' ? `Integrada en ${result.base || model.base}${result.checks ? ' · checks OK' : ''}.` : 'Hecho.' };
+      setNotices(old => ({ ...old, [tree.id]: { ...notice, title: tree.title } }));
+    } finally { await reload(); activity.retry(); }
+  });
+  return <section className="activity-integrations" aria-labelledby="activity-integration">
+    <h2 id="activity-integration"><GitBranch size={15} />Integración <b>{overview.data?.available ? `${pending.length} pendientes` : `${activity.branches.length} ramas`}</b></h2>
+    {model.base && <p className="activity-integration-base">Destino <span className="rp-ref" style={{ '--ref-color': branchColor(model.base) }}><GitMerge size={11} aria-hidden="true" /><span className="rp-ref-label">{model.base}</span></span></p>}
+    {overview.loading && !overview.data && <p className="activity-empty" role="status">Leyendo ramas pendientes…</p>}
+    {overview.error && <ErrorNotice error={overview.error} retry={reload} />}
+    {overview.data?.available === false && <p className="activity-warning">{overview.data.reason || 'Ramas no disponibles.'}</p>}
+    {op.error && <ErrorNotice error={op.error} clear={op.clear} />}
+    {op.busy && <p className="activity-empty" role="status"><LoaderCircle size={13} className="spinning" /> Integrando commits…</p>}
+    <div className="activity-branch-cards">
+      {pending.map(tree => <article className="activity-branch-card" key={tree.id} style={{ '--branch-color': branchColor(tree.name || tree.id) }}>
+        <header><GitBranch size={14} aria-hidden="true" /><strong title={tree.name || tree.title}>{tree.terminal?.title || shortBranch(tree.name)}</strong></header>
+        <p className="activity-branch-stats"><span>↑ {commitsText(tree.ahead)} adelante</span><span>↓ {commitsText(tree.behind)} detrás</span><span className={tree.changeCount ? 'is-wip' : ''}>{tree.changeCount ? `WIP · ${filesText(tree.changeCount)} sin guardar` : 'Sin WIP · árbol limpio'}</span></p>
+        {tree.conflicts.length > 0 && <p className="activity-warning">Integrarla chocaría en {tree.conflicts.slice(0, 4).join(', ')}{tree.conflicts.length > 4 ? '…' : ''}.</p>}
+        {tree.error && <p className="activity-warning">Git no pudo leer esta rama: {tree.error}</p>}
+        <div className="activity-integration-actions">
+          <button type="button" className="activity-integrate" disabled={!enabled || op.busy || overview.loading || Boolean(overview.error) || !tree.can.integrate || Boolean(tree.error)} onClick={() => integrate(tree)}><GitMerge size={13} aria-hidden="true" />Integrar {commitsText(tree.ahead)} en {model.base}</button>
+          {tree.terminal?.nodeId && <button type="button" onClick={() => navigate('terminal', tree.terminal.nodeId)}><TerminalSquare size={13} aria-hidden="true" />Ir a terminal</button>}
+        </div>
+      </article>)}
+    </div>
+    {overview.data?.available && !pending.length && <p className="activity-empty">Sin ramas pendientes. Todo al día con {model.base}.</p>}
+    {Object.entries(notices).map(([id, notice]) => <p key={id} className={`activity-integration-notice is-${notice.tone}`} role="status"><strong>{notice.title}</strong> · {notice.text}</p>)}
+    <div className="activity-history">
+      <div className="activity-history-heading"><h3>Historia reciente</h3><button type="button" disabled={!enabled || op.busy || overview.loading || history.loading} onClick={reload} aria-label="Actualizar historia"><RefreshCw size={13} aria-hidden="true" /></button></div>
+      {history.error ? <ErrorNotice error={history.error} retry={history.reload} /> : <RepoGraph graph={history.data} trees={trees} base={model.base} compact onSelectCommit={openRepository} onSelectTree={openRepository} />}
+      {openRepository && <button type="button" className="activity-open-repo" onClick={openRepository}>Abrir Repositorio completo</button>}
+    </div>
+    <div className="activity-integration-actions"><button type="button" onClick={() => navigate('incorporaciones')}>Revisar incorporaciones</button><button type="button" onClick={() => navigate('branches')}>Ordenar ramas y worktrees</button></div>
+    <details className="activity-integration-details"><summary>Detalles</summary>{children}</details>
+  </section>;
+}
+
+export function ActivityTray({ activity, workspace, api, notify, filter = 'all', onFilter, onClose, onTerminal, onInspector, onPanel, onRead }) {
   const root = useRef(null), restore = useRef(true);
   const [draftBase, setDraftBase] = useState(activity.base);
   const [reading, setReading] = useState(''), [readError, setReadError] = useState('');
@@ -75,6 +146,7 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
     return () => { if (restore.current && previous?.isConnected) previous.focus(); };
   }, []);
   const navigate = (target, id) => { restore.current = false; onClose(); if (target === 'terminal') onTerminal(id); else onInspector(target); };
+  const openRepository = onPanel ? () => { restore.current = false; onClose(); onPanel('repo'); } : undefined;
   const noticeTarget = item => {
     const ref = item.ref;
     const node = workspace.nodes?.find(n => n.type === 'terminal' && (n.id === item.nodeId || n.data?.sessionId === item.sessionId || (ref?.kind === 'terminal' && ref.id === n.id) || (ref?.kind === 'session' && ref.id === n.data?.sessionId)));
@@ -93,7 +165,7 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
   const keydown = e => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
     if (e.key !== 'Tab') return;
-    const controls = [...root.current.querySelectorAll('button:not(:disabled),input')];
+    const controls = [...root.current.querySelectorAll('button:not(:disabled),input,summary')].filter(control => control.getClientRects().length > 0);
     const first = controls[0], last = controls.at(-1);
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
     if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
@@ -110,16 +182,13 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
         <Source name="Phantom · phantom.list tasks" source={activity.sources.tasks} activity={activity} />
         <Source name="Host · terminal.list" source={activity.sources.sessions} activity={activity} />
       </section>}
-      {show('integration') && <section aria-labelledby="activity-integration"><h2 id="activity-integration"><GitBranch size={15} />Integración <b>{activity.branches.length} ramas</b></h2>
-        {onPanel && <button onClick={() => { restore.current = false; onClose(); onPanel('repo'); }}>Abrir Repositorio (grafo, worktrees y cambios)</button>}
-        <button onClick={() => navigate('incorporaciones')}>Revisar incorporaciones</button>
-        <button onClick={() => navigate('branches')}>Ordenar ramas y worktrees</button>
+      {show('integration') && <IntegrationHistory activity={activity} workspace={workspace} api={api} notify={notify} navigate={navigate} openRepository={openRepository}>
         <form className="activity-base" onSubmit={e => { e.preventDefault(); activity.setBase(draftBase.trim()); if (activity.base === draftBase.trim()) activity.retry(); }}><label>Base explícita<input aria-label="Base de integración" value={draftBase} maxLength={512} onChange={e => setDraftBase(e.target.value)} placeholder="p. ej. main" /></label><button disabled={!activity.connected || activity.sources.git.loading}>Comparar</button></form>
         <Source name="Git · git.inspect" source={activity.sources.git} activity={activity} />
         <p className="activity-empty">Base: {activity.sources.git.data?.base || activity.base || 'sin elegir'} · {activity.pendingBranches} no integradas · {activity.unknownBranches} desconocidas. No integrada no implica lista para merge.</p>
         {!activity.branches.length && !activity.sources.git.loading && <p className="activity-empty">Sin ramas disponibles en esta lectura.</p>}
         {activity.branches.map(branch => <article className="activity-row" key={branch.name}><div><strong>{branch.name}{branch.current ? ' · actual' : ''}</strong><span>{branch.label} · adelante {branch.ahead ?? '?'} / detrás {branch.behind ?? '?'}</span>{branch.sessions.map(s => <button className="activity-link" key={s.id} disabled={!s.nodeId} onClick={() => navigate('terminal', s.nodeId)}>Terminal vinculada: {s.title}</button>)}</div><button onClick={() => navigate('git')}>Ir a Git</button></article>)}
-      </section>}
+      </IntegrationHistory>}
       {show('limits') && <section aria-labelledby="activity-limits"><h2 id="activity-limits"><Gauge size={15} />Límites de tus planes</h2>
         {(activity.sources.limits?.data?.providers || []).map(provider => <ProviderLimits key={provider.id} provider={provider} now={activity.now} />)}
         <Source name="Host · limits.read" source={activity.sources.limits || {}} activity={activity} />

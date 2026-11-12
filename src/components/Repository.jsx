@@ -3,7 +3,8 @@ import { AlertTriangle, ArrowDownToLine, Check, ChevronDown, ChevronRight, Copy,
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
 import Incorporaciones from './Incorporaciones.jsx';
 import { buildBranches, changeLabel, commitsText, filesText, plural, shortBranch } from '../hooks/branches-model.mjs';
-import { diffStats, layoutGraph, parseDiff, parseRefs, relativeTime } from '../hooks/repo-graph.mjs';
+import { diffStats, parseDiff, parseRefs } from '../hooks/repo-graph.mjs';
+import Graph from './RepoGraph.jsx';
 import '../repository.css';
 
 // Repositorio: one place for the whole repository, laid out like a Git client.
@@ -11,9 +12,7 @@ import '../repository.css';
 // diff and editor tabs. Right: what is selected (a commit or a worktree's
 // uncommitted work). Git is the source; writes go through the host, which
 // refuses anything that would lose work or overwrite a newer file.
-const POLL_MS = 8000, ROW = 28, LANE = 14;
-const LANE_COLORS = ['var(--c-lilac)', 'var(--c-sky)', 'var(--c-mint)', 'var(--c-sand)', 'var(--c-rose)', 'var(--c-iris)', 'var(--c-slate)'];
-const laneColor = index => LANE_COLORS[index % LANE_COLORS.length];
+const POLL_MS = 8000;
 const STATUS = { M: 'Modificado', A: 'Añadido', D: 'Borrado', R: 'Renombrado', C: 'Copiado', T: 'Tipo cambiado', U: 'En conflicto' };
 const statusTone = code => code === 'D' ? 'removed' : code === 'A' ? 'added' : code === 'U' ? 'conflict' : 'modified';
 const statusLetter = status => { const code = (status || '').replace(/ /g, '')[0] || '?'; return code === '?' ? 'N' : code; };
@@ -28,74 +27,6 @@ function usePolling(reload, active, paused) {
     const timer = setInterval(() => { if (document.visibilityState === 'visible' && !paused.current) reload(); }, POLL_MS);
     return () => clearInterval(timer);
   }, [active, reload, paused]);
-}
-
-// ---------------------------------------------------------------- Graph
-
-function GraphCell({ row, width }) {
-  const w = Math.max(1, width) * LANE + 6, x = index => index * LANE + LANE / 2 + 3, mid = ROW / 2;
-  const path = ([from, to], y0, y1) => from === to ? `M${x(from)} ${y0}V${y1}` : `M${x(from)} ${y0}C${x(from)} ${(y0 + y1) / 2} ${x(to)} ${(y0 + y1) / 2} ${x(to)} ${y1}`;
-  return <svg className="rp-graph-cell" width={w} height={ROW} aria-hidden="true">
-    {row.top.map(seg => <path key={`t${seg}`} d={path(seg, 0, mid)} stroke={laneColor(seg[0])} />)}
-    {row.bottom.map(seg => <path key={`b${seg}`} d={path(seg, mid, ROW)} stroke={laneColor(seg[1])} />)}
-    {row.merge
-      ? <circle cx={x(row.col)} cy={mid} r={4} fill="var(--surface)" stroke={laneColor(row.col)} strokeWidth={2} />
-      : <circle cx={x(row.col)} cy={mid} r={4.5} fill={laneColor(row.col)} />}
-  </svg>;
-}
-
-function RefBadges({ refs, trees, base }) {
-  const items = parseRefs(refs).filter(ref => ref.kind !== 'detached' || !refs.some(r => r.startsWith('HEAD -> ')));
-  const owned = new Map(trees.map(tree => [tree.name, tree]));
-  const shown = items.slice(0, 3), more = items.length - shown.length;
-  return <span className="rp-refs">
-    {shown.map(ref => {
-      const tree = owned.get(ref.name);
-      const label = tree?.terminal?.title || (ref.kind === 'tag' ? ref.name : shortBranch(ref.name));
-      return <span key={`${ref.kind}:${ref.name}`} className={`rp-ref is-${ref.kind}${ref.name === base ? ' is-base' : ''}${tree?.changeCount ? ' is-dirty' : ''}`} title={`${ref.kind === 'tag' ? 'Tag' : ref.kind === 'remote' ? 'Rama remota' : 'Rama'} ${ref.name}${tree?.worktree?.path ? `\nWorktree: ${tree.worktree.path}` : ''}`}>
-        {ref.kind === 'tag' ? <Tag size={10} aria-hidden="true" /> : tree?.terminal ? <SquareTerminal size={10} aria-hidden="true" /> : ref.kind === 'head' ? <Check size={10} aria-hidden="true" /> : <GitBranch size={10} aria-hidden="true" />}
-        {label}
-      </span>;
-    })}
-    {more > 0 && <span className="rp-ref is-more" title={items.slice(3).map(ref => ref.name).join('\n')}>+{more}</span>}
-  </span>;
-}
-
-function Graph({ graph, trees, base, query, selected, onSelectCommit, onSelectTree, onMore }) {
-  const commits = graph?.commits || [];
-  const layout = useMemo(() => layoutGraph(commits), [commits]);
-  const width = useMemo(() => Math.max(4, Math.min(12, layout.reduce((max, row) => Math.max(max, row.width), 1))), [layout]);
-  const text = query.trim().toLowerCase();
-  const match = commit => !text || `${commit.subject}\n${commit.author}\n${commit.oid}\n${commit.refs.join('\n')}`.toLowerCase().includes(text);
-  const dirty = trees.filter(tree => tree.changeCount > 0 && tree.exists);
-  const list = useRef(null);
-  useEffect(() => {
-    if (selected?.kind !== 'commit') return;
-    list.current?.querySelector(`[data-oid="${selected.oid}"]`)?.scrollIntoView({ block: 'nearest' });
-  }, [selected]);
-  if (!graph) return <p className="rp-quiet rp-pad" role="status">Leyendo historia…</p>;
-  if (!graph.available) return <p className="rp-warning rp-pad">{graph.reason || 'Sin historia disponible.'}</p>;
-  return <div className="rp-graph" role="grid" aria-label="Historia de commits" ref={list}>
-    <div className="rp-graph-head" role="row"><span role="columnheader" style={{ width: width * LANE + 6 }}>Grafo</span><span role="columnheader">Ramas</span><span role="columnheader">Mensaje</span><span role="columnheader">Autor</span><span role="columnheader">Fecha</span><span role="columnheader">SHA</span></div>
-    {dirty.map(tree => <button type="button" role="row" key={`wip:${tree.id}`} className={`rp-graph-row is-wip${selected?.kind === 'tree' && selected.id === tree.id ? ' is-selected' : ''}`} onClick={() => onSelectTree(tree.id)}>
-      <span className="rp-graph-lanes" style={{ width: width * LANE + 6 }}><svg width={LANE + 6} height={ROW} aria-hidden="true"><circle cx={LANE / 2 + 3} cy={ROW / 2} r={4.5} fill="none" stroke="var(--warning)" strokeWidth={2} strokeDasharray="2 2" /></svg></span>
-      <span className="rp-refs"><span className="rp-ref is-wip">{tree.terminal ? <SquareTerminal size={10} aria-hidden="true" /> : <FolderOpen size={10} aria-hidden="true" />}{tree.title}</span></span>
-      <span className="rp-msg"><b>// WIP</b> · {filesText(tree.changeCount)} sin guardar</span>
-      <span className="rp-author">{tree.running ? 'Sesión activa' : ''}</span><span className="rp-date" /><span className="rp-sha" />
-    </button>)}
-    {commits.map((commit, index) => {
-      const row = layout[index], on = match(commit);
-      return <button type="button" role="row" key={commit.oid} data-oid={commit.oid} className={`rp-graph-row${selected?.kind === 'commit' && selected.oid === commit.oid ? ' is-selected' : ''}${on ? '' : ' is-dim'}`} onClick={() => onSelectCommit(commit.oid)} title={commit.subject}>
-        <span className="rp-graph-lanes" style={{ width: width * LANE + 6 }}><GraphCell row={row} width={width} /></span>
-        <RefBadges refs={commit.refs} trees={trees} base={base} />
-        <span className="rp-msg">{commit.parents.length > 1 && <GitMerge size={11} aria-hidden="true" className="rp-merge-icon" />}{commit.subject}</span>
-        <span className="rp-author" title={commit.email}>{commit.author}</span>
-        <span className="rp-date" title={fullDate(commit.at)}>{relativeTime(commit.at)}</span>
-        <code className="rp-sha">{commit.oid.slice(0, 7)}</code>
-      </button>;
-    })}
-    {graph.more && <div className="rp-graph-more"><button type="button" className="rp-button" onClick={onMore}>Cargar más historia</button></div>}
-  </div>;
 }
 
 // ---------------------------------------------------------------- Diff & editor tabs
