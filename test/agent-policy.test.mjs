@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { bootstrapAgentPolicy, mergeAgentConfig, terminalPolicy } from '../host/agent-policy.mjs';
+import { agentShims, bootstrapAgentPolicy, mergeAgentConfig, shimmedPath, terminalPolicy } from '../host/agent-policy.mjs';
+import { Merges } from '../host/merges.mjs';
+import { providerArgs } from '../host/chats.mjs';
 import { agentContext } from '../host/agents.mjs';
 import { createHost } from '../host/server.mjs';
 import { main as agentCLI } from '../scripts/agent.mjs';
@@ -162,7 +164,7 @@ console.log(JSON.stringify(tasks[id]));
   const policyPaths = [];
   for (const terminal of [one, two]) {
     const output = path.join(root, `${terminal.session.id}.json`);
-    const script = `require('node:fs').writeFileSync(${JSON.stringify(output)},JSON.stringify({config:JSON.parse(process.env.OPENCODE_CONFIG_CONTENT),sessionId:process.env.PHANTOM_TERMINAL_SESSION_ID,cwd:process.cwd(),cli:process.env.PHANTOM_AGENT_CLI}))`;
+    const script = `require('node:fs').writeFileSync(${JSON.stringify(output)},JSON.stringify({config:JSON.parse(process.env.OPENCODE_CONFIG_CONTENT),sessionId:process.env.PHANTOM_TERMINAL_SESSION_ID,cwd:process.cwd(),cli:process.env.PHANTOM_AGENT_CLI,policy:process.env.PHANTOM_AGENT_POLICY,path:process.env.PATH}))`;
     const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
     await host.invoke('terminal.write', { sessionId: terminal.session.id, data: `"$PHANTOM_AGENT_NODE" -e ${quote(script)}\n` });
     await until(() => fs.existsSync(output));
@@ -172,6 +174,8 @@ console.log(JSON.stringify(tasks[id]));
     assert.ok(observed.cli.endsWith('/scripts/agent.mjs'));
     const policyPath = observed.config.instructions.at(-1); policyPaths.push(policyPath);
     assert.deepEqual(observed.config, { ...inherited, instructions: [...inherited.instructions, policyPath] });
+    // Claude Code and Codex get the same file through the shims that lead PATH.
+    assert.equal(observed.policy, policyPath); assert.equal(observed.path.split(':')[0], agentShims);
     const policy = fs.readFileSync(policyPath, 'utf8');
     assert.ok(policy.includes(JSON.stringify(terminal.session.cwd)));
     assert.ok(policy.includes(JSON.stringify(terminal.session.worktree.branch)));
@@ -248,4 +252,68 @@ test('PTY creation fails usefully on malformed host inline config without spawni
   restore();
   assert.equal(host.terminals.live.size, 0);
   assert.deepEqual(await host.invoke('terminal.list', { workspaceId: workspace.id }), []);
+});
+
+// A fake agent that records its argv, one argument per NUL-terminated record.
+function fakeAgents(t) {
+  const root = temporary(t), bin = path.join(root, 'bin'), log = path.join(root, 'argv');
+  fs.mkdirSync(bin);
+  for (const name of ['claude', 'codex']) fs.writeFileSync(path.join(bin, name), `#!/bin/sh\nfor arg do printf '%s\\0' "$arg"; done > "${log}"\n`, { mode: 0o755 });
+  const policy = path.join(root, 'policy.md');
+  fs.writeFileSync(policy, terminalPolicy({ workspaceId: 'w', nodeId: 'n', sessionId: 's', cwd: '/tree', branch: 'phantom/terminal-n', integration: { role: 'worker', base: 'main' } }));
+  const run = (name, args, extra = {}) => {
+    fs.rmSync(log, { force: true });
+    execFileSync(name, args, { env: { PATH: shimmedPath(`${bin}:/usr/bin:/bin`), PHANTOM_AGENT_SHIMS: agentShims, PHANTOM_AGENT_POLICY: policy, ...extra }, stdio: 'pipe' });
+    return fs.readFileSync(log, 'utf8').split('\0').slice(0, -1);
+  };
+  return { run, policy: fs.readFileSync(policy, 'utf8') };
+}
+
+test('Claude Code and Codex started in a Phantom terminal receive the terminal policy', t => {
+  const { run, policy } = fakeAgents(t);
+  assert.equal(shimmedPath(shimmedPath('/usr/bin')).split(':').filter(dir => dir === agentShims).length, 1);
+  assert.deepEqual(run('claude', ['--model', 'opus', 'fix "it"']), ['--append-system-prompt', policy.replace(/\n+$/, ''), '--model', 'opus', 'fix "it"']);
+  const codex = run('codex', ['exec', 'fix it']);
+  assert.deepEqual(codex.slice(2), ['exec', 'fix it']);
+  assert.equal(codex[0], '-c');
+  // The value is a TOML multi-line literal string: the policy arrives verbatim.
+  assert.equal(codex[1], `developer_instructions='''\n${policy.replace(/\n+$/, '')}'''`);
+  assert.ok(!policy.includes("'''"));
+});
+
+test('agent shims stay out of the way when there is nothing to add', t => {
+  const { run } = fakeAgents(t);
+  assert.deepEqual(run('claude', ['mcp', 'list']), ['mcp', 'list']);
+  assert.deepEqual(run('claude', ['--version']), ['--version']);
+  assert.deepEqual(run('codex', ['--help']), ['--help']);
+  assert.deepEqual(run('claude', ['--append-system-prompt', 'mine', 'hi']), ['--append-system-prompt', 'mine', 'hi']);
+  assert.deepEqual(run('claude', ['hi'], { PHANTOM_AGENT_POLICY_OFF: '1' }), ['hi']);
+  assert.deepEqual(run('codex', ['hi'], { PHANTOM_AGENT_POLICY: '/nonexistent/policy.md' }), ['hi']);
+});
+
+test('chat cards carry the registration policy for every provider, with or without Incorporaciones', async t => {
+  const root = temporary(t), project = path.join(root, 'project'), home = path.join(root, 'home');
+  fs.mkdirSync(project);
+  inlineConfig(t, JSON.stringify({ instructions: ['/inherited.md'], permission: { edit: 'ask' } }));
+  const store = { dir: home, state: { workspaces: [] } }, merges = new Merges({ store, terminals: { sessions: [] }, mutate: () => {}, emit: () => {} });
+  const workspace = { id: 'workspace', path: project, canonicalPath: project };
+  const node = { id: 'node', type: 'terminal', data: { cwd: project, chat: { provider: 'claude' } } };
+  const role = merges.agentContext(workspace, node);
+  assert.ok(role.instructions.includes('before editing create or reuse a native Phantom task'));
+  assert.ok(role.instructions.includes(JSON.stringify(project)));
+  assert.ok(role.instructions.includes('no terminal session yet'));
+  assert.ok(!role.instructions.includes('Incorporaciones'));
+  // Claude takes the text; OpenCode a file appended to its inherited inline config.
+  assert.deepEqual(providerArgs('claude', { message: 'hola', instructions: role.instructions }).slice(5, 7), ['--append-system-prompt', role.instructions]);
+  const config = JSON.parse(role.env.OPENCODE_CONFIG_CONTENT);
+  assert.deepEqual(config.permission, { edit: 'ask' });
+  assert.equal(config.instructions[0], '/inherited.md');
+  assert.equal(fs.readFileSync(config.instructions[1], 'utf8'), role.instructions);
+  assert.ok(!config.instructions[1].startsWith(project + path.sep));
+
+  const withSession = merges.agentContext({ ...workspace, integration: { enabled: true } }, { ...node, data: { ...node.data, sessionId: 'session', worktree: { branch: 'phantom/terminal-node' } } });
+  assert.ok(withSession.instructions.includes('"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" context'));
+  assert.ok(withSession.instructions.includes('before editing create or reuse a native Phantom task'));
+  assert.ok(withSession.instructions.includes('Incorporaciones'));
+  assert.equal(withSession.env.PHANTOM_TERMINAL_SESSION_ID, 'session');
 });

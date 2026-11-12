@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { assert, object, text, canonicalFolder } from './store.mjs';
-import { mergeAgentConfig } from './agent-policy.mjs';
+import { mergeAgentConfig, terminalPolicy } from './agent-policy.mjs';
 import { git, guardState, installGuard, removeGuard, mergeToken, roleEnv, roleOf, integrationPolicy } from './merge-guard.mjs';
 
 // Incorporaciones: workers request integration of their terminal branch and the
@@ -56,8 +56,10 @@ export class Merges {
       PHANTOM_WORKSPACE_SOCKET: path.join(this.store.dir, 'host.sock'), PHANTOM_AGENT_CLI: AGENT_CLI, PHANTOM_AGENT_NODE: process.execPath,
       ...(session ? { PHANTOM_TERMINAL_SESSION_ID: session } : {}),
     };
-    if (!w.integration?.enabled || !session) return { env, instructions: '' };
-    const instructions = integrationPolicy({ role: roleOf(node), base: this.bases.get(w.id) ?? null, branch });
+    // Every chat turn carries the Phantom registration policy, whatever the
+    // provider; Incorporaciones adds the card's role when it is on.
+    const integration = w.integration?.enabled && session ? { role: roleOf(node), base: this.bases.get(w.id) ?? null } : null;
+    const instructions = terminalPolicy({ workspaceId: w.id, nodeId: node.id, sessionId: session ?? null, cwd: node.data.cwd ?? node.data.worktree?.path ?? w.canonicalPath ?? w.path, branch, integration });
     // OpenCode takes instructions as files named in its inline config; Claude takes the text.
     try {
       const file = path.join(this.store.dir, 'merge-guard', `${node.id}.md`);

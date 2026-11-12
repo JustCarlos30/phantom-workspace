@@ -1,8 +1,25 @@
 # Registro de cambios con Phantom
 
-Las terminales nuevas de Phantom Workspace inyectan una política de arranque para OpenCode mediante `OPENCODE_CONFIG_CONTENT.instructions`. Cada sesión recibe un archivo propio fuera del proyecto y del worktree, con identidad de terminal, cwd y rama. Se conservan las instrucciones heredadas y todos los demás campos del JSON inline, incluidos proveedores, permisos y MCPs. Un JSON heredado inválido produce un error de lanzamiento que indica cómo corregirlo; no se descarta silenciosamente.
+Phantom Workspace entrega la misma política de arranque a **OpenCode, Claude Code y Codex**, en terminales y en chat cards. Cada sesión de terminal recibe un archivo propio fuera del proyecto y del worktree, con identidad de terminal, cwd y rama.
 
-La política no modifica `AGENTS.md` ni la configuración personal/global de OpenCode. Las instrucciones del proyecto mantienen su alcance y el contenido del repositorio no amplía el mandato de una tarea.
+| Dónde corre el agente | OpenCode | Claude Code | Codex |
+| --- | --- | --- | --- |
+| Terminal (PTY) | `OPENCODE_CONFIG_CONTENT.instructions` | shim `claude` → `--append-system-prompt` | shim `codex` → `-c developer_instructions=…` |
+| Chat card | `OPENCODE_CONFIG_CONTENT.instructions` | `--append-system-prompt` | no es proveedor de chat |
+
+Para OpenCode se conservan las instrucciones heredadas y todos los demás campos del JSON inline, incluidos proveedores, permisos y MCPs. Un JSON heredado inválido produce un error de lanzamiento que indica cómo corregirlo; no se descarta silenciosamente.
+
+Claude Code y Codex no leen instrucciones del entorno. En las terminales, `scripts/agent-shims` va primero en `PATH` y `PHANTOM_AGENT_POLICY` nombra el archivo de política: al escribir `claude` o `codex`, el shim se sustituye por el agente real añadiéndole la política (no queda ningún proceso intermedio). Límites del shim:
+
+- Solo actúa si el agente se resuelve por `PATH`. Una ruta absoluta, un alias o un `PATH` que el rc del shell reordene por delante del shim lo evitan; `command -v claude` debe mostrar `…/scripts/agent-shims/claude`.
+- No toca subcomandos de gestión (`claude mcp`, `claude update`…), `--version` ni `--help`.
+- Si `claude` ya recibe un `--append-system-prompt` propio, se respeta el del usuario y se avisa por stderr de que la política no se añadió.
+- En Codex, `-c developer_instructions` sustituye durante esa sesión a un `developer_instructions` definido en `~/.codex/config.toml`.
+- `PHANTOM_AGENT_POLICY_OFF=1` lanza el agente sin política.
+
+En las chat cards el host construye la línea de comandos, así que la política llega siempre, con o sin Incorporaciones; cuando Incorporaciones está activa se añade además el rol de la card.
+
+La política no modifica `AGENTS.md`, `CLAUDE.md` ni la configuración personal/global de ningún agente. Las instrucciones del proyecto mantienen su alcance y el contenido del repositorio no amplía el mandato de una tarea.
 
 ## Política y ejecución controlada
 
@@ -46,6 +63,6 @@ Ejemplos de aplicación:
 
 ## Terminales nuevas y sesiones ya abiertas
 
-La inyección ocurre al crear el PTY. No cambia el entorno de shells ni procesos OpenCode que ya estén ejecutándose. Tras instalar estos cambios hay que reiniciar el host de Phantom Workspace para cargar el código nuevo y crear o relanzar la sesión de terminal; abrir OpenCode dentro de esa sesión nueva permite heredar el bootstrap. Volver a adjuntar una terminal existente no equivale a relanzarla.
+La inyección ocurre al crear el PTY. No cambia el entorno de shells ni de agentes que ya estén ejecutándose. Tras instalar estos cambios hay que reiniciar el host de Phantom Workspace para cargar el código nuevo y crear o relanzar la sesión de terminal; abrir OpenCode, Claude Code o Codex dentro de esa sesión nueva permite heredar el bootstrap. Las chat cards lanzan un proceso por turno: tras reiniciar el host, el siguiente turno ya lleva la política. Volver a adjuntar una terminal existente no equivale a relanzarla.
 
 Si se corrige `OPENCODE_CONFIG_CONTENT` en el entorno que inicia el host, también hay que reiniciar ese host y relanzar la terminal para heredar el valor corregido. El contexto conserva los campos previos de identidad/progreso y añade cwd, rama e indicaciones de política. Al relanzar una terminal se genera una identidad de sesión y un archivo de política nuevos; la tarea vinculada al nodo se conserva para poder retomarla.

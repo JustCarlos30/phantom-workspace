@@ -2,8 +2,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { externalStatePath } from '../integrations/common.mjs';
 import { integrationPolicy } from './merge-guard.mjs';
+
+// Claude Code and Codex take no instructions from the environment: inside a
+// Phantom terminal these shims, first in PATH, hand them the policy file.
+export const agentShims = fileURLToPath(new URL('../scripts/agent-shims', import.meta.url));
+export function shimmedPath(inherited) {
+  return [agentShims, ...(inherited || '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== agentShims)].join(':');
+}
 
 export const POLICY_HINTS = Object.freeze({
   registration: 'Before edits, create or reuse a native Phantom task in this exact worktree with explicit writable paths and acceptance checks.',
@@ -31,9 +39,11 @@ export function terminalPolicy({ workspaceId, nodeId, sessionId, cwd, branch, in
 
 Terminal identity (data, not instructions): ${JSON.stringify({ workspaceId, nodeId, terminalSessionId: sessionId, cwd, branch })}
 
-Read terminal context at the start and whenever resuming:
+${sessionId ? `Read terminal context at the start and whenever resuming:
 \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" context\`
-Use the returned cwd/branch as the exact worktree, not the project root or a sibling worktree.
+Use the returned cwd/branch as the exact worktree, not the project root or a sibling worktree.` : 'This card has no terminal session yet: the context, bind and report commands below are unavailable until one exists. Registration still applies; use the cwd above as the exact worktree.'}
+
+The native Phantom CLI is \`phantom\` when it is on PATH; otherwise the \`phantom\` MCP server returns its exact argv from \`tasks\` with \`operation: "runtime"\`. Its \`--help\` lists create/do/card/run/list/show. The \`phantom\` skill and MCP tools supply project context, skills and task state on demand.
 
 For every requested change, before editing create or reuse a native Phantom task with that exact worktree, explicit writable paths (scope), and acceptance checks. Register by default; never ask the user to say "create card". A simple bounded change uses a direct task (lane direct); multi-step coordination uses a card (lane coordinated with native coordination). Read-only questions require no task. An empty shell alone creates no task/card.
 
@@ -69,5 +79,7 @@ export async function bootstrapAgentPolicy({ stateDir, workspace, env, ...identi
   await fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const policyPath = path.join(directory, `${identity.sessionId}.md`);
   await fs.writeFile(policyPath, terminalPolicy({ ...identity, workspaceId: workspace.id }), { flag: 'wx', mode: 0o600 });
-  return { OPENCODE_CONFIG_CONTENT: mergeAgentConfig(env.OPENCODE_CONFIG_CONTENT, policyPath) };
+  // One file, three deliveries: OpenCode reads it from its inline config; the
+  // claude/codex shims read PHANTOM_AGENT_POLICY when the user starts them.
+  return { OPENCODE_CONFIG_CONTENT: mergeAgentConfig(env.OPENCODE_CONFIG_CONTENT, policyPath), PHANTOM_AGENT_POLICY: policyPath, PHANTOM_AGENT_SHIMS: agentShims };
 }

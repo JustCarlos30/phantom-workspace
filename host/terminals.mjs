@@ -6,7 +6,7 @@ import { atomicJSON, assert, text, MAX_HISTORY, canonicalFolder, validateHistory
 import { prepareTerminalDirectory } from './worktrees.mjs';
 import { fileURLToPath } from 'node:url';
 import { provisionBrowserTerminal } from './agent-browser.mjs';
-import { bootstrapAgentPolicy } from './agent-policy.mjs';
+import { bootstrapAgentPolicy, shimmedPath } from './agent-policy.mjs';
 import { prepareWorktree } from './worktree-setup.mjs';
 import { roleEnv, roleOf } from './merge-guard.mjs';
 const require = createRequire(import.meta.url);
@@ -146,7 +146,7 @@ export class Terminals {
       const policyEnv = { ...await bootstrapAgentPolicy({ stateDir:this.store.dir,workspace:w,env:process.env,nodeId:node.id,sessionId,cwd:directory.cwd,branch,integration }), ...roleEnv({ stateDir:this.store.dir,workspace:w,node,branch }) };
       signal.throwIfAborted();
       assert(!this.closed && !this.closingNodes.has(node.id), 'Terminal is closing');
-      child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
+      child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
     }
     catch (error) { browser.revoke(); terminal.dispose(); throw error; }
     const s = {id:sessionId,workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',agentReporting:true,...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};
