@@ -1,5 +1,5 @@
 'use strict';
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // No raw IPC object, Electron event, or Node capability crosses this boundary.
 if (process.isMainFrame) {
@@ -12,6 +12,10 @@ if (process.isMainFrame) {
       return ipcRenderer.invoke('phantom:invoke', method, payload).catch(error => {
         throw new Error(String(error?.message || error).replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, ''));
       });
+    },
+    // Path of a file the person dropped on the canvas; '' for anything else.
+    pathForFile(file) {
+      try { return webUtils.getPathForFile(file) || ''; } catch { return ''; }
     },
     onEvent(callback) {
       if (typeof callback !== 'function') throw new TypeError('Callback requerido');

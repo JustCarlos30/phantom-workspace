@@ -4,9 +4,10 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { validateAgent } from './agents.mjs';
 import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '../shared/plugins.mjs';
+import { validateReference, validateComments } from './references.mjs';
 
 export const MAX_HISTORY = 256 * 1024;
-export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','command-center','zone','incorporaciones','skills-catalog','branches','repo'];
+export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','command-center','zone','incorporaciones','skills-catalog','branches','repo','reference'];
 export const dataHome = () => path.resolve(process.env.PHANTOM_WORKSPACE_HOME || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-workspace'));
 export function assert(condition, message) { if (!condition) throw new Error(message); }
 export function object(value) { assert(value && typeof value === 'object' && !Array.isArray(value), 'Expected an object'); return value; }
@@ -80,6 +81,8 @@ export function validateState(input) {
     }
     for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
     for (const n of w.nodes) validatePluginPanel(n.type, n.data);
+    for (const n of w.nodes) if (n.type === 'reference') validateReference(n.data);
+    if (w.comments !== undefined) validateComments(w.comments, w.nodes);
     if (w.integration !== undefined) validateIntegration(w.integration);
     for (const n of w.nodes) if (n.data.role !== undefined) assert(n.type === 'terminal' && n.data.role === 'orchestrator', 'Invalid terminal role');
     assert(w.nodes.filter(n => n.data.role === 'orchestrator').length <= 1, 'Only one orchestrator session per project');

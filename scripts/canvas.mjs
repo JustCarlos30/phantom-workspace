@@ -2,6 +2,7 @@
 // resize, rename, hide/show and zone panels of the current project. It talks to
 // the running host over its socket with the same RPCs the UI uses, so every
 // change is validated by the host and appears live on the canvas.
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { invokeAgent } from './agent.mjs';
@@ -16,6 +17,21 @@ const USAGE = `Uso: canvas.mjs <acción> [opciones]
   hide ID… | show ID…|--all             Oculta/muestra paneles (no detiene sesiones)
   zone "Nombre" ID… [--color iris|mint|amber|rose|slate]
   unzone ID…                            Borra zonas (los paneles se quedan)
+Tablero de referencias (imágenes, videos, sitios) y comentarios:
+  add-image RUTA|URL [--note "por qué"] [--source URL] [--title T] [--zone ZONA]
+  add-site URL [--note "por qué"] [--title T] [--zone ZONA]
+  board "Nombre" --from refs.json [--cols N] [--color C]
+                                        Crea una zona con todas las referencias en cuadrícula. refs.json:
+                                        [{ "image": RUTA|URL | "url": SITIO, "note", "source", "title" }]
+  refs [--zone ZONA] [--json]           Referencias en orden de lectura: archivo local, fuente, nota
+                                        ("por qué") y comentarios abiertos. Lee los archivos para verlas.
+  storyboard ZONA                       La zona como lista de tomas (Markdown), de izquierda a derecha
+  storyboard ZONA --remotion CARPETA [--seconds N] [--fps N] [--size 1920x1080] [--no-captions]
+                                        Proyecto Remotion con las tomas en orden; un video empieza en
+                                        su primer comentario con minuto. Re-exportar actualiza las tomas.
+  comments [--all] [--json]             Hilos de comentarios abiertos (--all incluye resueltos)
+  comment ID "Texto" [--at X,Y] [--time SEG] [--author NOMBRE]   X,Y en % del panel
+  reply N "Texto" [--author NOMBRE] | resolve N                  N: número del hilo
 ID: prefijo del id, del título o de la rama del panel. Opción global: --workspace RUTA`;
 
 export const ZONE_COLORS = ['iris', 'mint', 'amber', 'rose', 'slate'];
@@ -24,7 +40,7 @@ const ZONE_PAD = 40, ZONE_HEADER = 24, ROW_WIDTH = 3600, GROUP_GAP = 120, MAX_CO
 const inside = (n, z) => n.x >= z.x && n.y >= z.y && n.x + n.width <= z.x + z.width && n.y + n.height <= z.y + z.height;
 const spaceOf = n => n.data?.spaceId ?? null;
 
-const TYPE_LABELS = { terminal: 'Terminales', browser: 'Navegadores', note: 'Notas', tasks: 'Tareas', context: 'Contexto', git: 'Git', branches: 'Ramas', services: 'Servicios', docker: 'Docker', mission: 'Misiones', workflows: 'Flujos', playwright: 'Playwright', playground: 'Playground', plugins: 'Plugins', 'phantom-cards': 'Cards', 'phantom-skills': 'Skills', 'skills-catalog': 'Skills', 'command-center': 'Centro de mando', incorporaciones: 'Incorporaciones' };
+const TYPE_LABELS = { terminal: 'Terminales', browser: 'Navegadores', note: 'Notas', reference: 'Referencias', tasks: 'Tareas', context: 'Contexto', git: 'Git', branches: 'Ramas', services: 'Servicios', docker: 'Docker', mission: 'Misiones', workflows: 'Flujos', playwright: 'Playwright', playground: 'Playground', plugins: 'Plugins', 'phantom-cards': 'Cards', 'phantom-skills': 'Skills', 'skills-catalog': 'Skills', 'command-center': 'Centro de mando', incorporaciones: 'Incorporaciones' };
 export function groupKey(node, by) {
   if (by === 'type') return TYPE_LABELS[node.type] || node.type;
   if (by === 'branch') return node.data?.worktree?.branch || 'Sin rama';
@@ -88,14 +104,74 @@ function flags(args) {
   const out = { _: [] };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (['--all', '--json', '--zones', '--dry-run'].includes(a)) out[a.slice(2)] = true;
-    else if (['--by', '--gap', '--workspace', '--color'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
+    if (['--all', '--json', '--zones', '--dry-run', '--no-captions'].includes(a)) out[a.slice(2)] = true;
+    else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--from', '--cols', '--at', '--time', '--author', '--remotion', '--seconds', '--fps', '--size'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
     else if (a.startsWith('--')) throw new Error(`Opción desconocida: ${a}\n\n${USAGE}`);
     else out._.push(a);
   }
   return out;
 }
 const num = (value, label) => { const n = Number(value); if (!Number.isFinite(n) || Math.abs(n) > 1e7) throw new Error(`${label} debe ser un número`); return Math.round(n); };
+
+// Reading order: rows top to bottom, each row left to right. A panel joins the
+// current row while it starts above that row's lower half.
+export function readingOrder(nodes) {
+  const rows = [];
+  for (const n of [...nodes].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const row = rows[rows.length - 1];
+    if (row && n.y < row.y + row.height * .6) row.items.push(n); else rows.push({ y: n.y, height: n.height, items: [n] });
+  }
+  return rows.flatMap(row => row.items.sort((a, b) => a.x - b.x));
+}
+// Masonry: each reference goes to the shortest column, so mixed ratios pack tightly.
+export function planBoard(items, { cols, gap = 32, x = 0, y = 0 } = {}) {
+  const count = Math.max(1, Math.min(6, cols || Math.ceil(Math.sqrt(items.length)))), width = Math.max(0, ...items.map(n => n.width)), heights = Array(count).fill(0);
+  const moves = items.map(n => { const c = heights.indexOf(Math.min(...heights)), move = { id: n.id, x: Math.round(x + ZONE_PAD + c * (width + gap) + (width - n.width) / 2), y: Math.round(y + ZONE_PAD + ZONE_HEADER + heights[c]) }; heights[c] += n.height + gap; return move; });
+  return { moves, zone: { x: Math.round(x), y: Math.round(y), width: Math.round(ZONE_PAD * 2 + count * width + (count - 1) * gap), height: Math.round(ZONE_PAD * 2 + ZONE_HEADER + Math.max(0, Math.max(...heights) - gap)) } };
+}
+// First free slot inside a zone, scanning rows; null when the zone is full.
+export function freeSlot(zone, members, width, height, gap = 24) {
+  const left = zone.x + ZONE_PAD, top = zone.y + ZONE_PAD + ZONE_HEADER, right = zone.x + zone.width - ZONE_PAD, bottom = zone.y + zone.height - ZONE_PAD;
+  for (let y = top; y + height <= bottom; y += 24) for (let x = left; x + width <= right; x += 24)
+    if (!members.some(n => x < n.x + n.width + gap && x + width + gap > n.x && y < n.y + n.height + gap && y + height + gap > n.y)) return { x, y };
+  return null;
+}
+const WEB = /^https?:\/\//i;
+const stamp = seconds => { const t = Math.floor(seconds), m = Math.floor(t / 60); return `${m}:${String(t % 60).padStart(2, '0')}`; };
+function describeComment(c) {
+  return { n: c.number, id: c.id.slice(0, 8), resolved: c.resolved, ...(c.nodeId ? { at: `${Math.round(c.x * 100)}%,${Math.round(c.y * 100)}%` } : { canvas: `${c.x},${c.y}` }), ...(c.time !== undefined ? { time: stamp(c.time), seconds: c.time } : {}), messages: c.messages.map(m => ({ author: m.author, text: m.text })) };
+}
+const commentLine = c => `#${c.n}${c.resolved ? ' (resuelto)' : ''} ${[c.at, c.time].filter(Boolean).join(' · ')} ${c.messages.map(m => `${m.author}: ${m.text}`).join(' ↳ ')}`.replace(/\s+/g, ' ');
+
+// Remotion export: a small project whose composition plays the zone's shots in
+// reading order. Media is copied into public/; the template is written once.
+const TEMPLATE = new URL('./remotion-template/', import.meta.url);
+const MARKER = '.phantom-storyboard';
+export function planShots(rows, { seconds = 3, fps = 30 } = {}) {
+  return rows.map(r => {
+    const firstMark = r.kind === 'video' ? Math.min(...r.comments.filter(c => c.seconds !== undefined).map(c => c.seconds)) : Infinity;
+    const ext = r.file ? path.extname(r.file) : '';
+    return { title: r.title, kind: r.kind, file: r.file ? `shots/${String(r.n).padStart(2, '0')}${ext}` : null, source: r.file || null, note: r.note || '', frames: Math.max(1, Math.round(seconds * fps)), startFrom: Number.isFinite(firstMark) ? Math.round(firstMark * fps) : 0, url: r.url || null };
+  });
+}
+export function exportRemotion(dir, title, rows, { seconds = 3, fps = 30, width = 1920, height = 1080, captions = true } = {}) {
+  const root = path.resolve(dir);
+  if (fs.existsSync(root) && fs.readdirSync(root).length && !fs.existsSync(path.join(root, MARKER))) throw new Error(`${root} no está vacía y no es un storyboard exportado por Phantom`);
+  const shots = planShots(rows, { seconds, fps }), fresh = !fs.existsSync(path.join(root, MARKER));
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.rmSync(path.join(root, 'public', 'shots'), { recursive: true, force: true });
+  fs.mkdirSync(path.join(root, 'public', 'shots'), { recursive: true });
+  for (const shot of shots) if (shot.source) fs.copyFileSync(shot.source, path.join(root, 'public', shot.file));
+  fs.writeFileSync(path.join(root, 'src', 'shots.json'), `${JSON.stringify({ title, fps, width, height, captions, shots: shots.map(({ source, ...shot }) => shot) }, null, 2)}\n`);
+  if (fresh) {
+    for (const name of ['index.ts', 'Root.tsx', 'Storyboard.tsx']) fs.copyFileSync(new URL(name, TEMPLATE), path.join(root, 'src', name));
+    const slug = title.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'storyboard';
+    fs.writeFileSync(path.join(root, 'package.json'), `${JSON.stringify({ name: slug, private: true, scripts: { studio: 'remotion studio src/index.ts', render: 'remotion render src/index.ts Storyboard out/storyboard.mp4' }, dependencies: { '@remotion/cli': '^4.0.0', remotion: '^4.0.0', react: '^19.0.0', 'react-dom': '^19.0.0' }, devDependencies: { typescript: '^5.6.0', '@types/react': '^19.0.0' } }, null, 2)}\n`);
+    fs.writeFileSync(path.join(root, 'tsconfig.json'), `${JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, resolveJsonModule: true, esModuleInterop: true, skipLibCheck: true } }, null, 2)}\n`);
+    fs.writeFileSync(path.join(root, MARKER), 'Exportado desde Phantom Workspace (canvas.mjs storyboard --remotion).\n');
+  }
+  return { root, shots: shots.length, seconds: shots.reduce((t, s) => t + s.frames, 0) / fps, fresh };
+}
 
 export function describe(n) {
   return { id: n.id.slice(0, 8), type: n.type, title: n.title, branch: n.data?.worktree?.branch || '', status: n.data?.agent?.status || '', x: n.x, y: n.y, width: n.width, height: n.height, hidden: !!n.data?.hidden, zone: n.type === 'zone' ? (n.data?.auto === 'canvas' ? 'auto' : 'manual') : '' };
@@ -109,6 +185,77 @@ export async function main(args = process.argv.slice(2), env = process.env, call
   if (!w) throw new Error('No encontré el proyecto en Phantom Workspace. Usa --workspace RUTA.');
   const nodes = w.nodes, update = (id, patch) => call('node.update', { workspaceId: w.id, id, patch });
   const need = (count, exact = true) => { if (exact ? ids.length !== count : ids.length < count) throw new Error(USAGE); };
+  const comments = (w.comments || []).map((c, index) => ({ ...c, number: index + 1 }));
+  const zoneNamed = name => resolve(nodes.filter(n => n.type === 'zone'), name);
+  const thread = ref => { const c = comments.find(c => String(c.number) === String(ref).replace(/^#/, '') || c.id.startsWith(ref)); if (!c) throw new Error(`No hay ningún comentario ${ref}`); return c; };
+  // One reference from a local file, an image URL or a site. Created first (the
+  // host sizes it from the media), then moved to its place.
+  const addReference = async ({ image, url, note, source, title }) => {
+    const common = { workspaceId: w.id, ...(note ? { note } : {}), ...(title ? { title } : {}) };
+    if (image && !WEB.test(image)) return call('reference.add', { ...common, path: path.resolve(image), ...(source ? { source } : {}) });
+    if (!image && !url) throw new Error('Cada referencia necesita "image" (ruta o URL) o "url" (sitio)');
+    return call('reference.link', { ...common, url: image || url, ...(image ? { strict: true } : {}) });
+  };
+  const intoZone = async (node, name) => {
+    const zone = zoneNamed(name), members = nodes.filter(n => n.type !== 'zone' && n.id !== node.id && !n.data?.hidden && spaceOf(n) === spaceOf(zone) && inside(n, zone));
+    let slot = freeSlot(zone, members, node.width, node.height);
+    if (!slot) { const bottom = Math.max(zone.y + ZONE_HEADER, ...members.map(n => n.y + n.height)); slot = { x: zone.x + ZONE_PAD, y: bottom + 24 }; await update(zone.id, { width: Math.max(zone.width, node.width + ZONE_PAD * 2), height: slot.y + node.height + ZONE_PAD - zone.y }); zone.height = slot.y + node.height + ZONE_PAD - zone.y; }
+    await update(node.id, { x: slot.x, y: slot.y, ...(spaceOf(zone) ? { data: { ...node.data, spaceId: spaceOf(zone) } } : {}) });
+    Object.assign(node, slot); nodes.push(node);
+  };
+  const beside = () => { const shown = nodes.filter(n => !n.data?.hidden && !spaceOf(n)); return shown.length ? { x: Math.max(...shown.map(n => n.x + n.width)) + GROUP_GAP, y: Math.min(...shown.map(n => n.y)) } : { x: 0, y: 0 }; };
+  const references = async zoneName => {
+    const zone = zoneName ? zoneNamed(zoneName) : null, listed = await call('reference.list', { workspaceId: w.id });
+    const picked = readingOrder(listed.filter(n => !n.data?.hidden && (!zone || inside(n, zone))));
+    return picked.map((n, index) => ({ n: index + 1, id: n.id.slice(0, 8), title: n.title, kind: n.data.kind, ...(n.path ? { file: n.path } : {}), ...(n.data.url ? { url: n.data.url } : {}), ...(n.data.source ? { source: n.data.source } : {}), ...(n.data.note ? { note: n.data.note } : {}), ...(n.data.description ? { description: n.data.description } : {}), comments: comments.filter(c => c.nodeId === n.id && !c.resolved).map(describeComment) }));
+  };
+  if (action === 'add-image' || action === 'add-site') {
+    need(1); const node = await addReference({ [action === 'add-image' ? 'image' : 'url']: ids[0], note: opt.note, source: opt.source, title: opt.title });
+    if (opt.zone) await intoZone(node, opt.zone); else await update(node.id, beside());
+    return `Añadida la referencia "${node.title}" (${node.id.slice(0, 8)})${opt.zone ? ` en la zona ${opt.zone}` : ''}.`;
+  }
+  if (action === 'board') {
+    need(1); if (!opt.from) throw new Error('board necesita --from refs.json');
+    let items; try { items = JSON.parse(fs.readFileSync(path.resolve(opt.from), 'utf8')); } catch (error) { throw new Error(`No pude leer ${opt.from}: ${error.message}`); }
+    if (!Array.isArray(items) || !items.length || items.length > 200) throw new Error('refs.json debe ser una lista de 1 a 200 referencias');
+    const color = opt.color || 'iris'; if (!ZONE_COLORS.includes(color)) throw new Error(`--color: ${ZONE_COLORS.join(', ')}`);
+    const made = [], failed = [];
+    for (const item of items) { try { made.push(await addReference(item || {})); } catch (error) { failed.push(`${item?.image || item?.url || '?'}: ${error.message}`); } }
+    if (!made.length) throw new Error(`No se pudo añadir ninguna referencia:\n${failed.join('\n')}`);
+    const plan = planBoard(made, { cols: opt.cols === undefined ? undefined : num(opt.cols, '--cols'), ...beside() });
+    for (const m of plan.moves) await update(m.id, { x: m.x, y: m.y });
+    await call('node.create', { workspaceId: w.id, type: 'zone', title: ids[0], ...plan.zone, data: { color } });
+    return `Tablero "${ids[0]}" creado con ${made.length} referencias.${failed.length ? `\nNo se pudieron añadir ${failed.length}:\n${failed.join('\n')}` : ''}`;
+  }
+  if (action === 'refs') {
+    const rows = await references(opt.zone); if (opt.json) return rows;
+    return rows.length ? rows.map(r => [`${r.n}. [${r.kind}] ${r.title}  (${r.id})`, r.file && `   archivo: ${r.file}`, r.url && `   sitio: ${r.url}`, r.source && `   fuente: ${r.source}`, r.note && `   por qué: ${r.note}`, ...r.comments.map(c => `   comentario ${commentLine(c)}`)].filter(Boolean).join('\n')).join('\n') : 'No hay referencias.';
+  }
+  if (action === 'storyboard') {
+    need(1); const rows = await references(ids[0]);
+    if (opt.remotion) {
+      if (!rows.length) throw new Error('La zona no tiene referencias');
+      const size = (opt.size || '1920x1080').split('x').map(Number);
+      if (size.length !== 2 || size.some(v => !Number.isInteger(v) || v < 16 || v > 7680)) throw new Error('--size ANCHOxALTO, por ejemplo 1080x1920');
+      const seconds = opt.seconds === undefined ? 3 : Number(opt.seconds), fps = opt.fps === undefined ? 30 : Number(opt.fps);
+      if (!(seconds > 0 && seconds <= 600) || !Number.isInteger(fps) || fps < 1 || fps > 120) throw new Error('--seconds entre 0 y 600, --fps entero entre 1 y 120');
+      const made = exportRemotion(opt.remotion, zoneNamed(ids[0]).title, rows, { seconds, fps, width: size[0], height: size[1], captions: !opt['no-captions'] });
+      return `${made.fresh ? 'Proyecto Remotion creado' : 'Tomas actualizadas'} en ${made.root}: ${made.shots} tomas, ${made.seconds.toFixed(1)} s.\n${made.fresh ? `cd ${JSON.stringify(made.root)} && npm install && npm run studio   # o npm run render` : 'Recarga el Studio para ver los cambios.'}`;
+    }
+    return [`# Storyboard: ${zoneNamed(ids[0]).title}`, '', ...rows.flatMap(r => [`## Toma ${r.n} — ${r.title}`, r.note && `${r.note}`, '', r.file && `- Referencia (${r.kind}): ${r.file}`, r.url && `- Sitio: ${r.url}`, r.source && `- Fuente: ${r.source}`, ...r.comments.map(c => `- Nota ${commentLine(c)}`), ''].filter(line => line !== undefined && line !== false))].join('\n');
+  }
+  if (action === 'comments') {
+    const rows = comments.filter(c => opt.all || !c.resolved).map(c => ({ ...describeComment(c), panel: c.nodeId ? nodes.find(n => n.id === c.nodeId)?.title || '' : 'canvas' }));
+    return opt.json ? rows : rows.length ? rows.map(c => `[${c.panel}] ${commentLine(c)}`).join('\n') : 'No hay comentarios abiertos.';
+  }
+  if (action === 'comment') {
+    need(2); const n = resolve(nodes.filter(n => n.type !== 'zone'), ids[0]), at = (opt.at || '50,50').split(',').map(v => Number(String(v).replace('%', '')) / 100);
+    if (at.length !== 2 || at.some(v => !Number.isFinite(v) || v < 0 || v > 1)) throw new Error('--at X,Y en porcentajes de 0 a 100');
+    const made = await call('comment.add', { workspaceId: w.id, nodeId: n.id, x: at[0], y: at[1], text: ids[1], author: opt.author || 'Agente', ...(opt.time !== undefined ? { time: Number(opt.time) } : {}) });
+    return `Comentario añadido en ${n.title} (${made.id.slice(0, 8)}).`;
+  }
+  if (action === 'reply') { need(2); const c = thread(ids[0]); await call('comment.reply', { workspaceId: w.id, id: c.id, text: ids[1], author: opt.author || 'Agente' }); return `Respuesta añadida al comentario #${c.number}.`; }
+  if (action === 'resolve') { need(1); const c = thread(ids[0]); await call('comment.update', { workspaceId: w.id, id: c.id, patch: { resolved: true } }); return `Comentario #${c.number} resuelto.`; }
   if (action === 'list') { const rows = nodes.filter(n => opt.all || !n.data?.hidden).map(describe); return opt.json ? rows : rows.length ? rows.map(r => `${r.id}  ${r.type.padEnd(14)} ${r.title.slice(0, 40).padEnd(40)} ${String(r.x).padStart(6)},${String(r.y).padEnd(6)} ${r.width}x${r.height}${r.branch ? `  [${r.branch}]` : ''}${r.status ? `  ${r.status}` : ''}${r.hidden ? '  (oculto)' : ''}${r.zone ? `  (zona ${r.zone})` : ''}`).join('\n') : 'No hay paneles visibles.'; }
   if (action === 'arrange') {
     const by = opt.by || 'type'; if (!['type', 'branch', 'status', 'none'].includes(by)) throw new Error('--by debe ser type, branch, status o none');

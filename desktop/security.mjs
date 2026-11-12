@@ -26,7 +26,30 @@ export const HOST_METHODS = new Set([
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',
   'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel',
+  // Canvas board: references (image, video, link) and comment pins.
+  'reference.add', 'reference.link', 'comment.add', 'comment.reply', 'comment.update', 'comment.remove',
 ]);
+// Reference files are served to the local UI only, by workspace and content-hash name.
+export const REFERENCE_SCHEME = 'phantom-ref';
+export const REFERENCE_FILE = /^[0-9a-f]{32}\.(png|jpg|gif|webp|avif|mp4|mov|webm)$/;
+export const REFERENCE_TYPES = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+// phantom-ref://<workspace id>/<file> → the two validated segments, or null.
+export function referenceTarget(value) {
+  try {
+    const url = new URL(value), file = url.pathname.slice(1);
+    if (url.protocol !== `${REFERENCE_SCHEME}:` || url.search || url.hash || url.username || url.port) return null;
+    validateID(url.hostname);
+    return REFERENCE_FILE.test(file) ? { workspaceId: url.hostname.toLowerCase(), file, type: REFERENCE_TYPES[file.split('.')[1]] } : null;
+  } catch { return null; }
+}
+// One satisfiable byte range, as <video> seeking asks for it.
+export function byteRange(header, size) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header || '');
+  if (!match || (!match[1] && !match[2])) return null;
+  let start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2])), end = match[1] && match[2] ? Number(match[2]) : size - 1;
+  end = Math.min(end, size - 1);
+  return start <= end && start < size ? { start, end } : false;
+}
 export const LOCAL_METHODS = new Set([
   'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.previewImage',
   'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady',
@@ -70,7 +93,8 @@ export function validateInvocation(method, payload) {
   }
   if (!payload || Array.isArray(payload) || typeof payload !== 'object') throw new Error('Payload debe ser un objeto');
   const large = ['storage.import', 'desktop.export', 'voice.transcribe'].includes(method);
-  validateJSON(payload, large ? 16 * 1024 * 1024 : 1024 * 1024);
+  // A pasted image travels as base64: 12 MB of pixels is about 16 MB of text.
+  validateJSON(payload, method === 'reference.add' ? 17 * 1024 * 1024 : large ? 16 * 1024 * 1024 : 1024 * 1024);
   if (method === 'desktop.closeReady') validateCloseReady(payload);
 }
 
@@ -174,5 +198,5 @@ export function contentSecurityPolicy(devURL) {
     const url = new URL(devURL);
     connect += ` ${url.origin} ${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}`;
   }
-  return `default-src 'self'; script-src 'self'${devURL ? " 'unsafe-inline'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ${connect}; media-src 'self' blob:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'`;
+  return `default-src 'self'; script-src 'self'${devURL ? " 'unsafe-inline'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: phantom-ref:; font-src 'self' data:; connect-src ${connect}; media-src 'self' blob: phantom-ref:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'`;
 }
