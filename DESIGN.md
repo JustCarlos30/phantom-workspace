@@ -151,6 +151,14 @@ components:
 
 ## Vidrio nocturno (2026-11-11) — autoridad visual vigente
 
+### Refinamiento de terminales y conversaciones
+
+Las vistas Claude, OpenCode y Terminal separan controles de trabajo y contexto: barra principal de mínimo 52 px y fila secundaria de mínimo 40 px para carpeta/rama y permisos o estado de sesión. El selector compartido usa tres segmentos iguales, pista de 36 px y controles de 30 px con glifos de 16 px; la selección se desplaza durante `--dur` con `--ease-out` y respeta movimiento reducido. Flechas, Home y End seleccionan modo; Tab entra por la opción activa. Durante una solicitud se impiden cambios concurrentes.
+
+Los controles de tamaño de terminal tienen objetivos de 32 px; carpeta y conexión conservan presencia en anchuras reducidas. La conversación separa turnos por 28 px y usa avatares de 28 px. Se conserva la identidad nocturna y los tonos por proveedor.
+
+Verificación de este refinamiento: build Vite correcto; capturas en Electron real de los tres modos a 1520×980 y 1100×980, más card en mapa; selección por teclado, entrada real en PTY, movimiento reducido y contención de las barras comprobados con fixture aislada. Sin excepciones del renderer. No se enviaron prompts a proveedores. La prueba preexistente `terminal-scroll-smoke.mjs` se detuvo también antes de los cambios esperando `.status-dot.running`: su arranque presupone terminal en lugar del modo Claude predeterminado. El detector señaló valores heredados de radios/tipografía; no constituye una aprobación global de la app.
+
 Carlos pidió conservar el carácter de Phantom pero limpio, «like Apple» y coherente con su escritorio (Hyprland «Neón Suave»: índigo profundo, vidrio esmerilado, hairlines, radios generosos, Inter, Monaspace en la terminal). Esta sección rige sobre cualquier cifra o regla anterior de este documento donde difieran; en particular **sustituye la regla «islas opacas, sin vidrio»**.
 
 - **Material.** El chrome (rail, barras superiores, dock, navegación, minimapa, inspector, menús, paleta, toasts) es vidrio: `--glass` (64 % de superficie) o `--glass-thick` (84 %, planos de lectura) con `backdrop-filter: blur(28px) saturate(170%)`, hairline blanca al 13 % y una sola sombra suave con desplazamiento. Los planos de trabajo (terminal, hilo del chat, cuerpo de herramientas, paneles del mapa) siguen opacos. `prefers-reduced-transparency` vuelve todo opaco.

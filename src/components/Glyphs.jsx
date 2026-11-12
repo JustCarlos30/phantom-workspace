@@ -3,14 +3,14 @@ import { Bot, Terminal } from 'lucide-react';
 
 // One glyph and one hue per provider, wherever it appears (mode switch, card
 // identity, chat avatar). Drawn on lucide's 24px grid so they sit with the rest.
-const base = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+const base = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
 
 export function ClaudeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="M12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="m12 2 .4 6.2M17 3.4l-2.7 5.2M21 7l-5.7 3M22 12l-6.2.3M20.4 17l-5.1-2.7M17 21l-3-5.7M12 22l-.4-6.2M7 20.6l2.7-5.2M3 17l5.7-3M2 12l6.2-.3M3.6 7l5.1 2.7M7 3l3 5.7" /></svg>;
 }
 
 export function OpenCodeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><rect x="5" y="3.5" width="14" height="17" rx="2.5" /><path d="M9.5 12.5h5v4h-5z" fill="currentColor" stroke="none" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="M5 3.5h14v17H5z" /><path d="M5 8h14" opacity=".5" /><path d="M10 12h5v5h-5z" fill="currentColor" stroke="none" /></svg>;
 }
 
 const GLYPHS = { claude: ClaudeGlyph, opencode: OpenCodeGlyph, agent: Bot, shell: Terminal };

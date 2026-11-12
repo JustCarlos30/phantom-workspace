@@ -47,18 +47,30 @@ function PermissionRow({ part, onAnswer }) {
 export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
   const current = node.data?.chat?.provider ?? null;
   const [pending, setPending] = useState(undefined);
+  const choosing = useRef(false);
   const active = pending === undefined ? current : pending;
   const choose = async id => {
-    if (id === active) return;
+    if (id === active || choosing.current || disabled) return;
+    choosing.current = true;
     setPending(id);
     try {
       await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, provider: id });
       try { localStorage.setItem(MODE_KEY, id ?? 'terminal'); } catch { /* per-viewer preference only */ }
     } catch (e) { setPending(undefined); notify?.(e.message, 'error'); }
+    finally { choosing.current = false; }
   };
   useEffect(() => { setPending(undefined); }, [current]);
-  return <div className="pc-modes" role="radiogroup" aria-label="Quién responde en esta card" onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
-    {CARD_MODES.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-checked={active === mode.id} title={mode.hint} disabled={disabled && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} /><span>{mode.label}</span></button>)}
+  const navigate = event => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    if (disabled || choosing.current) return;
+    const index = CARD_MODES.findIndex(mode => mode.id === active);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? 2 : 1)) % 3;
+    event.currentTarget.querySelectorAll('button')[next]?.focus();
+    choose(CARD_MODES[next].id);
+  };
+  return <div className="pc-modes" style={{ '--mode-index': CARD_MODES.findIndex(mode => mode.id === active) }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+    {CARD_MODES.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
   </div>;
 }
 
@@ -233,9 +245,11 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
       <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
       {running && <span className="pt-state is-working" role="status"><i aria-hidden="true" />{waiting ? 'Espera tu permiso' : 'Respondiendo'}<span className="pc-num">{formatElapsed(elapsed)}</span></span>}
       <span className="pc-bar-space" />
+      <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>
+    </div>
+    <div className="pc-session-bar" aria-label="Contexto de la conversación">
       <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
       <button type="button" className="pc-permission" aria-pressed={autoApprove} title={AUTO_APPROVE[provider]?.[autoApprove ? 'on' : 'off']} onClick={() => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, autoApprove: !autoApprove }).catch(e => notify?.(e.message, 'error'))}><Shield size={13} aria-hidden="true" /><span>{autoApprove ? (provider === 'claude' ? 'Autónomo' : 'Puede editar') : (provider === 'claude' ? 'Pregunta todo' : 'Solo lectura')}</span></button>
-      <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={14} /></button>
     </div>
     <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">

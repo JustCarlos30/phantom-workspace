@@ -161,8 +161,6 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
         {agent.step && <span className="pt-bar-step" title={agent.step}>{agent.step}</span>}
       </div>
       <div className="pt-bar-tools">
-        <span className="pt-chip" title={directoryLabel ? `${directoryLabel}\n${cwd}` : cwd}>{branch ? <GitBranch size={13} aria-hidden="true" /> : <Folder size={13} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
-        <span className="pt-session" role="status"><i className={`status-dot ${status}`} aria-hidden="true" />{statusLabel}</span>
         <div className="pt-type" role="group" aria-label="Tamaño del texto de la terminal">
           <button type="button" aria-label="Reducir texto de la terminal" title="Reducir texto" disabled={fontSize <= 12} onClick={() => changeFontSize(fontSize - 1)}><Minus size={13} /></button>
           <button type="button" className="pt-type-reset" aria-label={`Tamaño del texto: ${fontSize} píxeles. Restablecer a 16`} title="Restablecer a 16 px" onClick={() => changeFontSize(16)}>{fontSize}</button>
@@ -170,6 +168,10 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
         </div>
         {status === 'running' && <button type="button" className="pt-stop" title="Terminar proceso" aria-label="Terminar proceso" onClick={() => api('terminal.stop', { sessionId }).catch(e => notify(e.message, 'error'))}><Square size={11} /></button>}
       </div>
+    </div>
+    <div className="pt-context" aria-label="Contexto de la terminal">
+      <span className="pt-chip" title={directoryLabel ? `${directoryLabel}\n${cwd}` : cwd}>{branch ? <GitBranch size={13} aria-hidden="true" /> : <Folder size={13} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      <span className="pt-session" role="status"><i className={`status-dot ${status}`} aria-hidden="true" />{statusLabel}</span>
     </div>
     <AgentIdentity node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} />
     {(setupActive || setupFailed) && <section className={`terminal-setup ${setupFailed ? 'has-error' : ''}`} aria-label="Preparación de dependencias">
