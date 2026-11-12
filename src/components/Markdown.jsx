@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { markdownTarget } from '../hooks/markdownLinks.mjs';
 
 // Small, dependency-free Markdown for agent replies: fenced code, headings,
 // lists, quotes, and inline code/bold/italic/links. Everything is rendered as
 // React text nodes, so reply content can never inject markup.
-const INLINE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\s][^*\n]*\*)|(\[[^\]\n]+\]\([^)\s]+\))/g;
+const INLINE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\s][^*\n]*\*)|(!?\[[^\]\n]+\]\([^)\s]+\))/g;
 
 function inline(source, key) {
   const out = []; let last = 0, match, index = 0;
@@ -15,11 +16,53 @@ function inline(source, key) {
     if (match[1]) out.push(<code key={k}>{token.slice(1, -1)}</code>);
     else if (match[2]) out.push(<strong key={k}>{token.slice(2, -2)}</strong>);
     else if (match[3]) out.push(<em key={k}>{token.slice(1, -1)}</em>);
-    else { const [, label, url] = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token); out.push(<span key={k} className="md-link" title={url}>{label}</span>); }
+    else { const [, image, label, url] = /^(!?)\[([^\]]+)\]\(([^)]+)\)$/.exec(token); out.push(<MarkdownLink key={k} label={label} url={url} embedded={!!image} />); }
     last = match.index + token.length;
   }
   if (last < source.length) out.push(source.slice(last));
   return out;
+}
+
+function MarkdownLink({ label, url, embedded }) {
+  const target = markdownTarget(url);
+  const [open, setOpen] = useState(embedded && target?.kind === 'image');
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setPreview(null); setError(''); setOpen(embedded && markdownTarget(url)?.kind === 'image');
+  }, [url, embedded]);
+  useEffect(() => {
+    if (!open || target?.kind !== 'image') return;
+    let active = true;
+    setBusy(true); setError('');
+    Promise.resolve().then(() => {
+      if (!window.phantom) throw new Error('La vista previa requiere Phantom Workspace');
+      return window.phantom.invoke('desktop.previewImage', { path: target.path });
+    }).then(result => { if (active) setPreview(result.dataUrl); })
+      .catch(reason => { if (active) setError(`No se pudo abrir la imagen: ${reason.message}`); })
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; };
+  }, [open, url]);
+  if (!target) return <span title={url}>{label}</span>;
+  const activate = async () => {
+    if (target.kind === 'image') { setOpen(value => !value); return; }
+    setError(''); setBusy(true);
+    try {
+      if (!window.phantom) throw new Error('Abre este enlace desde Phantom Workspace');
+      await window.phantom.invoke(target.kind === 'web' ? 'desktop.openExternal' : 'desktop.openPath', target.kind === 'web' ? { url: target.url } : { path: target.path });
+    } catch (reason) { setError(reason.message); }
+    finally { setBusy(false); }
+  };
+  return <span className="md-attachment">
+    <button type="button" className="md-link" title={url} onClick={activate} disabled={busy && target.kind !== 'image'} aria-expanded={target.kind === 'image' ? open : undefined}>{label}</button>
+    {open && <span className="md-image-preview" aria-busy={busy}>
+      <span className="md-image-heading"><span>{label}</span><button type="button" className="md-link" onClick={() => setOpen(false)}>Cerrar vista previa</button></span>
+      {busy && <span role="status">Cargando imagen…</span>}
+      {preview && !error && <img src={preview} alt={label} onError={() => setError('No se pudo decodificar la imagen. Comprueba que el archivo no esté dañado.')} />}
+    </span>}
+    {error && <span className="md-link-error" role="alert">{error}</span>}
+  </span>;
 }
 
 export function parseMarkdown(source) {

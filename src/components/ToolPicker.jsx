@@ -4,7 +4,7 @@ import { Search, X } from 'lucide-react';
 export const TOOL_GROUPS = [['space', 'En el mapa'], ['project', 'Proyecto'], ['automation', 'Automatización'], ['phantom', 'Phantom']];
 
 // The launcher behind the dock's "Herramientas": every panel type, grouped by
-// what it is for and filtered as you type. Each group keeps one hue.
+// what it is for and filtered as you type. Neutral icons keep the labels first.
 export default function ToolPicker({ types, disabled, onPick, onClose }) {
   const [query, setQuery] = useState('');
   const needle = query.trim().toLowerCase();

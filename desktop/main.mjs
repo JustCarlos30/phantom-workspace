@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
+import { readLocalImage } from './local-image.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
@@ -348,7 +349,7 @@ async function invokeLocal(method, payload) {
     await shell.openExternal(browserURL(payload.url, { external: true }));
     return { opened: true };
   }
-  if (method === 'desktop.openPath') {
+  if (method === 'desktop.openPath' || method === 'desktop.previewImage') {
     const state = await hostInvoke('state.get');
     const roots = [];
     const canonicalData = await realpath(dataDir);
@@ -361,6 +362,9 @@ async function invokeLocal(method, payload) {
         if (isWithin(artifactRoot, canonicalData) && artifactRoot !== canonicalData) roots.push(artifactRoot);
       } catch { /* No known artifact directory grants no access. */ }
     }
+    // Agent review captures live here, outside the project's source tree. Only
+    // raster preview (never openPath or general file reads) gets this extra root.
+    if (method === 'desktop.previewImage') return readLocalImage(payload.path, [...roots, '/tmp/opencode']);
     const target = await authorizedPath(payload.path, roots);
     const error = await shell.openPath(target);
     if (error) throw new Error(error);

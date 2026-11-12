@@ -11,8 +11,9 @@ import { isEditingTarget } from '../hooks/inputOwnership';
 import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
+import { PANEL_ICONS } from './PanelIcons';
 
-const icons = { zone: Frame, terminal: TerminalSquare, browser: Globe, note: StickyNote, plugins: Layers, 'phantom-cards': Layers, 'phantom-skills': Layers, 'skills-catalog': Sparkles };
+const icons = { ...PANEL_ICONS, 'skills-catalog': Sparkles };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const editable = isEditingTarget;
 const defaultCamera = { x: 300, y: 84, zoom: 1 };

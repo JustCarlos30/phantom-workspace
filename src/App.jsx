@@ -15,7 +15,9 @@ import ActivityNotch, { ActivityTray, TerminalActivityStatus } from './component
 import { useActivity } from './hooks/useActivity';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
-import { Palette, Maximize2, Frame, GitMerge, ListChecks, Server, Ghost, Sparkles } from 'lucide-react';
+import { Palette, Maximize2, Frame, GitMerge, ListChecks, Server, Sparkles } from 'lucide-react';
+import { PhantomGlyph as Ghost } from './components/Glyphs';
+import { PANEL_ICONS } from './components/PanelIcons';
 import { structuralShare } from './hooks/structuralShare';
 import gengarArtwork from '../assets/gengar.png';
 import './styles.css';
@@ -38,7 +40,7 @@ const TYPES = [
   ['skills-catalog', 'Skills', Sparkles, 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],
   ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto', 'phantom'],
   ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, `Panel nativo de ${panel.pluginId}`, 'phantom']),
-];
+].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);
 const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find(t => t[0] === id));
 const label = type => TYPES.find(t => t[0] === type)?.[1] || type;
 const initials = name => name?.split(/[\s_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
