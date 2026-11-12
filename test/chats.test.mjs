@@ -4,11 +4,48 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHost } from '../host/server.mjs';
-import { applyClaudeEvent, applyOpenCodeEvent, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
+import { applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
 import { mergeChat } from '../src/hooks/chatState.js';
 
 const until = async fn => { const end = Date.now() + 5000; while (Date.now() < end) { if (await fn()) return; await new Promise(r => setTimeout(r, 25)); } throw new Error('Timed out'); };
 const turn = () => ({ message: { parts: [] }, sessionId: null, streamed: new Set(), freshText: true, cwd: '/repo', error: '' });
+test('Codex folds lifecycle events without duplicating updates and reports failures', () => {
+  const t = turn();
+  applyCodexEvent(t, { type: 'thread.started', thread_id: 'thread-1' });
+  applyCodexEvent(t, { type: 'item.started', item: { id: 'c', type: 'command_execution', command: 'npm test' } });
+  applyCodexEvent(t, { type: 'item.completed', item: { id: 'c', type: 'command_execution', command: 'npm test', exit_code: 1, aggregated_output: 'failed' } });
+  for (const type of ['item.updated', 'item.completed']) applyCodexEvent(t, { type, item: { id: 'a', type: 'agent_message', text: 'Listo' } });
+  applyCodexEvent(t, { type: 'turn.completed', usage: { input_tokens: 100, output_tokens: 20 } });
+  assert.equal(t.sessionId, 'thread-1'); assert.equal(t.message.parts.length, 2); assert.equal(t.message.parts[0].status, 'error'); assert.equal(t.message.parts[1].text, 'Listo'); assert.equal(t.contextTokens, 120);
+  applyCodexEvent(t, { type: 'turn.failed', error: { message: 'sin crédito' } }); assert.equal(t.error, 'sin crédito');
+});
+
+test('Codex launches, resumes and persists independent effort settings through host API', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-'));
+  const bin = fixture(root, 'codex', `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'thread-1'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:JSON.stringify({input,args:process.argv.slice(2)})}});out({type:'turn.completed',usage:{input_tokens:10,output_tokens:2}});});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  const w = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  await host.invoke('chat.configure', { ...ref, reasoning: 'high', model: 'gpt-test' });
+  await assert.rejects(host.invoke('chat.configure', { ...ref, reasoning: '--bad' }), /inválido/);
+  for (let i = 0; i < 2; i++) {
+    await host.invoke('chat.send', { ...ref, text: '-hello' });
+    await until(async () => !(await host.invoke('chat.get', ref)).running);
+    const chat = await host.invoke('chat.get', ref), reply = JSON.parse(chat.messages.at(-1).parts[0].text);
+    assert.equal(chat.sessionId, 'thread-1'); assert.equal(reply.input, '-hello');
+    assert.ok(reply.args.includes('model_reasoning_effort="high"')); assert.equal(reply.args.includes('resume'), i === 1);
+    assert.ok(reply.args.includes('sandbox_mode="read-only"'));
+  }
+  await host.invoke('chat.configure', { ...ref, provider: 'opencode', reasoning: 'custom-variant' });
+  await host.invoke('chat.configure', { ...ref, provider: 'codex' });
+  const state = await host.invoke('state.get');
+  assert.equal(state.workspaces.find(item => item.id === w.id).nodes.find(item => item.id === node.id).data.chat.reasoning.codex, 'high');
+  assert.ok(providerArgs('claude', { message: 'x', reasoning: 'max' }).includes('--effort'));
+  assert.ok(providerArgs('opencode', { message: 'x', reasoning: 'custom-variant' }).includes('--variant'));
+});
 // Stand-in agent CLIs: executables that print a recorded event stream.
 function fixture(dir, name, body) {
   const file = path.join(dir, name);
