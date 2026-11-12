@@ -58,6 +58,7 @@ function installFixture() {
         return result;
       }
       if (method === 'git.inspect') return { available: true, observedAt: new Date().toISOString(), ...(p.base ? { base: p.base, comparison: { baseOid: 'abc' } } : {}), branches: p.workspaceId === 'a' ? [{ name: 'main', current: true, ...(p.base ? { merged: true, ahead: 0, behind: 0 } : {}) }, { name: 'feature', ...(p.base ? { merged: false, ahead: 2, behind: 1 } : {}) }] : [], worktrees: [], changes: [] };
+      if (method === 'limits.read') return { observedAt: new Date().toISOString(), providers: [{ id: 'claude', label: 'Claude', plan: 'max', available: true, windows: [{ id: 'session', label: 'Sesión · 5 h', percent: 42, resetsAt: new Date(Date.now() + 3600e3).toISOString() }] }, { id: 'codex', label: 'Codex', plan: null, available: false, reason: 'No hay una sesión de ChatGPT en Codex ni en OpenCode.', windows: [] }] };
       if (method === 'attention.ack') { w.attention.find(n => n.id === p.id).acknowledgedAt = new Date().toISOString(); return {}; }
       if (method === 'attention.list') return copy(w.attention);
       if (method === 'browser.attach') { f.nativeVisible = true; return { attached: true }; }
@@ -129,7 +130,9 @@ try {
      await tray().getByRole('heading', { name: /^Integración/ }).waitFor();
      assert.equal(await tray().getByRole('button', { name: 'Revisar incorporaciones', exact: true }).count(), 1);
      await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
-     assert.match(await tray().innerText(), /El host todavía no recibe las cuotas/);
+     await tray().getByRole('heading', { name: /Límites de tus planes/ }).waitFor();
+     assert.equal(await tray().getByRole('meter', { name: 'Claude · Sesión · 5 h' }).getAttribute('aria-valuenow'), '42');
+     assert.match(await tray().innerText(), /No hay una sesión de ChatGPT/);
      assert.equal(await tray().getByRole('heading', { name: /^Integración/ }).count(), 0);
      await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
      await tray().waitFor({ state: 'hidden' });

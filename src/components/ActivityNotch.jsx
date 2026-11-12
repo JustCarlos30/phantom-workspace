@@ -11,15 +11,47 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
   const stale = Object.values(activity.sources).some(s => s.at && activity.now - s.at > 45000);
   const uncertain = errors || stale;
   const expanded = filter => open === filter || (open === true && filter === 'all');
+  const peak = peakLimit(activity.sources.limits?.data);
   return <div className="activity-strip" role="group" aria-label="Actividad del proyecto">
     <button ref={buttonRef} className={`activity-notch ${activity.needs.length && activity.connected && !uncertain ? 'needs-you' : ''}`} aria-label="Actividad del proyecto" aria-expanded={expanded('needs')} aria-controls="activity-tray" onClick={() => onToggle('needs')}>
       {activity.needs.length || errors ? <AlertCircle size={14} /> : <Activity size={14} />}
       <strong>{!activity.connected ? 'Host desconectado' : uncertain ? 'Actividad sin confirmar' : unseen ? 'Recuperando actividad…' : activity.needs.length ? `${activity.needs.length} ${activity.needs.length === 1 ? 'necesita' : 'necesitan'} de ti` : 'Actividad'}</strong><ChevronDown size={12} />
     </button>
     <button className="activity-summary-action" aria-expanded={expanded('integration')} aria-controls="activity-tray" onClick={() => onToggle('integration')} title="Revisar ramas e incorporaciones"><GitBranch size={14} /><span>{!activity.connected || activity.sources.git.error || !activity.base || stale ? 'Integraciones' : `${activity.pendingBranches} por integrar`}</span></button>
-    <button className="activity-summary-action" aria-expanded={expanded('limits')} aria-controls="activity-tray" onClick={() => onToggle('limits')}><Gauge size={14} /><span>Límites</span></button>
+    <button className={`activity-summary-action ${peak ? `limit-${limitLevel(peak.percent)}` : ''}`} aria-label="Límites" aria-expanded={expanded('limits')} aria-controls="activity-tray" title={peak ? `Uso más alto: ${peak.provider} · ${peak.label} · ${Math.round(peak.percent)}%` : 'Límites de tus planes'} onClick={() => onToggle('limits')}><Gauge size={14} /><span>Límites{peak ? ` · ${Math.round(peak.percent)}%` : ''}</span></button>
     {activity.unread > 0 && <button className="activity-summary-action activity-unread" aria-label={`${activity.unread} avisos sin leer`} aria-expanded={expanded('notices')} aria-controls="activity-tray" onClick={() => onToggle('notices')}><Bell size={13} /><span>{activity.unread}</span></button>}
   </div>;
+}
+
+const limitLevel = percent => percent >= 90 ? 'full' : percent >= 70 ? 'high' : 'ok';
+// The window closest to running out, across every plan.
+function peakLimit(data) {
+  let peak = null;
+  for (const provider of data?.providers || []) for (const window of provider.windows || []) if (!peak || window.percent > peak.percent) peak = { ...window, provider: provider.label };
+  return peak;
+}
+function resetIn(iso, now) {
+  const ms = Date.parse(iso) - now;
+  if (!Number.isFinite(ms)) return '';
+  if (ms <= 0) return 'se restablece ahora';
+  const minutes = Math.round(ms / 60000), hours = Math.floor(minutes / 60), days = Math.floor(hours / 24);
+  const span = days >= 1 ? `${days} d ${hours % 24} h` : hours >= 1 ? `${hours} h ${minutes % 60} min` : `${Math.max(1, minutes)} min`;
+  const at = new Date(iso).toLocaleString([], days >= 1 ? { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return `se restablece en ${span} · ${at}`;
+}
+function ProviderLimits({ provider, now }) {
+  return <article className="activity-limit">
+    <header><strong>{provider.label}</strong>{provider.plan && <span className="activity-limit-plan">{provider.plan}</span>}{provider.limitReached && <span className="activity-warning">Límite alcanzado</span>}</header>
+    {!provider.available && <p className="activity-empty">{provider.reason}</p>}
+    {provider.available && !provider.windows.length && <p className="activity-empty">El proveedor no informó ventanas de uso para este plan.</p>}
+    {provider.windows.map(window => <div key={window.id} className={`activity-limit-row limit-${limitLevel(window.percent)}`}>
+      <div className="activity-limit-line"><span>{window.label}</span><b>{Math.round(window.percent)}%</b></div>
+      <div className="activity-limit-bar" role="meter" aria-label={`${provider.label} · ${window.label}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(window.percent)}><i style={{ width: `${Math.max(1, Math.min(100, window.percent))}%` }} /></div>
+      {window.resetsAt && <small>{resetIn(window.resetsAt, now)}</small>}
+    </div>)}
+    {provider.extra && <small className="activity-empty">Uso extra activo{Number.isFinite(provider.extra.percent) ? ` · ${Math.round(provider.extra.percent)}%` : ''}{Number.isFinite(provider.extra.limit) ? ` de ${provider.extra.limit} ${provider.extra.currency || ''}` : ''}</small>}
+    {provider.credits && <small className="activity-empty">Créditos: {provider.credits.balance}</small>}
+  </article>;
 }
 
 function Source({ name, source, activity }) {
@@ -86,10 +118,10 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
         {!activity.branches.length && !activity.sources.git.loading && <p className="activity-empty">Sin ramas disponibles en esta lectura.</p>}
         {activity.branches.map(branch => <article className="activity-row" key={branch.name}><div><strong>{branch.name}{branch.current ? ' · actual' : ''}</strong><span>{branch.label} · adelante {branch.ahead ?? '?'} / detrás {branch.behind ?? '?'}</span>{branch.sessions.map(s => <button className="activity-link" key={s.id} disabled={!s.nodeId} onClick={() => navigate('terminal', s.nodeId)}>Terminal vinculada: {s.title}</button>)}</div><button onClick={() => navigate('git')}>Ir a Git</button></article>)}
       </section>}
-      {show('limits') && <section aria-labelledby="activity-limits"><h2 id="activity-limits"><Gauge size={15} />Límites de los proveedores</h2>
-        <p className="activity-empty">El host todavía no recibe las cuotas de Claude ni de OpenCode. El consumo restante y la fecha de restablecimiento no están disponibles.</p>
-        <p className="activity-empty">Los tokens y costes de cada respuesta, cuando el proveedor los informa, se pueden consultar en su conversación. No equivalen a la cuota restante de tu cuenta.</p>
-        <button onClick={() => onFilter('all')}>Ver sesiones</button>
+      {show('limits') && <section aria-labelledby="activity-limits"><h2 id="activity-limits"><Gauge size={15} />Límites de tus planes</h2>
+        {(activity.sources.limits?.data?.providers || []).map(provider => <ProviderLimits key={provider.id} provider={provider} now={activity.now} />)}
+        <Source name="Host · limits.read" source={activity.sources.limits || {}} activity={activity} />
+        <p className="activity-empty">Leído de la cuenta con la que iniciaste sesión en cada CLI. Se consulta como máximo una vez por minuto.</p>
       </section>}
       {show('all') && <section aria-labelledby="activity-sessions"><h2 id="activity-sessions"><TerminalSquare size={15} />Sesiones <b>{activity.sessionCount}{activity.unknownViews > 0 ? ` · ${activity.unknownViews} vistas sin descriptor` : ''}</b></h2>
         <Source name="Host · terminal.list" source={activity.sources.sessions} activity={activity} />

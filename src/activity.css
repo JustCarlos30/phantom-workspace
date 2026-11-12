@@ -40,3 +40,21 @@
 @media (max-width: 1100px) { .activity-notch>.notch-freshness { display: none; } }
 @media (max-width: 850px) { .activity-notch { gap: 8px; padding-inline: 8px; font-size: 10px; } .activity-notch>.notch-detail { display: none; } .activity-tray { right: 14px; } .node-header>.terminal-activity-status { max-width: 120px; } }
 @media (prefers-reduced-motion: reduce) { .activity-notch, .activity-tray { animation: none; transition: none; } }
+/* Plan limits: one block per provider, one meter per window. Neutral until a
+   window nears its cap; then the same caution/danger inks as the chat card. */
+.activity-limit { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.activity-limit:first-of-type { padding-top: 4px; }
+.activity-limit>header { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.activity-limit-plan { padding: 2px 7px; border-radius: 99px; background: var(--fill); color: var(--muted); font-size: 10px; text-transform: capitalize; }
+.activity-limit-row { display: flex; flex-direction: column; gap: 5px; --limit-ink: var(--muted); }
+.activity-limit-row.limit-high { --limit-ink: #d6b07a; }
+.activity-limit-row.limit-full { --limit-ink: #d99098; }
+.activity-limit-line { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--ink); }
+.activity-limit-line b { font-weight: 550; font-variant-numeric: tabular-nums; color: var(--ink); }
+.activity-limit-row:not(.limit-ok) .activity-limit-line b { color: var(--limit-ink); }
+.activity-limit-bar { height: 4px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
+.activity-limit-bar>i { display: block; height: 100%; border-radius: 2px; background: var(--limit-ink); }
+.activity-limit-row.limit-ok .activity-limit-bar>i { background: color-mix(in srgb, var(--ink) 55%, transparent); }
+.activity-limit-row small { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.activity-summary-action.limit-high>span { color: #d6b07a; }
+.activity-summary-action.limit-full>span { color: #d99098; }
