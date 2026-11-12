@@ -52,7 +52,7 @@ export function byteRange(header, size) {
 }
 export const LOCAL_METHODS = new Set([
   'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.previewImage',
-  'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady',
+  'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady', 'desktop.notify',
   'browser.attach', 'browser.bounds', 'browser.navigate', 'browser.back', 'browser.forward',
   'browser.reload', 'browser.detach', 'browser.capture',
 ]);
@@ -96,6 +96,14 @@ export function validateInvocation(method, payload) {
   // A pasted image travels as base64: 12 MB of pixels is about 16 MB of text.
   validateJSON(payload, method === 'reference.add' ? 17 * 1024 * 1024 : large ? 16 * 1024 * 1024 : 1024 * 1024);
   if (method === 'desktop.closeReady') validateCloseReady(payload);
+  if (method === 'desktop.notify') {
+    if (Object.keys(payload).some(key => !['title', 'body', 'target'].includes(key))
+      || typeof payload.title !== 'string' || payload.title.length < 1 || payload.title.length > 120
+      || ('body' in payload && (typeof payload.body !== 'string' || payload.body.length > 300))
+      || ('target' in payload && !['branches'].includes(payload.target))) {
+      throw new Error('Notificación desktop no válida');
+    }
+  }
 }
 
 export function validateCloseReady(payload, outstandingId = payload?.requestId) {

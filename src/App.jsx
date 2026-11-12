@@ -13,6 +13,7 @@ import { useAppearance } from './hooks/useAppearance';
 import { Appearance } from './components/Appearance';
 import ActivityNotch, { ActivityTray } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
+import { useReadyBranches } from './hooks/useReadyBranches';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
 import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Sparkles } from 'lucide-react';
@@ -130,6 +131,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const railRef = useRef(null);
   const projectRename = useInlineName({ stage: (id, name) => patch(id, null, { name }), flush, registerBeforeFlush });
   const workspace = state?.workspaces?.find(w => w.id === state.activeWorkspaceId);
+  useReadyBranches(api, workspace, connection, notify);
   const activity = useActivity(workspace, connection, model.stateReadAt);
   const activityButton = useRef(null);
   const terminalActivityRef = useRef({});
@@ -158,14 +160,6 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     setFocused(id || null); if (id) setSelected([id]);
   }, [onChange]);
   const openMenu = useCallback((id, x, y) => { if (id && !selectionRef.current.includes(id)) setSelected([id]); setMenu({ id, x, y }); }, []);
-  useEffect(() => subscribe(event => {
-    if (event.type !== 'browser.agentFocus' || event.workspaceId !== current.current?.id) return;
-    // The desktop repeats this request until the real native view is attached;
-    // refresh may still be delivering the newly created node on the first event.
-    if (!current.current.nodes?.some(node => node.id === event.id && node.type === 'browser')) { refresh().catch(() => {}); return; }
-    setPalette(false); setVoice(false); setTray(false); setTools(false); setList(false); setMenu(null); setInspector(null); setSidebar(false);
-    focusPanel(event.id);
-  }), [focusPanel, refresh]);
   const launching = useRef(new Map());
   const placements = useRef(new Map());
   const launchTerminal = useCallback(async node => {
@@ -217,6 +211,15 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     } catch (e) { notify(`No se pudo crear ${label(type).toLowerCase()}: ${e.message}`, 'error'); await refresh().catch(() => {}); return null; }
     finally { if (!created && reservationId) placements.current.delete(reservationId); setBusy(''); }
   }, [notify, refresh, launchTerminal, focusPanel]);
+  useEffect(() => subscribe(event => {
+    if (event.type === 'desktop.notification' && event.target === 'branches') { onOpenPanel('branches'); return; }
+    if (event.type !== 'browser.agentFocus' || event.workspaceId !== current.current?.id) return;
+    // The desktop repeats this request until the real native view is attached;
+    // refresh may still be delivering the newly created node on the first event.
+    if (!current.current.nodes?.some(node => node.id === event.id && node.type === 'browser')) { refresh().catch(() => {}); return; }
+    setPalette(false); setVoice(false); setTray(false); setTools(false); setList(false); setMenu(null); setInspector(null); setSidebar(false);
+    focusPanel(event.id);
+  }), [focusPanel, refresh, onOpenPanel]);
   const relaunch = useCallback(node => operation(async () => { setBusy(node.id); try { await launchTerminal(node); await refresh(); } finally { setBusy(''); } }), [operation, launchTerminal, refresh]);
   const openFolder = useCallback(() => operation(async () => {
     setBusy('folder');
