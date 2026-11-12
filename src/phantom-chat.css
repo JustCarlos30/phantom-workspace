@@ -55,7 +55,7 @@
 .phantom-chat .pc-column { padding: 20px 16px; gap: 22px; }
 .phantom-chat .pc-message.is-user { max-width: 90%; }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
-.phantom-chat .pc-model { max-width: 100%; white-space: nowrap; }
+.phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
 
 .phantom-chat-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: auto 0; padding: 8px 4px; }
 .phantom-chat-hero { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-lg); background: var(--pc-hue-soft); color: var(--pc-hue); }
@@ -89,3 +89,12 @@
 
 /* Header toggle reflects the open chat. */
 .phantom-chat-toggle.active { background: var(--accent-soft); color: var(--accent); }
+
+/* Centre the dock between the rail and the zoom island (overrides the
+   full-width centring of the docked layout). */
+@media (min-width: 851px) and (max-width: 1800px) {
+  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .create-dock,
+  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100% - 220px) / 2); }
+  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .create-dock,
+  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .tool-picker { left: calc((100% - 220px) / 2); }
+}
