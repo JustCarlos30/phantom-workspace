@@ -392,7 +392,8 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
   const call = (method, row, extra = {}) => api(method, { workspaceId: workspace.id, branch: row.name, ...extra });
   const settle = (row, result) => {
     if (result.status === 'conflict') { note(row, 'warn', `No se hizo: choca en ${result.conflicts.slice(0, 4).join(', ')}. El merge se deshizo y nada cambió.`); return; }
-    note(row, 'ok', result.status === 'merged' ? `Integrada en ${model.base}.` : result.status === 'updated' ? `Al día con ${model.base}.` : 'Hecho.');
+    if (result.status === 'checks-failed') { note(row, 'warn', `No se integró: los checks fallaron (${result.checks.command}, código ${result.checks.code}). El merge se deshizo y nada cambió.`); return; }
+    note(row, 'ok', result.status === 'merged' ? `Integrada en ${model.base}${result.checks ? ` · checks OK` : ''}.` : result.status === 'updated' ? `Al día con ${model.base}.` : 'Hecho.');
   };
   const act = (row, kind, options = {}) => op.run(async () => {
     try {

@@ -13,6 +13,7 @@ import { Repo } from './repo.mjs';
 import { createLimits } from './limits.mjs';
 import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
+import { roleEnv } from './merge-guard.mjs';
 
 function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
@@ -20,7 +21,7 @@ function publicSettings(settings) {
 
 // Identity of the project's main conversation: Phantom, the assistant of this
 // workspace. It states only what the host knows; it never claims live state.
-const CANVAS_CLI=fileURLToPath(new URL('../scripts/canvas.mjs',import.meta.url));
+const CANVAS_CLI=fileURLToPath(new URL('../scripts/canvas.mjs',import.meta.url)),BRANCHES_CLI=fileURLToPath(new URL('../scripts/branches.mjs',import.meta.url));
 export function phantomInstructions(w) {
   const panels=(w.nodes||[]).filter(n=>!n.data?.hidden).slice(0,40).map(n=>`- ${n.type}: ${String(n.title).slice(0,80)}${n.data?.worktree?.branch?` (branch ${n.data.worktree.branch})`:''}`);
   return `## Phantom
@@ -30,6 +31,8 @@ You are Phantom, the main assistant of the Phantom Workspace project "${w.name}"
 You work in the project folder itself, not in a worktree. Help the user understand the project, plan work, answer questions and give instructions. Prefer reading and explaining; make changes only when asked. When Phantom tools (MCP server "phantom" or the phantom CLI) are available, use them for cards, decisions, skills and tasks instead of guessing.
 
 You can organize the user's canvas when they ask (order, group, move, resize, rename, hide panels): run \`"\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(CANVAS_CLI)} help\` for usage. Start with \`list\`; prefer \`arrange --by type|branch|status --zones\` for "ordénalo"; hiding a panel never stops its session.
+
+You are also this project's integrator: when the user asks to merge, integrate or ship the work of terminals/worktrees, use the branches CLI: \`"\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(BRANCHES_CLI)} help\`. The project checkout stays on the integration branch and clean; never implement features in it. Flow: \`status\` (work, ahead/behind, predicted conflicts, live terminals) → \`commit\` a worktree only when its agent is idle/finished (ask if it is still working) → \`integrate\` (merges --no-ff, runs the project checks, undoes the merge if they fail) → for a predicted conflict on a branch with no live terminal, \`update BRANCH --resolve\`, edit the files in that worktree, \`commit BRANCH "msg"\` concludes the merge (\`abort\` backs out); a live terminal resolves its own conflicts → \`publish\` pushes the integration branch (GitHub marks PRs whose commits land as merged) → \`clean\` removes integrated branches without terminals. Never force, never discard work; report what was integrated, what failed and why.
 ${panels.length?`
 Panels open on the canvas when this turn started:
 ${panels.join('\n')}
@@ -69,6 +72,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     }
     broadcast(event);
   };
+  // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
+  const mainEnv=w=>roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null});
   const persist=workspaceId=>{store.persist();emit({type:'state.changed',...(workspaceId?{workspaceId}:{})});};
   const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;
@@ -235,7 +240,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:merges.agentContext(w,node).env,instructions:phantomInstructions(w)}:merges.agentContext(w,node));
+    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};

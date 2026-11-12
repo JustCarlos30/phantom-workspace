@@ -4,6 +4,7 @@ import { assert, text, canonicalFolder } from './store.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { git, hostGitEnv } from './merge-guard.mjs';
+import { checksFor, runChecks } from './checks.mjs';
 
 const execute = promisify(execFile);
 
@@ -15,6 +16,9 @@ const execute = promisify(execFile);
 const MAX_FILES = 200, MAX_BRANCHES = 200;
 const real = target => { try { return canonicalFolder(target); } catch { return null; } };
 const lines = value => value ? value.split('\n').filter(Boolean) : [];
+const REMOTE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+// Conflict markers Git writes into a file; a resolved file has none of them at a line start.
+const MARKERS = /^(<{7}|>{7})( |$)|^={7}$/m;
 
 function parseWorktrees(output) {
   const trees = []; let tree;
@@ -59,6 +63,7 @@ async function markInBase(source, baseOid, tree, changes) {
 
 export class Branches {
   constructor({ store, terminals, mutate, merges }) { Object.assign(this, { store, terminals, mutate, merges }); }
+  live(nodeId) { return this.terminals.sessions.some(s => s.nodeId === nodeId && s.status === 'running'); }
 
   async repository(w) {
     const base = await this.merges.base(w);
@@ -77,7 +82,7 @@ export class Branches {
     const { base, branches, trees } = repository;
     const live = id => this.terminals.sessions.some(s => s.nodeId === id && s.status === 'running');
     const nodes = w.nodes.filter(n => n.type === 'terminal');
-    const open = new Map((w.integration?.queue ?? []).filter(item => ['queued', 'merging', 'conflict'].includes(item.status)).map(item => [item.branch, item]));
+    const open = new Map((w.integration?.queue ?? []).filter(item => ['queued', 'merging', 'conflict', 'failed'].includes(item.status)).map(item => [item.branch, item]));
     const rows = await Promise.all(branches.map(async branch => {
       const tree = trees.find(item => item.branch === branch.name), isBase = branch.name === base.branch;
       const exists = Boolean(tree && !tree.prunable && fs.existsSync(tree.path));
@@ -117,7 +122,7 @@ export class Branches {
       row.committedCount = row.committed.length; row.committed = row.committed.slice(0, MAX_FILES);
       row.work = row.changeCount ? 'dirty' : row.ahead ? 'ready' : 'none';
     }
-    return { ...result, available: true, base: { branch: base.branch, oid: base.oid, path: base.source }, integration: { enabled: Boolean(w.integration?.enabled) }, branches: rows };
+    return { ...result, available: true, base: { branch: base.branch, oid: base.oid, path: base.source }, integration: { enabled: Boolean(w.integration?.enabled) }, checks: checksFor(w, base.source), branches: rows };
   }
 
   // Re-read Git for one branch right before acting on it: the panel may be stale.
@@ -152,37 +157,84 @@ export class Branches {
     if (method === 'branch.commit') {
       const message = text(p.message, 'mensaje', 500).trim(); assert(!/[\x00-\x1f\x7f]/.test(message), 'El mensaje debe ser una sola línea');
       const { tree, exists, changes } = await this.target(w, p.branch);
-      assert(exists, 'Esta rama no tiene un worktree en disco.'); assert(changes.length, 'No hay cambios sin guardar en este worktree.');
-      assert(!await git(tree.path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'Este worktree tiene un merge sin terminar. Termínalo en su terminal.');
+      assert(exists, 'Esta rama no tiene un worktree en disco.');
+      // A merge left open to resolve here (branch.update with resolve) is concluded by this commit,
+      // but only once no file still carries conflict markers.
+      const merging = Boolean(await git(tree.path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''));
+      if (merging) {
+        const pending = lines(await git(tree.path, ['diff', '--name-only', '--diff-filter=U']).catch(() => ''));
+        const marked = pending.filter(file => { try { return MARKERS.test(fs.readFileSync(path.join(tree.path, file), 'utf8')); } catch { return false; } });
+        assert(!marked.length, `Quedan marcas de conflicto en: ${marked.slice(0, 10).join(', ')}. Resuélvelas antes de guardar.`);
+      } else assert(changes.length, 'No hay cambios sin guardar en este worktree.');
       await git(tree.path, ['add', '-A']);
       await git(tree.path, ['commit', '-m', message], { timeout: 120000 });
-      return { branch: p.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']), files: changes.length };
+      return { branch: p.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']), files: changes.length, ...(merging ? { concluded: 'merge' } : {}) };
     }
     if (method === 'branch.integrate') return this.exclusive(w, async () => {
       const { base, branch, node } = await this.target(w, p.branch);
       assert(branch.name !== base.branch, 'Esta es la rama de integración.');
       assert(Number(await git(base.source, ['rev-list', '--count', `${base.oid}..${branch.oid}`])) > 0, `${branch.name} no tiene commits nuevos respecto a ${base.branch}.`);
       assert(!await git(base.source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de integrar.');
+      // Checks run in the checkout itself: uncommitted edits there would make their verdict meaningless.
+      const command = p.checks === false ? '' : checksFor(w, base.source);
+      if (command) assert(!await git(base.source, ['status', '--porcelain', '--untracked-files=no']), `El checkout de ${base.branch} tiene cambios sin commitear; los checks no serían fiables. Guárdalos o descártalos antes de integrar.`);
       const conflicts = await this.merge(base.source, ['--no-ff', '--no-edit', '-m', `Integrar ${node?.title || branch.name} (${branch.name})`, branch.oid]);
       if (conflicts) return { status: 'conflict', branch: branch.name, base: base.branch, conflicts };
+      let checks = null;
+      if (command) {
+        const result = await runChecks(base.source, command);
+        // A merge that breaks the checks does not stay: --keep never discards local edits.
+        if (!result.ok) { await git(base.source, ['reset', '--keep', base.oid]); return { status: 'checks-failed', branch: branch.name, base: base.branch, checks: result }; }
+        checks = { command, ok: true, durationMs: result.durationMs };
+      }
       const mergedOid = await git(base.source, ['rev-parse', 'HEAD']);
       // A pending Incorporaciones request for exactly this commit is now settled.
       this.mutate(w.id, () => {
-        const item = this.store.getWorkspace(w.id).integration?.queue?.find(item => item.branch === branch.name && ['queued', 'conflict'].includes(item.status) && item.headOid === branch.oid);
+        const item = this.store.getWorkspace(w.id).integration?.queue?.find(item => item.branch === branch.name && ['queued', 'conflict', 'failed'].includes(item.status) && item.headOid === branch.oid);
         if (item) Object.assign(item, { status: 'merged', mergedOid, finishedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       });
-      return { status: 'merged', branch: branch.name, base: base.branch, mergedOid };
+      return { status: 'merged', branch: branch.name, base: base.branch, mergedOid, checks };
     });
     if (method === 'branch.update') {
-      const { base, branch, tree, exists, changes } = await this.target(w, p.branch);
+      const { base, branch, tree, exists, changes, node } = await this.target(w, p.branch);
       assert(branch.name !== base.branch, 'Esta es la rama de integración.'); assert(exists, 'Esta rama no tiene un worktree en disco.');
+      assert(!await git(tree.path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'Este worktree ya tiene un merge sin terminar: resuélvelo y guárdalo, o abórtalo.');
       const [behind, ahead] = (await git(base.source, ['rev-list', '--left-right', '--count', `${base.oid}...${branch.oid}`])).split(/\s+/).map(Number);
       assert(behind > 0, `${branch.name} ya contiene todo ${base.branch}.`);
       // Fast-forward is safe with local edits: Git refuses if it would touch them. A real merge needs a clean tree to be undoable.
       assert(!ahead || !changes.length, 'Guarda primero los cambios de este worktree: actualizar una rama con commits propios necesita el árbol limpio.');
+      if (p.resolve === true && ahead) {
+        // Leave the conflicts in the worktree for whoever resolves them (branch.commit concludes,
+        // branch.abort backs out). Never under a live agent, which would find its tree changed under it.
+        assert(!node || !this.live(node.id), `La terminal «${node?.title}» sigue activa en esta rama: que su agente se actualice desde ${base.branch} y resuelva ahí.`);
+        try { await git(tree.path, ['merge', '--no-edit', '-m', `Actualizar desde ${base.branch}`, base.oid], { timeout: 180000 }); }
+        catch (error) {
+          const conflicts = lines(await git(tree.path, ['diff', '--name-only', '--diff-filter=U']).catch(() => ''));
+          if (!conflicts.length) { if (await git(tree.path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => '')) await git(tree.path, ['merge', '--abort']); throw error; }
+          return { status: 'resolving', branch: branch.name, base: base.branch, worktree: tree.path, conflicts: conflicts.slice(0, 100) };
+        }
+        return { status: 'updated', branch: branch.name, base: base.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']) };
+      }
       const conflicts = await this.merge(tree.path, ahead ? ['--no-edit', '-m', `Actualizar desde ${base.branch}`, base.oid] : ['--ff-only', base.oid]);
       if (conflicts) return { status: 'conflict', branch: branch.name, base: base.branch, conflicts };
       return { status: 'updated', branch: branch.name, base: base.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']) };
+    }
+    if (method === 'branch.abort') {
+      const { base, branch, tree, exists } = await this.target(w, p.branch);
+      assert(branch.name !== base.branch, 'El merge del checkout del proyecto se aborta desde su terminal.'); assert(exists, 'Esta rama no tiene un worktree en disco.');
+      assert(await git(tree.path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'Este worktree no tiene un merge sin terminar.');
+      await git(tree.path, ['merge', '--abort']);
+      return { status: 'aborted', branch: branch.name, oid: await git(tree.path, ['rev-parse', 'HEAD']) };
+    }
+    // Publish a local branch (the base by default) to its remote. Never forced: a remote that moved refuses.
+    if (method === 'branch.publish') {
+      const base = await this.merges.base(w), name = p.branch === undefined ? base.branch : text(p.branch, 'rama', 512);
+      const oid = await git(base.source, ['rev-parse', '-q', '--verify', `refs/heads/${name}^{commit}`]).catch(() => '');
+      assert(oid, `La rama ${name} no existe.`);
+      const remote = p.remote === undefined ? (await git(base.source, ['config', '--get', `branch.${name}.remote`]).catch(() => '') || 'origin') : text(p.remote, 'remoto', 128);
+      assert(REMOTE.test(remote), 'Remoto inválido'); assert(lines(await git(base.source, ['remote'])).includes(remote), `El repositorio no tiene el remoto «${remote}».`);
+      await git(base.source, ['push', remote, `refs/heads/${name}:refs/heads/${name}`], { timeout: 180000 });
+      return { status: 'published', branch: name, remote, oid };
     }
     if (method === 'branch.remove') {
       const { base, branch, tree, exists, node, changes } = await this.target(w, p.branch);

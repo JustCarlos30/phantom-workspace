@@ -11,6 +11,9 @@ export function requestTimeout(method) {
   // Transcription includes conversion plus a provider request capped at 120s.
   if(method==='voice.transcribe')return 180000;
   if(/^(phantom\.|docker\.|automation\.)/.test(method))return 150000;
+  // Integrating runs the project checks after the merge (up to 15 minutes); pushing talks to a remote.
+  if(['branch.integrate','merge.run'].includes(method))return 18*60000;
+  if(method==='branch.publish')return 240000;
   return 60000;
 }
 
