@@ -961,3 +961,68 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 /* The dock is a little taller with labels; what opens above it clears it. */
 .activity-tray, .tool-picker, .zone-selection, .group-selection { bottom: calc(var(--gutter) + 112px); }
 .tool-picker { max-height: calc(100% - 184px); }
+
+/* =====================================================================
+   Focus ladder: background and cards (2026-11-11)
+   Attention has three steps, and background and cards move together:
+   · Map — the atmosphere sits behind the work; cards are slabs lifted off it.
+   · Selection — the chosen card keeps full light; other cards and the
+     atmosphere step back without turning translucent (Opaque Work Rule).
+   · Focus mode — the panel alone (unchanged: atmosphere at 12 %).
+   ===================================================================== */
+
+/* Background: a vignette keeps the eye on the working area. It lives on the
+   canvas, above the atmosphere and the grid, so art and dots fade at the edges. */
+.canvas {
+  background-image:
+    radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%),
+    radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px),
+    radial-gradient(circle, var(--dot) .9px, transparent 1.2px);
+  background-size: 100% 100%, var(--grid-major, 96px) var(--grid-major, 96px), var(--grid-size, 24px) var(--grid-size, 24px);
+  background-position: 0 0, var(--grid-x, 0) var(--grid-y, 0), var(--grid-x, 0) var(--grid-y, 0);
+  background-repeat: no-repeat, repeat, repeat;
+}
+.studio-no-grid .canvas { background-image: radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%); }
+.canvas.focus-mode { background-image: none; }
+
+/* Gengar is atmosphere, not a subject: smaller, anchored in the corner, toned
+   down and dissolved into the plum haze toward the centre of the map. */
+.studio-gengar:not(.studio-personal) .canvas-region::before {
+  background-size: clamp(200px, 38%, 480px) auto, cover, cover;
+  background-position: right 1% bottom 4%, center, center;
+  filter: saturate(.68) brightness(.78);
+  -webkit-mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
+  mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
+}
+
+/* Selection quiets the atmosphere one step; focus mode keeps its own value. */
+.app-shell:not(.studio-focused) .canvas-region:has(.canvas-node.selected)::before {
+  opacity: calc(var(--background-intensity, .55) * .55);
+}
+
+/* Cards: an opaque slab with a lit top edge, a dark contact ring that holds the
+   edge over bright art, and one long soft shadow. */
+.canvas-node {
+  border-color: color-mix(in srgb, #fff 10%, transparent);
+  border-top-color: color-mix(in srgb, #fff 17%, transparent);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out), outline-color var(--dur-fast) var(--ease-out), filter var(--dur) var(--ease-out);
+}
+.canvas-node:not(.focused):not(.is-dragging):not(:is(.pulse-attention, .pulse-turn)) {
+  box-shadow: 0 0 0 1px #00000094, 0 1px 2px #0006, 0 18px 40px -18px #000000e6;
+}
+.canvas-node.selected:not(.focused):not(.is-dragging):not(:is(.pulse-attention, .pulse-turn)) {
+  box-shadow: 0 0 0 1px #000000a6, 0 2px 4px #0006, 0 30px 64px -22px #000;
+}
+.canvas-node.selected { border-top-color: var(--accent); }
+
+/* Spotlight: with a card selected, the rest step back by light, not by
+   transparency. Hover, keyboard focus and cards that need you stay lit. */
+.canvas:not(.focus-mode):has(.canvas-node.selected) .canvas-node:not(.selected):not(:hover):not(:focus-within):not(:is(.pulse-attention, .pulse-turn, .pulse-error)) {
+  filter: brightness(.7) saturate(.72);
+}
+.canvas-zone { transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), opacity var(--dur) var(--ease-out); }
+.canvas:not(.focus-mode):has(.canvas-node.selected) .canvas-zone:not(.selected) { opacity: .7; }
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node, .canvas-zone { transition: none; }
+}
