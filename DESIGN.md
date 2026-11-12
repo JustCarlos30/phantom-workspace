@@ -149,6 +149,16 @@ components:
 
 # Design System: Phantom Workspace
 
+## Dock de creación como fila de herramientas (2026-11-11)
+
+- **Sin acción "primaria" teñida.** Terminal, Navegador, Nota y Zona tienen el mismo peso que Herramientas: icono de `PanelIcons.js` (18 px) sobre una palabra de 11 px, botones de 64×52 px, `role="toolbar"` con nombre «Crear panel». La pastilla violeta en Terminal se percibía como CTA genérico y como estado seleccionado; se retira. Hover: relleno `--fill-2`, el icono sube 1 px y toma el acento; pulsado `scale(.96)`; movimiento reducido lo desactiva. Herramientas usa `LayoutGrid` y pierde el chevron; su etiqueta se oculta a ≤760 px.
+- **Lo que necesita de ti es lo único que suena.** En la franja de actividad, `.needs-you` pasa a ser una pastilla con tinte `--attention` al 14 % y un punto con un pulso lento (2,4 s, desactivado con movimiento reducido); las otras lecturas se atenúan mientras haya algo pendiente.
+- Bandeja, selector de herramientas y barra de selección se apoyan a `--gutter + 112px` para despejar el dock, que ahora es más alto.
+
+## Preguntas del agente en el chat (2026-11-11)
+
+`AskUserQuestion` llega por la compuerta de permisos, pero no es un permiso: se pinta como tarjeta de pregunta (`.pc-question`) con el tono del proveedor, no con el ámbar de advertencia. Cada pregunta es un `fieldset` con radios o casillas nativos, descripción por opción, «Otra respuesta» libre y vista previa si la opción la trae. «Responder» exige contestar todas; «No responder» devuelve un rechazo explícito para que el agente siga con su criterio. Una vez respondida, queda como registro compacto (pregunta → respuesta). Las respuestas vuelven en `updatedInput.answers`, indexadas por el texto de la pregunta.
+
 ## Gengar oscuro e iconografía funcional (2026-11-11) — paleta vigente
 
 Carlos pidió una paleta más oscura centrada en Gengar y reducir la iconografía genérica «AI slop». Esta sección sustituye las paletas pastel anteriores y el código por colores decorativo de las herramientas. Conserva el layout espacial y el material de chrome de «Vidrio nocturno».

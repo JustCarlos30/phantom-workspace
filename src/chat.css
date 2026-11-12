@@ -253,3 +253,48 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .pc-status { flex-wrap: wrap; }
 [data-provider="codex"] { --hue: var(--hue-agent); }
 .pc[data-provider="codex"] { --pc-hue: var(--hue-agent); }
+
+
+/* A question the agent waits on (AskUserQuestion). It speaks in the agent's
+   hue, not the warning amber: it is a conversation, not a risk. */
+.pc-question { --q-hue: var(--pc-hue, var(--accent)); display: grid; gap: 14px; min-width: 0; margin: 0; padding: 14px; border: 1px solid color-mix(in srgb, var(--q-hue) 38%, transparent); border-radius: var(--r-md); background: color-mix(in srgb, var(--q-hue) 7%, var(--surface)); }
+.pc-question-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pc-question-head strong { color: var(--ink); font-size: 13px; font-weight: 600; }
+.pc-question-head > span:last-child { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.pc-question-mark { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; border-radius: 7px; background: color-mix(in srgb, var(--q-hue) 20%, transparent); color: var(--q-hue); }
+.pc-question-group { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.pc-question-group + .pc-question-group { padding-top: 14px; border-top: 1px solid var(--hairline); }
+.pc-question-group legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 0; margin-bottom: 8px; color: var(--ink); font-size: 13px; font-weight: 550; line-height: 1.45; text-wrap: pretty; }
+.pc-question-group legend small { color: var(--muted); font-size: 11px; font-weight: 450; }
+.pc-question-chip { padding: 2px 7px; border-radius: var(--r-xs); background: var(--fill-2); color: var(--muted); font-size: 10.5px; font-weight: 600; letter-spacing: .01em; }
+.pc-question-options { display: grid; gap: 4px; }
+.pc-option { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 9px 10px; border: 1px solid transparent; border-radius: var(--r-sm); background: var(--fill); cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
+.pc-option:hover { background: var(--fill-2); }
+.pc-option.is-picked { border-color: color-mix(in srgb, var(--q-hue) 55%, transparent); background: color-mix(in srgb, var(--q-hue) 12%, transparent); }
+.pc-option > input { flex-shrink: 0; width: 15px; height: 15px; margin: 2px 0 0; accent-color: var(--q-hue); cursor: pointer; }
+.pc-option > input:focus-visible { outline: 2px solid var(--q-hue); outline-offset: 2px; }
+.pc-option-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.pc-option-text strong { color: var(--ink); font-size: 12.5px; font-weight: 550; }
+.pc-option-text > span { color: var(--muted); font-size: 12px; line-height: 1.45; text-wrap: pretty; }
+.pc-option-input { width: 100%; min-height: 30px; margin-top: 4px; padding: 5px 9px; border: 1px solid var(--hairline-strong); border-radius: var(--r-xs); background: var(--surface); color: var(--ink); font: 12.5px/1.4 inherit; }
+.pc-option-input::placeholder { color: var(--muted); }
+.pc-option-input:focus-visible { outline: none; border-color: var(--q-hue); }
+.pc-option:not(.is-picked) .pc-option-input { display: none; }
+.pc-question-preview { margin: 0; padding: 10px 12px; overflow-x: auto; border-radius: var(--r-sm); background: var(--terminal-bg); color: var(--terminal-ink); font: 11.5px/1.45 var(--mono); white-space: pre; }
+.pc-question-group:disabled { opacity: .6; }
+.pc-question-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.pc-question-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 13px; border: 0; border-radius: 99px; background: var(--fill-2); color: var(--ink); font: 550 12px/1 inherit; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
+.pc-question-actions button:hover:not(:disabled) { background: var(--fill-3); }
+.pc-question-actions button.is-primary { background: var(--q-hue); color: var(--primary-ink); }
+.pc-question-actions button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--q-hue), white 14%); }
+.pc-question-actions button:disabled { opacity: .5; cursor: default; }
+.pc-question-actions button:focus-visible { outline: 2px solid var(--q-hue); outline-offset: 2px; }
+/* Once answered, the card stays as a compact record of what was decided. */
+.pc-question:not(.is-pending) { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-color: var(--hairline); background: none; }
+.pc-question:not(.is-pending) .pc-question-mark { width: 22px; height: 22px; background: var(--fill); color: var(--muted); }
+.pc-question-record { display: grid; gap: 3px; min-width: 0; padding-top: 2px; }
+.pc-question-record p { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; font-size: 12px; line-height: 1.4; }
+.pc-question-record span { color: var(--muted); }
+.pc-question-record strong { color: var(--ink); font-weight: 550; }
+.pc-question-record em { color: var(--muted); font-style: normal; }
+@container (max-width: 460px) { .pc-question-head > span:last-child { display: none; } }

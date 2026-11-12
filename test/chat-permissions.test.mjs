@@ -125,5 +125,53 @@ process.stdin.resume().on('end', async () => {
 test('the desktop renderer can answer a permission request but never forge one', async () => {
   const { validateInvocation } = await import('../desktop/security.mjs');
   assert.doesNotThrow(() => validateInvocation('chat.permission.answer', { workspaceId: 'w', nodeId: 'n', requestId: 'r', decision: 'allow' }));
+  assert.doesNotThrow(() => validateInvocation('chat.question.answer', { workspaceId: 'w', nodeId: 'n', requestId: 'r', answers: { '¿Qué?': 'Esto' } }));
   assert.throws(() => validateInvocation('chat.permission.request', { workspaceId: 'w', nodeId: 'n' }), /no permitido/);
+});
+
+// AskUserQuestion reaches the gate as a "permission"; it must come back with
+// the user's answers in updatedInput.answers, keyed by question text.
+test('AskUserQuestion is shown as a question card and returns the chosen answers', async t => {
+  const repo = path.join(root, 'ask'); fs.mkdirSync(repo);
+  const claude = path.join(root, 'claude-ask');
+  fs.writeFileSync(claude, `#!${process.execPath}
+const { spawn } = require('node:child_process');
+const config = JSON.parse(process.argv[process.argv.indexOf('--mcp-config') + 1]).mcpServers.phantom_workspace_chat;
+const tool = process.argv[process.argv.indexOf('--permission-prompt-tool') + 1];
+const gate = spawn(config.command, config.args, { env: { ...process.env, ...config.env }, stdio: ['pipe', 'pipe', 'inherit'] });
+let buffer = '', id = 0; const waiting = new Map();
+gate.stdout.setEncoding('utf8').on('data', c => { buffer += c; let i; while ((i = buffer.indexOf('\\n')) >= 0) { const row = JSON.parse(buffer.slice(0, i)); buffer = buffer.slice(i + 1); waiting.get(row.id)?.(row.result); } });
+const call = (method, params) => new Promise(r => { waiting.set(++id, r); gate.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\\n'); });
+const out = o => process.stdout.write(JSON.stringify(o) + '\\n');
+const questions = [{ question: '¿Qué dirección?', header: 'Dirección', multiSelect: false, options: [{ label: 'A', description: 'uno' }, { label: 'B' }] }, { question: '¿Qué extras?', multiSelect: true, options: [{ label: 'X' }, { label: 'Y' }] }];
+process.stdin.resume().on('end', async () => {
+  out({ type: 'system', subtype: 'init', session_id: 's' });
+  out({ type: 'assistant', message: { id: 'm0', content: [{ type: 'tool_use', id: 'tu1', name: 'AskUserQuestion', input: { questions } }] } });
+  await call('initialize', {});
+  const results = [];
+  for (let n = 0; n < 2; n++) results.push(JSON.parse((await call('tools/call', { name: tool.split('__').at(-1), arguments: { tool_name: 'AskUserQuestion', input: { questions }, tool_use_id: 'tu1' } })).content[0].text));
+  out({ type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: JSON.stringify(results.map(r => r.behavior === 'allow' ? r.updatedInput.answers : 'deny')) }] } });
+  out({ type: 'result', subtype: 'success', is_error: false, session_id: 's' });
+  gate.kill();
+});`, { mode: 0o755 });
+  const host = await createHost({ dataDir: path.join(root, 'state-ask'), handleIntegration: () => ({ handled: false }) });
+  t.after(() => host.close());
+  await host.invoke('settings.update', { patch: { claudePath: claude } });
+  const w = await host.invoke('workspace.open', { path: repo });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude' } } });
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  await host.invoke('chat.send', { ...ref, text: 'pregunta' });
+  const pending = async () => (await host.invoke('chat.get', ref)).messages.at(-1).parts.find(p => p.type === 'question' && p.status === 'pending');
+  const first = await until(pending);
+  assert.equal(first.toolUseId, 'tu1');
+  assert.deepEqual(first.questions.map(q => [q.header, q.multiSelect, q.options.length]), [['Dirección', false, 2], [undefined, true, 2]]);
+  await assert.rejects(host.invoke('chat.permission.answer', { ...ref, requestId: first.id, decision: 'allow' }), /pendiente/);
+  await assert.rejects(host.invoke('chat.question.answer', { ...ref, requestId: first.id, answers: { '¿Qué dirección?': 'A' } }), /todas las preguntas/);
+  await host.invoke('chat.question.answer', { ...ref, requestId: first.id, answers: { '¿Qué dirección?': 'A', '¿Qué extras?': 'X, mi propia idea' } });
+  const second = await until(async () => { const p = await pending(); return p && p.id !== first.id && p; });
+  await host.invoke('chat.question.answer', { ...ref, requestId: second.id });
+  await until(async () => !(await host.invoke('chat.get', ref)).running);
+  const reply = (await host.invoke('chat.get', ref)).messages.at(-1);
+  assert.deepEqual(JSON.parse(reply.parts.find(p => p.type === 'text').text), [{ '¿Qué dirección?': 'A', '¿Qué extras?': 'X, mi propia idea' }, 'deny']);
+  assert.deepEqual(reply.parts.filter(p => p.type === 'question').map(p => p.status), ['answered', 'skipped']);
 });

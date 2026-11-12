@@ -208,6 +208,21 @@ export function applyCodexEvent(turn, event) {
   return false;
 }
 
+// AskUserQuestion is not a permission: the agent waits for the user's choice.
+// Claude Code reads the answers back from updatedInput.answers, keyed by the
+// question text; without them it tells the model "the user did not answer".
+export const QUESTION_TOOL = 'AskUserQuestion';
+const clip = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+export function normalizeQuestions(questions) {
+  assert(Array.isArray(questions) && questions.length >= 1 && questions.length <= 8, 'Preguntas inválidas');
+  return questions.map(q => {
+    assert(q && typeof q.question === 'string' && q.question.trim(), 'Pregunta inválida');
+    const options = (Array.isArray(q.options) ? q.options : []).filter(o => o && typeof o.label === 'string' && o.label.trim()).slice(0, 8)
+      .map(o => ({ label: clip(o.label, 200), ...(o.description ? { description: clip(o.description, 600) } : {}), ...(o.preview ? { preview: clip(o.preview, 4000) } : {}) }));
+    return { question: clip(q.question, 1000), ...(q.header ? { header: clip(q.header, 40) } : {}), multiSelect: q.multiSelect === true, options };
+  });
+}
+
 export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
   constructor(store, emit, role = () => ({ env: {}, instructions: '' })) {
@@ -220,7 +235,7 @@ export class Chats {
       if (message.status === 'streaming') message.status = 'stopped';
       for (const part of message.parts || []) {
         if (part.type === 'tool' && part.status === 'running') part.status = 'stopped';
-        if (part.type === 'permission' && part.status === 'pending') part.status = 'cancelled';
+        if ((part.type === 'permission' || part.type === 'question') && part.status === 'pending') part.status = 'cancelled';
       }
     }
     this.gates = new Map();
@@ -293,7 +308,7 @@ export class Chats {
       child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, autoApprove: node.data.chat.autoApprove === true, message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
-        { cwd, env: { ...process.env, PWD: cwd, ...role.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000) } : {}) }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+        { cwd, env: { ...process.env, PWD: cwd, ...role.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
     } catch (error) { if (turn.token) this.gates.delete(turn.token); thread.messages.splice(thread.messages.indexOf(user), 2); throw error; }
     turn.child = child; this.turns.set(node.id, turn);
     child.on('error', error => finish(null, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : error.message));
@@ -334,16 +349,43 @@ export class Chats {
     text(token, 'permission token', 128); text(tool, 'tool name', 200);
     assert(input && typeof input === 'object' && !Array.isArray(input) && JSON.stringify(input).length <= 1024 * 1024, 'Invalid tool input');
     const turn = this.gates.get(token); assert(turn && !turn.finished, 'Permiso fuera de una respuesta en curso');
+    if (tool === QUESTION_TOOL) return this.askQuestion(turn, input, toolUseId);
     const decision = permissionDecision({ tool, input, cwd: turn.cwd, mode: turn.mode });
     if (decision.allow || turn.thread.grants?.includes(decision.key)) return { behavior: 'allow', updatedInput: input };
     const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
     turn.message.parts.push(part); turn.schedule();
     return new Promise(resolve => turn.pending.set(part.id, { part, input, resolve }));
   }
+  askQuestion(turn, input, toolUseId) {
+    const part = { type: 'question', id: randomUUID(), questions: normalizeQuestions(input.questions), status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
+    turn.message.parts.push(part); turn.schedule();
+    return new Promise(resolve => turn.pending.set(part.id, { part, input, resolve }));
+  }
+  // answers: { [question text]: answer } or null to decline answering.
+  answerQuestion(node, requestId, answers) {
+    const turn = this.turns.get(node.id), request = turn?.pending.get(requestId);
+    assert(request?.part.type === 'question', 'Esa pregunta ya no está pendiente');
+    if (answers === null) {
+      turn.pending.delete(requestId); request.part.status = 'skipped';
+      request.resolve({ behavior: 'deny', message: 'El usuario prefirió no responder en Phantom Workspace. Continúa con tu mejor criterio y dilo explícitamente.' });
+    } else {
+      assert(answers && typeof answers === 'object' && !Array.isArray(answers), 'Respuestas inválidas');
+      const clean = {};
+      for (const { question } of request.part.questions) {
+        const value = answers[question];
+        assert(typeof value === 'string' && value.trim(), 'Responde todas las preguntas');
+        text(value, 'answer', 4000); clean[question] = value.trim();
+      }
+      turn.pending.delete(requestId); request.part.status = 'answered'; request.part.answers = clean;
+      request.resolve({ behavior: 'allow', updatedInput: { ...request.input, answers: clean } });
+    }
+    turn.schedule();
+    return { ok: true };
+  }
   answerPermission(node, requestId, decision) {
     assert(['allow', 'always', 'deny'].includes(decision), 'Respuesta de permiso inválida');
     const turn = this.turns.get(node.id), request = turn?.pending.get(requestId);
-    assert(request, 'Ese permiso ya no está pendiente');
+    assert(request?.part.type === 'permission', 'Ese permiso ya no está pendiente');
     const settle = (entry, status) => {
       turn.pending.delete(entry.part.id); entry.part.status = status;
       entry.resolve(status === 'denied' ? { behavior: 'deny', message: 'El usuario rechazó este permiso en Phantom Workspace.' } : { behavior: 'allow', updatedInput: entry.input });

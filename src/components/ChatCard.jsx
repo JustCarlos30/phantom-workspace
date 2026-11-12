@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
@@ -109,10 +109,69 @@ function ToolRow({ part }) {
   return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><pre className="pc-tool-output">{part.output}</pre></details></li>;
 }
 
+const OTHER = '\u0000other';
+const QUESTION_STATUS = { skipped: 'Sin responder · el agente sigue con su criterio', cancelled: 'La respuesta terminó antes de contestar' };
+// AskUserQuestion: the agent is waiting on a choice. Each question is a
+// native radio/checkbox group plus a free answer; the turn resumes on submit.
+function QuestionCard({ part, onReply }) {
+  const [picked, setPicked] = useState(() => part.questions.map(() => []));
+  const [other, setOther] = useState(() => part.questions.map(() => ''));
+  const [busy, setBusy] = useState(false);
+  const pending = part.status === 'pending';
+  const value = i => picked[i].map(label => label === OTHER ? other[i].trim() : label).filter(Boolean).join(', ');
+  const complete = part.questions.every((_, i) => value(i));
+  const toggle = (i, label, multi) => setPicked(all => all.map((list, j) => j !== i ? list : multi ? (list.includes(label) ? list.filter(l => l !== label) : [...list, label]) : [label]));
+  const submit = async answers => {
+    setBusy(true);
+    try { await onReply?.(part.id, answers); } catch { setBusy(false); }
+  };
+  const send = event => { event.preventDefault(); if (complete && !busy) submit(Object.fromEntries(part.questions.map((q, i) => [q.question, value(i)]))); };
+  if (!pending) return <div className={`pc-question is-${part.status}`}>
+    <span className="pc-question-mark" aria-hidden="true"><MessageCircleQuestion size={14} /></span>
+    <div className="pc-question-record">
+      {part.status === 'answered'
+        ? part.questions.map(q => <p key={q.question}><span>{q.header || q.question}</span><strong>{part.answers?.[q.question]}</strong></p>)
+        : <p><span>{part.questions.map(q => q.header || q.question).join(' · ')}</span><em>{QUESTION_STATUS[part.status] || part.status}</em></p>}
+    </div>
+  </div>;
+  return <form className="pc-question is-pending" onSubmit={send} aria-label="El agente te pregunta">
+    <header className="pc-question-head"><span className="pc-question-mark" aria-hidden="true"><MessageCircleQuestion size={14} /></span><strong>{part.questions.length > 1 ? `${part.questions.length} preguntas para ti` : 'Pregunta para ti'}</strong><span>El agente espera tu respuesta</span></header>
+    {part.questions.map((q, i) => {
+      const type = q.multiSelect ? 'checkbox' : 'radio', name = `${part.id}-${i}`;
+      const preview = q.options.find(o => picked[i].includes(o.label) && o.preview)?.preview;
+      return <fieldset key={name} className="pc-question-group" disabled={busy}>
+        <legend>{q.header && <span className="pc-question-chip">{q.header}</span>}{q.question}{q.multiSelect && <small> · elige una o varias</small>}</legend>
+        <div className="pc-question-options">
+          {q.options.map(option => <label key={option.label} className={`pc-option ${picked[i].includes(option.label) ? 'is-picked' : ''}`}>
+            <input type={type} name={name} checked={picked[i].includes(option.label)} onChange={() => toggle(i, option.label, q.multiSelect)} />
+            <span className="pc-option-text"><strong>{option.label}</strong>{option.description && <span>{option.description}</span>}</span>
+          </label>)}
+          <label className={`pc-option is-other ${picked[i].includes(OTHER) ? 'is-picked' : ''}`}>
+            <input type={type} name={name} checked={picked[i].includes(OTHER)} onChange={() => toggle(i, OTHER, q.multiSelect)} />
+            <span className="pc-option-text"><strong>Otra respuesta</strong>
+              <input type="text" className="pc-option-input" aria-label={`Otra respuesta: ${q.question}`} placeholder="Escribe tu respuesta…" value={other[i]}
+                onFocus={() => !picked[i].includes(OTHER) && toggle(i, OTHER, q.multiSelect)}
+                onChange={e => setOther(all => all.map((v, j) => j === i ? e.target.value : v))}
+                onKeyDown={e => e.stopPropagation()} />
+            </span>
+          </label>
+        </div>
+        {preview && <pre className="pc-question-preview" aria-label="Vista previa de la opción elegida">{preview}</pre>}
+      </fieldset>;
+    })}
+    <footer className="pc-question-actions">
+      <button type="button" disabled={busy} onClick={() => submit(null)}>No responder</button>
+      <button type="submit" className="is-primary" disabled={busy || !complete}>{busy ? <LoaderCircle size={13} className="spinning" aria-hidden="true" /> : <ArrowUp size={13} aria-hidden="true" />}Responder</button>
+    </footer>
+  </form>;
+}
+
 // Consecutive tool calls read as one activity block between paragraphs of prose.
+// The AskUserQuestion call itself is drawn by its question card, not as a tool row.
 function groupParts(parts) {
-  const groups = [];
+  const groups = [], asked = new Set(parts.filter(p => p.type === 'question' && p.toolUseId).map(p => p.toolUseId));
   for (const part of parts) {
+    if (part.type === 'tool' && asked.has(part.id)) continue;
     const last = groups.at(-1);
     if (part.type === 'tool' && last?.type === 'tools') last.items.push(part);
     else groups.push(part.type === 'tool' ? { type: 'tools', items: [part] } : part);
@@ -121,12 +180,12 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-const Message = React.memo(function Message({ message, label, provider, model, onAnswer }) {
+const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
   if (message.role === 'user') return <div className="pc-message is-user"><p>{message.parts.map(part => part.text).join('\n')}</p></div>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} />;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const elapsed = useElapsed(message.createdAt, streaming);
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
@@ -137,6 +196,8 @@ function AgentMessage({ message, label, provider, model, onAnswer }) {
       ? <ul key={i} className="pc-tools" aria-label="Herramientas usadas">{group.items.map(part => <ToolRow key={part.id} part={part} />)}</ul>
       : group.type === 'permission'
         ? <PermissionRow key={group.id} part={group} onAnswer={onAnswer} />
+      : group.type === 'question'
+        ? <QuestionCard key={group.id} part={group} onReply={onReply} />
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} />)}
@@ -221,14 +282,15 @@ function ContextMeter({ meta }) {
 
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
-  const { chat, error, send, stop, clear, answer } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
+  const { chat, error, send, stop, clear, answer, reply } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
   const autoApprove = node.data.chat.autoApprove ?? (provider === 'claude' && !!node.data.worktree);
-  const waiting = messages.some(message => message.parts?.some(part => part.type === 'permission' && part.status === 'pending'));
+  const waitingOn = messages.flatMap(message => message.parts || []).find(part => (part.type === 'permission' || part.type === 'question') && part.status === 'pending');
+  const waiting = waitingOn ? (waitingOn.type === 'question' ? 'Espera tu respuesta' : 'Espera tu permiso') : '';
   const { cwd, folder, branch } = locationOf(node, workspace);
   const last = messages.at(-1);
   const elapsed = useElapsed(last?.createdAt, running);
@@ -253,7 +315,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     return <div className="pt-card pc is-overview" data-agent={running ? 'working' : 'idle'}>
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
-        {running && <span className="pt-state is-working"><i aria-hidden="true" />{waiting ? 'Espera tu permiso' : 'Respondiendo'}</span>}
+        {running && <span className="pt-state is-working"><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{lastText.slice(-240)}</p>}
       </div>
     </div>;
@@ -262,7 +324,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
-      {running && <span className="pt-state is-working" role="status"><i aria-hidden="true" />{waiting ? 'Espera tu permiso' : 'Respondiendo'}<span className="pc-num">{formatElapsed(elapsed)}</span></span>}
+      {running && <span className="pt-state is-working" role="status"><i aria-hidden="true" />{waiting || 'Respondiendo'}<span className="pc-num">{formatElapsed(elapsed)}</span></span>}
       <span className="pc-bar-space" />
       <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>
     </div>
@@ -281,7 +343,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
             <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}; cámbialo en la barra de abajo</dd></div>
           </dl>}
         </div>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} />)}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}

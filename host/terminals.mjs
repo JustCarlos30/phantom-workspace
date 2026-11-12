@@ -260,8 +260,11 @@ export class Terminals {
     const session=this.get(id);this.setupControllers.get(session.nodeId)?.abort(new Error('Preparación cancelada al detener terminal'));const e=this.live.get(id);
     if(e && !e.stopping && !e.exited) {
       e.stopping=true;const identities=e.identity && processIdentity(e.child.pid)?.start===e.identity.start?ownedProcesses(e.child.pid):[];
-      signalIdentities(identities,'SIGTERM');
+      // Hang-up is what closing a terminal means: an interactive shell ignores
+      // SIGTERM but exits on SIGHUP and passes it on to its jobs.
+      signalIdentities(identities,'SIGHUP');signalIdentities(identities,'SIGTERM');
       // Saved Linux start-times prevent PID reuse from targeting unrelated users' processes.
+      e.identities=identities;e.killAt=Date.now()+700;
       e.killTimer=setTimeout(()=>signalIdentities(identities,'SIGKILL'),700);e.killTimer.unref();
     }
     return {ok:true};
@@ -273,12 +276,16 @@ export class Terminals {
       await this.creating.get(nodeId)?.catch(() => {});
       await this.setupJobs.get(nodeId);
       const sessions = this.sessions.filter(s => s.nodeId === nodeId);
+      const entries = sessions.map(s => this.live.get(s.id)).filter(Boolean);
       for (const s of sessions) this.stop(s.id);
       const end = Date.now() + 3000;
       while (sessions.some(s => this.live.has(s.id)) && Date.now() < end) await new Promise(r => setTimeout(r, 25));
       assert(!sessions.some(s => this.live.has(s.id)), 'Terminal did not exit; retry closing');
-      // Let the descendant SIGKILL fallback finish even if the shell exited first.
-      if (sessions.length) await new Promise(r => setTimeout(r, 725));
+      // Descendants may outlive the shell: wait only while one is still alive,
+      // and never past the SIGKILL fallback that ends it.
+      const alive = () => entries.some(e => e.identities?.some(id => processIdentity(id.pid)?.start === id.start));
+      const killed = Math.max(0, ...entries.map(e => e.killAt || 0)) + 25;
+      while (alive() && Date.now() < killed) await new Promise(r => setTimeout(r, 15));
       await this.flushing;
       for (const s of sessions) this.tails?.delete(s.id);
       this.sessions = this.sessions.filter(s => s.nodeId !== nodeId);
