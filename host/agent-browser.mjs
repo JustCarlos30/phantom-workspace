@@ -8,18 +8,24 @@ import { fileURLToPath } from 'node:url';
 import { browserURL, validateID, validateJSON } from '../desktop/security.mjs';
 
 export const browserCLI = fileURLToPath(new URL('../scripts/workspace-browser.mjs', import.meta.url));
+export const browserShims = fileURLToPath(new URL('../scripts/browser-shims', import.meta.url));
 export const endpointFile = dataDir => path.join(dataDir, 'agent-browser.json');
 export const credentialFile = (dataDir, sessionId) => path.join(dataDir, 'browser-terminals', validateID(sessionId) + '.json');
 
 // Called before PTY spawn. Secrets are runtime-only, never terminal descriptors/history.
 // Each new shell discovers the CLI and carries one revocable workspace/session capability.
-export function provisionBrowserTerminal(dataDir, { sessionId, workspaceId, nodeId }) {
+// System openers (xdg-open, $BROWSER, gio open...) are shimmed so skills that "open the
+// URL for the user" land in the integrated panel instead of the desktop browser.
+export function provisionBrowserTerminal(dataDir, { sessionId, workspaceId, nodeId }, baseEnv = process.env) {
   const filename = credentialFile(dataDir, sessionId);
   fs.mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });
   const token = randomBytes(32).toString('hex');
   fs.writeFileSync(filename, JSON.stringify({ token, workspaceId, nodeId }), { mode: 0o600, flag: 'wx' });
+  const inherited = (baseEnv.PATH || '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== browserShims);
   return { env: { PHANTOM_BROWSER_CLI: browserCLI, PHANTOM_BROWSER_ENDPOINT: endpointFile(dataDir),
-    PHANTOM_BROWSER_TOKEN: token, PHANTOM_BROWSER_SESSION: sessionId, PHANTOM_BROWSER_WORKSPACE: workspaceId },
+    PHANTOM_BROWSER_TOKEN: token, PHANTOM_BROWSER_SESSION: sessionId, PHANTOM_BROWSER_WORKSPACE: workspaceId,
+    PHANTOM_BROWSER_SHIMS: browserShims, PHANTOM_BROWSER_ORIGINAL: baseEnv.PHANTOM_BROWSER_ORIGINAL ?? baseEnv.BROWSER ?? '',
+    BROWSER: path.join(browserShims, 'xdg-open'), PATH: [browserShims, ...inherited].join(':') },
   revoke() { fs.rmSync(filename, { force: true }); } };
 }
 
