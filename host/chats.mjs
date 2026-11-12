@@ -65,8 +65,9 @@ export function applyPatch(chat, patch) {
 
 const realpath = value => { try { return fs.realpathSync(value); } catch { return null; } };
 // How a turn handles permissions. 'full': everything except a short list of
-// dangerous actions, which still asks. 'auto': the agent works freely inside
-// its folder and asks before reaching beyond it. 'ask': every change asks.
+// dangerous actions, which still asks. 'auto': the agent works without
+// interruptions and asks only for sensitive actions (destructive, commit and
+// push, external tools and services, databases). 'ask': every change asks.
 // Inside the card's own Phantom worktree the default is 'auto'; elsewhere (the
 // original checkout, a folder without Git) it is 'ask'. The card's switch
 // overrides either way.
