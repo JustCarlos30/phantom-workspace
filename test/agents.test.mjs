@@ -45,6 +45,21 @@ test('identity validates workspace ownership, survives rename/restart and preser
   context=await f.host.invoke('terminal.agent.context',{sessionId:f.session.id});assert.equal(context.step,'');assert.equal(context.status,'idle');
 });
 
+test('linking a card names a default-titled terminal but never overrides a manual name',async t=>{
+  const f=await fixture(t);
+  const title=async()=>(await f.host.invoke('state.get')).workspaces[0].nodes.find(n=>n.id===f.node.id).title;
+  await f.host.invoke('node.update',{workspaceId:f.w.id,id:f.node.id,patch:{title:'Terminal'}});
+  await f.update({cardId:'card-owned'});
+  assert.equal(await title(),'Autenticación');
+  await f.update({cardId:''});
+  assert.equal(await title(),'Autenticación');
+  await f.host.invoke('node.update',{workspaceId:f.w.id,id:f.node.id,patch:{title:'Mi agente'}});
+  await f.update({cardId:'card-owned'});
+  assert.equal(await title(),'Mi agente');
+  await f.update({cardId:'',name:'Terminal'});await f.update({cardId:'card-owned',name:'Explícito'});
+  assert.equal(await title(),'Explícito');
+});
+
 test('agent CLI and PTY injection report into the current terminal without mutating native card status',async t=>{
   const f=await fixture(t);await f.update({cardId:'card-owned'});
   await agentCLI(['report','Ejecutando checks','review'],{PHANTOM_TERMINAL_SESSION_ID:f.session.id,PHANTOM_WORKSPACE_SOCKET:f.host.socketPath});
