@@ -125,7 +125,7 @@ components:
     backgroundColor: "{colors.surface-2}"
     textColor: "{colors.ink}"
     rounded: "{rounded.button}"
-    padding: "10px 8px"
+    padding: "8px"
     width: "100%"
   panel-row-selected:
     backgroundColor: "{colors.accent-soft}"
@@ -270,7 +270,7 @@ The shell inherits `-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` a
 
 Full-window desktop shell, minimum width 580px; document scrolling is disabled, while lists, tools, terminal content and appearance scroll internally. The retained spatial model places/drags/resizes panels in a transformed map. Focus uses temporary visible geometry (24px left, 55px top; width `max(320, canvasWidth - 48)`, height `max(240, canvasHeight - 145)`), hiding other mounted panels without overwriting stored coordinates. Camera and pre-focus selection return within the UI session.
 
-- Rail: 232px normally, 240px from 1450px; 210px at widths ≤1100px; 232px off-canvas drawer at ≤850px. Recent projects cap at 28% height; the panel list consumes remaining space and scrolls. Short windows (≤700px high) compress panel-row and rail spacing.
+- Rail: one opaque graphite surface, 12px from the left, top and bottom edges, with a 12px gap before the working region, 12px radius and the soft floating shadow (no outer border). Width is 232px normally, 240px from 1450px and 210px at widths ≤1100px. At ≤850px it becomes a 248px off-canvas drawer, still inset 12px, over a dismissible scrim. Recent projects cap at 28% height and retain full row height; the panel list consumes remaining space and scrolls independently. The rail itself can scroll in short windows so the footer stays reachable. Windows ≤700px high compress spacing.
 - Header: 64px high with 24px horizontal padding; ≤850px uses 13px horizontal padding. These studio overrides supersede base header heights and padding.
 - Inspector: base 350px; 370px from 1450px; 325px at ≤1270px; at ≤1100px it overlays the canvas at 350px wide rather than shrinking the map. Nonmodal, with explicit close and contextual selector.
 - Appearance: 24px 20px padding, two equal preset columns with 10px gap, 58px-high previews, 24px section separation. Four accent controls share a row with 26px circular swatches.
@@ -314,9 +314,17 @@ La lectura pasa por `desktop.previewImage`: solo archivos raster de hasta 12 MB 
 
 Shell actions retain 35px height, 0 13px padding and weight 550. Secondary hover uses the raised plane and muted border. Primary actions use accent fill/dark ink with the lighter hover mix. Shell icon controls are 29px squares; node-header controls retain compensated width and 32px height. Tool buttons remain a separate 12px/500/1.4 primitive, minimum 32px high, 6px 10px padding; disabled opacity is .55 (shell .42). Tool secondary press uses accent wash.
 
-Project navigation retains name/path/initials and an active dot; the selected project uses raised graphite, not the old blue rail fill. Panel rows provide direct selection and a separate focus action; selected rows use accent wash. The map action and creation dock remain explicit routes. Tool fields are labelled, full width, minimum 34px high, padded 7px 9px with seam border. Error/loading/empty/unavailable states remain distinct and source-backed.
+Project navigation uses continuous name rows with plain folder icons and an active dot, without initial avatars or nested cards. Paths stay available in the native tooltip and accessible description rather than dominating each row. The selected project uses raised graphite plus `aria-current`. Panel rows provide map selection and a separate compact focus action, visible on hover, focus-within, when pressed, and on non-hover devices; selected rows use accent wash and `aria-current`. Long names truncate visually while keeping full accessible labels. Folder, Plugins, appearance, settings and commands are borderless rows; a single footer seam separates utilities from project content. Connection retains a text label beside its status dot.
 
-Keyboard focus remains a 2px current-accent outline: shell buttons/tab stops offset 3px, shell fields -1px, tool controls 3px, note field -3px. xterm owns cursor/input focus and suppresses generic helper-textarea/screen outlines.
+The drawer traps Tab/Shift+Tab, starts at its close control, closes on Escape or scrim activation and restores the opening control's focus after the inert-state commit, unless an action has already moved focus to its destination. Its closed state is inert; the main workspace is inert while it is open. Existing overlay policy blocks PTY input and obscures native browser content while the drawer is active. Desktop layout reserves the rail's full width and insets instead of overlaying the canvas. Project and panel lists contain scroll chaining and suppress horizontal scrolling. The map action and creation dock remain explicit routes. Tool fields are labelled, full width, minimum 34px high, padded 7px 9px with seam border. Error/loading/empty/unavailable states remain distinct and source-backed.
+
+Sidebar verification entry point: `node test/sidebar-floating.mjs`, using an isolated Electron/host profile, synthetic long names and overflowing project/panel lists. It exercises project/panel selection (including drawer routes and the last overflowing panel), focus/map return, appearance, Plugins, keyboard, drawer and working-region clearance, explicitly checks name truncation, observes typed input through the real PTY attachment and checks that drawer input does not reach it. Inspector close actions target the switcher so duplicated contextual close controls remain unambiguous. Captures are written beneath `/tmp/opencode/phantom-sidebar-*`. It invokes the Impeccable detector once at the end via an argv spawn. This describes the test implementation, not an observed pass or a new visual approval; the controller owns execution and check results.
+
+Within project and panel lists, Up/Down and Home/End move focus and reveal the destination in the scrollable list without activating it. Enter/Space activate the focused button; Tab retains native traversal, including each separate panel-focus action. The sidebar interaction script exercises these focus-only routes with overflowing lists. These are implementation details, pending controller checks for this continuation.
+
+While a rail control has keyboard focus, the canvas receives blocked terminal-input ownership so activating a terminal row cannot auto-focus the PTY and interrupt Tab traversal. Leaving the rail releases that ownership; clicking the terminal can reclaim input. This desktop navigation ownership does not obscure the native browser; drawer and overlay occlusion still use the existing separate policy.
+
+Keyboard focus remains a 2px current-accent outline: shell buttons/tab stops offset 3px, shell fields -1px, tool controls 3px, note field -3px. Inside the rail the outline is inset (-2px) to stay visible at scroll boundaries. xterm owns cursor/input focus and suppresses generic helper-textarea/screen outlines.
 
 ### Appearance and local persistence
 

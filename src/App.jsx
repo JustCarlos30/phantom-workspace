@@ -42,8 +42,25 @@ const TYPES = [
   ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, `Panel nativo de ${panel.pluginId}`, 'phantom']),
 ].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);
 const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find(t => t[0] === id));
-const label = type => TYPES.find(t => t[0] === type)?.[1] || type;
 const initials = name => name?.split(/[\s_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
+const label = type => TYPES.find(t => t[0] === type)?.[1] || type;
+
+// Move within a continuous navigation list without activating another project
+// or panel. Tab and Enter keep their native button behavior.
+function navigateRailList(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const list = event.target.closest('.project-list,.rail-panels nav');
+  if (!list) return;
+  const steps = { ArrowDown: 1, ArrowUp: -1, Home: 0, End: 0 };
+  if (!(event.key in steps)) return;
+  const buttons = [...list.querySelectorAll('button:not(:disabled)')];
+  const index = buttons.indexOf(event.target);
+  if (index < 0) return;
+  event.preventDefault();
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + steps[event.key]));
+  buttons[next]?.focus({ preventScroll: true });
+  buttons[next]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
 
 class WorkspaceErrorBoundary extends React.Component {
   state = { error: null, retrying: false, retryError: '' };
@@ -85,6 +102,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [sidebar, setSidebar] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(() => { try { return localStorage.getItem('phantom.rail') === 'collapsed'; } catch { return false; } });
   const toggleRail = () => setRailCollapsed(v => { try { localStorage.setItem('phantom.rail', v ? 'open' : 'collapsed'); } catch { /* per-viewer preference only */ } return !v; });
+  const [railOwnsFocus, setRailOwnsFocus] = useState(false);
+  const [compactRail, setCompactRail] = useState(() => window.matchMedia('(max-width: 850px)').matches);
   const [menu, setMenu] = useState(null);
   const [busy, setBusy] = useState('');
   const [fitRequest, setFitRequest] = useState(0);
@@ -93,6 +112,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [edit, setEdit] = useState(null);
   const [renameRequest, setRenameRequest] = useState(null);
   const projectNameButton = useRef(null);
+  const railRef = useRef(null);
   const projectRename = useInlineName({ stage: (id, name) => patch(id, null, { name }), flush, registerBeforeFlush });
   const workspace = state?.workspaces?.find(w => w.id === state.activeWorkspaceId);
   const activity = useActivity(workspace, connection, model.stateReadAt);
@@ -221,7 +241,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     const node = current.current?.nodes?.find(n => n.id === id);
     if (node?.data?.hidden) onChange(id, { data: { ...node.data, hidden: false } });
   }, [onChange]);
-  const jump = id => { spaces.reveal(id); reveal(id); setFocused(null); setSelected([id]); setJumpRequest({ id, nonce: Date.now() }); setList(false); };
+  const jump = id => { spaces.reveal(id); reveal(id); setFocused(null); setSelected([id]); setJumpRequest({ id, nonce: Date.now() }); setList(false); setSidebar(false); };
   const commandAction = useCallback((action, data) => {
     setPalette(false);
     const key = typeof action === 'string' ? action : action?.action || action?.type || action?.id;
@@ -259,6 +279,36 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   }, [palette, voice, menu, tools, tray, list, inspector, edit]);
   useEffect(() => { if (workspace && focused && !workspace.nodes?.some(n => n.id === focused)) setFocused(null); }, [workspace, focused]);
   useEffect(() => {
+    const media = window.matchMedia('(max-width: 850px)');
+    const resize = () => { setCompactRail(media.matches); setSidebar(false); };
+    media.addEventListener('change', resize);
+    return () => media.removeEventListener('change', resize);
+  }, []);
+  useEffect(() => {
+    if (!sidebar) return;
+    const previous = document.activeElement;
+    // PresenceGroup commits the new inert state in a follow-up render. Wait
+    // until that commit before moving focus into (or back out of) the drawer.
+    const openingFrame = requestAnimationFrame(() => railRef.current?.querySelector('.rail-close')?.focus({ preventScroll: true }));
+    const handleKey = e => {
+      if (!window.matchMedia('(max-width: 850px)').matches) return;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setSidebar(false); }
+      if (e.key !== 'Tab') return;
+      const controls = [...railRef.current.querySelectorAll('button:not(:disabled)')].filter(el => el.getClientRects().length);
+      const first = controls[0], last = controls.at(-1);
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', handleKey, true);
+    return () => {
+      cancelAnimationFrame(openingFrame);
+      document.removeEventListener('keydown', handleKey, true);
+      requestAnimationFrame(() => {
+        if (previous?.isConnected && (document.activeElement === document.body || railRef.current?.contains(document.activeElement))) previous.focus({ preventScroll: true });
+      });
+    };
+  }, [sidebar]);
+  useEffect(() => {
     if (!edit) return;
     const previous = document.activeElement;
     const trap = e => {
@@ -271,7 +321,11 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     document.addEventListener('keydown', trap);
     return () => { document.removeEventListener('keydown', trap); if (previous?.isConnected) previous.focus(); };
   }, [edit?.kind]);
-  const { inputBlocked, browserObscured } = overlayPolicy({ inspector, palette, voice, tray, list, menu, tools, edit, sidebar, folder: busy === 'folder', closing: closeRequest?.status === 'saving', disconnected: connection.status !== 'connected' });
+  const { inputBlocked: overlayInputBlocked, browserObscured } = overlayPolicy({ inspector, palette, voice, tray, list, menu, tools, edit, sidebar, folder: busy === 'folder', closing: closeRequest?.status === 'saving', disconnected: connection.status !== 'connected' });
+  // Selecting a terminal from navigation must not let its activation effect
+  // steal focus before Tab can reach the row's secondary action. Clicking back
+  // into the working region releases this ownership through the rail's blur.
+  const inputBlocked = overlayInputBlocked || railOwnsFocus;
   const connectionLabel = ({ connected: 'Host local conectado', connecting: 'Conectando con el host…', reconnecting: 'Reconectando con el host…', disconnected: 'Host desconectado', error: 'Error de conexión' })[connection.status] || 'Conexión no disponible';
   const saveLabel = saving ? 'Guardando' : saveError ? 'Sin guardar' : connection.status !== 'connected' ? 'Sin conexión' : error ? 'Revisar estado' : 'Guardado';
   const menuNode = workspace?.nodes?.find(n => n.id === menu?.id);
@@ -305,19 +359,22 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   return <div className={`app-shell studio-${appearance.background} ${appearance.image ? 'studio-personal' : ''} ${focused ? 'studio-focused' : ''} ${inspector ? 'studio-inspector-open' : ''} ${appearance.grid ? '' : 'studio-no-grid'} ${railCollapsed ? 'rail-collapsed' : ''}`} style={{ '--gengar-art': `url("${gengarArtwork}")`, '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
     <PresenceGroup>
     {sidebar && <button key="rail-scrim" className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
-    <aside key="project-rail" className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
+    <aside key="project-rail" id="project-rail" ref={railRef} aria-label="Navegación del espacio" role={compactRail && sidebar ? 'dialog' : undefined} aria-modal={compactRail && sidebar ? true : undefined} inert={compactRail && !sidebar} onKeyDown={navigateRailList} onFocusCapture={() => setRailOwnsFocus(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setRailOwnsFocus(false); }} className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
       <div className="brand"><span className="brand-mark"><Ghost size={17} /></span><span>Phantom<span>Workspace</span></span><button className="rail-collapse icon-button" aria-label={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} title={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} aria-expanded={!railCollapsed} onClick={toggleRail}>{railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button><button className="rail-close icon-button" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)}><X size={17} /></button></div>{railCollapsed && workspace && <button className="rail-collapsed-project" onClick={toggleRail} title={workspace.path}><span className="project-initials">{initials(workspace.name)}</span><span>{workspace.name}{spaces.activeSpace && <em> / {spaces.activeSpace.name}</em>}</span></button>}
-      <div className="rail-heading"><span>Proyectos</span><button title="Abrir carpeta" aria-label="Abrir carpeta" onClick={openFolder}><Plus size={16} /></button></div>
-      <nav className="project-list" aria-label="Proyectos recientes">{state.workspaces.map(w => <button key={w.id} className={`project-item ${w.id === workspace?.id ? 'active' : ''}`} onClick={() => selectWorkspace(w.id)} title={`${w.name}\nCarpeta: ${w.path}\nRuta canónica: ${w.canonicalPath || w.path}`}><span className="project-initials">{initials(w.name)}</span><span><strong>{w.name}</strong><small>{w.path}</small></span>{w.id === workspace?.id && <span className="project-active-dot" />}</button>)}{!state.workspaces.length && <p className="rail-empty">Tus carpetas abiertas aparecerán aquí.</p>}</nav>
-      <button className="open-folder" onClick={openFolder} disabled={busy === 'folder'}><FolderOpen size={16} /> Abrir carpeta</button>
-      {workspace && <button className="open-folder" onClick={() => onOpenPanel('plugins')}><Blocks size={16} /> Abrir Centro de Plugins</button>}
+      <div className="rail-heading"><span>Proyectos</span></div>
+      <nav className="project-list" aria-label="Proyectos recientes">{state.workspaces.map(w => <button key={w.id} className={`project-item ${w.id === workspace?.id ? 'active' : ''}`} aria-current={w.id === workspace?.id ? 'true' : undefined} aria-describedby={`project-path-${w.id}`} onClick={() => { setSidebar(false); selectWorkspace(w.id); }} title={`${w.name}\nCarpeta: ${w.path}\nRuta canónica: ${w.canonicalPath || w.path}`}><Folder size={15} /><span className="project-label"><strong>{w.name}</strong></span><span className="rail-path-context" id={`project-path-${w.id}`}>Carpeta: {w.path}. Ruta canónica: {w.canonicalPath || w.path}</span>{w.id === workspace?.id && <span className="project-active-dot" />}</button>)}{!state.workspaces.length && <p className="rail-empty">Tus carpetas abiertas aparecerán aquí.</p>}</nav>
+      <button className="open-folder" onClick={openFolder} disabled={busy === 'folder'} aria-busy={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} {busy === 'folder' ? 'Abriendo carpeta…' : 'Abrir carpeta'}</button>
       {workspace && <Spaces spaces={spaces.spaces} active={spaces.active} nodes={workspace.nodes || []} onSelect={id => { setFocused(null); setSelected([]); spaces.select(id); }} onCreate={spaces.create} onRename={spaces.rename} onRemove={spaces.remove} />}
-      {workspace && <section className="rail-panels" aria-label="Paneles del proyecto"><div className="rail-heading"><span>Paneles <span className="rail-count">{view.nodes?.filter(n => !n.data?.hidden).length || 0}</span></span><button aria-label="Buscar en paneles" title="Buscar paneles · Ctrl Mayús F" onClick={() => setList(v => !v)}><Search size={14} /></button></div><nav aria-label="Acceso directo a paneles">{view.nodes?.filter(n => !n.data?.hidden).map(n => { const Icon = TYPES.find(t => t[0] === n.type)?.[2] || Layers; return <div key={n.id} className={`rail-panel-row ${selected.includes(n.id) ? 'selected' : ''}`}><button onClick={() => jump(n.id)} title={`${n.title} · Ver en el mapa`} aria-current={selected.includes(n.id) ? 'true' : undefined}><Icon size={14} /><span className="rail-panel-label"><span>{n.title}</span>{n.type === 'terminal' && <TerminalActivityStatus session={terminalActivity[n.id]} compact />}</span></button><button className="rail-panel-focus" title={`Enfocar ${n.title}`} aria-label={`Enfocar ${n.title}`} onClick={() => focusPanel(n.id)}><Maximize2 size={12} /></button></div>; })}{!view.nodes?.some(n => !n.data?.hidden) && <p className="rail-empty">Crea tu primer panel desde la barra inferior.</p>}</nav><button className="rail-map-action" onClick={() => { setFocused(null); setFitRequest(n => n + 1); }}><Layers size={14} /> Ver todo el mapa <kbd>0</kbd></button></section>}
-      <button className={`studio-appearance-button ${inspector === 'appearance' ? 'active' : ''}`} onClick={() => setInspector(inspector === 'appearance' ? null : 'appearance')}><Palette size={16} /><span>Personalizar espacio<small>Fondo, acento y retícula</small></span></button>
-      <div className="rail-bottom"><span className={`host-indicator ${connection.status}`} title={connection.message} role="status"><i />{connectionLabel}</span><button onClick={() => setInspector('settings')}><Settings2 size={16} /> Configuración</button><button onClick={() => setPalette(true)}><Command size={16} /> Comandos <kbd>Ctrl K</kbd></button></div>
+      {workspace && <section className="rail-panels" aria-label="Paneles del proyecto"><div className="rail-heading"><span>Paneles <span className="rail-count">{view.nodes?.filter(n => !n.data?.hidden).length || 0}</span></span><button aria-label="Buscar en paneles" title="Buscar paneles · Ctrl Mayús F" onClick={() => { setSidebar(false); setList(v => !v); }}><Search size={14} /></button></div><nav aria-label="Acceso directo a paneles">{view.nodes?.filter(n => !n.data?.hidden).map(n => { const Icon = TYPES.find(t => t[0] === n.type)?.[2] || Layers; return <div key={n.id} className={`rail-panel-row ${selected.includes(n.id) ? 'selected' : ''}`}><button onClick={() => jump(n.id)} title={`${n.title} · Ver en el mapa`} aria-label={`Ver ${n.title} en el mapa`} aria-current={selected.includes(n.id) ? 'true' : undefined}><Icon size={14} /><span className="rail-panel-label"><span>{n.title}</span>{n.type === 'terminal' && <TerminalActivityStatus session={terminalActivity[n.id]} compact />}</span></button><button className="rail-panel-focus" title={`Enfocar ${n.title}`} aria-label={`Enfocar ${n.title}`} aria-pressed={focused === n.id} onClick={() => { setSidebar(false); focusPanel(n.id); }}><Maximize2 size={12} /></button></div>; })}{!view.nodes?.some(n => !n.data?.hidden) && <p className="rail-empty">Crea tu primer panel desde la barra inferior.</p>}</nav><button className="rail-map-action" onClick={() => { setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }}><Layers size={14} /> Ver todo el mapa <kbd>0</kbd></button></section>}
+      <div className="rail-bottom">
+        {workspace && <button onClick={() => { setSidebar(false); onOpenPanel('plugins'); }}><Blocks size={16} /> Centro de Plugins</button>}
+        <button className={`studio-appearance-button ${inspector === 'appearance' ? 'active' : ''}`} onClick={() => { setSidebar(false); setInspector(inspector === 'appearance' ? null : 'appearance'); }}><Palette size={16} /><span>Personalizar espacio</span></button>
+        <button onClick={() => { setSidebar(false); setInspector('settings'); }}><Settings2 size={16} /> Configuración</button><button onClick={() => { setSidebar(false); setPalette(true); }}><Command size={16} /> Comandos <kbd>Ctrl K</kbd></button>
+        <span className={`host-indicator ${connection.status}`} title={connection.message} role="status"><i />{connectionLabel}</span>
+      </div>
     </aside>
-    <main key="main-workspace" className="main-workspace">
-      <header className="workspace-header"><button className="icon-button rail-toggle" title="Ver proyectos" aria-label="Ver proyectos" onClick={() => setSidebar(true)}><PanelLeftOpen size={18} /></button>
+    <main key="main-workspace" className="main-workspace" inert={compactRail && sidebar}>
+      <header className="workspace-header"><button className="icon-button rail-toggle" title="Ver proyectos" aria-label="Ver proyectos" aria-expanded={sidebar} aria-controls="project-rail" onClick={() => setSidebar(true)}><PanelLeftOpen size={18} /></button>
         <div className="workspace-identity"><div className="breadcrumb"><Folder size={15} /><span>Proyectos</span><ChevronRight size={13} /><div className="project-name-editor">{projectRename.editing ? <><input ref={projectRename.inputRef} className="inline-name-input" aria-label="Nombre del proyecto" aria-invalid={!!projectRename.editing.error} aria-describedby={projectRename.editing.error ? 'project-name-error' : undefined} value={projectRename.editing.value} readOnly={projectRename.editing.saving} onChange={e => projectRename.change(e.target.value)} onBlur={() => projectRename.commit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); projectRename.commit(true); } if (e.key === 'Escape') { e.preventDefault(); projectRename.cancel(); } }} />{projectRename.editing.error && <span className="inline-name-error" id="project-name-error" role="alert">{projectRename.editing.error}</span>}</> : <button ref={projectNameButton} disabled={!workspace} title="Renombrar proyecto · no mueve la carpeta" onClick={() => workspace && projectRename.start(workspace.id, workspace.name, () => projectNameButton.current)}>{workspace?.name || 'Tu espacio'}{workspace && <Pencil size={11} />}</button>}</div></div><div className="workspace-path" title={workspace ? `Carpeta elegida: ${workspace.path}\nRuta canónica: ${workspace.canonicalPath || workspace.path}\nEl nombre visible no mueve la carpeta.` : ''}>{workspace ? workspace.canonicalPath || workspace.path : 'Abre una carpeta para comenzar'}{workspace && workspace.path !== workspace.canonicalPath && workspace.canonicalPath && <span className="path-badge">Ruta canónica</span>}</div></div>
         {workspace && <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={() => { setTray(v => !v); setTools(false); setList(false); setMenu(null); }} />}
         <div className="header-controls"><span className={`save-state ${error || connection.status !== 'connected' ? 'has-error' : ''}`} title={error || (saving ? 'Guardando cambios de disposición' : connectionLabel)}>{saving ? <LoaderCircle size={12} className="spinning" /> : error || connection.status !== 'connected' ? <AlertCircle size={12} /> : <Check size={12} />}{saveLabel}</span><button className="search-command" onClick={() => setPalette(true)}><Search size={15} /><span>Buscar o ejecutar</span><kbd>Ctrl K</kbd></button><button className="icon-button" title="Capturar por voz" aria-label="Capturar por voz" disabled={!workspace} onClick={() => { closeTransient(); setVoice(true); }}><Mic size={17} /></button><button className={`icon-button attention-button ${tray ? 'active' : ''}`} title="Bandeja de actividad" aria-label={`Abrir bandeja de actividad, ${activity.unread} avisos sin leer`} aria-expanded={tray} aria-controls="activity-tray" disabled={!workspace} onClick={() => { setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><Bell size={17} />{(activity.unread > 0 || activity.needs.length > 0) && <i />}</button><button className={`icon-button ${inspector ? 'active' : ''}`} title="Herramientas del proyecto" aria-label="Herramientas del proyecto" disabled={!workspace} onClick={() => setInspector(inspector ? null : 'context')}><PanelLeftClose size={18} /></button></div>
