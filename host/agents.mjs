@@ -23,6 +23,23 @@ export function cardPanelTitle(cardTitle, max = 80) {
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
 
+// A terminal owns its worktree, so an open Phantom task registered on exactly
+// that worktree identifies the terminal's work. Only never-linked terminals
+// qualify (cardId undefined): an explicit unlink stores '' and is respected.
+// Zero or several candidates bind nothing rather than guessing.
+const CLOSED_TASK = new Set(['completed', 'cancelled']);
+export function autoBindings(nodes, tasks, canonical = p => p) {
+  const open = tasks.filter(t => ['task', 'card'].includes(t.kind) && t.id && !CLOSED_TASK.has(t.status) && t.location?.path && t.raw?.contract?.goal);
+  const bindings = [];
+  for (const node of nodes) {
+    if (node.type !== 'terminal' || node.data?.agent?.cardId !== undefined || !node.data?.worktree?.path) continue;
+    let home; try { home = canonical(node.data.worktree.path); } catch { continue; }
+    const matches = open.filter(t => t.location.path === home);
+    if (matches.length === 1) bindings.push({ nodeId: node.id, cardId: matches[0].id, cardTitle: matches[0].raw.contract.goal.slice(0, 512) });
+  }
+  return bindings;
+}
+
 export function agentContext(workspace, node, session) {
   return {
     nodeId: node.id, name: node.title, workspaceId: workspace.id,

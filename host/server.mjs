@@ -10,7 +10,7 @@ import { Chats, validateChat, validateModel } from './chats.mjs';
 import { Merges } from './merges.mjs';
 import { Branches } from './branches.mjs';
 import { createLimits } from './limits.mjs';
-import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle } from './agents.mjs';
+import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle, autoBindings } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
 
 function publicSettings(settings) {
@@ -211,7 +211,25 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const item={...defaults,...fields,id:randomUUID(),createdAt:new Date().toISOString()};items.push(item);if(items.length>1000 && kind==='attention') items.shift();if(kind==='attention') queueMicrotask(()=>emit({type:'attention.new',workspaceId:w.id,item}));return item;
     });
     if(method==='host.shutdown') {setTimeout(()=>close().catch(error=>console.error(error.message)),30);return {ok:true};}
-    const answer=await routeIntegration(method,p);assert(answer?.handled,`Unknown method: ${method}`);return answer.result;
+    const answer=await routeIntegration(method,p);assert(answer?.handled,`Unknown method: ${method}`);
+    // The full task catalog (no query filter) is what proves a unique match.
+    if(method==='phantom.list'&&p.topic==='tasks'&&!p.query&&answer.result?.available&&Array.isArray(answer.result.items)) autoBind(p.workspaceId,answer.result.items);
+    return answer.result;
+  }
+  function autoBind(workspaceId,tasks) {
+    let w;try{w=store.getWorkspace(workspaceId);}catch{return;}
+    const bindings=autoBindings(w.nodes,tasks,canonicalFolder);
+    if(!bindings.length)return;
+    mutate(w.id,()=>{
+      const current=store.getWorkspace(w.id);
+      for(const {nodeId,cardId,cardTitle} of bindings){
+        // Re-check: the node may have been linked, unlinked or closed meanwhile.
+        const node=current.nodes.find(n=>n.id===nodeId);if(node?.type!=='terminal'||node.data.agent?.cardId!==undefined)continue;
+        if(isDefaultTerminalTitle(node.title)){const named=cardPanelTitle(cardTitle);if(named)node.title=named;}
+        // Keep any progress the agent already reported; only the link is new.
+        node.data.agent={...node.data.agent,cardId,cardTitle};
+      }
+    });
   }
   function close() {
     if(closingPromise)return closingPromise;
