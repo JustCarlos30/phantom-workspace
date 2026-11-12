@@ -7,6 +7,7 @@ import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
 import { ProviderGlyph, ProviderTile } from './Glyphs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
+import { plainMarkdown } from '../hooks/markdownTable.mjs';
 
 export const CARD_MODES = [
   { id: 'claude', key: 'claude', label: 'Claude', hint: 'Conversar con Claude Code en esta carpeta' },
@@ -228,17 +229,18 @@ function groupParts(parts) {
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
 export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
-  if (message.role === 'user') return <div className="pc-message is-user"><p>{message.parts.map(part => part.text).join('\n')}</p></div>;
+  if (message.role === 'user') return <div className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></div>;
   return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} />;
 });
 
 function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
+  const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
   const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
   return <article className={`pc-message is-agent is-${message.status}`}>
     <header className="pc-turn-head"><span className="pc-avatar" aria-hidden="true"><ProviderGlyph provider={provider} size={13} /></span><strong>{label}</strong>{(message.model || model) && <span className="pc-mono">{message.model || model}</span>}<time dateTime={message.createdAt}>{clock(message.createdAt)}</time></header>
-    {groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending'))).map((group, i) => group.type === 'tools'
+    {groups.map((group, i) => group.type === 'tools'
       ? <ul key={i} className="pc-tools" aria-label="Herramientas usadas">{group.items.map(part => <ToolRow key={part.id} part={part} />)}</ul>
       : group.type === 'permission'
         ? <PermissionRow key={group.id} part={group} onAnswer={onAnswer} />
@@ -246,7 +248,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
         ? <QuestionCard key={group.id} part={group} onReply={onReply} />
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
-        : <Markdown key={i} source={group.text} />)}
+        : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
     {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
@@ -449,7 +451,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
         {running && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
-        {lastText && <p className="pt-card-step">{lastText.slice(-240)}</p>}
+        {lastText && <p className="pt-card-step">{plainMarkdown(lastText).slice(-240)}</p>}
       </div>
     </div>;
   }

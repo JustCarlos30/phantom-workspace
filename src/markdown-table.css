@@ -31,3 +31,8 @@
 .md-table-more:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 @media (prefers-reduced-motion: reduce) { .md-table-body::before, .md-table-body::after { transition: none; } }
+
+/* A table still streaming: the header is drawn, the caption breathes. */
+.md-table.is-pending figcaption span { animation: md-table-wait 1.4s ease-in-out infinite; }
+@keyframes md-table-wait { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .md-table.is-pending figcaption span { animation: none; } }
