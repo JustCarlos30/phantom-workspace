@@ -147,13 +147,64 @@ const toolPart = (message, id, name) => {
   return part;
 };
 
+// Delegation: a call to Agent/Task (Claude), task (OpenCode) or spawn_agent
+// (Codex) runs a sub-agent. Its own steps are folded into that call's part as
+// `agent` so the card shows who was delegated, what it is doing and how it
+// ended. Bounded: only the latest steps and an excerpt of its last words stay.
+const MAX_AGENT_STEPS = 40, MAX_AGENT_TEXT = 1200, MAX_AGENT_PROMPT = 2000;
+export const isAgentTool = name => /^(agent|task|spawn_agent)$/i.test(String(name || ''));
+const clipText = (value, max) => String(value ?? '').replace(/\s+$/, '').slice(0, max);
+const agentOf = part => (part.agent ||= { steps: [], total: 0 });
+function describeAgent(part, input) {
+  if (!input || typeof input !== 'object') return;
+  const agent = agentOf(part), type = input.subagent_type ?? input.subagentType ?? input.agent;
+  if (typeof type === 'string' && type) agent.type = type.slice(0, 80);
+  if (typeof input.prompt === 'string' && input.prompt) agent.prompt = clipText(input.prompt, MAX_AGENT_PROMPT);
+  if (typeof input.description === 'string' && input.description) part.detail = clipText(input.description, 240);
+}
+function agentStep(agent, id, name) {
+  let step = agent.steps.find(s => s.id === id);
+  if (!step) {
+    step = { id: String(id), name: String(name || 'tool').slice(0, 120), detail: '', status: 'running' };
+    agent.steps.push(step); agent.total = (agent.total || 0) + 1;
+    if (agent.steps.length > MAX_AGENT_STEPS) agent.steps.splice(0, agent.steps.length - MAX_AGENT_STEPS);
+  }
+  return step;
+}
+// When the delegating call ends, nothing the sub-agent left open keeps spinning.
+export function settleAgent(part, status = part.status) {
+  for (const step of part.agent?.steps || []) if (step.status === 'running') step.status = status === 'running' ? 'running' : status === 'error' ? 'error' : status === 'done' ? 'done' : 'stopped';
+}
+const settleTool = (part, status) => { part.status = status; if (part.agent) settleAgent(part, status); };
+
+// Claude: sub-agent events carry parent_tool_use_id = the Agent call's id.
+function applyClaudeSubagent(turn, event) {
+  const part = turn.message.parts.find(p => p.type === 'tool' && p.id === event.parent_tool_use_id);
+  if (!part || !['assistant', 'user'].includes(event.type)) return false;
+  const agent = agentOf(part);
+  if (event.type === 'assistant') {
+    if (typeof event.message?.model === 'string') agent.model = event.message.model.slice(0, 120);
+    for (const block of event.message?.content || []) {
+      if (block.type === 'text' && block.text) agent.text = clipText(block.text, MAX_AGENT_TEXT);
+      if (block.type === 'tool_use') { const step = agentStep(agent, block.id, block.name); step.detail = toolDetail(block.input, turn.cwd) || step.detail; }
+    }
+    return true;
+  }
+  let changed = false;
+  for (const block of Array.isArray(event.message?.content) ? event.message.content : []) if (block.type === 'tool_result') {
+    const step = agent.steps.find(s => s.id === block.tool_use_id);
+    if (step) { step.status = block.is_error ? 'error' : 'done'; changed = true; }
+  }
+  return changed;
+}
+
 // Reducers: fold one provider event into the turn. Return true when the
-// visible message changed. Sub-agent chatter (parent_tool_use_id) stays hidden.
+// visible message changed. Sub-agent events nest under their delegating call.
 export function applyClaudeEvent(turn, event) {
   const { message } = turn;
   if (event.session_id && (event.type === 'system' && event.subtype === 'init' || event.type === 'result')) turn.sessionId = event.session_id;
   if (event.type === 'system' && event.subtype === 'init' && typeof event.model === 'string') { turn.model = event.model; return true; }
-  if (event.parent_tool_use_id) return false;
+  if (event.parent_tool_use_id) return applyClaudeSubagent(turn, event);
   if (event.type === 'stream_event') {
     const e = event.event || {};
     if (e.type === 'message_start' && e.message?.id) turn.streamed.add(e.message.id);
@@ -171,7 +222,7 @@ export function applyClaudeEvent(turn, event) {
     for (const block of event.message?.content || []) {
       if (block.type === 'text' && !streamed && block.text) appendText(message, block.text, true);
       if (block.type === 'thinking' && !streamed && block.thinking) appendText(message, block.thinking, true, 'thinking');
-      if (block.type === 'tool_use') describeTool(toolPart(message, block.id, block.name), block.name, block.input, turn.cwd);
+      if (block.type === 'tool_use') { const part = toolPart(message, block.id, block.name); describeTool(part, block.name, block.input, turn.cwd); if (isAgentTool(block.name)) describeAgent(part, block.input); }
     }
     return true;
   }
@@ -179,7 +230,7 @@ export function applyClaudeEvent(turn, event) {
     let changed = false;
     for (const block of Array.isArray(event.message?.content) ? event.message.content : []) if (block.type === 'tool_result') {
       const part = message.parts.find(p => p.type === 'tool' && p.id === block.tool_use_id);
-      if (part) { part.status = block.is_error ? 'error' : 'done'; const output = toolOutput(block.content); if (output) part.output = output; changed = true; }
+      if (part) { settleTool(part, block.is_error ? 'error' : 'done'); const output = toolOutput(block.content); if (output) part.output = output; changed = true; }
     }
     return changed;
   }
@@ -194,14 +245,46 @@ export function applyClaudeEvent(turn, event) {
   return false;
 }
 
+const openCodeStatus = status => status === 'completed' ? 'done' : status === 'error' ? 'error' : 'running';
+// OpenCode: the task tool opens a child session; its parts arrive with that
+// session's ID. They belong to the task call that owns the session, or, before
+// the call names it, to the latest task still running.
+function applyOpenCodeChild(turn, event, part) {
+  const tasks = turn.message.parts.filter(p => p.type === 'tool' && isAgentTool(p.name));
+  let owner = tasks.find(p => p.agent?.sessionId === part.sessionID);
+  if (!owner) { owner = tasks.findLast(p => p.status === 'running' && !p.agent?.sessionId); if (owner) agentOf(owner).sessionId = part.sessionID; }
+  if (!owner) return false;
+  const agent = agentOf(owner);
+  if (event.type === 'text' && part.text) { agent.text = clipText(part.text, MAX_AGENT_TEXT); return true; }
+  if (event.type === 'tool_use') {
+    const state = part.state || {}, step = agentStep(agent, part.callID || part.id, part.tool);
+    step.detail = toolDetail(state.input, turn.cwd) || clipText(state.title, 240) || step.detail;
+    step.status = openCodeStatus(state.status);
+    return true;
+  }
+  return false;
+}
+
 export function applyOpenCodeEvent(turn, event) {
   const { message } = turn, part = event.part || {};
   if (typeof event.sessionID === 'string') turn.sessionId = event.sessionID;
+  if (typeof part.sessionID === 'string' && typeof event.sessionID === 'string' && part.sessionID !== event.sessionID) return applyOpenCodeChild(turn, event, part);
   if (event.type === 'text' && part.text) { appendText(message, part.text, true); return true; }
   if (event.type === 'tool_use') {
     const tool = toolPart(message, part.callID || part.id, part.tool), state = part.state || {};
     describeTool(tool, part.tool, state.input, turn.cwd); tool.detail ||= String(state.title || '').slice(0, 240);
-    tool.status = state.status === 'completed' ? 'done' : state.status === 'error' ? 'error' : 'running';
+    if (isAgentTool(part.tool)) {
+      describeAgent(tool, state.input);
+      const meta = state.metadata || {}, agent = agentOf(tool);
+      if (typeof meta.sessionId === 'string') agent.sessionId = meta.sessionId;
+      // The call's own summary lists the child's tools when the stream missed them.
+      for (const item of Array.isArray(meta.summary) ? meta.summary : []) if (item?.id) {
+        const step = agentStep(agent, item.id, item.tool);
+        step.detail ||= clipText(item.state?.title, 240);
+        if (item.state?.status) step.status = openCodeStatus(item.state.status);
+      }
+    }
+    settleTool(tool, openCodeStatus(state.status));
     const output = toolOutput(state.output ?? state.error); if (output) tool.output = output;
     return true;
   }
@@ -240,6 +323,18 @@ export function applyCodexEvent(turn, event) {
     const output = toolOutput(item.aggregated_output || item.error?.message || item.result?.content); if (output) part.output = output;
     return true;
   }
+  // Codex multi-agent: spawn_agent/send_input/wait act on child threads whose
+  // latest state (status + message) is reported on the call itself.
+  if (item.type === 'collab_tool_call') {
+    const tool = String(item.tool || 'spawn_agent'), part = toolPart(turn.message, item.id, tool === 'spawn_agent' ? 'spawn_agent' : `agent:${tool}`.slice(0, 120));
+    const agent = agentOf(part), threads = Array.isArray(item.receiver_thread_ids) ? item.receiver_thread_ids : [];
+    if (typeof item.prompt === 'string' && item.prompt) { agent.prompt = clipText(item.prompt, MAX_AGENT_PROMPT); part.detail ||= clipText(item.prompt.split('\n')[0], 240); }
+    if (threads.length) agent.type = threads.length > 1 ? `${threads.length} hilos` : `hilo ${String(threads[0]).slice(0, 12)}`;
+    const states = item.agents_states && typeof item.agents_states === 'object' ? Object.values(item.agents_states) : [];
+    const said = states.map(s => s?.message).filter(m => typeof m === 'string' && m).at(-1); if (said) agent.text = clipText(said, MAX_AGENT_TEXT);
+    settleTool(part, item.status === 'failed' ? 'error' : event.type === 'item.completed' || item.status === 'completed' ? 'done' : 'running');
+    return true;
+  }
   return false;
 }
 
@@ -269,7 +364,7 @@ export class Chats {
     for (const entry of Object.values(this.nodes)) for (const thread of Object.values(entry.threads || {})) for (const message of thread.messages || []) {
       if (message.status === 'streaming') message.status = 'stopped';
       for (const part of message.parts || []) {
-        if (part.type === 'tool' && part.status === 'running') part.status = 'stopped';
+        if (part.type === 'tool') settleTool(part, part.status === 'running' ? 'stopped' : part.status);
         if ((part.type === 'permission' || part.type === 'question') && part.status === 'pending') part.status = 'cancelled';
       }
       // Waiting messages survive a restart, paused until the user resumes them.
@@ -377,7 +472,7 @@ export class Chats {
       turn.pending.clear();
       if (turn.sessionId) thread.sessionId = turn.sessionId;
       const error = failure || turn.error || (!turn.stopped && code ? turn.stderr.trim().split('\n').slice(-6).join('\n').slice(-1500) || `${definition.label} terminó con código ${code}` : '');
-      for (const part of reply.parts) if (part.type === 'tool' && part.status === 'running') part.status = 'stopped';
+      for (const part of reply.parts) if (part.type === 'tool') settleTool(part, part.status === 'running' ? 'stopped' : part.status);
       reply.status = turn.stopped ? 'stopped' : error ? 'error' : 'done';
       if (error && !turn.stopped) reply.error = error;
       reply.finishedAt = now();
