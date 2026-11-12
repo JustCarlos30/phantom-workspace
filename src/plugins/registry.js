@@ -1,6 +1,7 @@
 import { phantomPlugin } from './phantom.js';
+import { videoLogPlugin } from './videoLog.js';
 
-const registry = new Map([[phantomPlugin.id, phantomPlugin]]);
+const registry = new Map([phantomPlugin, videoLogPlugin].map(plugin => [plugin.id, plugin]));
 export const getPluginDescriptor = id => registry.get(id) || null;
 export const getPluginDescriptors = () => [...registry.values()];
 export function validatePluginSettings(id, value) {

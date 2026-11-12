@@ -7,7 +7,7 @@ import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '
 import { validateReference, validateComments } from './references.mjs';
 
 export const MAX_HISTORY = 256 * 1024;
-export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','command-center','zone','incorporaciones','skills-catalog','branches','repo','reference'];
+export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','video-log','command-center','zone','incorporaciones','skills-catalog','branches','repo','reference'];
 export const dataHome = () => path.resolve(process.env.PHANTOM_WORKSPACE_HOME || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-workspace'));
 export function assert(condition, message) { if (!condition) throw new Error(message); }
 export function object(value) { assert(value && typeof value === 'object' && !Array.isArray(value), 'Expected an object'); return value; }
