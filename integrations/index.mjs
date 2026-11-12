@@ -5,6 +5,7 @@ import { contextScan, contextRead } from './context.mjs';
 import { phantom, shutdownPhantom } from './phantom.mjs';
 import { opencodeSessions } from './opencode.mjs';
 import { plugins } from './plugins.mjs';
+import { skillsCatalog, skillsRead } from './skills.mjs';
 
 export async function shutdownIntegrations() {
   await shutdownPhantom();
@@ -23,6 +24,8 @@ export async function handleIntegration(method, payload = {}, context) {
   else if (['docker.logs', 'docker.action'].includes(method)) result = await dockerOperation(method, payload, context);
   else if (method === 'context.scan') result = await contextScan(payload, context);
   else if (method === 'context.read') result = await contextRead(payload, context);
+  else if (method === 'skills.catalog') result = await skillsCatalog(payload, context);
+  else if (method === 'skills.read') result = await skillsRead(payload, context);
    else if (['plugins.list', 'plugins.update', 'plugins.status', 'plugins.models'].includes(method)) result = await plugins(method, payload, context);
    else if (['phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control'].includes(method)) result = await phantom(method, payload, context);
   else {

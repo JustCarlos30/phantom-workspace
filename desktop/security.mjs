@@ -11,7 +11,7 @@ export const HOST_METHODS = new Set([
   'terminal.agent.update', 'terminal.agent.context', 'terminal.agent.report', 'opencode.sessions',
   'chat.get', 'chat.configure', 'chat.send', 'chat.stop', 'chat.clear', 'chat.models', 'chat.permission.answer',
   'task.create', 'task.update', 'task.remove', 'mission.create', 'mission.update', 'mission.remove',
-  'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read',
+  'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read', 'skills.catalog', 'skills.read',
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',
   'git.inspect', 'services.list', 'services.pin', 'services.remove', 'docker.list', 'docker.logs', 'docker.action',
   'plugins.list', 'plugins.update', 'plugins.status', 'plugins.models',

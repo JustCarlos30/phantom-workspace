@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame } from 'lucide-react';
+import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame, Sparkles } from 'lucide-react';
 import Minimap from './Minimap';
 import TerminalPanelContent from './TerminalPanel';
 import TerminalCardContent from './TerminalCard';
@@ -12,7 +12,7 @@ import { Presence, PresenceGroup } from './Presence';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
 
-const icons = { zone: Frame, terminal: TerminalSquare, browser: Globe, note: StickyNote, plugins: Layers, 'phantom-cards': Layers, 'phantom-skills': Layers };
+const icons = { zone: Frame, terminal: TerminalSquare, browser: Globe, note: StickyNote, plugins: Layers, 'phantom-cards': Layers, 'phantom-skills': Layers, 'skills-catalog': Sparkles };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const editable = isEditingTarget;
 const defaultCamera = { x: 300, y: 84, zoom: 1 };

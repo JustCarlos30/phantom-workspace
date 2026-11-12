@@ -4,10 +4,11 @@ import '../tools.css';
 import { CardAgents } from './AgentIdentity';
 import { PluginPanels, PLUGIN_TITLES } from './PluginPanels';
 import CommandCenter from './CommandCenter.jsx';
+import SkillsCatalog from './SkillsCatalog.jsx';
 import Incorporaciones from './Incorporaciones.jsx';
 
 export const TOOL_TITLES = { tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
-Object.assign(TOOL_TITLES, PLUGIN_TITLES, { 'command-center': 'Centro de mando', incorporaciones: 'Incorporaciones' });
+Object.assign(TOOL_TITLES, PLUGIN_TITLES, { 'command-center': 'Centro de mando', incorporaciones: 'Incorporaciones', 'skills-catalog': 'Skills' });
 const json = value => JSON.stringify(value, null, 2);
 const textValue = (value, fallback = 'Desconocido') => typeof value === 'string' && value.trim() ? value : typeof value === 'number' && Number.isFinite(value) ? String(value) : fallback;
 const message = error => textValue(error?.message, typeof error === 'string' ? error : 'La fuente devolvió un error sin mensaje válido.');
@@ -417,10 +418,10 @@ function Settings({ workspace, state, api, refresh, notify }) {
 export function ToolContent({ type, ...props }) {
   if (PLUGIN_TITLES[type]) return <ToolErrorBoundary key={`${props.workspace?.id}:${type}:${props.node?.id || 'inspector'}`} title={PLUGIN_TITLES[type]}><PluginPanels type={type} {...props} /></ToolErrorBoundary>;
   if (!props.workspace && type !== 'settings') return <div className="tw-empty">Abre una carpeta para usar las herramientas del workspace.</div>;
-  const components = { 'command-center': CommandCenter, incorporaciones: Incorporaciones, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
+  const components = { 'command-center': CommandCenter, incorporaciones: Incorporaciones, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
   const Content = components[type];
   const identity = `${props.workspace?.id || 'host'}:${type}:${props.node?.id || 'inspector'}`;
-  return <div className="tw-content"><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <><Content {...props} />{type === 'context' && <p className="tw-muted">Las revisiones y hashes solo se muestran cuando la fuente los proporciona. Si no aparecen, son desconocidos; la referencia fijada no acredita una revisión verificada.</p>}</> : <p className="tw-empty">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;
+  return <div className={`tw-content${type === 'skills-catalog' ? ' is-flush' : ''}`}><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <><Content {...props} />{type === 'context' && <p className="tw-muted">Las revisiones y hashes solo se muestran cuando la fuente los proporciona. Si no aparecen, son desconocidos; la referencia fijada no acredita una revisión verificada.</p>}</> : <p className="tw-empty">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;
 }
 
 export function ToolPanel({ node, workspace, api, refresh, onOpenPanel, notify, active }) {
