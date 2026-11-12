@@ -99,18 +99,19 @@
 .rp-inc { position: absolute; inset: 0; overflow: auto; padding: 14px 18px; }
 
 /* Graph */
-.rp-graph { position: absolute; inset: 0; overflow: auto; }
-.rp-graph-head, .rp-graph-row { display: grid; grid-template-columns: auto minmax(0, max-content) minmax(120px, 1fr) minmax(70px, 130px) 78px 62px; align-items: center; column-gap: 10px; padding: 0 10px 0 4px; }
+.rp-graph { --rp-dirty: var(--warning); position: absolute; inset: 0; overflow: auto; }
+.rp-graph-head, .rp-graph-row { display: grid; grid-template-columns: var(--graph-width, 78px) minmax(0, 180px) minmax(120px, 1fr) minmax(70px, 130px) 78px 62px; align-items: center; column-gap: 10px; padding: 0 10px 0 4px; }
 .rp-graph-head { position: sticky; top: 0; z-index: 1; height: 24px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .rp-graph-head > span { overflow: hidden; white-space: nowrap; }
 .rp-graph-row { width: 100%; height: 28px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .rp-graph-row:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
 .rp-graph-row.is-selected { background: var(--accent-soft); }
-.rp-graph-row.is-dim { opacity: .3; }
+.rp-graph-row.is-dim > :not(.rp-graph-lanes) { opacity: .3; }
 .rp-graph-row.is-wip .rp-msg { color: var(--rp-dirty); }
 .rp-graph-lanes { display: block; height: 28px; overflow: hidden; }
 .rp-graph-cell { display: block; overflow: visible; }
-.rp-graph-cell path { fill: none; stroke-width: 2; stroke-linecap: round; }
+.rp-graph-cell path { fill: none; stroke-width: 2.5; stroke-linecap: round; }
+.rp-node-initial { fill: var(--bg); font: 700 9px system-ui, sans-serif; pointer-events: none; }
 .rp-msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-merge-icon { margin-right: 5px; color: var(--muted); }
 .rp-author, .rp-date { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11.5px; }
@@ -125,6 +126,19 @@
 .rp-ref.is-dirty, .rp-ref.is-wip { border-style: dashed; border-color: var(--rp-dirty); }
 .rp-ref.is-wip { background: color-mix(in srgb, var(--rp-dirty) 12%, transparent); }
 .rp-ref.is-more { background: var(--surface-2); border-color: var(--line); color: var(--muted); }
+.rp-ref[style] { border-color: color-mix(in srgb, var(--ref-color) 65%, transparent); background: color-mix(in srgb, var(--ref-color) 14%, var(--surface)); }
+.rp-ref-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rp-ref > svg { flex: none; color: var(--ref-color, currentColor); }
+
+/* The same history fits a tray: fixed columns, with dense lanes fitted to their cell. */
+.rp-graph.is-compact { position: relative; inset: auto; overflow: hidden; min-width: 0; font: 11px/1.4 var(--sans, system-ui, sans-serif); background: var(--surface); }
+.rp-graph.is-compact .rp-graph-head, .rp-graph.is-compact .rp-graph-row { grid-template-columns: minmax(24px, min(var(--graph-width), 28%)) minmax(0, .85fr) minmax(0, 1.5fr) 60px; column-gap: 6px; padding: 0 6px 0 4px; }
+.rp-graph.is-compact .rp-graph-head { position: static; font-size: 10px; letter-spacing: 0; }
+.rp-graph.is-compact .rp-graph-cell { max-width: 100%; }
+.rp-graph.is-compact .rp-refs { width: 100%; }
+.rp-graph.is-compact .rp-ref { max-width: 100%; flex-shrink: 0; }
+.rp-graph.is-compact .rp-date { font-size: 10.5px; visibility: visible; }
+.rp-graph.is-compact .rp-msg { font-size: 11px; }
 
 /* File views */
 .rp-file { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
@@ -184,5 +198,5 @@
 .rp-finder { display: grid; gap: 6px; margin-top: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); max-height: 320px; overflow: auto; }
 .rp-commit { display: grid; gap: 8px; padding: 12px 14px 16px; }
 
-@container (max-width: 1100px) { .rp-main { grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(240px, 280px); } .rp-graph-head, .rp-graph-row { grid-template-columns: auto minmax(0, max-content) minmax(100px, 1fr) 0 70px 58px; } .rp-author { visibility: hidden; } }
+@container (max-width: 1100px) { .rp-main { grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(240px, 280px); } .rp-graph-head, .rp-graph-row { grid-template-columns: var(--graph-width, 78px) minmax(0, 140px) minmax(100px, 1fr) 0 70px 58px; } .rp-author { visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .rp-root .spinning { animation: none; } }
