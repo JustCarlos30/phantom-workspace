@@ -165,7 +165,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     const canvas = root.current?.getBoundingClientRect(), area = { left: 0, right: 0, top: 72, bottom: 88 };
     if (!canvas) return area;
     const rail = document.querySelector('.project-rail')?.getBoundingClientRect();
-    if (rail && rail.height > canvas.height / 2) area.left = clamp(rail.right - canvas.left, 0, canvas.width / 2);
+    if (rail && rail.height > 96) area.left = clamp(rail.right - canvas.left, 0, canvas.width / 2);
     const inspector = document.querySelector('.inspector-host')?.getBoundingClientRect();
     if (inspector) area.right = clamp(canvas.right - inspector.left, 0, canvas.width / 2);
     return area;

@@ -181,6 +181,17 @@ Fondo y cards se mueven juntos en tres niveles de atención (bloque final de `sr
 
 Las cards en atención o turno recuperan su halo ámbar, antes anulado por la sombra de reposo. Movimiento reducido elimina las transiciones. Verificación: build de Vite correcto; capturas en Electron real con fixture sintética (mapa, selección, foco, ventana estrecha) sin excepciones del renderer.
 
+## Lienzo (2026-11-11) — geometría vigente del chrome
+
+Carlos pidió que sidebar y barra superior se sientan como un lienzo y no como un dashboard: nada atado a las orillas, cada elemento aporta peso. La capa «Lienzo» de `src/canvas-ui.css` sustituye a la capa acoplada «Proporción y aire» (rail e inspector pegados al borde, barra superior como franja con costura compartida).
+
+- **El canvas va de borde a borde** y el chrome son objetos apoyados sobre él, separados de la ventana por un único hueco `--gutter` de 16 px.
+- **Rail:** objeto de 252 px a 16 px de arriba e izquierda, radio 22, alto según su contenido y como máximo el alto libre (`100% - 32px`); debajo se ve el canvas. Contraído es una píldora de 48 px en el mismo origen.
+- **Fila superior:** sin franja. Título (nombre y ruta) y controles son dos islas de 48 px independientes, radio 16; el espacio entre ellas es canvas y recibe clics/paneo. `--top-clear` (80 px) es la primera línea libre bajo esa fila.
+- **Inspector:** contrapeso del rail, cuelga bajo los controles (`top: --top-clear`), inset 16 px por los cuatro lados, radio 22.
+- **Peso:** tamaño más elevación. Rail e inspector usan `--object-heavy` (sombra larga y difusa con desplazamiento); título, controles y píldora `--object-light` (`--elev-2`); popovers siguen en `--elev-3`. Una hairline al 8 % define el borde del vidrio.
+- Con inspector abierto, zoom y minimapa se apilan sobre el dock. El encuadre (`safeArea` en `Canvas.jsx`) evita el rail cuando mide más de 96 px, ya no según la mitad del alto.
+
 ## Jerarquía de sidebar (2026-11-11)
 
 `src/sidebar.css`, cargado después de la capa canvas, refina el rail conservando vidrio nocturno. El proyecto actual es el ancla: nombre y ruta en un selector desplegable con recientes y Abrir carpeta. A continuación, Actividad del proyecto destaca en ámbar solo cuando las fuentes existentes declaran intervenciones. Espacios precede a dos grupos estables, Sesiones (terminales con estado de fuente) y Recursos (resto de paneles), dentro de una región desplazable. No se reordenan las sesiones al cambiar de estado. Ver todo el mapa permanece al pie de la navegación; Plugins y Comandos son utilidades secundarias; Apariencia y Configuración son controles compactos junto al estado del host. Las acciones de enfocar se revelan con hover o foco de teclado y permanecen visibles en dispositivos sin hover.

@@ -774,76 +774,89 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 }
 
 /* =====================================================================
-   Proporción y aire (2026-11-11)
-   Fewer boxes. The rail and inspector are docked planes that meet the window
-   edge; the top bar is one strip that shares a single seam with the rail.
-   Only things that genuinely float over the canvas (dock, view controls,
-   minimap, popovers) stay islands. Inside a plane, grouping is spacing and
-   hairlines — never another bordered box.
+   Lienzo (2026-11-11)
+   Nothing is bolted to the window. The canvas runs edge to edge and every
+   piece of chrome is an object resting on it: inset by one gap, sized by its
+   content, lifted by one shadow. Weight is size plus elevation — the rail and
+   inspector are the heaviest objects, title and controls lighter, popovers
+   lightest but highest. Supersedes the docked "Proporción y aire" layer.
    ===================================================================== */
-:root { --bar: 52px; }
+:root {
+  --gutter: 16px;
+  --bar: 48px;                                   /* height of a top-row island */
+  --top-clear: calc(var(--gutter) * 2 + var(--bar)); /* first free line under the top row */
+  --object-edge: var(--hairline);
+  --object-heavy: 0 1px 2px #0004, 0 22px 48px -18px #000d, 0 48px 96px -40px #0009;
+  --object-light: var(--elev-2);
+}
 
 @media (min-width: 851px) {
-  /* Rail: a docked plane, not a floating card. */
+  /* Rail: an object, not a column. It grows with what the project holds and
+     stops one gap short of the bottom edge; the canvas shows beneath it. */
   .app-shell:not(.rail-collapsed) .project-rail {
-    left: 0; top: 0; bottom: 0; width: var(--rail-width); height: auto; margin: 0;
-    padding: 0 12px 12px; border: 0; border-right: 1px solid var(--hairline); border-radius: 0;
-    box-shadow: none;
+    left: var(--gutter); top: var(--gutter); bottom: auto; height: auto; margin: 0;
+    max-height: calc(100% - var(--gutter) * 2); width: var(--rail-width);
+    padding: 4px 10px 10px; border: 1px solid var(--object-edge); border-radius: var(--r-xl);
+    box-shadow: var(--object-heavy);
   }
-  /* Brand row is exactly the top bar's height, so the two share one seam. */
-  .app-shell:not(.rail-collapsed) .brand {
-    height: var(--bar); flex-shrink: 0; margin: 0 -12px 16px; padding: 0 12px 0 18px;
-    border-bottom: 1px solid var(--hairline);
-  }
-  /* Collapsed: the rail shrinks to its top cell, still part of the bar. */
-  .rail-collapsed .project-rail {
-    left: 0; top: 0; bottom: auto; width: var(--rail-width); max-width: none; height: var(--bar); margin: 0;
-    padding: 0 10px 0 12px; border: 0; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
-    border-radius: 0; box-shadow: none;
-  }
-  .rail-collapsed .rail-collapsed-project { flex: 1; min-width: 0; }
+  .app-shell:not(.rail-collapsed) .brand { height: 48px; flex-shrink: 0; margin: 0 0 8px; padding: 0 2px 0 6px; border: 0; }
 
-  /* Top bar: one strip. Its children are regions, not islands. */
+  /* Collapsed: the rail folds into a pill that sits where the rail began. */
+  .rail-collapsed .project-rail {
+    left: var(--gutter); top: var(--gutter); bottom: auto; height: var(--bar); width: auto; max-width: 340px; margin: 0;
+    padding: 0 8px; border: 1px solid var(--object-edge); border-radius: var(--r-lg); box-shadow: var(--object-light);
+  }
+
+  /* Top row: no strip. Title and controls are two separate objects; the space
+     between them is canvas, and it takes clicks and pans like canvas. */
   .workspace-header, .rail-collapsed .workspace-header {
-    top: 0; left: var(--rail-width); right: 0; height: var(--bar); min-height: var(--bar);
-    padding: 0 8px 0 0; gap: 0; pointer-events: auto;
-    background: var(--glass); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
-    border-bottom: 1px solid var(--hairline);
+    top: var(--gutter); left: calc(var(--gutter) * 2 + var(--rail-width)); right: var(--gutter);
+    height: var(--bar); min-height: var(--bar); padding: 0; gap: 8px;
+    background: transparent; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; pointer-events: none;
   }
-  .workspace-identity, .activity-notch, .header-controls, .focus-return {
-    height: 100%; min-height: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
-    -webkit-backdrop-filter: none; backdrop-filter: none;
+  .rail-collapsed .workspace-header { left: var(--gutter); }
+  .workspace-identity, .header-controls {
+    height: var(--bar); border: 1px solid var(--object-edge); border-radius: var(--r-lg); box-shadow: var(--object-light);
   }
-  .workspace-identity { padding: 0 20px; max-width: 40%; }
-  .activity-notch { padding: 0 20px; border-left: 1px solid var(--hairline); }
-  .activity-notch:hover, .activity-notch[aria-expanded=true] { background: var(--fill); border-color: var(--hairline); }
-  .header-controls { padding: 0; }
-  /* The rail already names the project; the bar keeps name + path, not a fake breadcrumb. */
+  .workspace-identity { padding: 0 18px; max-width: min(44%, 520px); }
+  .header-controls { padding: 0 8px; }
+  /* The rail already names the project; the title keeps name + path, not a fake breadcrumb. */
   .workspace-identity .breadcrumb > svg, .workspace-identity .breadcrumb > span { display: none; }
 
-  /* Focus mode: the return control lives in the same strip. */
-  .studio-focused:not(.rail-collapsed) .canvas-region { left: var(--rail-width); }
-  .focus-return { top: 0; left: 0; height: var(--bar); max-width: 340px; padding: 0 20px; z-index: 29; }
+  /* Focus mode: the stage starts one gap after the rail and stops before the inspector. */
+  .studio-focused:not(.rail-collapsed) .canvas-region { left: calc(var(--gutter) * 2 + var(--rail-width) - 12px); }
+  .studio-focused.studio-inspector-open .canvas-region { right: calc(var(--gutter) * 2 + var(--inspector-width) - 12px); }
+  .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 1px solid var(--object-edge); border-radius: var(--r-lg); box-shadow: var(--object-light); z-index: 29; }
 
-  /* Inspector: docked to the right edge under the bar, mirroring the rail. */
+  /* Inspector: the rail's counterweight. It hangs under the controls it was
+     opened from, inset on every side. */
   .inspector-host {
-    top: var(--bar); right: 0; bottom: 0; width: var(--inspector-width);
-    border: 0; border-left: 1px solid var(--hairline); border-radius: 0; box-shadow: none;
+    top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); width: var(--inspector-width);
+    border: 1px solid var(--object-edge); border-radius: var(--r-xl); box-shadow: var(--object-heavy);
   }
-  .studio-focused.studio-inspector-open .canvas-region { right: var(--inspector-width); }
-  .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--inspector-width) + var(--gutter)); }
+  .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--inspector-width) + var(--gutter) * 2); }
+  .studio-focused.studio-inspector-open :is(.canvas-navigation, .canvas-popover) { right: var(--gutter); }
 
-  /* Overlays that measured from the old floating bar. */
-  .canvas-busy, .connection-error { top: calc(var(--bar) + var(--gutter)); }
-  .attention-tray { top: calc(var(--bar) + 8px); }
+  /* Overlays measured from the top row. */
+  .canvas-busy, .connection-error { top: var(--top-clear); }
+  .attention-tray { top: calc(var(--top-clear) - 8px); }
 
-  /* Centre floating chrome on the free canvas. */
+  /* Centre floating chrome on the canvas the objects leave free. */
   .app-shell:not(.rail-collapsed) .create-dock,
-  .app-shell:not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100%) / 2); }
+  .app-shell:not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
   .studio-inspector-open:not(.rail-collapsed) .create-dock,
   .studio-inspector-open:not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
   .studio-inspector-open.rail-collapsed .create-dock,
-  .studio-inspector-open.rail-collapsed .tool-picker { left: calc((100% - var(--inspector-width)) / 2); }
+  .studio-inspector-open.rail-collapsed .tool-picker { left: calc((100% - var(--inspector-width) - var(--gutter)) / 2); }
+}
+@media (max-width: 850px) {
+  .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0; background: transparent; border: 0; pointer-events: none; }
+  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 1px solid var(--object-edge); border-radius: var(--r-lg); box-shadow: var(--object-light); background: var(--island); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+  .workspace-header > .rail-toggle { width: var(--bar); flex-shrink: 0; }
+  .header-controls { padding: 0 6px; }
+  .inspector-host { top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); left: var(--gutter); border-radius: var(--r-xl); }
+  .project-rail { top: var(--gutter); left: var(--gutter); height: calc(100% - var(--gutter) * 2); border-radius: var(--r-xl); }
+  .panel-index-button { top: var(--top-clear); left: var(--gutter); }
 }
 
 /* Rail rows: one quiet list. No filled tile for an action that is not a selection. */
@@ -871,7 +884,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 }
 .activity-dock.activity-open { z-index: 46; }
 @media (min-width: 851px) {
-  .app-shell:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100%) / 2); }
+  .app-shell:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
   .app-shell.studio-inspector-open:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
   .app-shell.studio-inspector-open.rail-collapsed { --dock-x: calc((100% - var(--inspector-width)) / 2); }
   .app-shell.studio-focused :is(.create-dock, .tool-picker) { left: 50%; }
@@ -895,7 +908,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 .activity-tray {
   top: auto; right: auto; bottom: calc(var(--gutter) + 100px);
   left: clamp(min(50%, 299px), var(--dock-x), calc(100% - min(50%, 299px))); transform: translateX(-50%);
-  max-height: calc(100dvh - var(--bar) - var(--gutter) - 112px);
+  max-height: calc(100dvh - var(--top-clear) - 112px);
 }
 .activity-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--hairline); }
 .activity-tray .activity-filters button { background: none; color: var(--muted); }
@@ -1028,4 +1041,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 
 @media (prefers-reduced-motion: reduce) {
   .canvas-node, .canvas-zone { transition: none; }
+}
+
+/* Lienzo: inspector-open stacking must win over the shared bottom-row baseline above. */
+@media (min-width: 851px) {
+  .studio-inspector-open:not(.studio-focused) .canvas-navigation { bottom: calc(var(--gutter) + 108px); }
+  .studio-inspector-open:not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: calc(var(--gutter) + 108px + 56px); }
 }
