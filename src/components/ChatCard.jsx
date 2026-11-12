@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, Gauge, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
@@ -67,12 +67,14 @@ export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault(); event.stopPropagation();
     if (disabled || choosing.current) return;
+    const count = CARD_MODES.length;
     const index = CARD_MODES.findIndex(mode => mode.id === active);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? 2 : 1)) % 3;
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? count - 1 : 1)) % count;
     event.currentTarget.querySelectorAll('button')[next]?.focus();
     choose(CARD_MODES[next].id);
   };
-  return <div className="pc-modes" style={{ '--mode-index': CARD_MODES.findIndex(mode => mode.id === active) }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+  const activeMode = CARD_MODES.find(mode => mode.id === active) || CARD_MODES[0];
+  return <div className="pc-modes" data-active={activeMode.key} style={{ '--mode-index': CARD_MODES.indexOf(activeMode), '--mode-count': CARD_MODES.length }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
     {CARD_MODES.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
   </div>;
 }
@@ -264,9 +266,12 @@ export function ReasoningPicker({ node, workspace, api, notify, provider, disabl
     catch (error) { setValue(selected); notify?.(error.message, 'error'); }
   };
   const label = provider === 'opencode' ? 'Variant' : 'Effort';
-  return <label className="pc-reasoning"><span>{label}</span>{provider === 'opencode'
-    ? <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="predeterminado" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
-    : <select aria-label={`Effort de ${provider}`} value={selected} disabled={disabled} onChange={e => save(e.target.value)}><option value="">predeterminado</option>{(EFFORTS[provider] || []).map(effort => <option key={effort} value={effort}>{effort}</option>)}</select>}</label>;
+  return <label className={`pc-reasoning ${(provider === 'opencode' ? value : selected) ? '' : 'is-empty'}`} data-disabled={disabled || undefined}>
+    <Gauge size={12} aria-hidden="true" /><span className="pc-reasoning-label">{label}</span>
+    {provider === 'opencode'
+      ? <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="auto" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
+      : <><select aria-label={`Effort de ${provider}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" value={selected} disabled={disabled} onChange={e => save(e.target.value)}><option value="">auto</option>{(EFFORTS[provider] || []).map(effort => <option key={effort} value={effort}>{effort}</option>)}</select><ChevronDown size={11} aria-hidden="true" /></>}
+  </label>;
 }
 
 export function ContextMeter({ meta }) {
@@ -280,9 +285,35 @@ export function ContextMeter({ meta }) {
   </span>;
 }
 
+// Messages written while the agent works, sent one by one when it finishes.
+// A stopped or failed reply pauses the line until the user resumes it.
+export function QueuedMessages({ queue, running, connected = true, unqueue, resume, onEdit, notify }) {
+  const [busy, setBusy] = useState(false);
+  if (!queue?.length) return null;
+  const act = async action => { setBusy(true); try { return await action(); } catch (e) { notify?.(e.message, 'error'); } finally { setBusy(false); } };
+  const paused = !running;
+  return <section className={`pc-queue ${paused ? 'is-paused' : ''}`} aria-label="Mensajes en espera">
+    <header>
+      <span>{paused ? 'En pausa' : 'En espera'} · {queue.length} {queue.length === 1 ? 'mensaje' : 'mensajes'}</span>
+      {paused && <button type="button" disabled={busy || !connected} onClick={() => act(() => resume())}><ArrowUp size={12} aria-hidden="true" />Reanudar</button>}
+    </header>
+    <ol>
+      {queue.map((item, index) => <li key={item.id}>
+        <span className="pc-queue-num" aria-hidden="true">{index + 1}</span>
+        <p title={item.text}>{item.text}</p>
+        {paused && index > 0 && <button type="button" className="pc-icon" disabled={busy || !connected} title="Enviar este ahora" aria-label="Enviar este mensaje ahora" onClick={() => act(() => resume(item.id))}><ArrowUp size={13} /></button>}
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Editar" aria-label="Sacar de la cola para editar" onClick={() => act(async () => { const { text } = await unqueue(item.id); onEdit?.(text); })}><Pencil size={13} /></button>
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Quitar" aria-label="Quitar de la cola" onClick={() => act(() => unqueue(item.id))}><X size={13} /></button>
+      </li>)}
+    </ol>
+  </section>;
+}
+// Pulls a queued message back into the composer without losing what was typed.
+export const withEdited = text => value => value.trim() ? `${text}\n\n${value}` : text;
+
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
-  const { chat, error, send, stop, clear, answer, reply } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
+  const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
@@ -304,7 +335,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   }, [draft, focused, overview]);
   const submit = async () => {
     const text = draft.trim();
-    if (!text || running || sending || !connected) return;
+    if (!text || sending || !connected) return;
     setSending(true); pinned.current = true;
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
@@ -348,19 +379,23 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
+      <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
-        <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo…` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
-        <div className="pc-status">
-          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
-          <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
-          <ContextMeter meta={meta} />
-          {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
-          <span className="pc-bar-space" />
-          <kbd className="pc-hint">{running ? 'respondiendo' : '↵ enviar · ⇧↵ línea'}</kbd>
-          {running
-            ? <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>
-            : <button type="submit" className="pc-send" title="Enviar · Enter" aria-label="Enviar mensaje" disabled={!draft.trim() || sending || !connected}><ArrowUp size={15} /></button>}
+        <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+        <div className="pc-controls">
+          <div className="pc-settings">
+            <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
+            <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
+          </div>
+          {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}
+          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={15} /></button>}
         </div>
+      </div>
+      <div className="pc-meta">
+        <ContextMeter meta={meta} />
+        {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
+        <span className="pc-bar-space" />
+        <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>
       </div>
     </form>
   </div>;

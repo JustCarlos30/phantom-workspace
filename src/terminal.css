@@ -10,6 +10,7 @@
   --pt-idle: var(--muted);
   --hue-claude: var(--accent);
   --hue-opencode: var(--c-mint);
+  --hue-codex: var(--c-sky);
   --hue-agent: var(--c-iris);
   --hue-shell: var(--muted);
 }

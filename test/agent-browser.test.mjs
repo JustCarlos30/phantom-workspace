@@ -63,6 +63,26 @@ test('private RPC binds a capability to a live terminal, workspace and restricte
   const descriptor = privateJSON(endpointFile(dataDir)); assert.equal(descriptor.socketPath, bridge.socketPath);
 });
 
+test('a chat card turn authenticates like a live terminal, and only while it runs', async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'phantom-browser-chat-'));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  const workspaceId = randomUUID(), sessionId = randomUUID(), nodeId = randomUUID();
+  const capability = provisionBrowserTerminal(dataDir, { workspaceId, sessionId, nodeId });
+  let turn = true; const asked = [];
+  const bridge = await startAgentBrowser({ dataDir, emit() {}, focusWindow() {}, getManager: () => null,
+    hostInvoke: async (method, payload) => {
+      if (method === 'terminal.list') return [];
+      if (method === 'chat.browser.active') { asked.push(payload); return { active: turn && payload.sessionId === sessionId && payload.nodeId === nodeId }; }
+      if (method === 'state.get') return { activeWorkspaceId: workspaceId, workspaces: [{ id: workspaceId, nodes: [] }] };
+      throw new Error('unexpected RPC');
+    } });
+  t.after(() => bridge.close());
+  const client = createBrowserClient({ env: capability.env });
+  assert.equal((await client.invoke('context')).sessionId, sessionId);
+  assert.deepEqual(asked.at(-1), { workspaceId, sessionId, nodeId });
+  turn = false; await assert.rejects(client.invoke('context'), /no activa/);
+});
+
 test('artifacts are bounded, private and reject symlink escapes and oversized captures', async t => {
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'phantom-browser-artifacts-'));
   t.after(() => fs.rm(dataDir, { recursive: true, force: true }));

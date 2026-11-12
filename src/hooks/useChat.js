@@ -33,7 +33,9 @@ export function useChat({ workspaceId, nodeId, provider, api, connected = true }
   const send = useCallback(text => call('chat.send', { text }), [call]);
   const stop = useCallback(() => call('chat.stop'), [call]);
   const clear = useCallback(() => call('chat.clear'), [call]);
+  const unqueue = useCallback(id => call('chat.queue.remove', { id }), [call]);
+  const resume = useCallback(id => call('chat.queue.send', { id }), [call]);
   const answer = useCallback((requestId, decision) => call('chat.permission.answer', { requestId, decision }), [call]);
   const reply = useCallback((requestId, answers) => call('chat.question.answer', { requestId, answers }), [call]);
-  return { chat, error, send, stop, clear, answer, reply };
+  return { chat, error, send, stop, clear, answer, reply, unqueue, resume };
 }

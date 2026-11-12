@@ -70,8 +70,11 @@ export async function startAgentBrowser({ dataDir, hostInvoke, getManager, emit,
     const capability = privateJSON(credentialFile(dataDir, request.sessionId));
     const a = Buffer.from(typeof request.token === 'string' ? request.token : ''), b = Buffer.from(capability.token);
     if (a.length !== b.length || !timingSafeEqual(a, b) || capability.workspaceId !== request.workspaceId) throw new Error('Acceso browser no autorizado');
+    // A live PTY, or a chat card (Claude/OpenCode/Codex) with a turn in progress.
     const sessions = await hostInvoke('terminal.list', { workspaceId: request.workspaceId });
-    if (!sessions.some(s => s.id === request.sessionId && s.nodeId === capability.nodeId && s.status === 'running')) throw new Error('Terminal browser no activa');
+    const live = sessions.some(s => s.id === request.sessionId && s.nodeId === capability.nodeId && s.status === 'running')
+      || (await hostInvoke('chat.browser.active', { workspaceId: request.workspaceId, sessionId: request.sessionId, nodeId: capability.nodeId }).catch(() => null))?.active === true;
+    if (!live) throw new Error('Terminal browser no activa');
     const state = await hostInvoke('state.get');
     const workspace = state.workspaces.find(w => w.id === request.workspaceId);
     if (!workspace || state.activeWorkspaceId !== workspace.id) throw new Error('El navegador requiere el proyecto activo de la terminal');

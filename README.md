@@ -89,7 +89,7 @@ La edición nativa avanzada de cards/skills/decisiones utiliza formularios JSON 
 
 ## Navegador del agente y automatización
 
-En una **terminal nueva creada por Phantom**, el agente descubre `PHANTOM_BROWSER_CLI`, `PHANTOM_BROWSER_ENDPOINT`, `PHANTOM_BROWSER_SESSION` y `PHANTOM_BROWSER_WORKSPACE`. La capacidad privada `PHANTOM_BROWSER_TOKEN` se hereda solo en esa terminal; no debe copiarse a prompts, logs ni archivos del proyecto. Con la ventana abierta y ese proyecto activo:
+En una **terminal nueva creada por Phantom**, el agente descubre `PHANTOM_BROWSER_CLI`, `PHANTOM_BROWSER_ENDPOINT`, `PHANTOM_BROWSER_SESSION` y `PHANTOM_BROWSER_WORKSPACE`. La capacidad privada `PHANTOM_BROWSER_TOKEN` se hereda solo en esa terminal; no debe copiarse a prompts, logs ni archivos del proyecto. Las **cards en modo chat** (Claude · OpenCode · Codex) y el chat de Phantom reciben el mismo puente en cada turno: una identidad estable por card (sus paneles se reutilizan entre turnos) y una capacidad que solo vale mientras el turno está en curso y se revoca al terminar. Con la ventana abierta y ese proyecto activo:
 
 ```sh
 node "$PHANTOM_BROWSER_CLI" help

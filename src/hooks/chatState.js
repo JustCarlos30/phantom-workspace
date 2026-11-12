@@ -7,7 +7,7 @@ export function mergeChat(chat, event) {
     const index = messages.findIndex(m => m.id === message.id);
     if (index >= 0) messages[index] = message; else messages.push(message);
   }
-  return { ...chat, running: event.running, meta: event.meta ?? chat.meta, messages };
+  return { ...chat, running: event.running, meta: event.meta ?? chat.meta, messages, queue: event.queue ?? chat.queue ?? [] };
 }
 
 // Compact readings for the card's status line. Values come from the provider;

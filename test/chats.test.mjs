@@ -46,6 +46,32 @@ test('Codex launches, resumes and persists independent effort settings through h
   assert.ok(providerArgs('claude', { message: 'x', reasoning: 'max' }).includes('--effort'));
   assert.ok(providerArgs('opencode', { message: 'x', reasoning: 'custom-variant' }).includes('--variant'));
 });
+test('chat turns get the canvas browser bridge: stable per card, live only while the turn runs', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-chat-browser-'));
+  const bin = fixture(root, 'codex', `const fs=require('fs'),path=require('path');process.stdin.resume();process.stdin.on('end',()=>{const e=process.env,cred=path.join(path.dirname(e.PHANTOM_BROWSER_ENDPOINT||'/x'),'browser-terminals',(e.PHANTOM_BROWSER_SESSION||'x')+'.json');const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'thread-1'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:JSON.stringify({cli:e.PHANTOM_BROWSER_CLI,session:e.PHANTOM_BROWSER_SESSION,workspace:e.PHANTOM_BROWSER_WORKSPACE,token:Boolean(e.PHANTOM_BROWSER_TOKEN),shims:(e.PATH||'').split(':')[0]===e.PHANTOM_BROWSER_SHIMS,credential:fs.existsSync(cred),cred})}});setTimeout(()=>out({type:'turn.completed',usage:{input_tokens:1,output_tokens:1}}),300);});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  const w = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  const sessions = [];
+  for (let i = 0; i < 2; i++) {
+    await host.invoke('chat.send', { ...ref, text: 'hola' });
+    let reply;
+    await until(async () => { const part = (await host.invoke('chat.get', ref)).messages.at(-1).parts[0]; reply = part?.text && JSON.parse(part.text); return reply; });
+    assert.ok(reply.cli && reply.token && reply.shims && reply.credential, 'bridge env and capability present during the turn');
+    assert.equal(reply.workspace, w.id);
+    assert.equal((await host.invoke('chat.browser.active', { ...ref, sessionId: reply.session })).active, true);
+    assert.equal((await host.invoke('chat.browser.active', { ...ref, sessionId: 'other' })).active, false);
+    await until(async () => !(await host.invoke('chat.get', ref)).running);
+    assert.equal((await host.invoke('chat.browser.active', { ...ref, sessionId: reply.session })).active, false);
+    assert.equal(fs.existsSync(reply.cred), false, 'capability revoked when the turn ends');
+    sessions.push(reply.session);
+  }
+  assert.equal(sessions[0], sessions[1], 'one browser identity per card, so its panels are reused');
+});
+
 // Stand-in agent CLIs: executables that print a recorded event stream.
 function fixture(dir, name, body) {
   const file = path.join(dir, name);
@@ -130,7 +156,6 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   await assert.rejects(host.invoke('chat.send', { ...ref, text: '   ' }), /mensaje/);
 
   await host.invoke('chat.send', { ...ref, text: 'hola' });
-  await assert.rejects(host.invoke('chat.send', { ...ref, text: 'otra' }), /respondiendo/);
   await idle();
   let chat = await host.invoke('chat.get', ref);
   assert.equal(chat.sessionId, 'sid-1'); assert.deepEqual(chat.messages.map(m => [m.role, m.status]), [['user', 'done'], ['assistant', 'done']]);
@@ -231,4 +256,40 @@ test('the project\'s Phantom chat runs in the project folder with its identity, 
   // The permission switch is stored with the thread.
   await host.invoke('chat.configure', { ...ref, autoApprove: true });
   assert.equal((await host.invoke('chat.get', ref)).autoApprove, true);
+});
+
+test('messages written while the agent works wait their turn; a stop pauses the line', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-queue-'));
+  const claude = fixture(root, 'claude', `const out=o=>process.stdout.write(JSON.stringify(o)+"\\n");let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{
+    out({type:'system',subtype:'init',session_id:'sid-q'});
+    if(input.startsWith('cuelga')){setInterval(()=>{},1000);return;}
+    setTimeout(()=>{out({type:'assistant',message:{id:'m-'+input,content:[{type:'text',text:'eco:'+input}]}});out({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'sid-q'});},150);});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await host.invoke('settings.update', { patch: { claudePath: claude } });
+  const w = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude' } } });
+  const ref = { workspaceId: w.id, nodeId: node.id }, get = () => host.invoke('chat.get', ref);
+  const replies = async () => (await get()).messages.filter(m => m.role === 'assistant').map(m => m.parts[0]?.text);
+
+  assert.equal((await host.invoke('chat.send', { ...ref, text: 'uno' })).queued, undefined);
+  assert.equal((await host.invoke('chat.send', { ...ref, text: 'dos' })).queued, true);
+  const { id: dropped } = await host.invoke('chat.send', { ...ref, text: 'sobra' });
+  await host.invoke('chat.send', { ...ref, text: 'tres' });
+  assert.deepEqual((await get()).queue.map(item => item.text), ['dos', 'sobra', 'tres']);
+  assert.equal((await host.invoke('chat.queue.remove', { ...ref, id: dropped })).text, 'sobra');
+  await until(async () => { const chat = await get(); return !chat.running && !chat.queue.length; });
+  assert.deepEqual(await replies(), ['eco:uno', 'eco:dos', 'eco:tres']);
+
+  // Stopping pauses whatever waits; resuming can pick which one goes first.
+  await host.invoke('chat.send', { ...ref, text: 'cuelga' });
+  await host.invoke('chat.send', { ...ref, text: 'cuatro' });
+  const { id: first } = await host.invoke('chat.send', { ...ref, text: 'cinco' });
+  await host.invoke('chat.stop', ref);
+  await until(async () => !(await get()).running);
+  await new Promise(r => setTimeout(r, 100));
+  assert.deepEqual((await get()).queue.map(item => item.text), ['cuatro', 'cinco']);
+  await host.invoke('chat.queue.send', { ...ref, id: first });
+  await until(async () => { const chat = await get(); return !chat.running && !chat.queue.length; });
+  assert.deepEqual((await replies()).slice(-2), ['eco:cinco', 'eco:cuatro']);
 });

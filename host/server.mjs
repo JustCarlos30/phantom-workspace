@@ -112,6 +112,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id,launchState:'ready',launchError:''};return current;}); return {session,node};
     }
     if(method==='terminal.list') {store.getWorkspace(p.workspaceId);return terminals.sessions.filter(s=>s.workspaceId===p.workspaceId).map(s=>terminals.descriptor(s));}
+    // Browser bridge: is this chat card's capability backed by a live turn? Desktop-only, not renderer IPC.
+    if(method==='chat.browser.active') {store.getWorkspace(p.workspaceId);return chats.browserActive(p);}
     if(method==='terminal.agent.context' || method==='terminal.agent.report') {
       const session=terminals.get(p.sessionId),w=store.getWorkspace(session.workspaceId),node=w.nodes.find(n=>n.id===session.nodeId);
       assert(node?.type==='terminal','Terminal node not found');
@@ -160,7 +162,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     // Plan quotas of the signed-in agent CLIs: percentages only, never tokens.
     if(method==='limits.read') return limits.read({force:p.force===true});
     if(method==='chat.permission.request') return chats.requestPermission(p);
-    if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.models','chat.permission.answer','chat.question.answer'].includes(method)) {
+    if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.queue.remove','chat.queue.send','chat.models','chat.permission.answer','chat.question.answer'].includes(method)) {
       const w=store.getWorkspace(p.workspaceId),main=p.nodeId===Chats.mainId(w),node=main?chats.mainNode(w):w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Chat card not found');
       // The project's Phantom conversation keeps its settings in the chat store.
@@ -169,6 +171,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='chat.send') return chats.send(w,node,p.text);
       if(method==='chat.stop') return chats.stop(node.id);
       if(method==='chat.clear') return chats.clear(w,node);
+      if(method==='chat.queue.remove') return chats.removeQueued(w,node,p.id);
+      if(method==='chat.queue.send') return chats.sendQueued(w,node,p.id);
       if(method==='chat.models') return chats.models(node);
       if(method==='chat.permission.answer') return chats.answerPermission(node,p.requestId,p.decision);
       if(method==='chat.question.answer') return chats.answerQuestion(node,p.requestId,p.answers===undefined?null:p.answers);
@@ -233,7 +237,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};
-      const priority=new Set(['terminal.attach','terminal.setup.retry','terminal.write','terminal.stop','terminal.close','terminal.resize','chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.permission.answer','chat.question.answer','state.get','system.info','host.shutdown']);
+      const priority=new Set(['terminal.attach','terminal.setup.retry','terminal.write','terminal.stop','terminal.close','terminal.resize','chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.queue.remove','chat.queue.send','chat.permission.answer','chat.question.answer','state.get','system.info','host.shutdown']);
       function dispatch(lane) {
         while(!socket.destroyed&&active[lane]<8&&queues[lane].length) {
           const {request,bytes}=queues[lane].shift();active[lane]++;

@@ -7,6 +7,7 @@ import { atomicJSON, assert, text } from './store.mjs';
 import { permissionDecision } from './chat-permissions.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
+import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
 
 // Chat cards drive an agent CLI headlessly, one process per turn, and render
 // its structured event stream. No PTY is involved: the conversation lives in
@@ -16,7 +17,7 @@ export const CHAT_PROVIDERS = {
   opencode: { label: 'OpenCode', bin: 'opencode', setting: 'opencodePath' },
   codex: { label: 'Codex', bin: 'codex', setting: 'codexPath' },
 };
-const MAX_MESSAGES = 400, MAX_PART = 200_000, MAX_OUTPUT = 6000, MAX_LINE = 8 * 1024 * 1024, MAX_TURNS = 16;
+const MAX_QUEUE = 20, MAX_MESSAGES = 400, MAX_PART = 200_000, MAX_OUTPUT = 6000, MAX_LINE = 8 * 1024 * 1024, MAX_TURNS = 16;
 
 // A model is passed to the CLI as an argument: an identifier, never a flag.
 export function validateModel(model) {
@@ -237,6 +238,8 @@ export class Chats {
         if (part.type === 'tool' && part.status === 'running') part.status = 'stopped';
         if ((part.type === 'permission' || part.type === 'question') && part.status === 'pending') part.status = 'cancelled';
       }
+      // Waiting messages survive a restart, paused until the user resumes them.
+      thread.queue = Array.isArray(thread.queue) ? thread.queue.filter(item => typeof item?.id === 'string' && typeof item.text === 'string' && item.text.trim()).slice(0, MAX_QUEUE) : [];
     }
     this.gates = new Map();
     this.timer = setInterval(() => { if (this.dirty) this.save(); }, 2000); this.timer.unref();
@@ -247,15 +250,73 @@ export class Chats {
     return entry.threads[provider] ??= { sessionId: null, messages: [] };
   }
   running(nodeId) { return this.turns.has(nodeId); }
+  // The canvas browser bridge, for chat cards as for PTYs. One stable identity
+  // per card so its preview panels survive across turns; the capability itself
+  // lives only while a turn runs (written at spawn, revoked at finish).
+  browserSession(nodeId) {
+    const entry = this.nodes[nodeId] ??= { threads: {} };
+    if (!entry.browserSession) { entry.browserSession = randomUUID(); this.dirty = true; }
+    return entry.browserSession;
+  }
+  browserActive({ workspaceId, sessionId, nodeId } = {}) {
+    const turn = this.turns.get(nodeId);
+    return { active: Boolean(turn && !turn.finished && turn.workspaceId === workspaceId && turn.browserSession && turn.browserSession === sessionId) };
+  }
   get(node) {
     const provider = node.data.chat?.provider ?? null, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
-    return { provider, autoApprove: !!node.data.chat?.autoApprove, mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [] };
+    return { provider, autoApprove: !!node.data.chat?.autoApprove, mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
   }
+  // A message written while the agent works waits its turn, in order; one
+  // written while others still wait joins the end of the line.
   send(workspace, node, message) {
     assert(!this.closed, 'Host is shutting down');
     const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente antes de escribir');
     text(message, 'chat message', 64 * 1024); assert(message.trim(), 'Escribe un mensaje');
+    const thread = this.thread(node.id, provider);
+    thread.queue ??= [];
+    if (!this.turns.has(node.id) && !thread.queue.length) return this.start(workspace, node, message);
+    assert(thread.queue.length < MAX_QUEUE, `Ya hay ${MAX_QUEUE} mensajes en espera`);
+    const item = { id: randomUUID(), text: message, createdAt: new Date().toISOString() };
+    thread.queue.push(item); this.dirty = true; this.publishQueue(workspace, node.id, provider, thread);
+    if (!this.turns.has(node.id)) this.drain(workspace, node.id, provider, thread);
+    return { ok: true, queued: true, id: item.id };
+  }
+  publishQueue(workspace, nodeId, provider, thread) {
+    this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId, provider, running: this.turns.has(nodeId), meta: thread.meta ?? {}, messages: [], queue: structuredClone(thread.queue ?? []) });
+  }
+  // Starts the next waiting message if the thread is still current and idle.
+  drain(workspace, nodeId, provider, thread) {
+    if (this.closed || this.turns.has(nodeId) || !thread.queue?.length || this.nodes[nodeId]?.threads?.[provider] !== thread) return;
+    let node = null;
+    try { node = nodeId === Chats.mainId(workspace) ? this.mainNode(workspace) : this.store.getWorkspace(workspace.id).nodes.find(n => n.id === nodeId); } catch { /* Project closed. */ }
+    if (node?.data?.chat?.provider !== provider) return;
+    const item = thread.queue.shift();
+    try { this.start(workspace, node, item.text); }
+    catch (error) { thread.queue.unshift(item); this.publishQueue(workspace, nodeId, provider, thread); throw error; }
+  }
+  removeQueued(workspace, node, id) {
+    const provider = node.data.chat?.provider, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
+    const index = thread?.queue?.findIndex(item => item.id === id) ?? -1;
+    assert(index >= 0, 'Ese mensaje ya no está en espera');
+    const [item] = thread.queue.splice(index, 1);
+    this.dirty = true; this.publishQueue(workspace, node.id, provider, thread);
+    return { ok: true, text: item.text };
+  }
+  // Resumes a paused line; with an ID, that message goes first.
+  sendQueued(workspace, node, id) {
+    assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
+    const provider = node.data.chat?.provider, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
+    assert(thread?.queue?.length, 'No hay mensajes en espera');
+    if (id !== undefined && id !== null) {
+      const index = thread.queue.findIndex(item => item.id === id); assert(index >= 0, 'Ese mensaje ya no está en espera');
+      thread.queue.unshift(...thread.queue.splice(index, 1));
+    }
+    this.drain(workspace, node.id, provider, thread);
+    return { ok: true };
+  }
+  start(workspace, node, message) {
+    const provider = node.data.chat.provider;
     assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
     assert(this.turns.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
     const definition = CHAT_PROVIDERS[provider], thread = this.thread(node.id, provider), now = () => new Date().toISOString();
@@ -276,6 +337,7 @@ export class Chats {
       if (turn.finished) return; turn.finished = true;
       clearTimeout(turn.timer); clearTimeout(turn.killTimer); this.turns.delete(node.id);
       if (turn.token) this.gates.delete(turn.token);
+      turn.browser?.revoke();
       // Nobody is left to answer: whatever was still asking is refused.
       for (const request of turn.pending.values()) { request.part.status = 'cancelled'; request.resolve({ behavior: 'deny', message: 'La respuesta terminó antes de aprobar el permiso.' }); }
       turn.pending.clear();
@@ -289,6 +351,8 @@ export class Chats {
       reply.usage = { durationMs: Number.isFinite(turn.usage?.durationMs) ? turn.usage.durationMs : Date.now() - started, ...(Number.isFinite(turn.usage?.costUsd) ? { costUsd: turn.usage.costUsd } : {}), ...(turn.usage?.outputTokens ? { outputTokens: turn.usage.outputTokens } : {}) };
       thread.meta = { ...meta(), costUsd: sum(thread.meta?.costUsd, turn.usage?.costUsd), turns: sum(thread.meta?.turns, 1) };
       this.save(); publish({ running: false });
+      // The line moves on after a clean reply; a stop or a failure pauses it.
+      if (reply.status === 'done') setImmediate(() => { try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } });
       // OpenCode's stream never names the model; its session record does.
       if (provider === 'opencode' && !thread.meta.model && thread.sessionId) execFile(bin, ['export', thread.sessionId], { cwd, env: { ...process.env, PWD: cwd }, timeout: 15000, maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
         try {
@@ -305,11 +369,15 @@ export class Chats {
       // Own process group: stopping a turn must also stop the tools it launched.
       if (turn.token) this.gates.set(turn.token, turn);
       const role = this.role(workspace, node);
+      turn.browserSession = this.browserSession(node.id); turn.workspaceId = workspace.id;
+      // A capability left by an interrupted host is stale; replace it.
+      fs.rmSync(credentialFile(this.store.dir, turn.browserSession), { force: true });
+      turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
       child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, autoApprove: node.data.chat.autoApprove === true, message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
-        { cwd, env: { ...process.env, PWD: cwd, ...role.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
-    } catch (error) { if (turn.token) this.gates.delete(turn.token); thread.messages.splice(thread.messages.indexOf(user), 2); throw error; }
+        { cwd, env: { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+    } catch (error) { if (turn.token) this.gates.delete(turn.token); turn.browser?.revoke(); thread.messages.splice(thread.messages.indexOf(user), 2); throw error; }
     turn.child = child; this.turns.set(node.id, turn);
     child.on('error', error => finish(null, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : error.message));
     child.stdin.on('error', () => {});
@@ -326,7 +394,7 @@ export class Chats {
     child.stderr.on('data', chunk => { turn.stderr = (turn.stderr + chunk).slice(-8000); });
     child.on('close', code => { line(buffer); buffer = ''; finish(code); });
     this.dirty = true;
-    this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: true, meta: meta(), messages: [structuredClone(user), structuredClone(reply)] });
+    this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: true, meta: meta(), messages: [structuredClone(user), structuredClone(reply)], queue: structuredClone(thread.queue ?? []) });
     return { ok: true, messageId: reply.id };
   }
   // Models the selected provider can run. Claude takes aliases for its latest

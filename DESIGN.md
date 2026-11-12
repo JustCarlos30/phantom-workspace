@@ -149,6 +149,12 @@ components:
 
 # Design System: Phantom Workspace
 
+## Compositor del chat en dos niveles (2026-11-11)
+
+- **Dentro del campo, solo lo que configura el próximo turno.** `.pc-controls`: modelo y Effort/Variant a la izquierda (`.pc-settings`, una sola línea; el nombre del modelo se trunca con elipsis antes de que nada salte de línea), micrófono y enviar a la derecha. Sustituye a `.pc-status`, que chocaba con la clase homónima de `plugins.css`.
+- **Effort/Variant es la misma pastilla que el modelo**: 28 px, `--fill`, icono `Gauge` en el tono del proveedor (atenuado si es «auto»), valor en mono, `select`/`input` nativos sin borde con `field-sizing: content`. «predeterminado» pasa a «auto». La palabra «Effort»/«Variant» se oculta a ≤460 px de contenedor; el nombre accesible y el `title` la conservan.
+- **Debajo del campo, lo que mide la conversación.** `.pc-meta`, sin fondo: barra y cifras de contexto, costo tras un punto separador y, en cards anchas, la pista de teclado. El costo ya no se oculta en el dock.
+
 ## Dock de creación como fila de herramientas (2026-11-11)
 
 - **Sin acción "primaria" teñida.** Terminal, Navegador, Nota y Zona tienen el mismo peso que Herramientas: icono de `PanelIcons.js` (18 px) sobre una palabra de 11 px, botones de 64×52 px, `role="toolbar"` con nombre «Crear panel». La pastilla violeta en Terminal se percibía como CTA genérico y como estado seleccionado; se retira. Hover: relleno `--fill-2`, el icono sube 1 px y toma el acento; pulsado `scale(.96)`; movimiento reducido lo desactiva. Herramientas usa `LayoutGrid` y pierde el chevron; su etiqueta se oculta a ≤760 px.
