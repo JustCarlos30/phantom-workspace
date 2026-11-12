@@ -58,7 +58,7 @@ export default function PixelField({ targets, cameraRef, paintRef, hidden }) {
   useEffect(() => {
     const el = canvas.current, ctx = el.getContext('2d');
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-    const readColors = () => { const css = getComputedStyle(el); for (const [kind, name] of Object.entries(COLOR)) colors.current[kind] = css.getPropertyValue(name).trim() || '#ffab40'; };
+    const readColors = () => { const css = getComputedStyle(el); for (const [kind, name] of Object.entries(COLOR)) colors.current[kind] = css.getPropertyValue(name).trim() || '#e9b46a'; };
     const resize = () => {
       const ratio = window.devicePixelRatio || 1, { width, height } = el.getBoundingClientRect();
       el.width = Math.max(1, Math.round(width * ratio)); el.height = Math.max(1, Math.round(height * ratio));

@@ -13,7 +13,7 @@
   /* Chat-local state inks: desaturated so they sit on the plum planes instead
      of glowing. The provider hue marks identity only (glyphs, links, caret);
      actions and states are carried by ink, fills and these three. */
-  --pc-add: #9cc5a4; --pc-del: #d99098; --pc-caution: #d6b07a;
+  --pc-add: var(--success); --pc-del: #d99098; --pc-caution: var(--attention);
   --pc-solid: var(--ink); --pc-solid-ink: var(--bg); }
 .pc[data-provider="opencode"] { --pc-hue: var(--hue-opencode); }
 
