@@ -4,7 +4,7 @@ import { realpath } from 'node:fs/promises';
 export const INVOKE_CHANNEL = 'phantom:invoke';
 export const EVENT_CHANNEL = 'phantom:event';
 export const HOST_METHODS = new Set([
-  'system.info', 'state.get', 'settings.update',
+  'system.info', 'state.get', 'settings.update', 'limits.read',
   'workspace.open', 'workspace.select', 'workspace.update', 'workspace.relocate',
   'node.create', 'node.update', 'node.remove',
   'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.resize', 'terminal.stop', 'terminal.close',
