@@ -85,6 +85,10 @@ El script informa el resultado o falla con código de salida no cero; no instala
 | Automatización | `automation.start` usa por defecto el navegador integrado visible. `mode: "isolated"` abre Chromium de Playwright separado y permite trazas reales. |
 | Voz | Grabación explícita, transcripción local, texto editable e intención revisada para crear/encontrar trabajo. |
 
+### Git y ramas listas para integrar
+
+Con un proyecto abierto y el host conectado, Phantom consulta las ramas cada 20 s, también con la ventana oculta. Una rama está lista cuando no es la base, tiene trabajo `ready` y commits propios, no tiene cambios sin guardar ni errores, la comprobación de conflictos terminó sin conflictos y su terminal no está trabajando (también cuenta si no tiene terminal). La primera lectura muestra un único resumen dentro de la app; después avisa al quedar lista una rama o cambiar su commit, y vuelve a avisar si deja de estar lista y luego se recupera. Más de tres novedades se agrupan. La notificación del sistema se muestra solo con la ventana oculta o sin foco; al hacer clic abre **Ramas**.
+
 La edición nativa avanzada de cards/skills/decisiones utiliza formularios JSON con validación de Phantom. Una card se reemplaza explícitamente cuando cambia el contrato; la original conserva su evidencia. Los modelos se ejecutan solo mediante una acción de run con configuración válida. Los tests de la app no consumen modelos comerciales.
 
 ## Tablero de referencias y comentarios

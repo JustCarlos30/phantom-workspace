@@ -12,6 +12,21 @@ const workspaceId = 'e080ca45-0510-41c0-a861-c735db9ca2a5';
 const id = '8955a666-b72a-410d-bf23-02740ac48212';
 const ui = 'file:///opt/phantom/dist/index.html';
 
+test('desktop notifications accept bounded text and only the branches target', () => {
+  for (const payload of [{ title: 'L' }, { title: 'Lista para integrar', body: '', target: 'branches' },
+    { title: 't'.repeat(120), body: 'b'.repeat(300) }]) {
+    assert.doesNotThrow(() => validateInvocation('desktop.notify', payload));
+  }
+  for (const payload of [null, [], {}, { title: '' }, { title: 1 }, { title: null },
+    { title: 't'.repeat(121) }, { title: 'ok', body: 'b'.repeat(301) },
+    { title: 'ok', body: null }, { title: 'ok', body: 1 }, { title: 'ok', body: [] },
+    { title: 'ok', target: 'terminal' }, { title: 'ok', target: '' },
+    { title: 'ok', target: null }, { title: 'ok', target: ['branches'] },
+    { title: 'ok', silent: true }, { title: 'ok', body: undefined }, { title: 'ok', target: undefined }]) {
+    assert.throws(() => validateInvocation('desktop.notify', payload));
+  }
+});
+
 test('navigation accepts HTTP(S)/blank and rejects executable, local, credentialed and ambiguous URLs', () => {
   assert.equal(browserURL('https://example.com/a?q=1#ok'), 'https://example.com/a?q=1#ok');
   assert.equal(browserURL('http://localhost:3000'), 'http://localhost:3000/');

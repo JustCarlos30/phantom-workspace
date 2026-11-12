@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, Notification, protocol, session, shell } from 'electron';
 import { constants, createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
@@ -211,6 +211,7 @@ function openMainWindow() {
       session: uiSession, preload: fileURLToPath(new URL('./preload.cjs', import.meta.url)),
       contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInSubFrames: false,
       webSecurity: true, allowRunningInsecureContent: false, webviewTag: false, navigateOnDragDrop: false,
+      backgroundThrottling: false,
     },
   });
   mainWindow = win;
@@ -345,6 +346,17 @@ async function quit(stopHost = false) {
 
 async function invokeLocal(method, payload) {
   if (method.startsWith('browser.')) return browsers.invoke(method, payload);
+  if (method === 'desktop.notify') {
+    if (!Notification.isSupported()) return { shown: false };
+    const { title, body = '', target } = payload;
+    const notification = new Notification({ title, body, silent: false });
+    notification.on('click', () => {
+      openMainWindow();
+      emit({ type: 'desktop.notification', action: 'open', target });
+    });
+    notification.show();
+    return { shown: true };
+  }
   if (method === 'desktop.closeReady') {
     validateCloseReady(payload, closeAttempt?.requestId ?? null);
     const attempt = closeAttempt;
