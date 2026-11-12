@@ -87,6 +87,26 @@ El script informa el resultado o falla con código de salida no cero; no instala
 
 La edición nativa avanzada de cards/skills/decisiones utiliza formularios JSON con validación de Phantom. Una card se reemplaza explícitamente cuando cambia el contrato; la original conserva su evidencia. Los modelos se ejecutan solo mediante una acción de run con configuración válida. Los tests de la app no consumen modelos comerciales.
 
+## Tablero de referencias y comentarios
+
+El canvas también es un tablero. Con el puntero sobre el lienzo:
+
+- **Ctrl + V** pega lo que haya en el portapapeles: una imagen (captura, imagen copiada de una web o archivo copiado) crea una referencia; una URL crea una tarjeta de sitio con su título y su imagen de portada; una URL que es directamente una imagen se guarda como imagen con su fuente; cualquier otro texto crea una nota. También puedes **soltar** imágenes, videos y enlaces, o usar *clic derecho → Añadir imagen o video…*.
+- Formatos: PNG, JPEG, WebP, GIF, AVIF (hasta 12 MB) y MP4, MOV, WebM (hasta 2 GB). El tipo se decide por el contenido del archivo. Los archivos se copian a `references/<proyecto>/` dentro de los datos de la app, con nombre por hash de contenido; no se escribe nada en la carpeta del proyecto.
+- Cada referencia tiene una línea «¿Qué te gusta de esta referencia?». Es lo que un agente lee junto con el archivo.
+- Las imágenes y videos conservan su proporción al redimensionar (Mayús la libera) y no se atenúan cuando otro panel está seleccionado.
+- **C** activa la herramienta de comentarios: un clic deja un pin con su hilo sobre cualquier panel (el pin sigue al panel) o sobre el lienzo. Sobre un video, el comentario guarda el momento exacto: aparece en la línea de tiempo del panel y al abrirlo el video salta ahí. Los hilos se responden, se resuelven y se pueden copiar para un agente.
+
+Los agentes usan el mismo tablero con `scripts/canvas.mjs`:
+
+```sh
+node scripts/canvas.mjs board "Investigación" --from refs.json   # [{ "image": ruta|URL | "url": sitio, "note", "source", "title" }]
+node scripts/canvas.mjs add-image ./toma.png --note "encuadre" --zone "Investigación"
+node scripts/canvas.mjs refs --zone "Investigación" --json       # archivo local, fuente, nota y comentarios abiertos
+node scripts/canvas.mjs storyboard "Secuencia"                   # la zona como lista de tomas, de izquierda a derecha
+node scripts/canvas.mjs comments | reply 3 "Hecho" | resolve 3
+```
+
 ## Navegador del agente y automatización
 
 En una **terminal nueva creada por Phantom**, el agente descubre `PHANTOM_BROWSER_CLI`, `PHANTOM_BROWSER_ENDPOINT`, `PHANTOM_BROWSER_SESSION` y `PHANTOM_BROWSER_WORKSPACE`. La capacidad privada `PHANTOM_BROWSER_TOKEN` se hereda solo en esa terminal; no debe copiarse a prompts, logs ni archivos del proyecto. Las **cards en modo chat** (Claude · OpenCode · Codex) y el chat de Phantom reciben el mismo puente en cada turno: una identidad estable por card (sus paneles se reutilizan entre turnos) y una capacidad que solo vale mientras el turno está en curso y se revoca al terminar. Con la ventana abierta y ese proyecto activo:

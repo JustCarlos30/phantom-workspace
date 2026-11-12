@@ -12,7 +12,7 @@ export default function ReferencePanel({ node, workspace, comments, onChange, on
   const timed = data.kind === 'video' ? (comments || []).filter(c => c.time !== undefined && !c.resolved) : [];
   const origin = data.source || data.url;
   const openOrigin = () => onOpenPanel('browser', { url: origin });
-  return <div className={`reference reference-${data.kind}`}>
+  return <div className="reference" data-kind={data.kind}>
     <div className="reference-media">
       {missing || (!src && data.kind !== 'link') ? <div className="reference-missing"><ImageOff size={22} strokeWidth={1.5} /><span>{data.kind === 'empty' ? 'Pega una imagen o un enlace con Ctrl + V' : 'El archivo de esta referencia ya no está en este equipo'}</span></div>
         : data.kind === 'video' ? <video ref={video} data-reference-video src={src} controls preload="metadata" playsInline onLoadedMetadata={e => setDuration(e.currentTarget.duration || 0)} onError={() => setMissing(true)} onPointerDown={e => e.stopPropagation()} />

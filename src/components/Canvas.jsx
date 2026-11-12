@@ -309,7 +309,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const addItemsRef = useRef(addItems); addItemsRef.current = addItems;
   useEffect(() => {
     const paste = e => {
-      if (inputBlocked || live.current.focused || editable(e.target)) return;
+      if (inputBlocked || live.current.focused || (e.target instanceof Element && editable(e.target))) return;
       const owner = document.activeElement;
       if (owner && owner !== document.body && !root.current?.contains(owner)) return;
       const items = readTransfer(e.clipboardData); if (!items.length) return;
@@ -397,7 +397,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   useEffect(() => () => cancelAnimationFrame(gestureFrame.current), []);
   // Stable callbacks for memoized nodes; they always call the latest closure.
   const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename };
-  const openThread = useCallback(id => { setDraft(null); setOpenComment(id); }, []);
+  // Closing a thread or a draft hands the keyboard back to the canvas, so Esc, C and V keep working.
+  const openThread = useCallback(id => { setDraft(null); setOpenComment(id); if (!id) root.current?.focus({ preventScroll: true }); }, []);
+  const writeDraft = useCallback(next => { setDraft(next); if (!next) root.current?.focus({ preventScroll: true }); }, []);
   const handlers = useMemo(() => ({
     begin: (...args) => latest.current.begin(...args),
     menu: (...args) => latest.current.onMenu(...args),
@@ -444,7 +446,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
         const sharedWorkspace = node.type === 'terminal' || node.type === 'browser' || node.type === 'note' || node.type === 'reference' ? panelWorkspace : workspace;
         return <CanvasNode key={node.id} node={node} preview={preview[node.id]} focusSize={isFocused ? size : null} anyFocused={!!focused} selected={selected.includes(node.id)} small={tier > 0} compact={tier > 1} magnified={tier < 0} missionTitle={node.groupId ? workspace.missions?.find(m => m.id === node.groupId)?.title : undefined} activity={node.type === 'terminal' ? terminalActivity[node.id] : undefined} editing={editing} anyEditing={!!rename.editing} workspace={sharedWorkspace} handlers={handlers} api={api} refresh={refresh} flush={flush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onRelaunch={onRelaunch} connected={connected} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} obscured={obscured} comments={node.type === 'reference' ? commentsByNode.get(node.id) || NO_COMMENTS : undefined} />;
       })}</PresenceGroup>
-      <CommentLayer comments={comments} draft={draft} open={openComment} active={tool === 'comment'} geometryOf={geometryOf} nodeOf={id => nodes.find(n => n.id === id)} pathOf={node => node.data?.file && dataDir ? `${dataDir}/references/${workspace.id}/${node.data.file}` : null} api={api} workspaceId={workspace.id} notify={notify} onOpen={openThread} onDraft={setDraft} seek={seek} />
+      <CommentLayer comments={comments} draft={draft} open={openComment} active={tool === 'comment'} geometryOf={geometryOf} nodeOf={id => nodes.find(n => n.id === id)} pathOf={node => node.data?.file && dataDir ? `${dataDir}/references/${workspace.id}/${node.data.file}` : null} api={api} workspaceId={workspace.id} notify={notify} onOpen={openThread} onDraft={writeDraft} seek={seek} />
     </div>
     {importing > 0 && <div className="reference-importing" role="status"><LoaderCircle size={14} className="spinning" />Añadiendo {importing === 1 ? 'referencia' : `${importing} referencias`}…</div>}
     {tool === 'comment' && <div className="comment-hint" role="status"><MessageCircle size={14} />Haz clic donde quieras comentar<kbd>Esc</kbd></div>}

@@ -51,3 +51,8 @@
 .reference-importing { top: 112px; }
 .focus-mode .comment-hint { top: 44px; }
 @media (prefers-reduced-motion: reduce) { .comment-pin { transition: none; } }
+/* A reference is judged by its colour: the selection spotlight (canvas-ui.css)
+   must never darken or desaturate it. */
+.canvas .canvas-node[data-type="reference"] { filter: none !important; }
+/* Threads near the bottom or right edge of a panel still open on screen. */
+.comment-thread { max-width: min(288px, 80vw); }
