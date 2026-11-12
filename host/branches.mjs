@@ -90,7 +90,7 @@ export class Branches {
       const row = {
         name: branch.name, oid: branch.oid, isBase, last: branch.last,
         worktree: tree ? { path: tree.path, exists, main: real(tree.path) === base.source, locked: Boolean(tree.locked) } : null,
-        terminal: node ? { nodeId: node.id, title: node.title, running: live(node.id), step: node.data.agent?.step ?? '', status: node.data.agent?.status ?? 'idle' } : null,
+        terminal: node ? { nodeId: node.id, title: node.title, running: live(node.id), step: node.data.agent?.step ?? '', status: node.data.agent?.status ?? 'idle', cardId: node.data.agent?.cardId || '', cardTitle: node.data.agent?.cardTitle || '' } : null,
         ahead: 0, behind: 0, committed: [], changes: [], changeCount: 0, inBase: 0, conflicts: null, request: open.get(branch.name)?.status ?? null,
       };
       try {

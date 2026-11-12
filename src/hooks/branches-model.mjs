@@ -11,9 +11,10 @@ export const GROUPS = [
   { id: 'clean', title: 'Sin trabajo pendiente', hint: 'Todo lo que tenían ya está en la rama de integración.' },
 ];
 
-const CHANGE = { M: 'Modificado', A: 'Añadido', D: 'Borrado', R: 'Renombrado', C: 'Copiado', U: 'En conflicto', '?': 'Nuevo' };
-export const changeLabel = status => CHANGE[(status || '').replace(/ /g, '')[0]] || 'Cambiado';
-export const changeTone = status => { const code = (status || '').replace(/ /g, '')[0]; return code === 'D' ? 'removed' : code === '?' || code === 'A' ? 'added' : code === 'U' ? 'conflict' : 'modified'; };
+const CHANGE = { M: 'Modificado', A: 'Añadido', D: 'Borrado', R: 'Renombrado', C: 'Copiado', T: 'Tipo cambiado', U: 'En conflicto', '?': 'Nuevo' };
+export const changeCode = status => /U/.test(status || '') || ['AA', 'DD'].includes(status) ? 'U' : (status || '').replace(/ /g, '')[0] || '?';
+export const changeLabel = status => CHANGE[changeCode(status)] || 'Cambiado';
+export const changeTone = status => { const code = changeCode(status); return code === 'D' ? 'removed' : code === '?' || code === 'A' ? 'added' : code === 'U' ? 'conflict' : 'modified'; };
 
 // Where a row sits on the rail: commits it lacks to the left, its own work to the right.
 // Logarithmic so 1 and 40 commits are both readable.
@@ -44,13 +45,13 @@ export function describeBranch(row, base) {
   };
 }
 
-export function buildBranches(data, { query = '' } = {}) {
+export function buildBranches(data, { query = '', content, cards = [] } = {}) {
   const base = data?.base?.branch || '';
   const text = query.trim().toLowerCase();
   const all = (data?.branches || []).map(row => describeBranch(row, base));
   const baseRow = all.find(row => row.isBase) || null;
   const rows = all.filter(row => !row.isBase);
-  const visible = rows.filter(row => !text || `${row.title}\n${row.name || ''}\n${row.worktree?.path || ''}\n${row.changes.map(change => change.path).join('\n')}\n${row.committed.join('\n')}`.toLowerCase().includes(text));
+  const visible = rows.filter(row => !text || `${row.title}\n${row.name || ''}\n${cardsOf(row, content?.get(row.name || row.worktree?.path), cards).map(card => `${card.id} ${card.title}`).join('\n')}\n${row.worktree?.path || ''}\n${row.changes.map(change => change.path).join('\n')}\n${row.committed.join('\n')}`.toLowerCase().includes(text));
   const time = row => Date.parse(row.last?.at) || 0;
   const groups = GROUPS.map(group => ({ ...group, rows: visible.filter(row => row.group === group.id).sort((a, b) => (b.pendingCount + b.ahead) - (a.pendingCount + a.ahead) || time(b) - time(a)) }));
   const counts = Object.fromEntries(GROUPS.map(group => [group.id, rows.filter(row => row.group === group.id).length]));
@@ -61,11 +62,52 @@ export function buildBranches(data, { query = '' } = {}) {
   };
 }
 
+// How a set of changes splits by kind, in a fixed order for the stacked bar.
+export const MIX = [
+  { id: 'added', label: 'Nuevos' }, { id: 'modified', label: 'Modificados' },
+  { id: 'removed', label: 'Borrados' }, { id: 'conflict', label: 'En conflicto' },
+];
+export function changeMix(changes = []) {
+  const counts = { added: 0, modified: 0, removed: 0, conflict: 0 };
+  for (const change of changes) counts[changeTone(change.status)]++;
+  return MIX.map(kind => ({ ...kind, count: counts[kind.id] })).filter(kind => kind.count);
+}
+
+// Files grouped by their folder, folders in path order, files by name. Root is ''.
+export function groupByDir(items = [], pathOf = item => item.path) {
+  const groups = new Map();
+  for (const item of items) {
+    const file = pathOf(item), dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '';
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(item);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a === '' ? -1 : b === '' ? 1 : a.localeCompare(b))
+    .map(([dir, list]) => ({ dir, items: list.sort((a, b) => pathOf(a).localeCompare(pathOf(b))) }));
+}
+
+// The Cards a worktree belongs to: the one bound to its terminal first, then any
+// Card whose contract lives in that branch's checkout. Deduplicated by ID.
+export function cardsOf(row, content, catalog = []) {
+  const list = [], seen = new Set();
+  const bound = row?.terminal?.cardId;
+  if (bound) {
+    const known = catalog.find(card => card.id === bound) || content?.cards?.find(card => card.id === bound);
+    list.push({ id: bound, title: known?.title || row.terminal.cardTitle || bound, status: known?.status, bound: true });
+    seen.add(bound);
+  }
+  for (const card of content?.cards || []) if (!seen.has(card.id)) { seen.add(card.id); list.push({ id: card.id, title: card.title, status: card.status, bound: false }); }
+  return list;
+}
+
 // Cards and Skills that live in a branch's worktree, for the per-branch chips.
-export function contentByBranch({ cards = [], skills = [] } = {}) {
+export function contentByBranch({ cards = [], skills = [], baseBranch } = {}) {
   const map = new Map();
   const slot = branch => { if (!map.has(branch)) map.set(branch, { cards: [], skills: [] }); return map.get(branch); };
-  for (const card of cards) if (card.location && !card.location.main && card.location.branch) slot(card.location.branch).cards.push(card);
+  for (const card of cards) {
+    const location = card.location;
+    const key = location?.main ? baseBranch : location?.branch || location?.path;
+    if (key) slot(key).cards.push(card);
+  }
   for (const skill of skills) if (skill.origin === 'worktree' && skill.branch) slot(skill.branch).skills.push(skill);
   return map;
 }

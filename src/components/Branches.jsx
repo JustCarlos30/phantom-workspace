@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowDownToLine, Check, FolderGit2, GitBranch, GitMerge, Layers, RefreshCw, Save, Search, Sparkles, SquareTerminal, Trash2 } from 'lucide-react';
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
-import { buildBranches, changeLabel, changeTone, commitsText, contentByBranch, filesText, plural, shortBranch, span } from '../hooks/branches-model.mjs';
+import { buildBranches, cardsOf, changeLabel, changeMix, changeTone, commitsText, contentByBranch, filesText, groupByDir, plural, shortBranch, span } from '../hooks/branches-model.mjs';
+import { statusLabel, statusTone } from '../hooks/phantom-desk.mjs';
 import '../branches.css';
 
 // Ramas: every branch of the repository on one rail, with the worktree that
@@ -21,13 +22,37 @@ function Track({ row }) {
   </div>;
 }
 
+function MixBar({ changes }) {
+  const mix = changeMix(changes);
+  if (!mix.length) return null;
+  return <span className="br-mix" role="img" aria-label={mix.map(kind => `${kind.count} ${kind.label.toLowerCase()}`).join(', ')}>
+    <span className="br-mix-bar">{mix.map(kind => <i key={kind.id} className={`is-${kind.id}`} style={{ flexGrow: kind.count }} />)}</span>
+    {mix.map(kind => <span key={kind.id} className={`br-mix-key is-${kind.id}`}><b>{kind.count}</b> {kind.label.toLowerCase()}</span>)}
+  </span>;
+}
+
+function CardBanner({ cards, onOpenPanel }) {
+  if (!cards.length) return null;
+  return <div className="br-cards">{cards.map(card => <button key={card.id} type="button" className={`br-card${card.bound ? ' is-bound' : ''}`} disabled={!onOpenPanel} onClick={() => onOpenPanel?.('phantom-cards', { cardId: card.id })} title={`${card.bound ? 'Card vinculada a la terminal' : 'Card registrada en este worktree'}\n${card.title}\n${card.id}`}>
+     <Layers size={13} aria-hidden="true" /><span className="br-card-text"><span className="br-card-title">{card.title}</span><span className="br-card-meta">{card.bound ? 'Vinculada a la terminal' : 'En este worktree'} · {card.id}</span></span>
+    {card.status && <span className={`br-card-status is-${statusTone(card.status)}`}>{statusLabel(card.status)}</span>}
+  </button>)}</div>;
+}
+
+function FolderFiles({ items, pathOf = item => item.path, render }) {
+  return <div className="br-folders">{groupByDir(items, pathOf).map(group => <section key={group.dir} className="br-folder">
+    <h6><FolderGit2 size={12} aria-hidden="true" /><span>{group.dir || 'Raíz del repositorio'}</span><b>{group.items.length}</b></h6>
+    <ul>{group.items.map(item => render(item, pathOf(item).split('/').pop()))}</ul>
+  </section>)}</div>;
+}
+
 function FileList({ row, base }) {
   const total = row.changeCount + row.committedCount;
   if (!total) return null;
   return <details className="br-files">
-    <summary>Ver {filesText(total)}</summary>
-    {row.changes.length > 0 && <><h5>Sin guardar</h5><ul>{row.changes.map(change => <li key={`${change.status}:${change.path}`}><span className={`br-change br-${changeTone(change.status)}`}>{changeLabel(change.status)}</span><code>{change.path}</code>{change.inBase && <span className="br-same">Ya en {base}</span>}</li>)}</ul>{row.changeCount > row.changes.length && <p className="br-quiet">y {row.changeCount - row.changes.length} más</p>}</>}
-    {row.committed.length > 0 && <><h5>En commits por integrar</h5><ul>{row.committed.map(file => <li key={file}><span className="br-change br-modified">Commit</span><code>{file}</code></li>)}</ul>{row.committedCount > row.committed.length && <p className="br-quiet">y {row.committedCount - row.committed.length} más</p>}</>}
+    <summary><span>Ver {filesText(total)}</span><MixBar changes={row.changes} /></summary>
+    {row.changes.length > 0 && <><h5>Sin guardar</h5><FolderFiles items={row.changes} render={(change, name) => <li key={change.path} title={change.originalPath ? `${change.originalPath} → ${change.path}` : change.path}><span className={`br-change br-${changeTone(change.status)}`}>{changeLabel(change.status)}</span><code>{name}</code>{change.inBase && <span className="br-same">Ya en {base}</span>}</li>} />{row.changeCount > row.changes.length && <p className="br-quiet">Resumen de los {row.changes.length} archivos listados; {row.changeCount - row.changes.length} más sin listar.</p>}</>}
+    {row.committed.length > 0 && <><h5>En commits por integrar</h5><FolderFiles items={row.committed} pathOf={file => file} render={(file, name) => <li key={file} title={file}><span className="br-change br-modified">En commit</span><code>{name}</code></li>} />{row.committedCount > row.committed.length && <p className="br-quiet">y {row.committedCount - row.committed.length} más</p>}</>}
   </details>;
 }
 
@@ -42,8 +67,9 @@ function SaveForm({ row, base, busy, onSubmit, onCancel }) {
   </form>;
 }
 
-function Row({ row, base, content, busy, notice, mode, setMode, act, onOpenPanel }) {
+function Row({ row, base, content, catalog, busy, notice, mode, setMode, act, onOpenPanel }) {
   const open = mode?.id === row.id ? mode.kind : null;
+  const cards = cardsOf(row, content, catalog);
   const toggle = kind => setMode(open === kind ? null : { id: row.id, kind });
   return <article className={`br-row br-${row.group}`} aria-label={`Rama ${row.title}`}>
     <header className="br-row-head">
@@ -51,10 +77,10 @@ function Row({ row, base, content, busy, notice, mode, setMode, act, onOpenPanel
       <span className={`br-where${row.running ? ' is-live' : ''}`}>{row.where}</span>
       {!row.isBase && <Track row={row} />}
     </header>
+    {cards.length ? <CardBanner cards={cards} onOpenPanel={onOpenPanel} /> : <p className="br-quiet">Sin Card de Phantom asociada</p>}
     <p className="br-summary">{row.summary}{row.last?.subject ? <span className="br-quiet"> · último commit: {row.last.subject}{row.last.at ? ` (${when(row.last.at)})` : ''}</span> : null}</p>
     <p className="br-meta" title={row.worktree?.path || ''}>{row.name ? <code>{row.name}</code> : 'Sin rama'}{row.worktree?.path && <span> · {row.worktree.path}</span>}</p>
-    {(content?.cards.length > 0 || content?.skills.length > 0 || row.request || row.terminal?.step) && <div className="br-chips">
-      {content?.cards.length > 0 && <button type="button" className="br-chip is-button" onClick={() => onOpenPanel?.('phantom-cards')} title={content.cards.map(card => card.title).join('\n')}><Layers size={11} aria-hidden="true" />{plural(content.cards.length, 'Card', 'Cards')} en este worktree</button>}
+    {(content?.skills.length > 0 || row.request || row.terminal?.step) && <div className="br-chips">
       {content?.skills.length > 0 && <button type="button" className="br-chip is-button" onClick={() => onOpenPanel?.('skills-catalog')} title={content.skills.map(skill => skill.name).join('\n')}><Sparkles size={11} aria-hidden="true" />{plural(content.skills.length, 'Skill', 'Skills')} sin integrar</button>}
       {row.request && <span className="br-chip">{REQUEST[row.request]}</span>}
       {row.terminal?.step && <span className="br-chip" title={row.terminal.step}>{row.terminal.step.slice(0, 80)}</span>}
@@ -90,12 +116,13 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
   const shown = data || last.current;
   useEffect(() => {
     if (!enabled || !active) return undefined;
-    const timer = setInterval(() => { if (document.visibilityState === 'visible' && !op.busy) reload(); }, POLL_MS);
+    const timer = setInterval(() => { if (document.visibilityState === 'visible' && !op.busy) { reload(); cards.reload(); } }, POLL_MS);
     return () => clearInterval(timer);
-  }, [enabled, active, reload, op.busy]);
+  }, [enabled, active, reload, op.busy, cards.reload]);
 
-  const model = useMemo(() => buildBranches(shown, { query }), [shown, query]);
-  const content = useMemo(() => contentByBranch({ cards: cards.data?.available !== false ? cards.data?.items : [], skills: skills.data?.items }), [cards.data, skills.data]);
+  const catalog = cards.data?.available !== false ? cards.data?.items || [] : [];
+  const content = useMemo(() => contentByBranch({ cards: catalog, skills: skills.data?.items, baseBranch: shown?.base?.branch }), [cards.data, skills.data, shown?.base?.branch]);
+  const model = useMemo(() => buildBranches(shown, { query, content, cards: catalog }), [shown, query, content, cards.data]);
   const note = (row, tone, text) => setNotices(old => ({ ...old, [row.id]: { tone, text } }));
   const call = (method, row, extra = {}) => api(method, { workspaceId: workspace.id, branch: row.name, ...extra });
   const settle = (row, result, base, saved = false) => {
@@ -137,13 +164,14 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
     <header className="br-head">
       <div className="br-title"><FolderGit2 size={16} aria-hidden="true" /><div><h2>Ramas</h2><p>{model.total ? `${plural(model.total, 'rama', 'ramas')} además de ${base} · ${filesText(model.unsaved)} sin guardar${model.unsavedInBase ? ` (${model.unsavedInBase} ya en ${base})` : ''} · ${commitsText(model.pending)} por integrar` : `Solo existe ${base}`}</p></div></div>
       <label className="br-search"><Search size={13} aria-hidden="true" /><input type="search" aria-label="Buscar rama, terminal o archivo" placeholder="Buscar rama, terminal o archivo" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} /></label>
-      <button type="button" className="br-icon" aria-label="Actualizar" title="Actualizar" disabled={resource.loading} onClick={reload}><RefreshCw size={14} className={resource.loading ? 'spinning' : ''} /></button>
+      <button type="button" className="br-icon" aria-label="Actualizar" title="Actualizar" disabled={resource.loading} onClick={() => { reload(); cards.reload(); }}><RefreshCw size={14} className={resource.loading ? 'spinning' : ''} /></button>
     </header>
     <div className="br-body">
       <ErrorNotice error={op.error} clear={op.clear} />
       {resource.error && <ErrorNotice error={`No se pudo releer Git: ${resource.error.message}. Se muestra la última lectura.`} retry={reload} />}
       {baseRow && <section className="br-base" aria-label="Rama de integración">
         <div className="br-base-main"><span className="br-base-name"><GitMerge size={15} aria-hidden="true" />{base}</span><code>{baseRow.oid.slice(0, 8)}</code><span className="br-quiet">Rama de integración · {baseRow.worktree?.path || 'sin checkout'}</span></div>
+        <CardBanner cards={cardsOf(baseRow, content.get(baseRow.name), catalog)} onOpenPanel={onOpenPanel} />
         <div className="br-legend" aria-hidden="true"><span><i className="br-behind" />commits que le faltan</span><span><i className="br-ahead" />commits propios</span><span><i className="br-unsaved" />archivos sin guardar</span></div>
         {baseRow.changeCount > 0 && <div className="br-base-dirty">
           <p><AlertTriangle size={13} aria-hidden="true" />El checkout del proyecto tiene {filesText(baseRow.changeCount)} sin guardar. Las terminales nuevas parten del último commit y no los ven.</p>
@@ -166,7 +194,7 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
       {model.groups.filter(group => group.rows.length).map(group => <section key={group.id} className={`br-group br-${group.id}`} aria-label={group.title}>
         <h3 className="br-group-title" title={group.hint}><i aria-hidden="true" />{group.title}<span>{group.rows.length}</span></h3>
         <p className="br-quiet br-group-hint">{group.hint}</p>
-        {group.rows.map(row => <Row key={row.id} row={row} base={base} content={content.get(row.name)} busy={op.busy} notice={notices[row.id]} mode={mode} setMode={setMode} act={act} onOpenPanel={onOpenPanel} />)}
+        {group.rows.map(row => <Row key={row.id} row={row} base={base} content={content.get(row.name || row.worktree?.path)} catalog={catalog} busy={op.busy} notice={notices[row.id]} mode={mode} setMode={setMode} act={act} onOpenPanel={onOpenPanel} />)}
       </section>)}
       {!model.total && <EmptyState className="br-quiet" description="No hay más ramas ni worktrees en este repositorio. Cada terminal nueva crea la suya." />}
     </div>
