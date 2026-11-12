@@ -40,7 +40,7 @@ function pulseState(node, session, chatPulse) {
   return '';
 }
 // The background field echoes the states that ask for you, never 'working'.
-const PIXEL_KIND = { 'pulse-attention': 'call', 'pulse-turn': 'turn', 'pulse-error': 'error' };
+const PIXEL_KIND = { 'pulse-attention': 'call', 'pulse-turn': 'turn', 'pulse-error': 'error', 'pulse-working': 'work' };
 // A brand-new workspace starts at the host origin, which now sits under the floating rail.
 const initialCamera = camera => !camera || (camera.x === 0 && camera.y === 0 && camera.zoom === 1) ? defaultCamera : camera;
 const readMinimap = () => { try { return localStorage.getItem('phantom.minimap') !== 'off'; } catch { return true; } };

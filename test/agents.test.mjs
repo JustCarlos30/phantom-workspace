@@ -5,11 +5,13 @@ import path from 'node:path';
 import { createHost } from '../host/server.mjs';
 import { opencodeSessions } from '../integrations/opencode.mjs';
 import { main as agentCLI } from '../scripts/agent.mjs';
+import { autoBindings } from '../host/agents.mjs';
 
 async function fixture(t) {
   const root=fs.mkdtempSync('/tmp/opencode/phantom-agents-'),dataDir=path.join(root,'state');
   const handleIntegration=async(method,p)=>{
     if(method==='phantom.detail'){
+      if(p.id==='card-multiline')return {handled:true,result:{id:p.id,kind:'task',status:'blocked',contract:{goal:'Rediseñar los pulses.\n\n1) Campo:\tondas suaves\r\n2) Bordes'}}};
       if(p.id!=='card-owned')throw new Error('Phantom task belongs to another workspace');
       return {handled:true,result:{id:p.id,kind:'card',status:'ready',contract:{goal:'Autenticación'}}};
     }
@@ -58,6 +60,16 @@ test('linking a card names a default-titled terminal but never overrides a manua
   assert.equal(await title(),'Mi agente');
   await f.update({cardId:'',name:'Terminal'});await f.update({cardId:'card-owned',name:'Explícito'});
   assert.equal(await title(),'Explícito');
+});
+
+test('binding a task with a multi-line goal stores a single-line card title',async t=>{
+  const f=await fixture(t);
+  const node=await f.update({cardId:'card-multiline'});
+  assert.equal(node.data.agent.cardId,'card-multiline');
+  assert.equal(node.data.agent.cardTitle,'Rediseñar los pulses. 1) Campo: ondas suaves 2) Bordes');
+  assert.equal(node.title,'Rediseñar los pulses. 1) Campo: ondas suaves 2) Bordes');
+  const [binding]=autoBindings([{id:'n',type:'terminal',data:{worktree:{path:'/wt'}}}],[{id:'t',kind:'task',status:'ready',location:{path:'/wt'},raw:{contract:{goal:`a\nb\t${'x'.repeat(600)}`}}}]);
+  assert.ok(!/[\x00-\x1f\x7f]/.test(binding.cardTitle)&&binding.cardTitle.length<=512&&binding.cardTitle.startsWith('a b x'));
 });
 
 test('agent CLI and PTY injection report into the current terminal without mutating native card status',async t=>{

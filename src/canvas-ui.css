@@ -407,32 +407,54 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .zone-selection > svg, .group-selection > svg { color: var(--accent); }
 
 /* ---------- Living borders: pulse only when the state is real ----------
-   nahnotch's rule: colour never paints the box. State lives in the 1px edge,
-   the header pill and the pixel field outside the panel, nothing else. No
-   glows, no tinted headers. Working is a cool hairline that breathes;
-   attention is a solid warm hairline that steps with the field's 2.4 s bar. */
+   Colour never paints the box: state lives in the edge, the header pill and
+   the wave field outside the panel. Working is a light that travels around
+   the perimeter; attention swells and settles on the field's 2.4 s bar, in
+   step with each wave it sends outward; failure flashes softly, then holds.
+   All motion is continuous (eased), never stepped. */
+@property --pulse-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 .canvas-node::after {
+  --edge-w: 1.5px;
   content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none; border-radius: inherit; opacity: 0;
-  box-shadow: inset 0 0 0 1px var(--pulse, transparent);
+  padding: var(--edge-w);
+  background: var(--pulse, transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
 }
 .canvas-node { transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
-.canvas-node.pulse-working { --pulse: var(--working); border-color: color-mix(in srgb, var(--working) 32%, var(--hairline-strong)); }
-.canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); border-color: var(--attention); }
+.canvas-node.pulse-working { --pulse: var(--working); border-color: color-mix(in srgb, var(--working) 30%, var(--hairline-strong)); }
+.canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); border-color: color-mix(in srgb, var(--attention) 70%, var(--hairline-strong)); }
 .canvas-node.pulse-error { --pulse: var(--danger); border-color: var(--danger); }
-.canvas-node.pulse-working::after { animation: pulse-breathe 2.8s ease-in-out infinite; }
-.canvas-node.pulse-attention::after { animation: pulse-call 2.4s steps(1, end) 12.5 forwards; }
-.canvas-node.pulse-error::after { animation: pulse-flash .8s steps(1, end) 3; }
-@keyframes pulse-breathe { 0%, 100% { opacity: .1; } 50% { opacity: .55; } }
-/* Doubles the edge for one 12 fps step at each ring's birth, then holds after 30 s. */
-@keyframes pulse-call { 0% { opacity: 1; } 8% { opacity: 0; } }
-@keyframes pulse-flash { 0% { opacity: 1; } 50% { opacity: 0; } }
+.canvas-node.pulse-working::after {
+  opacity: 1;
+  background: conic-gradient(from var(--pulse-angle),
+    transparent 0deg,
+    color-mix(in srgb, var(--working) 18%, transparent) 40deg,
+    var(--working) 78deg,
+    color-mix(in srgb, var(--working) 18%, transparent) 104deg,
+    transparent 150deg,
+    transparent 180deg,
+    color-mix(in srgb, var(--working) 10%, transparent) 230deg,
+    color-mix(in srgb, var(--working) 45%, transparent) 258deg,
+    color-mix(in srgb, var(--working) 10%, transparent) 284deg,
+    transparent 330deg);
+  animation: pulse-orbit 3.2s linear infinite;
+}
+.canvas-node.pulse-attention::after { animation: pulse-call 2.4s cubic-bezier(.22, 1, .36, 1) 12.5 forwards; }
+.canvas-node.pulse-turn::after { opacity: .55; animation: pulse-settle 1.2s cubic-bezier(.22, 1, .36, 1) 2; }
+.canvas-node.pulse-error::after { animation: pulse-flash 1s ease-in-out 3 forwards; }
+@keyframes pulse-orbit { to { --pulse-angle: 360deg; } }
+/* Swells at each wave's birth and eases back; after 30 s it holds, half lit. */
+@keyframes pulse-call { 0% { opacity: .35; } 12% { opacity: 1; } 100% { opacity: .35; } }
+@keyframes pulse-settle { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .55; } }
+@keyframes pulse-flash { 0%, 100% { opacity: .4; } 35% { opacity: 1; } }
 /* The same signal echoes on the panel's status dot in the rail and headers. */
 .terminal-activity-status.warning i { animation: dot-call 1.4s var(--ease-out) infinite; }
 @keyframes dot-call { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 60%, transparent); } 60% { box-shadow: 0 0 0 4px transparent; } }
 
-/* Background pulse field: under the panels, over the dot grid. Squares are
-   painted on whole device pixels, so the canvas must never be smoothed. */
-.pixel-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; }
+/* Background wave field: under the panels, over the dot grid. Antialiased
+   vector strokes drawn in CSS pixels at the device pixel ratio. */
+.pixel-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
 /* ---------- Zones: named areas on the canvas ---------- */
 .canvas-zone {
@@ -482,8 +504,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .rail-panels { margin-top: var(--s-4); }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-node.pulse-working::after, .canvas-node.pulse-attention::after, .canvas-node.pulse-error::after { animation: none; opacity: .8; }
-  .canvas-node.pulse-working::after { opacity: .4; }
+  .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error)::after { animation: none; opacity: .8; }
+  .canvas-node.pulse-working::after { background: var(--working); opacity: .4; }
   .terminal-activity-status.warning i, .zone-selection, .group-selection { animation: none; }
 }
 

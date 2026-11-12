@@ -22,6 +22,9 @@ export function cardPanelTitle(cardTitle, max = 80) {
   const flat = cardTitle.replace(/[\x00-\x1f\x7f\s]+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
+// Task goals are free multi-line text; the stored card title must stay a
+// single line (validateAgent rejects control characters) and within 512.
+export const cardTitleOf = goal => String(goal ?? '').replace(/[\x00-\x1f\x7f\s]+/g, ' ').trim().slice(0, 512);
 
 // A terminal owns its worktree, so an open Phantom task registered on exactly
 // that worktree identifies the terminal's work. Only never-linked terminals
@@ -35,7 +38,7 @@ export function autoBindings(nodes, tasks, canonical = p => p) {
     if (node.type !== 'terminal' || node.data?.agent?.cardId !== undefined || !node.data?.worktree?.path) continue;
     let home; try { home = canonical(node.data.worktree.path); } catch { continue; }
     const matches = open.filter(t => t.location.path === home);
-    if (matches.length === 1) bindings.push({ nodeId: node.id, cardId: matches[0].id, cardTitle: matches[0].raw.contract.goal.slice(0, 512) });
+    if (matches.length === 1) bindings.push({ nodeId: node.id, cardId: matches[0].id, cardTitle: cardTitleOf(matches[0].raw.contract.goal) });
   }
   return bindings;
 }
