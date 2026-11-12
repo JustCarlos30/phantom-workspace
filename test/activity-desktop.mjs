@@ -72,9 +72,9 @@ function installFixture() {
 const fixture = fn => page.evaluate(fn);
 const tray = () => page.getByRole('dialog', { name: 'Actividad del proyecto' });
 const notch = () => page.getByRole('button', { name: 'Actividad del proyecto', exact: true });
-async function open() { await notch().click(); await tray().waitFor(); }
+async function open() { await notch().click(); await tray().waitFor(); await tray().getByRole('button', { name: 'Todo', exact: true }).click(); }
 async function close() { await tray().getByLabel('Cerrar bandeja de actividad').click(); await tray().waitFor({ state: 'hidden' }); }
-async function settled() { await poll(() => fixture(() => document.querySelector('.activity-notch')?.textContent.includes('Fuentes · hace')), 'fuentes recuperadas'); }
+async function settled() { await poll(() => fixture(() => { const text = document.querySelector('.activity-notch')?.textContent || ''; return !!text && !/Recuperando|desconectado|sin confirmar/.test(text); }), 'fuentes recuperadas'); }
 async function viewport(width, height) {
   if (desktop) await desktop.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), [width, height]);
   await page.setViewportSize({ width, height });
@@ -109,14 +109,34 @@ try {
   await settled();
   await check('Notch persistente con necesidades reales, sesiones ocultas y estados desconocidos', async () => {
     assert.match(await notch().innerText(), /2 necesitan de ti/);
-    assert.match(await notch().innerText(), /2 sesiones/);
+     assert.equal(await page.locator('.create-dock .activity-notch').count(), 1);
     assert.match(await page.locator('.rail-panel-label').filter({ hasText: 'Shell abierta' }).innerText(), /agente sin señal/);
     await open();
-    assert.match(await tray().innerText(), /Vista oculta/);
+     assert.match(await tray().innerText(), /Vista oculta/);
+     assert.match(await tray().getByRole('heading', { name: /^Sesiones/ }).innerText(), /2/);
     assert.match(await tray().innerText(), /Integración desconocida/);
     assert.equal(await tray().getByRole('heading', { name: /Necesitan de ti/ }).count(), 1);
     await close();
-  });
+   });
+   await check('Dock: filtros directos, límites honestos y cierre sin resolver pendientes', async () => {
+     await notch().click();
+     assert.equal(await tray().getByRole('button', { name: 'Tu atención', exact: true }).getAttribute('aria-pressed'), 'true');
+     assert.equal(await tray().getByRole('heading', { name: /^Integración/ }).count(), 0);
+     await tray().getByRole('button', { name: 'Ir a sesión', exact: true }).click();
+     await page.locator('.canvas-node.focused').filter({ hasText: 'Terminal oculta' }).waitFor();
+     assert.match(await notch().innerText(), /2 necesitan de ti/);
+     await page.locator('.activity-strip').getByRole('button', { name: 'Integraciones', exact: true }).click();
+     await tray().getByRole('heading', { name: /^Integración/ }).waitFor();
+     assert.equal(await tray().getByRole('button', { name: 'Revisar incorporaciones', exact: true }).count(), 1);
+     await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
+     assert.match(await tray().innerText(), /El host todavía no recibe las cuotas/);
+     assert.equal(await tray().getByRole('heading', { name: /^Integración/ }).count(), 0);
+     await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
+     await tray().waitFor({ state: 'hidden' });
+     await notch().click(); await page.getByRole('button', { name: 'Cerrar actividad', exact: true }).click({ position: { x: 5, y: 5 } });
+     await tray().waitFor({ state: 'hidden' });
+     assert.match(await notch().innerText(), /2 necesitan de ti/);
+   });
   await check('Base explícita, comparación real del bridge y asociaciones verificables', async () => {
     await open(); await tray().getByLabel('Base de integración').fill('main'); await tray().getByRole('button', { name: 'Comparar', exact: true }).click();
     await poll(async () => (await tray().innerText()).includes('adelante 2 / detrás 1'), 'comparación Git');
@@ -134,7 +154,9 @@ try {
     assert.equal(await fixture(() => window.__activityFixture.calls.some(c => /approve|merge/.test(c.method))), false);
     await close();
   });
-  await check('Navegación directa recupera terminal oculta y mantiene notch en foco', async () => {
+   await check('Navegación directa recupera terminal oculta y mantiene notch en foco', async () => {
+     await fixture(() => { const f = window.__activityFixture; f.state.workspaces[0].nodes.find(n => n.id === 'hidden').data.hidden = true; f.emit({ type: 'state.changed', workspaceId: 'a' }); });
+     await poll(async () => (await page.locator('.rail-panel-label').filter({ hasText: 'Terminal oculta' }).count()) === 0, 'vista oculta de nuevo');
     await open();
     await tray().locator('.activity-row').filter({ hasText: 'Terminal oculta' }).filter({ hasText: 'Vista oculta' }).getByRole('button', { name: 'Ir a terminal', exact: true }).click();
     await page.locator('.canvas-node.focused').filter({ hasText: 'Terminal oculta' }).waitFor();
@@ -186,7 +208,9 @@ try {
   await check('Desktop y narrow sin overflow; capturas reales', async () => {
     for (const [name, width, height] of [['desktop', 1520, 980], ['narrow', 760, 760]]) {
       await viewport(width, height); await open(); await page.waitForTimeout(150);
-      const bounds = await tray().boundingBox(); assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
+       const bounds = await tray().boundingBox(); assert(bounds.x >= 0 && bounds.y >= 52 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
+       const dock = await page.locator('.activity-dock').boundingBox(); assert(dock.x >= 0 && dock.x + dock.width <= width + 1 && bounds.y + bounds.height < dock.y);
+       assert(Math.abs(bounds.x + bounds.width / 2 - dock.x - dock.width / 2) < 1, 'Bandeja alineada con el dock');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       assert.equal(await tray().evaluate(el => el.scrollWidth > el.clientWidth + 1), false);
       assert.equal(await tray().evaluate(el => [...el.querySelectorAll('.activity-tray-scroll,.activity-row,.activity-base')].some(row => row.scrollWidth > row.clientWidth + 1)), false);
