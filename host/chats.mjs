@@ -250,7 +250,7 @@ export class Chats {
   get(node) {
     const provider = node.data.chat?.provider ?? null, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
-    return { provider, autoApprove: !!node.data.chat?.autoApprove, mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [] };
+    return { provider, autoApprove: !!node.data.chat?.autoApprove, mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [] };
   }
   send(workspace, node, message) {
     assert(!this.closed, 'Host is shutting down');
@@ -421,16 +421,24 @@ export class Chats {
     const id = Chats.mainId(workspace), settings = this.nodes[id]?.settings || {};
     return { id, type: 'terminal', title: 'Phantom', data: { main: true, cwd: workspace.canonicalPath, chat: { provider: 'claude', ...settings } } };
   }
-  configureMain(workspace, { provider, autoApprove, model }) {
+  configureMain(workspace, { provider, autoApprove, model, reasoning }) {
     const node = this.mainNode(workspace), patch = {};
     if (provider !== undefined) patch.provider = provider;
     if (autoApprove !== undefined) patch.autoApprove = autoApprove;
     validateChat(patch);
-    assert(patch.provider !== null, 'Phantom necesita Claude u OpenCode');
+    assert(patch.provider !== null, 'Phantom necesita un agente');
     assert(patch.provider === undefined || patch.provider === node.data.chat.provider || !this.running(node.id), 'Detén la respuesta antes de cambiar de agente');
     if (model !== undefined && model !== null) validateModel(model);
     const entry = this.nodes[node.id] ??= { threads: {} }, chat = { ...node.data.chat, ...patch };
-    if (model !== undefined) { const models = { ...chat.models }; if (model === null) delete models[chat.provider]; else models[chat.provider] = model; chat.models = models; }
+    assert((model === undefined && reasoning === undefined) || !this.running(node.id), 'Detén la respuesta antes de cambiar modelo o effort/variant');
+    for (const [field, key] of [['model', 'models'], ['reasoning', 'reasoning']]) {
+      const value = field === 'model' ? model : reasoning;
+      if (value === undefined) continue;
+      const values = { ...chat[key] };
+      if (value === null) delete values[chat.provider]; else values[chat.provider] = value;
+      chat[key] = values;
+    }
+    validateChat(chat);
     entry.settings = chat; this.save();
     const next = this.mainNode(workspace);
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: next.id, provider: chat.provider, running: this.running(next.id), reset: true, meta: {}, messages: [] });

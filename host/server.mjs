@@ -161,7 +161,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const w=store.getWorkspace(p.workspaceId),main=p.nodeId===Chats.mainId(w),node=main?chats.mainNode(w):w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Chat card not found');
       // The project's Phantom conversation keeps its settings in the chat store.
-      if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,model:p.model});
+      if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,model:p.model,reasoning:p.reasoning});
       if(method==='chat.get') return chats.get(node);
       if(method==='chat.send') return chats.send(w,node,p.text);
       if(method==='chat.stop') return chats.stop(node.id);

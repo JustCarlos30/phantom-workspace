@@ -254,7 +254,7 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
 
 // How much of the model's window the conversation occupies, as read from the
 // provider. Without a known window only the occupied tokens are stated.
-function ReasoningPicker({ node, workspace, api, notify, provider, disabled }) {
+export function ReasoningPicker({ node, workspace, api, notify, provider, disabled }) {
   const selected = node.data.chat.reasoning?.[provider] || '';
   const [value, setValue] = useState(selected);
   useEffect(() => { setValue(selected); }, [selected, provider]);

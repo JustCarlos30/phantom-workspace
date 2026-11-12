@@ -217,6 +217,17 @@ test('the project\'s Phantom chat runs in the project folder with its identity, 
   // It is never a node of the canvas, and another project has its own thread.
   assert.equal((await host.invoke('state.get')).workspaces.find(x => x.id === w.id).nodes.some(n => n.id === ref.nodeId), false);
   await assert.rejects(host.invoke('chat.get', { workspaceId: w.id, nodeId: 'phantom:otro' }), /not found/);
+  // The main conversation shares provider and reasoning settings with chat cards.
+  await host.invoke('chat.configure', { ...ref, reasoning: 'high' });
+  assert.equal((await host.invoke('chat.get', ref)).reasoning.claude, 'high');
+  await assert.rejects(host.invoke('chat.configure', { ...ref, reasoning: 'invalid' }), /Effort/);
+  await host.invoke('chat.configure', { ...ref, provider: 'codex', model: 'gpt-test', reasoning: 'xhigh' });
+  chat = await host.invoke('chat.get', ref);
+  assert.equal(chat.provider, 'codex'); assert.equal(chat.model, 'gpt-test');
+  assert.equal(chat.reasoning.codex, 'xhigh');
+  await host.invoke('chat.configure', { ...ref, reasoning: null });
+  assert.equal((await host.invoke('chat.get', ref)).reasoning.codex, undefined);
+  await host.invoke('chat.configure', { ...ref, provider: 'claude' });
   // The permission switch is stored with the thread.
   await host.invoke('chat.configure', { ...ref, autoApprove: true });
   assert.equal((await host.invoke('chat.get', ref)).autoApprove, true);

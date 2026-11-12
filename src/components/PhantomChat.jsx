@@ -3,10 +3,10 @@ import { AlertCircle, ArrowUp, Mic, MessageSquarePlus, ShieldCheck, ShieldOff, S
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { formatCost, formatElapsed } from '../hooks/chatState';
-import { ContextMeter, Message, ModelPicker, useElapsed } from './ChatCard';
+import { ContextMeter, Message, ModelPicker, ReasoningPicker, useElapsed } from './ChatCard';
 import { PhantomGlyph, ProviderGlyph } from './Glyphs';
 
-const PROVIDERS = [{ id: 'claude', label: 'Claude' }, { id: 'opencode', label: 'OpenCode' }];
+const PROVIDERS = [{ id: 'claude', label: 'Claude' }, { id: 'opencode', label: 'OpenCode' }, { id: 'codex', label: 'Codex' }];
 const SUGGESTIONS = [
   '¿En qué estado está este proyecto?',
   'Resume los cambios de Git sin confirmar',
@@ -15,6 +15,7 @@ const SUGGESTIONS = [
 ];
 const PERMISSIONS = {
   claude: { on: 'Trabaja libremente dentro de la carpeta del proyecto y te pide permiso aquí antes de tocar algo fuera.', off: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.' },
+  codex: { on: 'Codex puede editar dentro del proyecto.', off: 'Codex trabaja en modo de solo lectura.' },
   opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado en su configuración.', off: 'OpenCode solo lee y responde.' },
 };
 
@@ -24,7 +25,7 @@ const PERMISSIONS = {
 export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership }) {
   const nodeId = `phantom:${workspace.id}`;
   // The host owns the provider; `pending` only shows a switch in flight.
-  const { chat, error, send, stop, clear, answer } = useChat({ workspaceId: workspace.id, nodeId, provider: 'phantom', api, connected });
+  const { chat, error, send, stop, clear, answer, reply } = useChat({ workspaceId: workspace.id, nodeId, provider: 'phantom', api, connected });
   const [pending, setPending] = useState(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -36,7 +37,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   const active = pending || chat?.provider || 'claude';
   const label = PROVIDERS.find(p => p.id === active)?.label || active;
   const autoApprove = !!chat?.autoApprove;
-  const waiting = messages.some(message => message.parts?.some(part => part.type === 'permission' && part.status === 'pending'));
+  const waiting = messages.some(message => message.parts?.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending'));
   const elapsed = useElapsed(messages.at(-1)?.createdAt, running);
   const voice = useVoiceRecorder({
     api, workspaceId: workspace.id,
@@ -71,7 +72,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   const toggleVoice = () => { voice.clearError(); if (listening) voice.stop(); else voice.start(); };
   const cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
   const Shield = autoApprove ? ShieldCheck : ShieldOff;
-  const pickerNode = { id: nodeId, data: { chat: { provider: active, models: chat?.models || {} } } };
+  const pickerNode = { id: nodeId, data: { chat: { provider: active, models: chat?.models || {}, reasoning: chat?.reasoning || {} } } };
   const voiceLabel = { requesting: 'Esperando el micrófono…', recording: 'Escuchando · pulsa para transcribir', transcribing: 'Transcribiendo…' }[voice.status];
 
   return <aside className="phantom-chat pc" onFocusCapture={() => onFocusOwnership?.(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) onFocusOwnership?.(false); }} data-provider={active} data-agent={running ? 'working' : 'idle'} aria-label="Chat con Phantom"
@@ -80,7 +81,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
       <span className="phantom-chat-mark" aria-hidden="true"><PhantomGlyph size={16} /></span>
       <div className="phantom-chat-title">
         <strong>Phantom</strong>
-        <small>{running ? <span className="phantom-chat-live" role="status">{waiting ? 'Espera tu permiso' : 'Respondiendo'} · {formatElapsed(elapsed)}</span> : <span title={workspace.canonicalPath}>{workspace.name}</span>}</small>
+        <small>{running ? <span className="phantom-chat-live" role="status">{waiting ? 'Espera tu respuesta' : 'Respondiendo'} · {formatElapsed(elapsed)}</span> : <span title={workspace.canonicalPath}>{workspace.name}</span>}</small>
       </div>
       <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva con Phantom" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>
       <button type="button" className="pc-icon" title="Cerrar chat (Ctrl ⇧ Espacio)" aria-label="Cerrar chat con Phantom" onClick={onClose}><X size={16} /></button>
@@ -100,7 +101,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
           {chat && <><p>Da instrucciones, pregunta por el proyecto o dicta con el micrófono. Phantom trabaja en <span className="pc-mono" title={workspace.canonicalPath}>{workspace.name}</span> con {label}.</p>
             <div className="phantom-chat-suggestions">{SUGGESTIONS.map(text => <button key={text} type="button" disabled={running || sending} onClick={() => submit(text)}>{text}</button>)}</div></>}
         </div>}
-        {messages.map(message => <Message key={message.id} message={message} label="Phantom" provider={active} model={meta.model} onAnswer={answer} />)}
+        {messages.map(message => <Message key={message.id} message={message} label="Phantom" provider={active} model={meta.model} onAnswer={answer} onReply={reply} />)}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
@@ -111,6 +112,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
         <textarea ref={input} rows={2} value={draft} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo…' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         <div className="pc-status">
           {chat && <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={running} />}
+          {chat && <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} disabled={running} />}
           <ContextMeter meta={meta} />
           {cost && <span className="pc-cost" title={`Costo acumulado · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
           <span className="pc-bar-space" />
