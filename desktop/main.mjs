@@ -13,11 +13,12 @@ import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
   validateCloseReady, validateID, validateInvocation, validateJSON,
-  REFERENCE_SCHEME, byteRange, referenceTarget,
+  REFERENCE_SCHEME, REVIEW_SCHEME, createReviewMedia, byteRange, referenceTarget,
 } from './security.mjs';
 
 // Must precede app ready. `stream` lets <video> seek through range requests.
-protocol.registerSchemesAsPrivileged([{ scheme: REFERENCE_SCHEME, privileges: { standard: true, secure: true, stream: true } }]);
+protocol.registerSchemesAsPrivileged([REFERENCE_SCHEME, REVIEW_SCHEME].map(scheme => ({ scheme, privileges: { standard: true, secure: true, stream: true } })));
+const reviewMedia = createReviewMedia();
 
 const dataDir = path.resolve(process.env.PHANTOM_WORKSPACE_HOME
   || path.join(process.env.XDG_STATE_HOME || path.join(homedir(), '.local', 'state'), 'phantom-workspace'));
@@ -110,6 +111,12 @@ async function hostInvoke(method, payload = {}) {
     connected = await hostClient();
     // host-client owns the per-method deadline; an expired request is not a lost transport.
     const result = await connected.invoke(method, payload);
+    if (method === 'review.export' && result.origin?.kind === 'render') {
+      const state = await connected.invoke('state.get', {});
+      const workspace = state.workspaces.find(item => item.id === payload.workspaceId);
+      if (!workspace) throw new Error('Proyecto de revisión desconocido.');
+      result.mediaURL = await reviewMedia.issue(await realpath(workspace.canonicalPath ?? workspace.path), payload.slug, result);
+    }
     hostStatus = { connected: method !== 'host.shutdown', error: null };
     if (method === 'host.shutdown') { connected.close(); client = null; browsers?.invalidate(); }
     return result;
@@ -165,6 +172,7 @@ function configureUISession(ses) {
     callback({ responseHeaders: { ...headers, 'Content-Security-Policy': [csp] } });
   });
   // Canvas references: images and videos stored by the host under the data tree.
+  ses.protocol.handle(REVIEW_SCHEME, request => reviewMedia.respond(request));
   ses.protocol.handle(REFERENCE_SCHEME, async request => {
     try {
       const target = referenceTarget(request.url);
