@@ -1063,3 +1063,54 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
   .studio-inspector-open:not(.studio-focused) .canvas-navigation { bottom: calc(var(--gutter) + 108px); }
   .studio-inspector-open:not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: calc(var(--gutter) + 108px + 56px); }
 }
+
+/* =====================================================================
+   Acabado (2026-11-12)
+   Same night glass, finished edges. Three rules: what is chosen is
+   unmistakable, every border closes cleanly on its own radius, and every
+   state change eases on the one curve instead of snapping.
+   ===================================================================== */
+
+/* Fluidity: interactive elements ease colour, fill, edge and shadow by
+   default. Zero specificity, so any component that declares its own
+   transition keeps it; reduced motion is handled globally in styles.css. */
+:where(button, a, summary, label, input, select, textarea, [role="button"], [role="option"], [role="tab"], [role="menuitem"]) {
+  transition-property: background-color, border-color, color, box-shadow, opacity;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-out);
+}
+/* Legacy one-offs collapse onto the tokens. */
+.rail-panel-focus { transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+
+/* Selection: one clear ring instead of a faint one. The outline always
+   exists at the same width and offset, so selecting only fades its colour
+   in (no jump of width or offset), and the full border goes accent rather
+   than lighting just the top edge. */
+.canvas-node { outline: 3px solid transparent; outline-offset: 0; }
+.canvas-node.selected { border-color: var(--accent); outline-color: color-mix(in srgb, var(--accent) 34%, transparent); }
+.canvas-node.selected > .node-header { border-bottom-color: color-mix(in srgb, var(--accent) 22%, var(--hairline)); }
+.canvas-node.selected .title-button { color: var(--ink); }
+/* Focus mode is the stage itself: no selection chrome, a calm even edge.
+   (A coloured top border on a 16px radius fades into the corners and reads
+   as a rendering fault.) */
+.canvas-node.focused { border-color: var(--hairline-strong); outline-color: transparent; }
+.canvas-node.focused > .node-header { border-bottom-color: var(--hairline); }
+/* The arrival clip follows the card's real radius, so corners never square
+   off and snap back when the animation ends. */
+@keyframes focus-return {
+  from { clip-path: inset(0 0 3% 0 round var(--r-lg)); filter: brightness(.97); }
+  to { clip-path: inset(0 round var(--r-lg)); filter: brightness(1); }
+}
+
+/* Writing surfaces inside a card: the caret is the focus signal. A square
+   inset outline inside a rounded card was a second, mismatched border. */
+.canvas-node .note-editor:focus-visible { outline: 0; }
+
+/* Concentric radii: stray 7–8px corners land on the scale. */
+.node-header .icon-button, .rail-heading button, .rail-panel-focus,
+.inline-name-input, .node-title input, .project-name-editor .inline-name-input { border-radius: var(--r-sm); }
+.tw-field input[type="file"]::file-selector-button { border-radius: var(--r-xs); }
+
+/* Keyboard focus: the ring sits a hair closer so it reads as the control's
+   own edge, not a frame floating around it. */
+button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2px; }

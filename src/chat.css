@@ -250,7 +250,7 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc.is-focused .pc-dock { padding: 0 20px 10px; }
 .pc-composer { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
 .pc-field { display: flex; flex-direction: column; border: 1px solid var(--hairline-strong); border-radius: var(--r-lg); background: var(--surface-2); cursor: text; transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
-.pc-field:focus-within { border-color: color-mix(in srgb, var(--ink) 32%, transparent); }
+.pc-field:focus-within { border-color: color-mix(in srgb, var(--pc-hue) 48%, var(--hairline-strong)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-hue) 14%, transparent); }
 .pc-field textarea { display: block; width: 100%; min-height: 38px; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-y: auto; }
 .pc-field textarea::placeholder { color: var(--muted); }
 .pc-field textarea:focus-visible { outline: none; }
