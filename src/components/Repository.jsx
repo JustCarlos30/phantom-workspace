@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownToLine, Check, ChevronDown, ChevronRight, Copy, FileCode2, FileDiff, FolderGit2, FolderOpen, GitBranch, GitCommitHorizontal, GitMerge, Network, Pencil, RefreshCw, RotateCcw, Save, Search, SquareTerminal, Tag, X } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, Check, ChevronDown, ChevronRight, Copy, FileCode2, FileDiff, Folder, FolderGit2, FolderOpen, GitBranch, GitCommitHorizontal, GitMerge, Layers, Network, Pencil, RefreshCw, RotateCcw, Save, Search, SquareTerminal, Tag, X } from 'lucide-react';
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
 import Incorporaciones from './Incorporaciones.jsx';
-import { buildBranches, changeLabel, commitsText, filesText, plural, shortBranch } from '../hooks/branches-model.mjs';
+import { buildBranches, cardsOf, changeCode, changeLabel, changeMix, commitsText, contentByBranch, filesText, groupByDir, plural, shortBranch } from '../hooks/branches-model.mjs';
+import { statusLabel as cardStatusLabel, statusTone as cardStatusTone } from '../hooks/phantom-desk.mjs';
 import { diffStats, parseDiff, parseRefs } from '../hooks/repo-graph.mjs';
 import Graph from './RepoGraph.jsx';
 import '../repository.css';
@@ -16,7 +17,7 @@ import EmptyState from './EmptyState.jsx';
 const POLL_MS = 8000;
 const STATUS = { M: 'Modificado', A: 'Añadido', D: 'Borrado', R: 'Renombrado', C: 'Copiado', T: 'Tipo cambiado', U: 'En conflicto' };
 const statusTone = code => code === 'D' ? 'removed' : code === 'A' ? 'added' : code === 'U' ? 'conflict' : 'modified';
-const statusLetter = status => { const code = (status || '').replace(/ /g, '')[0] || '?'; return code === '?' ? 'N' : code; };
+const statusLetter = status => { const code = changeCode(status); return code === '?' ? 'N' : code; };
 const fileName = file => file.split('/').pop();
 const fileDir = file => file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '';
 const fullDate = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }); };
@@ -114,16 +115,55 @@ function EditorView({ tab, api, workspace, notify, onDirty, onSaved }) {
 
 // ---------------------------------------------------------------- Detail pane
 
-function FileRow({ status, path, extra, onOpen, onEdit, title }) {
+function FileRow({ status, path, extra, onOpen, onEdit, title, hideDir = false }) {
   const letter = statusLetter(status);
+  const label = letter === 'N' ? 'Nuevo' : STATUS[letter] || changeLabel(status);
   return <li className="rp-filerow">
-    <button type="button" className="rp-filerow-main" onClick={onOpen} title={title || path}>
-      <span className={`rp-status is-${letter === 'N' ? 'added' : statusTone(letter)}`} aria-label={letter === 'N' ? 'Nuevo' : STATUS[letter] || changeLabel(status)}>{letter}</span>
-      <span className="rp-filename">{fileName(path)}</span><span className="rp-filedir">{fileDir(path)}</span>
+    <button type="button" className="rp-filerow-main" onClick={onOpen} title={`${label} · ${title || path}`}>
+      <span className={`rp-status is-${letter === 'N' ? 'added' : statusTone(letter)}`} aria-label={label}>{letter}</span>
+      <span className="rp-filename">{fileName(path)}</span><span className="rp-status-label">{label}</span>{!hideDir && <span className="rp-filedir">{fileDir(path)}</span>}
+      {hideDir && <span className="rp-spacer" />}
       {extra}
     </button>
     {onEdit && <button type="button" className="rp-icon is-small" title="Abrir en el editor" aria-label={`Editar ${path}`} onClick={onEdit}><Pencil size={12} /></button>}
   </li>;
+}
+
+// Stacked bar + legend: what kind of work a set of changes is, at a glance.
+function MixBar({ changes, total }) {
+  const mix = changeMix(changes);
+  if (!mix.length) return null;
+  const shown = mix.reduce((sum, kind) => sum + kind.count, 0);
+  return <div className="rp-mix">
+    <div className="rp-mix-bar" role="img" aria-label={mix.map(kind => `${kind.count} ${kind.label.toLowerCase()}`).join(', ')}>
+      {mix.map(kind => <span key={kind.id} className={`rp-mix-seg is-${kind.id}`} style={{ flexGrow: kind.count }} title={`${kind.count} ${kind.label.toLowerCase()}`} />)}
+    </div>
+    <div className="rp-mix-legend">
+      {mix.map(kind => <span key={kind.id} className={`rp-mix-key is-${kind.id}`}><i aria-hidden="true" /><b>{kind.count}</b>{kind.label.toLowerCase()}</span>)}
+      {total > shown && <span className="rp-quiet">· {total - shown} más sin listar</span>}
+    </div>
+  </div>;
+}
+
+// Files under folder headers, so a change set reads as "which parts of the repo".
+function GroupedFiles({ items, pathOf = item => item.path, render }) {
+  const groups = groupByDir(items, pathOf);
+  return <div className="rp-dirgroups">{groups.map(group => <section key={group.dir} className="rp-dirgroup">
+    <h5 className="rp-dirhead" title={group.dir || 'Raíz del repositorio'}><Folder size={11} aria-hidden="true" /><span>{group.dir || 'raíz'}</span><span className="rp-count">{group.items.length}</span></h5>
+    <ul className="rp-filelist">{group.items.map(item => render(item, true))}</ul>
+  </section>)}</div>;
+}
+
+// The Phantom Card(s) this worktree works for: bound to its terminal, or living in its branch.
+function CardLinks({ cards, onOpenPanel, compact = false }) {
+  if (!cards.length) return null;
+  return <div className={`rp-cards${compact ? ' is-compact' : ''}`}>{cards.map(card => <button key={card.id} type="button" className={`rp-card${card.bound ? ' is-bound' : ''}`} disabled={!onOpenPanel}
+    title={`${card.bound ? 'Card vinculada a la terminal de este worktree' : 'Card registrada en este worktree'}\n${card.title}\n${card.id}`}
+    onClick={() => onOpenPanel?.('phantom-cards', { cardId: card.id })}>
+    <Layers size={13} aria-hidden="true" className="rp-card-icon" />
+    <span className="rp-card-text"><span className="rp-card-title">{card.title}</span>
+      <span className="rp-card-meta">{card.bound ? 'Vinculada' : 'En este worktree'}{card.status && <> · <span className={`rp-card-status is-${cardStatusTone(card.status)}`}>{cardStatusLabel(card.status)}</span></>} · <code>{card.id.replace(/^task_/, '').slice(0, 8)}</code></span></span>
+  </button>)}</div>;
 }
 
 function CommitDetail({ oid, api, workspace, graph, onOpenTab, onSelectCommit }) {
@@ -171,7 +211,7 @@ function FileFinder({ tree, api, workspace, onOpen }) {
   </div>;
 }
 
-function TreeDetail({ tree, base, api, workspace, busy, act, notice, onOpenTab, onOpenPanel, onSelectCommit }) {
+function TreeDetail({ tree, cards, base, api, workspace, busy, act, notice, onOpenTab, onOpenPanel, onSelectCommit }) {
   const [message, setMessage] = useState(''), [finder, setFinder] = useState(false), [showCommitted, setShowCommitted] = useState(false);
   useEffect(() => { setMessage(''); setFinder(false); }, [tree.id]);
   const path = tree.worktree?.path;
@@ -180,6 +220,7 @@ function TreeDetail({ tree, base, api, workspace, busy, act, notice, onOpenTab, 
     <div className="rp-detail-head">
       <p className="rp-kicker">{tree.isBase ? <GitMerge size={13} aria-hidden="true" /> : tree.terminal ? <SquareTerminal size={13} aria-hidden="true" /> : <FolderGit2 size={13} aria-hidden="true" />}{tree.isBase ? 'Rama de integración' : 'Worktree'} · <span className={tree.running ? 'rp-live' : ''}>{tree.where}</span></p>
       <h3 className="rp-detail-title">{tree.title}</h3>
+      {cards.length > 0 ? <CardLinks cards={cards} onOpenPanel={onOpenPanel} /> : !tree.isBase && <p className="rp-nocard"><Layers size={12} aria-hidden="true" />Sin Card de Phantom vinculada</p>}
       <p className="rp-quiet">{tree.name ? <code>{tree.name}</code> : 'HEAD separado'}{tree.oid && <> · <button type="button" className="rp-link" onClick={() => onSelectCommit(tree.oid)}><code>{tree.oid.slice(0, 7)}</code></button></>}</p>
       {path && <p className="rp-quiet rp-path" title={path}>{path}</p>}
       <p className="rp-summary">{tree.summary}</p>
@@ -196,16 +237,18 @@ function TreeDetail({ tree, base, api, workspace, busy, act, notice, onOpenTab, 
 
     <div className="rp-detail-section">
       <h4>Cambios sin guardar <span className="rp-count">{tree.changeCount}</span></h4>
-      {!tree.changeCount && <p className="rp-quiet">Árbol limpio.</p>}
-      <ul className="rp-filelist">{tree.changes.map(change => <FileRow key={`${change.status}:${change.path}`} status={change.status} path={change.path}
-        extra={change.inBase && <span className="rp-same">ya en {base}</span>}
-        onOpen={() => open(change, 'diff')} onEdit={statusLetter(change.status) !== 'D' && tree.exists ? () => open(change, 'edit') : undefined} />)}</ul>
+      {!tree.changeCount && <p className="rp-clean"><Check size={12} aria-hidden="true" />Árbol limpio: nada sin guardar.</p>}
+      {tree.changeCount > 0 && <MixBar changes={tree.changes} total={tree.changeCount} />}
+      <GroupedFiles items={tree.changes} render={(change, hideDir) => <FileRow key={`${change.status}:${change.path}`} status={change.status} path={change.path} hideDir={hideDir}
+        title={change.originalPath ? `${change.originalPath} → ${change.path}` : change.path} extra={change.inBase && <span className="rp-same">ya en {base}</span>}
+        onOpen={() => open(change, 'diff')} onEdit={statusLetter(change.status) !== 'D' && tree.exists ? () => open(change, 'edit') : undefined} />} />
       {tree.changeCount > tree.changes.length && <p className="rp-quiet">y {tree.changeCount - tree.changes.length} más</p>}
     </div>
 
     {tree.committedCount > 0 && <div className="rp-detail-section">
       <button type="button" className="rp-disclosure" aria-expanded={showCommitted} onClick={() => setShowCommitted(value => !value)}>{showCommitted ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<h4>En commits por integrar <span className="rp-count">{tree.committedCount}</span></h4></button>
-      {showCommitted && <ul className="rp-filelist">{tree.committed.map(file => <FileRow key={file} status="M" path={file} onOpen={() => onOpenTab({ kind: 'edit', tree: path, treeTitle: tree.title, path: file })} />)}</ul>}
+      {showCommitted && <GroupedFiles items={tree.committed} pathOf={file => file} render={(file, hideDir) => <FileRow key={file} status="M" path={file} hideDir={hideDir} onOpen={() => onOpenTab({ kind: 'edit', tree: path, treeTitle: tree.title, path: file })} />} />}
+      {showCommitted && tree.committedCount > tree.committed.length && <p className="rp-quiet">y {tree.committedCount - tree.committed.length} más</p>}
     </div>}
 
     {(tree.can.commit || tree.can.integrate || tree.can.update) && <form className="rp-commit" onSubmit={event => { event.preventDefault(); act(tree, 'save', { message: message.trim() || `Guardar trabajo de ${tree.title}` }).then(result => { if (result?.ok) setMessage(''); }); }}>
@@ -230,22 +273,27 @@ function SideSection({ title, count, open, onToggle, children, action }) {
   </section>;
 }
 
-function Sidebar({ model, merge, selected, onSelectTree, onSelectCommit, onOpenIntegrations, filter, setFilter }) {
+function Sidebar({ model, merge, selected, cardsFor, onSelectTree, onSelectCommit, onOpenIntegrations, filter, setFilter }) {
   const [open, setOpen] = useState({ trees: true, branches: true, integrations: true });
   const toggle = key => setOpen(old => ({ ...old, [key]: !old[key] }));
   const all = [model.baseRow, ...model.groups.flatMap(group => group.rows)].filter(Boolean);
   const text = filter.trim().toLowerCase();
-  const visible = all.filter(row => !text || `${row.title}\n${row.name || ''}`.toLowerCase().includes(text));
+  const visible = all.filter(row => !text || `${row.title}\n${row.name || ''}\n${cardsFor(row).map(card => card.title).join('\n')}`.toLowerCase().includes(text));
   const trees = visible.filter(row => row.worktree), branches = visible.filter(row => !row.worktree);
   const queue = merge?.queue || [];
   return <aside className="rp-side" aria-label="Worktrees, ramas e integraciones">
     <label className="rp-search rp-side-search"><Search size={12} aria-hidden="true" /><input type="search" placeholder="Filtrar" aria-label="Filtrar worktrees y ramas" value={filter} onChange={event => setFilter(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setFilter(''); }} /></label>
     <div className="rp-side-scroll">
       <SideSection title="Worktrees" count={trees.length} open={open.trees} onToggle={() => toggle('trees')}>
-        <ul className="rp-side-list">{trees.map(row => <li key={row.id}>
-          <button type="button" className={`rp-side-item${selected?.kind === 'tree' && selected.id === row.id ? ' is-selected' : ''}`} onClick={() => onSelectTree(row.id)} title={`${row.name || 'HEAD separado'}\n${row.worktree.path}`}>
+        <ul className="rp-side-list">{trees.map(row => { const rowCards = cardsFor(row), card = rowCards[0], mix = changeMix(row.changes); return <li key={row.id}>
+          <button type="button" className={`rp-side-item is-tree${selected?.kind === 'tree' && selected.id === row.id ? ' is-selected' : ''}`} onClick={() => onSelectTree(row.id)} title={`${row.name || 'HEAD separado'}\n${row.worktree.path}${card ? `\nCard: ${card.title}` : ''}`}>
             {row.isBase ? <GitMerge size={13} aria-hidden="true" /> : row.terminal ? <SquareTerminal size={13} aria-hidden="true" className={row.running ? 'rp-live' : ''} /> : <FolderGit2 size={13} aria-hidden="true" />}
-            <span className="rp-side-name">{row.title}</span>
+            <span className="rp-side-text">
+              <span className="rp-side-name">{row.title}</span>
+              {card ? <span className={`rp-side-card${card.bound ? ' is-bound' : ''}`} title={rowCards.map(item => item.title).join('\n')}><Layers size={10} aria-hidden="true" /><span>{card.title}</span>{rowCards.length > 1 && <b>+{rowCards.length - 1}</b>}</span>
+                : <span className="rp-side-sub">{row.isBase ? 'Rama de integración' : shortBranch(row.name)}</span>}
+              {mix.length > 0 && <span className="rp-side-mix" aria-hidden="true">{mix.map(kind => <i key={kind.id} className={`is-${kind.id}`} style={{ flexGrow: kind.count }} />)}</span>}
+            </span>
             <span className="rp-side-badges">
               {row.changeCount > 0 && <span className="rp-pill is-dirty" title={`${filesText(row.changeCount)} sin guardar`}>✎{row.changeCount}</span>}
               {row.ahead > 0 && <span className="rp-pill is-ahead" title={`${commitsText(row.ahead)} por integrar`}>↑{row.ahead}</span>}
@@ -253,7 +301,7 @@ function Sidebar({ model, merge, selected, onSelectTree, onSelectCommit, onOpenI
               {row.conflicts.length > 0 && <AlertTriangle size={11} className="rp-danger" aria-label="Chocaría al integrar" />}
             </span>
           </button>
-        </li>)}</ul>
+        </li>; })}</ul>
       </SideSection>
       <SideSection title="Ramas sin worktree" count={branches.length} open={open.branches} onToggle={() => toggle('branches')}>
         {!branches.length && <EmptyState className="rp-side-empty" size="compact" description="Todas las ramas locales tienen worktree." />}
@@ -286,10 +334,15 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
   const overview = useResource(api, 'branch.overview', { workspaceId: workspace?.id }, { enabled });
   const graph = useResource(api, 'repo.graph', { workspaceId: workspace?.id, limit }, { enabled });
   const merge = useResource(api, 'merge.status', { workspaceId: workspace?.id }, { enabled });
+  // Phantom Cards are optional context: which Card each worktree works for. Never blocks Git.
+  const cards = useResource(api, 'phantom.list', { workspaceId: workspace?.id, topic: 'tasks' }, { enabled });
   const op = useOperation(notify);
   const paused = useRef(false); paused.current = op.busy;
-  const reloadAll = useCallback(() => Promise.all([overview.reload(), graph.reload(), merge.reload()]), [overview.reload, graph.reload, merge.reload]);
+  const reloadAll = useCallback(() => Promise.all([overview.reload(), graph.reload(), merge.reload(), cards.reload()]), [overview.reload, graph.reload, merge.reload, cards.reload]);
   usePolling(reloadAll, enabled && active, paused);
+  const catalog = cards.data?.available !== false ? cards.data?.items || [] : [];
+  const content = useMemo(() => contentByBranch({ cards: catalog, baseBranch: overview.data?.base?.branch }), [cards.data, overview.data?.base?.branch]);
+  const cardsFor = useCallback(row => cardsOf(row, content.get(row.name || row.worktree?.path), catalog), [content, cards.data]);
 
   const lastOverview = useRef(null); if (overview.data) lastOverview.current = overview.data;
   const lastGraph = useRef(null); if (graph.data) lastGraph.current = graph.data;
@@ -353,7 +406,7 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
     {(overview.error || graph.error) && <div className="rp-pad-x"><ErrorNotice error={`No se pudo releer Git: ${(overview.error || graph.error).message}. Se muestra la última lectura.`} retry={reloadAll} /></div>}
     {op.error && <div className="rp-pad-x"><ErrorNotice error={op.error} clear={op.clear} /></div>}
     <div className="rp-main">
-      <Sidebar model={model} merge={merge.data} selected={selected} filter={filter} setFilter={setFilter} onSelectTree={selectTree} onSelectCommit={selectCommit} onOpenIntegrations={() => setCurrent('integrations')} />
+      <Sidebar model={model} merge={merge.data} selected={selected} cardsFor={cardsFor} filter={filter} setFilter={setFilter} onSelectTree={selectTree} onSelectCommit={selectCommit} onOpenIntegrations={() => setCurrent('integrations')} />
       <section className="rp-center">
         <nav className="rp-tabs" role="tablist" aria-label="Vistas">
           <button type="button" role="tab" aria-selected={current === 'graph'} className="rp-tab" onClick={() => setCurrent('graph')}><Network size={13} aria-hidden="true" />Grafo</button>
@@ -376,7 +429,7 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
       </section>
       <aside className="rp-detail" aria-label="Detalle">
         {selected?.kind === 'commit' && <CommitDetail key={selected.oid} oid={selected.oid} api={api} workspace={workspace} graph={history} onOpenTab={openTab} onSelectCommit={selectCommit} />}
-        {selectedTree && <TreeDetail tree={selectedTree} base={model.base} api={api} workspace={workspace} busy={op.busy} act={act} notice={notices[selectedTree.id]} onOpenTab={openTab} onOpenPanel={onOpenPanel} onSelectCommit={selectCommit} />}
+        {selectedTree && <TreeDetail tree={selectedTree} cards={cardsFor(selectedTree)} base={model.base} api={api} workspace={workspace} busy={op.busy} act={act} notice={notices[selectedTree.id]} onOpenTab={openTab} onOpenPanel={onOpenPanel} onSelectCommit={selectCommit} />}
         {!selected && <EmptyState className="rp-quiet rp-pad" description="Selecciona un commit o un worktree." />}
         {selected?.kind === 'tree' && !selectedTree && <p className="rp-quiet rp-pad">Ese worktree ya no existe.</p>}
       </aside>

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
+import { buildBranches, cardsOf, changeLabel, changeMix, changeTone, contentByBranch, groupByDir } from '../src/hooks/branches-model.mjs';
 
 const clean = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PHANTOM_')));
 const run = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env: clean(), stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -32,6 +33,7 @@ test('Ramas: every branch and worktree is visible, and integration never loses w
   assert.equal(data.available, true); assert.equal(data.base.branch, 'main'); assert.equal(data.branches.length, 5);
   assert.equal(data.branches.find(b => b.isBase).worktree.main, true);
   assert.equal(of('dirty').work, 'dirty'); assert.equal(of('dirty').changeCount, 2); assert.equal(of('dirty').terminal.title, 'Sidebar');
+  assert.equal(of('dirty').terminal.cardId, ''); assert.equal(of('dirty').terminal.cardTitle, '');
   assert.equal(of('dirty').inBase, 0);
   assert.deepEqual(of('dirty').changes.map(c => [c.status, c.path]).sort(), [[' M', 'shared.txt'], ['??', 'new.txt']].sort());
   assert.equal(of('ready').work, 'ready'); assert.equal(of('ready').ahead, 1); assert.equal(of('ready').behind, 1); assert.deepEqual(of('ready').conflicts, []); assert.equal(of('ready').terminal, null);
@@ -93,4 +95,46 @@ test('Ramas: every branch and worktree is visible, and integration never loses w
   ({ of } = await read()); assert.equal(of('stale').worktree.exists, false);
   assert.equal((await host.invoke('branch.remove', { workspaceId, branch: 'phantom/terminal-stale' })).status, 'removed');
   ({ data } = await read()); assert.deepEqual(data.branches.map(b => b.name).sort(), ['main', 'phantom/terminal-clash']);
+});
+
+test('Ramas: a worktree names the Card it works for and how its changes split', () => {
+  const row = { name: 'phantom/terminal-a', terminal: { cardId: 'task_bound', cardTitle: 'Título guardado' } };
+  const content = { cards: [{ id: 'task_other', title: 'Otra', status: 'ready' }, { id: 'task_bound', title: 'Título vivo', status: 'running' }], skills: [] };
+  assert.deepEqual(cardsOf(row, content), [
+    { id: 'task_bound', title: 'Título vivo', status: 'running', bound: true },
+    { id: 'task_other', title: 'Otra', status: 'ready', bound: false },
+  ]);
+  // Without the catalog the bound Card still shows, from the terminal identity.
+  assert.deepEqual(cardsOf(row, undefined), [{ id: 'task_bound', title: 'Título guardado', status: undefined, bound: true }]);
+  assert.deepEqual(cardsOf({ terminal: { cardId: '' } }, undefined), []);
+  assert.deepEqual(cardsOf(row, undefined, [{ id: 'task_bound', title: 'Título del catálogo', status: 'done' }]), [{ id: 'task_bound', title: 'Título del catálogo', status: 'done', bound: true }]);
+  assert.deepEqual(changeMix([{ status: '??' }, { status: ' M' }, { status: 'M ' }, { status: ' D' }]).map(k => [k.id, k.count]), [['added', 1], ['modified', 2], ['removed', 1]]);
+  assert.deepEqual(groupByDir([{ path: 'src/b.js' }, { path: 'a.md' }, { path: 'src/a.js' }, { path: 'docs/x.md' }]).map(g => [g.dir, g.items.map(i => i.path)]),
+    [['', ['a.md']], ['docs', ['docs/x.md']], ['src', ['src/a.js', 'src/b.js']]]);
+});
+
+test('Ramas: all unmerged Git states read as conflicts, including both-added and both-deleted', () => {
+  const changes = ['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'].map(status => ({ status }));
+  for (const change of changes) {
+    assert.equal(changeLabel(change.status), 'En conflicto');
+    assert.equal(changeTone(change.status), 'conflict');
+  }
+  assert.deepEqual(changeMix(changes).map(kind => [kind.id, kind.count]), [['conflict', 7]]);
+  assert.equal(changeLabel(' T'), 'Tipo cambiado');
+  assert.equal(changeLabel('R '), 'Renombrado');
+});
+
+test('Ramas: Card locations include main and detached checkouts, and search finds branch Cards', () => {
+  const cards = [
+    { id: 'task_main', title: 'Proyecto', location: { main: true, branch: 'main' } },
+    { id: 'task_branch', title: 'Mejorar navegación', location: { branch: 'feature' } },
+    { id: 'task_detached', title: 'Separada', location: { path: '/detached' } },
+  ];
+  const content = contentByBranch({ cards, baseBranch: 'main' });
+  assert.deepEqual(content.get('main').cards, [cards[0]]);
+  assert.deepEqual(content.get('/detached').cards, [cards[2]]);
+  const data = { base: { branch: 'main' }, branches: [{ name: 'feature', work: 'none', changeCount: 0, ahead: 0, behind: 0, changes: [], committed: [] }] };
+  assert.equal(buildBranches(data, { query: 'navegación', content, cards }).visible, 1);
+  assert.equal(buildBranches(data, { query: 'task_branch', content, cards }).visible, 1);
+  assert.equal(buildBranches(data, { query: 'Separada', content, cards }).visible, 0);
 });

@@ -197,5 +197,57 @@
 .rp-finder { display: grid; gap: 6px; margin-top: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); max-height: 320px; overflow: auto; }
 .rp-commit { display: grid; gap: 8px; padding: 12px 14px 16px; }
 
+/* Worktree ↔ Phantom Card */
+.rp-cards { display: grid; gap: 6px; margin: 2px 0; }
+.rp-card { display: flex; align-items: flex-start; gap: 9px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-left: 3px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 7px; background: var(--surface-2); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.rp-card.is-bound { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface-2)); }
+.rp-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.rp-card:disabled { cursor: default; }
+.rp-card-icon { flex: none; margin-top: 2px; color: var(--accent); }
+.rp-card-text { display: grid; gap: 2px; min-width: 0; }
+.rp-card-title { font-size: 12.5px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rp-card-meta { font-size: 10.5px; color: var(--muted); }
+.rp-card-meta code { font-size: 10px; }
+.rp-card-status { font-weight: 600; }
+.rp-card-status.is-live { color: var(--accent); }
+.rp-card-status.is-done { color: var(--rp-add); }
+.rp-card-status.is-blocked { color: var(--rp-del); }
+.rp-nocard { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); padding: 5px 8px; border: 1px dashed var(--line); border-radius: 6px; }
+
+/* Change mix: a stacked bar + legend over the file list */
+.rp-mix { display: grid; gap: 6px; padding: 2px 6px 4px; }
+.rp-mix-bar { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; background: var(--surface-2); }
+.rp-mix-seg { flex: 1 1 0; min-width: 4px; }
+.rp-mix-seg.is-added, .rp-mix-key.is-added i, .rp-side-mix .is-added { background: var(--rp-add); }
+.rp-mix-seg.is-modified, .rp-mix-key.is-modified i, .rp-side-mix .is-modified { background: var(--c-sky, #7cc4ff); }
+.rp-mix-seg.is-removed, .rp-mix-key.is-removed i, .rp-side-mix .is-removed { background: var(--rp-del); }
+.rp-mix-seg.is-conflict, .rp-mix-key.is-conflict i, .rp-side-mix .is-conflict { background: var(--warning); }
+.rp-mix-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--muted); }
+.rp-mix-key { display: inline-flex; align-items: center; gap: 5px; }
+.rp-mix-key i { width: 8px; height: 8px; border-radius: 2px; }
+.rp-mix-key b { color: var(--ink); font: 600 11px var(--rp-mono); }
+.rp-clean { display: flex; align-items: center; gap: 6px; padding: 0 6px; font-size: 12px; color: var(--rp-add); }
+
+/* Files grouped by folder */
+.rp-dirgroups { display: grid; gap: 6px; }
+.rp-dirgroup .rp-filelist { margin-left: 9px; padding-left: 6px; border-left: 1px solid var(--line); }
+.rp-dirhead { display: flex; align-items: center; gap: 5px; margin: 0; padding: 2px 6px; font: 500 11px var(--rp-mono); color: var(--muted); }
+.rp-dirhead > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.rp-dirhead .rp-count { font-family: system-ui, sans-serif; }
+
+/* Sidebar worktree items: name, the Card it works for, and a thin change mix */
+.rp-side-item.is-tree { height: auto; min-height: 26px; padding-top: 5px; padding-bottom: 5px; align-items: flex-start; }
+.rp-side-item.is-tree > svg { margin-top: 2px; }
+.rp-side-item.is-tree .rp-side-badges { margin-top: 1px; }
+.rp-side-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rp-side-card, .rp-side-sub { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-side-card { color: color-mix(in srgb, var(--accent) 75%, var(--ink)); }
+.rp-side-card > svg { flex: none; }
+.rp-side-card > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rp-side-mix { display: flex; gap: 1px; height: 3px; margin-top: 2px; border-radius: 2px; overflow: hidden; opacity: .85; }
+.rp-side-mix i { flex: 1 1 0; min-width: 3px; }
+.rp-status-label { flex: none; font-size: 10px; color: var(--muted); }
+.rp-side-card b { flex: none; margin-left: auto; font-size: 10px; color: var(--muted); }
+
 @container (max-width: 1100px) { .rp-main { grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(240px, 280px); } .rp-graph-head, .rp-graph-row { grid-template-columns: var(--graph-width, 78px) minmax(0, 140px) minmax(100px, 1fr) 0 70px 58px; } .rp-author { visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .rp-root .spinning { animation: none; } }
