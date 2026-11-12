@@ -115,6 +115,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   // Board: where the pointer last was (a paste lands there), the comment being
   // written, the open thread and how many references are still arriving.
   const pointer = useRef(null);
+  // Linux pastes the primary selection on middle click; the middle button pans here, so swallow it.
+  const middleAt = useRef(0);
+  const blockMiddle = e => { if (e.button === 1) { middleAt.current = Date.now(); e.preventDefault(); } };
   const [draft, setDraft] = useState(null);
   const [openComment, setOpenComment] = useState(null);
   const [importing, setImporting] = useState(0);
@@ -313,6 +316,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   useEffect(() => {
     const paste = e => {
       if (inputBlocked || live.current.focused || (e.target instanceof Element && editable(e.target))) return;
+      if (Date.now() - middleAt.current < 800) return; // middle-click primary-selection paste, not Ctrl+V
       const owner = document.activeElement;
       if (owner && owner !== document.body && !root.current?.contains(owner)) return;
       const items = readTransfer(e.clipboardData); if (!items.length) return;
@@ -427,7 +431,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     return kind ? [{ ...n, ...preview[n.id], id: n.id, kind }] : [];
   }), [nodes, preview, terminalActivity, chatPulses, focused]);
   const connected = !connection || connection.status === 'connected';
-  return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''} ${tool === 'comment' ? 'comment-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={e => { pointer.current = { x: e.clientX, y: e.clientY }; move(e); }} onDragOver={e => { if (droppable(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }} onDrop={drop} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (tool === 'comment' && e.button === 0 && !inputBlocked && !e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor,.node-header,.zone-label')) { placeComment(e); return; } if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
+  return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''} ${tool === 'comment' ? 'comment-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={e => { pointer.current = { x: e.clientX, y: e.clientY }; move(e); }} onDragOver={e => { if (droppable(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }} onDrop={drop} onMouseDown={blockMiddle} onMouseUp={blockMiddle} onAuxClick={blockMiddle} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (tool === 'comment' && e.button === 0 && !inputBlocked && !e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor,.node-header,.zone-label')) { placeComment(e); return; } if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
     <Presence>{focusedNode && <div className="focus-return"><button onClick={() => onFocus(null)}><ArrowLeft size={15} /> Volver al mapa</button><span>{focusedNode.title}</span><kbd>Ctrl ⇧ ↵</kbd></div>}</Presence>
     {!nodes.length && <div className="canvas-empty"><div className="empty-symbol"><Layers size={30} strokeWidth={1.4} /></div><h2>Tu mesa de trabajo, en un lugar</h2><p>Abre una terminal, toma una nota o pega una imagen, un video o un enlace.<br />Cada panel conserva su lugar en este proyecto.</p><div className="empty-actions"><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></div><span className="empty-hint">Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta</span></div>}
     <PixelField targets={pixelTargets} cameraRef={cameraRef} paintRef={fieldPaint} hidden={!!focused} />
