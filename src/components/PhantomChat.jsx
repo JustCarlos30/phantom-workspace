@@ -1,9 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Mic, MessageSquarePlus, ShieldCheck, ShieldOff, Square, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Mic, MessageSquarePlus, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { formatCost, formatElapsed } from '../hooks/chatState';
-import { ContextMeter, Message, ModelPicker, QueuedMessages, ReasoningPicker, useElapsed, withEdited } from './ChatCard';
+import { ContextMeter, Message, ModelPicker, PermissionSwitch, QueuedMessages, ReasoningPicker, useElapsed, withEdited } from './ChatCard';
 import { PhantomGlyph, ProviderGlyph } from './Glyphs';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude' }, { id: 'opencode', label: 'OpenCode' }, { id: 'codex', label: 'Codex' }];
@@ -14,9 +14,9 @@ const SUGGESTIONS = [
   'Propón el siguiente paso para la misión actual',
 ];
 const PERMISSIONS = {
-  claude: { on: 'Trabaja libremente dentro de la carpeta del proyecto y te pide permiso aquí antes de tocar algo fuera.', off: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.' },
-  codex: { on: 'Codex puede editar dentro del proyecto.', off: 'Codex trabaja en modo de solo lectura.' },
-  opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado en su configuración.', off: 'OpenCode solo lee y responde.' },
+  claude: { auto: 'Trabaja libremente dentro de la carpeta del proyecto y te pide permiso aquí antes de tocar algo fuera.', ask: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.', full: 'Hace todo sin preguntar, salvo una lista corta de acciones peligrosas (sudo, borrar fuera de la carpeta, git push --force, ~/.ssh o /etc, curl | sh). Git queda protegido por el guardián de Incorporaciones.' },
+  codex: { auto: 'Codex puede editar dentro del proyecto.', ask: 'Codex trabaja en modo de solo lectura.', full: 'Codex trabaja sin sandbox (danger-full-access). Git queda protegido por el guardián de Incorporaciones.' },
+  opencode: { auto: 'OpenCode aprueba todo permiso que no esté denegado en su configuración.', ask: 'OpenCode solo lee y responde.', full: 'OpenCode aprueba todo permiso que no esté denegado en su configuración. Git queda protegido por el guardián de Incorporaciones.' },
 };
 
 // The project's main conversation: Phantom, docked beside the canvas. It is
@@ -36,7 +36,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   const active = pending || chat?.provider || 'claude';
   const label = PROVIDERS.find(p => p.id === active)?.label || active;
-  const autoApprove = !!chat?.autoApprove;
+  const permissionMode = chat?.permissionMode || (chat?.autoApprove ? 'auto' : 'ask');
   const waiting = messages.some(message => message.parts?.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending'));
   const elapsed = useElapsed(messages.at(-1)?.createdAt, running);
   const voice = useVoiceRecorder({
@@ -71,7 +71,6 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   };
   const toggleVoice = () => { voice.clearError(); if (listening) voice.stop(); else voice.start(); };
   const cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
-  const Shield = autoApprove ? ShieldCheck : ShieldOff;
   const pickerNode = { id: nodeId, data: { chat: { provider: active, models: chat?.models || {}, reasoning: chat?.reasoning || {} } } };
   const voiceLabel = { requesting: 'Esperando el micrófono…', recording: 'Escuchando · pulsa para transcribir', transcribing: 'Transcribiendo…' }[voice.status];
 
@@ -91,7 +90,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
         {PROVIDERS.map(p => <button key={p.id} type="button" role="radio" aria-checked={active === p.id} data-provider={p.id} disabled={(running || switching) && active !== p.id} onClick={() => chooseProvider(p.id)}><ProviderGlyph provider={p.id} size={13} /><span>{p.label}</span></button>)}
       </div>
       <span className="pc-bar-space" />
-      <button type="button" className="pc-permission" aria-pressed={autoApprove} disabled={!chat} title={PERMISSIONS[active]?.[autoApprove ? 'on' : 'off']} onClick={() => configure({ autoApprove: !autoApprove })}><Shield size={13} aria-hidden="true" /><span>{autoApprove ? (active === 'claude' ? 'Autónomo' : 'Puede editar') : (active === 'claude' ? 'Pregunta todo' : 'Solo lectura')}</span></button>
+      <PermissionSwitch mode={permissionMode} provider={active} descriptions={PERMISSIONS} disabled={!chat} onChange={next => configure({ permissionMode: next })} />
     </div>
     <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">

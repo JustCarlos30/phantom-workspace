@@ -4,7 +4,7 @@ import { spawn, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomicJSON, assert, text } from './store.mjs';
-import { permissionDecision } from './chat-permissions.mjs';
+import { permissionDecision, PERMISSION_MODES } from './chat-permissions.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
@@ -26,7 +26,7 @@ export function validateModel(model) {
 }
 export function validateChat(chat) {
   assert(chat && typeof chat === 'object' && !Array.isArray(chat), 'Invalid chat settings');
-  for (const key of Object.keys(chat)) assert(['provider', 'autoApprove', 'models', 'reasoning'].includes(key), 'Unknown chat field');
+  for (const key of Object.keys(chat)) assert(['provider', 'autoApprove', 'permissionMode', 'models', 'reasoning'].includes(key), 'Unknown chat field');
   if (chat.reasoning !== undefined) {
     assert(chat.reasoning && typeof chat.reasoning === 'object' && !Array.isArray(chat.reasoning), 'Invalid reasoning settings');
     for (const [provider, value] of Object.entries(chat.reasoning)) assert(validReasoning(provider, value), 'Effort/variant inválido');
@@ -37,18 +37,41 @@ export function validateChat(chat) {
   }
   assert(chat.provider === undefined || chat.provider === null || Object.hasOwn(CHAT_PROVIDERS, chat.provider), 'Unsupported chat provider');
   assert(chat.autoApprove === undefined || typeof chat.autoApprove === 'boolean', 'Invalid chat autoApprove');
+  assert(chat.permissionMode === undefined || PERMISSION_MODES.includes(chat.permissionMode), 'Modo de permisos inválido');
   return chat;
+}
+// The mode a card was explicitly set to, or null when it never was.
+// permissionMode wins; the older boolean autoApprove still reads as auto/ask.
+export function explicitMode(chat = {}) {
+  if (PERMISSION_MODES.includes(chat?.permissionMode)) return chat.permissionMode;
+  if (typeof chat?.autoApprove === 'boolean') return chat.autoApprove ? 'auto' : 'ask';
+  return null;
+}
+// A configure patch for the permission switch: permissionMode keeps the
+// boolean in step for older readers; a bare autoApprove drops a stale mode.
+export function permissionPatch({ autoApprove, permissionMode }) {
+  if (permissionMode !== undefined) {
+    assert(PERMISSION_MODES.includes(permissionMode), 'Modo de permisos inválido');
+    return { permissionMode, autoApprove: permissionMode !== 'ask' };
+  }
+  return autoApprove !== undefined ? { autoApprove, permissionMode: undefined } : {};
+}
+export function applyPatch(chat, patch) {
+  const next = { ...chat, ...patch };
+  for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
+  return next;
 }
 
 const realpath = value => { try { return fs.realpathSync(value); } catch { return null; } };
-// How a turn handles permissions. 'auto': the agent works freely inside its
-// folder and asks before reaching beyond it. 'ask': every change asks. Inside
-// the card's own Phantom worktree the default is 'auto'; elsewhere (the
-// original checkout, a folder without Git) it is 'ask'. The card's toggle
+// How a turn handles permissions. 'full': everything except a short list of
+// dangerous actions, which still asks. 'auto': the agent works freely inside
+// its folder and asks before reaching beyond it. 'ask': every change asks.
+// Inside the card's own Phantom worktree the default is 'auto'; elsewhere (the
+// original checkout, a folder without Git) it is 'ask'. The card's switch
 // overrides either way.
 export function chatMode(node, cwd) {
-  const chat = node.data?.chat || {};
-  if (typeof chat.autoApprove === 'boolean') return chat.autoApprove ? 'auto' : 'ask';
+  const chosen = explicitMode(node.data?.chat);
+  if (chosen) return chosen;
   const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
   return tree && here && realpath(tree) === here ? 'auto' : 'ask';
 }
@@ -57,21 +80,25 @@ export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
 export function gateConfig({ token, socketPath }) {
   return { mcpServers: { [GATE_SERVER]: { type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../scripts/chat-approval-mcp.mjs', import.meta.url))], env: { PHANTOM_CHAT_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: socketPath } } } };
 }
-// OpenCode's headless run cannot route a question back, so it keeps the
-// explicit switch: --auto only when the card says so.
-export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, message, cwd, model, reasoning, gate, instructions }) {
+// OpenCode and Codex cannot route a question back headlessly, so they keep the
+// explicit switch (`access`, the card's chosen mode): OpenCode gets --auto and
+// Codex a writable sandbox only when the card says so. Claude keeps its gate
+// in every mode (bypassPermissions would skip it); 'full' only changes what
+// the gate decides.
+export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
+  const sandbox = access === 'full' ? 'danger-full-access' : access === 'auto' ? 'workspace-write' : 'read-only';
   if (provider === 'codex') return ['exec', ...(sessionId ? ['resume'] : []), '--json', '--skip-git-repo-check',
-    '-c', `sandbox_mode=${JSON.stringify(autoApprove ? 'workspace-write' : 'read-only')}`, '-c', 'approval_policy="never"',
+    '-c', `sandbox_mode=${JSON.stringify(sandbox)}`, '-c', 'approval_policy="never"',
     ...(model ? ['--model', model] : []), ...(reasoning ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoning)}`] : []),
     ...(instructions ? ['-c', `developer_instructions=${JSON.stringify(instructions)}`] : []), ...(sessionId ? [sessionId] : []), '-'];
   if (provider === 'claude') return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     ...(reasoning ? ['--effort', reasoning] : []),
-    ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' ? ['--permission-mode', 'acceptEdits'] : []),
+    ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' || mode === 'full' ? ['--permission-mode', 'acceptEdits'] : []),
     ...(gate ? ['--mcp-config', JSON.stringify(gateConfig(gate)), '--permission-prompt-tool', GATE_TOOL] : [])];
   // A leading dash would be parsed as a flag; the space is invisible to the model.
-  return ['run', '--format', 'json', ...(cwd ? ['--dir', cwd] : []), ...(model ? ['--model', model] : []), ...(reasoning ? ['--variant', reasoning] : []), ...(sessionId ? ['--session', sessionId] : []), ...(autoApprove ? ['--auto'] : []), message.startsWith('-') ? ` ${message}` : message];
+  return ['run', '--format', 'json', ...(cwd ? ['--dir', cwd] : []), ...(model ? ['--model', model] : []), ...(reasoning ? ['--variant', reasoning] : []), ...(sessionId ? ['--session', sessionId] : []), ...(access === 'auto' || access === 'full' ? ['--auto'] : []), message.startsWith('-') ? ` ${message}` : message];
 }
 
 // One line that says what a tool call is doing, from its most telling input.
@@ -275,7 +302,7 @@ export class Chats {
   get(node) {
     const provider = node.data.chat?.provider ?? null, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
-    return { provider, autoApprove: !!node.data.chat?.autoApprove, mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
+    return { provider, autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), permissionMode: explicitMode(node.data.chat), mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
   }
   // A message written while the agent works waits its turn, in order; one
   // written while others still wait joins the end of the line.
@@ -383,7 +410,7 @@ export class Chats {
       // A capability left by an interrupted host is stale; replace it.
       fs.rmSync(credentialFile(this.store.dir, turn.browserSession), { force: true });
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, autoApprove: node.data.chat.autoApprove === true, message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env: { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
@@ -499,15 +526,14 @@ export class Chats {
     const id = Chats.mainId(workspace), settings = this.nodes[id]?.settings || {};
     return { id, type: 'terminal', title: 'Phantom', data: { main: true, cwd: workspace.canonicalPath, chat: { provider: 'claude', ...settings } } };
   }
-  configureMain(workspace, { provider, autoApprove, model, reasoning }) {
-    const node = this.mainNode(workspace), patch = {};
+  configureMain(workspace, { provider, autoApprove, permissionMode, model, reasoning }) {
+    const node = this.mainNode(workspace), patch = permissionPatch({ autoApprove, permissionMode });
     if (provider !== undefined) patch.provider = provider;
-    if (autoApprove !== undefined) patch.autoApprove = autoApprove;
     validateChat(patch);
     assert(patch.provider !== null, 'Phantom necesita un agente');
     assert(patch.provider === undefined || patch.provider === node.data.chat.provider || !this.running(node.id), 'Detén la respuesta antes de cambiar de agente');
     if (model !== undefined && model !== null) validateModel(model);
-    const entry = this.nodes[node.id] ??= { threads: {} }, chat = { ...node.data.chat, ...patch };
+    const entry = this.nodes[node.id] ??= { threads: {} }, chat = applyPatch(node.data.chat, patch);
     assert((model === undefined && reasoning === undefined) || !this.running(node.id), 'Detén la respuesta antes de cambiar modelo o effort/variant');
     for (const [field, key] of [['model', 'models'], ['reasoning', 'reasoning']]) {
       const value = field === 'model' ? model : reasoning;

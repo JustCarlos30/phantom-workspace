@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome } from './store.mjs';
 import { Terminals } from './terminals.mjs';
-import { Chats, validateChat, validateModel } from './chats.mjs';
+import { Chats, validateChat, validateModel, permissionPatch, applyPatch } from './chats.mjs';
 import { Merges } from './merges.mjs';
 import { Branches } from './branches.mjs';
 import { Repo } from './repo.mjs';
@@ -175,7 +175,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const w=store.getWorkspace(p.workspaceId),main=p.nodeId===Chats.mainId(w),node=main?chats.mainNode(w):w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Chat card not found');
       // The project's Phantom conversation keeps its settings in the chat store.
-      if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,model:p.model,reasoning:p.reasoning});
+      if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});
       if(method==='chat.get') return chats.get(node);
       if(method==='chat.send') return chats.send(w,node,p.text);
       if(method==='chat.stop') return chats.stop(node.id);
@@ -185,12 +185,13 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='chat.models') return chats.models(node);
       if(method==='chat.permission.answer') return chats.answerPermission(node,p.requestId,p.decision);
       if(method==='chat.question.answer') return chats.answerQuestion(node,p.requestId,p.answers===undefined?null:p.answers);
-      const patch={};for(const key of ['provider','autoApprove']) if(p[key]!==undefined)patch[key]=p[key];validateChat(patch);
+      // permissionMode ('ask'|'auto'|'full') wins over the older boolean autoApprove.
+      const patch=permissionPatch({autoApprove:p.autoApprove,permissionMode:p.permissionMode});if(p.provider!==undefined)patch.provider=p.provider;validateChat(patch);
       assert(patch.provider===undefined||patch.provider===(node.data.chat?.provider??null)||!chats.running(node.id),'Detén la respuesta antes de cambiar de agente');
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
       if(p.model!==undefined&&p.model!==null)validateModel(p.model);
       assert((p.model===undefined&&p.reasoning===undefined)||!chats.running(node.id),'Detén la respuesta antes de cambiar modelo o effort/variant');
-      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat={...current.data.chat,...patch};for(const [field,key] of [['model','models'],['reasoning','reasoning']])if(p[field]!==undefined){assert(chat.provider,'Elige un agente primero');const values={...chat[key]};if(p[field]===null)delete values[chat.provider];else values[chat.provider]=p[field];chat[key]=values;}validateChat(chat);current.data={...current.data,chat};return current;});
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat=applyPatch(current.data.chat,patch);for(const [field,key] of [['model','models'],['reasoning','reasoning']])if(p[field]!==undefined){assert(chat.provider,'Elige un agente primero');const values={...chat[key]};if(p[field]===null)delete values[chat.provider];else values[chat.provider]=p[field];chat[key]=values;}validateChat(chat);current.data={...current.data,chat};return current;});
     }
     if(method.startsWith('merge.')) return merges.handle(method,p);
     if(method.startsWith('branch.')) return branches.handle(method,p);
