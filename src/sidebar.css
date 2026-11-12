@@ -21,7 +21,7 @@
 .project-rail .rail-spaces { margin-top: var(--s-4); max-height: 24%; min-height: 66px; display: flex; flex-direction: column; }
 .project-rail .space-list { overflow-y: auto; min-height: 0; }
 .project-rail .rail-panels { margin-top: var(--s-4); min-height: 80px; }
-.rail-panel-scroll { overflow-y: auto; min-height: 0; flex: 1; }
+.rail-panel-scroll { overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1; overscroll-behavior: contain; }
 .rail-panel-group + .rail-panel-group { margin-top: var(--s-5); }
 .rail-panel-group .rail-heading { height: 28px; padding-bottom: 4px; }
 .rail-panel-group .rail-count { font-weight: 450; }

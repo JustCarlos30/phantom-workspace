@@ -40,11 +40,12 @@ const nativeViews = () => app.evaluate(({ BrowserWindow }) => {
 const overlap = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 async function layout(drawer = false) {
   const rail = await page.locator('.project-rail').boundingBox();
-  assert.equal(rail.x, 12); assert.equal(rail.y, 12);
-  assert.equal(rail.height, (await page.evaluate(() => innerHeight)) - 24);
+  // Lienzo: the rail is an object on a full-bleed canvas, inset 16px and never taller than the free height.
+  assert.equal(rail.x, 16); assert.equal(rail.y, 16);
+  assert.ok(rail.height <= (await page.evaluate(() => innerHeight)) - 32, 'Rail stops one gap short of the bottom edge');
   if (!drawer) {
     const canvas = await page.locator('.canvas').boundingBox();
-    assert.ok(canvas.x >= rail.x + rail.width + 12, 'Canvas reserves the floating rail and its gap');
+    assert.equal(canvas.x, 0, 'Canvas runs under the rail, edge to edge');
     for (const selector of ['.canvas-navigation', '.dock-main']) {
       const bounds = await page.locator(selector).boundingBox();
       assert.ok(!overlap(rail, bounds), `${selector} clears the rail`);
