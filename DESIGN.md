@@ -149,6 +149,12 @@ components:
 
 # Design System: Phantom Workspace
 
+## Jerarquía de sidebar (2026-11-11)
+
+`src/sidebar.css`, cargado después de la capa canvas, refina el rail conservando vidrio nocturno. El proyecto actual es el ancla: nombre y ruta en un selector desplegable con recientes y Abrir carpeta. A continuación, Actividad del proyecto destaca en ámbar solo cuando las fuentes existentes declaran intervenciones. Espacios precede a dos grupos estables, Sesiones (terminales con estado de fuente) y Recursos (resto de paneles), dentro de una región desplazable. No se reordenan las sesiones al cambiar de estado. Ver todo el mapa permanece al pie de la navegación; Plugins y Comandos son utilidades secundarias; Apariencia y Configuración son controles compactos junto al estado del host. Las acciones de enfocar se revelan con hover o foco de teclado y permanecen visibles en dispositivos sin hover.
+
+Verificación de este refinamiento: compilación de producción correcta, 16 pruebas de modelo de actividad/propiedad de entrada correctas y detector sin hallazgos. La prueba Electron `test/sidebar-desktop.mjs` quedó sin completar por timeout de arranque; no se acredita validación visual de esta revisión.
+
 ## Vidrio nocturno (2026-11-11) — autoridad visual vigente
 
 Carlos pidió conservar el carácter de Phantom pero limpio, «like Apple» y coherente con su escritorio (Hyprland «Neón Suave»: índigo profundo, vidrio esmerilado, hairlines, radios generosos, Inter, Monaspace en la terminal). Esta sección rige sobre cualquier cifra o regla anterior de este documento donde difieran; en particular **sustituye la regla «islas opacas, sin vidrio»**.
