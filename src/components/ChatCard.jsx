@@ -405,7 +405,30 @@ export function QueuedMessages({ queue, running, connected = true, unqueue, resu
 // Pulls a queued message back into the composer without losing what was typed.
 export const withEdited = text => value => value.trim() ? `${text}\n\n${value}` : text;
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true }) {
+// The card's border speaks the same states as a terminal's: working breathes,
+// a pending permission or question calls, and a reply that finished or failed
+// holds until the user looks at the card. "Looked at" is remembered per card,
+// so a reply that lands while Phantom is closed still waits on the next open.
+const SEEN_KEY = nodeId => `phantom.chatSeen.${nodeId}`;
+const readSeen = nodeId => { try { return localStorage.getItem(SEEN_KEY(nodeId)); } catch { return null; } };
+const writeSeen = (nodeId, id) => { try { localStorage.setItem(SEEN_KEY(nodeId), id); } catch { /* Memory only. */ } };
+function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
+  const [seenId, setSeenId] = useState(() => readSeen(nodeId));
+  const settled = !running && last?.role === 'assistant' && (last.status === 'done' || last.status === 'error') ? last.id : null;
+  useEffect(() => {
+    if (!chat) return;
+    // A card met for the first time starts quiet; only replies after that light it.
+    if (seenId === null) { const id = settled || ''; writeSeen(nodeId, id); setSeenId(id); return; }
+    if (seen && settled && settled !== seenId) { writeSeen(nodeId, settled); setSeenId(settled); }
+  }, [chat, settled, seenId, seen, nodeId]);
+  if (!chat) return '';
+  if (waitingOn) return 'pulse-attention';
+  if (running) return 'pulse-working';
+  if (settled && settled !== seenId && seenId !== null) return last.status === 'error' ? 'pulse-error' : 'pulse-turn';
+  return '';
+}
+
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [draft, setDraft] = useState('');
@@ -429,6 +452,9 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   }, [phase, chat, label]);
   const last = messages.at(-1);
   const elapsed = useElapsed(last?.createdAt, running);
+  const pulse = useChatPulse({ nodeId: node.id, chat, running, waitingOn, last, seen });
+  useEffect(() => { onPulse?.(node.id, pulse); }, [onPulse, node.id, pulse]);
+  useEffect(() => () => onPulse?.(node.id, ''), [onPulse, node.id]);
   // Follow the reply while the reader is at the end; never yank them back up.
   useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, overview, focused, pendingAsks.length]);
   useEffect(() => { pinned.current = true; }, [provider]);
