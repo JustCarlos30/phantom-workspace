@@ -283,6 +283,9 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 
 .canvas-minimap { position: absolute; right: var(--gutter); bottom: 76px; z-index: 9; padding: 0; border-radius: var(--r-lg); overflow: hidden; cursor: crosshair; animation: island-in var(--dur) var(--ease-out); transition: right var(--dur) var(--ease-out); touch-action: none; }
 .canvas-minimap svg { display: block; }
+.canvas-minimap.over-view { cursor: grab; }
+.canvas-minimap.dragging { cursor: grabbing; }
+.canvas-minimap.dragging .minimap-view { fill: color-mix(in srgb, var(--accent) 14%, transparent); }
 .minimap-node { fill: color-mix(in srgb, var(--ink) 22%, transparent); }
 .minimap-node.type-terminal { fill: color-mix(in srgb, var(--accent) 45%, transparent); }
 .minimap-node.type-browser { fill: color-mix(in srgb, var(--success) 45%, transparent); }

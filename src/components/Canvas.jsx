@@ -115,7 +115,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const fieldPaint = useRef(null);
   // Camera frames are painted straight to the DOM. React re-renders the map
   // only when the zoom tier changes or navigation settles.
+  const minimapFrame = useRef(null);
   const paintCamera = useCallback(c => {
+    minimapFrame.current?.(c);
     const el = world.current;
     if (el) {
       const unfocused = !focusedRef.current;
@@ -365,7 +367,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       })}</PresenceGroup>
     </div>
     {marquee && <div className="canvas-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
-    {!focused && minimap && <Minimap nodes={nodes} camera={camera} size={size} selected={selected} onNavigate={next => { stopInertia(); navigate(next); }} onUpdate={next => { stopInertia(); updateCamera(next); }} />}
+    {!focused && minimap && <Minimap nodes={nodes} camera={camera} cameraRef={cameraRef} frameRef={minimapFrame} size={size} selected={selected} onUpdate={next => { stopInertia(); updateCamera(next); }} />}
     {!focused && <><div className="canvas-navigation" role="toolbar" aria-label="Navegación del canvas">
       <button aria-label="Herramienta de selección" title="Seleccionar · V" aria-pressed={tool === 'select'} onClick={() => { setTool('select'); root.current.focus(); }}><MousePointer2 size={16} /></button>
       <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /></button><i />
