@@ -5,11 +5,12 @@ import { randomUUID } from 'node:crypto';
 import { assert, object, text, canonicalFolder } from './store.mjs';
 import { mergeAgentConfig, terminalPolicy } from './agent-policy.mjs';
 import { git, guardState, installGuard, removeGuard, mergeToken, roleEnv, roleOf, integrationPolicy } from './merge-guard.mjs';
+import { checksFor, runChecks, validateChecks } from './checks.mjs';
 
 // Incorporaciones: workers request integration of their terminal branch and the
 // orchestrator session decides order and merges, one request at a time. The
 // queue lives in workspace.integration; Git facts are read on demand.
-const OPEN = ['queued', 'merging', 'conflict'];
+const OPEN = ['queued', 'merging', 'conflict', 'failed'];
 const AGENT_CLI = fileURLToPath(new URL('../scripts/agent.mjs', import.meta.url));
 const now = () => new Date().toISOString();
 const line = (value, label, max) => { text(value, label, max); assert(!/[\x00-\x1f\x7f]/.test(value), `${label} debe ser una sola línea`); return value.trim(); };
@@ -116,7 +117,7 @@ export class Merges {
     // Work not yet requested: commits or edits to integrate, or a live agent that declared what it is doing.
     result.active = terminals.filter(node => !requested.has(node.id)).map(describe).filter(item => item.ahead || item.uncommitted || (item.running && ['working', 'blocked'].includes(item.status)));
     result.history = integration.queue.filter(item => !OPEN.includes(item.status)).slice(-30).reverse();
-    return { ...result, available: true, guard, base: { branch: base.branch, oid: base.oid, uncommitted: dirty } };
+    return { ...result, available: true, guard, base: { branch: base.branch, oid: base.oid, uncommitted: dirty }, checks: { command: checksFor(w, source), configured: typeof integration.checks === 'string' } };
   }
 
   // The current session of a terminal node. Chat cards keep it after the PTY is gone.
@@ -149,10 +150,13 @@ export class Merges {
   async handle(method, p) {
     if (method === 'merge.status') return this.status(this.store.getWorkspace(p.workspaceId));
     if (method === 'merge.configure') {
-      const w = this.store.getWorkspace(p.workspaceId); assert(typeof p.enabled === 'boolean', 'Invalid enabled');
+      const w = this.store.getWorkspace(p.workspaceId);
+      assert(p.enabled === undefined || typeof p.enabled === 'boolean', 'Invalid enabled'); assert(p.enabled !== undefined || p.checks !== undefined, 'Nada que configurar');
+      // checks: a command, '' for none, or null to detect it from the project.
+      const checks = p.checks === undefined ? undefined : validateChecks(p.checks);
       const { source } = await this.base(w);
-      if (p.enabled) await installGuard(source, this.store.dir, w.id); else await removeGuard(source);
-      this.change(w.id, integration => { integration.enabled = p.enabled; });
+      if (p.enabled === true) await installGuard(source, this.store.dir, w.id); else if (p.enabled === false) await removeGuard(source);
+      this.change(w.id, integration => { if (p.enabled !== undefined) integration.enabled = p.enabled; if (checks === null) delete integration.checks; else if (checks !== undefined) integration.checks = checks; });
       return this.status(this.store.getWorkspace(w.id));
     }
     if (method === 'merge.queue') {
@@ -183,7 +187,7 @@ export class Merges {
     if (method === 'merge.withdraw') {
       const { w, node } = this.session(p.sessionId);
       return this.change(w.id, integration => {
-        const item = integration.queue.find(item => item.nodeId === node.id && ['queued', 'conflict'].includes(item.status));
+        const item = integration.queue.find(item => item.nodeId === node.id && ['queued', 'conflict', 'failed'].includes(item.status));
         assert(item, 'Esta terminal no tiene una solicitud pendiente.');
         return Object.assign(item, { status: 'withdrawn', finishedAt: now(), updatedAt: now() });
       });
@@ -208,7 +212,7 @@ export class Merges {
     if (method === 'merge.reject') {
       const { w } = this.orchestrator(p); const reason = line(p.reason, 'motivo', 1000); assert(reason, 'Indica el motivo del rechazo');
       return this.change(w.id, (integration, current) => {
-        const item = Object.assign(this.item(integration, p.id, ['queued', 'conflict']), { status: 'rejected', note: reason, finishedAt: now(), updatedAt: now() });
+        const item = Object.assign(this.item(integration, p.id, ['queued', 'conflict', 'failed']), { status: 'rejected', note: reason, finishedAt: now(), updatedAt: now() });
         this.returnToWorker(current, item, `Incorporación rechazada: ${reason}`);
         return item;
       });
@@ -225,6 +229,8 @@ export class Merges {
       const base = await this.base(w), { source } = base;
       const id = this.item(this.of(this.store.getWorkspace(w.id)), p.id, ['queued']).id;
       assert(!await git(source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de incorporar.');
+      const command = p.checks === false ? '' : checksFor(this.store.getWorkspace(w.id), source);
+      if (command) assert(!await git(source, ['status', '--porcelain', '--untracked-files=no']), `El checkout de ${base.branch} tiene cambios sin commitear; los checks no serían fiables.`);
       const queued = this.change(w.id, integration => Object.assign(this.item(integration, id, ['queued']), { status: 'merging', base: base.branch, updatedAt: now() }));
       const env = { PHANTOM_MERGE_TOKEN: mergeToken(this.store.dir, w.id) };
       try {
@@ -243,6 +249,18 @@ export class Merges {
           this.returnToWorker(current, item, `Conflicto al incorporar en ${base.branch} (${conflicts.slice(0, 3).join(', ')}${conflicts.length > 3 ? '…' : ''}). Actualiza tu rama desde ${base.branch}, resuelve y vuelve a enviar.`);
           return item;
         });
+      }
+      if (command) {
+        const checks = await runChecks(source, command);
+        if (!checks.ok) {
+          // The merge does not stay; the worker gets the failing output.
+          await git(source, ['reset', '--keep', base.oid], { env });
+          return this.change(w.id, (integration, current) => {
+            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
+            this.returnToWorker(current, item, `Los checks fallaron tras incorporar en ${base.branch} (${command}). Corrígelo en tu rama y vuelve a enviar.`);
+            return { ...item, checks };
+          });
+        }
       }
       const mergedOid = await git(source, ['rev-parse', 'HEAD']);
       return this.change(w.id, (integration, current) => {

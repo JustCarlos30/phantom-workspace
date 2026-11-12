@@ -8,7 +8,7 @@ import '../branches.css';
 // holds it and the work it still carries. Actions are explicit, one at a time,
 // and the host refuses anything that would lose work.
 const POLL_MS = 8000;
-const REQUEST = { queued: 'En cola de Incorporaciones', merging: 'Incorporándose', conflict: 'Devuelta por conflicto' };
+const REQUEST = { queued: 'En cola de Incorporaciones', merging: 'Incorporándose', conflict: 'Devuelta por conflicto', failed: 'Devuelta: checks fallidos' };
 const when = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 
 function Track({ row }) {
@@ -100,7 +100,8 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
   const call = (method, row, extra = {}) => api(method, { workspaceId: workspace.id, branch: row.name, ...extra });
   const settle = (row, result, base, saved = false) => {
     if (result.status === 'conflict') { note(row, 'warn', `${saved ? 'Guardado en su rama, pero no integrado' : 'No se hizo'}: choca en ${result.conflicts.slice(0, 4).join(', ')}${result.conflicts.length > 4 ? '…' : ''}. El merge se deshizo${saved ? '' : ' y nada cambió'}. Resuélvelo en su terminal trayendo ${base} a la rama.`); return false; }
-    note(row, 'ok', result.status === 'merged' ? `Integrada en ${base}.` : result.status === 'updated' ? `Al día con ${base}.` : 'Hecho.');
+    if (result.status === 'checks-failed') { note(row, 'warn', `No se integró: los checks fallaron (${result.checks.command}, código ${result.checks.code}${result.checks.timedOut ? ', tiempo agotado' : ''}). El merge se deshizo y ${base} quedó como estaba.`); return false; }
+    note(row, 'ok', result.status === 'merged' ? `Integrada en ${base}${result.checks ? ` · checks OK (${result.checks.command})` : ''}.` : result.status === 'updated' ? `Al día con ${base}.` : 'Hecho.');
     return true;
   };
   const act = (row, kind, options = {}) => op.run(async () => {

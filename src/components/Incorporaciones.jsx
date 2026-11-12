@@ -7,7 +7,7 @@ import '../incorporaciones.css';
 // Incorporaciones: what is being integrated, what waits and in which order, and
 // what each terminal is still working on. The panel observes; ordering and
 // merging belong to the orchestrator session.
-const REQUEST = { queued: 'En cola', merging: 'Incorporando…', conflict: 'Conflicto · devuelta', merged: 'Incorporada', rejected: 'Rechazada', withdrawn: 'Retirada' };
+const REQUEST = { queued: 'En cola', merging: 'Incorporando…', conflict: 'Conflicto · devuelta', failed: 'Checks fallidos · devuelta', merged: 'Incorporada', rejected: 'Rechazada', withdrawn: 'Retirada' };
 const WORK = { idle: 'En pausa', working: 'Trabajando', blocked: 'Bloqueada', review: 'Lista para revisión' };
 const when = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 const files = count => `${count} ${count === 1 ? 'archivo' : 'archivos'}`;

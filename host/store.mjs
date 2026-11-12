@@ -45,10 +45,11 @@ export function validateHistory(input, workspaces) {
 export function validateIntegration(value) {
   object(value); assert(typeof value.enabled === 'boolean', 'Invalid integration.enabled');
   if (value.plan !== undefined) text(value.plan, 'integration plan', 4000);
+  if (value.checks !== undefined) { text(value.checks, 'integration checks', 1000); assert(!/[\x00\n\r]/.test(value.checks), 'Invalid integration checks'); }
   assert(Array.isArray(value.queue) && value.queue.length <= 500, 'Invalid integration queue');
   for (const item of value.queue) {
     object(item); for (const key of ['id', 'nodeId', 'title', 'branch', 'headOid']) text(item[key], `integration ${key}`, 512);
-    assert(['queued', 'merging', 'merged', 'conflict', 'rejected', 'withdrawn'].includes(item.status), 'Invalid integration status');
+    assert(['queued', 'merging', 'merged', 'conflict', 'failed', 'rejected', 'withdrawn'].includes(item.status), 'Invalid integration status');
   }
   return value;
 }
