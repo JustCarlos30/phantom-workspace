@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Check, ExternalLink, Globe, ImageOff, Link2, MessageCircle, Trash2, X, Copy, RotateCcw } from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowUp, Check, ExternalLink, Globe, ImageOff, Link2, MessageCircle, Trash2, X, Copy, RotateCcw } from 'lucide-react';
 import { commentBrief, referenceURL, timecode } from '../hooks/references.mjs';
 
 // A reference on the board: the picture, video or link itself, plus one line
@@ -32,10 +32,16 @@ export default function ReferencePanel({ node, workspace, comments, onChange, on
 
 function Composer({ placeholder, onSubmit, onCancel, autoFocus }) {
   const [value, setValue] = useState(''), [busy, setBusy] = useState(false);
+  const field = useRef(null);
+  // Starts at one line and grows with the text up to five, then scrolls (max-height in CSS).
+  useLayoutEffect(() => { const el = field.current; if (!el) return; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }, [value]);
   const send = async () => { const text = value.trim(); if (!text || busy) return; setBusy(true); try { await onSubmit(text); setValue(''); } finally { setBusy(false); } };
   return <form className="comment-composer" onSubmit={e => { e.preventDefault(); send(); }}>
-    <textarea autoFocus={autoFocus} rows={2} value={value} placeholder={placeholder} maxLength={4000} onChange={e => setValue(e.target.value)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }} />
-    <button className="button primary" type="submit" disabled={!value.trim() || busy}>Enviar</button>
+    <div className="comment-field" onPointerDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); field.current?.focus(); } }}>
+      <textarea ref={field} autoFocus={autoFocus} rows={1} value={value} placeholder={placeholder} maxLength={4000} onChange={e => setValue(e.target.value)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }} />
+      <button className="comment-send" type="submit" aria-label="Enviar" title="Enviar (Enter)" disabled={!value.trim() || busy}><ArrowUp size={14} strokeWidth={2.25} /></button>
+    </div>
+    <p className="comment-composer-hint" aria-hidden="true">Enter envía · Shift+Enter salto de línea</p>
   </form>;
 }
 
