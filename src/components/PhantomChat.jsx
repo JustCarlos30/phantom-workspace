@@ -3,7 +3,7 @@ import { AlertCircle, ArrowUp, Mic, MessageSquarePlus, ShieldCheck, ShieldOff, S
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { formatCost, formatElapsed } from '../hooks/chatState';
-import { ContextMeter, Message, ModelPicker, QueuedMessages, ReasoningPicker, useElapsed, withEdited } from './ChatCard';
+import { ContextMeter, Message, ModelPicker, PermissionRow, QueuedMessages, ReasoningPicker, useElapsed, withEdited } from './ChatCard';
 import { PhantomGlyph, ProviderGlyph } from './Glyphs';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude' }, { id: 'opencode', label: 'OpenCode' }, { id: 'codex', label: 'Codex' }];
@@ -38,13 +38,15 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   const label = PROVIDERS.find(p => p.id === active)?.label || active;
   const autoApprove = !!chat?.autoApprove;
   const waiting = messages.some(message => message.parts?.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending'));
+  // Message hides pending permissions; they are answered in the dock above the composer.
+  const pendingAsks = messages.flatMap(message => (message.parts || []).filter(part => part.type === 'permission' && part.status === 'pending'));
   const elapsed = useElapsed(messages.at(-1)?.createdAt, running);
   const voice = useVoiceRecorder({
     api, workspaceId: workspace.id,
     onText: text => { setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text); requestAnimationFrame(() => input.current?.focus({ preventScroll: true })); },
   });
   const listening = voice.status === 'recording';
-  useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages]);
+  useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, pendingAsks.length]);
   useEffect(() => { if (focusRequest) input.current?.focus({ preventScroll: true }); }, [focusRequest]);
   useLayoutEffect(() => {
     const el = input.current; if (!el) return;
@@ -105,6 +107,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
+    {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     {voice.error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{voice.error}</span><button type="button" className="pc-icon" aria-label="Descartar aviso de voz" onClick={voice.clearError}><X size={13} /></button></p>}
     <form className="pc-composer phantom-chat-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />

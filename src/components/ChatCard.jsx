@@ -28,7 +28,7 @@ const AUTO_APPROVE = {
 const PERMISSION_STATUS = { allowed: 'Aprobado', always: 'Aprobado siempre', denied: 'Rechazado', cancelled: 'Sin respuesta' };
 
 // A permission the agent is waiting on, answered in place.
-function PermissionRow({ part, onAnswer }) {
+export function PermissionRow({ part, onAnswer }) {
   const [busy, setBusy] = useState(false);
   const pending = part.status === 'pending';
   const answer = async decision => { setBusy(true); try { await onAnswer?.(part.id, decision); } catch { setBusy(false); } };
