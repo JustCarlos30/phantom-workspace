@@ -49,7 +49,7 @@ test('references, comments and the agent CLI share one board', async t => {
   assert.equal(video.data.kind, 'video'); assert.equal(video.title, 'clip');
   await assert.rejects(host.invoke('reference.add', { workspaceId: w.id, data: Buffer.from('not media').toString('base64') }), /Formato no compatible/);
   await assert.rejects(host.invoke('reference.add', { workspaceId: w.id, path: path.join(root, 'missing.png') }), /ENOENT/);
-  await assert.rejects(host.invoke('node.update', { workspaceId: w.id, id: pasted.id, patch: { data: { ...pasted.data, file: '../../state.json' } } }), /Invalid reference file/);
+  await assert.rejects(host.invoke('node.update', { workspaceId: w.id, id: pasted.id, patch: { data: { ...pasted.data, file: '../../state.json' } } }), /Invalid reference file|inmutable/);
 
   const link = await host.invoke('reference.link', { workspaceId: w.id, url: `${base}/page` });
   assert.equal(link.data.kind, 'link'); assert.equal(link.title, 'Estudio'); assert.equal(link.data.description, 'Portafolio'); assert.equal(link.data.file, pasted.data.file);

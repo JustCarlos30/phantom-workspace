@@ -34,6 +34,31 @@ La consulta automática ocurre cada **4 segundos** (configurable entre 3 y 5), s
 
 El check `node test/command-center-desktop.mjs` usa fixtures sintéticos explícitos con Vite y `window.phantom` simulado. Cubre activación, salida real, bloqueo, búsqueda, pausa, desactivación, recuperación tras error y catálogo vacío, reconexión y ausencia de desbordamiento en escritorio y compacto. Sus capturas se escriben exclusivamente en `/tmp/opencode/phantom-command-center-review`, fuera del repositorio. `node --test test/command-center.test.mjs` cubre además persistencia, validación, autorización por familia y aislamiento de lecturas tardías; un flujo continuo de salida no debe aplazar indefinidamente el refresco.
 
+### Revisión de videos e imágenes
+
+Pega o arrastra un archivo al canvas y enfoca su panel. En video, **pausa**, indica sus **FPS explícitos** y usa **Frame anterior / siguiente** o la barra de tiempo. Los FPS los declara el usuario; no se detectan automáticamente. **Punto** o **Rectángulo** marcan exclusivamente el contenido visible, excluyendo cabecera, controles y bandas de ajuste. **Marcar centro** y **Ajustar región con teclado** permiten preparar coordenadas exactas sin arrastrar.
+
+En el borrador describe el elemento (por ejemplo, «ala izquierda del pixel art»), elige **Este instante**, **Tramo** con final en segundos o **Todas las apariciones**, y añade una fuente editable opcional. Escribe `@phantom` para entregar el contexto al chat principal y su cola existente. Sin mención, se guarda como comentario local. La entrega conserva archivo y SHA-256, región normalizada, tiempo, frame base 0, FPS, alcance y los campos opcionales; el hilo permite copiar ese contexto. Las imágenes usan el mismo flujo sin tiempo ni FPS.
+
+**Importar versión** copia un render nuevo y lo enlaza al anterior. **Comparar** muestra ambas versiones en el panel; cada video conserva controles independientes. No sincroniza automáticamente sus tiempos. El original conserva su archivo y hash y sus comentarios no se trasladan al render nuevo. Un archivo idéntico no se acepta como versión nueva. Los archivos viven en el almacén privado de referencias de cada proyecto.
+
+El hilo muestra el estado real del handoff: enviando, entregado, en cola, fallido o acuse incierto. Entregado significa aceptado por el chat, no cambio realizado ni respuesta correcta del proveedor. Un fallo al guardar conserva texto y borrador en la vista abierta; vuelve a enviar. Si el comentario ya quedó guardado pero falló la entrega, **Reintentar envío** reutiliza el mismo hilo y brief. Una interrupción durante el envío deja acuse incierto: consulta el chat antes de formular una nueva solicitud. No hay reenvío automático de entregas inciertas. El usuario resuelve el comentario.
+
+Límites: el paso de frame usa la rejilla nominal de los FPS declarados (redondeo al frame más próximo); no analiza VFR ni garantiza búsqueda al frame decodificado exacto de todos los codecs. Chromium debe poder decodificar el archivo. Se intenta adjuntar un PNG del frame (ancho máximo 960 px, hasta 900 000 caracteres base64); si el origen, el decoder o el tamaño lo impiden, el contexto registra el límite y conserva archivo/tiempo. No se amplían permisos de lectura ni CSP para capturarlo. El elemento y «todas las apariciones» expresan intención del usuario: no hay selección semántica ni seguimiento automático. Entregar contexto no modifica por sí mismo el ala ni la fuente editable. Los borradores conservados al fallar no sobreviven necesariamente a cerrar o recargar la ventana.
+
+CLI (misma identidad, validación y comentarios que la UI):
+
+```sh
+node scripts/canvas.mjs review ID "Revisar el ala" --region 0.25,0.4,0.2,0.25 --time 1 --fps 24 --scope range --end 2 --element "ala izquierda" --editable-source "src/ave.aseprite"
+node scripts/canvas.mjs add-version ID /ruta/al/render-nuevo.webm
+node scripts/canvas.mjs comments --json
+node scripts/canvas.mjs retry 1
+```
+
+`--region` usa fracciones 0–1 del contenido. `--scope` admite `instant`, `range`, `all`; en imagen usa `all`. Para entregar desde CLI como usuario añade `--author Tú` y una mención `@phantom` al texto. `--request-id UUID` hace idempotente el alta ante una respuesta perdida. La CLI no captura frames y deja ese límite explícito. Una respuesta del agente se añade con `reply N "…" --author Phantom`; no resuelve el hilo.
+
+Pruebas declaradas: `node --test test/references.test.mjs test/canvas-cli.test.mjs test/video-review.test.mjs` y `node test/video-review-desktop.mjs` después de `npm run build`. El recorrido visual genera un ave pixel art sintética en WebM VP8, usa Electron/host aislados y un proveedor local inerte para llenar la cola; guarda capturas, resultados y salida del detector en `/tmp/opencode/video-review-*`. Su implementación no acredita una ejecución: los resultados los informa el controlador.
+
 ### Sesiones y cierre
 
 - Cerrar la ventana conserva el host y sus sesiones. Volver a abrir conecta a los mismos procesos.

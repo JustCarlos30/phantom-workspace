@@ -67,3 +67,38 @@
 .canvas .canvas-node[data-type="reference"] { filter: none !important; }
 /* Threads near the bottom or right edge of a panel still open on screen. */
 .comment-thread { max-width: min(288px, 80vw); }
+
+/* Media review uses opaque working planes and the project's controls/tokens. */
+.reference-media { position: relative; overflow: hidden; }
+.reference-media[data-marking] { cursor: crosshair; touch-action: none; }
+.review-tools { flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: var(--surface); }
+.review-tools button, .review-handoff button { min-height: 32px; padding: 4px 8px; background: var(--fill); color: var(--ink); border-radius: var(--r-xs); font-size: 12px; }
+.review-tools button:hover, .review-handoff button:hover { background: var(--fill-2); }
+.review-tools button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); }
+.review-tools button:disabled { opacity: .55; cursor: default; }
+.review-tools label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.review-tools input { width: 64px; }
+.review-tools select { max-width: 160px; }
+.review-tools output { font: 11px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.review-tools input, .review-tools select, .review-fields input, .review-fields select { min-height: 32px; min-width: 0; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--surface-2); color: var(--ink); font-size: 12px; caret-color: var(--accent); }
+.review-fields input::placeholder { color: var(--muted); }
+.review-tools :focus-visible, .review-fields :focus-visible, .review-handoff button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.review-marks { position: absolute; pointer-events: none; overflow: visible; }
+.review-marks rect, .review-marks ellipse { fill: color-mix(in srgb, var(--accent) 18%, transparent); stroke: var(--accent); stroke-width: 2px; }
+.review-seek { flex: 0 0 24px; width: calc(100% - 16px); margin: 0 8px; accent-color: var(--accent); }
+.review-error { margin: 0; padding: 6px 10px; font-size: 12px; color: var(--danger); overflow-wrap: anywhere; }
+.review-compare { flex: 0 1 40%; min-height: 80px; overflow: auto; background: var(--surface-2); }
+.review-compare > span { display: block; padding: 4px 8px; font-size: 11px; color: var(--muted); }
+.review-compare img, .review-compare video { display: block; width: 100%; max-height: 240px; object-fit: contain; }
+.review-summary, .review-fields, .review-handoff { display: grid; gap: 6px; padding: 8px 10px; font-size: 11px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.review-summary { background: var(--surface-2); }
+.review-summary code { color: var(--ink); }
+.review-fields label { display: grid; gap: 4px; }
+.review-fields p, .review-handoff p { margin: 0; }
+.review-region-fields summary { min-height: 32px; display: flex; align-items: center; cursor: pointer; color: var(--ink); }
+.review-region-fields summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.review-region-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.comment-thread:has(.review-summary) { max-height: min(620px, 75vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line) var(--surface); }
+.comment-thread:has(.review-summary) > * { flex-shrink: 0; }
+.comment-thread:has(.review-summary) ol { overflow: visible; }
+.overview .review-tools, .overview .review-seek, .overview .review-compare { display: none; }

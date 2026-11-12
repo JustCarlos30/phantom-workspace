@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { invokeAgent } from './agent.mjs';
+import { frameAt, validateReview, reviewBrief } from '../shared/video-review.mjs';
 
 const USAGE = `Uso: canvas.mjs <acción> [opciones]
   list [--all] [--json]                 Paneles del proyecto (id corto, tipo, título, rama, posición)
@@ -32,6 +33,11 @@ Tablero de referencias (imágenes, videos, sitios) y comentarios:
   comments [--all] [--json]             Hilos de comentarios abiertos (--all incluye resueltos)
   comment ID "Texto" [--at X,Y] [--time SEG] [--author NOMBRE]   X,Y en % del panel
   reply N "Texto" [--author NOMBRE] | resolve N                  N: número del hilo
+  review ID "Texto" --region X,Y[,ANCHO,ALTO] [--time SEG --fps N]
+          [--scope instant|range|all --end SEG] [--element TEXTO] [--editable-source RUTA]
+          [--request-id UUID]            Región normalizada 0–1 del contenido; frame base 0
+  retry N                               Reintenta solo un handoff fallido, sin crear otro hilo
+  add-version ID RUTA                    Importa un render nuevo enlazado, conservando el original
 ID: prefijo del id, del título o de la rama del panel. Opción global: --workspace RUTA`;
 
 export const ZONE_COLORS = ['iris', 'mint', 'amber', 'rose', 'slate'];
@@ -105,7 +111,7 @@ function flags(args) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (['--all', '--json', '--zones', '--dry-run', '--no-captions'].includes(a)) out[a.slice(2)] = true;
-    else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--from', '--cols', '--at', '--time', '--author', '--remotion', '--seconds', '--fps', '--size'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
+    else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--from', '--cols', '--at', '--time', '--author', '--remotion', '--seconds', '--fps', '--size', '--region', '--scope', '--end', '--element', '--editable-source', '--request-id'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
     else if (a.startsWith('--')) throw new Error(`Opción desconocida: ${a}\n\n${USAGE}`);
     else out._.push(a);
   }
@@ -139,9 +145,9 @@ export function freeSlot(zone, members, width, height, gap = 24) {
 const WEB = /^https?:\/\//i;
 const stamp = seconds => { const t = Math.floor(seconds), m = Math.floor(t / 60); return `${m}:${String(t % 60).padStart(2, '0')}`; };
 function describeComment(c) {
-  return { n: c.number, id: c.id.slice(0, 8), resolved: c.resolved, ...(c.nodeId ? { at: `${Math.round(c.x * 100)}%,${Math.round(c.y * 100)}%` } : { canvas: `${c.x},${c.y}` }), ...(c.time !== undefined ? { time: stamp(c.time), seconds: c.time } : {}), messages: c.messages.map(m => ({ author: m.author, text: m.text })) };
+  return { n: c.number, id: c.id.slice(0, 8), resolved: c.resolved, ...(c.review ? { review: c.review } : {}), ...(c.handoff ? { handoff: c.handoff } : {}), ...(c.nodeId ? { at: `${Math.round(c.x * 100)}%,${Math.round(c.y * 100)}%` } : { canvas: `${c.x},${c.y}` }), ...(c.time !== undefined ? { time: stamp(c.time), seconds: c.time } : {}), messages: c.messages.map(m => ({ author: m.author, text: m.text })) };
 }
-const commentLine = c => `#${c.n}${c.resolved ? ' (resuelto)' : ''} ${[c.at, c.time].filter(Boolean).join(' · ')} ${c.messages.map(m => `${m.author}: ${m.text}`).join(' ↳ ')}`.replace(/\s+/g, ' ');
+const commentLine = c => (`#${c.n}${c.resolved ? ' (resuelto)' : ''} ${[c.at, c.time].filter(Boolean).join(' · ')} ${c.messages.map(m => `${m.author}: ${m.text}`).join(' ↳ ')}`).replace(/\s+/g, ' ') + (c.review ? `\n${reviewBrief(c.review)}` : '') + (c.handoff ? `\nHandoff: ${c.handoff.status}${c.handoff.error ? ` · ${c.handoff.error}` : ''}` : '');
 
 // Remotion export: a small project whose composition plays the zone's shots in
 // reading order. Media is copied into public/; the template is written once.
@@ -248,6 +254,23 @@ export async function main(args = process.argv.slice(2), env = process.env, call
     const rows = comments.filter(c => opt.all || !c.resolved).map(c => ({ ...describeComment(c), panel: c.nodeId ? nodes.find(n => n.id === c.nodeId)?.title || '' : 'canvas' }));
     return opt.json ? rows : rows.length ? rows.map(c => `[${c.panel}] ${commentLine(c)}`).join('\n') : 'No hay comentarios abiertos.';
   }
+  if (action === 'add-version') {
+    need(2); const n = resolve(nodes.filter(n => n.type === 'reference'), ids[0]);
+    const made = await call('reference.add', { workspaceId: w.id, path: path.resolve(ids[1]), previousVersion: n.id, x: n.x + n.width + 40, y: n.y, width: n.width, height: n.height, ...(n.data.spaceId ? { spaceId: n.data.spaceId } : {}) });
+    return `Nueva versión ${made.id} enlazada a ${n.id}. Original conservado.`;
+  }
+  if (action === 'review') {
+    need(2); const n = resolve(nodes.filter(n => n.type === 'reference'), ids[0]);
+    const identity = await call('reference.identity', { workspaceId: w.id, id: n.id });
+    const a = String(opt.region || '').split(',').map(Number);
+    if (![2, 4].includes(a.length)) throw new Error('--region X,Y o X,Y,ANCHO,ALTO en fracciones 0–1 del contenido');
+    const region = { type: a.length === 4 ? 'rect' : 'point', x: a[0], y: a[1], ...(a.length === 4 ? { width: a[2], height: a[3] } : {}) };
+    const review = { schema: 1, ...identity, region, scope: opt.scope || (identity.kind === 'video' ? 'instant' : 'all'), ...(identity.kind === 'video' ? { time: Number(opt.time), fps: Number(opt.fps), frame: frameAt(Number(opt.time), Number(opt.fps)), captureLimit: 'CLI: sin captura de frame; se entrega archivo y tiempo.' } : {}), ...(opt.end !== undefined ? { end: Number(opt.end) } : {}), ...(opt.element ? { element: opt.element } : {}), ...(opt['editable-source'] ? { editableSource: opt['editable-source'] } : {}) };
+    validateReview(review);
+    const made = await call('comment.add', { workspaceId: w.id, nodeId: n.id, x: region.x, y: region.y, review, text: ids[1], author: opt.author || 'Agente', ...(opt['request-id'] ? { requestId: opt['request-id'] } : {}) });
+    return opt.json ? made : `Revisión guardada (${made.id}) · ${made.handoff?.status || 'sin envío al agente'}.`;
+  }
+  if (action === 'retry') { need(1); const c = thread(ids[0]); const made = await call('comment.retry', { workspaceId: w.id, id: c.id }); return opt.json ? made : `Handoff #${c.number}: ${made.handoff.status}`; }
   if (action === 'comment') {
     need(2); const n = resolve(nodes.filter(n => n.type !== 'zone'), ids[0]), at = (opt.at || '50,50').split(',').map(v => Number(String(v).replace('%', '')) / 100);
     if (at.length !== 2 || at.some(v => !Number.isFinite(v) || v < 0 || v > 1)) throw new Error('--at X,Y en porcentajes de 0 a 100');
