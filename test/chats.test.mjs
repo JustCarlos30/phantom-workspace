@@ -120,6 +120,16 @@ test('OpenCode events become text and tool parts; arguments resume the right ses
   assert.deepEqual(providerArgs('claude', { sessionId: 'abc', mode: 'auto', message: 'hola' }).slice(-4), ['--resume', 'abc', '--permission-mode', 'acceptEdits']);
   assert.ok(!providerArgs('claude', { mode: 'ask', message: 'x' }).includes('--permission-mode'));
   assert.ok(!providerArgs('opencode', { mode: 'auto', message: 'x' }).includes('--auto'), 'the host owns permission replies');
+  // Total: Claude keeps the gate (never bypassPermissions), Codex drops its sandbox, OpenCode keeps its approval transport.
+  const full = providerArgs('claude', { mode: 'full', message: 'x', gate: { token: 't', socketPath: '/s' } });
+  assert.deepEqual(full.slice(full.indexOf('--permission-mode'), full.indexOf('--permission-mode') + 2), ['--permission-mode', 'acceptEdits']);
+  assert.ok(full.includes('--permission-prompt-tool') && !full.includes('bypassPermissions') && !full.includes('--dangerously-skip-permissions'));
+  assert.ok(providerArgs('codex', { access: 'full', message: 'x' }).includes('sandbox_mode="danger-full-access"'));
+  assert.ok(providerArgs('codex', { access: 'auto', message: 'x' }).includes('sandbox_mode="workspace-write"'));
+  assert.ok(providerArgs('codex', { autoApprove: true, message: 'x' }).includes('sandbox_mode="workspace-write"'));
+  assert.ok(providerArgs('codex', { message: 'x' }).includes('sandbox_mode="read-only"'));
+  assert.deepEqual(providerArgs('opencode', { access: 'full', message: 'x' }), ['serve', '--hostname', '127.0.0.1', '--port', '0']);
+  assert.doesNotThrow(() => validateChat({ permissionMode: 'full' })); assert.throws(() => validateChat({ permissionMode: 'yolo' }), /permisos/);
   assert.ok(!providerArgs('claude', { message: 'secreto' }).includes('secreto'));
   assert.deepEqual(providerArgs('claude', { model: 'opus', message: 'x' }).slice(-2), ['--model', 'opus']);
   assert.throws(() => validateChat({ models: { claude: '--dangerously-skip-permissions' } }), /Modelo/); assert.throws(() => validateChat({ models: { gpt: 'x' } }), /provider/);
@@ -198,6 +208,14 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   await host.invoke('chat.configure', { ...ref, provider: 'claude' });
   chat = await host.invoke('chat.get', ref);
   assert.equal(chat.messages.length, 8); assert.equal(chat.sessionId, 'sid-1'); assert.equal(chat.autoApprove, true);
+  // Canvas cards take the three-way switch too; permissionMode wins over the boolean.
+  await host.invoke('chat.configure', { ...ref, permissionMode: 'full' });
+  assert.deepEqual(host.store.getWorkspace(w.id).nodes.find(n => n.id === node.id).data.chat.permissionMode, 'full');
+  assert.equal((await host.invoke('chat.get', ref)).mode, 'full');
+  await assert.rejects(host.invoke('chat.configure', { ...ref, permissionMode: 'yolo' }), /permisos/);
+  await host.invoke('chat.configure', { ...ref, autoApprove: false });
+  assert.equal(host.store.getWorkspace(w.id).nodes.find(n => n.id === node.id).data.chat.permissionMode, undefined);
+  assert.equal((await host.invoke('chat.get', ref)).mode, 'ask');
   await host.invoke('settings.update', { patch: { claudePath: path.join(root, 'missing') } });
   await host.invoke('chat.send', { ...ref, text: 'hola' }); await until(async () => !(await host.invoke('chat.get', ref)).running);
   assert.match((await host.invoke('chat.get', ref)).messages.at(-1).error, /No se encontró/);
@@ -256,6 +274,18 @@ test('the project\'s Phantom chat runs in the project folder with its identity, 
   // The permission switch is stored with the thread.
   await host.invoke('chat.configure', { ...ref, autoApprove: true });
   assert.equal((await host.invoke('chat.get', ref)).autoApprove, true);
+  // The three-way switch: permissionMode wins and keeps the boolean in step; a bare boolean drops it.
+  await host.invoke('chat.configure', { ...ref, permissionMode: 'full' });
+  chat = await host.invoke('chat.get', ref);
+  assert.deepEqual([chat.permissionMode, chat.mode, chat.autoApprove], ['full', 'full', true]);
+  await assert.rejects(host.invoke('chat.configure', { ...ref, permissionMode: 'yolo' }), /permisos/);
+  await host.invoke('chat.configure', { ...ref, permissionMode: 'ask' });
+  chat = await host.invoke('chat.get', ref);
+  assert.deepEqual([chat.permissionMode, chat.mode, chat.autoApprove], ['ask', 'ask', false]);
+  await host.invoke('chat.configure', { ...ref, autoApprove: true });
+  chat = await host.invoke('chat.get', ref);
+  assert.deepEqual([chat.permissionMode, chat.mode], ['auto', 'auto']);
+  assert.equal(host.chats.nodes[ref.nodeId].settings.permissionMode, undefined);
 });
 
 test('messages written while the agent works wait their turn; a stop pauses the line', async t => {

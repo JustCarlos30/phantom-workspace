@@ -20,11 +20,24 @@ const MODE_KEY = 'phantom.cardMode';
 export function preferredCardMode() {
   try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : ['opencode', 'codex'].includes(saved) ? saved : 'claude'; } catch { return 'claude'; }
 }
+const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
 const AUTO_APPROVE = {
-  claude: { on: 'Trabaja libremente dentro de su carpeta (ediciones, git local, npm, tests) y te pide permiso aquí antes de tocar algo fuera: otras carpetas, push, red o sistema.', off: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.' },
-  opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', off: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.' },
-  codex: { on: 'Codex puede editar dentro de la carpeta con sandbox workspace-write. Los permisos que requieren confirmación se deniegan en modo headless.', off: 'Codex usa sandbox de solo lectura y no solicita aprobaciones en modo headless.' },
+  claude: { auto: 'Trabaja libremente dentro de su carpeta (ediciones, git local, npm, tests) y te pide permiso aquí antes de tocar algo fuera: otras carpetas, push, red o sistema.', ask: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.', full: `Hace todo sin preguntar, también fuera de su carpeta, en la red y con herramientas externas. Solo te pide permiso para una lista corta de acciones peligrosas: ${FULL_LIST}. Git queda protegido por el guardián de Incorporaciones.` },
+  opencode: { auto: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', ask: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.', full: 'OpenCode aprueba todo permiso que no esté denegado en su configuración (igual que Puede editar). Git queda protegido por el guardián de Incorporaciones.' },
+  codex: { auto: 'Codex puede editar dentro de la carpeta con sandbox workspace-write. Los permisos que requieren confirmación se deniegan en modo headless.', ask: 'Codex usa sandbox de solo lectura y no solicita aprobaciones en modo headless.', full: 'Codex trabaja sin sandbox (danger-full-access): puede escribir fuera de la carpeta y usar la red. No puede preguntar en modo headless. Git queda protegido por el guardián de Incorporaciones.' },
 };
+const PERMISSION_LABELS = { ask: { claude: 'Pregunta todo', other: 'Solo lectura' }, auto: { claude: 'Autónomo', other: 'Puede editar' }, full: { claude: 'Total', other: 'Total' } };
+const NEXT_MODE = { ask: 'auto', auto: 'full', full: 'ask' };
+export const permissionLabel = (mode, provider) => provider === 'opencode' && mode === 'ask' ? 'Con aprobación' : PERMISSION_LABELS[mode]?.[provider === 'claude' ? 'claude' : 'other'] || mode;
+
+// The card's permission mode, cycled with one button: Pregunta todo → Autónomo → Total.
+export function PermissionSwitch({ mode, provider, descriptions = AUTO_APPROVE, disabled, onChange }) {
+  const Shield = mode === 'full' ? ShieldAlert : mode === 'auto' ? ShieldCheck : ShieldOff;
+  const text = permissionLabel(mode, provider), next = NEXT_MODE[mode] || 'ask';
+  return <button type="button" className="pc-permission" data-mode={mode} aria-pressed={mode !== 'ask'} disabled={disabled}
+    aria-label={`Permisos: ${text}. Cambiar a ${permissionLabel(next, provider)}`} title={`${descriptions[provider]?.[mode] || ''}\n\nPulsa para cambiar a «${permissionLabel(next, provider)}».`}
+    onClick={() => onChange(next)}><Shield size={13} aria-hidden="true" /><span>{text}</span></button>;
+}
 const PERMISSION_STATUS = { allowed: 'Aprobado', always: 'Aprobado siempre', denied: 'Rechazado', cancelled: 'Sin respuesta' };
 
 // A permission the agent is waiting on, answered in place.
@@ -436,7 +449,8 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
-  const autoApprove = node.data.chat.autoApprove ?? (provider === 'claude' && !!node.data.worktree);
+  const chosen = node.data.chat.permissionMode ?? (typeof node.data.chat.autoApprove === 'boolean' ? (node.data.chat.autoApprove ? 'auto' : 'ask') : null);
+  const permissionMode = chosen ?? (provider === 'claude' && node.data.worktree ? 'auto' : 'ask');
   const waitingOn = messages.flatMap(message => message.parts || []).find(part => (part.type === 'permission' || part.type === 'question') && part.status === 'pending');
   const waiting = waitingOn ? (waitingOn.type === 'question' ? 'Espera tu respuesta' : 'Espera tu permiso') : '';
   const pendingAsks = messages.flatMap(message => (message.parts || []).filter(part => part.type === 'permission' && part.status === 'pending'));
@@ -481,8 +495,6 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
       </div>
     </div>;
   }
-  const Shield = autoApprove ? ShieldCheck : ShieldOff;
-  const permissionText = autoApprove ? (provider === 'claude' ? 'Autónomo' : 'Puede editar') : (provider === 'claude' ? 'Pregunta todo' : provider === 'opencode' ? 'Con aprobación' : 'Solo lectura');
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
@@ -502,7 +514,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           {chat && <dl className="pc-conversation-facts">
             <div><dt>Carpeta</dt><dd title={cwd}>{cwd}</dd></div>
             {branch && <div><dt>Rama</dt><dd>{branch}</dd></div>}
-            <div><dt>Permisos</dt><dd className="is-prose">{AUTO_APPROVE[provider]?.[autoApprove ? 'on' : 'off']}</dd></div>
+            <div><dt>Permisos</dt><dd className="is-prose">{AUTO_APPROVE[provider]?.[permissionMode]}</dd></div>
             <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
           </dl>}
         </EmptyState>}
@@ -519,7 +531,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <div className="pc-settings">
             <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
             <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
-            <button type="button" className="pc-permission" aria-pressed={autoApprove} aria-label={permissionText} title={AUTO_APPROVE[provider]?.[autoApprove ? 'on' : 'off']} onClick={() => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, autoApprove: !autoApprove }).catch(e => notify?.(e.message, 'error'))}><Shield size={13} aria-hidden="true" /><span>{permissionText}</span></button>
+            <PermissionSwitch mode={permissionMode} provider={provider} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
           </div>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}
           {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={15} /></button>}

@@ -66,11 +66,13 @@ test('OpenCode allow once asks again; stopping cancels pending permissions and c
 
 test('OpenCode explicit automatic mode replies without an approval row; server failures finish the turn', async t => {
   const f = await setup(t);
-  await f.host.invoke('chat.configure', { ...f.ref, autoApprove: true });
-  await f.send('hello'); let chat = await f.idle();
-  assert.equal(chat.messages.at(-1).status, 'done');
-  assert.ok(!chat.messages.at(-1).parts.some(p => p.type === 'permission'));
-  await f.send('crash'); chat = await f.idle();
+  for (const setting of [{ autoApprove: true }, { permissionMode: 'auto' }, { permissionMode: 'full' }]) {
+    await f.host.invoke('chat.configure', { ...f.ref, ...setting });
+    await f.send('hello'); const chat = await f.idle();
+    assert.equal(chat.messages.at(-1).status, 'done');
+    assert.ok(!chat.messages.at(-1).parts.some(p => p.type === 'permission'));
+  }
+  await f.send('crash'); const chat = await f.idle();
   assert.equal(chat.messages.at(-1).status, 'error');
   assert.match(chat.messages.at(-1).error, /OpenCode/);
 });
