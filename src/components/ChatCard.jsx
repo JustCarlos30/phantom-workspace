@@ -22,7 +22,7 @@ export function preferredCardMode() {
 }
 const AUTO_APPROVE = {
   claude: { on: 'Trabaja libremente dentro de su carpeta (ediciones, git local, npm, tests) y te pide permiso aquí antes de tocar algo fuera: otras carpetas, push, red o sistema.', off: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.' },
-  opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', off: 'OpenCode no puede pedir permisos en modo headless: solo lee y responde.' },
+  opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', off: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.' },
   codex: { on: 'Codex puede editar dentro de la carpeta con sandbox workspace-write. Los permisos que requieren confirmación se deniegan en modo headless.', off: 'Codex usa sandbox de solo lectura y no solicita aprobaciones en modo headless.' },
 };
 const PERMISSION_STATUS = { allowed: 'Aprobado', always: 'Aprobado siempre', denied: 'Rechazado', cancelled: 'Sin respuesta' };
@@ -482,7 +482,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     </div>;
   }
   const Shield = autoApprove ? ShieldCheck : ShieldOff;
-  const permissionText = autoApprove ? (provider === 'claude' ? 'Autónomo' : 'Puede editar') : (provider === 'claude' ? 'Pregunta todo' : 'Solo lectura');
+  const permissionText = autoApprove ? (provider === 'claude' ? 'Autónomo' : 'Puede editar') : (provider === 'claude' ? 'Pregunta todo' : provider === 'opencode' ? 'Con aprobación' : 'Solo lectura');
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />

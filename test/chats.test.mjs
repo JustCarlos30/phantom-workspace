@@ -44,7 +44,7 @@ test('Codex launches, resumes and persists independent effort settings through h
   const state = await host.invoke('state.get');
   assert.equal(state.workspaces.find(item => item.id === w.id).nodes.find(item => item.id === node.id).data.chat.reasoning.codex, 'high');
   assert.ok(providerArgs('claude', { message: 'x', reasoning: 'max' }).includes('--effort'));
-  assert.ok(providerArgs('opencode', { message: 'x', reasoning: 'custom-variant' }).includes('--variant'));
+  assert.equal(providerArgs('opencode', { message: 'x', reasoning: 'custom-variant' })[0], 'serve');
 });
 test('chat turns get the canvas browser bridge: stable per card, live only while the turn runs', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-chat-browser-'));
@@ -116,12 +116,12 @@ test('OpenCode events become text and tool parts; arguments resume the right ses
   assert.deepEqual(t.message.parts, [{ type: 'tool', id: 'c1', name: 'glob', detail: 'a.txt', status: 'done', output: '/repo/a.txt' }, { type: 'text', text: 'Listo.' }]);
   assert.equal(t.contextTokens, 14915); assert.deepEqual(t.usage, { costUsd: .01, outputTokens: 41, steps: 1 });
   assert.equal(t.sessionId, 'ses_1'); assert.equal(t.error, 'Límite alcanzado');
-  assert.deepEqual(providerArgs('opencode', { sessionId: 'ses_1', autoApprove: true, message: '-v', cwd: '/repo' }), ['run', '--format', 'json', '--dir', '/repo', '--session', 'ses_1', '--auto', ' -v']);
+  assert.deepEqual(providerArgs('opencode', { sessionId: 'ses_1', autoApprove: true, message: '-v', cwd: '/repo' }), ['serve', '--hostname', '127.0.0.1', '--port', '0']);
   assert.deepEqual(providerArgs('claude', { sessionId: 'abc', mode: 'auto', message: 'hola' }).slice(-4), ['--resume', 'abc', '--permission-mode', 'acceptEdits']);
   assert.ok(!providerArgs('claude', { mode: 'ask', message: 'x' }).includes('--permission-mode'));
-  assert.ok(!providerArgs('opencode', { mode: 'auto', message: 'x' }).includes('--auto'), 'OpenCode keeps its explicit switch');
+  assert.ok(!providerArgs('opencode', { mode: 'auto', message: 'x' }).includes('--auto'), 'the host owns permission replies');
   assert.ok(!providerArgs('claude', { message: 'secreto' }).includes('secreto'));
-  assert.deepEqual(providerArgs('claude', { model: 'opus', message: 'x' }).slice(-2), ['--model', 'opus']); assert.deepEqual(providerArgs('opencode', { model: 'openai/gpt-x', message: 'x' }).slice(3, 5), ['--model', 'openai/gpt-x']);
+  assert.deepEqual(providerArgs('claude', { model: 'opus', message: 'x' }).slice(-2), ['--model', 'opus']);
   assert.throws(() => validateChat({ models: { claude: '--dangerously-skip-permissions' } }), /Modelo/); assert.throws(() => validateChat({ models: { gpt: 'x' } }), /provider/);
   assert.equal(toolDetail({ command: 'npm   test\n--watch' }), 'npm test --watch');
   assert.throws(() => validateChat({ provider: 'gpt' }), /provider/); assert.throws(() => validateChat({ shell: true }), /Unknown/);
@@ -190,7 +190,7 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   assert.equal((await host.invoke('chat.get', ref)).model, null);
   await host.invoke('chat.send', { ...ref, text: 'ping' }); await idle();
   chat = await host.invoke('chat.get', ref);
-  assert.equal(chat.messages[1].parts[0].text, 'oc:ping pwd:true'); assert.equal(chat.messages[1].status, 'error'); assert.match(chat.messages[1].error, /fallo del proveedor/);
+  assert.equal(chat.messages[1].parts.length, 0); assert.equal(chat.messages[1].status, 'error'); assert.match(chat.messages[1].error, /fallo del proveedor/);
   await host.invoke('chat.clear', ref);
   assert.deepEqual((await host.invoke('chat.get', ref)).messages, []);
 

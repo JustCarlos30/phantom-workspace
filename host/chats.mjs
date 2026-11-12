@@ -8,6 +8,7 @@ import { permissionDecision } from './chat-permissions.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
+import { driveOpenCode, openCodeServerEnv } from './opencode-chat.mjs';
 
 // Chat cards drive an agent CLI headlessly, one process per turn, and render
 // its structured event stream. No PTY is involved: the conversation lives in
@@ -57,8 +58,8 @@ export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
 export function gateConfig({ token, socketPath }) {
   return { mcpServers: { [GATE_SERVER]: { type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../scripts/chat-approval-mcp.mjs', import.meta.url))], env: { PHANTOM_CHAT_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: socketPath } } } };
 }
-// OpenCode's headless run cannot route a question back, so it keeps the
-// explicit switch: --auto only when the card says so.
+// OpenCode uses its local server; run's noninteractive auto-reject loop must
+// never own the permission replies of a chat card.
 export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, message, cwd, model, reasoning, gate, instructions }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
@@ -70,8 +71,7 @@ export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = 
     ...(reasoning ? ['--effort', reasoning] : []),
     ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' ? ['--permission-mode', 'acceptEdits'] : []),
     ...(gate ? ['--mcp-config', JSON.stringify(gateConfig(gate)), '--permission-prompt-tool', GATE_TOOL] : [])];
-  // A leading dash would be parsed as a flag; the space is invisible to the model.
-  return ['run', '--format', 'json', ...(cwd ? ['--dir', cwd] : []), ...(model ? ['--model', model] : []), ...(reasoning ? ['--variant', reasoning] : []), ...(sessionId ? ['--session', sessionId] : []), ...(autoApprove ? ['--auto'] : []), message.startsWith('-') ? ` ${message}` : message];
+  return ['serve', '--hostname', '127.0.0.1', '--port', '0'];
 }
 
 // One line that says what a tool call is doing, from its most telling input.
@@ -335,7 +335,7 @@ export class Chats {
     const reply = { id: randomUUID(), role: 'assistant', provider, parts: [], status: 'streaming', createdAt: now() };
     thread.messages.push(user, reply);
     if (thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
-    const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, mode: chatMode(node, cwd), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
+    const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, mode: chatMode(node, cwd), autoApprove: node.data.chat.autoApprove === true, thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
     const started = Date.now();
     // Session facts as known right now: the turn's own readings over the thread's.
     const meta = () => ({ ...thread.meta, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextTokens ? { contextTokens: turn.contextTokens } : {}), ...(turn.contextWindow ? { contextWindow: turn.contextWindow } : {}) });
@@ -374,7 +374,7 @@ export class Chats {
       });
     };
     const bin = this.store.state.settings[definition.setting] || definition.bin;
-    let child;
+    let child, env;
     try {
       // Own process group: stopping a turn must also stop the tools it launched.
       if (turn.token) this.gates.set(turn.token, turn);
@@ -383,26 +383,40 @@ export class Chats {
       // A capability left by an interrupted host is stale; replace it.
       fs.rmSync(credentialFile(this.store.dir, turn.browserSession), { force: true });
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
+      env = { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) };
+      if (provider === 'opencode') env = openCodeServerEnv(env);
       child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, autoApprove: node.data.chat.autoApprove === true, message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
-        { cwd, env: { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+        { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
     } catch (error) { if (turn.token) this.gates.delete(turn.token); turn.browser?.revoke(); thread.messages.splice(thread.messages.indexOf(user), 2); throw error; }
     turn.child = child; this.turns.set(node.id, turn);
-    child.on('error', error => finish(null, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : error.message));
+    if (provider !== 'opencode') child.on('error', error => finish(null, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : error.message));
     child.stdin.on('error', () => {});
     // Claude reads the prompt from stdin, so any text is safe from flag parsing.
     child.stdin.end(provider === 'claude' || provider === 'codex' ? message : '');
     let buffer = '';
     const line = raw => { if (!raw.trim()) return; let event; try { event = JSON.parse(raw); } catch { return; } if (event && typeof event === 'object' && apply(turn, event)) schedule(); };
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
-    child.stdout.on('data', chunk => {
+    if (provider !== 'opencode') child.stdout.on('data', chunk => {
       buffer += chunk; let index;
       while ((index = buffer.indexOf('\n')) >= 0) { line(buffer.slice(0, index)); buffer = buffer.slice(index + 1); }
       if (buffer.length > MAX_LINE) buffer = '';
     });
     child.stderr.on('data', chunk => { turn.stderr = (turn.stderr + chunk).slice(-8000); });
-    child.on('close', code => { line(buffer); buffer = ''; finish(code); });
+    if (provider === 'opencode') driveOpenCode(child, {
+      cwd, sessionId: thread.sessionId, message, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], password: env.OPENCODE_SERVER_PASSWORD,
+      onEvent: event => { if (!turn.finished && apply(turn, event)) schedule(); },
+      onPermission: request => this.requestOpenCodePermission(turn, request),
+      onQuestion: async request => {
+        if (turn.finished || turn.stopped) return { behavior: 'deny' };
+        const decision = await this.askQuestion(turn, { questions: request.questions }, request.tool?.callID);
+        // The shared question UI returns one textual answer per question,
+        // including a custom response. OpenCode expects an array per answer.
+        return { ...decision, answers: decision.behavior === 'allow' ? decision.updatedInput.questions.map(q => [decision.updatedInput.answers[q.question.slice(0, 1000)]]) : undefined };
+      },
+    }).then(() => finish(0), error => finish(1, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : [error.message, turn.stderr.trim().slice(-1500)].filter(Boolean).join('\n')));
+    else child.on('close', code => { line(buffer); buffer = ''; finish(code); });
     this.dirty = true;
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: true, meta: meta(), messages: [structuredClone(user), structuredClone(reply)], queue: structuredClone(thread.queue ?? []) });
     return { ok: true, messageId: reply.id };
@@ -433,6 +447,17 @@ export class Chats {
     const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
     turn.message.parts.push(part); turn.schedule();
     return new Promise(resolve => turn.pending.set(part.id, { part, input, resolve }));
+  }
+  requestOpenCodePermission(turn, request) {
+    if (turn.finished || turn.stopped) return { behavior: 'deny', message: 'La respuesta se detuvo en Phantom Workspace.' };
+    const patterns = Array.isArray(request.patterns) ? request.patterns.filter(p => typeof p === 'string') : [];
+    // Keep grants exact: approving /tmp/a must not also approve /tmp/b or a
+    // different permission. OpenCode's explicit deny rules still take precedence.
+    const key = `OpenCode:${JSON.stringify([request.permission, [...patterns].sort()])}`;
+    if (turn.autoApprove || turn.thread.grants?.includes(key)) return { behavior: 'allow' };
+    const part = { type: 'permission', id: randomUUID(), tool: String(request.permission).slice(0, 120), detail: patterns.join(', ').slice(0, 240), reason: 'OpenCode solicita tu aprobación', key, status: 'pending', ...(request.tool?.callID ? { toolUseId: request.tool.callID } : {}) };
+    turn.message.parts.push(part); turn.schedule();
+    return new Promise(resolve => turn.pending.set(part.id, { part, input: {}, resolve }));
   }
   askQuestion(turn, input, toolUseId) {
     const part = { type: 'question', id: randomUUID(), questions: normalizeQuestions(input.questions), status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };

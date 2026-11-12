@@ -16,7 +16,7 @@ const SUGGESTIONS = [
 const PERMISSIONS = {
   claude: { on: 'Trabaja libremente dentro de la carpeta del proyecto y te pide permiso aquí antes de tocar algo fuera.', off: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.' },
   codex: { on: 'Codex puede editar dentro del proyecto.', off: 'Codex trabaja en modo de solo lectura.' },
-  opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado en su configuración.', off: 'OpenCode solo lee y responde.' },
+  opencode: { on: 'OpenCode aprueba todo permiso que no esté denegado en su configuración.', off: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.' },
 };
 
 // The project's main conversation: Phantom, docked beside the canvas. It is
@@ -93,7 +93,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
         {PROVIDERS.map(p => <button key={p.id} type="button" role="radio" aria-checked={active === p.id} data-provider={p.id} disabled={(running || switching) && active !== p.id} onClick={() => chooseProvider(p.id)}><ProviderGlyph provider={p.id} size={13} /><span>{p.label}</span></button>)}
       </div>
       <span className="pc-bar-space" />
-      <button type="button" className="pc-permission" aria-pressed={autoApprove} disabled={!chat} title={PERMISSIONS[active]?.[autoApprove ? 'on' : 'off']} onClick={() => configure({ autoApprove: !autoApprove })}><Shield size={13} aria-hidden="true" /><span>{autoApprove ? (active === 'claude' ? 'Autónomo' : 'Puede editar') : (active === 'claude' ? 'Pregunta todo' : 'Solo lectura')}</span></button>
+      <button type="button" className="pc-permission" aria-pressed={autoApprove} disabled={!chat} title={PERMISSIONS[active]?.[autoApprove ? 'on' : 'off']} onClick={() => configure({ autoApprove: !autoApprove })}><Shield size={13} aria-hidden="true" /><span>{autoApprove ? (active === 'claude' ? 'Autónomo' : 'Puede editar') : (active === 'claude' ? 'Pregunta todo' : active === 'opencode' ? 'Con aprobación' : 'Solo lectura')}</span></button>
     </div>
     <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
