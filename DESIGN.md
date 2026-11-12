@@ -271,6 +271,7 @@ The shell inherits `-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` a
 - **Support (11px):** panel navigation, background options, session metadata, appearance footer and local-image row.
 - **Micro (10px):** paths, upload help, accent names, grid explanation and pixel-unit hints. These are subordinate labels, not body-copy defaults.
 - **Panel title:** inverse-zoom compensation, `min(2.4, max(1, 1 / zoom))`; focus resets the scale to 1. Terminal cells are measured independently, not enlarged through this title scale. Terminal type controls and code retain their implementation-owned monospace behavior.
+- **Semantic zoom (< 45%):** panels become map tiles. Chrome is sized in screen pixels via `--overview-scale` (1 / zoom, uncapped): 1px hairline, 13px title, 11px identity (provider · state · session), panel actions hidden (double-click and context menu remain). Terminals show their last three output lines in a 10px mono glimpse; below 25% the tile keeps only title and identity.
 
 ## Layout
 
