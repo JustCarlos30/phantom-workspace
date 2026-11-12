@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { markdownTarget } from '../hooks/markdownLinks.mjs';
-import { tableStartsAt, parseTable } from '../hooks/markdownTable.mjs';
+import { tableStartsAt, parseTable, pendingTableAt, splitRow } from '../hooks/markdownTable.mjs';
 import MarkdownTable from './MarkdownTable';
 import { CopyButton } from './CopyButton';
 
@@ -69,7 +69,7 @@ function MarkdownLink({ label, url, embedded }) {
   </span>;
 }
 
-export function parseMarkdown(source) {
+export function parseMarkdown(source, { streaming = false } = {}) {
   const blocks = [], lines = String(source).replace(/\r\n?/g, '\n').split('\n');
   let paragraph = [], list = null;
   const flush = () => {
@@ -85,6 +85,7 @@ export function parseMarkdown(source) {
       blocks.push({ type: 'code', lang: fence[1], text: code.join('\n') }); continue;
     }
     if (tableStartsAt(lines, i)) { flush(); const { block, next } = parseTable(lines, i); blocks.push(block); i = next - 1; continue; }
+    if (streaming && pendingTableAt(lines, i)) { flush(); blocks.push({ type: 'table', head: splitRow(line), align: [], rows: [], pending: true }); break; }
     const heading = /^(#{1,6})\s+(.*)$/.exec(line), item = /^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/.exec(line);
     if (!line.trim()) flush();
     else if (heading) { flush(); blocks.push({ type: 'h', level: heading[1].length, text: heading[2] }); }
@@ -102,8 +103,8 @@ export function parseMarkdown(source) {
   return blocks;
 }
 
-export default function Markdown({ source }) {
-  return <div className="md">{parseMarkdown(source).map((block, i) => {
+export default function Markdown({ source, streaming = false }) {
+  return <div className="md">{parseMarkdown(source, { streaming }).map((block, i) => {
     if (block.type === 'code') return <figure key={i} className="md-code"><figcaption><span>{block.lang || 'código'}</span><CopyButton text={block.text} label="Copiar código" /></figcaption><pre><code>{block.text}</code></pre></figure>;
     if (block.type === 'h') return React.createElement(`h${Math.min(6, block.level + 2)}`, { key: i }, inline(block.text, i));
     if (block.type === 'hr') return <hr key={i} />;

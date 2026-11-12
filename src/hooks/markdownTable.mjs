@@ -28,6 +28,15 @@ export function tableStartsAt(lines, i) {
     && splitRow(lines[i + 1]).length === splitRow(lines[i]).length;
 }
 
+// While a reply streams, a header row at the very end (with at most a partial
+// delimiter row after it) is a table on its way: draw it now instead of
+// flashing raw pipes until the delimiter row arrives.
+export function pendingTableAt(lines, i) {
+  const row = lines[i] ?? '', rest = lines.slice(i + 1);
+  if (!/^\s*\|/.test(row) || splitRow(row).length < 2) return false;
+  return rest.length === 0 || (rest.length === 1 && /^\s*\|?[\s:|-]*$/.test(rest[0]));
+}
+
 // Returns { block, next } where next is the first line after the table.
 export function parseTable(lines, i) {
   const head = splitRow(lines[i]), width = head.length;
@@ -55,4 +64,15 @@ export function columnKinds(block) {
 export function toTSV(block) {
   const plain = cell => cell.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/!?\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[\t\n]/g, ' ');
   return [block.head, ...block.rows].map(row => row.map(plain).join('\t')).join('\n');
+}
+
+// One line of plain text for previews (overview cards): no pipes, delimiter
+// rows, or Markdown marks. Table rows read as their cells joined by " · ".
+export function plainMarkdown(source) {
+  return String(source || '').replace(/\r\n?/g, '\n').split('\n')
+    .filter(line => !/^\s*```/.test(line) && !(SEPARATOR.test(line) && /-/.test(line)))
+    .map(line => (isTableRow(line) && /^\s*\|/.test(line) ? splitRow(line).filter(Boolean).join(' · ') : line)
+      .replace(/^\s*(#{1,6}|>|[-*+]|\d+[.)])\s+/, '')
+      .replace(/!?\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').trim())
+    .filter(Boolean).join(' ');
 }
