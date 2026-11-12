@@ -1,4 +1,28 @@
 import { randomUUID } from 'node:crypto';
+import http from 'node:http';
+import { Readable } from 'node:stream';
+
+// Long turns and quiet SSE streams must not inherit fetch/undici's five-minute
+// headers/body deadlines. The caller's signal is their only deadline.
+export function loopbackRequest(url, { method = 'GET', headers, body, signal } = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, { method, headers, signal }, response => {
+      const stream = Readable.toWeb(response);
+      resolve({
+        ok: response.statusCode >= 200 && response.statusCode < 300,
+        status: response.statusCode,
+        body: stream,
+        async json() {
+          const chunks = [];
+          for await (const chunk of stream) chunks.push(chunk);
+          return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        },
+      });
+    });
+    request.on('error', reject);
+    request.end(body);
+  });
+}
 
 // `opencode run` answers permission.asked with reject before a host can ask
 // the user. Own a loopback server instead and answer through its HTTP API.
@@ -27,12 +51,16 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
   });
   const headers = { authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`, 'content-type': 'application/json' };
   const request = async (route, body, bounded = true) => {
-    const response = await fetch(`${base}${route}?directory=${encodeURIComponent(cwd)}`, {
+    const transport = bounded ? fetch : loopbackRequest;
+    const response = await transport(`${base}${route}?directory=${encodeURIComponent(cwd)}`, {
       method: body === undefined ? 'GET' : 'POST', headers,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: bounded ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : signal,
     });
-    if (!response.ok) throw new Error(`OpenCode ${route}: HTTP ${response.status}`);
+    if (!response.ok) {
+      if (!bounded) await response.body.cancel().catch(() => {});
+      throw new Error(`OpenCode ${route}: HTTP ${response.status}`);
+    }
     return response;
   };
   const seen = new Map(), sessions = new Set(sessionId ? [sessionId] : []);

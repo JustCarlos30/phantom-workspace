@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { createHost } from '../host/server.mjs';
+import { loopbackRequest } from '../host/opencode-chat.mjs';
 
 const until = async fn => {
   const end = Date.now() + 8000;
@@ -96,4 +98,120 @@ test('the main Phantom chat also approves OpenCode requests, and questions wait 
   await f.host.invoke('chat.question.answer', { ...f.ref, requestId: skipped.id, answers: null });
   const finished = await f.idle();
   assert.deepEqual(JSON.parse(finished.messages.at(-1).parts.find(p => p.type === 'text').text), [{ rejected: true }]);
+});
+
+async function localServer(t, handler) {
+  const server = http.createServer(handler);
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  return `http://127.0.0.1:${server.address().port}`;
+}
+
+test('loopback message and live SSE requests work when global fetch throws', { timeout: 5000 }, async t => {
+  t.mock.method(globalThis, 'fetch', () => { throw new Error('fetch must not handle long requests'); });
+  const directory = '/tmp/espacio con ñ', authorization = `Basic ${Buffer.from('opencode:secret').toString('base64')}`;
+  const headers = { authorization, 'content-type': 'application/json' };
+  let received, closeStream;
+  const streamClosed = new Promise(resolve => { closeStream = resolve; });
+  const base = await localServer(t, async (req, res) => {
+    const url = new URL(req.url, 'http://localhost');
+    assert.equal(url.searchParams.get('directory'), directory);
+    assert.equal(req.headers.authorization, authorization);
+    assert.equal(req.headers['content-type'], 'application/json');
+    if (url.pathname === '/event') {
+      assert.equal(req.method, 'GET');
+      res.on('close', closeStream);
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write('data: {"type":"server.connected"}\r\n\r\n');
+      return;
+    }
+    assert.equal(url.pathname, '/session/ses_test/message');
+    assert.equal(req.method, 'POST');
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    received = JSON.parse(raw);
+    res.end(JSON.stringify({ parts: [{ text: 'listo ✓' }] }));
+  });
+  const query = `?directory=${encodeURIComponent(directory)}`;
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const stream = await loopbackRequest(`${base}/event${query}`, { headers, signal: controller.signal });
+  assert.equal(stream.ok, true); assert.equal(stream.status, 200);
+  const reader = stream.body.getReader();
+  let frame = '';
+  while (!frame.endsWith('\r\n\r\n')) {
+    const { value, done } = await reader.read();
+    assert.equal(done, false);
+    frame += new TextDecoder().decode(value);
+  }
+  assert.equal(frame, 'data: {"type":"server.connected"}\r\n\r\n');
+  const body = { parts: [{ type: 'text', text: 'hola' }] };
+  const response = await loopbackRequest(`${base}/session/ses_test/message${query}`, {
+    method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal,
+  });
+  assert.deepEqual(await response.json(), { parts: [{ text: 'listo ✓' }] });
+  assert.deepEqual(received, body);
+  await reader.cancel();
+  await streamClosed;
+});
+
+test('loopback requests wait for delayed response headers', { timeout: 5000 }, async t => {
+  t.mock.method(globalThis, 'fetch', () => { throw new Error('fetch must not handle long requests'); });
+  const base = await localServer(t, (req, res) => {
+    const timer = setTimeout(() => res.end('{"delayed":true}'), 1500);
+    res.on('close', () => clearTimeout(timer));
+  });
+  const response = await loopbackRequest(`${base}/session/ses_test/message`, { method: 'POST', body: '{}' });
+  assert.deepEqual(await response.json(), { delayed: true });
+});
+
+test('aborting a loopback request closes the connection before response headers', { timeout: 5000 }, async t => {
+  let arrived, closed;
+  const requestArrived = new Promise(resolve => { arrived = resolve; });
+  const connectionClosed = new Promise(resolve => { closed = resolve; });
+  const base = await localServer(t, (req, res) => { res.on('close', closed); arrived(); });
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const pending = loopbackRequest(`${base}/session/ses_test/message`, { method: 'POST', body: '{}', signal: controller.signal });
+  const rejected = assert.rejects(pending, { name: 'AbortError' });
+  await requestArrived;
+  controller.abort();
+  await rejected;
+  await connectionClosed;
+});
+
+test('aborting a loopback SSE stream rejects its reader and closes the connection', { timeout: 5000 }, async t => {
+  let closed;
+  const connectionClosed = new Promise(resolve => { closed = resolve; });
+  const base = await localServer(t, (req, res) => {
+    res.on('close', closed);
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.flushHeaders();
+  });
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const response = await loopbackRequest(`${base}/event`, { signal: controller.signal });
+  const reader = response.body.getReader();
+  // IncomingMessage can surface a destroyed response as ECONNRESET rather
+  // than forwarding the ClientRequest's AbortError to the web reader.
+  const rejected = assert.rejects(reader.read(), error => error.code === 'ABORT_ERR' || error.code === 'ECONNRESET');
+  controller.abort();
+  await rejected;
+  await connectionClosed;
+  await reader.cancel().catch(() => {});
+});
+
+test('OpenCode routes only bounded requests through fetch', async t => {
+  const f = await setup(t), originalFetch = globalThis.fetch, boundedRoutes = [];
+  t.mock.method(globalThis, 'fetch', (url, options) => {
+    const route = new URL(url).pathname;
+    assert.ok(route !== '/event' && !route.endsWith('/message'), `Unexpected long fetch: ${route}`);
+    boundedRoutes.push(route);
+    return originalFetch(url, options);
+  });
+  await f.host.invoke('chat.configure', { ...f.ref, autoApprove: true });
+  await f.send('hello');
+  const chat = await f.idle();
+  assert.equal(chat.messages.at(-1).status, 'done');
+  assert.ok(boundedRoutes.includes('/session'));
+  assert.ok(boundedRoutes.some(route => route.startsWith('/permission/')));
 });
