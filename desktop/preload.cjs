@@ -7,7 +7,11 @@ if (process.isMainFrame) {
     platform: 'Linux',
     invoke(method, payload = {}) {
       if (typeof method !== 'string') return Promise.reject(new Error('Método no válido'));
-      return ipcRenderer.invoke('phantom:invoke', method, payload);
+      // Electron wraps every main-process rejection in "Error invoking remote
+      // method 'phantom:invoke': Error: …"; the UI should show only the reason.
+      return ipcRenderer.invoke('phantom:invoke', method, payload).catch(error => {
+        throw new Error(String(error?.message || error).replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, ''));
+      });
     },
     onEvent(callback) {
       if (typeof callback !== 'function') throw new TypeError('Callback requerido');

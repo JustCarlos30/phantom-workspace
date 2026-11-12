@@ -12,6 +12,7 @@ import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
 import { PANEL_ICONS } from './PanelIcons';
+import PixelField from './PixelField';
 
 const icons = { ...PANEL_ICONS, 'skills-catalog': Sparkles };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -33,6 +34,8 @@ function pulseState(node, session) {
   if (session.screen === 'working' || ['working', 'running', 'in_progress', 'busy', 'thinking'].includes(agent)) return 'pulse-working';
   return '';
 }
+// The background field echoes the states that ask for you, never 'working'.
+const PIXEL_KIND = { 'pulse-attention': 'call', 'pulse-turn': 'turn', 'pulse-error': 'error' };
 // A brand-new workspace starts at the host origin, which now sits under the floating rail.
 const initialCamera = camera => !camera || (camera.x === 0 && camera.y === 0 && camera.zoom === 1) ? defaultCamera : camera;
 const readMinimap = () => { try { return localStorage.getItem('phantom.minimap') !== 'off'; } catch { return true; } };
@@ -109,6 +112,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   // edits to other panels from re-rendering every terminal.
   const panelWorkspace = useMemo(() => ({ id: workspace.id, path: workspace.path, canonicalPath: workspace.canonicalPath, missions: workspace.missions }), [workspace.id, workspace.path, workspace.canonicalPath, workspace.missions]);
   const focusedRef = useRef(focused); focusedRef.current = focused;
+  const fieldPaint = useRef(null);
   // Camera frames are painted straight to the DOM. React re-renders the map
   // only when the zoom tier changes or navigation settles.
   const paintCamera = useCallback(c => {
@@ -120,6 +124,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       el.style.setProperty('--overview-scale', unfocused ? String(1 / c.zoom) : '1');
     }
     if (root.current) for (const [key, value] of Object.entries(gridStyle(c))) root.current.style.setProperty(key, value);
+    fieldPaint.current?.();
     if (zoomLabel.current) {
       zoomLabel.current.textContent = `${Math.round(c.zoom * 100)}`;
       zoomLabel.current.parentElement?.setAttribute('aria-label', `Zoom ${Math.round(c.zoom * 100)}%. Opciones de zoom`);
@@ -330,10 +335,15 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const frameNode = useCallback(id => setFrameRequest({ id, nonce: Date.now() }), []);
   useEffect(() => { if (focusedNode?.type === 'zone') { onFocus(null); frameNode(focusedNode.id); } }, [focusedNode, onFocus, frameNode]);
   const tier = focused ? 0 : cameraTier(camera.zoom);
+  const pixelTargets = useMemo(() => focused ? [] : nodes.flatMap(n => {
+    const kind = PIXEL_KIND[pulseState(n, terminalActivity[n.id])];
+    return kind ? [{ ...n, ...preview[n.id], id: n.id, kind }] : [];
+  }), [nodes, preview, terminalActivity, focused]);
   const connected = !connection || connection.status === 'connected';
   return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
     <Presence>{focusedNode && <div className="focus-return"><button onClick={() => onFocus(null)}><ArrowLeft size={15} /> Volver al mapa</button><span>{focusedNode.title}</span><kbd>Ctrl ⇧ ↵</kbd></div>}</Presence>
     {!nodes.length && <div className="canvas-empty"><div className="empty-symbol"><Layers size={30} strokeWidth={1.4} /></div><h2>Tu mesa de trabajo, en un lugar</h2><p>Abre una terminal, toma una nota o conecta una herramienta.<br />Cada panel conserva su lugar en este proyecto.</p><div className="empty-actions"><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></div><span className="empty-hint">Arrastra una cabecera para organizar · Ctrl + rueda para acercar</span></div>}
+    <PixelField targets={pixelTargets} cameraRef={cameraRef} paintRef={fieldPaint} hidden={!!focused} />
     <div ref={world} className="canvas-world">
       <PresenceGroup>{nodes.map(node => {
         const isFocused = focused === node.id;
