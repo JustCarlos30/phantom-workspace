@@ -14,11 +14,12 @@ export function Presence({ children, show = !!children, onExit }) {
     const animations = [...root.current.children].map(element => {
       const backdrop = element.matches('.popover-dismiss,.rail-scrim,.app-modal-backdrop,.tw-overlay,.main-workspace,.project-rail,.canvas-region,.toast-stack');
       const side = element.matches('.inspector-host,.attention-tray');
-      const shift = reduced || backdrop ? '0 0' : side ? '14px 0' : '0 7px';
-      const rest = { opacity: 1, translate: '0 0' };
-      const edge = { opacity: 0, translate: shift };
+      const panel = element.matches('.canvas-node');
+      const shift = reduced || backdrop || panel ? '0 0' : side ? '14px 0' : '0 7px';
+      const rest = { opacity: 1, translate: '0 0', ...(panel && { scale: '1' }) };
+      const edge = { opacity: 0, translate: shift, ...(panel && { scale: reduced ? '1' : show ? '.98' : '.96' }) };
       return element.animate(show ? [edge, rest] : [rest, edge], {
-        duration: reduced ? 60 : show ? 200 : 120,
+        duration: reduced ? 60 : show ? 200 : panel ? 160 : 120,
         easing: show ? 'cubic-bezier(.16,1,.3,1)' : 'cubic-bezier(.4,0,1,1)',
         fill: 'both',
       });
@@ -26,7 +27,9 @@ export function Presence({ children, show = !!children, onExit }) {
     let cancelled = false;
     Promise.all(animations.map(animation => animation.finished)).then(() => {
       if (cancelled) return;
-      if (!show) { retained.current = null; setMounted(false); exitCallback.current?.(); }
+      // An exit keeps its final frame (fill: both) until React unmounts it;
+      // cancelling first repaints the surface at full opacity for a frame.
+      if (!show) { retained.current = null; setMounted(false); exitCallback.current?.(); return; }
       animations.forEach(animation => animation.cancel());
     }).catch(() => {});
     return () => { cancelled = true; animations.forEach(animation => animation.cancel()); };
@@ -41,10 +44,21 @@ export function PresenceGroup({ children }) {
   const [entries, setEntries] = useState(() => Children.toArray(children).map(element => ({ element, present: true })));
   useLayoutEffect(() => {
     const items = Children.toArray(children), keys = new Set(items.map(item => item.key));
-    setEntries(old => [
-      ...items.map(element => ({ element, present: true })),
-      ...old.filter(entry => !keys.has(entry.element.key)).map(entry => ({ ...entry, present: false })),
-    ]);
+    // Exiting items keep their DOM position: moving them to the end would lift a
+    // closing panel above its overlapping neighbours mid-exit.
+    setEntries(old => {
+      const next = items.map(element => ({ element, present: true }));
+      old.forEach((entry, i) => {
+        if (keys.has(entry.element.key)) return;
+        let at = 0;
+        for (let j = i - 1; j >= 0; j--) {
+          const index = next.findIndex(item => item.element.key === old[j].element.key);
+          if (index >= 0) { at = index + 1; break; }
+        }
+        next.splice(at, 0, { ...entry, present: false });
+      });
+      return next;
+    });
   }, [children]);
   return <>{entries.map(({ element, present }) => <Presence key={element.key} show={present} onExit={() => setEntries(old => old.filter(entry => entry.element.key !== element.key || entry.present))}>{element}</Presence>)}</>;
 }
