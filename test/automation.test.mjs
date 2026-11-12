@@ -253,9 +253,21 @@ test('real Playwright local fixture produces genuine screenshot/trace and owned 
   const zip = await readFile(trace.path);
   assert.equal(zip.subarray(0, 2).toString(), 'PK');
   assert.ok(zip.length > 1000);
-  const viewer = await f.invoke('automation.trace', { id: run.id, openViewer: true });
+  // Canvas-only: show-trace must never reach the system browser via xdg-open.
+  // Playwright skips xdg-open under coding agents, so clear those markers for a real check.
+  const spyBin = path.join(f.root, 'spy-bin'), opened = path.join(f.root, 'xdg-open-called');
+  await mkdir(spyBin);
+  await writeFile(path.join(spyBin, 'xdg-open'), `#!/bin/sh\necho "$@" >> ${JSON.stringify(opened)}\n`, { mode: 0o755 });
+  const savedEnv = { PATH: process.env.PATH, CLAUDECODE: process.env.CLAUDECODE, COPILOT_CLI: process.env.COPILOT_CLI };
+  process.env.PATH = `${spyBin}${path.delimiter}${process.env.PATH}`;
+  delete process.env.CLAUDECODE; delete process.env.COPILOT_CLI;
+  let viewer;
+  try { viewer = await f.invoke('automation.trace', { id: run.id, openViewer: true }); }
+  finally { for (const [key, value] of Object.entries(savedEnv)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
   assert.match(viewer.url, /^http:\/\/127\.0\.0\.1:\d+\/?$/);
   assert.equal((await fetch(viewer.url)).status, 200);
+  await new Promise(resolve => setTimeout(resolve, 750));
+  await assert.rejects(access(opened), /ENOENT/, 'el visor de trace abrió el navegador del sistema');
   await f.invoke('automation.stop', { id: run.id });
   await assert.rejects(fetch(viewer.url));
   const waiting = await f.invoke('automation.start', { mode: 'isolated', url, headed: false, actions: [{ type: 'wait', milliseconds: 10_000 }] });
@@ -357,4 +369,5 @@ test('integrated keepOpen owns control until stop; timeouts and desktop errors r
   await assert.rejects(absent.invoke('automation.start', { url: 'http://localhost' }), /terminal activa|terminal nueva/);
   await assert.rejects(absent.invoke('automation.start', { url: 'http://localhost', headed: false }), /isolated/);
   await assert.rejects(absent.invoke('automation.start', { url: 'http://localhost', mode: 'external' }), /integrated o isolated/);
+  await assert.rejects(absent.invoke('automation.start', { url: 'http://localhost', mode: 'isolated', headed: true }), /Ventana externa de Chromium deshabilitada/);
 });

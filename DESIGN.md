@@ -1,28 +1,38 @@
 ---
 name: Phantom Workspace
-description: Dark studio — a personal spatial workspace with opaque working planes.
+description: Night glass — a personal spatial workspace; frosted chrome over the canvas, opaque working planes.
 colors:
-  accent: "#8b9dff"
+  accent: "#b48cff"
   accent-soft: "color-mix(in srgb, var(--accent) 15%, var(--surface))"
   accent-mint: "#7ddbb9"
   accent-amber: "#edbf79"
   accent-rose: "#e9a0bf"
-  bg: "#15171c"
-  surface: "#202329"
-  surface-2: "#292d35"
-  ink: "#eceef3"
-  muted: "#a5adbb"
-  line: "#373d48"
-  rail: "#1b1e24"
-  terminal-bg: "#151a23"
-  primary-ink: "#171b28"
-  node-border: "#4a5260"
-  note: "#24252b"
-  danger: "#ff9da8"
-  success: "#8ad8b6"
-  warning: "#edbf79"
-  error-bg: "#41282f"
-  mission-bg: "#253c35"
+  accent-cyan: "#6fe3f2"
+  bg: "#0f0e18"
+  surface: "#191726"
+  surface-2: "#221f33"
+  surface-3: "#2c2942"
+  ink: "#e9e7f8"
+  muted: "#a3a0c2"
+  line: "#2f2b45"
+  hairline: "color-mix(in srgb, #fff 8%, transparent)"
+  hairline-strong: "color-mix(in srgb, #fff 13%, transparent)"
+  fill: "color-mix(in srgb, #fff 5%, transparent)"
+  fill-2: "color-mix(in srgb, #fff 9%, transparent)"
+  fill-3: "color-mix(in srgb, #fff 14%, transparent)"
+  glass: "color-mix(in srgb, var(--surface) 64%, transparent)"
+  glass-thick: "color-mix(in srgb, var(--surface) 84%, transparent)"
+  rail: "#191726"
+  terminal-bg: "#110f1a"
+  terminal-ink: "#d5d2ea"
+  primary-ink: "#17122a"
+  node-border: "#3a3552"
+  note: "#211d2c"
+  danger: "#ff8fb1"
+  success: "#7fe3bf"
+  warning: "#f3cb85"
+  error-bg: "color-mix(in srgb, var(--danger) 15%, var(--surface))"
+  mission-bg: "#233a33"
   mission-ink: "#a4dec4"
 typography:
   headline:
@@ -64,16 +74,11 @@ typography:
     fontWeight: 500
     lineHeight: 1.4
 rounded:
-  badge: "3px"
-  inline: "4px"
-  field: "5px"
-  icon: "6px"
-  button: "7px"
-  preset: "8px"
-  index: "9px"
-  node: "10px"
-  dialog: "11px"
-  dock: "12px"
+  xs: "6px"
+  sm: "9px"
+  md: "12px"
+  lg: "16px"
+  xl: "22px"
 spacing:
   compact: "4px"
   field-gap: "5px"
@@ -144,6 +149,28 @@ components:
 
 # Design System: Phantom Workspace
 
+## Vidrio nocturno (2026-11-11) — autoridad visual vigente
+
+Carlos pidió conservar el carácter de Phantom pero limpio, «like Apple» y coherente con su escritorio (Hyprland «Neón Suave»: índigo profundo, vidrio esmerilado, hairlines, radios generosos, Inter, Monaspace en la terminal). Esta sección rige sobre cualquier cifra o regla anterior de este documento donde difieran; en particular **sustituye la regla «islas opacas, sin vidrio»**.
+
+- **Material.** El chrome (rail, barras superiores, dock, navegación, minimapa, inspector, menús, paleta, toasts) es vidrio: `--glass` (64 % de superficie) o `--glass-thick` (84 %, planos de lectura) con `backdrop-filter: blur(28px) saturate(170%)`, hairline blanca al 13 % y una sola sombra suave con desplazamiento. Los planos de trabajo (terminal, hilo del chat, cuerpo de herramientas, paneles del mapa) siguen opacos. `prefers-reduced-transparency` vuelve todo opaco.
+- **Planos sin relieve.** Nada de degradados, luces interiores ni sombras hundidas en controles: los planos difieren por un tono y una hairline. Los rellenos de control salen de una sola escalera blanca-alfa (`--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %).
+- **Paleta.** Índigo noche, nunca negro puro (tokens en el frontmatter). Lila sigue siendo el acento predeterminado; se añade **Cian** (`#6fe3f2`, el acento del escritorio). El ANSI de la terminal es el de kitty/Neón Suave (`src/components/TerminalPanel.jsx`).
+- **Tipografía.** `--sans`: Inter → SF Pro → sistema. `--mono`: Monaspace Neon → GeistMono → JetBrains Mono. Las fuentes no se empaquetan: se usan las del sistema con esa cadena de respaldo. Texto de chrome 12–13 px; el mínimo sube de 10 a 10,5–11 px. Los iconos lucide usan trazo 1,75.
+- **Radios concéntricos.** `--r-xs` 6 · `--r-sm` 9 · `--r-md` 12 · `--r-lg` 16 · `--r-xl` 22. El radio de una isla es el de su control interior más su padding (dock 20 = 12 + 8; rail 22 = 12 + 10). Las cápsulas (99px) son solo para controles pequeños: chips, acciones de pie de card, estado del agente.
+- **Selección.** Un panel seleccionado lleva borde de acento y un anillo de 3 px al 26 %; filas seleccionadas usan `--fill-2` o `--accent-soft` con texto en tinta, no en acento.
+- **Quién responde.** Claude · OpenCode · Terminal es un control segmentado (`.pc-modes`): pista `--fill`, segmento activo elevado con texto en tinta y glifo en el tono del proveedor. Cada proveedor tiene un glifo y un tono fijos (`src/components/Glyphs.jsx`): Claude sigue el acento del proyecto, OpenCode es menta, otros agentes azul, shell neutro. El mismo glifo aparece en el avatar del chat, la identidad de la card y el selector de modelo.
+- **Card de terminal.** Cabecera de 44 px con el glifo del tipo en una tesela; fila de identidad (segmentado, proveedor detectado, estado como cápsula a la derecha, paso actual debajo); pozo de salida a sangre; pie de 44 px con acciones en cápsula.
+- **Pasos y bloques del chat.** Las llamadas a herramientas de un turno son una lista plana con hairlines, una tesela de 22 px por tipo (tonos del ANSI) y la fila en curso con un lavado del tono del proveedor. Razonamiento es una cápsula desplegable; código y permisos son planos con hairline; el compositor es un campo de radio 16 con anillo de foco del proveedor.
+- **Lanzador de herramientas.** «Herramientas» abre `src/components/ToolPicker.jsx`: búsqueda con foco inicial (Enter abre la primera coincidencia) y cuatro grupos con un tono cada uno: En el mapa (acento), Proyecto (azul), Automatización (ámbar), Phantom (menta).
+- **Paleta de comandos.** Estilo Spotlight: vidrio grueso, radio 22, campo de 17 px, fila elegida con `--fill-2` y hairline interior de acento.
+
+Verificación de esta capa: capturas antes/después en Electron real con datos sintéticos (mapa, card, terminal enfocada, lanzador, paleta, inspector, apariencia, chat, menús). No se midió el coste de `backdrop-filter` durante el paneo en hardware lento.
+
+## Paleta vigente: Fantasma violeta (2026-11-11)
+
+Carlos eligió «Fantasma violeta» para toda la app: grafito con tinte violeta profundo (`#14121b`, superficies `#1d1a27` / `#272333`, seams `#36304a`) y acento **Lila** (`#b48cff`) como nuevo predeterminado. Iris, Menta, Ámbar y Rosa siguen disponibles. Los proyectos guardados con Iris sin versión migran a Lila una vez (`v: 2` en la preferencia local); una elección posterior de Iris se respeta. Texto, muted, acento y estados superan 4.5:1 sobre ambas superficies. El tema ANSI de la terminal (`src/components/TerminalPanel.jsx`) y la card de terminal (`src/terminal.css`) usan la misma familia. Donde las secciones siguientes citan los valores grafito/Iris anteriores, rigen los tokens del frontmatter.
+
 ## Studio actual: preset Gengar
 
 La apariencia vigente se implementa en `src/studio.css`: grafito (`#15171c`), superficies opacas (`#202329`, `#292d35`) y acento Iris (`#8b9dff`). Las secciones minerales históricas que siguen no describen esta capa visual actual.
@@ -151,6 +178,24 @@ La apariencia vigente se implementa en `src/studio.css`: grafito (`#15171c`), su
 Gengar es el fondo predeterminado para preferencias nuevas y al restablecer Apariencia. Las selecciones válidas guardadas se conservan. El preset combina el arte oficial local `assets/gengar.png`, importado mediante Vite sin red en runtime, con bruma violeta sobria a la derecha del canvas. El arte escala con el espacio disponible, dejando libre el centro; la miniatura muestra el mismo recurso. Procedencia: `assets/gengar-source.md`.
 
 La intensidad controla conjuntamente arte y atmósfera; el modo foco reduce esa capa al 12% de su intensidad. Una imagen personal tiene prioridad sobre el arte del preset. La decoración no recibe eventos de puntero y las superficies de trabajo siguen siendo opacas. Aurora, Marea, Brasa y Grafito permanecen disponibles en Apariencia.
+
+## Capa canvas (2026-11-11)
+
+`src/canvas-ui.css` se carga al final y es la autoridad de layout y sistema; supera las cifras de Layout, Elevation y Shapes más abajo donde difieran.
+
+- **Canvas a ventana completa.** Todo el chrome flota sobre él como islas opacas: rail (252px, contraíble a una píldora), identidad + actividad + comandos arriba, creación al centro abajo (centrada en el área libre), zoom/minimapa abajo a la derecha, inspector flotante de 360px. Con inspector abierto, zoom y minimapa se apilan sobre la fila del dock.
+- **Islas de vidrio** (ver «Vidrio nocturno»): `--island: var(--glass)`; hairline + una sombra con desplazamiento. Los planos de lectura usan `--glass-thick` para que el contenido detrás tiña pero no se lea.
+- **Radios:** `--r-xs` 6px (badges, kbd) · `--r-sm` 9px (controles, filas, campos) · `--r-md` 12px (contenedores medianos) · `--r-lg` 16px (paneles, barras) · `--r-xl` 22px (rail, inspector, lanzador, paleta). Los radios heredados se normalizan a esta escala en la misma hoja.
+- **Elevación:** `--elev-1` paneles · `--elev-2` islas · `--elev-3` menús/popovers · `--elev-lift` panel arrastrado. Sin halos de desplazamiento cero.
+- **Movimiento:** una curva (`--ease-out`), dos velocidades (`--dur-fast` 140ms, `--dur` 240ms). El momento distintivo es la inercia al soltar el paneo; sin rebotes ni hover que desplace controles. Movimiento reducido elimina la inercia y las entradas.
+- **Retícula en espacio-mundo:** los puntos se desplazan y escalan con la cámara y duplican el paso por debajo de 14px.
+- **Minimapa:** bloques neutros; acento solo para selección y vista actual.
+- **El viewport no se desplaza:** `overflow: clip` en canvas y contenedores; solo la cámara mueve el mapa.
+- **Rail:** todas las acciones son la misma fila discreta; solo el proyecto activo y el panel seleccionado se rellenan.
+- **Ritmo:** espaciado en múltiplos de 4px (`--s-1`…`--s-6`). Islas de 48px de alto con 8px de padding y controles de 32px; dock de 56px con botones de 40px; separación entre islas y bordes de 12px. Inspector a 72px del borde superior; la fila inferior reserva 88px.
+- **Bordes vivos:** el borde de un panel solo pulsa si el estado es real. Trabajando: halo de acento que respira en 2,4s. Te necesita (bloqueado, en revisión, intervención): ámbar, ciclo de 1,4s. Fallo (sesión perdida o salida con código distinto de 0): rojo, tres destellos y luego fijo. En reposo no hay movimiento. El punto de estado del rail repite la señal ámbar. Con movimiento reducido el anillo queda fijo.
+- **Zonas:** tipo de panel `zone`. Son áreas con nombre y color (iris, menta, ámbar, rosa, pizarra) que se dibujan detrás de los paneles. Al arrastrar la etiqueta se mueven junto con los paneles que contienen por completo; doble clic encuadra la zona. Se crean desde el dock o alrededor de una selección; la barra de selección aparece sobre el dock.
+- **Espacios:** vistas con nombre dentro de un proyecto (`workspace.spaces`, cada una con su cámara). Un panel pertenece a un espacio mediante `data.spaceId`; los paneles sin espacio o con un espacio borrado pertenecen a Principal. Se cambian desde el rail o con Alt + 1…9. Quitar un espacio devuelve sus paneles a Principal; nunca se borra nada. El espacio abierto es una preferencia de cada ventana.
 
 ## Overview
 

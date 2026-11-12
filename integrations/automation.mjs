@@ -1,4 +1,4 @@
-import { access, copyFile, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { getRunManager, requireWorkspace, requireId, stateDirectory, runCommand, executableOnPath, shutdownAutomation as shutdownRuns } from './run-manager.mjs';
@@ -43,7 +43,10 @@ function automationInput(payload) {
   });
   for (const key of ['headed', 'keepOpen']) if (payload[key] !== undefined && typeof payload[key] !== 'boolean') throw new Error(`${key} debe ser booleano`);
   if (mode === 'integrated' && payload.headed === false) throw new Error('integrated requiere el panel visible; usa mode: "isolated" para headless');
-  return { mode, url, actions: normalized, headed: payload.headed !== false, keepOpen: payload.keepOpen === true,
+  // Canvas-only: nothing opens a window outside the workspace. Visible runs use the
+  // integrated canvas panel; isolated runs are always headless (trace is viewed in-canvas).
+  if (mode === 'isolated' && payload.headed === true) throw new Error('Ventana externa de Chromium deshabilitada: usa mode "integrated" (panel del canvas) para verlo en vivo; isolated es siempre sin ventana');
+  return { mode, url, actions: normalized, headed: mode === 'integrated', keepOpen: payload.keepOpen === true,
     timeoutMs: integer(payload.timeoutMs, 60_000, 100, 120_000, 'timeoutMs'),
     keepOpenMs: integer(payload.keepOpenMs, 300_000, 100, 600_000, 'keepOpenMs') };
 }
@@ -223,7 +226,7 @@ async function startBrowser(payload, context, manager, workspace, cwd) {
   if (input.mode === 'integrated') return startIntegrated(payload, input, context, manager, workspace, cwd);
   let chromium;
   try { ({ chromium } = await import('playwright')); } catch { throw new Error('Playwright no disponible. Incluye playwright como dependencia de producción del host'); }
-  // Use the same full Chromium build for headed and headless packaged runs.
+  // Full Chromium build, always headless: the canvas is the only visible browser surface.
   try { await access(chromium.executablePath()); } catch { throw new Error('Chromium de Playwright no está descargado. El administrador debe ejecutar npx playwright install chromium o incluirlo en el paquete'); }
   const record = await manager.create(workspace.id, 'automation', { ...input, cwd, lifecycle: input.keepOpen ? 'completed con navegador visible hasta Stop o keepOpenMs' : 'navegador cerrado al completar las acciones', browserOpen: false }, context);
   await manager.prepare(record, context, () => writeFile(path.join(record.artifactDir, 'input.json'), JSON.stringify(input, null, 2), { mode: 0o600 }));
@@ -258,7 +261,7 @@ async function startBrowser(payload, context, manager, workspace, cwd) {
       if (abort.signal.aborted) throw new Error('Ejecución detenida');
       await manager.status(record, 'running', context);
       executionTimer = setTimeout(() => { record.timedOut = true; abort.abort(); if (browser) void close(); }, input.timeoutMs);
-      browser = await chromium.launch({ executablePath: chromium.executablePath(), headless: !input.headed, timeout: Math.min(input.timeoutMs, 20_000) });
+      browser = await chromium.launch({ executablePath: chromium.executablePath(), headless: true, timeout: Math.min(input.timeoutMs, 20_000) });
       record.browserOpen = true;
       if (abort.signal.aborted) throw new Error('Ejecución detenida');
       browserContext = await browser.newContext({ acceptDownloads: false });
@@ -325,8 +328,19 @@ async function startBrowser(payload, context, manager, workspace, cwd) {
   return manager.describe(record);
 }
 
+// Playwright's show-trace always hands its URL to the `open` package, which runs
+// xdg-open (it ignores BROWSER). A private no-op xdg-open first on PATH keeps the
+// viewer inside the canvas panel the caller opens with the returned URL.
+async function noExternalOpenPath(context) {
+  const dir = path.join(stateDirectory(context), 'no-external-open');
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const shim = path.join(dir, 'xdg-open');
+  await writeFile(shim, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+  await chmod(shim, 0o700);
+  return [dir, process.env.PATH].filter(Boolean).join(path.delimiter);
+}
+
 // Optional explicit viewer: loopback-only Playwright CLI, five-minute ownership.
-// BROWSER=true suppresses xdg-open on Linux; callers open the returned URL in their UI.
 async function openTraceViewer(record, manager, context, tracePath) {
   if (record.viewer?.status === 'running' && record.viewer.url) return record.viewer.url;
   if (record.viewer?.status === 'starting') throw new Error('El visor de trace se está iniciando');
@@ -344,10 +358,15 @@ async function openTraceViewer(record, manager, context, tracePath) {
     await manager.status(record, 'stopped', context);
   } };
   manager.controllers.set(record.id, controller);
-  let pending = '';
+  let pending = '', viewerPATH;
+  try { viewerPATH = await noExternalOpenPath(context); } catch (error) {
+    if (manager.controllers.get(record.id) === controller) { if (original) manager.controllers.set(record.id, original); else manager.controllers.delete(record.id); }
+    record.viewer = { status: 'failed', error: error.message };
+    throw new Error(`Visor de trace: no se pudo aislar del navegador externo (${error.message})`);
+  }
   startupTimer = setTimeout(() => { abort.abort(); rejectURL(new Error('El visor no inició en 10 segundos')); }, 10_000);
   done = runCommand(process.execPath, [cli, 'show-trace', tracePath, '--host', '127.0.0.1', '--port', '0'], {
-    cwd: record.artifactDir, signal: abort.signal, timeoutMs: 300_000, env: { ...process.env, BROWSER: 'true' },
+    cwd: record.artifactDir, signal: abort.signal, timeoutMs: 300_000, env: { ...process.env, PATH: viewerPATH },
     onSpawn: pid => { record.viewer.pid = pid; manager.save(record).catch(() => {}); },
     onOutput: text => {
       manager.output(record, `[trace viewer] ${text}`, context);

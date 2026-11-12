@@ -23,6 +23,7 @@ export function agentContext(workspace, node, session) {
     ...(node.data.agent ?? {}),
     cwd: session?.cwd ?? node.data.cwd ?? workspace.canonicalPath,
     branch: (session ? session.worktree?.branch : node.data.worktree?.branch) ?? null,
+    role: node.data.role === 'orchestrator' ? 'orchestrator' : 'worker', integration: workspace.integration?.enabled === true,
     policy: { ...POLICY_HINTS },
     instructions: 'Esta es tu identidad en Phantom Workspace. Consulta este contexto al retomar. Reporta tu paso con el comando report; review significa listo para revisión, no card completada. Phantom verifica el resultado de la card.',
   };

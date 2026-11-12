@@ -16,7 +16,8 @@
     "test": "node --test test/*.test.mjs src/hooks/*.test.mjs",
     "test:desktop": "node test/desktop-smoke.mjs",
     "setup:voice": "node scripts/setup-voice.mjs",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "build:latest": "node scripts/build-latest.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

@@ -1,7 +1,7 @@
 .tw-inspector, .tw-tool-panel, .tw-palette, .tw-voice {
   color: var(--ink, #202b3b);
   background: var(--surface, #fff);
-  font: 13px/1.5 system-ui, sans-serif;
+  font: 13px/1.5 var(--sans);
   accent-color: var(--accent, #345bd5);
   caret-color: var(--accent, #345bd5);
   text-underline-offset: .18em;
@@ -36,7 +36,7 @@
 .tw-field > input::placeholder, .tw-field > textarea::placeholder, .tw-palette-search > input::placeholder { color: var(--muted, #526174); opacity: 1; }
 .tw-field input[type="file"] { font-size: 12px; padding: 6px; }
 .tw-field input[type="file"]::file-selector-button { font: inherit; border: 1px solid var(--line, #d7dee8); border-radius: 4px; color: var(--ink, #202b3b); background: var(--surface-2, #f4f6f9); padding: 5px 8px; margin-right: 8px; cursor: pointer; }
-.tw-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: auto; min-height: 32px; flex: 0 1 auto; padding: 6px 10px; border: 1px solid var(--line, #d7dee8); border-radius: 5px; font: 500 12px/1.4 system-ui, sans-serif; color: var(--ink, #202b3b); background: var(--surface, #fff); cursor: pointer; text-align: center; white-space: normal; transition: background-color 140ms ease-out, border-color 140ms ease-out; }
+.tw-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: auto; min-height: 32px; flex: 0 1 auto; padding: 6px 10px; border: 1px solid var(--line, #d7dee8); border-radius: 5px; font: 500 12px/1.4 var(--sans); color: var(--ink, #202b3b); background: var(--surface, #fff); cursor: pointer; text-align: center; white-space: normal; transition: background-color 140ms ease-out, border-color 140ms ease-out; }
 .tw-button svg { flex: 0 0 auto; }
 .tw-button:hover:not(:disabled) { background: var(--surface-2, #f4f6f9); border-color: var(--muted, #526174); }
 .tw-button:active:not(:disabled) { background: var(--accent-soft, #dce5ff); }

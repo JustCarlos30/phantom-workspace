@@ -1,14 +1,30 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { AlertCircle, ArrowDown, Folder, Maximize2, Minus, Plus, RotateCcw, Square } from 'lucide-react';
+import { AlertCircle, ArrowDown, Folder, GitBranch, Minus, Plus, RotateCcw, Square } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { subscribe } from '../hooks/useWorkspace';
 import { createTerminalStream } from '../hooks/terminalStream';
 import { writeOwnedTerminalInput } from '../hooks/inputOwnership';
-import AgentIdentity, { AGENT_LABELS } from './AgentIdentity';
+import AgentIdentity from './AgentIdentity';
+import { AgentState, ProviderBadge, effectiveStatus, locationOf, providerOf, sessionLabel } from './TerminalCard';
+import { useTerminalTail } from '../hooks/useTerminalTail';
+import { ModeSwitch } from './ChatCard';
 
-export default function TerminalPanel({ node, workspace, api, active, overview, overviewZoom = 1, inputBlocked = false, onRelaunch, onChange, notify, refresh, flush, onOpenPanel, onEnlarge, connected = true, focusRequested = false }) {
+// Phantom engine theme: the well matches the card plane and the caret and
+// selection follow the project accent, so the terminal reads as one surface.
+function phantomTheme() {
+  const styles = getComputedStyle(document.documentElement);
+  const token = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+  const accent = token('--accent', '#b48cff');
+  const background = token('--terminal-bg', '#110f1a');
+  // ANSI 16 follow the desktop terminal palette so a shell reads the same here as in kitty.
+  return { background, foreground: token('--terminal-ink', '#d5d2ea'), cursor: accent, cursorAccent: background, selectionBackground: `${accent}4d`,
+    black: '#232040', red: '#ff86b7', green: '#7aeec4', yellow: '#f5cf8a', blue: '#7da8ff', magenta: '#c39bff', cyan: '#6fe3f2', white: '#a9a6cf',
+    brightBlack: '#5d5888', brightRed: '#ffa3c8', brightGreen: '#9df4d4', brightYellow: '#f8dca8', brightBlue: '#a0c0ff', brightMagenta: '#d6b8ff', brightCyan: '#98ecf6', brightWhite: '#e4e2f7' };
+}
+
+export default function TerminalPanel({ node, workspace, api, active, overview = false, inputBlocked = false, onRelaunch, onChange, notify, refresh, flush, onOpenPanel, onEnlarge, connected = true, focusRequested = false }) {
   const host = useRef(null), terminal = useRef(null), streamRef = useRef(null);
   const resizeRef = useRef(null);
   const cancelAnchorRef = useRef(null);
@@ -17,7 +33,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview, 
   const connectedRef = useRef(connected); connectedRef.current = connected;
   const [status, setStatus] = useState(node.data?.sessionId ? 'connecting' : 'lost');
   const [error, setError] = useState('');
-  const [rows, setRows] = useState(24);
+  const [setup, setSetup] = useState(null);
   const [readingHistory, setReadingHistory] = useState(false);
   const sessionId = node.data?.sessionId;
   const fontSize = Number.isFinite(node.data?.fontSize) ? Math.min(24, Math.max(12, node.data.fontSize)) : 16;
@@ -26,13 +42,15 @@ export default function TerminalPanel({ node, workspace, api, active, overview, 
   useEffect(() => {
     if (!host.current) return;
     let disposed = false, fitting, stream, wheelEvent = null, anchor = null, anchorFrame;
+    setSetup(null);
+    const acceptSetup = incoming => { if (incoming && !disposed) setSetup(previous => !previous || incoming.updatedAt >= previous.updatedAt ? incoming : previous); };
+    const offSetup = subscribe(event => { if (event.type === 'terminal.setup' && event.sessionId === sessionId) acceptSetup(event.setup); });
     const cancelAnchor = () => { cancelAnimationFrame(anchorFrame); anchor?.dispose(); anchor = null; };
     cancelAnchorRef.current = cancelAnchor;
-    setReadingHistory(false); setError(''); setStatus(sessionId ? 'connecting' : 'lost'); setRows(24);
+    setReadingHistory(false); setError(''); setStatus(sessionId ? 'connecting' : 'lost');
     // Buffer inspection and reading anchors use xterm's public proposed APIs.
-    const term = new Terminal({ fontFamily: '"JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", monospace', fontSize, lineHeight: 1.4, cursorBlink: true, scrollback: 4000, allowProposedApi: true, theme: { background: '#151a23', foreground: '#e1e8f2', cursor: '#a7baff', selectionBackground: '#8b9dff55', black: '#292d35', red: '#f18d97', green: '#8bd3b3', yellow: '#e6c78b', blue: '#8faeff', magenta: '#c5a6ee', cyan: '#87cdd7', white: '#e1e8f2' } });
+    const term = new Terminal({ fontFamily: '"Monaspace Neon", "GeistMono Nerd Font", "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", monospace', fontSize, lineHeight: 1.4, cursorBlink: true, scrollback: 4000, allowProposedApi: true, theme: phantomTheme() });
     const fit = new FitAddon(); term.loadAddon(fit); term.open(host.current); terminal.current = term;
-    const sizeChanged = term.onResize(({ rows }) => setRows(rows));
     const syncHistory = () => {
       if (!disposed) {
         const buffer = term.buffer.active;
@@ -89,6 +107,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview, 
     if (sessionId) {
       stream = createTerminalStream({ sessionId, invoke: api, subscribe, connected: connectedRef.current,
         snapshot: (text, current, session) => new Promise(resolve => {
+          if (current()) acceptSetup(session?.setup);
           // Fence old queued xterm writes before reset. Invalidate stale attach
           // callbacks before they can replace the display after reconnection.
           term.write('', () => {
@@ -109,7 +128,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview, 
       const version = stream?.version();
       writeOwnedTerminalInput({ stream, active: activeRef.current, element: term.element, focusedElement: document.activeElement, sessionId, invoke: api, text, wheelOwned: !!wheelEvent, blocked: wheelBlockedRef.current })?.catch(e => { if (!disposed && stream.version() === version) stream.fail(e); });
     });
-    return () => { disposed = true; cancelAnchor(); cancelAnchorRef.current = null; stream?.dispose(); streamRef.current = null; resizeRef.current = null; observer.disconnect(); clearTimeout(fitting); data.dispose(); sizeChanged.dispose(); historySubscriptions.forEach(subscription => subscription.dispose()); term.dispose(); terminal.current = null; };
+    return () => { disposed = true; offSetup(); cancelAnchor(); cancelAnchorRef.current = null; stream?.dispose(); streamRef.current = null; resizeRef.current = null; observer.disconnect(); clearTimeout(fitting); data.dispose(); historySubscriptions.forEach(subscription => subscription.dispose()); term.dispose(); terminal.current = null; };
   }, [sessionId, api]);
   useEffect(() => {
     if (!terminal.current) return;
@@ -124,43 +143,42 @@ export default function TerminalPanel({ node, workspace, api, active, overview, 
     terminal.current?.focus();
     // Opening/closing a nonmodal surface must not take focus from its controls.
   }, [focusRequested, active, status, overview]);
-  const statusLabel = status === 'running' ? 'En ejecución' : status === 'connecting' ? 'Conectando…' : status === 'disconnected' ? 'Sin conexión' : status === 'exited' ? 'Finalizada' : 'Sin sesión activa';
+  const preparing = !sessionId && node.data?.launchState === 'creating';
+  const setupActive = setup && ['queued', 'checking', 'installing'].includes(setup.status);
+  const setupFailed = setup && ['failed', 'cancelled'].includes(setup.status);
+  const statusLabel = sessionLabel(status, preparing);
   const changeFontSize = value => onChange(node.id, { data: { ...node.data, fontSize: value } });
   const agent = node.data?.agent || {};
-  const mission = workspace.missions?.find(item => item.id === node.groupId);
-  const compactOverview = overviewZoom < .25;
-  const declaredState = AGENT_LABELS[agent.status] || 'Sin estado declarado';
-  const missionLabel = mission?.title || (node.groupId ? 'Misión no disponible' : 'Sin misión vinculada');
-  const stepLabel = agent.step || 'Sin paso declarado';
-  const summaryDescription = [
-    `Misión: ${missionLabel}${node.groupId ? ` · ${node.groupId}` : ''}`,
-    `Paso: ${stepLabel}`,
-    `Card: ${agent.cardTitle || (agent.cardId ? 'Título no disponible' : 'Sin card vinculada')}${agent.cardId ? ` · ${agent.cardId}` : ''}`,
-    agent.source === 'agent' ? 'Reportado por agente' : agent.source === 'manual' ? 'Declarado manualmente' : 'Sin origen declarado',
-    `PTY: ${statusLabel} · ${sessionId || 'Sin sesión'}`,
-    `OpenCode: ${agent.providerSessionId ? `Vínculo declarado · ${agent.providerSessionId}` : 'Sin sesión vinculada'}`,
-    error,
-  ].filter(Boolean).join('. ');
-  return <div className={`terminal-panel ${overview ? 'is-overview' : ''}`} style={{ '--overview-scale': 1 / overviewZoom }}>
-    <div className="terminal-toolbar" inert={overview ? true : undefined} aria-hidden={overview || undefined}>
-      <div className="terminal-directory"><Folder size={16} aria-hidden="true" /><span title={cwd}>{cwd}</span></div>
-      <div className="terminal-type-controls" role="group" aria-label="Tamaño del texto de la terminal">
-        <button aria-label="Reducir texto de la terminal" title="Reducir texto" disabled={fontSize <= 12} onClick={() => changeFontSize(fontSize - 1)}><Minus size={14} /></button>
-        <button className="terminal-type-reset" aria-label={`Tamaño del texto: ${fontSize} píxeles. Restablecer a 16`} title="Restablecer a 16 px" onClick={() => changeFontSize(16)}>{fontSize}<span> px</span></button>
-        <button aria-label="Ampliar texto de la terminal" title="Ampliar texto" disabled={fontSize >= 24} onClick={() => changeFontSize(fontSize + 1)}><Plus size={14} /></button>
+  const { tail } = useTerminalTail({ sessionId, api, lines: 1, enabled: status === 'running', connected });
+  const provider = providerOf(node, tail?.foreground);
+  const { branch, folder } = locationOf(node, workspace);
+  return <div className="terminal-panel pt-focus" data-agent={agent.status || 'idle'}>
+    <div className="pt-bar">
+      <div className="pt-bar-identity">
+        <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />
+        <ProviderBadge provider={provider} />
+        {effectiveStatus(agent, tail?.screenState) && <AgentState agent={agent} status={effectiveStatus(agent, tail?.screenState)} />}
+        {agent.step && <span className="pt-bar-step" title={agent.step}>{agent.step}</span>}
+      </div>
+      <div className="pt-bar-tools">
+        <span className="pt-chip" title={directoryLabel ? `${directoryLabel}\n${cwd}` : cwd}>{branch ? <GitBranch size={13} aria-hidden="true" /> : <Folder size={13} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+        <span className="pt-session" role="status"><i className={`status-dot ${status}`} aria-hidden="true" />{statusLabel}</span>
+        <div className="pt-type" role="group" aria-label="Tamaño del texto de la terminal">
+          <button type="button" aria-label="Reducir texto de la terminal" title="Reducir texto" disabled={fontSize <= 12} onClick={() => changeFontSize(fontSize - 1)}><Minus size={13} /></button>
+          <button type="button" className="pt-type-reset" aria-label={`Tamaño del texto: ${fontSize} píxeles. Restablecer a 16`} title="Restablecer a 16 px" onClick={() => changeFontSize(16)}>{fontSize}</button>
+          <button type="button" aria-label="Ampliar texto de la terminal" title="Ampliar texto" disabled={fontSize >= 24} onClick={() => changeFontSize(fontSize + 1)}><Plus size={13} /></button>
+        </div>
+        {status === 'running' && <button type="button" className="pt-stop" title="Terminar proceso" aria-label="Terminar proceso" onClick={() => api('terminal.stop', { sessionId }).catch(e => notify(e.message, 'error'))}><Square size={11} /></button>}
       </div>
     </div>
-    <AgentIdentity node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} overview={overview} />
-    <div ref={host} className="terminal-host" inert={overview ? true : undefined} aria-hidden={overview || undefined} />
-    {!overview && readingHistory && <button type="button" className="terminal-history-end" onClick={() => { cancelAnchorRef.current?.(); if (terminal.current?.buffer.active.type === 'normal') terminal.current.scrollToBottom(); }}><ArrowDown size={14} aria-hidden="true" />Ir al final</button>}
-    <div className="terminal-session-bar" inert={overview ? true : undefined} aria-hidden={overview || undefined}><span className="terminal-session-status" role="status"><span className={`status-dot ${status}`} />{statusLabel}</span>{rows < 16 && !focusRequested && onEnlarge ? <button className="terminal-enlarge" title="Más espacio para ver el área de escritura de OpenCode" onClick={onEnlarge}><Maximize2 size={13} />Enfocar para escribir</button> : <span className="terminal-session-context" title={directoryLabel || 'Terminal local'}>{directoryLabel || 'Terminal local'}</span>}{status === 'running' && <button className="terminal-stop" title="Terminar proceso" aria-label="Terminar proceso" onClick={() => api('terminal.stop', { sessionId }).catch(e => notify(e.message, 'error'))}><Square size={12} /></button>}</div>
-    {overview && <section className="terminal-overview" data-tier={compactOverview ? 'compact' : 'summary'} aria-label={`Resumen de ${node.title}`} aria-description={summaryDescription}>
-      <strong title={node.title}>{node.title}</strong>
-      <span className="terminal-overview-state" title={declaredState}>{declaredState}</span><dl>
-      {!compactOverview && <><div className="terminal-overview-mission" title={missionLabel}><dt>Misión</dt><dd>{missionLabel}</dd></div>
-      <div className="terminal-overview-step" title={stepLabel}><dt>Paso</dt><dd>{stepLabel}</dd></div></>}
-      <div className="terminal-overview-pty" title={statusLabel}><dt>PTY</dt><dd>{statusLabel}</dd></div>
-    </dl></section>}
-    {!overview && (error || status === 'lost' || status === 'exited') && <div className="terminal-message"><AlertCircle size={15} /><span>{error || (status === 'exited' ? 'La sesión ha finalizado. El historial se conserva.' : 'Esta vista no tiene una sesión activa.')}</span>{sessionId && <button disabled={status === 'connecting' || status === 'disconnected'} onClick={() => streamRef.current?.retry()}><RotateCcw size={13} /> Reconectar</button>}{status !== 'disconnected' && status !== 'connecting' && <button onClick={() => onRelaunch(node)}>Nueva sesión</button>}</div>}
+    <AgentIdentity node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} />
+    {(setupActive || setupFailed) && <section className={`terminal-setup ${setupFailed ? 'has-error' : ''}`} aria-label="Preparación de dependencias">
+      <div className="terminal-setup-heading"><span role="status">{setupActive ? (setup.status === 'installing' ? 'Instalando dependencias…' : 'Preparando dependencias…') : setup.status === 'cancelled' ? 'Preparación cancelada' : 'No se pudieron instalar las dependencias'}</span>{setupActive && <progress aria-label="Instalación en curso" />}{setupFailed && status === 'running' && <button onClick={() => api('terminal.setup.retry', { sessionId }).then(session => setSetup(session.setup)).catch(e => notify(e.message, 'error'))}>Reintentar instalación</button>}</div>
+      <small>La terminal y el agente ya están disponibles. Los comandos del proyecto pueden requerir que termine la instalación.</small>
+      {(setup.output || setup.error) && <details><summary>Ver {setupFailed ? 'error y salida' : 'avance'}</summary><pre>{setup.error || setup.output}</pre></details>}
+    </section>}
+    <div ref={host} className="terminal-host" />
+    {readingHistory && <button type="button" className="terminal-history-end" onClick={() => { cancelAnchorRef.current?.(); if (terminal.current?.buffer.active.type === 'normal') terminal.current.scrollToBottom(); }}><ArrowDown size={14} aria-hidden="true" />Ir al final</button>}
+    {(error || !preparing && (status === 'lost' || status === 'exited')) && <div className="terminal-message"><AlertCircle size={15} /><span>{error || (status === 'exited' ? 'La sesión ha finalizado. El historial se conserva.' : node.data?.launchError || 'Esta vista no tiene una sesión activa.')}</span>{sessionId && <button disabled={status === 'connecting' || status === 'disconnected'} onClick={() => streamRef.current?.retry()}><RotateCcw size={13} /> Reconectar</button>}{status !== 'disconnected' && status !== 'connecting' && <button onClick={() => onRelaunch(node)}>Nueva sesión</button>}</div>}
   </div>;
 }

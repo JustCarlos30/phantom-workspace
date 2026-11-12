@@ -143,3 +143,25 @@ test('terminal bounds its attach buffer and ignores responses after disposal', a
   response.resolve({ session: { status: 'running' }, data: 'must not apply', seq: 1 }); await pending;
   assert.deepEqual(f.snapshots, []); f.stream.dispose(); f.emit(event(2, 'ignored')); assert.deepEqual(f.output, []);
 });
+
+test('host pressure refreshes only the affected terminal without connection flashes or disabling input', async () => {
+  const fresh = deferred(); let requests = 0;
+  const f = terminalFixture({attach: () => ++requests === 1 ? {session:{status:'running'},data:'initial',seq:0} : fresh.promise});
+  await f.stream.start();
+  const before = f.statuses.length;
+  f.emit({type:'terminal.resync',sessionId:'another',seq:20});
+  assert.equal(requests,1);
+  f.emit({type:'terminal.resync',sessionId:'session',seq:20});
+  f.emit({type:'terminal.resync',sessionId:'session',seq:21});
+  assert.equal(requests,2, 'resyncs coalesce during one attach');
+  assert.equal(f.stream.canWrite(),true);
+  assert.equal(f.statuses.length,before);
+  fresh.resolve({session:{status:'running'},data:'fresh screen',seq:21});
+  await turn();
+  f.emit(event(22,'new tail'));
+  assert.deepEqual(f.snapshots,['initial','fresh screen']);
+  assert.deepEqual(f.output,['new tail']);
+  assert.equal(f.statuses.includes('disconnected'),false);
+  assert.equal(f.statuses.filter(s=>s==='connecting').length,1);
+  f.stream.dispose();
+});

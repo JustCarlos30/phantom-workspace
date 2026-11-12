@@ -4,9 +4,10 @@ import '../tools.css';
 import { CardAgents } from './AgentIdentity';
 import { PluginPanels, PLUGIN_TITLES } from './PluginPanels';
 import CommandCenter from './CommandCenter.jsx';
+import Incorporaciones from './Incorporaciones.jsx';
 
 export const TOOL_TITLES = { tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
-Object.assign(TOOL_TITLES, PLUGIN_TITLES, { 'command-center': 'Centro de mando' });
+Object.assign(TOOL_TITLES, PLUGIN_TITLES, { 'command-center': 'Centro de mando', incorporaciones: 'Incorporaciones' });
 const json = value => JSON.stringify(value, null, 2);
 const textValue = (value, fallback = 'Desconocido') => typeof value === 'string' && value.trim() ? value : typeof value === 'number' && Number.isFinite(value) ? String(value) : fallback;
 const message = error => textValue(error?.message, typeof error === 'string' ? error : 'La fuente devolvió un error sin mensaje válido.');
@@ -311,7 +312,7 @@ function Runs({ resource, events, api, workspace, family, op, onOpenPanel }) {
     const tracePath = tracePaths[run.id] || event.result?.tracePath || run.tracePath;
     return <article className="tw-item" key={run.id}>
       <div className="tw-heading"><Identity value={run.id} /><span className="tw-badge">{status || 'Estado desconocido'}</span></div>
-      <small>{family === 'automation' ? `${run.headed === false ? 'Live sin ventana' : run.headed === true ? 'Live: ventana independiente de Chromium' : 'Modo de ventana desconocido'} · ${textValue(run.url, 'URL desconocida')}` : textValue(run.runtime, 'Runtime desconocido')}</small>
+      <small>{family === 'automation' ? `${run.mode === 'integrated' ? 'Live en panel del canvas' : run.headed === true ? 'Ventana externa de Chromium (ejecución anterior)' : run.mode === 'isolated' || run.headed === false ? 'Sin ventana (trace grabado)' : 'Modo de ventana desconocido'} · ${textValue(run.url, 'URL desconocida')}` : textValue(run.runtime, 'Runtime desconocido')}</small>
       {family === 'automation' && <small>{run.keepOpen === true ? `Tras las acciones: ventana hasta Stop o ${Number.isFinite(run.keepOpenMs) ? run.keepOpenMs / 1000 : 300} s de límite automático.` : run.keepOpen === false ? 'Ventana cerrada al completar las acciones.' : 'Duración de ventana no declarada.'} {run.browserOpen ? 'Ventana live abierta.' : 'No se informa una ventana live abierta.'}</small>}
       <div className="tw-row"><Button onClick={() => setSelected(selected === run.id ? null : run.id)}>Ver salida y descriptor</Button>
         {(active(status) || run.browserOpen || run.viewer?.status === 'running') && <Button icon={Square} disabled={op.busy} onClick={() => op.run(async () => { await api(`${family}.stop`, { workspaceId: workspace.id, id: run.id }); resource.reload(); }, 'Detención solicitada')}>Detener ejecución</Button>}
@@ -349,21 +350,17 @@ function Playground({ workspace, api, notify, node }) {
 function Playwright({ workspace, api, notify, node, onOpenPanel }) {
   const resource = useResource(api, 'automation.list', { workspaceId: workspace.id });
   const events = useToolEvents(workspace.id, resource.reload), op = useOperation(notify);
-  const [url, setUrl] = useState(node?.data?.url || ''), [headed, setHeaded] = useState(true), [actions, setActions] = useState([]), [preview, setPreview] = useState(false), [result, setResult] = useState(null);
-  const [keepOpen, setKeepOpen] = useState(false), [keepOpenSeconds, setKeepOpenSeconds] = useState(300);
+  const [url, setUrl] = useState(node?.data?.url || ''), [mode, setMode] = useState('integrated'), [actions, setActions] = useState([]), [preview, setPreview] = useState(false), [result, setResult] = useState(null);
   const update = (index, patch) => setActions(previous => previous.map((action, i) => i === index ? { ...action, ...patch } : action));
-  const lifetime = { keepOpen, ...(keepOpen ? { keepOpenMs: keepOpenSeconds * 1000 } : {}) };
   return <><Section title="Preparar navegación">
-    <p className="tw-muted">Modo manual: editar y previsualizar no abre procesos. Live usa una ventana independiente de Chromium, fuera del canvas. El trace grabado se consulta después en un navegador del canvas.</p>
+    <p className="tw-muted">Modo manual: editar y previsualizar no abre procesos. Todo queda dentro del canvas: Live controla un panel de navegador del canvas; «Sin ventana» graba un trace que luego se ve en un panel del canvas. Nunca se abre una ventana externa.</p>
     <form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => {
       const parsed = new URL(url); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('La URL inicial debe ser http o https.');
-      const value = await api('automation.start', { workspaceId: workspace.id, url: parsed.href, headed, actions, ...lifetime }); setResult(value); resource.reload();
+      const value = await api('automation.start', { workspaceId: workspace.id, url: parsed.href, mode, actions }); setResult(value); resource.reload();
     }, 'Inicio de Playwright solicitado'); }}>
       <Field label="URL inicial"><input type="url" required value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" /></Field>
-      <label className="tw-check"><input type="checkbox" checked={headed} onChange={e => setHeaded(e.target.checked)} />Ventana visible (headed)</label>
-      <label className="tw-check"><input type="checkbox" checked={keepOpen} onChange={e => setKeepOpen(e.target.checked)} />Mantener ventana al terminar</label>
-      {keepOpen && <Field label="Límite de ventana después de las acciones (segundos)" hint="De 1 a 600 segundos. Stop cierra antes la ventana propia."><input type="number" min="1" max="600" step="1" required value={keepOpenSeconds} onChange={e => setKeepOpenSeconds(Number(e.target.value))} /></Field>}
-      <p className="tw-muted">{keepOpen ? `Tras las acciones, el navegador seguirá abierto hasta Stop o durante ${keepOpenSeconds} segundos como máximo.` : 'El navegador se cierra al terminar las acciones. Activa «Mantener ventana al terminar» para observarlo después.'} Las acciones tienen un límite de 60 segundos por ejecución.</p>
+      <Field label="Dónde se ejecuta"><select value={mode} onChange={e => setMode(e.target.value)}><option value="integrated">Panel del canvas (live)</option><option value="isolated">Sin ventana, con trace grabado</option></select></Field>
+      <p className="tw-muted">{mode === 'integrated' ? 'El panel del canvas y su sesión permanecen al terminar; Stop solo libera el control.' : 'Chromium sin ventana se cierra al terminar; abre el trace grabado en un panel del canvas.'} Las acciones tienen un límite de 60 segundos por ejecución.</p>
       {actions.map((action, index) => <fieldset className="tw-action-editor" key={index}><legend>Acción {index + 1}</legend>
         <Field label="Tipo"><select value={action.type} onChange={e => { const type = e.target.value; setActions(old => old.map((a, i) => i === index ? { type, ...(type === 'fill' ? { value: '' } : type === 'wait' ? { milliseconds: 500 } : {}) } : a)); }}>{['goto', 'click', 'fill', 'screenshot', 'wait'].map(type => <option key={type}>{type}</option>)}</select></Field>
         {action.type === 'goto' && <Field label="URL de destino"><input type="url" value={action.url || ''} required onChange={e => update(index, { url: e.target.value })} /></Field>}
@@ -374,7 +371,7 @@ function Playwright({ workspace, api, notify, node, onOpenPanel }) {
         <Button icon={Trash2} onClick={() => setActions(actions.filter((_, i) => i !== index))}>Quitar acción</Button>
       </fieldset>)}
       <div className="tw-row"><Button disabled={actions.length >= 50} onClick={() => setActions([...actions, { type: 'screenshot' }])}>Añadir acción</Button><Button onClick={() => setPreview(!preview)}>Previsualizar sin ejecutar</Button><Button type="submit" tone="primary" icon={Play} disabled={op.busy}>Iniciar navegador y acciones</Button></div>
-      {preview && <DataView value={{ url, headed, actions, ...lifetime }} label="Previsualización; no ejecutada" />}
+      {preview && <DataView value={{ url, mode, actions }} label="Previsualización; no ejecutada" />}
     </form>
     <p className="tw-muted">Si faltan Playwright o Chromium, configura el runtime del host. El error indicará el componente ausente; no se simula una ejecución correcta.</p>
     {result && <DataView value={result} label="Inicio / directorio de artefactos" />}<OperationState op={op} />
@@ -420,7 +417,7 @@ function Settings({ workspace, state, api, refresh, notify }) {
 export function ToolContent({ type, ...props }) {
   if (PLUGIN_TITLES[type]) return <ToolErrorBoundary key={`${props.workspace?.id}:${type}:${props.node?.id || 'inspector'}`} title={PLUGIN_TITLES[type]}><PluginPanels type={type} {...props} /></ToolErrorBoundary>;
   if (!props.workspace && type !== 'settings') return <div className="tw-empty">Abre una carpeta para usar las herramientas del workspace.</div>;
-  const components = { 'command-center': CommandCenter, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
+  const components = { 'command-center': CommandCenter, incorporaciones: Incorporaciones, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
   const Content = components[type];
   const identity = `${props.workspace?.id || 'host'}:${type}:${props.node?.id || 'inspector'}`;
   return <div className="tw-content"><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <><Content {...props} />{type === 'context' && <p className="tw-muted">Las revisiones y hashes solo se muestran cuando la fuente los proporciona. Si no aparecen, son desconocidos; la referencia fijada no acredita una revisión verificada.</p>}</> : <p className="tw-empty">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;

@@ -54,11 +54,11 @@ function validInstallation(modules, marker) {
 
 // A detached process group includes npm's lifecycle shells/native builders on Linux.
 // Always reap the group, even if npm exits before a stubborn descendant does.
-function npmCI(cwd, signal, env) {
+function npmCI(cwd, signal, env, onProgress) {
   return new Promise((resolve, reject) => {
     cancelled(signal);
     let tail = '', stopped = false, failure, killTimer;
-    const child = spawn('npm', ['ci', '--include=dev', '--no-audit', '--no-fund'], {
+    const child = spawn('npm', ['ci', '--include=dev', '--no-audit', '--no-fund', '--foreground-scripts'], {
       cwd, shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...env, npm_config_update_notifier: 'false' },
     });
@@ -70,7 +70,9 @@ function npmCI(cwd, signal, env) {
       killTimer = setTimeout(() => groupSignal('SIGKILL'), 700);
     };
     const abort = () => { failure = signal.reason; stop(); };
-    const output = chunk => { tail = (tail + chunk.toString()).slice(-12000); };
+    let progressTimer;
+    const publish = () => { progressTimer = null; onProgress({ status: 'installing', output: tail }); };
+    const output = chunk => { tail = (tail + chunk.toString()).slice(-12000); if (!progressTimer) progressTimer = setTimeout(publish, 150); };
     child.stdout.on('data', output); child.stderr.on('data', output);
     child.once('error', error => { failure ||= error; });
     // Lifecycle children may inherit npm's pipes. Reap them on exit rather than
@@ -80,6 +82,7 @@ function npmCI(cwd, signal, env) {
     if (signal.aborted) abort();
     child.once('close', async (code, exitSignal) => {
       stop();
+      clearTimeout(progressTimer); publish();
       // Also await the escalation when stdio closed before grandchildren exited.
       await new Promise(r => setTimeout(r, 725));
       clearTimeout(killTimer);
@@ -90,8 +93,9 @@ function npmCI(cwd, signal, env) {
   });
 }
 
-async function prepare(cwd, signal, env) {
+async function prepare(cwd, signal, env, onProgress) {
   cancelled(signal);
+  onProgress({ status: 'checking', output: '' });
   const input = inputs(cwd);
   if (input.skip) return { status: 'skipped', reason: input.skip, cwd };
   const modules = path.join(cwd, 'node_modules'), markerPath = path.join(modules, SETUP_MARKER);
@@ -110,7 +114,8 @@ async function prepare(cwd, signal, env) {
   };
   writeMarker({ state: 'incomplete' });
   try {
-    await npmCI(cwd, signal, env);
+    onProgress({ status: 'installing', output: '' });
+    await npmCI(cwd, signal, env, onProgress);
     cancelled(signal);
     const current = inputs(cwd);
     if (current.skip || fingerprint(current) !== key) throw new Error('package.json o el lock cambió durante npm ci; reintenta con los archivos actuales.');
@@ -131,7 +136,7 @@ async function prepare(cwd, signal, env) {
  * each caller owns its cancellation, including time spent waiting in the queue.
  * env is useful for offline fixtures and npm configuration; argv is never shell text.
  */
-export async function prepareWorktree(cwd, { signal, timeoutMs = SETUP_TIMEOUT_MS, env } = {}) {
+export async function prepareWorktree(cwd, { signal, timeoutMs = SETUP_TIMEOUT_MS, env, onProgress = () => {} } = {}) {
   cwd = fs.realpathSync(cwd);
   const controller = new AbortController();
   const abort = () => controller.abort(signal.reason || new Error('Preparación cancelada'));
@@ -139,7 +144,7 @@ export async function prepareWorktree(cwd, { signal, timeoutMs = SETUP_TIMEOUT_M
   if (signal?.aborted) abort();
   const timer = setTimeout(() => controller.abort(new Error(`Preparación excedió ${timeoutMs} ms`)), timeoutMs);
   const previous = queues.get(cwd) || Promise.resolve();
-  const pending = previous.catch(() => {}).then(() => prepare(cwd, controller.signal, env));
+  const pending = previous.catch(() => {}).then(() => prepare(cwd, controller.signal, env, progress => { try { onProgress(progress); } catch {} }));
   queues.set(cwd, pending);
   // Keep the reservation chained even when a queued caller cancels immediately.
   pending.finally(() => { if (queues.get(cwd) === pending) queues.delete(cwd); }).catch(() => {});

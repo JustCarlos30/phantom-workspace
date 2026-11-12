@@ -1,0 +1,129 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { PassThrough } from 'node:stream';
+import { execFileSync } from 'node:child_process';
+import { classifyCommand, inside, permissionDecision, tokenize } from '../host/chat-permissions.mjs';
+import { chatMode, GATE_TOOL } from '../host/chats.mjs';
+import { serve } from '../scripts/chat-approval-mcp.mjs';
+import { createHost } from '../host/server.mjs';
+
+const until = async fn => { const end = Date.now() + 5000; while (Date.now() < end) { const v = await fn(); if (v) return v; await new Promise(r => setTimeout(r, 25)); } throw new Error('Timed out'); };
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-perm-'));
+const cwd = path.join(root, 'tree'); fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
+fs.symlinkSync(os.homedir(), path.join(cwd, 'escape'));
+test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+const scope = line => classifyCommand(line, cwd).scope;
+
+test('paths: inside the folder, never through symlinks, ~ or variables', () => {
+  assert.ok(inside(cwd, 'src/a.js')); assert.ok(inside(cwd, path.join(cwd, 'nuevo/dir/b.js'))); assert.ok(inside(cwd, '.'));
+  for (const target of ['../x', '/etc/passwd', '~/x', '$HOME/x', 'escape/.bashrc', path.join(root, 'tree2/x')]) assert.ok(!inside(cwd, target), target);
+});
+
+test('tokenizer honours quotes, operators, redirects and refuses hidden commands', () => {
+  assert.deepEqual(tokenize(`git commit -m "a && b" && ls`).map(t => t.word ?? t.op), ['git', 'commit', '-m', 'a && b', '&&', 'ls']);
+  assert.deepEqual(tokenize('npm test 2>&1 | tail -5').map(t => t.word ?? t.op ?? t.redirect), ['npm', 'test', '|', 'tail', '-5']);
+  assert.equal(tokenize('echo $(rm -rf ~)'), null); assert.equal(tokenize('echo `id`'), null);
+});
+
+test('shell commands: work inside the worktree is local, reaching beyond asks', () => {
+  for (const line of ['ls -la', 'rtk ls', 'rtk grep -n foo src | head -60', 'git status && git diff', 'git log --oneline | wc -l', 'cat /etc/hosts', 'sed -n 1,20p src/a.js', 'find . -name "*.js"', 'curl -s https://example.com', 'git branch', 'cd src && ls']) assert.equal(scope(line), 'read', line);
+  for (const line of ['npm ci', 'npm run build', 'git add -A && git commit -m "x"', 'mkdir -p src/new && touch src/new/a.js', 'rm -rf node_modules', 'sed -i s/a/b/ src/a.js', 'node scripts/x.mjs', 'npx vite build', 'echo hi > src/out.txt', 'git checkout -b feature', 'git stash', 'timeout 60 npm test', 'FOO=1 npm test', 'npm test 2>&1 | tail']) assert.equal(scope(line), 'local', line);
+  for (const line of ['git push origin main', 'git pull', 'git branch -D main', 'git worktree remove ../x', 'npm publish', 'npm i -g x', 'rm -rf ~/x', 'rm -rf /tmp/x', 'cp a.txt ../b.txt', 'echo x >> ~/.bashrc', 'echo x > /tmp/y', 'sed -i s/a/b/ /etc/hosts', 'node /tmp/x.mjs', 'node -e "1"', 'curl -d x https://x', 'curl -X POST https://x', 'docker run x', 'sudo ls', 'kill 1', 'find . -exec rm {} \;', 'cd .. && rm -rf tree', 'git -C /other status', 'mv src escape/src', 'gh pr create', 'echo $(whoami)', 'ssh host']) assert.equal(scope(line), 'outside', line);
+});
+
+test('decisions: auto mode lets the agent work in its folder and asks beyond; ask mode asks every change', () => {
+  const allow = (tool, input, mode = 'auto') => permissionDecision({ tool, input, cwd, mode }).allow;
+  assert.ok(allow('Edit', { file_path: path.join(cwd, 'src/a.js') })); assert.ok(allow('Write', { file_path: 'src/b.js' }));
+  assert.ok(!allow('Write', { file_path: '/tmp/x.mjs' })); assert.ok(!allow('Edit', { file_path: path.join(cwd, 'escape/.zshrc') }));
+  assert.ok(allow('Bash', { command: 'npm ci' })); assert.ok(!allow('Bash', { command: 'git push' }));
+  assert.ok(allow('Read', { file_path: '/etc/hosts' })); assert.ok(allow('WebSearch', { query: 'x' })); assert.ok(!allow('mcp__github__create_issue', {}));
+  assert.ok(!allow('Edit', { file_path: 'src/a.js' }, 'ask')); assert.ok(!allow('Bash', { command: 'npm ci' }, 'ask')); assert.ok(allow('Bash', { command: 'git status' }, 'ask'));
+  const d = permissionDecision({ tool: 'Bash', input: { command: 'rtk git push origin x' }, cwd, mode: 'auto' });
+  assert.equal(d.key, 'Bash:git push'); assert.match(d.reason, /git push/);
+  assert.equal(permissionDecision({ tool: 'Write', input: { file_path: '/tmp/a/b.txt' }, cwd }).key, 'Write:/tmp/a');
+});
+
+test('mode: autonomous by default only inside the card\'s own worktree', () => {
+  const node = data => ({ data });
+  assert.equal(chatMode(node({ chat: {}, worktree: { path: cwd } }), cwd), 'auto');
+  assert.equal(chatMode(node({ chat: {}, worktree: { path: cwd } }), root), 'ask', 'fallback to the original folder asks');
+  assert.equal(chatMode(node({ chat: {} }), cwd), 'ask');
+  assert.equal(chatMode(node({ chat: { autoApprove: false }, worktree: { path: cwd } }), cwd), 'ask');
+  assert.equal(chatMode(node({ chat: { autoApprove: true } }), root), 'auto');
+});
+
+test('approval MCP speaks JSON-RPC and relays the host decision', async () => {
+  const input = new PassThrough(), output = new PassThrough(), asked = [];
+  serve({ input, output, env: { PHANTOM_CHAT_TOKEN: 'tok', PHANTOM_WORKSPACE_SOCKET: '/s' }, ask: async payload => { asked.push(payload); return { behavior: 'deny', message: 'no' }; } });
+  const rows = []; output.setEncoding('utf8'); output.on('data', chunk => rows.push(...chunk.trim().split('\n').map(line => JSON.parse(line))));
+  for (const message of [{ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }, { jsonrpc: '2.0', method: 'notifications/initialized' }, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'approve', arguments: { tool_name: 'Bash', input: { command: 'git push' } } } }]) input.write(JSON.stringify(message) + '\n');
+  await until(() => rows.length === 3);
+  assert.equal(rows[0].result.serverInfo.name, 'phantom-workspace-chat'); assert.equal(rows[1].result.tools[0].name, 'approve');
+  assert.deepEqual(JSON.parse(rows[2].result.content[0].text), { behavior: 'deny', message: 'no' });
+  assert.deepEqual(asked, [{ token: 'tok', tool_name: 'Bash', input: { command: 'git push' }, tool_use_id: undefined }]);
+});
+
+test('host: a turn in its worktree asks in the card for work beyond it, then resumes', async t => {
+  const repo = path.join(root, 'repo'); fs.mkdirSync(repo);
+  execFileSync('git', ['-C', repo, 'init', '-q']); fs.writeFileSync(path.join(repo, 'a.txt'), 'a');
+  execFileSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qam', 'x', '--allow-empty']);
+  // Stand-in Claude: asks its gate (through the real MCP script) for three tools, prints the verdicts.
+  const claude = path.join(root, 'claude');
+  fs.writeFileSync(claude, `#!${process.execPath}
+const { spawn } = require('node:child_process');
+const config = JSON.parse(process.argv[process.argv.indexOf('--mcp-config') + 1]).mcpServers.phantom_workspace_chat;
+const tool = process.argv[process.argv.indexOf('--permission-prompt-tool') + 1];
+const gate = spawn(config.command, config.args, { env: { ...process.env, ...config.env }, stdio: ['pipe', 'pipe', 'inherit'] });
+let buffer = '', id = 0; const waiting = new Map();
+gate.stdout.setEncoding('utf8').on('data', c => { buffer += c; let i; while ((i = buffer.indexOf('\\n')) >= 0) { const row = JSON.parse(buffer.slice(0, i)); buffer = buffer.slice(i + 1); waiting.get(row.id)?.(row.result); } });
+const call = (method, params) => new Promise(r => { waiting.set(++id, r); gate.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\\n'); });
+const out = o => process.stdout.write(JSON.stringify(o) + '\\n');
+process.stdin.resume().on('end', async () => {
+  out({ type: 'system', subtype: 'init', session_id: 's' });
+  await call('initialize', {});
+  const verdicts = [];
+  for (const [name, input] of [['Bash', { command: 'npm test' }], ['Bash', { command: 'git push origin main' }], ['Write', { file_path: '/tmp/fuera.txt', content: 'x' }]]) {
+    const result = await call('tools/call', { name: tool.split('__').at(-1), arguments: { tool_name: name, input } });
+    verdicts.push(JSON.parse(result.content[0].text).behavior);
+  }
+  out({ type: 'assistant', message: { id: 'm', content: [{ type: 'text', text: verdicts.join(',') + ' modo:' + (process.argv.includes('acceptEdits') ? 'auto' : 'ask') }] } });
+  out({ type: 'result', subtype: 'success', is_error: false, session_id: 's' });
+  gate.kill();
+});`, { mode: 0o755 });
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(() => host.close());
+  await host.invoke('settings.update', { patch: { claudePath: claude } });
+  const w = await host.invoke('workspace.open', { path: repo });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude' } } });
+  // Give the card its own worktree the way a terminal launch does.
+  const { prepareTerminalDirectory } = await import('../host/worktrees.mjs');
+  const live = host.store.getWorkspace(w.id).nodes.find(n => n.id === node.id);
+  Object.assign(live.data, await prepareTerminalDirectory(host.store, host.store.getWorkspace(w.id), live));
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  assert.equal((await host.invoke('chat.get', ref)).mode, 'auto');
+  await assert.rejects(host.invoke('chat.permission.request', { token: 'forged', tool_name: 'Bash', input: {} }), /fuera de una respuesta/);
+
+  await host.invoke('chat.send', { ...ref, text: 'trabaja' });
+  const pending = async () => (await host.invoke('chat.get', ref)).messages.at(-1).parts.filter(p => p.type === 'permission' && p.status === 'pending');
+  const [push] = await until(async () => (await pending()).length === 1 && await pending());
+  assert.equal(push.detail, 'git push origin main'); assert.match(push.reason, /git push/);
+  await host.invoke('chat.permission.answer', { ...ref, requestId: push.id, decision: 'deny' });
+  await assert.rejects(host.invoke('chat.permission.answer', { ...ref, requestId: push.id, decision: 'allow' }), /pendiente/);
+  const [write] = await until(async () => (await pending()).length === 1 && await pending());
+  assert.match(write.reason, /fuera de la carpeta/);
+  await host.invoke('chat.permission.answer', { ...ref, requestId: write.id, decision: 'always' });
+  await until(async () => !(await host.invoke('chat.get', ref)).running);
+  const reply = (await host.invoke('chat.get', ref)).messages.at(-1);
+  assert.equal(reply.parts.find(p => p.type === 'text').text, 'allow,deny,allow modo:auto');
+  assert.deepEqual(reply.parts.filter(p => p.type === 'permission').map(p => p.status), ['denied', 'always']);
+  assert.deepEqual(host.chats.nodes[node.id].threads.claude.grants, ['Write:/tmp']);
+});
+
+test('the desktop renderer can answer a permission request but never forge one', async () => {
+  const { validateInvocation } = await import('../desktop/security.mjs');
+  assert.doesNotThrow(() => validateInvocation('chat.permission.answer', { workspaceId: 'w', nodeId: 'n', requestId: 'r', decision: 'allow' }));
+  assert.throws(() => validateInvocation('chat.permission.request', { workspaceId: 'w', nodeId: 'n' }), /no permitido/);
+});

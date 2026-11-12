@@ -1,4 +1,4 @@
-.plugin-surface { width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; background: var(--surface); color: var(--ink); font: 13px/1.5 system-ui, sans-serif; container-type: inline-size; }
+.plugin-surface { width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; background: var(--surface); color: var(--ink); font: 13px/1.5 var(--sans); container-type: inline-size; }
 .plugin-surface *, .plugin-surface *::before, .plugin-surface *::after { box-sizing: border-box; }
 .plugin-surface .tw-content { min-width: 0; height: auto; overflow: visible; padding: 16px; }
 .plugin-surface h2 { font-size: 18px; margin: 0; }

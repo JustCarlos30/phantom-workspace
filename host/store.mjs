@@ -6,7 +6,7 @@ import { validateAgent } from './agents.mjs';
 import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '../shared/plugins.mjs';
 
 export const MAX_HISTORY = 256 * 1024;
-export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','command-center'];
+export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','command-center','zone','incorporaciones'];
 export const dataHome = () => path.resolve(process.env.PHANTOM_WORKSPACE_HOME || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-workspace'));
 export function assert(condition, message) { if (!condition) throw new Error(message); }
 export function object(value) { assert(value && typeof value === 'object' && !Array.isArray(value), 'Expected an object'); return value; }
@@ -41,6 +41,17 @@ export function validateHistory(input, workspaces) {
   }
   return input;
 }
+// Incorporaciones: per-project switch, the orchestrator's plan and the integration queue.
+export function validateIntegration(value) {
+  object(value); assert(typeof value.enabled === 'boolean', 'Invalid integration.enabled');
+  if (value.plan !== undefined) text(value.plan, 'integration plan', 4000);
+  assert(Array.isArray(value.queue) && value.queue.length <= 500, 'Invalid integration queue');
+  for (const item of value.queue) {
+    object(item); for (const key of ['id', 'nodeId', 'title', 'branch', 'headOid']) text(item[key], `integration ${key}`, 512);
+    assert(['queued', 'merging', 'merged', 'conflict', 'rejected', 'withdrawn'].includes(item.status), 'Invalid integration status');
+  }
+  return value;
+}
 export function validateState(input) {
   const state = structuredClone(object(input));
   assert(state.schemaVersion === 1, 'Unsupported schemaVersion'); object(state.settings);
@@ -57,12 +68,20 @@ export function validateState(input) {
     w.plugins = validatePluginPreferences(w.plugins);
     if (w.plugins.phantom.config.phantomData) assert(!insideFolder(w.canonicalPath, w.plugins.phantom.config.phantomData), 'Integration state must be outside workspace');
     object(w.camera); for (const key of ['x','y','zoom']) assert(Number.isFinite(w.camera[key]), 'Invalid camera'); assert(w.camera.zoom > 0 && w.camera.zoom <= 10, 'Invalid zoom');
+    if (w.spaces !== undefined) {
+      // Spaces: named views of one project, each with its own camera. Nodes opt in via data.spaceId.
+      assert(Array.isArray(w.spaces) && w.spaces.length <= 50, 'Invalid spaces'); const spaceIds = new Set();
+      for (const s of w.spaces) { object(s); assert(uuid(s.id) && !spaceIds.has(s.id), 'Invalid space ID'); spaceIds.add(s.id); text(s.name, 'space name', 80); object(s.camera); for (const key of ['x','y','zoom']) assert(Number.isFinite(s.camera[key]), 'Invalid space camera'); assert(s.camera.zoom > 0 && s.camera.zoom <= 10, 'Invalid space zoom'); }
+    }
     for (const key of arrays) {
       assert(Array.isArray(w[key]) && w[key].length <= 10000, `Invalid ${key}`); const seen = new Set();
       for (const item of w[key]) { object(item); assert(uuid(item.id) && !seen.has(item.id), `Invalid ${key} ID`); seen.add(item.id); }
     }
     for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
     for (const n of w.nodes) validatePluginPanel(n.type, n.data);
+    if (w.integration !== undefined) validateIntegration(w.integration);
+    for (const n of w.nodes) if (n.data.role !== undefined) assert(n.type === 'terminal' && n.data.role === 'orchestrator', 'Invalid terminal role');
+    assert(w.nodes.filter(n => n.data.role === 'orchestrator').length <= 1, 'Only one orchestrator session per project');
     for (const t of w.tasks) { assert(['draft','checklist','phantom'].includes(t.kind) && ['todo','doing','done'].includes(t.status), 'Invalid task'); text(t.title, 'task title', 512);text(t.description,'task description'); assert(Array.isArray(t.refs) && t.refs.length<=1000, 'Invalid refs'); }
     for (const key of ['missions','workflows','attention','contextRefs']) for (const item of w[key]) text(item.title, 'title', 512);
     for (const item of w.missions) {text(item.notes,'mission notes');text(item.nextAction,'next action');assert(Array.isArray(item.refs)&&item.refs.length<=1000,'Invalid mission refs');}

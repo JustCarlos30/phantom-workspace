@@ -4,17 +4,21 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { assert, canonicalFolder } from './store.mjs';
 
+import { hostGitEnv } from './merge-guard.mjs';
+
 const execute = promisify(execFile);
 async function git(cwd, args) {
   const { stdout } = await execute('git', ['-C', cwd, ...args], {
     encoding: 'utf8', timeout: 30000, maxBuffer: 1024 * 1024,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' },
+    env: hostGitEnv(),
   });
   return stdout.trim();
 }
 
 export async function prepareTerminalDirectory(store, workspace, node) {
   const source = canonicalFolder(workspace.canonicalPath || workspace.path);
+  // The orchestrator session integrates in the project checkout itself.
+  if (node.data?.role === 'orchestrator') return { cwd: source, worktree: null, worktreeReason: 'Sesión orquestadora: trabaja en el checkout del proyecto' };
   const saved = node.data?.worktree;
   if (saved) {
     const cwd = canonicalFolder(saved.path);

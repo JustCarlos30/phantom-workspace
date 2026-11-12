@@ -7,15 +7,18 @@ export const BACKGROUNDS = [
   ['ember', 'Brasa', 'Luz cálida y grafito'],
   ['plain', 'Grafito', 'Sin atmósfera, solo espacio'],
 ];
-export const ACCENTS = [['iris', 'Iris', '#8b9dff'], ['mint', 'Menta', '#7ddbb9'], ['amber', 'Ámbar', '#edbf79'], ['rose', 'Rosa', '#e9a0bf']];
-const defaults = { background: 'gengar', accent: 'iris', grid: true, intensity: 55, image: '' };
+export const ACCENTS = [['lilac', 'Lila', '#b48cff'], ['iris', 'Iris', '#8fa2ff'], ['mint', 'Menta', '#6fdcb4'], ['amber', 'Arena', '#e8c48a'], ['rose', 'Rosa', '#f29ac4'], ['cyan', 'Cian', '#6fe3f2']];
+// v2 (Fantasma violeta): Lila replaced Iris as the default accent.
+const VERSION = 2;
+const defaults = { background: 'gengar', accent: 'lilac', grid: true, intensity: 55, image: '' };
 const keyFor = id => `phantom:studio:${id || 'default'}`;
 function load(id) {
   try {
     const saved = JSON.parse(localStorage.getItem(keyFor(id))) || {};
     return {
       background: BACKGROUNDS.some(([key]) => key === saved.background) ? saved.background : defaults.background,
-      accent: ACCENTS.some(([key]) => key === saved.accent) ? saved.accent : defaults.accent,
+      // Pre-v2 'iris' was the untouched default, so it migrates to the new default.
+      accent: saved.accent === 'iris' && saved.v !== VERSION ? defaults.accent : ACCENTS.some(([key]) => key === saved.accent) ? saved.accent : defaults.accent,
       grid: typeof saved.grid === 'boolean' ? saved.grid : defaults.grid,
       intensity: Number.isFinite(saved.intensity) ? Math.min(100, Math.max(0, saved.intensity)) : defaults.intensity,
       image: typeof saved.image === 'string' && /^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(saved.image) && saved.image.length < 2800000 ? saved.image : '',
@@ -33,7 +36,7 @@ export function useAppearance(workspaceId, notify) {
     return () => document.documentElement.style.removeProperty('--accent');
   }, [appearance.accent]);
   const update = change => {
-    const next = { ...appearance, ...change };
+    const next = { ...appearance, ...change, v: VERSION };
     try { localStorage.setItem(keyFor(workspaceId), JSON.stringify(next)); }
     catch { notify('No se pudo guardar la apariencia local. Libera espacio y vuelve a intentarlo.', 'error'); return false; }
     setEntry({ id: workspaceId, value: next });

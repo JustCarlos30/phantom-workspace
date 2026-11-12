@@ -1,3 +1,4 @@
+import { createSocketOutput } from './socket-output.mjs';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -5,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome } from './store.mjs';
 import { Terminals } from './terminals.mjs';
+import { Chats, validateChat, validateModel } from './chats.mjs';
+import { Merges } from './merges.mjs';
 import { agentContext, validateAgent } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
 
@@ -25,9 +28,10 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,server,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,server,closingPromise,ownsSocket=false;
   const clients=new Set();
-  const send=(s,message)=>{ if(s.destroyed) return; if(s.writableLength>1024*1024) {s.destroy();return;} s.write(JSON.stringify(message)+'\n'); };
+  const outputs = new WeakMap();
+  const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
   const emit=event=>{
     const terminalExit=event.type==='terminal.exit',toolFinish=event.type==='tool.status'&&['failed','completed'].includes(event.status);
@@ -67,17 +71,24 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const {validatePluginSettings}=await import('../src/plugins/registry.js');const settings=validatePluginSettings(p.id,p.settings);
       return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId);w.plugins={...w.plugins,[p.id]:{...w.plugins?.[p.id],...settings,config:w.plugins?.[p.id]?.config??{}}};w.updatedAt=new Date().toISOString();return settings;});
     }
-    if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
+    if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
-       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);w.nodes.push(node);return node;
+       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);}
+       // One orchestrator session per project: the only terminal without its own worktree branch.
+       if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
+       w.nodes.push(node);return node;
     });
-    if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
-    if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=w.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
+    if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
+    if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=w.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
     if(method==='terminal.create') {
       const w=store.getWorkspace(p.workspaceId); let node=p.nodeId?w.nodes.find(n=>n.id===p.nodeId):null; if(p.nodeId) assert(node?.type==='terminal','Terminal node not found');
       if(!node) node=await invoke('node.create',{workspaceId:w.id,type:'terminal'});
-      const session=await terminals.create(w,node,p); node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id};return current;}); return {session,node};
+      mutate(w.id,()=>{node.data={...node.data,launchState:'creating',launchError:''};});
+      let session;
+      try { session=await terminals.create(w,node,p); }
+      catch(error) { if(w.nodes.includes(node)) mutate(w.id,()=>{node.data={...node.data,launchState:'failed',launchError:error.message};}); throw error; }
+      node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id,launchState:'ready',launchError:''};return current;}); return {session,node};
     }
     if(method==='terminal.list') {store.getWorkspace(p.workspaceId);return terminals.sessions.filter(s=>s.workspaceId===p.workspaceId).map(s=>terminals.descriptor(s));}
     if(method==='terminal.agent.context' || method==='terminal.agent.report') {
@@ -110,16 +121,38 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');if(patch.name!==undefined)current.title=patch.name.trim();const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
     }
+    if(method==='terminal.setup.retry') return terminals.retrySetup(p.sessionId);
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);
+    if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
     if(method==='terminal.write') return terminals.write(p.sessionId,p.data);
     if(method==='terminal.resize') return terminals.resize(p.sessionId,p.cols,p.rows);
     if(method==='terminal.stop') return terminals.stop(p.sessionId);
     if(method==='terminal.close') {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Terminal node not found');
-      await terminals.closeNode(node.id);
+      await terminals.closeNode(node.id);chats.removeNode(node.id);
       return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
+    // Chat cards: a terminal node whose data.chat.provider selects an agent CLI
+    // driven headlessly. data.chat changes only through chat.configure.
+    // The approval gate of a running turn proves itself with that turn's token.
+    if(method==='chat.permission.request') return chats.requestPermission(p);
+    if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.models','chat.permission.answer'].includes(method)) {
+      const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
+      assert(node?.type==='terminal','Chat card not found');
+      if(method==='chat.get') return chats.get(node);
+      if(method==='chat.send') return chats.send(w,node,p.text);
+      if(method==='chat.stop') return chats.stop(node.id);
+      if(method==='chat.clear') return chats.clear(w,node);
+      if(method==='chat.models') return chats.models(node);
+      if(method==='chat.permission.answer') return chats.answerPermission(node,p.requestId,p.decision);
+      const patch={};for(const key of ['provider','autoApprove']) if(p[key]!==undefined)patch[key]=p[key];validateChat(patch);
+      assert(patch.provider===undefined||patch.provider===(node.data.chat?.provider??null)||!chats.running(node.id),'Detén la respuesta antes de cambiar de agente');
+      // model: the choice for the provider in effect after this call; null returns to the CLI's default.
+      if(p.model!==undefined&&p.model!==null)validateModel(p.model);
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat={...current.data.chat,...patch};if(p.model!==undefined){assert(chat.provider,'Elige Claude u OpenCode primero');const models={...chat.models};if(p.model===null)delete models[chat.provider];else models[chat.provider]=p.model;chat.models=models;}current.data={...current.data,chat};return current;});
+    }
+    if(method.startsWith('merge.')) return merges.handle(method,p);
     if(method==='storage.export') { const data=structuredClone(store.state); // Runtime settings may contain credentials: export only portable presentation settings.
       data.settings=Object.fromEntries(Object.entries(data.settings).filter(([k])=>['theme','fontSize','terminalFontSize','language'].includes(k)));
        if(p.includeHistory) {await terminals.flush();data.terminalHistory=terminals.sessions.map(s=>({...terminals.descriptor(s),seq:s.snapshotSeq??s.seq,status:s.status==='running'?'lost':s.status,pid:null,snapshot:s.snapshot}));}return data; }
@@ -156,7 +189,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         // production adapters solely to close a host using injected fixtures.
         await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
         try {if(shutdownIntegration)await bounded(Promise.resolve().then(()=>shutdownIntegration()),5000,'Integration shutdown');}
-        finally {await terminals?.close();}
+        finally {await chats?.close();await terminals?.close();}
         await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Final integration drain').catch(()=>{});
       }finally {
         for(const c of clients)c.destroy();
@@ -168,11 +201,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    store=new Store(dataDir);terminals=new Terminals(store,emit);
+    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>merges.agentContext(w,node));
     server=net.createServer(socket=>{
-      if(clients.size>=32){socket.destroy();return;}clients.add(socket);socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
+      if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};
-      const priority=new Set(['terminal.write','terminal.stop','terminal.close','terminal.resize','state.get','system.info','host.shutdown']);
+      const priority=new Set(['terminal.attach','terminal.setup.retry','terminal.write','terminal.stop','terminal.close','terminal.resize','chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.permission.answer','state.get','system.info','host.shutdown']);
       function dispatch(lane) {
         while(!socket.destroyed&&active[lane]<8&&queues[lane].length) {
           const {request,bytes}=queues[lane].shift();active[lane]++;
@@ -188,7 +221,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       send(socket,{event:{type:'connection',status:'connected'}});
     });
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(socketPath,()=>{ownsSocket=true;fs.chmodSync(socketPath,0o600);resolve();});});
-    return {invoke,close,store,terminals,server,socketPath,emit};
+    return {invoke,close,store,terminals,chats,merges,server,socketPath,emit};
   } catch(e) {await close();throw e;}
 }
 export const startHost=createHost;

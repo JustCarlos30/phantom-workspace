@@ -228,3 +228,24 @@ test('desktop transport recovery reconnects without another request and never re
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(connections, 3);
 });
+
+test('a paused desktop receives per-terminal resyncs and control replies instead of a shared disconnect', {timeout:15000}, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(),'phantom-slow-reader-'));
+  const host = await createHost({dataDir:path.join(root,'state'),handleIntegration:()=>({handled:false})});
+  const socket = net.createConnection(host.socketPath);
+  t.after(async()=>{socket.destroy();await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  socket.on('error',()=>{}); await once(socket,'connect');
+  const messages=[]; let buffer='';
+  socket.setEncoding('utf8');
+  socket.on('data',chunk=>{buffer+=chunk;let i;while((i=buffer.indexOf('\n'))>=0){messages.push(JSON.parse(buffer.slice(0,i)));buffer=buffer.slice(i+1);}});
+  await until(()=>messages.some(m=>m.event?.status==='connected'));
+  socket.pause();
+  for(let seq=1;seq<=100;seq++)for(let n=0;n<20;n++)host.emit({type:'terminal.output',sessionId:String(n),workspaceId:'fixture',seq,data:'x'.repeat(32768)});
+  socket.write(JSON.stringify({id:'responsive-control',method:'system.info'})+'\n');
+  await new Promise(resolve=>setTimeout(resolve,30)); socket.resume();
+  await until(()=>messages.some(m=>m.id==='responsive-control')&&new Set(messages.filter(m=>m.event?.type==='terminal.resync').map(m=>m.event.sessionId)).size===20);
+  assert.equal(socket.destroyed,false);
+  assert.equal(messages.filter(m=>m.event?.type==='connection').length,1);
+  assert.ok(messages.filter(m=>m.event?.type==='terminal.resync').every(m=>m.event.seq===100));
+  assert.equal(messages.find(m=>m.id==='responsive-control').result.pid,process.pid);
+});

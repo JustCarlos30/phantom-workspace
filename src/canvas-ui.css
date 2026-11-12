@@ -1,0 +1,866 @@
+/* Canvas UI: the canvas is the whole window and every piece of chrome floats
+   over it as an opaque island (Figma UI3 / Miro). Loaded after studio.css,
+   so this file is also the system layer: one radius scale, one elevation
+   ladder, one motion curve. Working planes stay opaque (DESIGN.md). */
+:root {
+  /* Radius scale: badge · control · menu · plane */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  /* Elevation: a hairline plus one soft offset shadow, never a halo. */
+  --edge: var(--hairline);
+  --edge-strong: var(--hairline-strong);
+  --elev-1: 0 1px 2px #0005, 0 10px 24px -14px #000a;
+  --elev-2: 0 1px 2px #0004, 0 16px 36px -16px #000c;
+  --elev-3: 0 2px 4px #0004, 0 26px 64px -20px #000e;
+  --elev-lift: 0 2px 4px #0005, 0 34px 70px -22px #000;
+  /* Glass: chrome only. Working planes stay opaque. */
+  --glass: color-mix(in srgb, var(--surface) 64%, transparent);
+  --glass-thick: color-mix(in srgb, var(--surface) 84%, transparent);
+  --glass-filter: blur(28px) saturate(170%);
+  /* Motion: one curve, two speeds. */
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --dur-fast: 140ms;
+  --dur: 240ms;
+  --island: var(--glass);
+  --island-line: var(--edge-strong);
+  --island-hover: var(--fill-2);
+  --island-shadow: var(--elev-2);
+  --island-radius: var(--r-lg);
+  /* Spacing: one 4px rhythm. Gutter between islands and window edges is s-3. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --gutter: var(--s-3);
+  --rail-width: 252px;
+  --inspector-width: 360px;
+  --dot: color-mix(in srgb, var(--ink) 16%, transparent);
+  --dot-major: color-mix(in srgb, var(--ink) 26%, transparent);
+}
+
+
+/* ---------- System normalization ----------
+   Legacy component radii collapse onto the four-step scale. Placed before the
+   canvas-specific rules so those keep authority at equal specificity. */
+.tw-field input[type="file"]::file-selector-button,
+.tw-badge,
+.path-badge,
+.node-title input,
+.mission-chip,
+.terminal-stop,
+.terminal-message button,
+.project-name-editor .inline-name-input,
+.canvas-popover kbd,
+.background-preview,
+.uploaded-background img { border-radius: var(--r-xs); }
+.tw-field > input,
+.tw-field > select,
+.tw-field > textarea,
+.tw-palette-search > input,
+.tw-button,
+.tw-code,
+.tw-error,
+.tw-warning,
+.tw-action-editor,
+.tw-palette-results li button,
+.button,
+.icon-button,
+.rail-heading button,
+.project-item,
+.project-initials,
+.open-folder,
+.rail-bottom>button,
+.search-command,
+.canvas-navigation button,
+.dock-main button,
+.panel-index-button,
+.terminal-message,
+.browser-toolbar button,
+.browser-toolbar input,
+.inspector-switcher select,
+.tool-picker-list>button,
+.index-search,
+.context-menu>button,
+.app-dialog>label input,
+.inline-name-error,
+.recovery-screen pre,
+.canvas-busy,
+.terminal-setup button,
+.rail-panel-row,
+.studio-appearance-button:hover,
+.studio-appearance-button.active,
+.canvas-popover-heading button,
+.canvas-popover>button,
+.canvas-zoom-presets button,
+.background-upload,
+.accent-options button,
+.activity-tray button:not(.icon-button),
+.activity-base input,
+.plugin-surface .tw-section,
+.plugin-surface .tw-item,
+.plugin-surface input:not([type=checkbox]),
+.plugin-surface select,
+.plugin-surface textarea,
+.plugin-surface .plugin-board-column,
+.plugin-preference select,
+.cc-filters select,
+.cc-filters input,
+.agent-editor,
+.agent-editor input,
+.agent-editor select { border-radius: var(--r-sm); }
+::-webkit-scrollbar-thumb,
+.brand-mark,
+.canvas-node,
+.canvas-navigation,
+.browser-preview-label,
+.tool-picker,
+.panel-index,
+.context-menu,
+.toast,
+.canvas-popover,
+.background-option { border-radius: var(--r-md); }
+.tw-palette,
+.app-dialog,
+.attention-tray,
+.activity-tray,
+.tw-voice,
+.empty-symbol,
+.dock-main,
+.desktop-required .app-mark { border-radius: var(--r-lg); }
+.rail-bottom kbd,
+.path-badge,
+.search-command kbd,
+.mission-chip,
+.panel-index-button b,
+.terminal-location>span:nth-child(3),
+.index-type,
+.workspace-path,
+.rail-panel-label .terminal-activity-status { font-size: 10px; }
+
+kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: var(--r-xs); background: var(--surface-2); color: var(--muted); font-family: inherit; font-size: 10px; font-weight: 500; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+::selection { background: color-mix(in srgb, var(--accent) 32%, transparent); color: var(--ink); }
+
+/* ---------- Shell: full-bleed canvas ---------- */
+.app-shell { position: relative; overflow: hidden; background: var(--bg); }
+.main-workspace { position: absolute; inset: 0; }
+.workspace-body { position: absolute; inset: 0; }
+.canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
+
+.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
+.canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
+.context-menu, .toast, .canvas-busy, .connection-error {
+  background: var(--island);
+  border: 1px solid var(--island-line);
+  box-shadow: var(--island-shadow);
+}
+.canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--elev-3); }
+
+/* ---------- Left rail: floating island ---------- */
+@media (min-width: 851px) {
+  .project-rail {
+    position: absolute; left: var(--gutter); top: var(--gutter); bottom: var(--gutter);
+    width: var(--rail-width); border-radius: var(--island-radius); padding: 12px 10px 10px;
+    transition: width var(--dur) var(--ease-out), bottom var(--dur) var(--ease-out), border-radius var(--dur) var(--ease-out);
+    overflow: hidden;
+  }
+  .brand { padding: 2px 4px 16px; gap: 10px; }
+  .brand-mark { width: 28px; height: 28px; border-radius: var(--r-sm); }
+  .rail-collapse { display: inline-flex; margin-left: auto; width: 28px; height: 28px; }
+  .rail-collapsed .project-rail { bottom: auto; width: auto; max-width: 340px; padding: 8px; display: flex; flex-direction: row; align-items: center; gap: 4px; }
+  .rail-collapsed .project-rail > :not(.brand):not(.rail-collapsed-project) { display: none; }
+  .rail-collapsed .brand { padding: 0; }
+  .rail-collapsed .brand > span:not(.brand-mark) { display: none; }
+  .rail-collapsed .rail-collapse { margin-left: 0; order: 3; }
+  .rail-collapsed .workspace-identity { display: none; }
+  .rail-collapsed .workspace-header { left: auto; }
+}
+.rail-collapse, .rail-collapsed-project { display: none; }
+@media (min-width: 851px) {
+  .rail-collapsed .rail-collapsed-project { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 4px; border-radius: var(--r-sm); font-size: 12px; font-weight: 600; color: var(--ink); min-width: 0; }
+  .rail-collapsed-project:hover { background: var(--island-hover); }
+  .rail-collapsed-project > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rail-collapsed-project .project-initials { width: 24px; height: 24px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); }
+}
+@media (max-width: 850px) { .project-rail { border-radius: 0 var(--island-radius) var(--island-radius) 0; } }
+.project-item, .rail-panel-row, .open-folder, .rail-bottom > button, .rail-map-action, .studio-appearance-button { border-radius: var(--r-sm); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.project-item:hover, .rail-panel-row:hover, .rail-bottom > button:hover { background: var(--island-hover); }
+.project-item.active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.open-folder { border-color: var(--island-line); background: transparent; }
+.open-folder:hover { background: var(--island-hover); border-color: var(--island-line); }
+.studio-appearance-button { border-top: 0; background: var(--island-hover); }
+
+/* ---------- Top bar: two islands over the canvas ---------- */
+.workspace-header {
+  position: absolute; top: var(--gutter); right: var(--gutter); left: calc(var(--gutter) * 2 + var(--rail-width));
+  height: 48px; min-height: 48px; padding: 0; background: transparent; border: 0; z-index: 28; pointer-events: none;
+  transition: left var(--dur) var(--ease-out);
+}
+.workspace-header > * { pointer-events: auto; }
+.workspace-identity { flex: 0 1 auto; min-width: 0; max-width: 46%; height: 48px; padding: 8px 16px; border-radius: var(--r-lg); display: flex; flex-direction: column; justify-content: center; }
+.workspace-path { margin-top: 2px; }
+.header-controls { height: 48px; padding: 0 8px; border-radius: var(--r-lg); gap: 4px; margin-left: auto; }
+.header-controls .icon-button { width: 32px; height: 32px; border-radius: var(--r-sm); }
+.header-controls .icon-button:hover { background: var(--island-hover); }
+.search-command { height: 32px; border-radius: var(--r-sm); background: var(--island-hover); border-color: transparent; margin-right: 4px; }
+.save-state { padding: 0 8px; }
+@media (max-width: 850px) { .workspace-header { left: var(--gutter); } .workspace-identity { max-width: 60%; } }
+
+.workspace-header { gap: 8px; }
+.activity-strip { flex: 0 1 auto; min-width: 0; padding: 0; background: transparent; border: 0; justify-content: flex-start; }
+.activity-notch { border-radius: var(--r-lg); min-height: 48px; height: 48px; padding: 0 16px; overflow: hidden; white-space: nowrap; }
+.activity-notch > * { flex-shrink: 0; }
+.activity-notch > .notch-detail { flex-shrink: 1; min-width: 0; }
+@media (max-width: 1270px) { .activity-notch > span:not(:first-of-type) { display: none; } }
+@media (max-width: 850px) { .activity-strip { display: none; } }
+.connection-error { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); z-index: 29; border-radius: var(--r-lg); }
+
+/* ---------- Canvas: world-space dot grid ---------- */
+.canvas {
+  background-color: transparent;
+  background-image: radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px), radial-gradient(circle, var(--dot) .9px, transparent 1.2px);
+  background-size: var(--grid-major, 96px) var(--grid-major, 96px), var(--grid-size, 24px) var(--grid-size, 24px);
+  background-position: var(--grid-x, 0) var(--grid-y, 0), var(--grid-x, 0) var(--grid-y, 0);
+}
+.studio-no-grid .canvas, .canvas.focus-mode { background-image: none; }
+.canvas:focus-visible { outline: 0 !important; }
+.canvas-marquee { border-radius: var(--r-xs); border-width: 1.5px; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* ---------- Panels: soft, rounded, lift on drag ---------- */
+.canvas-node {
+  border-radius: var(--r-lg); border: 1px solid var(--island-line); background: var(--surface);
+  box-shadow: var(--elev-1);
+  transition: box-shadow var(--dur) var(--ease-out), border-color var(--dur-fast) var(--ease-out), outline-color var(--dur-fast) var(--ease-out);
+  outline: 2px solid transparent; outline-offset: 3px;
+}
+.canvas-node:hover:not(.focused) { border-color: color-mix(in srgb, var(--ink) 18%, transparent); }
+.canvas-node.selected { border-color: color-mix(in srgb, var(--accent) 70%, transparent); outline: 2px solid var(--accent); outline-offset: 3px; }
+.canvas-node.is-dragging { box-shadow: var(--elev-lift); border-color: var(--edge-strong); z-index: 6; }
+.canvas-node.focused { border-radius: var(--r-lg); outline: 0; box-shadow: var(--elev-3); }
+.node-header { height: 40px; min-height: 40px; padding: 0 8px 0 16px; gap: 8px; background: transparent; border-bottom: 1px solid var(--island-line); }
+.node-header .title-button { font-weight: 600; letter-spacing: -.01em; }
+.node-header .icon-button { border-radius: var(--r-sm); opacity: .7; transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+.canvas-node:hover .node-header .icon-button, .canvas-node.selected .node-header .icon-button, .node-header .icon-button:focus-visible { opacity: 1; }
+.node-body { background: var(--surface); }
+.resize-handle { width: 22px; height: 22px; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+.canvas-node:hover .resize-handle, .canvas-node.selected .resize-handle, .resize-handle:focus-visible { opacity: .85; }
+.note-editor { background: transparent; padding: 16px 18px; line-height: 1.65; font-size: 13px; }
+.canvas-node.overview { border-radius: var(--r-lg); }
+
+/* Focus mode: the panel takes the stage beside the rail. */
+@media (min-width: 851px) {
+  .studio-focused:not(.rail-collapsed) .canvas-region { left: calc(var(--gutter) + var(--rail-width)); }
+  .studio-focused.studio-inspector-open .canvas-region { right: calc(var(--gutter) + var(--inspector-width)); }
+}
+.studio-focused .workspace-identity { visibility: hidden; }
+.focus-return { top: var(--gutter); left: var(--gutter); width: auto; max-width: calc(100% - 340px); height: 48px; padding: 0 16px; border-radius: var(--r-lg); z-index: 29; }
+.focus-return > span { border-left-color: var(--island-line); }
+
+/* ---------- Bottom: create toolbar (center) + view controls (right) ---------- */
+.create-dock { left: 50%; bottom: 16px; transform: translateX(-50%); }
+.dock-main { height: 56px; padding: 8px; gap: 4px; border-radius: var(--r-lg); }
+.dock-main button { height: 40px; padding: 0 12px; gap: 7px; border-radius: var(--r-md); font-size: 12px; color: var(--muted); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.dock-main button:hover:not(:disabled) { background: var(--island-hover); color: var(--ink); }
+.dock-main button:active:not(:disabled) { background: var(--accent-soft); }
+.dock-main button:first-of-type { background: var(--accent); color: color-mix(in srgb, var(--accent) 12%, #140f1f); }
+.dock-main button:first-of-type:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); color: color-mix(in srgb, var(--accent) 12%, #140f1f); }
+.dock-main button.active { background: var(--accent-soft); color: var(--accent); }
+.dock-main > i { height: 22px; background: var(--island-line); margin: 0 4px; }
+.dock-label { display: none !important; }
+@media (min-width: 851px) and (max-width: 1100px) { .studio-inspector-open .create-dock { left: calc((100% - var(--inspector-width)) / 2); } }
+
+.canvas-navigation { top: auto; bottom: 16px; right: var(--gutter); height: 48px; padding: 8px; gap: 4px; border-radius: var(--r-lg); transition: right var(--dur) var(--ease-out); }
+.canvas-navigation button { height: 32px; min-width: 32px; border-radius: var(--r-sm); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.canvas-navigation button:hover, .canvas-navigation button[aria-expanded="true"] { background: var(--island-hover); }
+.canvas-navigation .zoom-value { min-width: 64px; }
+.canvas-navigation > i { background: var(--island-line); }
+.canvas-popover { top: auto; bottom: 76px; right: var(--gutter); border-radius: var(--r-lg); transform-origin: bottom right; animation: island-in var(--dur) var(--ease-out); }
+@media (max-width: 1270px) { .canvas-navigation { top: auto; } .canvas-popover { top: auto; } }
+
+.canvas-minimap { position: absolute; right: var(--gutter); bottom: 76px; z-index: 9; padding: 0; border-radius: var(--r-lg); overflow: hidden; cursor: crosshair; animation: island-in var(--dur) var(--ease-out); transition: right var(--dur) var(--ease-out); touch-action: none; }
+.canvas-minimap svg { display: block; }
+.minimap-node { fill: color-mix(in srgb, var(--ink) 22%, transparent); }
+.minimap-node.type-terminal { fill: color-mix(in srgb, var(--accent) 45%, transparent); }
+.minimap-node.type-browser { fill: color-mix(in srgb, var(--success) 45%, transparent); }
+.minimap-node.type-note { fill: color-mix(in srgb, var(--warning) 45%, transparent); }
+.minimap-node.selected { stroke: var(--accent); stroke-width: 1.5; }
+.minimap-view { fill: color-mix(in srgb, var(--accent) 8%, transparent); stroke: var(--accent); stroke-width: 1.25; }
+@media (max-height: 640px), (max-width: 700px) { .canvas-minimap { display: none; } }
+
+/* Keep view controls clear of a floating inspector. */
+@media (min-width: 851px) {
+  .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--gutter) * 2 + var(--inspector-width)); }
+  .studio-focused.studio-inspector-open .canvas-navigation, .studio-focused.studio-inspector-open .canvas-popover { right: var(--gutter); }
+}
+
+/* ---------- Inspector: floating right island ---------- */
+.inspector-host {
+  position: absolute; top: 72px; right: var(--gutter); bottom: var(--gutter); height: auto;
+  width: var(--inspector-width); min-width: 0; border-radius: var(--island-radius); overflow: hidden;
+  animation: inspector-in var(--dur) var(--ease-out);
+}
+.inspector-switcher { border-bottom: 1px solid var(--island-line); }
+.inspector-host .tw-inspector, .inspector-host .appearance-panel { background: transparent; }
+@media (max-width: 850px) { .inspector-host { left: var(--gutter); width: auto; } }
+
+/* ---------- Popovers & menus ---------- */
+.tool-picker { bottom: 84px; border-radius: var(--r-lg); animation: island-in var(--dur) var(--ease-out); transform-origin: bottom center; }
+.tool-picker-list > button { border-radius: var(--r-md); }
+.panel-index, .context-menu { border-radius: var(--r-lg); }
+.context-menu > button { border-radius: var(--r-sm); }
+.toast { border-radius: var(--r-lg); }
+.canvas-busy { top: 72px; border-radius: var(--r-md); }
+.toast-stack { bottom: 84px; }
+
+@keyframes island-in { from { opacity: 0; translate: 0 6px; scale: .98; } }
+@keyframes inspector-in { from { opacity: 0; translate: 16px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node, .canvas-node.is-dragging, .dock-main button, .canvas-region, .project-rail, .workspace-header, .canvas-navigation, .canvas-minimap { transition: none; }
+  .canvas-node.is-dragging, .dock-main button:hover:not(:disabled) { transform: none; }
+  .canvas-minimap, .canvas-popover, .tool-picker, .inspector-host { animation: none; }
+}
+
+/* ---------- Layout refinements ---------- */
+.workspace-identity .breadcrumb > button { padding: 0; line-height: 1.25; }
+.workspace-identity .workspace-path { line-height: 1.3; margin-top: 1px; }
+@media (min-width: 851px) {
+  /* Center the create toolbar on the free canvas, not the window. */
+  .app-shell:not(.rail-collapsed) .create-dock { left: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
+  .studio-inspector-open .create-dock { left: calc((var(--gutter) + 100% - var(--inspector-width) - var(--gutter)) / 2); }
+  .studio-inspector-open:not(.rail-collapsed) .create-dock { left: calc((var(--rail-width) + var(--gutter) * 2 + 100% - var(--inspector-width) - var(--gutter) * 2) / 2); }
+  /* With the inspector open, view controls stack in a column above the toolbar row. */
+  .studio-inspector-open:not(.studio-focused) .canvas-navigation { bottom: 84px; }
+  .studio-inspector-open:not(.studio-focused) .canvas-minimap, .studio-inspector-open:not(.studio-focused) .canvas-popover { bottom: 144px; }
+}
+@media (min-width: 851px) and (max-width: 1360px) { .studio-inspector-open .dock-main button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .studio-inspector-open .dock-main button { padding: 0 11px; } }
+.studio-focused .workspace-identity { flex: 0 0 280px; }
+.focus-return { max-width: 280px; }
+.focus-return > span { min-width: 0; }
+.workspace-identity { padding: 8px 16px; }
+.workspace-identity > * { flex-shrink: 0; }
+.workspace-identity .breadcrumb { height: 18px; }
+@media (min-width: 851px) {
+  .brand .rail-collapse { display: inline-flex; }
+  .rail-collapsed .project-rail .rail-collapsed-project { display: flex; }
+}
+
+/* ---------- Consistency pass ---------- */
+/* Rail: every action is the same quiet row; only the selected project is filled. */
+.open-folder, .studio-appearance-button, .rail-map-action, .rail-bottom > button {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%;
+  min-height: 34px; height: auto; margin: 2px 0 0; padding: 0 8px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; text-align: left;
+}
+.open-folder:hover, .studio-appearance-button:hover, .studio-appearance-button.active, .rail-map-action:hover, .rail-bottom > button:hover { background: var(--surface-2); color: var(--ink); border: 0; }
+.open-folder > svg, .studio-appearance-button > svg, .rail-bottom > button > svg, .rail-map-action > svg { color: var(--muted); }
+.open-folder:first-of-type { margin-top: 10px; }
+.studio-appearance-button { margin-top: 8px; padding: 6px 8px; }
+.studio-appearance-button small { margin-top: 2px; }
+.rail-bottom { padding-top: 8px; border-top: 1px solid var(--edge); }
+.rail-heading { padding: 0 8px 8px; font-size: 11px; letter-spacing: .02em; }
+.project-item.active { background: var(--surface-2); }
+.project-item.active .project-initials { background: var(--accent-soft); color: var(--accent); }
+.rail-panel-row.selected { background: var(--accent-soft); }
+
+/* Minimap: neutral blocks, accent only for what is selected or in view. */
+.minimap-node, .minimap-node.type-terminal, .minimap-node.type-browser, .minimap-node.type-note { fill: color-mix(in srgb, var(--ink) 24%, transparent); }
+.minimap-node.selected { fill: color-mix(in srgb, var(--accent) 55%, transparent); stroke: none; }
+
+/* Panel headers share one control size. */
+.node-header .icon-button { width: 28px; height: 28px; }
+
+/* Bottom row never overlaps: labels yield before controls collide. */
+@media (max-width: 1480px) { .dock-main button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .dock-main button { padding: 0 11px; } }
+@media (min-width: 851px) {
+  .app-shell:not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
+  .studio-inspector-open:not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + var(--gutter) * 2 + 100% - var(--inspector-width) - var(--gutter) * 2) / 2); }
+}
+
+/* Focus inside a half-visible panel must never scroll the viewport: the camera
+   is the only thing that moves the map, and the floating chrome stays put. */
+.canvas, .canvas-region, .workspace-body, .main-workspace { overflow: clip; }
+
+/* ---------- Composition: one anchor for the bottom row ---------- */
+.app-shell { --dock-x: 50%; }
+@media (min-width: 851px) {
+  .app-shell:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
+  .studio-inspector-open { --dock-x: calc((100% - var(--inspector-width) - var(--gutter)) / 2); }
+  .studio-inspector-open:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
+  .app-shell .create-dock, .app-shell .tool-picker { left: var(--dock-x); }
+}
+/* Selection actions float as one island just above the dock, like Figma's selection bar. */
+.zone-selection, .group-selection {
+  position: absolute; top: auto; bottom: 84px; z-index: 12; height: 36px; padding: 0 12px; gap: 8px;
+  font-size: 12px; font-weight: 500; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--edge); box-shadow: var(--elev-2); color: var(--ink);
+  animation: island-in var(--dur) var(--ease-out);
+}
+.zone-selection { left: calc(var(--dock-x) - 4px); transform: translateX(-100%); }
+.group-selection { left: calc(var(--dock-x) + 4px); }
+.zone-selection:hover, .group-selection:hover { background: var(--surface-2); border-color: var(--edge-strong); }
+.zone-selection > svg, .group-selection > svg { color: var(--accent); }
+
+/* ---------- Living borders: pulse only when the state is real ----------
+   Working breathes cool and quiet. Attention paints the whole card warm:
+   an approval request calls (pulses), a finished turn waits (steady). */
+.canvas-node::after {
+  content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none; border-radius: inherit; opacity: 0;
+  box-shadow: inset 0 0 0 1.5px var(--pulse, transparent), inset 0 0 26px -8px var(--pulse, transparent);
+  transition: opacity var(--dur) var(--ease-out);
+}
+.canvas-node { transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.canvas-node.pulse-working { --pulse: var(--working); border-color: color-mix(in srgb, var(--working) 32%, var(--hairline-strong)); }
+.canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); border-color: color-mix(in srgb, var(--attention) 70%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--attention) 30%, transparent), 0 18px 48px -18px color-mix(in srgb, var(--attention) 55%, transparent), var(--elev-2); }
+.canvas-node:is(.pulse-attention, .pulse-turn) > .node-header { background: color-mix(in srgb, var(--attention) 16%, transparent); }
+.canvas-node:is(.pulse-attention, .pulse-turn) .pt-card-identity { background: color-mix(in srgb, var(--attention) 9%, transparent); }
+.canvas-node.pulse-error { --pulse: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+.canvas-node.pulse-error > .node-header { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.canvas-node.pulse-working::after { animation: pulse-breathe 2.8s ease-in-out infinite; }
+.canvas-node.pulse-attention::after { animation: pulse-call 1.3s var(--ease-out) infinite; }
+.canvas-node.pulse-turn::after { opacity: .9; }
+.canvas-node.pulse-error::after { animation: pulse-flash .8s var(--ease-out) 3 forwards; }
+.canvas-node.focused::after { inset: 0; }
+@keyframes pulse-breathe { 0%, 100% { opacity: .1; } 50% { opacity: .55; } }
+@keyframes pulse-call { 0% { opacity: .4; } 30% { opacity: 1; } 100% { opacity: .4; } }
+@keyframes pulse-flash { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: .75; } }
+/* The same signal echoes on the panel's status dot in the rail and headers. */
+.terminal-activity-status.warning i { animation: dot-call 1.4s var(--ease-out) infinite; }
+@keyframes dot-call { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 60%, transparent); } 60% { box-shadow: 0 0 0 4px transparent; } }
+
+/* ---------- Zones: named areas on the canvas ---------- */
+.canvas-zone {
+  --zone: var(--c-iris);
+  position: absolute; pointer-events: none; border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--zone) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--zone) 26%, transparent);
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.zone-mint { --zone: var(--c-mint); } .zone-amber { --zone: var(--c-sand); } .zone-rose { --zone: var(--c-rose); } .zone-slate { --zone: var(--c-slate); }
+.canvas-zone.selected { border-color: var(--zone); outline: 1.5px solid color-mix(in srgb, var(--zone) 60%, transparent); outline-offset: 3px; }
+.canvas-zone.is-dragging { background: color-mix(in srgb, var(--zone) 10%, transparent); }
+.zone-label {
+  position: absolute; left: 0; bottom: calc(100% + var(--s-2)); display: flex; align-items: center; gap: var(--s-2);
+  height: 28px; padding: 0 var(--s-2) 0 var(--s-2); border-radius: var(--r-sm); pointer-events: auto; cursor: grab; white-space: nowrap; user-select: none;
+  background: color-mix(in srgb, var(--zone) 14%, var(--bg)); color: color-mix(in srgb, var(--zone) 70%, var(--ink));
+  font-size: 12px; font-weight: 600; letter-spacing: -.01em;
+  transform: scale(var(--map-label-scale, 1)); transform-origin: bottom left;
+}
+.zone-label:active { cursor: grabbing; }
+.zone-swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--zone); flex-shrink: 0; }
+.zone-swatch:hover { box-shadow: var(--elev-1); scale: 1.2; }
+.zone-title { color: inherit; font: inherit; padding: 0; }
+.zone-title:hover { color: var(--ink); }
+.zone-count { font-size: 11px; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; }
+.zone-label .inline-name-input { height: 22px; width: 160px; font-size: 12px; }
+.canvas-zone .zone-resize { pointer-events: auto; opacity: 0; }
+.canvas-zone.selected .zone-resize { opacity: .85; }
+.minimap-node.type-zone { fill: transparent; stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-dasharray: 3 2; }
+
+/* ---------- Spaces: pages of a project in the rail ---------- */
+.rail-spaces { margin-top: var(--s-4); flex-shrink: 0; }
+.space-list { display: flex; flex-direction: column; gap: 2px; max-height: 172px; overflow: auto; }
+.space-row { display: flex; align-items: center; border-radius: var(--r-sm); transition: background var(--dur-fast) var(--ease-out); }
+.space-row:hover, .space-row.active { background: var(--surface-2); }
+.space-select { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s-3); height: 32px; padding: 0 var(--s-2); font-size: 12px; color: var(--muted); text-align: left; }
+.space-row.active .space-select { color: var(--ink); font-weight: 500; }
+.space-select i { width: 6px; height: 6px; border-radius: 50%; background: var(--edge-strong); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out); }
+.space-row.active .space-select i { background: var(--accent); }
+.space-select span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.space-select small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.space-remove { display: grid; place-items: center; width: 24px; height: 24px; margin-right: var(--s-1); border-radius: var(--r-xs); color: var(--muted); opacity: 0; }
+.space-row:hover .space-remove, .space-remove:focus-visible { opacity: 1; }
+.space-remove:hover { color: var(--ink); background: var(--edge); }
+.space-input { width: 100%; height: 32px; padding: 0 var(--s-2); border-radius: var(--r-sm); border: 1px solid var(--accent); background: var(--bg); color: var(--ink); font-size: 12px; }
+.rail-collapsed-project em { font-style: normal; font-weight: 500; color: var(--muted); }
+.rail-panels { margin-top: var(--s-4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node.pulse-working::after, .canvas-node.pulse-attention::after, .canvas-node.pulse-error::after { animation: none; opacity: .8; }
+  .canvas-node.pulse-working::after { opacity: .4; }
+  .terminal-activity-status.warning i, .zone-selection, .group-selection { animation: none; }
+}
+
+/* ---------- Panels float off the map ----------
+   Every panel is a slab lifted above the canvas: a lit top edge, a tight
+   contact shadow and a long soft one, so the map reads as the floor below.
+   Selection lifts it further; dragging already uses --elev-lift. */
+.canvas-node:not(.focused):not(.is-dragging) { box-shadow: var(--elev-1); }
+
+/* =====================================================================
+   Night glass (2026-11-11)
+   The chrome is frosted glass over the canvas, as on the desktop it runs
+   on: translucent indigo, a white hairline, one soft shadow. Working planes
+   (terminal, thread, tool bodies) stay opaque. Controls are flat fills on
+   one white-alpha ladder (--fill…); radii are concentric: an island's radius
+   is its inner control radius plus its padding.
+   ===================================================================== */
+.lucide { stroke-width: 1.75px; }
+* { scrollbar-color: var(--scroll-thumb) transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: 99px; }
+::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
+kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2); color: var(--muted); font-size: 10.5px; }
+.tw-inspector, .tw-tool-panel, .tw-palette, .tw-voice, .tw-button, .plugin-surface { font-family: inherit; }
+
+/* ---------- Glass islands ---------- */
+.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
+.canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
+.context-menu, .toast, .canvas-busy, .zone-selection, .group-selection, .activity-tray, .attention-tray {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: inset 0 1px 0 #ffffff0f, var(--elev-2);
+}
+/* Reading planes are thicker glass: what is behind tints them, never shows through. */
+.project-rail, .inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background: var(--glass-thick); }
+.tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: inset 0 1px 0 #ffffff0f, var(--elev-3); }
+.connection-error { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); background: color-mix(in srgb, var(--error-bg) 86%, transparent); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+
+/* ---------- Buttons ---------- */
+.button { height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-sm); background: var(--fill-2); font-weight: 550; transition: background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
+.button:hover { background: var(--fill-3); border: 0; }
+.button:active:not(:disabled) { scale: .98; }
+.button.primary, .tw-button.tw-primary { background: var(--accent); color: var(--primary-ink); border-color: transparent; }
+.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 14%); }
+.icon-button { border-radius: var(--r-sm); transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.icon-button:hover { background: var(--fill-2); color: var(--ink); }
+.icon-button.active { background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- Rail ---------- */
+@media (min-width: 851px) { .project-rail { border-radius: var(--r-xl); padding: 12px 10px 10px; } .rail-collapsed .project-rail { border-radius: var(--r-lg); } }
+.brand { font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
+.brand > span:last-of-type > span { font-size: 11px; font-weight: 450; letter-spacing: 0; margin-top: 1px; }
+.brand-mark { border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); }
+.rail-heading { padding: 0 8px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--muted); }
+.rail-heading button { border-radius: 7px; }
+.rail-heading button:hover { background: var(--fill-2); color: var(--ink); }
+.project-list { gap: 2px; }
+.project-item { gap: 10px; padding: 6px 8px; border-radius: var(--r-md); color: var(--muted); }
+.project-item:hover { background: var(--fill); }
+.project-item.active { background: var(--fill-2); color: var(--ink); }
+.project-item strong { font-size: 13px; font-weight: 550; letter-spacing: -.005em; }
+.project-item small { font-size: 11px; margin-top: 2px; color: var(--muted); opacity: .85; }
+.project-initials { width: 30px; height: 30px; border-radius: var(--r-sm); background: var(--fill-2); color: var(--muted); font-size: 10.5px; font-weight: 650; }
+.project-item.active .project-initials { background: var(--accent); color: var(--primary-ink); }
+.project-active-dot { display: none; }
+.open-folder, .studio-appearance-button, .rail-map-action, .rail-bottom > button { min-height: 32px; border-radius: var(--r-sm); font-size: 12.5px; }
+.open-folder:hover, .studio-appearance-button:hover, .studio-appearance-button.active, .rail-map-action:hover, .rail-bottom > button:hover { background: var(--fill-2); color: var(--ink); }
+.studio-appearance-button { background: none; }
+.studio-appearance-button small { font-size: 11px; margin-top: 1px; }
+.rail-bottom { border-top-color: var(--hairline); }
+.host-indicator { font-size: 11px; padding: 2px 8px 10px; gap: 8px; }
+.host-indicator i { width: 6px; height: 6px; background: var(--success); }
+.rail-panel-row { margin: 1px 0; border-radius: var(--r-sm); }
+.rail-panel-row:hover { background: var(--fill); }
+.rail-panel-row > button:first-child { gap: 10px; padding: 7px 8px; font-size: 12.5px; }
+.rail-panel-row.selected { background: var(--accent-soft); color: var(--ink); }
+.rail-panel-row.selected > button:first-child > svg { color: var(--accent); }
+.rail-panel-focus { border-radius: 7px; }
+.rail-panel-label .terminal-activity-status { font-size: 10.5px; }
+.rail-empty { font-size: 12px; }
+.space-row { border-radius: var(--r-sm); }
+.space-row:hover { background: var(--fill); }
+.space-row.active { background: var(--fill-2); }
+.space-select { font-size: 12.5px; gap: 10px; }
+.space-select i { background: var(--fill-3); }
+.space-input { border-radius: var(--r-sm); background: var(--fill); }
+.rail-collapsed-project:hover { background: var(--fill-2); }
+
+/* ---------- Top bar ---------- */
+.workspace-identity, .header-controls, .activity-notch, .focus-return { border-radius: var(--r-lg); }
+.breadcrumb { font-size: 12px; gap: 7px; }
+.breadcrumb > button, .project-name-editor > button { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+.workspace-path { font-size: 11px; }
+.path-badge { background: var(--fill-2); border-radius: 99px; padding: 2px 7px; }
+.search-command { height: 32px; padding: 0 8px 0 11px; border: 0; border-radius: var(--r-sm); background: var(--fill); font-size: 12px; color: var(--muted); transition: background-color var(--dur-fast) var(--ease-out); }
+.search-command:hover { background: var(--fill-2); color: var(--ink); }
+.save-state { font-size: 11px; }
+.activity-notch { font-size: 12px; transition: background-color var(--dur-fast) var(--ease-out); }
+.activity-notch:hover, .activity-notch[aria-expanded=true] { background: var(--glass-thick); border-color: var(--hairline-strong); }
+.attention-button i { top: 5px; right: 6px; width: 6px; height: 6px; }
+.focus-return { font-size: 12px; }
+.focus-return button { font-size: 12px; }
+
+/* ---------- Canvas panels ---------- */
+.canvas-node { border-radius: var(--r-lg); border-color: var(--hairline-strong); }
+.canvas-node:not(.focused):not(.is-dragging) { border-top-color: var(--hairline-strong); box-shadow: var(--elev-1); }
+.canvas-node:hover:not(.focused):not(.selected) { border-color: color-mix(in srgb, #fff 22%, transparent); }
+.canvas-node.selected { border-color: var(--accent); outline: 3px solid color-mix(in srgb, var(--accent) 26%, transparent); outline-offset: 0; }
+.canvas-node.selected:not(.focused):not(.is-dragging) { box-shadow: var(--elev-2); }
+.canvas-node.focused { border-color: var(--hairline-strong); outline: 0; }
+.canvas-node > .node-header { height: 44px; min-height: 44px; padding: 0 8px 0 12px; gap: 10px; background: var(--surface); border-bottom-color: var(--hairline); border-radius: calc(var(--r-lg) - 1px) calc(var(--r-lg) - 1px) 0 0; }
+.node-header .title-button { font-size: calc(12.5px * var(--map-label-scale, 1)); font-weight: 600; letter-spacing: -.01em; }
+.node-glyph { --hue: var(--muted); display: grid; place-items: center; flex-shrink: 0; width: calc(24px * var(--map-label-scale, 1)); height: calc(24px * var(--map-label-scale, 1)); border-radius: calc(7px * var(--map-label-scale, 1)); background: color-mix(in srgb, var(--hue) 15%, transparent); color: var(--hue); }
+.node-glyph > svg { width: calc(14px * var(--map-label-scale, 1)); height: calc(14px * var(--map-label-scale, 1)); }
+.node-glyph[data-type="terminal"] { --hue: var(--accent); }
+.node-glyph[data-type="browser"] { --hue: #7da8ff; }
+.node-glyph[data-type="note"] { --hue: #f5cf8a; }
+.node-header .icon-button { border-radius: 8px; }
+.node-header .icon-button:hover { background: var(--fill-2); }
+.mission-chip { border-radius: 99px; padding: 3px 8px; font-size: 10.5px; background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.note-editor { padding: 16px 18px; line-height: 1.65; }
+.inline-name-input, .node-title input, .project-name-editor .inline-name-input { border-radius: 7px; background: var(--fill); border-color: var(--accent); }
+.canvas-zone { border-radius: var(--r-xl); }
+.zone-label { border-radius: 99px; padding: 0 12px 0 10px; }
+
+/* ---------- Dock ---------- */
+.dock-main { height: 56px; padding: 8px; gap: 2px; border-radius: 20px; }
+.dock-main button { height: 40px; padding: 0 13px; gap: 8px; border-radius: var(--r-md); font-size: 12.5px; font-weight: 550; color: var(--muted); }
+.dock-main button:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.dock-main button:active:not(:disabled) { background: var(--fill-3); }
+.dock-main button:first-of-type { background: var(--accent-soft); color: var(--accent); }
+.dock-main button:first-of-type:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--accent); }
+.dock-main button.active { background: var(--fill-3); color: var(--ink); }
+.dock-main > i { background: var(--hairline-strong); margin: 0 6px; }
+.canvas-navigation { border-radius: var(--r-lg); }
+.canvas-navigation button { border-radius: var(--r-sm); }
+.canvas-navigation button:hover, .canvas-navigation button[aria-expanded="true"] { background: var(--fill-2); color: var(--ink); }
+.canvas-navigation button[aria-pressed="true"] { background: var(--fill-3); color: var(--ink); }
+.canvas-navigation > i { background: var(--hairline-strong); }
+.canvas-minimap { border-radius: var(--r-lg); }
+.zone-selection, .group-selection { border-radius: 99px; padding: 0 14px; }
+.zone-selection:hover, .group-selection:hover { background: var(--glass-thick); border-color: var(--hairline-strong); }
+
+/* ---------- Tool picker: a launcher ---------- */
+.tool-picker { width: 580px; max-width: calc(100% - 24px); border-radius: var(--r-xl); }
+.popover-heading { padding: 14px 12px 10px 18px; border-bottom: 0; font-size: 13px; }
+.tool-search { display: flex; align-items: center; gap: 9px; height: 36px; margin: 0 12px 6px; padding: 0 11px; border-radius: var(--r-sm); background: var(--fill); color: var(--muted); flex-shrink: 0; }
+.tool-search:focus-within { background: var(--fill-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.tool-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; font-size: 13px; outline: none; }
+.tool-picker-list { display: block; padding: 2px 8px 10px; overflow: auto; }
+.tool-group h3 { margin: 0; padding: 12px 10px 5px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.tool-item { --hue: var(--muted); display: flex; align-items: center; gap: 11px; min-width: 0; padding: 7px 10px 7px 8px; border-radius: var(--r-md); text-align: left; transition: background-color var(--dur-fast) var(--ease-out); }
+.tool-item:hover:not(:disabled), .tool-item:focus-visible { background: var(--fill-2); }
+.tool-item:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.tool-tile { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--hue) 15%, transparent); color: var(--hue); }
+.tool-item > span:last-child { min-width: 0; flex: 1; }
+.tool-item strong { display: block; font-size: 13px; font-weight: 550; color: var(--ink); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tool-item small { display: block; margin-top: 1px; font-size: 11.5px; line-height: 1.4; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+[data-group="space"] { --hue: var(--accent); }
+[data-group="project"] { --hue: #7da8ff; }
+[data-group="automation"] { --hue: #f5cf8a; }
+[data-group="phantom"] { --hue: #7aeec4; }
+@media (max-width: 700px) { .tool-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Menus, index, toasts ---------- */
+.context-menu { width: 248px; padding: 6px; border-radius: var(--r-lg); font-size: 12.5px; }
+.context-title { padding: 6px 9px 7px; font-size: 11px; }
+.context-menu > button { gap: 10px; min-height: 30px; padding: 0 9px; border-radius: var(--r-sm); }
+.context-menu > button:hover { background: var(--fill-2); color: var(--ink); }
+.context-menu > button > svg { color: var(--muted); }
+.context-menu > button.danger > svg { color: inherit; }
+.context-menu > button.danger:hover { background: var(--error-bg); color: var(--danger); }
+.context-menu hr { border-top-color: var(--hairline); margin: 5px 9px; }
+.panel-index { border-radius: var(--r-xl); }
+.index-search { height: 36px; margin: 0 12px 8px; border: 0; border-radius: var(--r-sm); background: var(--fill); }
+.index-search input { font-size: 13px; }
+.index-item { margin: 0 8px; padding: 0 4px; border-bottom: 0; border-radius: var(--r-sm); }
+.index-item:hover { background: var(--fill-2); }
+.index-item strong { font-size: 13px; }
+.index-type { font-size: 11px; }
+.index-footer { border-top-color: var(--hairline); font-size: 11px; }
+.toast { border-radius: var(--r-lg); padding: 11px 10px 11px 14px; font-size: 12.5px; }
+.canvas-busy { border-radius: 99px; padding: 9px 15px 9px 13px; font-size: 12px; }
+.canvas-popover { border-radius: var(--r-lg); }
+.canvas-popover > button, .canvas-popover-heading button { border-radius: var(--r-sm); }
+.canvas-popover button:hover { background: var(--fill-2); }
+.canvas-popover kbd { background: var(--fill-2); border-radius: 6px; }
+.canvas-zoom-presets { border-top-color: var(--hairline); }
+.canvas-zoom-presets button { background: var(--fill); border-radius: var(--r-sm); }
+.canvas-zoom-presets button:hover { background: var(--fill-3); color: var(--ink); }
+.canvas-popover dt, .canvas-popover dd { font-size: 12px; }
+
+/* ---------- Command palette: spotlight ---------- */
+.app-modal-backdrop, .tw-overlay { background: #07061099; }
+.tw-palette, .tw-voice, .app-dialog { background: var(--glass-thick); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline-strong); border-radius: var(--r-xl); box-shadow: inset 0 1px 0 #ffffff12, 0 4px 10px #0005, 0 40px 90px -24px #000; }
+.tw-palette { width: min(640px, 100%); }
+.tw-palette-search { gap: 12px; padding: 8px 12px 8px 20px; min-height: 60px; border-bottom-color: var(--hairline); }
+.tw-palette-search > svg { color: var(--muted); }
+.tw-palette-search > input { padding: 4px 0; border: 0; background: none; font-size: 17px; font-weight: 400; letter-spacing: -.01em; }
+.tw-palette-search > input:focus-visible { outline: 0; }
+.tw-palette-context { padding: 12px 20px 6px; }
+.tw-palette-results { padding: 0 8px 8px; }
+.tw-palette-results li button { min-height: 42px; padding: 8px 12px; border-radius: var(--r-md); }
+.tw-palette-results li[aria-selected="true"] button { background: var(--fill-2); color: var(--ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent); }
+.tw-palette-results li[aria-selected="true"] small { color: var(--muted); }
+.app-dialog > label input { height: 36px; border: 0; border-radius: var(--r-sm); background: var(--fill); }
+.dialog-actions { background: none; border-top: 1px solid var(--hairline); }
+
+/* ---------- Inspector and tool bodies ---------- */
+.inspector-host { border-radius: var(--r-xl); }
+.inspector-switcher { border-bottom-color: var(--hairline); padding: 10px 10px 10px 12px; }
+.inspector-switcher select { height: 32px; padding: 0 10px; border-radius: var(--r-sm); background: var(--fill); font-size: 13px; }
+.tw-inspector, .tw-tool-panel { background: transparent; scrollbar-color: var(--scroll-thumb) transparent; }
+.canvas-node .tw-tool-panel { background: var(--surface); }
+.tw-inspector { border-inline-start: 0; }
+.tw-section + .tw-section, .tw-item, .tw-list-row, .tw-table th, .tw-table td, .tw-target, .inc-section, .inc-item, .activity-row, .activity-tray-scroll > section, .activity-footer, .cc-task, .cc-events li, .cc-detail, .plugin-entry { border-color: var(--hairline); }
+.tw-inspector-header h2, .tw-section h3, .tw-voice h2 { font-weight: 600; letter-spacing: -.015em; }
+.tw-field > label { font-weight: 550; }
+.tw-field > input, .tw-field > select, .tw-field > textarea, .plugin-surface input:not([type=checkbox]), .plugin-surface select, .plugin-surface textarea, .plugin-preference select, .cc-filters select, .cc-filters input, .agent-editor input, .agent-editor select, .activity-base input {
+  border: 1px solid transparent; border-radius: var(--r-sm); background: var(--fill); transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.tw-field > input:hover, .tw-field > select:hover, .tw-field > textarea:hover { background: var(--fill-2); }
+.tw-field > input:focus-visible, .tw-field > select:focus-visible, .tw-field > textarea:focus-visible, .agent-editor input:focus-visible, .agent-editor select:focus-visible { outline: 0; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.tw-field input[type="file"]::file-selector-button { border: 0; border-radius: 7px; background: var(--fill-3); }
+.tw-button { border-color: transparent; border-radius: var(--r-sm); background: var(--fill-2); font-weight: 550; }
+.tw-button:hover:not(:disabled) { background: var(--fill-3); border-color: transparent; }
+.tw-button:active:not(:disabled) { background: var(--fill-3); }
+.tw-tabs { gap: 2px; padding: 2px; margin-bottom: 14px; border-radius: 10px; background: var(--fill); width: fit-content; max-width: 100%; }
+.tw-tabs .tw-button { min-height: 26px; padding: 3px 11px; border-radius: 8px; background: none; color: var(--muted); }
+.tw-tabs .tw-button:hover:not(:disabled) { background: none; color: var(--ink); }
+.tw-tabs .tw-button[aria-pressed="true"] { background: var(--segment); border-color: transparent; color: var(--ink); box-shadow: 0 1px 2px #0005; }
+.tw-badge { padding: 2px 8px; border-radius: 99px; background: var(--fill-2); }
+.tw-code { border: 0; border-radius: var(--r-md); background: var(--terminal-bg); color: var(--terminal-ink); font-family: var(--mono); }
+.tw-field > .tw-code-input { font-family: var(--mono); }
+.tw-error, .tw-warning { border: 0; border-radius: var(--r-md); padding: 10px 12px; }
+.tw-error { background: var(--error-bg); color: var(--danger); }
+.tw-warning { background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
+.tw-details > summary { color: var(--ink); }
+.tw-step { border-inline-start-color: var(--hairline-strong); }
+.tw-action-editor { border-color: var(--hairline); border-radius: var(--r-md); }
+.tw-table th { background: none; }
+.plugin-surface .tw-section, .plugin-surface .tw-item { border-color: var(--hairline); border-radius: var(--r-md); background: var(--fill); }
+.plugin-surface .plugin-board-column { background: var(--fill); border-radius: var(--r-md); }
+.inc-now { border-radius: var(--r-sm); }
+.inc code, .inc-files ul, .cc-section pre { font-family: var(--mono); }
+.inline-error { background: var(--error-bg); color: var(--danger); }
+
+/* ---------- Activity ---------- */
+.activity-tray { border-radius: var(--r-xl); }
+.activity-tray button:not(.icon-button) { border: 0; border-radius: 99px; padding: 5px 11px; background: var(--fill-2); }
+.activity-tray button:not(:disabled):hover { background: var(--fill-3); }
+.activity-tray button.activity-link { padding: 0; background: none; border-radius: 4px; }
+.activity-tray button.activity-link:hover { background: none; text-decoration: underline; text-underline-offset: 3px; }
+.terminal-activity-status i { width: 6px; height: 6px; }
+
+/* ---------- Appearance ---------- */
+.appearance-panel h2 { font-weight: 600; }
+.background-option { border-color: var(--hairline); border-radius: var(--r-md); padding: 5px 5px 9px; }
+.background-option:hover { border-color: var(--hairline-strong); background: var(--fill); }
+.background-option[aria-pressed=true] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.background-option[aria-pressed=true] > svg { color: var(--accent); }
+.background-preview { border-radius: 8px; }
+.background-upload { border: 1px dashed var(--hairline-strong); border-radius: var(--r-md); }
+.accent-options button { border-radius: var(--r-sm); }
+.accent-options button:hover, .accent-options button[aria-pressed=true] { background: var(--fill-2); }
+.grid-toggle, .appearance-footer { border-top-color: var(--hairline); }
+
+/* ---------- First run ---------- */
+.empty-symbol { width: 64px; height: 64px; border-radius: 18px; background: var(--accent-soft); color: var(--accent); }
+.canvas-empty h1, .canvas-empty h2 { font-size: 26px; font-weight: 600; letter-spacing: -.03em; }
+.canvas-empty p { font-size: 13.5px; line-height: 1.65; }
+.canvas-empty .button { height: 38px; padding: 0 18px; border-radius: 99px; }
+.empty-hint { font-size: 11px; }
+.desktop-required .app-mark { border-radius: 16px; }
+
+/* ---------- Agent identity editor ---------- */
+.agent-editor { background: var(--surface-2); border: 1px solid var(--hairline-strong); }
+
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; }
+}
+
+/* Focus bar and activity pill never wrap or clip their leading icon. */
+.focus-return { max-width: 340px; }
+.focus-return button { white-space: nowrap; flex-shrink: 0; }
+.studio-focused .workspace-identity { flex: 0 0 340px; }
+.activity-notch { justify-content: flex-start; }
+/* Narrow desktop with the rail open: view controls sit above the dock row instead of under it. */
+@media (min-width: 851px) and (max-width: 1180px) {
+  .app-shell:not(.rail-collapsed):not(.studio-focused) .canvas-navigation { bottom: 84px; }
+  .app-shell:not(.rail-collapsed):not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: 144px; }
+}
+
+/* =====================================================================
+   Proporción y aire (2026-11-11)
+   Fewer boxes. The rail and inspector are docked planes that meet the window
+   edge; the top bar is one strip that shares a single seam with the rail.
+   Only things that genuinely float over the canvas (dock, view controls,
+   minimap, popovers) stay islands. Inside a plane, grouping is spacing and
+   hairlines — never another bordered box.
+   ===================================================================== */
+:root { --bar: 52px; }
+
+@media (min-width: 851px) {
+  /* Rail: a docked plane, not a floating card. */
+  .app-shell:not(.rail-collapsed) .project-rail {
+    left: 0; top: 0; bottom: 0; width: var(--rail-width);
+    padding: 0 12px 12px; border: 0; border-right: 1px solid var(--hairline); border-radius: 0;
+    box-shadow: none;
+  }
+  /* Brand row is exactly the top bar's height, so the two share one seam. */
+  .app-shell:not(.rail-collapsed) .brand {
+    height: var(--bar); flex-shrink: 0; margin: 0 -12px 16px; padding: 0 12px 0 18px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  /* Collapsed: the rail shrinks to its top cell, still part of the bar. */
+  .rail-collapsed .project-rail {
+    left: 0; top: 0; bottom: auto; width: var(--rail-width); max-width: none; height: var(--bar);
+    padding: 0 10px 0 12px; border: 0; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+    border-radius: 0; box-shadow: none;
+  }
+  .rail-collapsed .rail-collapsed-project { flex: 1; min-width: 0; }
+
+  /* Top bar: one strip. Its children are regions, not islands. */
+  .workspace-header, .rail-collapsed .workspace-header {
+    top: 0; left: var(--rail-width); right: 0; height: var(--bar); min-height: var(--bar);
+    padding: 0 8px 0 0; gap: 0; pointer-events: auto;
+    background: var(--glass); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .workspace-identity, .activity-notch, .header-controls, .focus-return {
+    height: 100%; min-height: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .workspace-identity { padding: 0 20px; max-width: 40%; }
+  .activity-notch { padding: 0 20px; border-left: 1px solid var(--hairline); }
+  .activity-notch:hover, .activity-notch[aria-expanded=true] { background: var(--fill); border-color: var(--hairline); }
+  .header-controls { padding: 0; }
+  /* The rail already names the project; the bar keeps name + path, not a fake breadcrumb. */
+  .workspace-identity .breadcrumb > svg, .workspace-identity .breadcrumb > span { display: none; }
+
+  /* Focus mode: the return control lives in the same strip. */
+  .studio-focused:not(.rail-collapsed) .canvas-region { left: var(--rail-width); }
+  .focus-return { top: 0; left: 0; height: var(--bar); max-width: 340px; padding: 0 20px; z-index: 29; }
+
+  /* Inspector: docked to the right edge under the bar, mirroring the rail. */
+  .inspector-host {
+    top: var(--bar); right: 0; bottom: 0; width: var(--inspector-width);
+    border: 0; border-left: 1px solid var(--hairline); border-radius: 0; box-shadow: none;
+  }
+  .studio-focused.studio-inspector-open .canvas-region { right: var(--inspector-width); }
+  .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--inspector-width) + var(--gutter)); }
+
+  /* Overlays that measured from the old floating bar. */
+  .canvas-busy, .connection-error { top: calc(var(--bar) + var(--gutter)); }
+  .attention-tray { top: calc(var(--bar) + 8px); }
+
+  /* Centre floating chrome on the free canvas. */
+  .app-shell:not(.rail-collapsed) .create-dock,
+  .app-shell:not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100%) / 2); }
+  .studio-inspector-open:not(.rail-collapsed) .create-dock,
+  .studio-inspector-open:not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
+  .studio-inspector-open.rail-collapsed .create-dock,
+  .studio-inspector-open.rail-collapsed .tool-picker { left: calc((100% - var(--inspector-width)) / 2); }
+}
+
+/* Rail rows: one quiet list. No filled tile for an action that is not a selection. */
+.studio-appearance-button { background: transparent; }
+
+/* Bottom row: one baseline and one gutter for everything that floats. */
+.create-dock, .canvas-navigation { bottom: var(--gutter); }
+.canvas-minimap, .canvas-popover { bottom: calc(var(--gutter) + 48px + 8px); }
+/* The primary action keeps its word; the rest are icons (named for AT) until
+   there is room for every label without touching the view controls. */
+@media (max-width: 1720px) {
+  .dock-main button:not(:first-of-type) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .dock-main button:not(:first-of-type) { padding: 0 11px; }
+}
+.dock-main { height: 52px; padding: 6px; border-radius: var(--r-lg); }
+
+/* Minimap: the view rectangle is a tint, not a second frame inside the frame. */
+.minimap-view { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: none; }
+

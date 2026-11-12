@@ -71,3 +71,10 @@ test('Integración exige base explícita y comparación válida; no integrada nu
   assert.equal(model.branches[1].sessions.length, 0);
   assert.equal(buildActivity({ workspace: { nodes }, git: { branches: git.branches } }).unknownBranches, 2);
 });
+
+test('screen state turns a quiet agent terminal into a needs-you signal', () => {
+  assert.deepEqual(sessionState({ status: 'running', screenState: 'awaiting_approval', agentState: 'working' }), { needsYou: true, label: 'Pide tu aprobación', tone: 'warning', screen: 'awaiting_approval' });
+  assert.equal(sessionState({ status: 'running', screenState: 'awaiting_input' }).needsYou, true);
+  assert.deepEqual(sessionState({ status: 'running', screenState: 'working' }), { needsYou: false, label: 'Trabajando', tone: 'working', screen: 'working' });
+  assert.equal(sessionState({ status: 'running', screenState: 'awaiting_input' }, false).needsYou, false);
+});

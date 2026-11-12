@@ -42,6 +42,8 @@ El check `node test/command-center-desktop.mjs` usa fixtures sintéticos explíc
 - **Detener host y salir** termina los procesos propios. Tras reiniciar el sistema o perder el host se recuperan la disposición y el historial guardado, con sesiones terminadas/perdidas; un shell nuevo se inicia explícitamente.
 - El cierre espera que se guarden notas, nombres y posiciones pendientes. Si el disco/host no confirma, permite reintentar o cancelar.
 
+La acumulación de salida de una terminal no corta la conexión compartida: el host conserva la pantalla y solicita a esa vista una captura actualizada al drenar el canal. Las demás terminales conservan su conexión.
+
 ### Una terminal, un worktree
 
 - En un repositorio con commits, cada panel de terminal nuevo crea una rama `phantom/terminal-<id>` desde `HEAD` y un worktree independiente. Los cambios sin commit de la carpeta original no se copian.
@@ -51,11 +53,11 @@ El check `node test/command-center-desktop.mjs` usa fixtures sintéticos explíc
 - Los paneles, menús, inspector, diálogos y avisos tienen entrada y salida breves. La preferencia del sistema de movimiento reducido sustituye desplazamientos por un fundido suave.
 ### Dependencias de terminales en worktrees
 
-En proyectos Git, cada terminal crea o reutiliza su propio worktree. Si contiene `package.json` y `package-lock.json`, Phantom ejecuta automáticamente `npm ci --include=dev --no-audit --no-fund` antes de abrir el shell. La primera apertura puede tardar hasta cuatro minutos, con descargas y compilaciones nativas de npm. Hace falta npm en el PATH del host. La instalación es independiente por worktree: no se copia ni enlaza `node_modules` del proyecto original y la preparación no edita el manifest ni el lock.
+En proyectos Git, cada terminal crea o reutiliza su propio worktree. Si contiene `package.json` y `package-lock.json`, Phantom abre el shell en cuanto está creado el worktree y prepara sus dependencias en segundo plano con `npm ci --include=dev --no-audit --no-fund --foreground-scripts`. La terminal y los agentes están disponibles durante la instalación. Cada panel muestra el estado y la salida real de npm; los comandos del proyecto pueden necesitar que termine la instalación. La preparación puede tardar hasta cuatro minutos, con descargas y compilaciones nativas de npm. Hace falta npm en el PATH del host. La instalación es independiente por worktree: no se copia ni enlaza `node_modules` del proyecto original y la preparación no edita el manifest ni el lock.
 
 Se omiten proyectos sin Git, sin Node, sin `package-lock.json` o con indicaciones de pnpm/yarn/bun (`packageManager`, locks o workspace pnpm). El soporte inicial no incluye `npm-shrinkwrap.json`: su presencia omite la preparación incluso si también hay package-lock. Un marcador dentro de `node_modules` permite reutilizar instalaciones completas que coincidan con package, lock, plataforma, arquitectura y ABI de Node; si cambia esa huella o faltan archivos se repara la instalación gestionada. Reconectar a una sesión viva o reiniciar el host no instala nada; después de reiniciar se solicita una sesión nueva explícitamente.
 
-Si falla npm, el error muestra una salida acotada e instrucciones. La asignación del worktree se guarda **antes** de instalar: corrige el problema y vuelve a crear la sesión en la misma terminal para conservar rama y cambios. Cerrar terminal/host cancela la instalación y termina los procesos npm y sus hijos. Una instalación manual preexistente sin marcador, un marcador ilegible o un `node_modules` enlazado se conservan y bloquean la preparación: mueve o elimina explícitamente `node_modules` para autorizar la instalación. Tras un corte abrupto durante la limpieza de npm puede ser necesaria esa misma recuperación si se perdió el marcador.
+Si falla npm, la terminal permanece disponible y el panel muestra el error, una salida acotada y **Reintentar instalación**, sin reiniciar el shell ni el agente. La asignación del worktree se guarda **antes** de instalar; se conservan rama y cambios. Terminar la sesión o cerrar terminal/host cancela la instalación y termina los procesos npm y sus hijos. Una instalación manual preexistente sin marcador, un marcador ilegible o un `node_modules` enlazado se conservan y bloquean la preparación: mueve o elimina explícitamente `node_modules` para autorizar la instalación. Tras un corte abrupto durante la limpieza de npm puede ser necesaria esa misma recuperación si se perdió el marcador.
 
 Para preparar este checkout mediante la misma API idempotente:
 

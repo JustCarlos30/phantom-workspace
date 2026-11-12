@@ -1,0 +1,28 @@
+.inc { display: grid; gap: 14px; min-width: 0; }
+.tw-content .inc p, .inc p { margin: 0; overflow-wrap: anywhere; }
+.inc code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+.inc-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.inc-summary > p { display: flex; align-items: center; gap: 6px; }
+.inc-section { display: grid; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line, #d7dee8); }
+.inc-heading { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted, #526174); }
+.inc-history > summary { cursor: pointer; }
+.inc-plan { white-space: pre-wrap; }
+.inc-now { padding: 8px 10px; border-radius: var(--radius, 6px); background: var(--accent-soft, #e8eefc); }
+.inc-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.inc-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line, #d7dee8); }
+.inc-item:last-child { border-bottom: 0; }
+.inc-position { font-variant-numeric: tabular-nums; font-size: 12px; line-height: 20px; text-align: right; color: var(--muted, #526174); }
+.inc-body { display: grid; gap: 4px; min-width: 0; }
+.inc-title { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.inc-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--ink, #17202b); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.inc-link:hover, .inc-link:focus-visible { color: var(--accent, #3b5bdb); text-decoration: underline; }
+.inc-status { font-size: 11px; color: var(--muted, #526174); white-space: nowrap; }
+.inc-item[data-tone="merging"] .inc-status, .inc-item[data-tone="working"] .inc-status { color: var(--accent, #3b5bdb); }
+.inc-item[data-tone="merged"] .inc-status, .inc-item[data-tone="review"] .inc-status { color: var(--success, #2b8a3e); }
+.inc-item[data-tone="conflict"] .inc-status, .inc-item[data-tone="rejected"] .inc-status, .inc-item[data-tone="blocked"] .inc-status { color: var(--danger, #c92a2a); }
+.inc-meta, .inc-files > summary { font-size: 11px; color: var(--muted, #526174); }
+.inc-note { font-size: 12px; }
+.inc-conflict { font-size: 12px; color: var(--danger, #c92a2a); }
+.inc-overlap { font-size: 12px; color: var(--warning, #b7791f); }
+.inc-files > summary { cursor: pointer; }
+.inc-files ul { margin: 4px 0 0; padding-left: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
