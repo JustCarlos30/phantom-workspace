@@ -67,7 +67,7 @@
 .project-rail { width: 232px; height: calc(100% - 24px); margin: 12px; padding: 16px 10px 10px; background: var(--rail); color: var(--ink); border: 0; border-radius: 12px; box-shadow: var(--shadow-float); min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .brand { padding: 0 8px 22px; flex-shrink: 0; }
 .brand-mark { width: 24px; height: 30px; color: var(--ink); background: none; border-radius: 0; }
-.brand>span:last-of-type>span, .rail-heading, .project-item small, .rail-empty, .host-indicator, .rail-bottom kbd { color: var(--muted); }
+.brand>span:last-of-type>span, .rail-heading, .project-item small, .host-indicator, .rail-bottom kbd { color: var(--muted); }
 .rail-heading button { color: var(--muted); }
 .project-rail>.rail-heading { flex-shrink: 0; }
 .rail-heading button:hover, .rail-bottom>button:hover { background: var(--surface-2); }
@@ -143,9 +143,6 @@
 .mission-chip { background: #233a33; color: #a4dec4; }
 .focus-return { color: var(--muted); }
 .focus-return>span { border-color: var(--line-soft); }
-.empty-symbol { background: var(--surface-2); color: var(--muted); }
-.canvas-empty h1, .canvas-empty h2 { color: var(--ink); }
-.canvas-empty p, .empty-hint { color: var(--muted); }
 .dock-main, .canvas-navigation { background: var(--surface); box-shadow: var(--shadow-float); }
 .dock-main { height: 50px; padding: 5px 7px; border-radius: 12px; }
 .dock-main button { height: 38px; color: var(--muted); }
@@ -183,7 +180,7 @@
 .canvas-popover dl>div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 36px; }
 .canvas-popover dt { font-size: 11px; color: var(--muted); }
 .canvas-popover dd { margin: 0; font-size: 11px; text-align: right; }
-@media (min-width: 851px) and (max-width: 1100px) { .studio-inspector-open .canvas-popover { right: 362px; } }
+@media (min-width: 851px) and (max-width: 1100px) { .studio-inspector-open .canvas-popover { right: calc(var(--canvas-inspector-reserve) + 12px); } }
 @media (max-width: 850px) { .canvas-popover { right: 12px; } }
 @media (max-width: 1270px) { .canvas-navigation { top: 62px; } .canvas-popover { top: 112px; } }
 .panel-index-button { background: var(--surface); border-color: transparent; color: var(--muted); box-shadow: var(--shadow-float); }
@@ -249,8 +246,9 @@
 @media (max-width: 1270px) { .dock-label { display: none; } .create-dock { left: 50%; } }
 @media (max-width: 1100px) { .project-rail { width: 210px; } .create-dock { left: 50%; } .inspector-host { box-shadow: -12px 0 35px #0004; } }
 @media (min-width: 851px) and (max-width: 1100px) {
-  .studio-inspector-open .create-dock { left: calc((100% - 350px) / 2); }
-  .studio-inspector-open .canvas-navigation { right: 362px; }
+  .studio-inspector-open { --canvas-inspector-reserve: calc(var(--inspector-width) + var(--gutter)); }
+  .studio-inspector-open .create-dock { left: calc((100% - var(--canvas-inspector-reserve)) / 2); }
+  .studio-inspector-open .canvas-navigation { right: calc(var(--canvas-inspector-reserve) + 12px); }
 }
 @media (min-width: 851px) and (max-width: 1000px) { .studio-inspector-open .dock-main button>span { display: none; } }
 @media (max-width: 850px) { .project-rail { width: 248px; top: 12px; left: 12px; margin: 0; transform: translateX(calc(-100% - 24px)); visibility: hidden; transition: transform 180ms ease-out, visibility 180ms; } .project-rail.rail-open { visibility: visible; transform: translateX(0); } .rail-scrim { background: #070a1199; } .workspace-header { padding: 0 13px; } .create-dock { left: 50%; } .canvas-navigation { right: 12px; } }

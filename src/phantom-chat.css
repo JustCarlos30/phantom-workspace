@@ -57,12 +57,7 @@
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
 
-.phantom-chat-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: auto 0; padding: 8px 4px; }
-.phantom-chat-hero { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-lg); background: var(--pc-hue-soft); color: var(--pc-hue); }
-.phantom-chat-empty h3 { margin: 4px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
-.phantom-chat-empty p { margin: 0; color: var(--muted); line-height: 1.6; max-width: 46ch; }
-.phantom-chat-empty .pc-mono { color: var(--ink); }
-.phantom-chat-suggestions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 6px; }
+.phantom-chat-suggestions { display: flex; flex-direction: column; gap: var(--s-2); width: 100%; }
 .phantom-chat-suggestions button { text-align: left; padding: 9px 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); color: var(--ink); font-size: 12px; line-height: 1.4; transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
 .phantom-chat-suggestions button:hover:not(:disabled) { background: var(--fill); border-color: var(--pc-hue-line); }
 .phantom-chat-suggestions button:disabled { opacity: .5; cursor: not-allowed; }

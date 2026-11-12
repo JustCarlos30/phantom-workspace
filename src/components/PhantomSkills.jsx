@@ -67,7 +67,7 @@ function SkillForm({ existing, mode = 'create', workspace, api, notify, onSaved,
         <Field label="Herramientas requeridas · una por línea"><textarea className="pc-mono" rows={3} value={form.tools} onChange={e => patch('tools', e.target.value)} /></Field>
       </div>
       <Field label="Instrucciones (body)" hint="Markdown. Se mostrará formateado en la biblioteca."><textarea className="pc-mono" required rows={9} value={form.body} onChange={e => patch('body', e.target.value)} /></Field>
-      <div className="pc-form-group"><h4>Recursos</h4>{!form.resources.length && <p className="tw-muted">Sin recursos adjuntos.</p>}
+      <div className="pc-form-group"><h4>Recursos</h4>{!form.resources.length && <EmptyState size="compact" description="Sin recursos adjuntos." />}
         {form.resources.map((resource, index) => <section className="plugin-resource pc-check-edit" key={index} aria-label={`Recurso ${index + 1}`}>
           <div className="pc-form-pair">
             <Field label={`Nombre del recurso ${index + 1}`}><input required value={resource.name} onChange={e => resourcePatch(index, 'name', e.target.value)} /></Field>
@@ -163,7 +163,7 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
     source.reload();
     Promise.resolve().then(() => refresh?.()).catch(error => notify?.(`Publicación guardada; no se pudo actualizar el workspace: ${error.message}`, 'error'));
   };
-  if (!workspace?.id) return <p className="plugin-empty tw-empty">Selecciona un proyecto.</p>;
+  if (!workspace?.id) return <EmptyState className="plugin-empty tw-empty" description="Selecciona un proyecto." />;
   const unavailable = source.data?.available === false;
   const side = creating || selected;
   const showList = wide || !side;
@@ -187,9 +187,9 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
         {unavailable && <p className="sk-notice">Phantom no está disponible: {source.data.reason || 'sin motivo informado'}.</p>}
         {source.data && !unavailable && !Array.isArray(source.data.items) && <ErrorNotice error="La fuente no devolvió una biblioteca válida." retry={source.reload} />}
         {source.loading && !source.data && <div className="sk-skeleton is-list" role="status" aria-label="Leyendo Skills"><i /><i /><i /></div>}
-        {source.data && !unavailable && !items.length && <div className="sk-empty"><Sparkles size={22} /><strong>No hay Skills nativas disponibles.</strong><p>Publica la primera Skill del proyecto: instrucciones versionadas que cualquier agente puede cargar.</p><Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Publicar la primera Skill</Button></div>}
-        {items.length > 0 && !filtered.length && <div className="sk-empty"><Search size={20} /><strong>Sin resultados para esta búsqueda.</strong><button type="button" className="sk-link-button" onClick={() => { setQuery(''); setScope('all'); }}>Limpiar filtros</button></div>}
-        <div className="plugin-skill-list">{filtered.map((item, index) => {
+        {source.data && !source.loading && !source.error && !unavailable && Array.isArray(source.data.items) && !items.length && <EmptyState className="sk-empty" icon={Sparkles} title="No hay Skills nativas disponibles." description="Publica la primera Skill del proyecto: instrucciones versionadas que cualquier agente puede cargar." actions={<Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Publicar la primera Skill</Button>} />}
+        {items.length > 0 && !filtered.length && <EmptyState className="sk-empty" icon={Search} title="Sin resultados para esta búsqueda." actions={<button type="button" className="sk-link-button" onClick={() => { setQuery(''); setScope('all'); }}>Limpiar filtros</button>} />}
+        {filtered.length > 0 && <div className="plugin-skill-list">{filtered.map((item, index) => {
           const ref = exactRef(item);
           const active = Boolean(ref && refKey(exactRef(selected)) === refKey(ref));
           const id = ref?.id || item.id;
@@ -201,11 +201,12 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
               <span className="sk-row-meta"><span className="sk-chip">{ref?.scope === 'global' ? 'Global' : ref?.scope ? 'Proyecto' : 'Alcance no informado'}</span>{!ref && <span className="sk-chip is-copy">Referencia exacta no disponible</span>}</span>
             </span>
           </button>;
-        })}</div>
+        })}</div>}
       </nav>}
       {creating ? <div className="sk-detail"><SkillForm key={workspace.id} workspace={workspace} api={api} notify={notify} onSaved={published} onClose={() => setCreating(false)} /></div>
         : selected ? <SkillDetail key={`${workspace.id}:${refKey(exactRef(selected)) || selected.id}`} selection={selected} workspace={workspace} api={api} notify={notify} onOpenPanel={onOpenPanel} onPublished={published} onClose={() => setSelected(null)} />
-        : wide && items.length > 0 && <div className="sk-placeholder"><Sparkles size={22} /><p>Elige una Skill para leer sus instrucciones, recursos y versiones.</p></div>}
+        : wide && items.length > 0 && <EmptyState className="sk-placeholder" icon={Sparkles} description="Elige una Skill para leer sus instrucciones, recursos y versiones." />}
     </div>
   </div>;
 }
+import EmptyState from './EmptyState.jsx';

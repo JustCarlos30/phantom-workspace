@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
+import EmptyState from './EmptyState.jsx';
 import { PLUGIN_MANIFESTS } from '../../shared/plugins.mjs';
 import { PluginCenter } from './PluginCenter';
 import { PhantomCards } from './PhantomCards';
@@ -31,7 +32,7 @@ function Content({ type, ...props }) {
     return result;
   }, [api, panel?.id, panel?.pluginId]);
   if (type === 'plugins') return <PluginCenter {...props} />;
-  if (!workspace?.id) return <p className="tw-empty">Selecciona un proyecto.</p>;
+  if (!workspace?.id) return <EmptyState className="tw-empty" description="Selecciona un proyecto." />;
   if (!registry.data && (registry.loading || registry.error)) return <ResourceState resource={registry} />;
   if (!Array.isArray(registry.data?.items)) return <ErrorNotice error="El registro de plugins no es válido." retry={registry.reload} />;
   if (!plugin?.enabled || workspace.plugins?.[panel?.pluginId]?.enabled === false) return <section className="plugin-gate tw-section"><h3>{panel?.name || 'Panel'} · Plugin desactivado</h3><p>Activa {plugin?.name || panel?.pluginId} en el Centro de Plugins. Tus datos nativos, configuración y referencias guardadas se conservan al desactivar.</p><Button onClick={() => onOpenPanel?.('plugins')}>Abrir Centro</Button><Button onClick={registry.reload}>Actualizar estado</Button></section>;

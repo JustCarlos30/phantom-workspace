@@ -25,8 +25,8 @@
 .rail-panel-group + .rail-panel-group { margin-top: var(--s-5); }
 .rail-panel-group .rail-heading { height: 28px; padding-bottom: 4px; }
 .rail-panel-group .rail-count { font-weight: 450; }
-.rail-panel-group nav { overflow: visible; }
-.rail-panel-group .rail-empty { margin: 0; padding: 4px 8px 8px; font-size: 11px; }
+/* Cancel the legacy horizontal gutter without shifting row or empty-state text. */
+.rail-panel-group nav { overflow: visible; margin: 0; padding: 3px 0; }
 .rail-panel-row > button:first-child > svg { flex-shrink: 0; color: var(--muted); }
 .rail-panel-row .rail-panel-label { min-width: 0; }
 .rail-panel-label > span:first-child { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

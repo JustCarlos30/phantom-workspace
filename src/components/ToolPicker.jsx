@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, X } from 'lucide-react';
+import EmptyState from './EmptyState.jsx';
 
 export const TOOL_GROUPS = [['space', 'En el mapa'], ['project', 'Proyecto'], ['automation', 'Automatización'], ['phantom', 'Phantom']];
 
@@ -18,7 +19,7 @@ export default function ToolPicker({ types, disabled, onPick, onClose }) {
         <h3>{group.title}</h3>
         <div className="tool-grid">{group.items.map(([type, name, Icon, description]) => <button key={type} type="button" className="tool-item" data-group={group.id} disabled={disabled} onClick={() => onPick(type)}><span className="tool-tile" aria-hidden="true"><Icon size={17} /></span><span><strong>{name}</strong><small>{description}</small></span></button>)}</div>
       </section>)}
-      {!groups.length && <p className="small-empty">Ninguna herramienta coincide con «{query.trim()}».</p>}
+      {!groups.length && <EmptyState className="small-empty" size="compact" description={<>Ninguna herramienta coincide con «{query.trim()}».</>} />}
     </div>
   </div>;
 }

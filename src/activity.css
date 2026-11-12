@@ -14,7 +14,7 @@
 .activity-tray-scroll>section { padding: 16px 0; border-top: 1px solid var(--line-soft); }
 .activity-tray h2 { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; margin: 0 0 10px; }
 .activity-tray h2 b { margin-left: auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.activity-empty, .activity-source { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 8px 0; overflow-wrap: anywhere; }
+.activity-source { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 8px 0; overflow-wrap: anywhere; }
 .activity-source { display: flex; flex-direction: column; gap: 4px; }
 .activity-source.source-error { color: var(--danger); }
 .activity-source>button { align-self: flex-start; }

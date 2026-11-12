@@ -293,7 +293,7 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
         {custom && <button type="button" role="option" aria-selected={false} onClick={() => choose(custom)}><span>Usar <span className="pc-mono">{custom}</span></span></button>}
         {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
         {failure && <p role="alert">{failure}. Puedes escribir el nombre del modelo.</p>}
-        {catalog && !items.length && !custom && <p>Ningún modelo coincide.</p>}
+        {catalog && !items.length && !custom && <EmptyState size="compact" description="Ningún modelo coincide." />}
         {catalog?.note && <p>{catalog.note}</p>}
       </div>
     </div>}
@@ -496,16 +496,16 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
     <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
-        {!messages.length && <div className="pc-empty">
-          <h3>{chat && <ProviderTile provider={provider} />}{chat ? `Conversación nueva con ${label}` : connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</h3>
+        {!messages.length && (!connected || !chat) && <p role="status">{connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}
+        {!messages.length && connected && chat && <EmptyState className="pc-empty" icon={<ProviderTile provider={provider} />} title={`Conversación nueva con ${label}`}>
           {chat && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />}
-          {chat && <dl>
+          {chat && <dl className="pc-conversation-facts">
             <div><dt>Carpeta</dt><dd title={cwd}>{cwd}</dd></div>
             {branch && <div><dt>Rama</dt><dd>{branch}</dd></div>}
             <div><dt>Permisos</dt><dd className="is-prose">{AUTO_APPROVE[provider]?.[autoApprove ? 'on' : 'off']}</dd></div>
             <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
           </dl>}
-        </div>}
+        </EmptyState>}
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
       </div>
     </div>
@@ -534,3 +534,4 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     </form>
   </div>;
 }
+import EmptyState from './EmptyState.jsx';

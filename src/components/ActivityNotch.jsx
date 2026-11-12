@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Activity, AlertCircle, Bell, Check, ChevronDown, Gauge, GitBranch, LoaderCircle, RefreshCw, TerminalSquare, X } from 'lucide-react';
+import EmptyState from './EmptyState.jsx';
 
 export function TerminalActivityStatus({ session, compact = false }) {
   return <span className={`terminal-activity-status ${session?.tone || 'unknown'} ${compact ? 'compact' : ''}`} title={`Host · terminal.list${session?.linkedTasks?.length ? ' + Phantom · phantom.list (vínculo explícito)' : ''} · ${session?.label || 'Estado desconocido'}`}><i />{session?.label || 'Estado desconocido'}</span>;
@@ -42,15 +43,15 @@ function resetIn(iso, now) {
 function ProviderLimits({ provider, now }) {
   return <article className="activity-limit">
     <header><strong>{provider.label}</strong>{provider.plan && <span className="activity-limit-plan">{provider.plan}</span>}{provider.limitReached && <span className="activity-warning">Límite alcanzado</span>}</header>
-    {!provider.available && <p className="activity-empty">{provider.reason}</p>}
-    {provider.available && !provider.windows.length && <p className="activity-empty">El proveedor no informó ventanas de uso para este plan.</p>}
+    {!provider.available && <p className="activity-copy" role="status">{provider.reason}</p>}
+    {provider.available && !provider.windows.length && <EmptyState className="activity-empty" size="compact" description="El proveedor no informó ventanas de uso para este plan." />}
     {provider.windows.map(window => <div key={window.id} className={`activity-limit-row limit-${limitLevel(window.percent)}`}>
       <div className="activity-limit-line"><span>{window.label}</span><b>{Math.round(window.percent)}%</b></div>
       <div className="activity-limit-bar" role="meter" aria-label={`${provider.label} · ${window.label}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(window.percent)}><i style={{ width: `${Math.max(1, Math.min(100, window.percent))}%` }} /></div>
       {window.resetsAt && <small>{resetIn(window.resetsAt, now)}</small>}
     </div>)}
-    {provider.extra && <small className="activity-empty">Uso extra activo{Number.isFinite(provider.extra.percent) ? ` · ${Math.round(provider.extra.percent)}%` : ''}{Number.isFinite(provider.extra.limit) ? ` de ${provider.extra.limit} ${provider.extra.currency || ''}` : ''}</small>}
-    {provider.credits && <small className="activity-empty">Créditos: {provider.credits.balance}</small>}
+    {provider.extra && <small className="activity-copy">Uso extra activo{Number.isFinite(provider.extra.percent) ? ` · ${Math.round(provider.extra.percent)}%` : ''}{Number.isFinite(provider.extra.limit) ? ` de ${provider.extra.limit} ${provider.extra.currency || ''}` : ''}</small>}
+    {provider.credits && <small className="activity-copy">Créditos: {provider.credits.balance}</small>}
   </article>;
 }
 
@@ -105,7 +106,7 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
       {!activity.connected && <p className="activity-warning" role="status">Host desconectado. No se puede confirmar el estado actual.</p>}
       {Object.values(activity.sources).some(s => s.error) && <p className="activity-warning" role="status">Fuentes incompletas. Los datos conservados corresponden a la última lectura; su estado actual no está confirmado.</p>}
       {show('needs') && <section aria-labelledby="activity-needs"><h2 id="activity-needs"><AlertCircle size={15} />Necesitan de ti <b>{activity.needs.length}</b></h2>
-        {!activity.needs.length && <p className="activity-empty">Ninguna intervención indicada por las fuentes disponibles.</p>}
+        {!activity.needs.length && <EmptyState className="activity-empty" size="compact" description="Ninguna intervención indicada por las fuentes disponibles." />}
         {activity.needs.map(item => <article className="activity-row" key={item.key}><div><strong>{item.title || item.id}</strong><span className="activity-warning">{item.label}</span><small>{item.source}{!activity.connected ? ' · sin confirmar' : ''}</small></div>{action(item)}</article>)}
         <Source name="Phantom · phantom.list tasks" source={activity.sources.tasks} activity={activity} />
         <Source name="Host · terminal.list" source={activity.sources.sessions} activity={activity} />
@@ -116,23 +117,23 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
         <button onClick={() => navigate('branches')}>Ordenar ramas y worktrees</button>
         <form className="activity-base" onSubmit={e => { e.preventDefault(); activity.setBase(draftBase.trim()); if (activity.base === draftBase.trim()) activity.retry(); }}><label>Base explícita<input aria-label="Base de integración" value={draftBase} maxLength={512} onChange={e => setDraftBase(e.target.value)} placeholder="p. ej. main" /></label><button disabled={!activity.connected || activity.sources.git.loading}>Comparar</button></form>
         <Source name="Git · git.inspect" source={activity.sources.git} activity={activity} />
-        <p className="activity-empty">Base: {activity.sources.git.data?.base || activity.base || 'sin elegir'} · {activity.pendingBranches} no integradas · {activity.unknownBranches} desconocidas. No integrada no implica lista para merge.</p>
-        {!activity.branches.length && !activity.sources.git.loading && <p className="activity-empty">Sin ramas disponibles en esta lectura.</p>}
+        <p className="activity-copy">Base: {activity.sources.git.data?.base || activity.base || 'sin elegir'} · {activity.pendingBranches} no integradas · {activity.unknownBranches} desconocidas. No integrada no implica lista para merge.</p>
+        {!activity.branches.length && !activity.sources.git.loading && <EmptyState className="activity-empty" size="compact" description="Sin ramas disponibles en esta lectura." />}
         {activity.branches.map(branch => <article className="activity-row" key={branch.name}><div><strong>{branch.name}{branch.current ? ' · actual' : ''}</strong><span>{branch.label} · adelante {branch.ahead ?? '?'} / detrás {branch.behind ?? '?'}</span>{branch.sessions.map(s => <button className="activity-link" key={s.id} disabled={!s.nodeId} onClick={() => navigate('terminal', s.nodeId)}>Terminal vinculada: {s.title}</button>)}</div><button onClick={() => navigate('git')}>Ir a Git</button></article>)}
       </section>}
       {show('limits') && <section aria-labelledby="activity-limits"><h2 id="activity-limits"><Gauge size={15} />Límites de tus planes</h2>
         {(activity.sources.limits?.data?.providers || []).map(provider => <ProviderLimits key={provider.id} provider={provider} now={activity.now} />)}
         <Source name="Host · limits.read" source={activity.sources.limits || {}} activity={activity} />
-        <p className="activity-empty">Leído de la cuenta con la que iniciaste sesión en cada CLI. Se consulta como máximo una vez por minuto.</p>
+        <p className="activity-copy">Leído de la cuenta con la que iniciaste sesión en cada CLI. Se consulta como máximo una vez por minuto.</p>
       </section>}
       {show('all') && <section aria-labelledby="activity-sessions"><h2 id="activity-sessions"><TerminalSquare size={15} />Sesiones <b>{activity.sessionCount}{activity.unknownViews > 0 ? ` · ${activity.unknownViews} vistas sin descriptor` : ''}</b></h2>
         <Source name="Host · terminal.list" source={activity.sources.sessions} activity={activity} />
-        {!activity.sessions.length && !activity.sources.sessions.loading && <p className="activity-empty">Sin sesiones ni vistas de terminal en este proyecto.</p>}
+        {!activity.sessions.length && !activity.sources.sessions.loading && <EmptyState className="activity-empty" size="compact" description="Sin sesiones ni vistas de terminal en este proyecto." />}
         {activity.sessions.map(s => <article className="activity-row" key={s.id}><div><strong>{s.title}</strong><TerminalActivityStatus session={s} /><small>{s.hidden ? 'Vista oculta · se recupera al navegar' : 'Vista visible o historial sin panel'} · {s.id}</small>{s.linkedTasks.map(t => <button className="activity-link" key={t.id} onClick={() => navigate('tasks')}>Tarea vinculada: {t.title || t.id}</button>)}</div>{s.nodeId ? <button onClick={() => navigate('terminal', s.nodeId)}>Ir a terminal</button> : <button onClick={() => navigate('sessions')}>Ver historial</button>}</article>)}
       </section>}
       {show('notices') && <section aria-labelledby="activity-notices"><h2 id="activity-notices"><Bell size={15} />Avisos <b>{activity.unread} sin leer</b></h2>
-        <p className="activity-empty">Fuente: estado local del proyecto · {activity.workspaceReadAt ? `leído hace ${Math.max(0, Math.floor((activity.now - activity.workspaceReadAt) / 1000))} s` : 'sin lectura confirmada'} · marcar leído no aprueba ni resuelve trabajo.</p>
-        {!activity.notices.length && <p className="activity-empty">No hay avisos registrados.</p>}
+        <p className="activity-copy">Fuente: estado local del proyecto · {activity.workspaceReadAt ? `leído hace ${Math.max(0, Math.floor((activity.now - activity.workspaceReadAt) / 1000))} s` : 'sin lectura confirmada'} · marcar leído no aprueba ni resuelve trabajo.</p>
+        {!activity.notices.length && <EmptyState className="activity-empty" size="compact" description="No hay avisos registrados." />}
         {readError && <p role="alert" className="activity-warning">{readError}</p>}
         {activity.notices.map(item => <article className="activity-row" key={item.id}><div><strong>{item.title || item.id}</strong><small>{typeof item.source === 'string' ? item.source : 'Fuente desconocida'} · {item.read ? 'Leído' : 'Sin leer'}</small><div className="activity-actions">{action({ ...item, target: 'notice' })}</div></div><button disabled={item.read || !!reading || !activity.connected} onClick={async () => { setReading(item.id); setReadError(''); try { await onRead(item.id); } catch (e) { setReadError(e.message); } finally { setReading(''); } }}>{reading === item.id ? <LoaderCircle size={13} className="spinning" /> : <Check size={13} />}{item.read ? 'Leído' : 'Marcar leído'}</button></article>)}
       </section>}

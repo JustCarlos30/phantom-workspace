@@ -5,6 +5,7 @@ import Incorporaciones from './Incorporaciones.jsx';
 import { buildBranches, changeLabel, commitsText, filesText, plural, shortBranch } from '../hooks/branches-model.mjs';
 import { diffStats, layoutGraph, parseDiff, parseRefs, relativeTime } from '../hooks/repo-graph.mjs';
 import '../repository.css';
+import EmptyState from './EmptyState.jsx';
 
 // Repositorio: one place for the whole repository, laid out like a Git client.
 // Left: worktrees, branches and integrations. Center: the commit graph, plus
@@ -118,7 +119,7 @@ function DiffView({ tab, api, workspace, onEdit }) {
     </div>
     {resource.error && <ErrorNotice error={resource.error} retry={resource.reload} />}
     {resource.data?.truncated && <p className="rp-warning rp-pad-x">Diff recortado: es demasiado grande para mostrarlo entero.</p>}
-    {!resource.loading && resource.data && !body.length && <p className="rp-quiet rp-pad">{rows.some(row => /Binary files/.test(row.text)) ? 'Archivo binario: no hay diff de texto.' : 'Sin diferencias de contenido (puede ser un cambio de modo o un archivo vacío).'}</p>}
+    {!resource.loading && resource.data && !body.length && <EmptyState className="rp-quiet rp-pad" description={rows.some(row => /Binary files/.test(row.text)) ? 'Archivo binario: no hay diff de texto.' : 'Sin diferencias de contenido (puede ser un cambio de modo o un archivo vacío).'} />}
     <div className="rp-diff" role="table" aria-label={`Diff de ${tab.path}`}>
       {body.map((row, index) => <div role="row" key={index} className={`rp-diff-row is-${row.kind}`}>
         <span className="rp-ln" role="cell">{row.old ?? ''}</span><span className="rp-ln" role="cell">{row.new ?? ''}</span>
@@ -324,7 +325,7 @@ function Sidebar({ model, merge, selected, onSelectTree, onSelectCommit, onOpenI
         </li>)}</ul>
       </SideSection>
       <SideSection title="Ramas sin worktree" count={branches.length} open={open.branches} onToggle={() => toggle('branches')}>
-        {!branches.length && <p className="rp-quiet rp-side-empty">Todas las ramas locales tienen worktree.</p>}
+        {!branches.length && <EmptyState className="rp-side-empty" size="compact" description="Todas las ramas locales tienen worktree." />}
         <ul className="rp-side-list">{branches.map(row => <li key={row.id}>
           <button type="button" className={`rp-side-item${selected?.kind === 'tree' && selected.id === row.id ? ' is-selected' : ''}`} onClick={() => { onSelectTree(row.id); if (row.oid) onSelectCommit(row.oid, true); }} title={row.name}>
             <GitBranch size={13} aria-hidden="true" /><span className="rp-side-name">{row.title}</span>
@@ -334,12 +335,12 @@ function Sidebar({ model, merge, selected, onSelectTree, onSelectCommit, onOpenI
       </SideSection>
       <SideSection title="Integraciones" count={merge?.enabled ? queue.length : undefined} open={open.integrations} onToggle={() => toggle('integrations')}
         action={<button type="button" className="rp-icon is-small" title="Abrir Incorporaciones" aria-label="Abrir Incorporaciones" onClick={onOpenIntegrations}><Network size={12} /></button>}>
-        {!merge ? <p className="rp-quiet rp-side-empty">Consultando…</p> : !merge.available ? <p className="rp-quiet rp-side-empty">{merge.reason || 'No disponible'}</p> : !merge.enabled ? <button type="button" className="rp-side-item" onClick={onOpenIntegrations}><Network size={13} aria-hidden="true" /><span className="rp-side-name">Desactivado · ver cómo funciona</span></button> : <>
-          {!queue.length && <p className="rp-quiet rp-side-empty">Nada en cola.</p>}
+        {!merge ? <p className="rp-quiet rp-side-status" role="status">Consultando…</p> : !merge.available ? <p className="rp-quiet rp-side-status" role="status">{merge.reason || 'No disponible'}</p> : !merge.enabled ? <button type="button" className="rp-side-item" onClick={onOpenIntegrations}><Network size={13} aria-hidden="true" /><span className="rp-side-name">Desactivado · ver cómo funciona</span></button> : <>
+          {!queue.length && <EmptyState className="rp-side-empty" size="compact" description="Nada en cola." />}
           <ul className="rp-side-list">{queue.map(item => <li key={item.id}><button type="button" className="rp-side-item" onClick={onOpenIntegrations} title={item.summary || item.branch}>
             <span className={`rp-qpos is-${item.status}`}>{item.position ?? '·'}</span><span className="rp-side-name">{item.title}</span><span className="rp-quiet rp-side-badges">{item.status === 'merging' ? 'incorporando' : item.status === 'conflict' ? 'conflicto' : 'en cola'}</span>
           </button></li>)}</ul>
-          {merge.active?.length > 0 && <p className="rp-quiet rp-side-empty">{plural(merge.active.length, 'terminal trabajando', 'terminales trabajando')} sin solicitar</p>}
+          {merge.active?.length > 0 && <p className="rp-quiet rp-side-status">{plural(merge.active.length, 'terminal trabajando', 'terminales trabajando')} sin solicitar</p>}
         </>}
       </SideSection>
     </div>
@@ -403,7 +404,7 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
     } finally { await reloadAll(); }
   });
 
-  if (!enabled) return <p className="tw-empty">Abre una carpeta para ver su repositorio.</p>;
+  if (!enabled) return <EmptyState className="tw-empty" description="Abre una carpeta para ver su repositorio." />;
   if (!shown) return <div className="rp-root">{overview.error ? <div className="rp-pad"><ErrorNotice error={overview.error} retry={reloadAll} /></div> : <p className="rp-quiet rp-pad" role="status">Leyendo el repositorio…</p>}</div>;
   if (!shown.available) return <div className="rp-root"><div className="rp-pad"><p className="rp-warning">{shown.reason || 'Git no está disponible en esta carpeta.'}</p><button type="button" className="rp-button" onClick={reloadAll}><RefreshCw size={13} aria-hidden="true" />Reintentar</button></div></div>;
 
@@ -445,7 +446,7 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
       <aside className="rp-detail" aria-label="Detalle">
         {selected?.kind === 'commit' && <CommitDetail key={selected.oid} oid={selected.oid} api={api} workspace={workspace} graph={history} onOpenTab={openTab} onSelectCommit={selectCommit} />}
         {selectedTree && <TreeDetail tree={selectedTree} base={model.base} api={api} workspace={workspace} busy={op.busy} act={act} notice={notices[selectedTree.id]} onOpenTab={openTab} onOpenPanel={onOpenPanel} onSelectCommit={selectCommit} />}
-        {!selected && <p className="rp-quiet rp-pad">Selecciona un commit o un worktree.</p>}
+        {!selected && <EmptyState className="rp-quiet rp-pad" description="Selecciona un commit o un worktree." />}
         {selected?.kind === 'tree' && !selectedTree && <p className="rp-quiet rp-pad">Ese worktree ya no existe.</p>}
       </aside>
     </div>

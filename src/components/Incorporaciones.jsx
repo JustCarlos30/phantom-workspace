@@ -75,13 +75,13 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
 
     <section className="inc-section" aria-label="Plan del orquestador">
       <h3 className="inc-heading">Plan del orquestador</h3>
-      {data.plan ? <><p className="inc-plan">{data.plan}</p>{data.planUpdatedAt && <p className="tw-muted">Actualizado {when(data.planUpdatedAt)}</p>}</> : <p className="tw-empty">El orquestador aún no ha publicado un plan.</p>}
+      {data.plan ? <><p className="inc-plan">{data.plan}</p>{data.planUpdatedAt && <p className="tw-muted">Actualizado {when(data.planUpdatedAt)}</p>}</> : <EmptyState className="tw-empty" size="compact" description="El orquestador aún no ha publicado un plan." />}
     </section>
 
     <section className="inc-section" aria-label="Cola de incorporación">
       <h3 className="inc-heading">Cola{data.queue.length ? ` · ${data.queue.length}` : ''}</h3>
       {merging && <p className="inc-now" role="status">Incorporando ahora: <b>{merging.title}</b> en {base}</p>}
-      {!data.queue.length && <p className="tw-empty">Nada espera a ser incorporado.</p>}
+      {!data.queue.length && <EmptyState className="tw-empty" size="compact" description="Nada espera a ser incorporado." />}
       <ol className="inc-list">{data.queue.map(item => <Row key={item.id} item={item} position={item.position} status={REQUEST[item.status]} tone={item.status} focus={focus}>
         {item.summary && <p>{item.summary}</p>}
         <p className="inc-meta" title={item.branch}>{short(item.branch)}{item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''} · solicitada {when(item.requestedAt)}</p>
@@ -94,7 +94,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
 
     <section className="inc-section" aria-label="Trabajo en curso">
       <h3 className="inc-heading">En curso{data.active.length ? ` · ${data.active.length}` : ''}</h3>
-      {!data.active.length && <p className="tw-empty">Ninguna terminal tiene trabajo sin solicitar.</p>}
+      {!data.active.length && <EmptyState className="tw-empty" size="compact" description="Ninguna terminal tiene trabajo sin solicitar." />}
       <ul className="inc-list">{data.active.map(item => <Row key={item.nodeId} item={item} status={WORK[item.status] || item.status} tone={item.status} focus={focus}>
         {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
         <p className="inc-meta" title={item.branch}>{item.missing ? `${short(item.branch)} · rama no encontrada` : `${short(item.branch)} · ${item.ahead ? `${commits(item.ahead)} por incorporar` : 'sin commits nuevos'}${item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''}${item.uncommitted ? ` · ${files(item.uncommitted)} sin commitear` : ''}${item.running ? '' : ' · sin sesión activa'}`}</p>
@@ -112,3 +112,4 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     </details>}
   </div>;
 }
+import EmptyState from './EmptyState.jsx';

@@ -129,7 +129,6 @@
 .attention-tray,
 .activity-tray,
 .tw-voice,
-.empty-symbol,
 .dock-main,
 .desktop-required .app-mark { border-radius: var(--r-lg); }
 .rail-bottom kbd,
@@ -563,7 +562,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 .rail-panel-row.selected > button:first-child > svg { color: var(--accent); }
 .rail-panel-focus { border-radius: 7px; }
 .rail-panel-label .terminal-activity-status { font-size: 10.5px; }
-.rail-empty { font-size: 12px; }
 .space-row { border-radius: var(--r-sm); }
 .space-row:hover { background: var(--fill); }
 .space-row.active { background: var(--fill-2); }
@@ -748,11 +746,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 .grid-toggle, .appearance-footer { border-top-color: var(--hairline); }
 
 /* ---------- First run ---------- */
-.empty-symbol { width: 64px; height: 64px; border-radius: 18px; background: var(--accent-soft); color: var(--accent); }
-.canvas-empty h1, .canvas-empty h2 { font-size: 26px; font-weight: 600; letter-spacing: -.03em; }
-.canvas-empty p { font-size: 13.5px; line-height: 1.65; }
-.canvas-empty .button { height: 38px; padding: 0 18px; border-radius: 99px; }
-.empty-hint { font-size: 11px; }
 .desktop-required .app-mark { border-radius: 16px; }
 
 /* ---------- Agent identity editor ---------- */
