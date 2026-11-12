@@ -141,10 +141,23 @@ export function validateComments(comments, nodes) {
   }
 }
 
+// "@phantom" (or @claude, @agente) in a person's comment hands the thread to the project's agent.
+export const MENTION = /(^|[^\w@])@(phantom|claude|agente)\b/i;
+const clock = seconds => { const t = Math.floor(seconds), m = Math.floor(t / 60); return `${m}:${String(t % 60).padStart(2, '0')}`; };
+export function mentionBrief(w, comment, dataDir, cli) {
+  const number = w.comments.indexOf(comment) + 1, node = comment.nodeId ? w.nodes.find(n => n.id === comment.nodeId) : null;
+  const file = node?.type === 'reference' && node.data.file ? referencePath(dataDir, w.id, node.data.file) : null;
+  const where = node ? `${node.type === 'reference' ? `reference (${node.data.kind})` : `${node.type} panel`} "${node.title}"` : `the canvas at ${comment.x},${comment.y}`;
+  return [`The user asked you in comment thread #${number} on ${where}.`,
+    node ? `Pin at ${Math.round(comment.x * 100)}% from the left, ${Math.round(comment.y * 100)}% from the top of the panel${comment.time !== undefined ? `, at ${clock(comment.time)} (${comment.time}s) into the video` : ''}.` : '',
+    file ? `File: ${file} — read it to see what they are pointing at.` : '', node?.data?.url ? `Site: ${node.data.url}` : '', node?.data?.source ? `Source: ${node.data.source}` : '', node?.data?.note ? `Their note on this reference: ${node.data.note}` : '',
+    '', 'Thread:', ...comment.messages.map(m => `- ${m.author}: ${m.text}`), '',
+    `Do what they ask. When done, answer in the thread itself: "\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(cli)} reply ${number} "<short answer>" --author Phantom. Do not resolve it; the user does.`].filter(line => line !== '').join('\n').replace('Thread:', '\nThread:');
+}
 const message = p => ({ id: randomUUID(), text: text(p.text, 'comment text', 4000).trim(), author: p.author === undefined ? 'Tú' : text(p.author, 'comment author', 64).trim() || 'Tú', createdAt: new Date().toISOString() });
 const finite = (value, fallback) => Number.isFinite(value) ? value : fallback;
 
-export async function handleReference(method, p, { store, mutate, dataDir }) {
+export async function handleReference(method, p, { store, mutate, dataDir, mention }) {
   const w = store.getWorkspace(p.workspaceId);
   if (method === 'reference.add' || method === 'reference.link') {
     let data;
@@ -179,14 +192,21 @@ export async function handleReference(method, p, { store, mutate, dataDir }) {
   }
   if (method === 'reference.list') return w.nodes.filter(n => n.type === 'reference').map(n => ({ ...n, path: n.data.file ? referencePath(dataDir, w.id, n.data.file) : null }));
   if (method === 'comment.list') return w.comments || [];
-  if (method === 'comment.add') return mutate(w.id, () => {
+  // Hands a thread to the agent after it is saved; a failure never loses the comment.
+  const handOff = async (comment, said) => {
+    const result = structuredClone(comment);
+    if (!mention || !MENTION.test(said.text) || said.author !== 'Tú') return result;
+    try { const sent = await mention(w, comment); return { ...result, mention: sent?.queued ? 'queued' : 'sent' }; }
+    catch (error) { return { ...result, mention: 'failed', mentionError: error.message }; }
+  };
+  if (method === 'comment.add') { const made = mutate(w.id, () => {
     const node = p.nodeId ? w.nodes.find(n => n.id === p.nodeId) : null; assert(!p.nodeId || node, 'Node not found');
     const clamp01 = v => Math.min(1, Math.max(0, finite(v, .5)));
     const comment = { id: randomUUID(), nodeId: node?.id ?? null, x: node ? clamp01(p.x) : finite(p.x, 0), y: node ? clamp01(p.y) : finite(p.y, 0), ...(Number.isFinite(p.time) ? { time: Math.max(0, p.time) } : {}), ...(!node && p.spaceId ? { spaceId: p.spaceId } : {}), resolved: false, messages: [message(p)] };
     (w.comments ??= []).push(comment); return comment;
-  });
+  }); return handOff(made, made.messages[0]); }
   const comment = (w.comments || []).find(c => c.id === p.id); assert(comment, 'Comment not found');
-  if (method === 'comment.reply') return mutate(w.id, () => { comment.messages.push(message(p)); comment.resolved = false; return comment; });
+  if (method === 'comment.reply') { mutate(w.id, () => { comment.messages.push(message(p)); comment.resolved = false; }); return handOff(comment, comment.messages.at(-1)); }
   if (method === 'comment.update') return mutate(w.id, () => {
     object(p.patch); for (const key of Object.keys(p.patch)) assert(['resolved', 'x', 'y', 'text'].includes(key), 'Unsupported comment patch');
     if (p.patch.resolved !== undefined) comment.resolved = p.patch.resolved === true;

@@ -12,7 +12,7 @@ import { Branches } from './branches.mjs';
 import { createLimits } from './limits.mjs';
 import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
-import { handleReference, forgetNode } from './references.mjs';
+import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 
 function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
@@ -105,7 +105,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     });
     if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
     if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);return mutate(w.id,()=>{const current=store.getWorkspace(w.id),node=current.nodes.find(n=>n.id===p.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
-    if(method.startsWith('reference.')||method.startsWith('comment.')) return handleReference(method,p,{store,mutate,dataDir});
+    if(method.startsWith('reference.')||method.startsWith('comment.')) return handleReference(method,p,{store,mutate,dataDir,mention:(w,comment)=>chats.send(w,chats.mainNode(w),mentionBrief(w,comment,dataDir,CANVAS_CLI))});
     if(method==='terminal.create') {
       const w=store.getWorkspace(p.workspaceId); let node=p.nodeId?w.nodes.find(n=>n.id===p.nodeId):null; if(p.nodeId) assert(node?.type==='terminal','Terminal node not found');
       if(!node) node=await invoke('node.create',{workspaceId:w.id,type:'terminal'});

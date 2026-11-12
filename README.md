@@ -96,6 +96,7 @@ El canvas también es un tablero. Con el puntero sobre el lienzo:
 - Cada referencia tiene una línea «¿Qué te gusta de esta referencia?». Es lo que un agente lee junto con el archivo.
 - Las imágenes y videos conservan su proporción al redimensionar (Mayús la libera) y no se atenúan cuando otro panel está seleccionado.
 - **C** activa la herramienta de comentarios: un clic deja un pin con su hilo sobre cualquier panel (el pin sigue al panel) o sobre el lienzo. Sobre un video, el comentario guarda el momento exacto: aparece en la línea de tiempo del panel y al abrirlo el video salta ahí. Los hilos se responden, se resuelven y se pueden copiar para un agente.
+- Escribe **@phantom** (o @claude, @agente) en un comentario y el hilo se envía al chat de Phantom con el archivo, la posición del pin y el minuto. Si Phantom está ocupado, queda en su cola. El agente responde en el mismo hilo y tú decides cuándo resolverlo.
 
 Los agentes usan el mismo tablero con `scripts/canvas.mjs`:
 
@@ -104,8 +105,12 @@ node scripts/canvas.mjs board "Investigación" --from refs.json   # [{ "image": 
 node scripts/canvas.mjs add-image ./toma.png --note "encuadre" --zone "Investigación"
 node scripts/canvas.mjs refs --zone "Investigación" --json       # archivo local, fuente, nota y comentarios abiertos
 node scripts/canvas.mjs storyboard "Secuencia"                   # la zona como lista de tomas, de izquierda a derecha
+node scripts/canvas.mjs storyboard "Secuencia" --remotion ~/videos/secuencia --seconds 3 --size 1080x1920
+                                    # proyecto Remotion: npm install && npm run studio | npm run render
 node scripts/canvas.mjs comments | reply 3 "Hecho" | resolve 3
 ```
+
+En la exportación a Remotion cada referencia es una toma, en orden de lectura. Un video empieza en su primer comentario con minuto, y la nota sale como subtítulo (`--no-captions` la quita). Si vuelves a exportar a la misma carpeta, solo se reemplazan `src/shots.json` y `public/shots/`, así que tus cambios en `Storyboard.tsx` se conservan.
 
 ## Navegador del agente y automatización
 

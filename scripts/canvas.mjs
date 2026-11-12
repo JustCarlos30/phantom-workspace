@@ -26,6 +26,9 @@ Tablero de referencias (imágenes, videos, sitios) y comentarios:
   refs [--zone ZONA] [--json]           Referencias en orden de lectura: archivo local, fuente, nota
                                         ("por qué") y comentarios abiertos. Lee los archivos para verlas.
   storyboard ZONA                       La zona como lista de tomas (Markdown), de izquierda a derecha
+  storyboard ZONA --remotion CARPETA [--seconds N] [--fps N] [--size 1920x1080] [--no-captions]
+                                        Proyecto Remotion con las tomas en orden; un video empieza en
+                                        su primer comentario con minuto. Re-exportar actualiza las tomas.
   comments [--all] [--json]             Hilos de comentarios abiertos (--all incluye resueltos)
   comment ID "Texto" [--at X,Y] [--time SEG] [--author NOMBRE]   X,Y en % del panel
   reply N "Texto" [--author NOMBRE] | resolve N                  N: número del hilo
@@ -101,8 +104,8 @@ function flags(args) {
   const out = { _: [] };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (['--all', '--json', '--zones', '--dry-run'].includes(a)) out[a.slice(2)] = true;
-    else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--from', '--cols', '--at', '--time', '--author'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
+    if (['--all', '--json', '--zones', '--dry-run', '--no-captions'].includes(a)) out[a.slice(2)] = true;
+    else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--from', '--cols', '--at', '--time', '--author', '--remotion', '--seconds', '--fps', '--size'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
     else if (a.startsWith('--')) throw new Error(`Opción desconocida: ${a}\n\n${USAGE}`);
     else out._.push(a);
   }
@@ -139,6 +142,36 @@ function describeComment(c) {
   return { n: c.number, id: c.id.slice(0, 8), resolved: c.resolved, ...(c.nodeId ? { at: `${Math.round(c.x * 100)}%,${Math.round(c.y * 100)}%` } : { canvas: `${c.x},${c.y}` }), ...(c.time !== undefined ? { time: stamp(c.time), seconds: c.time } : {}), messages: c.messages.map(m => ({ author: m.author, text: m.text })) };
 }
 const commentLine = c => `#${c.n}${c.resolved ? ' (resuelto)' : ''} ${[c.at, c.time].filter(Boolean).join(' · ')} ${c.messages.map(m => `${m.author}: ${m.text}`).join(' ↳ ')}`.replace(/\s+/g, ' ');
+
+// Remotion export: a small project whose composition plays the zone's shots in
+// reading order. Media is copied into public/; the template is written once.
+const TEMPLATE = new URL('./remotion-template/', import.meta.url);
+const MARKER = '.phantom-storyboard';
+export function planShots(rows, { seconds = 3, fps = 30 } = {}) {
+  return rows.map(r => {
+    const firstMark = r.kind === 'video' ? Math.min(...r.comments.filter(c => c.seconds !== undefined).map(c => c.seconds)) : Infinity;
+    const ext = r.file ? path.extname(r.file) : '';
+    return { title: r.title, kind: r.kind, file: r.file ? `shots/${String(r.n).padStart(2, '0')}${ext}` : null, source: r.file || null, note: r.note || '', frames: Math.max(1, Math.round(seconds * fps)), startFrom: Number.isFinite(firstMark) ? Math.round(firstMark * fps) : 0, url: r.url || null };
+  });
+}
+export function exportRemotion(dir, title, rows, { seconds = 3, fps = 30, width = 1920, height = 1080, captions = true } = {}) {
+  const root = path.resolve(dir);
+  if (fs.existsSync(root) && fs.readdirSync(root).length && !fs.existsSync(path.join(root, MARKER))) throw new Error(`${root} no está vacía y no es un storyboard exportado por Phantom`);
+  const shots = planShots(rows, { seconds, fps }), fresh = !fs.existsSync(path.join(root, MARKER));
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.rmSync(path.join(root, 'public', 'shots'), { recursive: true, force: true });
+  fs.mkdirSync(path.join(root, 'public', 'shots'), { recursive: true });
+  for (const shot of shots) if (shot.source) fs.copyFileSync(shot.source, path.join(root, 'public', shot.file));
+  fs.writeFileSync(path.join(root, 'src', 'shots.json'), `${JSON.stringify({ title, fps, width, height, captions, shots: shots.map(({ source, ...shot }) => shot) }, null, 2)}\n`);
+  if (fresh) {
+    for (const name of ['index.ts', 'Root.tsx', 'Storyboard.tsx']) fs.copyFileSync(new URL(name, TEMPLATE), path.join(root, 'src', name));
+    const slug = title.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'storyboard';
+    fs.writeFileSync(path.join(root, 'package.json'), `${JSON.stringify({ name: slug, private: true, scripts: { studio: 'remotion studio src/index.ts', render: 'remotion render src/index.ts Storyboard out/storyboard.mp4' }, dependencies: { '@remotion/cli': '^4.0.0', remotion: '^4.0.0', react: '^19.0.0', 'react-dom': '^19.0.0' }, devDependencies: { typescript: '^5.6.0', '@types/react': '^19.0.0' } }, null, 2)}\n`);
+    fs.writeFileSync(path.join(root, 'tsconfig.json'), `${JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, resolveJsonModule: true, esModuleInterop: true, skipLibCheck: true } }, null, 2)}\n`);
+    fs.writeFileSync(path.join(root, MARKER), 'Exportado desde Phantom Workspace (canvas.mjs storyboard --remotion).\n');
+  }
+  return { root, shots: shots.length, seconds: shots.reduce((t, s) => t + s.frames, 0) / fps, fresh };
+}
 
 export function describe(n) {
   return { id: n.id.slice(0, 8), type: n.type, title: n.title, branch: n.data?.worktree?.branch || '', status: n.data?.agent?.status || '', x: n.x, y: n.y, width: n.width, height: n.height, hidden: !!n.data?.hidden, zone: n.type === 'zone' ? (n.data?.auto === 'canvas' ? 'auto' : 'manual') : '' };
@@ -200,6 +233,15 @@ export async function main(args = process.argv.slice(2), env = process.env, call
   }
   if (action === 'storyboard') {
     need(1); const rows = await references(ids[0]);
+    if (opt.remotion) {
+      if (!rows.length) throw new Error('La zona no tiene referencias');
+      const size = (opt.size || '1920x1080').split('x').map(Number);
+      if (size.length !== 2 || size.some(v => !Number.isInteger(v) || v < 16 || v > 7680)) throw new Error('--size ANCHOxALTO, por ejemplo 1080x1920');
+      const seconds = opt.seconds === undefined ? 3 : Number(opt.seconds), fps = opt.fps === undefined ? 30 : Number(opt.fps);
+      if (!(seconds > 0 && seconds <= 600) || !Number.isInteger(fps) || fps < 1 || fps > 120) throw new Error('--seconds entre 0 y 600, --fps entero entre 1 y 120');
+      const made = exportRemotion(opt.remotion, zoneNamed(ids[0]).title, rows, { seconds, fps, width: size[0], height: size[1], captions: !opt['no-captions'] });
+      return `${made.fresh ? 'Proyecto Remotion creado' : 'Tomas actualizadas'} en ${made.root}: ${made.shots} tomas, ${made.seconds.toFixed(1)} s.\n${made.fresh ? `cd ${JSON.stringify(made.root)} && npm install && npm run studio   # o npm run render` : 'Recarga el Studio para ver los cambios.'}`;
+    }
     return [`# Storyboard: ${zoneNamed(ids[0]).title}`, '', ...rows.flatMap(r => [`## Toma ${r.n} — ${r.title}`, r.note && `${r.note}`, '', r.file && `- Referencia (${r.kind}): ${r.file}`, r.url && `- Sitio: ${r.url}`, r.source && `- Fuente: ${r.source}`, ...r.comments.map(c => `- Nota ${commentLine(c)}`), ''].filter(line => line !== undefined && line !== false))].join('\n');
   }
   if (action === 'comments') {

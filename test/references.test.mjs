@@ -129,3 +129,51 @@ test('a paste or drop is read as files, links or a note', () => {
   assert.deepEqual(visibleComments(comments, [], 's').map(c => c.id), ['b']);
   assert.equal(commentBrief(comments[0], { type: 'reference', title: 'Clip', data: {} }, '/x/clip.mp4'), 'Comentario en Referencia "Clip" (/x/clip.mp4) — posición 10%, 20% · minuto 1:05:\n- Tú: hola');
 });
+
+test('@phantom in a person\'s comment hands the thread to the agent, once and safely', async () => {
+  const { handleReference, MENTION } = await import('../host/references.mjs');
+  const { Store } = await import('../host/store.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-mention-')), project = path.join(root, 'p'); fs.mkdirSync(project);
+  try {
+    const store = new Store(path.join(root, 'state')), w = store.transaction(() => store.open(project));
+    const mutate = (_, fn) => store.transaction(fn), sent = [];
+    let fail = false;
+    const ctx = { store, mutate, dataDir: path.join(root, 'state'), mention: async (_, comment) => { if (fail) throw new Error('sin proveedor'); sent.push(comment.messages.at(-1).text); return { queued: sent.length > 1 }; } };
+    const node = await handleReference('reference.add', { workspaceId: w.id, data: PNG.toString('base64') }, ctx);
+    const quiet = await handleReference('comment.add', { workspaceId: w.id, nodeId: node.id, x: .5, y: .5, text: 'solo para mí, correo a ana@phantom.dev' }, ctx);
+    assert.equal(quiet.mention, undefined); assert.equal(sent.length, 0);
+    const asked = await handleReference('comment.add', { workspaceId: w.id, nodeId: node.id, x: .5, y: .5, time: 61, text: '@phantom busca 3 referencias con esta luz' }, ctx);
+    assert.equal(asked.mention, 'sent');
+    const agent = await handleReference('comment.reply', { workspaceId: w.id, id: asked.id, text: 'Listo @phantom', author: 'Phantom' }, ctx);
+    assert.equal(agent.mention, undefined, 'the agent replying never re-triggers itself');
+    assert.equal((await handleReference('comment.reply', { workspaceId: w.id, id: asked.id, text: '@Claude más cálidas' }, ctx)).mention, 'queued');
+    fail = true;
+    const lost = await handleReference('comment.reply', { workspaceId: w.id, id: asked.id, text: '@agente otra' }, ctx);
+    assert.equal(lost.mention, 'failed'); assert.equal(lost.messages.length, 4, 'the comment is kept even when the agent is unreachable');
+    assert.ok(MENTION.test('(@phantom)') && !MENTION.test('x@phantom.dev'));
+    const { mentionBrief } = await import('../host/references.mjs');
+    const brief = mentionBrief(store.getWorkspace(w.id), store.getWorkspace(w.id).comments[1], ctx.dataDir, '/app/scripts/canvas.mjs');
+    assert.match(brief, /comment thread #2 on reference \(image\) "Imagen"/); assert.match(brief, /at 1:01 \(61s\)/); assert.match(brief, /File: .*references.*\.png/); assert.match(brief, /reply 2 "<short answer>" --author Phantom/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('a zone exports as a Remotion project and re-exports in place', async () => {
+  const { exportRemotion } = await import('../scripts/canvas.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-remotion-')), still = path.join(root, 'a.png'), clip = path.join(root, 'b.mp4');
+  fs.writeFileSync(still, PNG); fs.writeFileSync(clip, MP4);
+  try {
+    const rows = [{ n: 1, title: 'Luz', kind: 'image', file: still, note: 'fría', comments: [] }, { n: 2, title: 'Corte', kind: 'video', file: clip, comments: [{ seconds: 8 }, { seconds: 4.5 }] }, { n: 3, title: 'Sitio', kind: 'link', url: 'https://a.com', comments: [] }];
+    const out = path.join(root, 'out'), made = exportRemotion(out, 'Mi Secuencia', rows, { seconds: 2, fps: 25 });
+    assert.deepEqual([made.shots, made.seconds, made.fresh], [3, 6, true]);
+    const plan = JSON.parse(fs.readFileSync(path.join(out, 'src', 'shots.json'), 'utf8'));
+    assert.deepEqual(plan.shots.map(s => [s.file, s.frames, s.startFrom]), [['shots/01.png', 50, 0], ['shots/02.mp4', 50, 113], [null, 50, 0]]);
+    assert.ok(fs.existsSync(path.join(out, 'public', 'shots', '02.mp4')));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'package.json'), 'utf8')).name, 'mi-secuencia');
+    fs.appendFileSync(path.join(out, 'src', 'Storyboard.tsx'), '// mine\n');
+    assert.equal(exportRemotion(out, 'Mi Secuencia', rows.slice(0, 1)).fresh, false);
+    assert.match(fs.readFileSync(path.join(out, 'src', 'Storyboard.tsx'), 'utf8'), /\/\/ mine/, 'your edits to the composition survive a re-export');
+    assert.deepEqual(fs.readdirSync(path.join(out, 'public', 'shots')), ['01.png']);
+    fs.mkdirSync(path.join(root, 'busy')); fs.writeFileSync(path.join(root, 'busy', 'x'), '');
+    assert.throws(() => exportRemotion(path.join(root, 'busy'), 'x', rows), /no está vacía/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

@@ -42,7 +42,12 @@ function Composer({ placeholder, onSubmit, onCancel, autoFocus }) {
 // Pins live in world space and keep their screen size at any zoom. One thread
 // is open at a time; a draft is a pin that has not been written yet.
 export function CommentLayer({ comments, draft, open, active, geometryOf, nodeOf, api, workspaceId, pathOf, notify, onOpen, onDraft, seek }) {
-  const call = (method, payload) => api(method, { workspaceId, ...payload }).catch(error => notify(`No se pudo guardar el comentario: ${error.message}`, 'error'));
+  const call = (method, payload) => api(method, { workspaceId, ...payload }).then(result => {
+    if (result?.mention === 'sent') notify('Enviado a Phantom: responderá en este hilo.');
+    if (result?.mention === 'queued') notify('Phantom está ocupado: tu comentario quedó en su cola y responderá en este hilo.');
+    if (result?.mention === 'failed') notify(`El comentario se guardó, pero no llegó a Phantom: ${result.mentionError}`, 'error');
+    return result;
+  }, error => notify(`No se pudo guardar el comentario: ${error.message}`, 'error'));
   const point = c => { if (!c.nodeId) return { left: c.x, top: c.y }; const g = geometryOf(c.nodeId); return g && { left: g.x + c.x * g.width, top: g.y + c.y * g.height }; };
   const draftAt = draft && point(draft);
   return <div className="comment-layer">
@@ -58,7 +63,7 @@ export function CommentLayer({ comments, draft, open, active, geometryOf, nodeOf
             <button className="icon-button" title="Eliminar hilo" aria-label="Eliminar comentario" onClick={() => { call('comment.remove', { id: c.id }); onOpen(null); }}><Trash2 size={13} /></button>
             <button className="icon-button" title="Cerrar" aria-label="Cerrar hilo" onClick={() => onOpen(null)}><X size={14} /></button></header>
           <ol>{c.messages.map(m => <li key={m.id}><b>{m.author}</b><time dateTime={m.createdAt}>{new Date(m.createdAt).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</time><p>{m.text}</p></li>)}</ol>
-          <Composer placeholder="Responder…" onSubmit={text => call('comment.reply', { id: c.id, text })} onCancel={() => onOpen(null)} />
+          <Composer placeholder="Responder… (@phantom se lo pide al agente)" onSubmit={text => call('comment.reply', { id: c.id, text })} onCancel={() => onOpen(null)} />
         </section>}
       </div>;
     })}
@@ -66,7 +71,7 @@ export function CommentLayer({ comments, draft, open, active, geometryOf, nodeOf
       <span className="comment-pin draft"><MessageCircle size={12} /></span>
       <section className="comment-thread" role="dialog" aria-label="Nuevo comentario">
         {draft.time !== undefined && <header><strong>En el video</strong><span className="comment-time">{timecode(draft.time)}</span></header>}
-        <Composer autoFocus placeholder="Escribe un comentario…" onCancel={() => onDraft(null)} onSubmit={async text => { const { nodeId, x, y, time, spaceId } = draft; const made = await call('comment.add', { nodeId, x, y, text, ...(time !== undefined ? { time } : {}), ...(spaceId ? { spaceId } : {}) }); if (made) onDraft(null); }} />
+        <Composer autoFocus placeholder="Comenta… @phantom se lo pide al agente" onCancel={() => onDraft(null)} onSubmit={async text => { const { nodeId, x, y, time, spaceId } = draft; const made = await call('comment.add', { nodeId, x, y, text, ...(time !== undefined ? { time } : {}), ...(spaceId ? { spaceId } : {}) }); if (made) onDraft(null); }} />
       </section>
     </div>}
   </div>;
