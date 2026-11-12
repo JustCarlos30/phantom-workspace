@@ -1,3 +1,4 @@
+import { tableStartsAt, parseTable } from './markdownTable.mjs';
 // Pure model for the Skills catalog panel (shared by renderer and node tests).
 // Three origins, one vocabulary. Labels always accompany the color.
 export const ORIGINS = {
@@ -45,7 +46,6 @@ export function buildCatalog(entries, { origin = 'all', agent = 'all', query = '
 
 // Markdown block parser used by Markdown.jsx.
 const MAX_LINES = 2500;
-const cells = row => row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
 
 export function parseBlocks(source) {
   const lines = String(source || '').replace(/\r\n?/g, '\n').split('\n').slice(0, MAX_LINES);
@@ -67,11 +67,7 @@ export function parseBlocks(source) {
       while (i < lines.length && /^\s*>/.test(lines[i])) body.push(lines[i++].replace(/^\s*>\s?/, ''));
       blocks.push({ type: 'quote', children: parseBlocks(body.join('\n')) }); continue;
     }
-    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
-      const head = cells(line); i += 2; const rows = [];
-      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cells(lines[i++]));
-      blocks.push({ type: 'table', head, rows }); continue;
-    }
+    if (tableStartsAt(lines, i)) { const { block, next } = parseTable(lines, i); blocks.push(block); i = next; continue; }
     const item = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(line);
     if (item) {
       const ordered = /\d/.test(item[2]), items = [];

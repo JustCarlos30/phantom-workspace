@@ -1,0 +1,33 @@
+/* Markdown tables (chat replies and Skills). Shares the frame language of .md-code. */
+.md-table { width: 100%; max-width: 100%; margin: 2px 0; border: 1px solid var(--hairline); border-radius: var(--r-md, 8px); background: var(--surface); overflow: hidden; }
+.md-table figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; padding: 0 4px 0 13px; border-bottom: 1px solid var(--hairline); color: var(--muted); font: 11px/1 var(--mono, ui-monospace, monospace); letter-spacing: .01em; }
+.md-table figcaption .md-copy { opacity: .7; }
+.md-table:hover figcaption .md-copy, .md-table figcaption .md-copy:focus-visible, .md-table figcaption .md-copy.is-copied { opacity: 1; }
+
+.md-table-body { position: relative; }
+.md-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, var(--line)) transparent; }
+.md-table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Edge shadows say "there is more this way" only while there is. */
+.md-table-body::before, .md-table-body::after { content: ""; position: absolute; top: 0; bottom: 0; width: 20px; pointer-events: none; opacity: 0; transition: opacity var(--dur-fast, 120ms) ease-out; z-index: 2; }
+.md-table-body::before { left: 0; background: linear-gradient(to right, color-mix(in srgb, #000 45%, transparent), transparent); }
+.md-table-body::after { right: 0; background: linear-gradient(to left, color-mix(in srgb, #000 45%, transparent), transparent); }
+.md-table-body.has-start::before, .md-table-body.has-end::after { opacity: 1; }
+
+.md-table table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.md-table th, .md-table td { padding: 7px 13px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--hairline); min-width: 6ch; max-width: 46ch; overflow-wrap: break-word; white-space: normal; }
+.md-table th { position: sticky; top: 0; z-index: 1; background: color-mix(in srgb, var(--ink) 4%, var(--surface)); color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
+.md-table td:first-child { color: var(--ink); font-weight: 500; }
+.md-table tbody tr:last-child td { border-bottom: 0; }
+.md-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--ink) 1.8%, transparent); }
+.md-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.md-table [data-align="right"] { text-align: right; }
+.md-table [data-align="center"] { text-align: center; }
+.md-table [data-kind="number"] { width: 1%; white-space: nowrap; }
+.md-table td code, .md-table th code { white-space: nowrap; font-size: .92em; }
+.md-table-empty { color: var(--idle, var(--muted)); opacity: .6; }
+
+.md-table-more { display: block; width: 100%; padding: 7px 13px; border: 0; border-top: 1px solid var(--hairline); background: none; color: var(--muted); font: 500 11.5px/1.4 var(--sans, inherit); text-align: left; cursor: pointer; }
+.md-table-more:hover { color: var(--ink); background: var(--fill, transparent); }
+.md-table-more:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+@media (prefers-reduced-motion: reduce) { .md-table-body::before, .md-table-body::after { transition: none; } }

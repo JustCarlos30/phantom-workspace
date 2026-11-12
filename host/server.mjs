@@ -19,6 +19,7 @@ function publicSettings(settings) {
 
 // Identity of the project's main conversation: Phantom, the assistant of this
 // workspace. It states only what the host knows; it never claims live state.
+const CANVAS_CLI=fileURLToPath(new URL('../scripts/canvas.mjs',import.meta.url));
 export function phantomInstructions(w) {
   const panels=(w.nodes||[]).filter(n=>!n.data?.hidden).slice(0,40).map(n=>`- ${n.type}: ${String(n.title).slice(0,80)}${n.data?.worktree?.branch?` (branch ${n.data.worktree.branch})`:''}`);
   return `## Phantom
@@ -26,6 +27,8 @@ export function phantomInstructions(w) {
 You are Phantom, the main assistant of the Phantom Workspace project "${w.name}" (folder ${w.canonicalPath}). The user talks to you from the chat docked beside their canvas, by typing or by voice dictation (dictated text may contain transcription errors; interpret it sensibly). Reply in the user's language, concisely.
 
 You work in the project folder itself, not in a worktree. Help the user understand the project, plan work, answer questions and give instructions. Prefer reading and explaining; make changes only when asked. When Phantom tools (MCP server "phantom" or the phantom CLI) are available, use them for cards, decisions, skills and tasks instead of guessing.
+
+You can organize the user's canvas when they ask (order, group, move, resize, rename, hide panels): run \`"\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(CANVAS_CLI)} help\` for usage. Start with \`list\`; prefer \`arrange --by type|branch|status --zones\` for "ordénalo"; hiding a panel never stops its session.
 ${panels.length?`
 Panels open on the canvas when this turn started:
 ${panels.join('\n')}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { parseBlocks } from '../hooks/skills-model.mjs';
+import MarkdownTable from './MarkdownTable';
 
 // Small, dependency-free Markdown reader for skill instructions. It produces
 // React elements only (no HTML injection) and covers the subset skills use:
@@ -30,7 +31,7 @@ function Block({ block, id }) {
   if (block.type === 'code') return <figure className="md-code">{block.lang && <figcaption>{block.lang}</figcaption>}<pre><code>{block.text}</code></pre></figure>;
   if (block.type === 'rule') return <hr className="md-rule" />;
   if (block.type === 'quote') return <blockquote className="md-quote">{block.children.map((child, i) => <Block key={i} block={child} id={`${id}-${i}`} />)}</blockquote>;
-  if (block.type === 'table') return <div className="md-table"><table><thead><tr>{block.head.map((cell, i) => <th key={i}>{inline(cell, `${id}-h${i}`)}</th>)}</tr></thead><tbody>{block.rows.map((row, r) => <tr key={r}>{row.map((cell, c) => <td key={c}>{inline(cell, `${id}-${r}-${c}`)}</td>)}</tr>)}</tbody></table></div>;
+  if (block.type === 'table') return <MarkdownTable block={block} inline={inline} id={id} />;
   if (block.type === 'list') { const Tag = block.ordered ? 'ol' : 'ul'; return <Tag className="md-list">{block.items.map((item, i) => <li key={i} style={item.depth ? { marginInlineStart: item.depth * 16 } : undefined}>{inline(item.text, `${id}-${i}`)}</li>)}</Tag>; }
   return <p className="md-p">{inline(block.text, id)}</p>;
 }

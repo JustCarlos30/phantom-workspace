@@ -1,9 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { markdownTarget } from '../hooks/markdownLinks.mjs';
+import { tableStartsAt, parseTable } from '../hooks/markdownTable.mjs';
+import MarkdownTable from './MarkdownTable';
+import { CopyButton } from './CopyButton';
+
+export { CopyButton };
 
 // Small, dependency-free Markdown for agent replies: fenced code, headings,
-// lists, quotes, and inline code/bold/italic/links. Everything is rendered as
+// lists, quotes, tables, and inline code/bold/italic/links. Everything is rendered as
 // React text nodes, so reply content can never inject markup.
 const INLINE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\s][^*\n]*\*)|(!?\[[^\]\n]+\]\([^)\s]+\))/g;
 
@@ -80,6 +84,7 @@ export function parseMarkdown(source) {
       for (i++; i < lines.length && !/^\s*```\s*$/.test(lines[i]); i++) code.push(lines[i]);
       blocks.push({ type: 'code', lang: fence[1], text: code.join('\n') }); continue;
     }
+    if (tableStartsAt(lines, i)) { flush(); const { block, next } = parseTable(lines, i); blocks.push(block); i = next - 1; continue; }
     const heading = /^(#{1,6})\s+(.*)$/.exec(line), item = /^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/.exec(line);
     if (!line.trim()) flush();
     else if (heading) { flush(); blocks.push({ type: 'h', level: heading[1].length, text: heading[2] }); }
@@ -97,22 +102,12 @@ export function parseMarkdown(source) {
   return blocks;
 }
 
-// Copies and confirms in place; the confirmation is the only feedback needed.
-export function CopyButton({ text, label = 'Copiar' }) {
-  const [copied, setCopied] = useState(false), timer = useRef();
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(text); setCopied(true); clearTimeout(timer.current); timer.current = setTimeout(() => setCopied(false), 1600); } catch { /* Clipboard denied: nothing was copied, so nothing is claimed. */ }
-  };
-  const Icon = copied ? Check : Copy;
-  return <button type="button" className={`md-copy ${copied ? 'is-copied' : ''}`} title={label} aria-label={copied ? 'Copiado' : label} onClick={copy}><Icon size={12} aria-hidden="true" /></button>;
-}
-
 export default function Markdown({ source }) {
   return <div className="md">{parseMarkdown(source).map((block, i) => {
     if (block.type === 'code') return <figure key={i} className="md-code"><figcaption><span>{block.lang || 'código'}</span><CopyButton text={block.text} label="Copiar código" /></figcaption><pre><code>{block.text}</code></pre></figure>;
     if (block.type === 'h') return React.createElement(`h${Math.min(6, block.level + 2)}`, { key: i }, inline(block.text, i));
     if (block.type === 'hr') return <hr key={i} />;
+    if (block.type === 'table') return <MarkdownTable key={i} id={`t${i}`} block={block} inline={inline} />;
     if (block.type === 'quote') return <blockquote key={i}>{inline(block.text, i)}</blockquote>;
     if (block.type === 'list') return React.createElement(block.ordered ? 'ol' : 'ul', { key: i }, block.items.map((text, j) => <li key={j}>{inline(text, `${i}-${j}`)}</li>));
     return <p key={i}>{inline(block.text, i)}</p>;
