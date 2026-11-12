@@ -355,12 +355,16 @@ async function invokeLocal(method, payload) {
     const canonicalData = await realpath(dataDir);
     for (const workspace of state.workspaces || []) {
       roots.push(workspace.canonicalPath || workspace.path);
-      try {
-        validateID(workspace.id);
-        const artifactRoot = await realpath(path.join(dataDir, 'automation', workspace.id));
-        // A symlink planted in the state artifact tree must not grant a new root.
-        if (isWithin(artifactRoot, canonicalData) && artifactRoot !== canonicalData) roots.push(artifactRoot);
-      } catch { /* No known artifact directory grants no access. */ }
+      // Automation artifacts and the per-terminal worktrees (checkouts of this
+      // same project) both live in the app's data tree.
+      for (const area of ['automation', 'worktrees']) {
+        try {
+          validateID(workspace.id);
+          const areaRoot = await realpath(path.join(dataDir, area, workspace.id));
+          // A symlink planted in the state tree must not grant a new root.
+          if (isWithin(areaRoot, canonicalData) && areaRoot !== canonicalData) roots.push(areaRoot);
+        } catch { /* No known directory grants no access. */ }
+      }
     }
     // Agent review captures live here, outside the project's source tree. Only
     // raster preview (never openPath or general file reads) gets this extra root.
