@@ -130,8 +130,8 @@ function FileRow({ status, path, extra, onOpen, onEdit, title, hideDir = false }
 }
 
 // Stacked bar + legend: what kind of work a set of changes is, at a glance.
-function MixBar({ changes, total }) {
-  const mix = changeMix(changes);
+function MixBar({ changes, total, summary }) {
+  const mix = changeMix(changes, summary);
   if (!mix.length) return null;
   const shown = mix.reduce((sum, kind) => sum + kind.count, 0);
   return <div className="rp-mix">
@@ -187,9 +187,10 @@ function CommitDetail({ oid, api, workspace, graph, onOpenTab, onSelectCommit })
     </div>
     <div className="rp-detail-section">
       <h4>{filesText(commit.files.length)} <span className="rp-stat is-add">+{added}</span> <span className="rp-stat is-del">−{removed}</span></h4>
-      <ul className="rp-filelist">{commit.files.map(file => <FileRow key={`${file.status}:${file.path}`} status={file.status} path={file.path} title={file.originalPath ? `${file.originalPath} → ${file.path}` : file.path}
+      <MixBar changes={commit.files} total={commit.files.length} />
+      <GroupedFiles items={commit.files} render={(file, hideDir) => <FileRow key={`${file.status}:${file.path}`} status={file.status} path={file.path} hideDir={hideDir} title={file.originalPath ? `${file.originalPath} → ${file.path}` : file.path}
         extra={file.added !== undefined && <span className="rp-filestat">{file.added === null ? 'bin' : <><span className="is-add">+{file.added}</span> <span className="is-del">−{file.removed}</span></>}</span>}
-        onOpen={() => onOpenTab({ kind: 'diff', oid: commit.oid, path: file.path, originalPath: file.originalPath, status: file.status })} />)}</ul>
+        onOpen={() => onOpenTab({ kind: 'diff', oid: commit.oid, path: file.path, originalPath: file.originalPath, status: file.status })} />} />
     </div>
   </div>;
 }
@@ -238,7 +239,7 @@ function TreeDetail({ tree, cards, base, api, workspace, busy, act, notice, onOp
     <div className="rp-detail-section">
       <h4>Cambios sin guardar <span className="rp-count">{tree.changeCount}</span></h4>
       {!tree.changeCount && <p className="rp-clean"><Check size={12} aria-hidden="true" />Árbol limpio: nada sin guardar.</p>}
-      {tree.changeCount > 0 && <MixBar changes={tree.changes} total={tree.changeCount} />}
+      {tree.changeCount > 0 && <MixBar changes={tree.changes} total={tree.changeCount} summary={tree.changeSummary} />}
       <GroupedFiles items={tree.changes} render={(change, hideDir) => <FileRow key={`${change.status}:${change.path}`} status={change.status} path={change.path} hideDir={hideDir}
         title={change.originalPath ? `${change.originalPath} → ${change.path}` : change.path} extra={change.inBase && <span className="rp-same">ya en {base}</span>}
         onOpen={() => open(change, 'diff')} onEdit={statusLetter(change.status) !== 'D' && tree.exists ? () => open(change, 'edit') : undefined} />} />
@@ -285,7 +286,7 @@ function Sidebar({ model, merge, selected, cardsFor, onSelectTree, onSelectCommi
     <label className="rp-search rp-side-search"><Search size={12} aria-hidden="true" /><input type="search" placeholder="Filtrar" aria-label="Filtrar worktrees y ramas" value={filter} onChange={event => setFilter(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setFilter(''); }} /></label>
     <div className="rp-side-scroll">
       <SideSection title="Worktrees" count={trees.length} open={open.trees} onToggle={() => toggle('trees')}>
-        <ul className="rp-side-list">{trees.map(row => { const rowCards = cardsFor(row), card = rowCards[0], mix = changeMix(row.changes); return <li key={row.id}>
+        <ul className="rp-side-list">{trees.map(row => { const rowCards = cardsFor(row), card = rowCards[0], mix = changeMix(row.changes, row.changeSummary); return <li key={row.id}>
           <button type="button" className={`rp-side-item is-tree${selected?.kind === 'tree' && selected.id === row.id ? ' is-selected' : ''}`} onClick={() => onSelectTree(row.id)} title={`${row.name || 'HEAD separado'}\n${row.worktree.path}${card ? `\nCard: ${card.title}` : ''}`}>
             {row.isBase ? <GitMerge size={13} aria-hidden="true" /> : row.terminal ? <SquareTerminal size={13} aria-hidden="true" className={row.running ? 'rp-live' : ''} /> : <FolderGit2 size={13} aria-hidden="true" />}
             <span className="rp-side-text">

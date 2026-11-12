@@ -94,6 +94,12 @@ El script informa el resultado o falla con código de salida no cero; no instala
 
 ## Herramientas incluidas
 
+### Revisión de video
+
+Abre la raíz de un taller de videos como proyecto y elige **Herramientas → Revisión de video**. Selecciona un proyecto del taller y un render. Se requieren `bin/video.mjs`, `REVIEW.md` y el contrato de revisión v1: MP4, sidecar `exports/*.mp4.review.json` y snapshot conservado. Phantom comprueba el SHA256 antes de reproducir; un render antiguo sin asociación o con hash distinto exige renderizar de nuevo.
+
+Pausa, avanza con ±1 frame (o ← → con foco en el visor), elige un frame o rango inclusivo y activa **Marcar zona** para arrastrar un rectángulo sobre el cuadro. Puedes asociar un elemento y guardar el comentario con la revisión abierta. El taller conserva las notas para `review list`; la lista permite saltar al frame y resolverlas, mostrando los estados obsoleto y resuelto por separado. V1 no incluye realtime multiusuario ni preview del árbol actual: se necesita un render.
+
 | Herramienta | Funcionamiento |
 |---|---|
 | Terminales | PTY reales, xterm, snapshot ANSI, reconexión, salida acotada y backpressure. |

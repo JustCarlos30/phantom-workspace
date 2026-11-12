@@ -159,6 +159,18 @@ components:
 
 `test/empty-states-desktop.mjs` implementa mediciones en Electron y host aislados a 1520×980 y 1100×760: centros y bordes con tolerancia de ±2 px, overflow horizontal sin tolerancia y capturas `/tmp/opencode/empty-states-*.png`. Incluye bienvenida, Skills/Plugins sin proyecto, canvas sin paneles, ambos grupos del rail, índice vacío y chat nuevo; exige esos casos y examina los demás `.empty-state` visibles. Esto describe la prueba; los resultados corresponden a los checks del controlador.
 
+## Acabado (2026-11-12)
+
+Pulido sin cambio de estilo (bloque final de `src/canvas-ui.css`). Tres reglas: lo elegido se ve sin dudar, cada borde cierra sobre su propio radio y todo cambio de estado se suaviza con la única curva.
+
+- **Selección.** La card seleccionada lleva el borde completo en acento y un anillo de 3 px al 34 % (antes 26 %, casi invisible sobre el fondo oscuro), con la costura de la cabecera teñida al 22 %. El contorno existe siempre con el mismo grosor y offset en transparente, así que al seleccionar solo se funde el color, sin saltos.
+- **Foco.** La card enfocada no lleva cromo de selección: borde parejo `--hairline-strong` y costura neutra. Se retira el borde superior de acento, que sobre un radio de 16 px se desvanecía en las esquinas y parecía un fallo de render. La animación de llegada recorta con `--r-lg`, no con 10 px, para que las esquinas no se cuadren y salten al terminar.
+- **Superficies de escritura.** La nota no dibuja anillo interior (era un rectángulo de esquinas rectas dentro de la card redondeada); el cursor basta. El compositor del chat recibe el anillo del tono del proveedor que ya describía «Vidrio nocturno» (borde al 48 % y halo de 3 px al 14 %).
+- **Fluidez.** Botones, enlaces, `summary`, campos y roles interactivos suavizan fondo, borde, color, sombra y opacidad con `--dur-fast` y `--ease-out` mediante `:where()` (especificidad cero: lo que ya declara su transición la conserva). El chevron del selector de proyecto gira con `--dur`. Movimiento reducido sigue anulándolo todo desde `styles.css`.
+- **Radios y anillos.** Las esquinas sueltas de 7–8 px (botones de cabecera, rail, campos de renombrado) pasan a `--r-sm`. El anillo de teclado genérico baja de 3 a 2 px de offset; los anillos interiores específicos (rail, dock, listas) no cambian.
+
+Verificación: build de Vite correcto; `npm test` 306 aprobadas, 0 fallos, 4 omitidas; capturas antes/después en Electron real con fixture sintética a 1520×980 (mapa, selección, foco de nota y terminal, lanzador, paleta, inspector) sin excepciones del renderer; detector sin hallazgos en las líneas nuevas. `test/desktop-motion.mjs` falla igual en HEAD sin estos cambios: espera un panel de terminal con «Worktree» y la terminal ahora abre en modo Claude.
+
 ## Compositor del chat en dos niveles (2026-11-11)
 
 - **Dentro del campo, solo lo que configura el próximo turno.** `.pc-controls`: modelo y Effort/Variant a la izquierda (`.pc-settings`, una sola línea; el nombre del modelo se trunca con elipsis antes de que nada salte de línea), micrófono y enviar a la derecha. Sustituye a `.pc-status`, que chocaba con la clase homónima de `plugins.css`.

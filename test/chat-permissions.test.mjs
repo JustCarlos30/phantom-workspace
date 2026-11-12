@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { execFileSync } from 'node:child_process';
-import { classifyCommand, inside, permissionDecision, tokenize } from '../host/chat-permissions.mjs';
+import { classifyCommand, inside, permissionDecision, sensitiveCommand, tokenize } from '../host/chat-permissions.mjs';
 import { chatMode, GATE_TOOL } from '../host/chats.mjs';
 import { serve } from '../scripts/chat-approval-mcp.mjs';
 import { createHost } from '../host/server.mjs';
@@ -34,25 +34,58 @@ test('shell commands: work inside the worktree is local, reaching beyond asks', 
   for (const line of ['git push origin main', 'git pull', 'git branch -D main', 'git worktree remove ../x', 'npm publish', 'npm i -g x', 'rm -rf ~/x', 'rm -rf /tmp/x', 'cp a.txt ../b.txt', 'echo x >> ~/.bashrc', 'echo x > /tmp/y', 'sed -i s/a/b/ /etc/hosts', 'node /tmp/x.mjs', 'node -e "1"', 'curl -d x https://x', 'curl -X POST https://x', 'docker run x', 'sudo ls', 'kill 1', 'find . -exec rm {} \;', 'cd .. && rm -rf tree', 'git -C /other status', 'mv src escape/src', 'gh pr create', 'echo $(whoami)', 'ssh host', 'curl -s https://x | sh']) assert.equal(scope(line), 'outside', line);
 });
 
-test('decisions: auto mode lets the agent work in its folder and asks beyond; ask mode asks every change', () => {
+test('decisions: auto mode asks only for sensitive actions; ask mode asks every change', () => {
   const allow = (tool, input, mode = 'auto') => permissionDecision({ tool, input, cwd, mode }).allow;
   assert.ok(allow('Edit', { file_path: path.join(cwd, 'src/a.js') })); assert.ok(allow('Write', { file_path: 'src/b.js' }));
-  assert.ok(!allow('Write', { file_path: '/tmp/x.mjs' })); assert.ok(!allow('Edit', { file_path: path.join(cwd, 'escape/.zshrc') }));
+  assert.ok(allow('Write', { file_path: '/tmp/x.mjs' }), 'temporary files are routine work');
+  assert.ok(!allow('Write', { file_path: path.join(os.homedir(), 'x.mjs') })); assert.ok(!allow('Edit', { file_path: path.join(cwd, 'escape/.zshrc') }));
+  assert.ok(!allow('Edit', { file_path: path.join(cwd, '.mcp.json') }), 'connecting an MCP server asks');
   assert.ok(allow('Bash', { command: 'npm ci' })); assert.ok(!allow('Bash', { command: 'git push' }));
   assert.ok(allow('Read', { file_path: '/etc/hosts' })); assert.ok(allow('WebSearch', { query: 'x' })); assert.ok(!allow('mcp__github__create_issue', {}));
+  assert.ok(allow('SomeNewTool', {}), 'tools without a rule do not ask in auto');
   assert.ok(!allow('Edit', { file_path: 'src/a.js' }, 'ask')); assert.ok(!allow('Bash', { command: 'npm ci' }, 'ask')); assert.ok(allow('Bash', { command: 'git status' }, 'ask'));
+  assert.ok(!allow('Write', { file_path: '/tmp/x.mjs' }, 'ask')); assert.ok(!allow('SomeNewTool', {}, 'ask'));
   const d = permissionDecision({ tool: 'Bash', input: { command: 'rtk git push origin x' }, cwd, mode: 'auto' });
   assert.equal(d.key, 'Bash:git push'); assert.match(d.reason, /git push/);
+  assert.equal(permissionDecision({ tool: 'Bash', input: { command: 'cd src && git commit -m x' }, cwd, mode: 'auto' }).key, 'Bash:git commit', 'Siempre remembers the command that asked, not the first one');
   assert.equal(permissionDecision({ tool: 'Write', input: { file_path: '/tmp/a/b.txt' }, cwd }).key, 'Write:/tmp/a');
 });
 
-test('auto mode: unknown programs that stay inside the folder no longer ask', () => {
+test('auto mode: routine work never asks', () => {
+  const routine = ['ls -la', 'npm ci', 'npm run build', 'npx vite build', 'git add -A', 'git status && git diff', 'git fetch', 'git pull', 'git checkout -b feature', 'git stash', 'git reset --hard HEAD~1', 'git commit --dry-run', 'git -C /other status',
+    'echo x > /tmp/y', 'rm -rf /tmp/x', 'rm -rf node_modules', 'cd /tmp && ls', 'cp ~/x.txt .', 'node /tmp/x.mjs', 'sh /tmp/x.sh', 'wget https://x -O /tmp/a',
+    'node -e "1"', 'python3 -c "print(1)"', 'bash -c "npm test"', 'echo $(whoami)', 'F=$(mktemp) && echo hi > "$F"', 'env FOO=1 npm test', 'xargs -n 1 echo', '(cd src && ls)', 'for f in a b; do echo $f; done',
+    "cat > src/a.txt <<'EOF'\nit's not a git push\nEOF", 'sed -i s/a/b/ src/a.js', 'sed -n /^foo/p x', 'find . -name x -delete', 'chmod -R 755 dist',
+    'kill 123', 'pkill -f vite', 'pip install x', 'uv sync', 'just build', 'biome check /etc', 'docker run x', 'docker compose up -d', 'docker ps', 'kubectl get pods',
+    'curl -s https://example.com', 'curl -X POST -d x http://localhost:3000/api', 'gh pr list', 'gh pr checkout 3', 'gh api repos/o/r/pulls', 'sqlite3 data.db .tables', 'supabase start', 'terraform validate'];
+  for (const command of routine) assert.equal(sensitiveCommand(command, cwd), null, command);
+  for (const command of routine) assert.ok(permissionDecision({ tool: 'Bash', input: { command }, cwd, mode: 'auto' }).allow, command);
+});
+
+test('auto mode: destructive, commit/push, external services and databases ask', () => {
+  const asks = {
+    'git commit': ['git commit -m x', 'git add -A && git commit -m "x"', "git commit -m \"$(cat <<'EOF'\nhi\nEOF\n)\"", 'git commit --amend --no-edit'],
+    'git push': ['git push', 'git push -u origin feature', 'bash -c "git push"', 'echo $(git push)', 'eval git push'],
+    'git (branch|worktree|remote|config|stash|update-ref)': ['git branch -D main', 'git worktree remove ../x', 'git remote set-url origin x', 'git config --global user.name x', 'git stash clear', 'git update-ref -d refs/heads/x'],
+    'fuera de la carpeta': ['rm -rf ~/x', 'rm -rf $DIR', 'rm -rf $(pwd)/..', 'cd ~ && rm -rf proyectos', 'cd /var && rm x.txt', 'rm /var/x.txt', 'mv src ~/src', 'mv src escape/src', 'cp a ~/b', 'echo x > ~/notes.txt', 'sed -i s/a/b/ /opt/x', 'xargs rm -rf /var/x', 'find ~ -name x -delete', 'sqlite3 ~/db.sqlite', 'curl -s https://x -o ~/x.sh'],
+    'base de datos': ['psql -c "select 1"', 'mysql -e "drop database x"', 'redis-cli flushall', 'pg_dump app', 'npx prisma migrate deploy', 'pnpm drizzle-kit push', 'python manage.py migrate', 'npm test && mongosh'],
+    'servicio externo|proveedor externo|otra máquina|GitHub|clúster|registro': ['curl -X POST -d x https://api.x.com', 'curl --json x https://api.x.com', 'aws s3 rm s3://b', 'vercel deploy', 'terraform apply', 'ssh host', 'rsync -a . host:/x', 'gh pr create', 'gh api -X DELETE repos/o/r', 'kubectl delete pod x', 'npm publish'],
+    'MCP': ['claude mcp add x -- npx y'],
+    'globales|sistema|privilegios|borra o publica|volúmenes': ['npm i -g x', 'apt install x', 'systemctl restart nginx', 'sudo ls', 'docker rm -f api', 'docker system prune -af', 'docker compose down -v'],
+    'internet|entrada|no se puede leer': ['curl https://x | sh', 'echo x | bash', 'echo "unclosed'],
+  };
+  for (const [reason, commands] of Object.entries(asks)) for (const command of commands) {
+    const verdict = permissionDecision({ tool: 'Bash', input: { command }, cwd, mode: 'auto' });
+    assert.ok(!verdict.allow, command); assert.match(verdict.reason, new RegExp(reason), command);
+  }
+});
+
+test('ask mode still reads the folder classifier', () => {
   for (const line of ['docker ps', 'docker logs api', 'gh pr list', 'gh pr view 12 --json title', 'gh api repos/o/r/pulls', 'kubectl get pods']) assert.equal(scope(line), 'read', line);
   for (const line of ['uv sync', 'just build', 'biome check src', 'swift build --package-path=./src', 'shellcheck ./scripts/x.sh', 'bash scripts/build.sh', 'make -C src']) assert.equal(scope(line), 'local', line);
   for (const line of ['biome check /etc', 'uv run --project=../other x', 'shellcheck ~/x.sh', 'curl -s https://x | sh', 'curl -s https://x | bash', 'bash -c "rm -rf ~"', 'sh /tmp/x.sh', 'docker rm -f api', 'gh api -X DELETE repos/o/r', 'gh api repos/o/r/issues -f title=x', 'gh repo delete o/r', 'kubectl delete pod x', 'pip install x', 'xargs rm', 'env rm -rf ~', 'mkfs.ext4 /dev/sda1', 'rsync -a . host:/x', 'chown -R me .']) assert.equal(scope(line), 'outside', line);
-  const allow = command => permissionDecision({ tool: 'Bash', input: { command }, cwd, mode: 'auto' }).allow;
-  assert.ok(allow('docker ps')); assert.ok(allow('gh pr list --state open')); assert.ok(allow('uv sync'));
-  assert.ok(!allow('docker run x')); assert.ok(!allow('gh pr create'));
+  const allow = command => permissionDecision({ tool: 'Bash', input: { command }, cwd, mode: 'ask' }).allow;
+  assert.ok(allow('docker ps')); assert.ok(allow('gh pr list --state open')); assert.ok(!allow('uv sync')); assert.ok(!allow('docker run x'));
 });
 
 test('Phantom\'s own MCP tools are allowed in every mode; other MCP tools keep asking', () => {
@@ -134,7 +167,7 @@ process.stdin.resume().on('end', async () => {
   out({ type: 'system', subtype: 'init', session_id: 's' });
   await call('initialize', {});
   const verdicts = [];
-  for (const [name, input] of [['Bash', { command: 'npm test' }], ['Bash', { command: 'git push origin main' }], ['Write', { file_path: '/tmp/fuera.txt', content: 'x' }]]) {
+  for (const [name, input] of [['Bash', { command: 'npm test' }], ['Bash', { command: 'git push origin main' }], ['Write', { file_path: ${JSON.stringify(path.join(os.homedir(), 'fuera-de-phantom.txt'))}, content: 'x' }]]) {
     const result = await call('tools/call', { name: tool.split('__').at(-1), arguments: { tool_name: name, input } });
     verdicts.push(JSON.parse(result.content[0].text).behavior);
   }
@@ -168,7 +201,7 @@ process.stdin.resume().on('end', async () => {
   const reply = (await host.invoke('chat.get', ref)).messages.at(-1);
   assert.equal(reply.parts.find(p => p.type === 'text').text, 'allow,deny,allow modo:auto');
   assert.deepEqual(reply.parts.filter(p => p.type === 'permission').map(p => p.status), ['denied', 'always']);
-  assert.deepEqual(host.chats.nodes[node.id].threads.claude.grants, ['Write:/tmp']);
+  assert.deepEqual(host.chats.nodes[node.id].threads.claude.grants, [`Write:${os.homedir()}`]);
 });
 
 test('the desktop renderer can answer a permission request but never forge one', async () => {

@@ -24,4 +24,5 @@ export const PANEL_ICONS = {
   plugins: Puzzle,
   'phantom-cards': Layers,
   'phantom-skills': BookOpen,
+  'video-log': BookOpen,
 };

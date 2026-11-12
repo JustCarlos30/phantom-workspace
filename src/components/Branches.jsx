@@ -22,8 +22,8 @@ function Track({ row }) {
   </div>;
 }
 
-function MixBar({ changes }) {
-  const mix = changeMix(changes);
+function MixBar({ changes, summary }) {
+  const mix = changeMix(changes, summary);
   if (!mix.length) return null;
   return <span className="br-mix" role="img" aria-label={mix.map(kind => `${kind.count} ${kind.label.toLowerCase()}`).join(', ')}>
     <span className="br-mix-bar">{mix.map(kind => <i key={kind.id} className={`is-${kind.id}`} style={{ flexGrow: kind.count }} />)}</span>
@@ -50,7 +50,7 @@ function FileList({ row, base }) {
   const total = row.changeCount + row.committedCount;
   if (!total) return null;
   return <details className="br-files">
-    <summary><span>Ver {filesText(total)}</span><MixBar changes={row.changes} /></summary>
+    <summary><span>Ver archivos · {row.changeCount} sin guardar · {row.committedCount} en commits</span><MixBar changes={row.changes} summary={row.changeSummary} /></summary>
     {row.changes.length > 0 && <><h5>Sin guardar</h5><FolderFiles items={row.changes} render={(change, name) => <li key={change.path} title={change.originalPath ? `${change.originalPath} → ${change.path}` : change.path}><span className={`br-change br-${changeTone(change.status)}`}>{changeLabel(change.status)}</span><code>{name}</code>{change.inBase && <span className="br-same">Ya en {base}</span>}</li>} />{row.changeCount > row.changes.length && <p className="br-quiet">Resumen de los {row.changes.length} archivos listados; {row.changeCount - row.changes.length} más sin listar.</p>}</>}
     {row.committed.length > 0 && <><h5>En commits por integrar</h5><FolderFiles items={row.committed} pathOf={file => file} render={(file, name) => <li key={file} title={file}><span className="br-change br-modified">En commit</span><code>{name}</code></li>} />{row.committedCount > row.committed.length && <p className="br-quiet">y {row.committedCount - row.committed.length} más</p>}</>}
   </details>;
@@ -163,7 +163,7 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
   return <div className="br-root">
     <header className="br-head">
       <div className="br-title"><FolderGit2 size={16} aria-hidden="true" /><div><h2>Ramas</h2><p>{model.total ? `${plural(model.total, 'rama', 'ramas')} además de ${base} · ${filesText(model.unsaved)} sin guardar${model.unsavedInBase ? ` (${model.unsavedInBase} ya en ${base})` : ''} · ${commitsText(model.pending)} por integrar` : `Solo existe ${base}`}</p></div></div>
-      <label className="br-search"><Search size={13} aria-hidden="true" /><input type="search" aria-label="Buscar rama, terminal o archivo" placeholder="Buscar rama, terminal o archivo" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} /></label>
+      <label className="br-search"><Search size={13} aria-hidden="true" /><input type="search" aria-label="Buscar rama, Card, terminal o archivo" placeholder="Buscar rama, Card o archivo" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} /></label>
       <button type="button" className="br-icon" aria-label="Actualizar" title="Actualizar" disabled={resource.loading} onClick={() => { reload(); cards.reload(); }}><RefreshCw size={14} className={resource.loading ? 'spinning' : ''} /></button>
     </header>
     <div className="br-body">
