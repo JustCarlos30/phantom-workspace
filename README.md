@@ -73,6 +73,7 @@ El script informa el resultado o falla con código de salida no cero; no instala
 | Navegador | Navegación interna en foco; última captura etiquetada en overview. Contexto de navegación separado por proyecto. |
 | Tareas | Borradores y checklists locales; consulta, creación y referencia de cards nativas Phantom. |
 | Contexto | Búsqueda y lectura acotada de documentos, referencias fijadas, decisiones/memorias y skills de Phantom. |
+| Skills | Catálogo visual de todas las Skills: carpeta del proyecto (`.claude/skills`, `.agents/skills`…), catálogo Phantom (el mismo que sirve su MCP) e instalaciones (Claude Code, plugins, Codex, OpenCode, agentes compartidos). Solo lectura; instrucciones renderizadas. |
 | Misiones | Notas de continuidad, próxima acción y vínculos a paneles, tareas y ejecuciones. |
 | Git | Cambios, ramas, worktrees y comparación con base elegida. «No integrada» no significa «lista para merge». |
 | Servicios | URLs fijadas, servicios con proceso propietario y puertos Compose atribuidos al proyecto. |

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X } from 'lucide-react';
+import { Sparkles, ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X } from 'lucide-react';
 import TerminalPanelContent from './TerminalPanel';
 import BrowserPanelContent from './BrowserPanel';
 import { ToolPanel as ToolPanelContent } from './ToolPanels';
@@ -9,7 +9,7 @@ import { Presence, PresenceGroup } from './Presence';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
 
-const icons = { terminal: TerminalSquare, browser: Globe, note: StickyNote, plugins: Layers, 'phantom-cards': Layers, 'phantom-skills': Layers };
+const icons = { terminal: TerminalSquare, browser: Globe, note: StickyNote, plugins: Layers, 'phantom-cards': Layers, 'phantom-skills': Layers, 'skills-catalog': Sparkles };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const editable = isEditingTarget;
 const defaultCamera = { x: 64, y: 64, zoom: 1 };

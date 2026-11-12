@@ -1,0 +1,38 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Primero el comando</title><style>
+*{box-sizing:border-box}body{margin:0;width:1440px;height:900px;overflow:hidden;background:#15171c;color:#eceef3;font:13px/1.5 system-ui,sans-serif}
+.p{position:absolute;inset:24px;background:#202329;border:1px solid #373d48;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.cmd{padding:22px 24px 14px;border-bottom:1px solid #373d48}
+.bar{display:flex;align-items:center;gap:12px;height:52px;padding:0 18px;border:1px solid #8b9dff;border-radius:10px;background:#15171c;box-shadow:0 0 0 4px color-mix(in srgb,#8b9dff 18%,transparent)}
+.bar b{font-size:18px;font-weight:500}.bar .caret{width:2px;height:22px;background:#8b9dff}.bar kbd{margin-left:auto;font:11px ui-monospace,monospace;color:#a5adbb;border:1px solid #373d48;border-radius:4px;padding:1px 6px}
+.chips{display:flex;gap:6px;margin-top:12px}.chips span{height:26px;padding:0 10px;border:1px solid #373d48;border-radius:13px;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#a5adbb}.chips span.on{background:color-mix(in srgb,#8b9dff 15%,#202329);color:#eceef3;border-color:#8b9dff}
+.chips i{width:6px;height:6px;border-radius:50%;background:var(--t)}
+.body{flex:1;display:grid;grid-template-columns:480px 1fr;min-height:0}
+.res{border-right:1px solid #373d48;padding:10px;overflow:hidden}.gh{font-size:11px;color:#a5adbb;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:10px 10px 6px}
+.r{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-radius:7px}.r.on{background:color-mix(in srgb,#8b9dff 15%,#202329);box-shadow:inset 0 0 0 1px color-mix(in srgb,#8b9dff 45%,transparent)}
+.ic{width:28px;height:28px;flex:none;border-radius:7px;display:grid;place-items:center;font-size:12px;font-weight:650;color:var(--t);background:color-mix(in srgb,var(--t) 14%,#202329)}
+.r b{display:block;font-weight:600;font-size:12.5px}.r b mark{background:color-mix(in srgb,#8b9dff 35%,transparent);color:inherit;border-radius:2px}.r span{font-size:11.5px;color:#a5adbb}.r kbd{margin-left:auto;font:10px ui-monospace,monospace;color:#a5adbb}
+.det{padding:24px 30px;overflow:hidden}.pill{display:inline-flex;gap:6px;align-items:center;height:22px;padding:0 9px;border-radius:11px;font-size:11.5px;font-weight:600;color:#edbf79;background:color-mix(in srgb,#edbf79 14%,#202329)}
+.det h1{margin:12px 0 6px;font-size:24px;font-weight:650;letter-spacing:-.025em;line-height:1.25}.det p{margin:0;color:#a5adbb;max-width:70ch}
+.btn{height:30px;padding:0 12px;border:1px solid #373d48;border-radius:6px;display:inline-flex;align-items:center;background:#292d35}.pri{background:#8b9dff;color:#171b28;border-color:#8b9dff;font-weight:600}
+h3{margin:22px 0 8px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#a5adbb}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}.row{display:flex;gap:10px;padding:5px 0;font-size:12.5px}.row code{font:12px ui-monospace,monospace}.ok{color:#8ad8b6}.bad{color:#ff9da8}
+</style></head><body><div class="p">
+<div class="cmd"><div class="bar"><b>worktree</b><span class="caret"></span><kbd>↑↓ elegir · ↵ abrir · ⌘↵ acción</kbd></div>
+<div class="chips"><span style="--t:#edbf79"><i></i>Bloqueadas 2</span><span style="--t:#8b9dff"><i></i>En curso 1</span><span style="--t:#a5adbb"><i></i>Listas 4</span><span class="on">Todo</span><span>Solo Skills</span><span>Acciones</span><span style="margin-left:auto">+ Nueva Card</span></div></div>
+<div class="body"><div class="res">
+<div class="gh">Cards · 2</div>
+<div class="r on" style="--t:#edbf79"><span class="ic">●</span><div><b>Corregir timeouts al preparar <mark>worktree</mark>s con npm ci</b><span>Bloqueada · task_721f · verificación fallida</span></div><kbd>↵</kbd></div>
+<div class="r" style="--t:#a5adbb"><span class="ic">●</span><div><b>Timeouts de <mark>worktree</mark> (original)</b><span>Reemplazada por task_721f</span></div></div>
+<div class="gh">Skills · 2</div>
+<div class="r" style="--t:#8b9dff"><span class="ic">W</span><div><b>proyecto/<mark>worktree</mark>-setup</b><span>Preparar dependencias de un worktree nuevo · v1.2.0</span></div></div>
+<div class="r" style="--t:#8b9dff"><span class="ic">G</span><div><b>phantom/git-<mark>worktree</mark>s</b><span>Global · solo lectura · v3.0.1</span></div></div>
+<div class="gh">Acciones · 2</div>
+<div class="r" style="--t:#8ad8b6"><span class="ic">▶</span><div><b>Verificar task_721f</b><span>Disponible ahora</span></div><kbd>⌘↵</kbd></div>
+<div class="r" style="--t:#a5adbb"><span class="ic">+</span><div><b>Nueva Card sobre «<mark>worktree</mark>»</b><span>Abre el formulario con el objetivo prellenado</span></div></div>
+</div><div class="det">
+<span class="pill">● Bloqueada</span><h1>Corregir timeouts al preparar worktrees con npm ci</h1><p>La verificación tras la reconciliación falló: desktop-smoke superó el límite de 240 s.</p>
+<div style="margin-top:16px;display:flex;gap:8px"><span class="btn pri">Verificar</span><span class="btn">Cancelar</span><span class="btn">Preparar reemplazo</span></div>
+<div class="cols"><div><h3>Checks · 2 de 3</h3><div class="row"><span class="ok">✓</span><code>node --test test/worktree-setup.test.mjs</code></div><div class="row"><span class="ok">✓</span><code>node scripts/setup-worktree.mjs</code></div><div class="row"><span class="bad">✕</span><code>node test/desktop-smoke.mjs</code></div></div>
+<div><h3>Scope</h3><div class="row"><code>host/worktree-setup.mjs</code></div><div class="row"><code>host/terminals.mjs</code></div><div class="row"><code>test/worktree-setup.test.mjs</code></div></div></div>
+<h3>Ejecuciones</h3><div class="row"><span class="bad">●</span>Verificación · 4m 02s · hace 12 min</div><div class="row"><span class="ok">●</span>Ejecución · 18m 40s · hace 40 min</div>
+</div></div></div></body></html>

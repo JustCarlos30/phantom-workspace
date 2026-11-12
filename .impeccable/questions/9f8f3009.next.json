@@ -1,0 +1,49 @@
+{
+  "title": "Paneles Phantom · Cards y Skills",
+  "question": "Mano nueva: otras tres estructuras. Elige una, ajústala con una frase o vuelve a tirar.",
+  "followup": false,
+  "options": [
+    {
+      "id": "mesa",
+      "kind": "assigned",
+      "label": "Mesa del ahora",
+      "kicker": "THE ROLL",
+      "lineage": "Abrir el panel responde «¿qué necesita de mí ahora?»",
+      "thesis": "Tres zonas fijas: lo que espera tu decisión, lo que está corriendo y la cola; las Skills en un estante lateral.",
+      "palette": ["#15171c", "#202329", "#edbf79", "#8b9dff", "#8ad8b6"],
+      "materials": ["planos opacos grafito", "tarjetas de decisión grandes"],
+      "viewport": "Arriba, tarjetas grandes de Cards bloqueadas con su acción; en medio, ejecuciones vivas con su última salida; abajo, la cola compacta. Estante de Skills a la derecha.",
+      "risk": "Sin nada bloqueado ni corriendo la zona superior queda vacía y hay que darle un estado tranquilo.",
+      "raised": [
+        { "from": "vernacular-ephemera-boarding-pass-and-gate-board", "raise": "Una Card que cambia de estado se mueve a su zona y queda iluminada hasta que la miras." }
+      ],
+      "html": ".impeccable/mocks/decision/mesa.html"
+    },
+    {
+      "id": "comando",
+      "kind": "dealt",
+      "label": "Primero el comando",
+      "lineage": "Escribes lo que quieres; Cards, Skills y acciones aparecen",
+      "thesis": "Una barra de búsqueda grande manda: resuelve Cards, Skills y acciones, y el resultado elegido se abre debajo.",
+      "palette": ["#15171c", "#202329", "#8b9dff", "#edbf79"],
+      "materials": ["barra de comando", "resultados con teclado"],
+      "viewport": "Barra con filtros rápidos (bloqueadas, en curso, skills); resultados mezclados a la izquierda; detalle legible a la derecha.",
+      "risk": "Quien no sabe qué buscar ve poco; el estado general queda en segundo plano.",
+      "html": ".impeccable/mocks/decision/comando.html"
+    },
+    {
+      "id": "triaje",
+      "kind": "dealt",
+      "label": "Cola de triaje",
+      "lineage": "La misma forma que el catálogo de Skills nuevo",
+      "thesis": "Lista agrupada por urgencia (bloqueadas, en curso, listas, hechas) con el detalle legible al lado.",
+      "palette": ["#15171c", "#202329", "#8b9dff", "#edbf79", "#8ad8b6"],
+      "materials": ["lista agrupada", "detalle lateral"],
+      "viewport": "Pestañas Cards/Skills, filtros por estado con contadores, lista con grupos fijos y detalle de contrato a la derecha.",
+      "risk": "Es la opción más conocida: cómoda y coherente, poco memorable.",
+      "html": ".impeccable/mocks/decision/triaje.html"
+    }
+  ],
+  "reroll": true,
+  "steer": true
+}

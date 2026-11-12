@@ -1,0 +1,43 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Carriles de ejecución</title><style>
+*{box-sizing:border-box}body{margin:0;width:1440px;height:900px;overflow:hidden;background:#15171c;color:#eceef3;font:13px/1.5 system-ui,sans-serif}
+.p{position:absolute;inset:24px;background:#202329;border:1px solid #373d48;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #373d48}
+h1{margin:0;font-size:15px;font-weight:650}.sp{flex:1}
+.tabs{display:flex;gap:2px;padding:2px;background:#15171c;border:1px solid #373d48;border-radius:7px}.tabs b{padding:4px 12px;border-radius:5px;font-weight:500;color:#a5adbb}.tabs b.on{background:#292d35;color:#eceef3}
+.btn{height:30px;padding:0 12px;border:1px solid #373d48;border-radius:6px;display:inline-flex;align-items:center;background:#292d35}.pri{background:#8b9dff;color:#171b28;border-color:#8b9dff;font-weight:600}
+.seg{display:flex;gap:4px}.seg span{height:26px;padding:0 10px;border:1px solid #373d48;border-radius:13px;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#a5adbb}.seg span.on{background:color-mix(in srgb,#8b9dff 15%,#202329);color:#eceef3;border-color:#8b9dff}
+.grid{flex:1;display:grid;grid-template-columns:360px 1fr;grid-template-rows:34px repeat(7,58px) 1fr;min-height:0}
+.hd{border-bottom:1px solid #373d48;font-size:11px;color:#a5adbb;display:flex;align-items:center;padding:0 16px}
+.axis{display:grid;grid-template-columns:repeat(6,1fr);padding:0}.axis span{border-left:1px solid #2b3039;padding-left:6px;font:11px ui-monospace,monospace}
+.lbl{padding:8px 16px;border-bottom:1px solid #2b3039;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.lbl b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbl small{font-size:11px;display:flex;gap:6px;align-items:center;color:var(--t)}.lbl small i{width:6px;height:6px;border-radius:50%;background:var(--t)}
+.lbl.on{background:color-mix(in srgb,#8b9dff 12%,#202329);box-shadow:inset 3px 0 #8b9dff}
+.lane{position:relative;border-bottom:1px solid #2b3039;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/6 - 1px),#2b3039 calc(100%/6 - 1px),#2b3039 calc(100%/6))}
+.lane.on{background-color:color-mix(in srgb,#8b9dff 6%,#202329)}
+.run{position:absolute;top:19px;height:20px;border-radius:5px;font-size:11px;display:flex;align-items:center;padding:0 8px;color:#171b28;font-weight:600;white-space:nowrap;overflow:hidden}
+.gap{position:absolute;top:26px;height:6px;border-radius:3px;background:repeating-linear-gradient(45deg,#edbf79 0 4px,transparent 4px 8px);opacity:.8}
+.tick{position:absolute;top:14px;width:2px;height:30px;background:#a5adbb;opacity:.6}
+.now{position:absolute;top:0;bottom:0;width:2px;background:#8b9dff}
+.drawer{grid-column:1/-1;border-top:1px solid #373d48;background:#1d2026;padding:16px 20px;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:24px}
+.drawer h2{margin:0;font-size:18px;font-weight:650;letter-spacing:-.02em}.drawer p{margin:4px 0 0;color:#a5adbb;font-size:12px}
+h3{margin:0 0 6px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#a5adbb}
+.chk{font:12px ui-monospace,monospace;padding:3px 0}.ok{color:#8ad8b6}.bad{color:#ff9da8}
+</style></head><body><div class="p">
+<div class="top"><h1>Phantom</h1><div class="tabs"><b class="on">Cards 9</b><b>Skills 14</b></div><div class="seg"><span class="on">Últimas 6 h</span><span>24 h</span><span>Semana</span></div><div class="sp"></div><div class="seg"><span>● Bloqueadas 2</span><span>● En curso 1</span><span>Todas</span></div><span class="btn">Actualizar</span><span class="btn pri">+ Nueva Card</span></div>
+<div class="grid">
+<div class="hd">Card</div><div class="hd axis"><span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span><span>14:00</span><span>15:00</span></div>
+<div class="lbl" style="--t:#edbf79"><b>Decidir alcance de la recuperación automática</b><small><i></i>Bloqueada · espera decisión</small></div>
+<div class="lane"><div class="run" style="left:4%;width:14%;background:#a5adbb">run 1</div><div class="gap" style="left:18%;width:82%"></div></div>
+<div class="lbl on" style="--t:#edbf79"><b>Corregir timeouts al preparar worktrees</b><small><i></i>Bloqueada · verificación fallida</small></div>
+<div class="lane on"><div class="run" style="left:22%;width:20%;background:#8ad8b6">run 2 · 18m</div><div class="tick" style="left:45%"></div><div class="run" style="left:47%;width:9%;background:#ff9da8">verif.</div><div class="gap" style="left:56%;width:44%"></div></div>
+<div class="lbl" style="--t:#8b9dff"><b>Reconexión automática del escritorio</b><small><i></i>En curso · 4 min</small></div>
+<div class="lane"><div class="run" style="left:62%;width:30%;background:#8b9dff">run 1 · en curso</div><div class="now" style="left:92%"></div></div>
+<div class="lbl" style="--t:#8ad8b6"><b>Verificar flujos integrados del escritorio</b><small><i></i>Completada</small></div>
+<div class="lane"><div class="run" style="left:2%;width:24%;background:#8ad8b6">run 1 · 31m</div><div class="tick" style="left:27%"></div></div>
+<div class="lbl" style="--t:#a5adbb"><b>Catálogo de Skills en el canvas</b><small><i></i>Lista · sin ejecuciones</small></div><div class="lane"></div>
+<div class="lbl" style="--t:#a5adbb"><b>Timeouts de worktree (original)</b><small><i></i>Reemplazada por task_721f</small></div><div class="lane" style="opacity:.5"><div class="run" style="left:8%;width:10%;background:#a5adbb">run 1</div></div>
+<div class="lbl" style="--t:#a5adbb"><b>Documentar fuentes preservadas</b><small><i></i>Lista</small></div><div class="lane"></div>
+<div class="drawer"><div><h3>Bloqueada · task_721f</h3><h2>Corregir timeouts al preparar worktrees con npm ci</h2><p>La verificación tras la reconciliación falló en desktop-smoke (timeout 240 s).</p><div style="margin-top:12px;display:flex;gap:8px"><span class="btn pri">Verificar</span><span class="btn">Cancelar</span><span class="btn">Ver contrato</span></div></div>
+<div><h3>Checks · 2 de 3</h3><div class="chk"><span class="ok">✓</span> worktree-setup.test.mjs</div><div class="chk"><span class="ok">✓</span> setup-worktree.mjs</div><div class="chk"><span class="bad">✕</span> desktop-smoke.mjs</div></div>
+<div><h3>Últimos eventos</h3><div class="chk">14:02 verification.failed</div><div class="chk">13:41 run.reconciled</div><div class="chk">13:20 tool.output</div></div></div>
+</div></div></body></html>

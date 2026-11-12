@@ -13,7 +13,7 @@ import { useAppearance } from './hooks/useAppearance';
 import { Appearance } from './components/Appearance';
 import ActivityNotch, { ActivityTray, TerminalActivityStatus } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
-import { Palette, Maximize2 } from 'lucide-react';
+import { Palette, Maximize2, Sparkles } from 'lucide-react';
 import gengarArtwork from '../assets/gengar.png';
 import './styles.css';
 import './studio.css';
@@ -24,6 +24,7 @@ const TYPES = [
   ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto'],
   ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, `Panel nativo de ${panel.pluginId}`]),
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales'],
+  ['skills-catalog', 'Skills', Sparkles, 'Todas las Skills: carpeta, Phantom e instalaciones'],
   ['terminal', 'Terminal', TerminalSquare, 'Una sesión real en esta carpeta'], ['browser', 'Navegador', Globe, 'Una página junto al trabajo'], ['note', 'Nota', StickyNote, 'Contexto que permanece'],
   ['tasks', 'Tareas', Check, 'Borradores, checklists y Phantom'], ['context', 'Contexto', FileText, 'Archivos, memorias y skills'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees'], ['services', 'Servicios', Activity, 'Sitios y procesos del proyecto'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito'], ['workflows', 'Workflows', Workflow, 'Secuencias de trabajo reutilizables'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente'],
 ];
@@ -128,15 +129,15 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     setTools(false); setMenu(null); setList(false); setTray(false); setInspector(null);
     const panel = PLUGIN_PANELS.find(item => item.nodeType === type);
     if (panel) data = { ...data, pluginId: panel.pluginId, panelId: panel.id };
-    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (type === 'plugins' || type === 'command-center' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
+    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (type === 'plugins' || type === 'command-center' || type === 'skills-catalog' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
     if (existing) { focusPanel(existing.id); return existing; }
     setBusy(type);
     let reservationId, created = false;
     try {
       const region = document.querySelector('.canvas')?.getBoundingClientRect();
       const camera = w.camera || { x: 64, y: 64, zoom: 1 };
-      const width = type === 'browser' ? 800 : type === 'note' ? 420 : 640;
-      const height = type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : 400;
+      const width = type === 'browser' ? 800 : type === 'note' ? 420 : type === 'skills-catalog' ? 920 : 640;
+      const height = type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'skills-catalog' ? 600 : 400;
       // Reserve before the RPC so rapid/concurrent creations cannot reuse the
       // same slot while state.get or PTY creation is still in flight.
       for (const [key, item] of placements.current) if (item.workspaceId === w.id && w.nodes?.some(n => n.id === item.nodeId)) placements.current.delete(key);
