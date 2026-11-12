@@ -1,0 +1,53 @@
+/* Board: reference panels (image, video, link) and comment pins. */
+.reference { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--terminal-bg); }
+.canvas-node[data-type="reference"] .node-body { overflow: hidden; }
+.reference-media { flex: 1; min-height: 0; display: grid; place-items: stretch; }
+.reference-media > img, .reference-media > video { width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; -webkit-user-drag: none; }
+.reference-media > video { background: #000; }
+.reference-missing { display: grid; place-content: center; justify-items: center; gap: 10px; padding: 18px; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
+.reference-missing span { max-width: 26ch; }
+.reference-link { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; text-align: left; color: var(--ink); background: var(--surface); }
+.reference-link > img, .reference-link-blank { flex: 1; min-height: 0; width: 100%; object-fit: cover; display: grid; place-items: center; color: var(--muted); background: var(--surface-2); }
+.reference-link-text { display: grid; gap: 3px; padding: 10px 12px; border-top: 1px solid var(--line-soft); min-width: 0; }
+.reference-link-text strong { font-size: 12.5px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.reference-link-text em { font-style: normal; font-size: 11.5px; line-height: 1.4; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.reference-link-text small { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.reference-link:hover strong { color: var(--accent); }
+.reference-caption { display: flex; align-items: center; gap: 4px; height: 34px; min-height: 34px; padding: 0 6px 0 12px; border-top: 1px solid var(--line-soft); background: var(--surface); }
+.reference-caption input { flex: 1; min-width: 0; height: 26px; border: 0; background: transparent; color: var(--ink); font-size: 12px; }
+.reference-caption input::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.reference-caption .icon-button { width: 24px; height: 24px; flex-shrink: 0; }
+.reference-timeline { position: relative; height: 12px; min-height: 12px; margin: 0 12px; }
+.reference-timeline::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 2px; border-radius: 2px; background: var(--fill-3); }
+.reference-timeline button { position: absolute; top: 1px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--attention); border: 2px solid var(--surface); padding: 0; }
+.reference-timeline button:hover { transform: scale(1.3); }
+.overview .reference-caption, .overview .reference-timeline { display: none; }
+
+.canvas.comment-tool, .canvas.comment-tool .canvas-node, .canvas.comment-tool .node-body * { cursor: crosshair; }
+.canvas.comment-tool .node-header { cursor: grab; }
+.comment-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 7; }
+.comment-anchor { position: absolute; width: 0; height: 0; pointer-events: auto; transform: scale(var(--overview-scale, 1)); transform-origin: 0 0; z-index: 1; }
+.comment-anchor.open { z-index: 2; }
+.comment-pin { position: absolute; left: 0; bottom: 0; min-width: 26px; height: 26px; padding: 0 7px; display: grid; place-items: center; border-radius: 13px 13px 13px 2px; background: var(--attention); color: #1d1204; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg), var(--shadow-float); cursor: pointer; transition: transform 120ms ease-out; transform-origin: 0 100%; }
+.comment-pin:hover, .comment-anchor.open .comment-pin { transform: scale(1.12); }
+.comment-pin.resolved { background: var(--surface-3); color: var(--muted); }
+.comment-pin.draft { background: var(--accent); color: var(--primary-ink); }
+.comment-thread { position: absolute; left: 36px; top: -30px; width: 288px; display: flex; flex-direction: column; max-height: 360px; border-radius: 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-popover); cursor: default; }
+.comment-thread header { display: flex; align-items: center; gap: 2px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--line-soft); }
+.comment-thread header strong { flex: 1; min-width: 0; font-size: 11.5px; font-weight: 600; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.comment-thread header .icon-button { width: 24px; height: 24px; }
+.comment-time { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--attention); background: color-mix(in srgb, var(--attention) 14%, transparent); border-radius: 5px; padding: 2px 6px; margin-right: 2px; }
+.comment-thread ol { list-style: none; margin: 0; padding: 10px 12px 2px; overflow: auto; display: grid; gap: 10px; }
+.comment-thread li b { font-size: 12px; font-weight: 600; }
+.comment-thread li time { margin-left: 7px; font-size: 10.5px; color: var(--muted); }
+.comment-thread li p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.comment-composer { display: flex; align-items: flex-end; gap: 6px; padding: 10px; }
+.comment-composer textarea { flex: 1; min-width: 0; resize: none; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.45; padding: 6px 8px; }
+.comment-composer textarea:focus-visible { outline: 0; border-color: var(--accent); }
+.comment-composer .button { height: 30px; padding: 0 10px; font-size: 12px; }
+.canvas-navigation button { position: relative; }
+.comment-count { position: absolute; top: -3px; right: -3px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--attention); color: #1d1204; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; }
+.comment-hint, .reference-importing { position: absolute; left: 50%; top: 72px; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 99px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-float); font-size: 12px; pointer-events: none; white-space: nowrap; }
+.reference-importing { top: 112px; }
+.focus-mode .comment-hint { top: 44px; }
+@media (prefers-reduced-motion: reduce) { .comment-pin { transition: none; } }

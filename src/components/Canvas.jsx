@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame, Sparkles } from 'lucide-react';
+import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame, Sparkles, MessageCircle, LoaderCircle } from 'lucide-react';
 import Minimap from './Minimap';
 import TerminalPanelContent from './TerminalPanel';
 import TerminalCardContent from './TerminalCard';
@@ -13,6 +13,9 @@ import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
 import { PANEL_ICONS } from './PanelIcons';
 import PixelField from './PixelField';
+import ReferencePanelContent, { CommentLayer } from './References';
+import { INLINE_LIMIT, readTransfer, toBase64, visibleComments } from '../hooks/references.mjs';
+import '../references.css';
 
 const icons = { ...PANEL_ICONS, 'skills-catalog': Sparkles };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -58,15 +61,19 @@ const ChatCard = React.memo(ChatCardContent);
 const sameIds = (a, b) => a.length === b.length && a.every((id, index) => id === b[index]);
 const BrowserPanel = React.memo(BrowserPanelContent);
 const ToolPanel = React.memo(ToolPanelContent);
+const ReferencePanel = React.memo(ReferencePanelContent);
+// A reference hugs its media: header and caption around the picture's own ratio.
+const REFERENCE_CHROME = 70;
+const NO_COMMENTS = [];
 
 // One panel on the map. Memoized: camera movement, other panels' edits and
 // selection changes elsewhere must not re-render this panel or its terminal.
-const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, anyFocused, selected, small, compact, magnified, missionTitle, activity, editing, anyEditing, workspace, handlers, api, refresh, flush, notify, onOpenPanel, onChange, onRelaunch, connected, active, inputBlocked, obscured }) {
+const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, anyFocused, selected, small, compact, magnified, missionTitle, activity, editing, anyEditing, workspace, handlers, api, refresh, flush, notify, onOpenPanel, onChange, onRelaunch, connected, active, inputBlocked, obscured, comments }) {
   const Icon = icons[node.type] || Layers, isFocused = !!focusSize;
   const geometry = isFocused ? { x: 12, y: 72, width: Math.max(320, focusSize.width - 24), height: Math.max(240, focusSize.height - 160) } : preview ? { ...node, ...preview } : node;
   const titleRef = useCallback(element => handlers.titleButton(node.id, element), [handlers, node.id]);
   const enlarge = useCallback(() => handlers.focus(node.id), [handlers, node.id]);
-  return <article className={`canvas-node ${selected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${small ? 'overview' : ''} ${compact ? 'compact' : ''} ${preview ? 'is-dragging' : ''} ${pulseState(node, activity)}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height, display: anyFocused && !isFocused ? 'none' : undefined }} onPointerDown={() => { if (!selected) handlers.select([node.id]); }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); handlers.menu(node.id, e.clientX, e.clientY); }}>
+  return <article data-node-id={node.id} data-type={node.type} className={`canvas-node ${selected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${small ? 'overview' : ''} ${compact ? 'compact' : ''} ${preview ? 'is-dragging' : ''} ${pulseState(node, activity)}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height, display: anyFocused && !isFocused ? 'none' : undefined }} onPointerDown={() => { if (!selected) handlers.select([node.id]); }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); handlers.menu(node.id, e.clientX, e.clientY); }}>
     <header className="node-header" onPointerDown={e => { if (!e.target.closest('button,input') && !anyFocused) handlers.begin(e, 'move', node); }} onDoubleClick={e => { if (!e.target.closest('button,input')) handlers.focus(isFocused ? null : node.id); }}>
       <span className="node-glyph" data-type={node.type} aria-hidden="true"><Icon size={14} /></span><div className="node-title">{editing ? <><input ref={handlers.renameInput} className="inline-name-input" aria-label="Nombre del panel" aria-invalid={!!editing.error} aria-describedby={editing.error ? `name-error-${node.id}` : undefined} value={editing.value} readOnly={editing.saving} onChange={e => handlers.renameChange(e.target.value)} onPointerDown={e => e.stopPropagation()} onBlur={() => handlers.renameCommit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); handlers.renameCommit(true); } if (e.key === 'Escape') { e.preventDefault(); handlers.renameCancel(); } }} />{editing.error && <span className="inline-name-error" id={`name-error-${node.id}`} role="alert">{editing.error}</span>}</> : <button ref={titleRef} className="title-button" title="Renombrar panel" onClick={() => handlers.renameStart(node)}>{node.title}</button>}</div>
       {node.groupId && <span className="mission-chip" title={missionTitle}>{missionTitle || 'Misión'}</span>}
@@ -76,13 +83,13 @@ const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, an
       {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" onClick={() => handlers.closeTerminal(node)}><X size={14} /></button>}
     </header>
     <div className="node-body">
-      {node.type === 'terminal' && node.data?.chat?.provider ? <ChatCard node={node} workspace={workspace} api={api} notify={notify} overview={small} focused={isFocused} connected={connected} /> : node.type === 'terminal' && !isFocused ? <TerminalCard node={node} workspace={workspace} api={api} notify={notify} onFocus={handlers.focus} onRelaunch={onRelaunch} overview={small} connected={connected} /> : node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onEnlarge={enlarge} onFocus={handlers.focus} connected={connected} active={active} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} compact={compact} magnified={magnified} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || anyEditing} onFocus={handlers.focus} onChange={onChange} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
+      {node.type === 'terminal' && node.data?.chat?.provider ? <ChatCard node={node} workspace={workspace} api={api} notify={notify} overview={small} focused={isFocused} connected={connected} /> : node.type === 'terminal' && !isFocused ? <TerminalCard node={node} workspace={workspace} api={api} notify={notify} onFocus={handlers.focus} onRelaunch={onRelaunch} overview={small} connected={connected} /> : node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onEnlarge={enlarge} onFocus={handlers.focus} connected={connected} active={active} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} compact={compact} magnified={magnified} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || anyEditing} onFocus={handlers.focus} onChange={onChange} /> : node.type === 'reference' ? <ReferencePanel node={node} workspace={workspace} comments={comments} onChange={onChange} onOpenPanel={onOpenPanel} onOpenComment={handlers.openComment} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
     </div>
     {!anyFocused && <button className="resize-handle" aria-label="Cambiar tamaño del panel" title="Arrastra para cambiar tamaño" onPointerDown={e => handlers.begin(e, 'resize', node)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) { e.preventDefault(); onChange(node.id, { width: Math.max(400, node.width + (e.key === 'ArrowRight' ? 24 : e.key === 'ArrowLeft' ? -24 : 0)), height: Math.max(240, node.height + (e.key === 'ArrowDown' ? 24 : e.key === 'ArrowUp' ? -24 : 0)) }); } }} />}
   </article>;
 });
 
-export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {} }) {
+export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null }) {
   const root = useRef(null);
   const world = useRef(null);
   const zoomLabel = useRef(null);
@@ -102,6 +109,14 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const [marquee, setMarquee] = useState(null);
   const [navigationMenu, setNavigationMenu] = useState(null);
   const previewRef = useRef({});
+  // Board: where the pointer last was (a paste lands there), the comment being
+  // written, the open thread and how many references are still arriving.
+  const pointer = useRef(null);
+  const [draft, setDraft] = useState(null);
+  const [openComment, setOpenComment] = useState(null);
+  const [importing, setImporting] = useState(0);
+  const [dataDir, setDataDir] = useState('');
+  useEffect(() => { let alive = true; api('desktop.info').then(info => { if (alive) setDataDir(info?.dataDir || ''); }, () => {}); return () => { alive = false; }; }, [api]);
   const inertia = useRef(null);
   const [minimap, setMinimap] = useState(readMinimap);
   const toggleMinimap = () => setMinimap(on => { try { localStorage.setItem('phantom.minimap', on ? 'off' : 'on'); } catch { /* per-viewer preference only */ } return !on; });
@@ -222,7 +237,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       if (editable(e.target)) return;
       if (e.key === 'Escape' && navigationMenu) { e.preventDefault(); setNavigationMenu(null); return; }
       if (e.target.closest('button,.canvas-popover')) return;
+      if (e.key === 'Escape' && (draft || openComment || tool === 'comment')) { e.preventDefault(); setDraft(null); setOpenComment(null); setTool('select'); return; }
       if (e.key === 'Escape') { setNavigationMenu(null); onFocus(null); onSelect([]); }
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'c') { setTool(current => current === 'comment' ? 'select' : 'comment'); return; }
       if (focused || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code === 'Space') { e.preventDefault(); space.current = true; setSpaceHeld(true); }
       if (e.key.toLowerCase() === 'h') setTool('hand');
@@ -240,7 +257,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     const release = e => { if (!e || e.type === 'blur' || e.code === 'Space') { space.current = false; setSpaceHeld(false); } if (e?.type === 'blur') finishRef.current?.(); };
     window.addEventListener('keydown', key); window.addEventListener('keyup', release); window.addEventListener('blur', release);
     return () => { window.removeEventListener('keydown', key); window.removeEventListener('keyup', release); window.removeEventListener('blur', release); };
-  }, [focused, selected, nodes, onFocus, onSelect, inputBlocked, onMenu, size, zoomAt, navigationMenu]);
+  }, [focused, selected, nodes, onFocus, onSelect, inputBlocked, onMenu, size, zoomAt, navigationMenu, draft, openComment, tool]);
   // Moving a zone carries every panel that lies fully inside it.
   const moving = ids => {
     const set = new Set(ids);
@@ -260,6 +277,66 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     gesture.current = { kind, startX: e.clientX, startY: e.clientY, camera: { ...cameraRef.current }, originals: nodes.filter(n => moving(ids).has(n.id)).map(n => ({ ...n })), node, selection: e.shiftKey ? selected : [], pointerId: e.pointerId, last: null, samples: [{ x: e.clientX, y: e.clientY, t: performance.now() }] };
     if (kind === 'pan') setPanning(true);
   };
+  // Images and videos keep their ratio while resizing (Shift frees it), like a design tool.
+  const resized = (node, width, height, free) => {
+    const media = node.type === 'reference' && node.data?.aspect && node.data.kind !== 'link' && !free;
+    const w = Math.round(Math.max(node.type === 'terminal' ? 400 : node.type === 'zone' ? 240 : node.type === 'reference' ? 180 : 320, width));
+    return { width: w, height: media ? Math.round(REFERENCE_CHROME + w / node.data.aspect) : Math.round(Math.max(node.type === 'zone' ? 160 : node.type === 'reference' ? 150 : 240, height)) };
+  };
+  const worldPoint = (clientX, clientY) => { const r = root.current.getBoundingClientRect(), c = cameraRef.current; return { x: (clientX - r.left - c.x) / c.zoom, y: (clientY - r.top - c.y) / c.zoom }; };
+  // A paste or drop becomes panels: files and image URLs as references, links
+  // as link cards, anything else as a note. Each lands where the pointer is.
+  const addItems = async (items, point) => {
+    const made = [], place = { center: true, ...(spaceId ? { spaceId } : {}) };
+    setImporting(n => n + items.length);
+    for (const [index, item] of items.entries()) {
+      const at = { ...place, x: Math.round(point.x + index * 32), y: Math.round(point.y + index * 32) };
+      try {
+        let node;
+        if (item.kind === 'file') {
+          const image = item.file.type.startsWith('image/'), filePath = window.phantom?.pathForFile?.(item.file) || '';
+          if (!filePath && !(image && item.file.size <= INLINE_LIMIT)) throw new Error(image ? 'La imagen supera el límite de 12 MB' : 'Arrastra el video desde tus archivos para añadirlo');
+          const named = item.file.name && !/^image\.\w+$/i.test(item.file.name) ? { title: item.file.name.replace(/\.[^.]+$/, '').slice(0, 200) } : {};
+          node = await api('reference.add', { workspaceId: workspace.id, ...(filePath ? { path: filePath } : { data: await toBase64(item.file) }), ...named, ...at });
+        } else if (item.kind === 'link') node = await api('reference.link', { workspaceId: workspace.id, url: item.url, ...at });
+        else node = await api('node.create', { workspaceId: workspace.id, type: 'note', title: 'Nota', x: at.x - 210, y: at.y - 170, width: 420, height: 340, data: { text: item.text.slice(0, 60000), ...(spaceId ? { spaceId } : {}) } });
+        made.push(node.id);
+      } catch (error) { notify(`No se pudo añadir la referencia: ${error.message}`, 'error'); }
+      finally { setImporting(n => n - 1); }
+    }
+    if (made.length) { await refresh(); onSelect(made); }
+  };
+  const addItemsRef = useRef(addItems); addItemsRef.current = addItems;
+  useEffect(() => {
+    const paste = e => {
+      if (inputBlocked || live.current.focused || editable(e.target)) return;
+      const owner = document.activeElement;
+      if (owner && owner !== document.body && !root.current?.contains(owner)) return;
+      const items = readTransfer(e.clipboardData); if (!items.length) return;
+      e.preventDefault();
+      const r = root.current.getBoundingClientRect(), p = pointer.current && pointer.current.x >= r.left && pointer.current.x <= r.right && pointer.current.y >= r.top && pointer.current.y <= r.bottom ? pointer.current : { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      addItemsRef.current(items, worldPoint(p.x, p.y));
+    };
+    window.addEventListener('paste', paste); return () => window.removeEventListener('paste', paste);
+  }, [inputBlocked]);
+  const droppable = e => !inputBlocked && !focused && ['Files', 'text/uri-list'].some(type => e.dataTransfer?.types?.includes(type));
+  const drop = e => { if (!droppable(e)) return; e.preventDefault(); const items = readTransfer(e.dataTransfer); if (items.length) addItems(items, worldPoint(e.clientX, e.clientY)); else notify('Suelta imágenes, videos o enlaces para añadirlos como referencias.'); };
+  // Comment tool: a click drops a pin on the panel under it (as a fraction of
+  // its box, so the pin follows the panel) or on the canvas itself.
+  const placeComment = e => {
+    e.preventDefault(); e.stopPropagation();
+    const element = e.target.closest('[data-node-id]');
+    if (element) {
+      const r = element.getBoundingClientRect(), media = element.querySelector('[data-reference-video]');
+      media?.pause();
+      setDraft({ nodeId: element.dataset.nodeId, x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1), ...(media && media.currentTime > 0 ? { time: Math.round(media.currentTime * 10) / 10 } : {}) });
+    } else if (!focused) { const p = worldPoint(e.clientX, e.clientY); setDraft({ nodeId: null, x: Math.round(p.x), y: Math.round(p.y), ...(spaceId ? { spaceId } : {}) }); }
+    setOpenComment(null);
+  };
+  const seek = (nodeId, time) => { const media = root.current?.querySelector(`[data-node-id="${nodeId}"] [data-reference-video]`); if (media) { media.pause(); media.currentTime = time; } };
+  const comments = useMemo(() => visibleComments(workspace.comments, nodes, spaceId).filter(c => !focused || c.nodeId === focused), [workspace.comments, nodes, spaceId, focused]);
+  const commentsByNode = useMemo(() => { const map = new Map(); for (const c of comments) if (c.nodeId) map.set(c.nodeId, [...(map.get(c.nodeId) || []), c]); return map; }, [comments]);
+  const geometryOf = id => { const n = nodes.find(node => node.id === id); if (!n) return null; if (focused) return focused === id ? { x: 12, y: 72, width: Math.max(320, size.width - 24), height: Math.max(240, size.height - 160) } : null; return { ...n, ...preview[id] }; };
   // Pointer events can outpace the display; apply at most one gesture step per frame.
   const step = () => {
     gestureFrame.current = null;
@@ -274,7 +351,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const next = [...new Set([...g.selection, ...nodes.filter(n => n.type === 'zone' ? n.x * c.zoom + c.x >= box.x && (n.x + n.width) * c.zoom + c.x <= box.x + box.width && n.y * c.zoom + c.y >= box.y && (n.y + n.height) * c.zoom + c.y <= box.y + box.height : n.x * c.zoom + c.x < box.x + box.width && (n.x + n.width) * c.zoom + c.x > box.x && n.y * c.zoom + c.y < box.y + box.height && (n.y + n.height) * c.zoom + c.y > box.y).map(n => n.id)])];
       if (!sameIds(next, live.current.selected)) onSelect(next);
     } else {
-      previewRef.current = g.kind === 'move' ? Object.fromEntries(g.originals.map(n => [n.id, { x: Math.round(n.x + dx / g.camera.zoom), y: Math.round(n.y + dy / g.camera.zoom) }])) : { [g.node.id]: { width: Math.round(Math.max(g.node.type === 'terminal' ? 400 : g.node.type === 'zone' ? 240 : 320, g.node.width + dx / g.camera.zoom)), height: Math.round(Math.max(g.node.type === 'zone' ? 160 : 240, g.node.height + dy / g.camera.zoom)) } };
+      previewRef.current = g.kind === 'move' ? Object.fromEntries(g.originals.map(n => [n.id, { x: Math.round(n.x + dx / g.camera.zoom), y: Math.round(n.y + dy / g.camera.zoom) }])) : { [g.node.id]: resized(g.node, g.node.width + dx / g.camera.zoom, g.node.height + dy / g.camera.zoom, g.last.shiftKey) };
       setPreview(previewRef.current);
     }
   };
@@ -306,7 +383,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       while (g.samples.length > 2 && now - g.samples[0].t > 90) g.samples.shift();
       return;
     }
-    g.last = { clientX: e.clientX, clientY: e.clientY };
+    g.last = { clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey };
     if (gestureFrame.current === null) gestureFrame.current = requestAnimationFrame(step);
   };
   const finish = e => {
@@ -320,12 +397,14 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   useEffect(() => () => cancelAnimationFrame(gestureFrame.current), []);
   // Stable callbacks for memoized nodes; they always call the latest closure.
   const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename };
+  const openThread = useCallback(id => { setDraft(null); setOpenComment(id); }, []);
   const handlers = useMemo(() => ({
     begin: (...args) => latest.current.begin(...args),
     menu: (...args) => latest.current.onMenu(...args),
     focus: id => latest.current.onFocus(id),
     select: ids => latest.current.onSelect(ids),
     closeTerminal: node => latest.current.onCloseTerminal(node),
+    openComment: id => { setDraft(null); setOpenComment(id); },
     titleButton: (id, element) => { if (element) titleButtons.current.set(id, element); else titleButtons.current.delete(id); },
     renameStart: node => latest.current.rename.start(node.id, node.title, () => titleButtons.current.get(node.id)),
     renameChange: value => latest.current.rename.change(value),
@@ -342,9 +421,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     return kind ? [{ ...n, ...preview[n.id], id: n.id, kind }] : [];
   }), [nodes, preview, terminalActivity, focused]);
   const connected = !connection || connection.status === 'connected';
-  return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
+  return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''} ${tool === 'comment' ? 'comment-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={e => { pointer.current = { x: e.clientX, y: e.clientY }; move(e); }} onDragOver={e => { if (droppable(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }} onDrop={drop} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (tool === 'comment' && e.button === 0 && !inputBlocked && !e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor,.node-header,.zone-label')) { placeComment(e); return; } if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
     <Presence>{focusedNode && <div className="focus-return"><button onClick={() => onFocus(null)}><ArrowLeft size={15} /> Volver al mapa</button><span>{focusedNode.title}</span><kbd>Ctrl ⇧ ↵</kbd></div>}</Presence>
-    {!nodes.length && <div className="canvas-empty"><div className="empty-symbol"><Layers size={30} strokeWidth={1.4} /></div><h2>Tu mesa de trabajo, en un lugar</h2><p>Abre una terminal, toma una nota o conecta una herramienta.<br />Cada panel conserva su lugar en este proyecto.</p><div className="empty-actions"><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></div><span className="empty-hint">Arrastra una cabecera para organizar · Ctrl + rueda para acercar</span></div>}
+    {!nodes.length && <div className="canvas-empty"><div className="empty-symbol"><Layers size={30} strokeWidth={1.4} /></div><h2>Tu mesa de trabajo, en un lugar</h2><p>Abre una terminal, toma una nota o pega una imagen, un video o un enlace.<br />Cada panel conserva su lugar en este proyecto.</p><div className="empty-actions"><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></div><span className="empty-hint">Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta</span></div>}
     <PixelField targets={pixelTargets} cameraRef={cameraRef} paintRef={fieldPaint} hidden={!!focused} />
     <div ref={world} className="canvas-world">
       <PresenceGroup>{nodes.map(node => {
@@ -362,15 +441,19 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
           </section>;
         }
         const editing = rename.editing?.id === node.id ? rename.editing : null;
-        const sharedWorkspace = node.type === 'terminal' || node.type === 'browser' || node.type === 'note' ? panelWorkspace : workspace;
-        return <CanvasNode key={node.id} node={node} preview={preview[node.id]} focusSize={isFocused ? size : null} anyFocused={!!focused} selected={selected.includes(node.id)} small={tier > 0} compact={tier > 1} magnified={tier < 0} missionTitle={node.groupId ? workspace.missions?.find(m => m.id === node.groupId)?.title : undefined} activity={node.type === 'terminal' ? terminalActivity[node.id] : undefined} editing={editing} anyEditing={!!rename.editing} workspace={sharedWorkspace} handlers={handlers} api={api} refresh={refresh} flush={flush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onRelaunch={onRelaunch} connected={connected} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} obscured={obscured} />;
+        const sharedWorkspace = node.type === 'terminal' || node.type === 'browser' || node.type === 'note' || node.type === 'reference' ? panelWorkspace : workspace;
+        return <CanvasNode key={node.id} node={node} preview={preview[node.id]} focusSize={isFocused ? size : null} anyFocused={!!focused} selected={selected.includes(node.id)} small={tier > 0} compact={tier > 1} magnified={tier < 0} missionTitle={node.groupId ? workspace.missions?.find(m => m.id === node.groupId)?.title : undefined} activity={node.type === 'terminal' ? terminalActivity[node.id] : undefined} editing={editing} anyEditing={!!rename.editing} workspace={sharedWorkspace} handlers={handlers} api={api} refresh={refresh} flush={flush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onRelaunch={onRelaunch} connected={connected} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} obscured={obscured} comments={node.type === 'reference' ? commentsByNode.get(node.id) || NO_COMMENTS : undefined} />;
       })}</PresenceGroup>
+      <CommentLayer comments={comments} draft={draft} open={openComment} active={tool === 'comment'} geometryOf={geometryOf} nodeOf={id => nodes.find(n => n.id === id)} pathOf={node => node.data?.file && dataDir ? `${dataDir}/references/${workspace.id}/${node.data.file}` : null} api={api} workspaceId={workspace.id} notify={notify} onOpen={openThread} onDraft={setDraft} seek={seek} />
     </div>
+    {importing > 0 && <div className="reference-importing" role="status"><LoaderCircle size={14} className="spinning" />Añadiendo {importing === 1 ? 'referencia' : `${importing} referencias`}…</div>}
+    {tool === 'comment' && <div className="comment-hint" role="status"><MessageCircle size={14} />Haz clic donde quieras comentar<kbd>Esc</kbd></div>}
     {marquee && <div className="canvas-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
     {!focused && minimap && <Minimap nodes={nodes} camera={camera} cameraRef={cameraRef} frameRef={minimapFrame} size={size} selected={selected} onUpdate={next => { stopInertia(); updateCamera(next); }} />}
     {!focused && <><div className="canvas-navigation" role="toolbar" aria-label="Navegación del canvas">
       <button aria-label="Herramienta de selección" title="Seleccionar · V" aria-pressed={tool === 'select'} onClick={() => { setTool('select'); root.current.focus(); }}><MousePointer2 size={16} /></button>
-      <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /></button><i />
+      <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /></button>
+      <button aria-label="Herramienta de comentarios" title="Comentar · C" aria-pressed={tool === 'comment'} onClick={() => { setTool(current => current === 'comment' ? 'select' : 'comment'); root.current.focus(); }}><MessageCircle size={16} />{comments.some(c => !c.resolved) && <b className="comment-count">{comments.filter(c => !c.resolved).length}</b>}</button><i />
       <button title="Alejar (−)" aria-label="Alejar" disabled={camera.zoom <= .15} onClick={() => zoomAt(cameraRef.current.zoom / 1.2)}><Minus size={15} /></button>
       <button className="zoom-value" aria-label={`Zoom ${Math.round(camera.zoom * 100)}%. Opciones de zoom`} aria-expanded={navigationMenu === 'zoom'} aria-controls="canvas-zoom-options" onClick={() => setNavigationMenu(menu => menu === 'zoom' ? null : 'zoom')}><span ref={zoomLabel}>{Math.round(camera.zoom * 100)}</span>%<ChevronDown size={12} /></button>
       <button title="Acercar (+)" aria-label="Acercar" disabled={camera.zoom >= 1.8} onClick={() => zoomAt(cameraRef.current.zoom * 1.2)}><Plus size={15} /></button><i />
@@ -380,7 +463,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     </div>
     {navigationMenu && <div className="canvas-popover" id={navigationMenu === 'zoom' ? 'canvas-zoom-options' : 'canvas-gesture-help'} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setNavigationMenu(null); root.current.querySelector(`[aria-controls="${e.currentTarget.id}"]`)?.focus(); } }}>
       <div className="canvas-popover-heading"><strong>{navigationMenu === 'zoom' ? 'Vista del canvas' : 'Muévete por tu espacio'}</strong><button aria-label="Cerrar controles del canvas" onClick={() => setNavigationMenu(null)}><X size={14} /></button></div>
-      {navigationMenu === 'zoom' ? <><button onClick={() => { fit(); setNavigationMenu(null); }}>Ajustar todos los paneles<kbd>0</kbd></button><button disabled={!selected.length} onClick={() => { fit(true); setNavigationMenu(null); }}>Acercar a la selección<kbd>2</kbd></button><div className="canvas-zoom-presets">{[.25, .5, 1, 1.5].map(zoom => <button key={zoom} onClick={() => { zoomAt(zoom); setNavigationMenu(null); }}>{zoom * 100}%</button>)}</div></> : <dl><div><dt>Mover mapa</dt><dd><kbd>Espacio</kbd> + arrastrar</dd></div><div><dt>Desplazar</dt><dd>Trackpad / rueda central</dd></div><div><dt>Zoom al cursor</dt><dd><kbd>Ctrl</kbd> + rueda / pellizco</dd></div><div><dt>Seleccionar varios</dt><dd>Arrastrar en el fondo</dd></div><div><dt>Sumar selección</dt><dd><kbd>Shift</kbd> + arrastrar</dd></div><div><dt>Zoom real / ajustar</dt><dd><kbd>1</kbd> / <kbd>0</kbd></dd></div></dl>}
+      {navigationMenu === 'zoom' ? <><button onClick={() => { fit(); setNavigationMenu(null); }}>Ajustar todos los paneles<kbd>0</kbd></button><button disabled={!selected.length} onClick={() => { fit(true); setNavigationMenu(null); }}>Acercar a la selección<kbd>2</kbd></button><div className="canvas-zoom-presets">{[.25, .5, 1, 1.5].map(zoom => <button key={zoom} onClick={() => { zoomAt(zoom); setNavigationMenu(null); }}>{zoom * 100}%</button>)}</div></> : <dl><div><dt>Mover mapa</dt><dd><kbd>Espacio</kbd> + arrastrar</dd></div><div><dt>Desplazar</dt><dd>Trackpad / rueda central</dd></div><div><dt>Zoom al cursor</dt><dd><kbd>Ctrl</kbd> + rueda / pellizco</dd></div><div><dt>Seleccionar varios</dt><dd>Arrastrar en el fondo</dd></div><div><dt>Sumar selección</dt><dd><kbd>Shift</kbd> + arrastrar</dd></div><div><dt>Zoom real / ajustar</dt><dd><kbd>1</kbd> / <kbd>0</kbd></dd></div><div><dt>Pegar imagen, video o enlace</dt><dd><kbd>Ctrl</kbd> + <kbd>V</kbd> / soltar</dd></div><div><dt>Comentar</dt><dd><kbd>C</kbd> + clic</dd></div></dl>}
     </div>}</>}
   </section>;
 }

@@ -1,7 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, session, shell } from 'electron';
-import { constants } from 'node:fs';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } from 'electron';
+import { constants, createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, realpath, writeFile } from 'node:fs/promises';
+import { access, mkdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -12,7 +13,11 @@ import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
   validateCloseReady, validateID, validateInvocation, validateJSON,
+  REFERENCE_SCHEME, byteRange, referenceTarget,
 } from './security.mjs';
+
+// Must precede app ready. `stream` lets <video> seek through range requests.
+protocol.registerSchemesAsPrivileged([{ scheme: REFERENCE_SCHEME, privileges: { standard: true, secure: true, stream: true } }]);
 
 const dataDir = path.resolve(process.env.PHANTOM_WORKSPACE_HOME
   || path.join(process.env.XDG_STATE_HOME || path.join(homedir(), '.local', 'state'), 'phantom-workspace'));
@@ -158,6 +163,22 @@ function configureUISession(ses) {
     const headers = { ...details.responseHeaders };
     for (const name of Object.keys(headers)) if (name.toLowerCase() === 'content-security-policy') delete headers[name];
     callback({ responseHeaders: { ...headers, 'Content-Security-Policy': [csp] } });
+  });
+  // Canvas references: images and videos stored by the host under the data tree.
+  ses.protocol.handle(REFERENCE_SCHEME, async request => {
+    try {
+      const target = referenceTarget(request.url);
+      if (!target || !['GET', 'HEAD'].includes(request.method)) return new Response('Forbidden', { status: 403 });
+      const root = await realpath(path.join(dataDir, 'references', target.workspaceId));
+      const file = await realpath(path.join(root, target.file));
+      if (!isWithin(file, root) || !isWithin(root, await realpath(dataDir))) return new Response('Forbidden', { status: 403 });
+      const { size } = await stat(file), range = byteRange(request.headers.get('range'), size);
+      const headers = { 'Content-Type': target.type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' };
+      if (range === false) return new Response(null, { status: 416, headers: { ...headers, 'Content-Range': `bytes */${size}` } });
+      const { start, end } = range || { start: 0, end: size - 1 };
+      const body = request.method === 'HEAD' || !size ? null : Readable.toWeb(createReadStream(file, { start, end }));
+      return new Response(body, { status: range ? 206 : 200, headers: { ...headers, 'Content-Length': String(size ? end - start + 1 : 0), ...(range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}) } });
+    } catch { return new Response('Not found', { status: 404 }); }
   });
   if (!devURL) {
     // file: responses don't reliably pass through onHeadersReceived. Supply CSP on the
