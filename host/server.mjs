@@ -11,7 +11,7 @@ import { Merges } from './merges.mjs';
 import { Branches } from './branches.mjs';
 import { Repo } from './repo.mjs';
 import { createLimits } from './limits.mjs';
-import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle, autoBindings } from './agents.mjs';
+import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle, cardTitleOf, autoBindings } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
 import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
@@ -142,7 +142,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       validateAgent(validated);
       if(patch.cardId!==undefined) {
         text(patch.cardId,'card ID',512);
-        if(patch.cardId){const result=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:patch.cardId});assert(result.handled&&['task','card'].includes(result.result?.kind),'Expected a Phantom task or card');validated.cardId=patch.cardId;validated.cardTitle=result.result.contract.goal.slice(0,512);}
+        if(patch.cardId){const result=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:patch.cardId});assert(result.handled&&['task','card'].includes(result.result?.kind),'Expected a Phantom task or card');validated.cardId=patch.cardId;validated.cardTitle=cardTitleOf(result.result.contract.goal);}
         else {validated.cardId='';validated.cardTitle='';}
       }
       if(patch.providerSessionId!==undefined) {
