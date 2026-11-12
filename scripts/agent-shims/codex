@@ -1,1 +1,50 @@
-claude
+#!/bin/sh
+# Phantom Workspace: Claude Code and Codex started inside a Phantom terminal
+# receive the terminal's Phantom bootstrap policy (the file OpenCode already
+# gets through OPENCODE_CONFIG_CONTENT). Placed first in PATH only inside
+# Phantom terminals; the same file answers as claude and codex (identical
+# copies dispatch on $0) and replaces itself with the real agent, so no wrapper
+# process remains. PHANTOM_AGENT_POLICY_OFF=1 launches the agent untouched.
+name=${0##*/}
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+
+real=
+set -f; old_ifs=$IFS; IFS=:
+for dir in $PATH; do
+  [ -n "$dir" ] || continue
+  [ "$dir" = "$PHANTOM_AGENT_SHIMS" ] && continue
+  [ "$(CDPATH= cd -- "$dir" 2>/dev/null && pwd -P)" = "$self_dir" ] && continue
+  if [ -f "$dir/$name" ] && [ -x "$dir/$name" ]; then real=$dir/$name; break; fi
+done
+IFS=$old_ifs; set +f
+if [ -z "$real" ]; then echo "$name: no encontrado" >&2; exit 127; fi
+
+policy=$PHANTOM_AGENT_POLICY
+if [ -n "$PHANTOM_AGENT_POLICY_OFF" ] || [ -z "$policy" ] || [ ! -r "$policy" ]; then exec "$real" "$@"; fi
+case ${1-} in -v|-V|--version|-h|--help|help) exec "$real" "$@" ;; esac
+
+case $name in
+  claude)
+    # Management subcommands start no conversation.
+    case ${1-} in
+      agents|attach|auth|auto-mode|doctor|gateway|import|install|logs|mcp|plugin|plugins|purge|respawn|rm|sessions|setup-token|stop|kill|ultrareview|update|upgrade) exec "$real" "$@" ;;
+    esac
+    # The flag is single-valued: a caller that supplies its own keeps it.
+    for arg do
+      case $arg in
+        --append-system-prompt|--append-system-prompt=*|--append-system-prompt-file|--append-system-prompt-file=*)
+          echo "Phantom Workspace: $name recibe su propio --append-system-prompt; la política de Phantom no se añadió." >&2
+          exec "$real" "$@" ;;
+      esac
+    done
+    exec "$real" --append-system-prompt "$(cat "$policy")" "$@" ;;
+  codex)
+    # -c takes TOML; a multi-line literal string needs no escaping.
+    text=$(cat "$policy")
+    case $text in
+      *"'''"*) echo "Phantom Workspace: la política contiene ''' y no puede pasarse a codex; no se añadió." >&2; exec "$real" "$@" ;;
+    esac
+    exec "$real" -c "developer_instructions='''
+$text'''" "$@" ;;
+esac
+exec "$real" "$@"

@@ -2,8 +2,8 @@
 # Phantom Workspace: Claude Code and Codex started inside a Phantom terminal
 # receive the terminal's Phantom bootstrap policy (the file OpenCode already
 # gets through OPENCODE_CONFIG_CONTENT). Placed first in PATH only inside
-# Phantom terminals; the same file answers as claude and codex (symlink
-# dispatches on $0) and replaces itself with the real agent, so no wrapper
+# Phantom terminals; the same file answers as claude and codex (identical
+# copies dispatch on $0) and replaces itself with the real agent, so no wrapper
 # process remains. PHANTOM_AGENT_POLICY_OFF=1 launches the agent untouched.
 name=${0##*/}
 self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)

@@ -2,7 +2,7 @@
 # Phantom Workspace: http(s) opened by agents/skills goes to the integrated browser
 # panel, never the system browser. Placed first in PATH and as $BROWSER only inside
 # Phantom terminals; the same file answers as xdg-open, sensible-browser,
-# x-www-browser, www-browser, kde-open(5) and gio (symlinks dispatch on $0).
+# x-www-browser, www-browser, kde-open(5) and gio (identical copies dispatch on $0).
 # Anything that is not a single http(s) URL is passed to the real system command.
 # PHANTOM_BROWSER_EXTERNAL=1 restores the system opener for URLs as well.
 name=${0##*/}
