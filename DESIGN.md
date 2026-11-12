@@ -2,19 +2,19 @@
 name: Phantom Workspace
 description: Night glass — a personal spatial workspace; frosted chrome over the canvas, opaque working planes.
 colors:
-  accent: "#b48cff"
+  accent: "#a78bda"
   accent-soft: "color-mix(in srgb, var(--accent) 15%, var(--surface))"
   accent-mint: "#7ddbb9"
   accent-amber: "#edbf79"
   accent-rose: "#e9a0bf"
   accent-cyan: "#6fe3f2"
-  bg: "#0f0e18"
-  surface: "#191726"
-  surface-2: "#221f33"
-  surface-3: "#2c2942"
-  ink: "#e9e7f8"
-  muted: "#a3a0c2"
-  line: "#2f2b45"
+  bg: "#0b0910"
+  surface: "#131019"
+  surface-2: "#1c1725"
+  surface-3: "#292133"
+  ink: "#eee9f4"
+  muted: "#a69bb7"
+  line: "#332a40"
   hairline: "color-mix(in srgb, #fff 8%, transparent)"
   hairline-strong: "color-mix(in srgb, #fff 13%, transparent)"
   fill: "color-mix(in srgb, #fff 5%, transparent)"
@@ -22,15 +22,15 @@ colors:
   fill-3: "color-mix(in srgb, #fff 14%, transparent)"
   glass: "color-mix(in srgb, var(--surface) 64%, transparent)"
   glass-thick: "color-mix(in srgb, var(--surface) 84%, transparent)"
-  rail: "#191726"
-  terminal-bg: "#110f1a"
-  terminal-ink: "#d5d2ea"
-  primary-ink: "#17122a"
-  node-border: "#3a3552"
+  rail: "#131019"
+  terminal-bg: "#0e0b13"
+  terminal-ink: "#ddd5e9"
+  primary-ink: "#130d1e"
+  node-border: "#372c44"
   note: "#211d2c"
-  danger: "#ff8fb1"
-  success: "#7fe3bf"
-  warning: "#f3cb85"
+  danger: "#ee788a"
+  success: "#5fe0a5"
+  warning: "#ffab40"
   error-bg: "color-mix(in srgb, var(--danger) 15%, var(--surface))"
   mission-bg: "#233a33"
   mission-ink: "#a4dec4"
@@ -148,6 +148,18 @@ components:
 ---
 
 # Design System: Phantom Workspace
+
+## Gengar oscuro e iconografía funcional (2026-11-11) — paleta vigente
+
+Carlos pidió una paleta más oscura centrada en Gengar y reducir la iconografía genérica «AI slop». Esta sección sustituye las paletas pastel anteriores y el código por colores decorativo de las herramientas. Conserva el layout espacial y el material de chrome de «Vidrio nocturno».
+
+- **Planos:** ciruela casi negra `#0b0910`; trabajo `#131019`; elevación `#1c1725` / `#292133`. Texto marfil violeta `#eee9f4`, secundario `#a69bb7`. Terminal opaca `#0e0b13`.
+- **Acento:** Violeta `#a78bda` (clave persistida `lilac`), para selección, foco y acción. Rojo rosado `#ee788a` para peligro; los estados operativos conservan etiquetas y sus roles semánticos. Las otras elecciones de acento se conservan.
+- **Atmósfera:** Gengar mantiene el arte oficial local, ahora con bruma ciruela más oscura. Imagen personal, intensidad, retícula y atenuación de foco conservan su comportamiento.
+- **Iconos:** `src/components/PanelIcons.js` es la fuente compartida para lanzador, rail, paleta y cabeceras. Ventana para navegador, documento para nota, bandera para misión, libro para contexto/skills, pieza para plugins; cada función tiene un símbolo estable. Trazo 1,75. Se eliminan los fondos de tesela y los colores por grupo en herramientas y cabeceras; selección y foco siguen explícitos. Agentes genéricos usan CPU, no robots; los proveedores identificados conservan sus glifos.
+- **Marca:** glifo Phantom angular propio, con silueta puntiaguda y dos cortes oblicuos, sin tesela coloreada. El arte de Gengar sigue siendo el recurso raster existente, sin nuevas imágenes.
+
+Verificación de esta capa: build de Vite correcto; Electron real con proyecto sintético a 1520×980 y 1100×760, inspección de mapa, lanzador y Apariencia; nueve pares texto/fondo ≥4.5:1; acento Iris persistido tras recarga y restablecimiento a Violeta; cero excepciones del renderizador. Evidencia y alcance en `.impeccable/review/gengar-review.md`.
 
 ## Vidrio nocturno (2026-11-11) — autoridad visual vigente
 
@@ -283,6 +295,12 @@ Native browser content is an Electron WebContentsView, not a CSS stacking layer:
 Precise rounded rectangles, not universal pills. Frames retain 10px rounding and 1px borders; selected map panels switch the 1px frame border to the accent (no extra outline), while focused panels use the seam border. Node headers and terminal wells separate by tone, without inner borders. Dock rounding is 12px; presets 8px; shell buttons/terminal wells/upload 7px; panel rows/icon controls 6px; fields/tool controls 5px; badges 3px. Circular accent swatches communicate palette choice. Icons are stroked SVGs.
 
 ## Components
+
+### Capturas y enlaces del chat
+
+El Markdown del chat renderiza enlaces como acciones de teclado/puntero, no texto decorativo. Los enlaces `file:///ruta/captura.png` o rutas absolutas de imágenes PNG/JPEG/WebP/GIF expanden una vista previa dentro del mensaje; `![descripción](ruta)` la muestra directamente. La cabecera incluye «Cerrar vista previa» y estados de carga/error explícitos. Se reutilizan superficie, hairline, radios y foco del tema; la imagen mantiene su proporción, se adapta al ancho del mensaje y el hilo conserva su scroll.
+
+La lectura pasa por `desktop.previewImage`: solo archivos raster de hasta 12 MB dentro de proyectos, artefactos autorizados o `/tmp/opencode` (capturas locales del agente). No se carga `file://` directamente en Chromium ni se amplía la CSP. Enlaces HTTP(S) abren el navegador del sistema; otros archivos usan la apertura local ya autorizada. Esquemas ejecutables y archivos remotos no generan acciones. Verificación: `test/local-images.test.mjs` y `test/markdown-links-desktop.mjs`.
 
 ### Controls, navigation and fields
 

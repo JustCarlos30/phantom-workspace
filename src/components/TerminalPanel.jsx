@@ -16,10 +16,10 @@ import { ModeSwitch } from './ChatCard';
 function phantomTheme() {
   const styles = getComputedStyle(document.documentElement);
   const token = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
-  const accent = token('--accent', '#b48cff');
-  const background = token('--terminal-bg', '#110f1a');
+  const accent = token('--accent', '#a78bda');
+  const background = token('--terminal-bg', '#0e0b13');
   // ANSI 16 follow the desktop terminal palette so a shell reads the same here as in kitty.
-  return { background, foreground: token('--terminal-ink', '#d5d2ea'), cursor: accent, cursorAccent: background, selectionBackground: `${accent}4d`,
+  return { background, foreground: token('--terminal-ink', '#ddd5e9'), cursor: accent, cursorAccent: background, selectionBackground: `${accent}4d`,
     black: '#232040', red: '#ff86b7', green: '#7aeec4', yellow: '#f5cf8a', blue: '#7da8ff', magenta: '#c39bff', cyan: '#6fe3f2', white: '#a9a6cf',
     brightBlack: '#5d5888', brightRed: '#ffa3c8', brightGreen: '#9df4d4', brightYellow: '#f8dca8', brightBlue: '#a0c0ff', brightMagenta: '#d6b8ff', brightCyan: '#98ecf6', brightWhite: '#e4e2f7' };
 }

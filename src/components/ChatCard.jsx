@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Bot, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
@@ -74,7 +74,7 @@ function useElapsed(since, active) {
   return active && since ? Math.max(0, now - Date.parse(since)) : 0;
 }
 
-const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Bot, 'agent'], [/^todo/, ListChecks, 'todo']];
+const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
 
 function ToolRow({ part }) {

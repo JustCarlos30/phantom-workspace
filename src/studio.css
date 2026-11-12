@@ -6,14 +6,14 @@
   --sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-family: var(--sans);
   letter-spacing: -.003em;
-  /* Night indigo, tuned to the desktop it lives on: never pure black. */
-  --bg: #0f0e18;
-  --surface: #191726;
-  --surface-2: #221f33;
-  --surface-3: #2c2942;
-  --ink: #e9e7f8;
-  --muted: #a3a0c2;
-  --line: #2f2b45;
+  /* Gengar: near-black plum planes, dusty violet selection, red for danger. */
+  --bg: #0b0910;
+  --surface: #131019;
+  --surface-2: #1c1725;
+  --surface-3: #292133;
+  --ink: #eee9f4;
+  --muted: #a69bb7;
+  --line: #332a40;
   /* One white-alpha ladder for seams and flat control fills. */
   --hairline: color-mix(in srgb, #fff 8%, transparent);
   --hairline-strong: color-mix(in srgb, #fff 13%, transparent);
@@ -25,7 +25,7 @@
   /* Palette: one pastel family at matched lightness for identity (accents,
      zones, providers). State colors sit outside it on purpose, so "your
      move" and "broken" read before anything decorative does. */
-  --c-lilac: #b48cff;
+  --c-lilac: #a78bda;
   --c-iris: #8fa2ff;
   --c-sky: #7cc4ff;
   --c-mint: #6fdcb4;
@@ -38,7 +38,7 @@
      danger is a true red (no longer a pink beside the lilac accent). */
   --working: #6cb8ff;
   --attention: #ffab40;
-  --danger: #ff6b6b;
+  --danger: #ee788a;
   --success: #5fe0a5;
   --warning: var(--attention);
   --idle: #6f6b8a;
@@ -46,11 +46,11 @@
   --warning-soft: color-mix(in srgb, var(--warning) 10%, var(--surface));
   /* Hairline for dividers inside a plane; --line stays for control edges. */
   --line-soft: var(--hairline);
-  --rail: #191726;
-  --terminal-bg: #110f1a;
-  --terminal-ink: #d5d2ea;
-  --primary-ink: #17122a;
-  --node-border: #3a3552;
+  --rail: var(--surface);
+  --terminal-bg: #0e0b13;
+  --terminal-ink: #ddd5e9;
+  --primary-ink: #130d1e;
+  --node-border: #372c44;
   --error-bg: color-mix(in srgb, var(--danger) 15%, var(--surface));
   --shadow-popover: 0 2px 4px #0004, 0 24px 60px -20px #000d;
   --shadow-float: 0 1px 1px #0003, 0 14px 34px -16px #000b;
@@ -116,7 +116,7 @@
 .studio-tide .canvas-region, .background-option.tide { --atmosphere: radial-gradient(ellipse at 75% 28%, #245c63 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #283f62 0%, transparent 58%); }
 .studio-ember .canvas-region, .background-option.ember { --atmosphere: radial-gradient(ellipse at 72% 28%, #744535 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #49354d 0%, transparent 58%); }
 .studio-plain .canvas-region, .background-option.plain { --atmosphere: none; }
-.studio-gengar .canvas-region, .background-option.gengar { --atmosphere: radial-gradient(ellipse at 94% 62%, #514071 0%, transparent 57%), radial-gradient(ellipse at 78% 100%, #30273f 0%, transparent 64%); }
+.studio-gengar .canvas-region, .background-option.gengar { --atmosphere: radial-gradient(ellipse at 94% 62%, #362447 0%, transparent 57%), radial-gradient(ellipse at 78% 100%, #211629 0%, transparent 64%); }
 .canvas-region::before { content: ''; position: absolute; inset: 0; background-image: var(--personal-background), var(--atmosphere); background-size: cover; background-position: center; opacity: var(--background-intensity, .55); pointer-events: none; transition: opacity 220ms cubic-bezier(.16,1,.3,1); }
 .studio-gengar:not(.studio-personal) .canvas-region::before { background-image: var(--gengar-art), var(--atmosphere); background-size: clamp(220px, 48%, 560px) auto, cover, cover; background-position: right 2% bottom 16%, center, center; background-repeat: no-repeat; }
 .studio-focused .canvas-region::before { opacity: calc(var(--background-intensity, .55) * .12); }

@@ -24,7 +24,7 @@ export const HOST_METHODS = new Set([
   'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel',
 ]);
 export const LOCAL_METHODS = new Set([
-  'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal',
+  'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.previewImage',
   'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady',
   'browser.attach', 'browser.bounds', 'browser.navigate', 'browser.back', 'browser.forward',
   'browser.reload', 'browser.detach', 'browser.capture',
