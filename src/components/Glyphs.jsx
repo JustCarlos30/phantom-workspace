@@ -1,5 +1,4 @@
 import React from 'react';
-import { Cpu, Terminal } from 'lucide-react';
 
 // One glyph and one hue per provider, wherever it appears (mode switch, card
 // identity, chat avatar). Drawn on lucide's 24px grid so they sit with the rest.
@@ -11,19 +10,27 @@ export function PhantomGlyph({ size = 20, ...props }) {
 }
 
 export function ClaudeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="m12 2 .4 6.2M17 3.4l-2.7 5.2M21 7l-5.7 3M22 12l-6.2.3M20.4 17l-5.1-2.7M17 21l-3-5.7M12 22l-.4-6.2M7 20.6l2.7-5.2M3 17l5.7-3M2 12l6.2-.3M3.6 7l5.1 2.7M7 3l3 5.7" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg>;
 }
 
 export function OpenCodeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="M5 3.5h14v17H5z" /><path d="M5 8h14" opacity=".5" /><path d="M10 12h5v5h-5z" fill="currentColor" stroke="none" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><rect x="8" y="8" width="8" height="8" rx="1" fill="currentColor" stroke="none" /></svg>;
 }
 
 // A rounded hexagon holding a code caret: distinct from the shell's prompt box.
 export function CodexGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="M12 2.8 20 7.4v9.2l-8 4.6-8-4.6V7.4Z" /><path d="m9.6 9.6-2.4 2.4 2.4 2.4M14.4 9.6l2.4 2.4-2.4 2.4" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" /><path d="m9.5 9-3 3 3 3M14.5 9l3 3-3 3" /></svg>;
 }
 
-const GLYPHS = { claude: ClaudeGlyph, opencode: OpenCodeGlyph, codex: CodexGlyph, agent: Cpu, shell: Terminal };
+export function ShellGlyph({ size = 14, ...props }) {
+  return <svg width={size} height={size} {...base} {...props}><rect x="3" y="4" width="18" height="16" rx="3" /><path d="m7 9 3 3-3 3M13 15h4" /></svg>;
+}
+
+export function AgentGlyph({ size = 14, ...props }) {
+  return <svg width={size} height={size} {...base} {...props}><path d="m12 3 3 6 6 3-6 3-3 6-3-6-6-3 6-3Z" /></svg>;
+}
+
+const GLYPHS = { claude: ClaudeGlyph, opencode: OpenCodeGlyph, codex: CodexGlyph, agent: AgentGlyph, shell: ShellGlyph };
 
 // Maps a provider id or a detected process name to its identity key.
 export function providerKey(name, kind = 'shell') {
@@ -35,7 +42,7 @@ export function providerKey(name, kind = 'shell') {
 }
 
 export function ProviderGlyph({ provider = 'shell', size = 14 }) {
-  const Icon = GLYPHS[provider] || Terminal;
+  const Icon = GLYPHS[provider] || ShellGlyph;
   return <Icon size={size} aria-hidden="true" />;
 }
 

@@ -187,21 +187,21 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     <div className="pt-bar">
       <div className="pt-bar-identity">
         <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />
-        <ProviderBadge provider={provider} />
+        {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
         {effectiveStatus(agent, tail?.screenState) && <AgentState agent={agent} status={effectiveStatus(agent, tail?.screenState)} />}
         {agent.step && <span className="pt-bar-step" title={agent.step}>{agent.step}</span>}
       </div>
       <div className="pt-bar-tools">
         <div className="pt-type" role="group" aria-label="Tamaño del texto de la terminal">
-          <button type="button" aria-label="Reducir texto de la terminal" title="Reducir texto" disabled={fontSize <= 12} onClick={() => changeFontSize(fontSize - 1)}><Minus size={13} /></button>
+          <button type="button" aria-label="Reducir texto de la terminal" title="Reducir texto" disabled={fontSize <= 12} onClick={() => changeFontSize(fontSize - 1)}><Minus size={13} strokeWidth={1.75} /></button>
           <button type="button" className="pt-type-reset" aria-label={`Tamaño del texto: ${fontSize} píxeles. Restablecer a 16`} title="Restablecer a 16 px" onClick={() => changeFontSize(16)}>{fontSize}</button>
-          <button type="button" aria-label="Ampliar texto de la terminal" title="Ampliar texto" disabled={fontSize >= 24} onClick={() => changeFontSize(fontSize + 1)}><Plus size={13} /></button>
+          <button type="button" aria-label="Ampliar texto de la terminal" title="Ampliar texto" disabled={fontSize >= 24} onClick={() => changeFontSize(fontSize + 1)}><Plus size={13} strokeWidth={1.75} /></button>
         </div>
-        {status === 'running' && <button type="button" className="pt-stop" title="Terminar proceso" aria-label="Terminar proceso" onClick={() => api('terminal.stop', { sessionId }).catch(e => notify(e.message, 'error'))}><Square size={11} /></button>}
+        {status === 'running' && <button type="button" className="pt-stop" title="Terminar proceso" aria-label="Terminar proceso" onClick={() => api('terminal.stop', { sessionId }).catch(e => notify(e.message, 'error'))}><Square size={11} strokeWidth={1.75} /></button>}
       </div>
     </div>
     <div className="pt-context" aria-label="Contexto de la terminal">
-      <span className="pt-chip" title={directoryLabel ? `${directoryLabel}\n${cwd}` : cwd}>{branch ? <GitBranch size={13} aria-hidden="true" /> : <Folder size={13} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      <span className="pt-chip" title={directoryLabel ? `${directoryLabel}\n${cwd}` : cwd}>{branch ? <GitBranch size={13} strokeWidth={1.75} aria-hidden="true" /> : <Folder size={13} strokeWidth={1.75} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
       <span className="pt-session" role="status"><i className={`status-dot ${status}`} aria-hidden="true" />{statusLabel}</span>
     </div>
     <AgentIdentity node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} />
@@ -211,7 +211,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
       {(setup.output || setup.error) && <details><summary>Ver {setupFailed ? 'error y salida' : 'avance'}</summary><pre>{setup.error || setup.output}</pre></details>}
     </section>}
     <div ref={host} className="terminal-host" />
-    {readingHistory && <button type="button" className="terminal-history-end" onClick={() => { cancelAnchorRef.current?.(); if (terminal.current?.buffer.active.type === 'normal') terminal.current.scrollToBottom(); }}><ArrowDown size={14} aria-hidden="true" />Ir al final</button>}
-    {(error || !preparing && (status === 'lost' || status === 'exited')) && <div className="terminal-message"><AlertCircle size={15} /><span>{error || (status === 'exited' ? 'La sesión ha finalizado. El historial se conserva.' : node.data?.launchError || 'Esta vista no tiene una sesión activa.')}</span>{sessionId && <button disabled={status === 'connecting' || status === 'disconnected'} onClick={() => streamRef.current?.retry()}><RotateCcw size={13} /> Reconectar</button>}{status !== 'disconnected' && status !== 'connecting' && <button onClick={() => onRelaunch(node)}>Nueva sesión</button>}</div>}
+    {readingHistory && <button type="button" className="terminal-history-end" onClick={() => { cancelAnchorRef.current?.(); if (terminal.current?.buffer.active.type === 'normal') terminal.current.scrollToBottom(); }}><ArrowDown size={14} strokeWidth={1.75} aria-hidden="true" />Ir al final</button>}
+    {(error || !preparing && (status === 'lost' || status === 'exited')) && <div className="terminal-message"><AlertCircle size={15} strokeWidth={1.75} /><span>{error || (status === 'exited' ? 'La sesión ha finalizado. El historial se conserva.' : node.data?.launchError || 'Esta vista no tiene una sesión activa.')}</span>{sessionId && <button disabled={status === 'connecting' || status === 'disconnected'} onClick={() => streamRef.current?.retry()}><RotateCcw size={13} strokeWidth={1.75} /> Reconectar</button>}{status !== 'disconnected' && status !== 'connecting' && <button onClick={() => onRelaunch(node)}>Nueva sesión</button>}</div>}
   </div>;
 }

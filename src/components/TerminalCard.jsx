@@ -61,6 +61,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
   const status = !connected ? 'disconnected' : !sessionId ? 'lost' : tail?.status || 'connecting';
   const { cwd, folder, branch } = locationOf(node, workspace);
   const alternate = tail?.screen === 'alternate';
+  const currentLine = tail?.lines?.findLastIndex(line => line.trim()) ?? -1;
   const ended = !preparing && (status === 'lost' || status === 'exited');
   const emptyText = preparing ? 'Preparando el worktree de esta terminal…'
     : !sessionId ? node.data?.launchError || 'Sin sesión activa. Inicia una nueva para continuar.'
@@ -70,20 +71,20 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
   return <div className={`pt-card ${overview ? 'is-overview' : ''}`} data-agent={state || 'idle'} data-session={status} onDoubleClick={e => { if (!e.target.closest('button')) onOpen(); }}>
     <div className="pt-card-identity">
       {!overview && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />}
-      <ProviderBadge provider={provider} />
+      {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
       {state && <AgentState agent={agent} status={state} />}
       {overview && <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>}
       {agent.step && <p className="pt-card-step" title={agent.step}>{agent.step}</p>}
     </div>
     {overview && !agent.step && <p className="pt-card-glimpse" aria-hidden="true">{glimpse || (ended || preparing ? '' : '…')}</p>}
     {!overview && <div className={`pt-card-screen ${alternate ? 'is-alternate' : ''}`} role="log" aria-label={`Últimas líneas de ${node.title}`} aria-live="off" style={alternate ? { '--rows': tail.lines.length || 1, '--cols': tail.cols || 80 } : undefined}>
-      {tail?.lines?.length ? <pre>{tail.lines.join('\n')}</pre> : preparing || !sessionId || error || !tail ? <p className="pt-card-status" role="status">{emptyText}</p> : <EmptyState className="pt-card-empty" description={emptyText} />}
+      {tail?.lines?.length ? <pre>{alternate ? tail.lines.join('\n') : tail.lines.map((line, index) => <React.Fragment key={index}><span className={`pt-card-line${index === currentLine ? ' is-current' : ''}`}>{line}</span>{index < tail.lines.length - 1 ? '\n' : null}</React.Fragment>)}</pre> : preparing || !sessionId || error || !tail ? <p className="pt-card-status" role="status">{emptyText}</p> : <EmptyState className="pt-card-empty" description={emptyText} />}
     </div>}
     {!overview && <footer className="pt-card-footer">
+      <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={13} strokeWidth={1.75} aria-hidden="true" /> : <Folder size={13} strokeWidth={1.75} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
       <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>
-      <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}{branch ? `${branch} · ${folder}` : folder}</span>
-      {ended && <button type="button" className="pt-card-action" onClick={() => onRelaunch(node)}><RotateCcw size={13} aria-hidden="true" />Nueva sesión</button>}
-      <button type="button" className="pt-card-action is-primary" onClick={onOpen} title="Abrir terminal · doble clic">Abrir<ArrowUpRight size={13} aria-hidden="true" /></button>
+      {ended && <button type="button" className="pt-card-action" onClick={() => onRelaunch(node)}><RotateCcw size={13} strokeWidth={1.75} aria-hidden="true" />Nueva sesión</button>}
+      <button type="button" className="pt-card-action is-primary" onClick={onOpen} title="Abrir terminal · doble clic">Abrir<ArrowUpRight size={13} strokeWidth={1.75} aria-hidden="true" /></button>
     </footer>}
   </div>;
 }
