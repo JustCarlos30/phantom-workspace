@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Bell, Blocks, Braces, ChevronDown, ChevronRight, Command, ExternalLink, Folder, FolderOpen, GitBranch, Globe, Layers, List, LoaderCircle, Mic, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings2, Square, StickyNote, TerminalSquare, Trash2, Workflow, X, Check, AlertCircle, Box, FileText, Play, Target, EyeOff, Pencil, RotateCcw } from 'lucide-react';
 import Canvas from './components/Canvas';
 import { PresenceGroup } from './components/Presence';
@@ -13,6 +13,7 @@ import { useAppearance } from './hooks/useAppearance';
 import { Appearance } from './components/Appearance';
 import ActivityNotch, { ActivityTray, TerminalActivityStatus } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
+import { structuralShare } from './hooks/structuralShare';
 import { Palette, Maximize2 } from 'lucide-react';
 import gengarArtwork from '../assets/gengar.png';
 import './styles.css';
@@ -80,7 +81,9 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const workspace = state?.workspaces?.find(w => w.id === state.activeWorkspaceId);
   const activity = useActivity(workspace, connection, model.stateReadAt);
   const activityButton = useRef(null);
-  const terminalActivity = Object.fromEntries(activity.sessions.filter(s => s.nodeId).map(s => [s.nodeId, s]));
+  const terminalActivityRef = useRef({});
+  // Keep per-terminal identities stable so memoized canvas nodes skip renders.
+  const terminalActivity = useMemo(() => terminalActivityRef.current = structuralShare(terminalActivityRef.current, Object.fromEntries(activity.sessions.filter(s => s.nodeId).map(s => [s.nodeId, s]))), [activity.sessions]);
   useEffect(() => { setTray(false); }, [workspace?.id]);
   const { appearance, update: updateAppearance, reset: resetAppearance } = useAppearance(workspace?.id, notify);
   const current = useRef(workspace); current.current = workspace;
@@ -267,6 +270,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     await refresh();
     notify('Terminal cerrada y sesión terminada.');
   };
+  const closeTerminalRef = useRef(closeTerminal); closeTerminalRef.current = closeTerminal;
+  const onCloseTerminal = useCallback(node => operation(() => closeTerminalRef.current(node)), [operation]);
 
   if (!window.phantom?.invoke) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div><h1>Abre la aplicación de escritorio</h1><p>Phantom Workspace necesita su host local para abrir carpetas,<br />recuperar terminales y navegar dentro del proyecto.</p><div className="desktop-required-note"><TerminalSquare size={16} /> Esta vista web no está conectada al escritorio.</div></div>;
   if (!state) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div>{error ? <><h1>No pudimos conectar con el host</h1><p>{error}</p><button className="button primary" onClick={() => refresh().catch(() => {})}>Reintentar conexión</button></> : <><LoaderCircle className="spinning" size={23} /><h1>Recuperando tu espacio…</h1><p>Conectando con el host local.</p></>}</div>;
@@ -293,7 +298,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       {closeRequest?.status === 'failed' && <div className="connection-error" role="alert"><AlertCircle size={14} /><span>No se cerró la ventana: {closeRequest.error}. Puedes reintentar o descartar explícitamente desde el diálogo del escritorio.</span><button onClick={retryClose}>Guardar y cerrar</button></div>}
       <div className="workspace-body"><PresenceGroup>
         <div key="canvas-region" className="canvas-region"><PresenceGroup>
-          {workspace ? <Canvas key={workspace.id} workspace={workspace} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked} obscured={browserObscured || !!projectRename.editing} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={node => operation(() => closeTerminal(node))} fitRequest={fitRequest} jumpRequest={jumpRequest} /> : <section className="canvas welcome-canvas"><div className="canvas-empty"><div className="empty-symbol"><FolderOpen size={31} strokeWidth={1.4} /></div><h1>Un espacio para cada proyecto</h1><p>Elige una carpeta de tu equipo. Terminales, páginas y contexto<br />quedan vinculados a ella, listos para volver.</p><button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button><span className="empty-hint">El trabajo vive en tu equipo · No se crean archivos en la carpeta</span></div></section>}
+          {workspace ? <Canvas key={workspace.id} workspace={workspace} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked} obscured={browserObscured || !!projectRename.editing} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} /> : <section className="canvas welcome-canvas"><div className="canvas-empty"><div className="empty-symbol"><FolderOpen size={31} strokeWidth={1.4} /></div><h1>Un espacio para cada proyecto</h1><p>Elige una carpeta de tu equipo. Terminales, páginas y contexto<br />quedan vinculados a ella, listos para volver.</p><button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button><span className="empty-hint">El trabajo vive en tu equipo · No se crean archivos en la carpeta</span></div></section>}
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
           {workspace && <div key="create-dock" className="create-dock"><div className="dock-main"><span className="dock-label">Crear panel</span><button disabled={!!busy} onClick={() => onOpenPanel('terminal')}><TerminalSquare size={17} /><span>Terminal</span></button><button disabled={!!busy} onClick={() => onOpenPanel('browser')}><Globe size={17} /><span>Navegador</span></button><button disabled={!!busy} onClick={() => onOpenPanel('note')}><StickyNote size={17} /><span>Nota</span></button><i /><button className={tools ? 'active' : ''} onClick={() => { setTools(v => !v); setTray(false); }} aria-expanded={tools}><Plus size={17} /><span>Herramientas</span><ChevronDown size={12} /></button></div></div>}
           {workspace && !focused && <button key="panel-index-button" className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
