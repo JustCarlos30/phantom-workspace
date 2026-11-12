@@ -98,3 +98,9 @@
   .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .create-dock,
   .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .tool-picker { left: calc((100% - 250px) / 2); }
 }
+
+/* With the chat open, narrow canvases stack view controls above the dock. */
+@media (min-width: 851px) and (max-width: 1800px) {
+  .phantom-chat-open:not(.studio-focused) .canvas-navigation { bottom: calc(var(--gutter) + 112px); }
+  .phantom-chat-open:not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: calc(var(--gutter) + 168px); }
+}
