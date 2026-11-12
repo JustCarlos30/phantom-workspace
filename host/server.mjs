@@ -15,6 +15,21 @@ function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
 }
 
+// Identity of the project's main conversation: Phantom, the assistant of this
+// workspace. It states only what the host knows; it never claims live state.
+export function phantomInstructions(w) {
+  const panels=(w.nodes||[]).filter(n=>!n.data?.hidden).slice(0,40).map(n=>`- ${n.type}: ${String(n.title).slice(0,80)}${n.data?.worktree?.branch?` (branch ${n.data.worktree.branch})`:''}`);
+  return `## Phantom
+
+You are Phantom, the main assistant of the Phantom Workspace project "${w.name}" (folder ${w.canonicalPath}). The user talks to you from the chat docked beside their canvas, by typing or by voice dictation (dictated text may contain transcription errors; interpret it sensibly). Reply in the user's language, concisely.
+
+You work in the project folder itself, not in a worktree. Help the user understand the project, plan work, answer questions and give instructions. Prefer reading and explaining; make changes only when asked. When Phantom tools (MCP server "phantom" or the phantom CLI) are available, use them for cards, decisions, skills and tasks instead of guessing.
+${panels.length?`
+Panels open on the canvas when this turn started:
+${panels.join('\n')}
+`:''}`;
+}
+
 export function probeSocket(socketPath) { return new Promise(resolve => { const s=net.createConnection(socketPath); const done=value=>{s.destroy();resolve(value);}; s.once('connect',()=>done(true)); s.once('error',()=>done(false)); s.setTimeout(500,()=>done(true)); }); }
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
@@ -138,8 +153,10 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     // The approval gate of a running turn proves itself with that turn's token.
     if(method==='chat.permission.request') return chats.requestPermission(p);
     if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.models','chat.permission.answer'].includes(method)) {
-      const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
+      const w=store.getWorkspace(p.workspaceId),main=p.nodeId===Chats.mainId(w),node=main?chats.mainNode(w):w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Chat card not found');
+      // The project's Phantom conversation keeps its settings in the chat store.
+      if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,model:p.model});
       if(method==='chat.get') return chats.get(node);
       if(method==='chat.send') return chats.send(w,node,p.text);
       if(method==='chat.stop') return chats.stop(node.id);
@@ -201,7 +218,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>merges.agentContext(w,node));
+    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:merges.agentContext(w,node).env,instructions:phantomInstructions(w)}:merges.agentContext(w,node));
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};

@@ -1,0 +1,100 @@
+/* Phantom chat: the project's main conversation, docked to the right edge and
+   mirroring the rail on the left. The workspace (bar, canvas, inspector)
+   yields its width, so nothing on the canvas — native browser views included —
+   ever sits beneath it. */
+
+:root { --phantom-chat-width: 400px; }
+@media (min-width: 1500px) { :root { --phantom-chat-width: 440px; } }
+@media (max-width: 1100px) { :root { --phantom-chat-width: 340px; } }
+
+.phantom-chat {
+  position: absolute; z-index: 31; top: 0; right: 0; bottom: 0; width: var(--phantom-chat-width);
+  display: flex; flex-direction: column; min-width: 0; font-size: 13px;
+  background: var(--glass); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+  border-left: 1px solid var(--hairline); container-type: inline-size;
+  animation: phantom-chat-in var(--dur) var(--ease-out);
+}
+@keyframes phantom-chat-in { from { transform: translateX(16px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .phantom-chat { animation: none; } }
+
+@media (min-width: 851px) {
+  .phantom-chat-open .main-workspace { right: var(--phantom-chat-width); }
+}
+/* The narrower canvas keeps its bottom row clear of the view controls: the
+   dock centers between the rail and the zoom island instead of the full width. */
+@media (min-width: 851px) and (max-width: 1800px) {
+  .phantom-chat-open:not(.studio-inspector-open) { --dock-x: calc((100% - 250px) / 2); }
+  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - 250px) / 2); }
+}
+/* Compact: a drawer over the workspace, like the rail. */
+@media (max-width: 850px) {
+  .phantom-chat { left: auto; width: min(100%, 420px); box-shadow: -24px 0 60px #0007; }
+}
+
+/* Head: exactly the bar's height so its seam continues the top bar. */
+.phantom-chat-head { display: flex; align-items: center; gap: 10px; height: var(--bar, 52px); flex-shrink: 0; padding: 0 8px 0 14px; border-bottom: 1px solid var(--hairline); }
+.phantom-chat-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-sm); background: var(--pc-hue-soft); color: var(--pc-hue); flex-shrink: 0; }
+.phantom-chat-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.phantom-chat-title strong { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: -.01em; }
+.phantom-chat-title small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.phantom-chat-live { color: var(--pc-hue); }
+.phantom-chat-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; animation: phantom-pulse 1.4s ease-in-out infinite; }
+@keyframes phantom-pulse { 50% { opacity: .3; } }
+
+.phantom-chat-settings { display: flex; align-items: center; gap: 8px; padding: 8px 12px; flex-shrink: 0; border-bottom: 1px solid var(--hairline); }
+.phantom-chat-providers { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
+.phantom-chat-providers button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-sm); color: var(--muted); font-size: 11px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.phantom-chat-providers button:hover:not(:disabled) { color: var(--ink); }
+.phantom-chat-providers button[aria-checked="true"] { background: var(--segment, var(--fill-2)); color: var(--ink); box-shadow: 0 1px 3px #0003; }
+.phantom-chat-providers button[aria-checked="true"] > svg { color: var(--pc-hue); }
+.phantom-chat-providers button:disabled { opacity: .4; cursor: not-allowed; }
+.phantom-chat-providers button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@container (max-width: 330px) { .phantom-chat-providers button > span { display: none; } }
+
+.phantom-chat .pc-thread { background: transparent; }
+.phantom-chat .pc-column { padding: 20px 16px; gap: 22px; }
+.phantom-chat .pc-message.is-user { max-width: 90%; }
+.phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
+.phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
+
+.phantom-chat-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: auto 0; padding: 8px 4px; }
+.phantom-chat-hero { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-lg); background: var(--pc-hue-soft); color: var(--pc-hue); }
+.phantom-chat-empty h3 { margin: 4px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
+.phantom-chat-empty p { margin: 0; color: var(--muted); line-height: 1.6; max-width: 46ch; }
+.phantom-chat-empty .pc-mono { color: var(--ink); }
+.phantom-chat-suggestions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 6px; }
+.phantom-chat-suggestions button { text-align: left; padding: 9px 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); color: var(--ink); font-size: 12px; line-height: 1.4; transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
+.phantom-chat-suggestions button:hover:not(:disabled) { background: var(--fill); border-color: var(--pc-hue-line); }
+.phantom-chat-suggestions button:disabled { opacity: .5; cursor: not-allowed; }
+.phantom-chat-suggestions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.phantom-chat .pc-error { display: flex; align-items: center; gap: 8px; }
+.phantom-chat .pc-error > span { flex: 1; min-width: 0; }
+.phantom-chat-composer { max-width: none; padding: 0 12px 12px; }
+
+/* Voice: the field itself shows that the microphone is live. */
+.phantom-chat-mic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--muted); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.phantom-chat-mic:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.phantom-chat-mic.is-live { background: var(--danger); color: #fff; box-shadow: 0 0 0 calc(2px + var(--voice-level, 0) * 6px) color-mix(in srgb, var(--danger) 30%, transparent); }
+.phantom-chat-mic:disabled { opacity: .4; cursor: not-allowed; }
+.phantom-chat-mic:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pc-field.is-listening { border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.phantom-chat-voice { display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 14px 0; color: var(--muted); font-size: 11px; }
+.phantom-chat-voice button { margin-left: auto; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
+.phantom-chat-voice button:hover { color: var(--ink); }
+.phantom-chat-wave { display: inline-flex; align-items: center; gap: 2px; height: 12px; }
+.phantom-chat-wave i { display: block; width: 2px; height: 100%; border-radius: 1px; background: var(--danger); transform: scaleY(calc(.25 + var(--voice-level, 0) * .75)); transition: transform 80ms linear; }
+.phantom-chat-wave i:nth-child(2), .phantom-chat-wave i:nth-child(4) { transform: scaleY(calc(.2 + var(--voice-level, 0) * .5)); }
+.pc-field:not(.is-listening) .phantom-chat-wave i { background: var(--muted); animation: phantom-pulse 1.2s ease-in-out infinite; }
+
+/* Header toggle reflects the open chat. */
+.phantom-chat-toggle.active { background: var(--accent-soft); color: var(--accent); }
+
+/* Centre the dock between the rail and the zoom island (overrides the
+   full-width centring of the docked layout). */
+@media (min-width: 851px) and (max-width: 1800px) {
+  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .create-dock,
+  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100% - 250px) / 2); }
+  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .create-dock,
+  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .tool-picker { left: calc((100% - 250px) / 2); }
+}

@@ -75,7 +75,7 @@ export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
 }
 
 // Seconds since a turn started, ticking only while it runs.
-function useElapsed(since, active) {
+export function useElapsed(since, active) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!active) return;
@@ -118,7 +118,7 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-const Message = React.memo(function Message({ message, label, provider, model, onAnswer }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer }) {
   if (message.role === 'user') return <div className="pc-message is-user"><p>{message.parts.map(part => part.text).join('\n')}</p></div>;
   return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} />;
 });
@@ -146,7 +146,7 @@ function AgentMessage({ message, label, provider, model, onAnswer }) {
 
 // The model for this provider in this card. The list comes from the provider
 // (OpenCode's catalog, Claude's aliases); any other model name can be typed.
-function ModelPicker({ node, workspace, api, notify, provider, label, observed, disabled }) {
+export function ModelPicker({ node, workspace, api, notify, provider, label, observed, disabled }) {
   const selected = node.data.chat.models?.[provider] || null;
   const [open, setOpen] = useState(false), [catalog, setCatalog] = useState(null), [failure, setFailure] = useState(''), [query, setQuery] = useState('');
   const root = useRef(null), search = useRef(null);
@@ -189,7 +189,7 @@ function ModelPicker({ node, workspace, api, notify, provider, label, observed, 
 
 // How much of the model's window the conversation occupies, as read from the
 // provider. Without a known window only the occupied tokens are stated.
-function ContextMeter({ meta }) {
+export function ContextMeter({ meta }) {
   const use = contextUse(meta);
   if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';

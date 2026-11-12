@@ -197,7 +197,7 @@ export class Chats {
   get(node) {
     const provider = node.data.chat?.provider ?? null, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
-    return { provider, autoApprove: !!node.data.chat?.autoApprove, mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [] };
+    return { provider, autoApprove: !!node.data.chat?.autoApprove, mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [] };
   }
   send(workspace, node, message) {
     assert(!this.closed, 'Host is shutting down');
@@ -331,6 +331,29 @@ export class Chats {
     if (provider && this.nodes[node.id]?.threads?.[provider]) { delete this.nodes[node.id].threads[provider]; this.save(); }
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: false, reset: true, meta: {}, messages: [] });
     return { ok: true };
+  }
+  // The project's own conversation with Phantom. It is not a canvas card: its
+  // settings live beside its threads and its node is synthesized per call, so
+  // it survives any layout change and always works in the project folder.
+  static mainId(workspace) { return `phantom:${workspace.id}`; }
+  mainNode(workspace) {
+    const id = Chats.mainId(workspace), settings = this.nodes[id]?.settings || {};
+    return { id, type: 'terminal', title: 'Phantom', data: { main: true, cwd: workspace.canonicalPath, chat: { provider: 'claude', ...settings } } };
+  }
+  configureMain(workspace, { provider, autoApprove, model }) {
+    const node = this.mainNode(workspace), patch = {};
+    if (provider !== undefined) patch.provider = provider;
+    if (autoApprove !== undefined) patch.autoApprove = autoApprove;
+    validateChat(patch);
+    assert(patch.provider !== null, 'Phantom necesita Claude u OpenCode');
+    assert(patch.provider === undefined || patch.provider === node.data.chat.provider || !this.running(node.id), 'Detén la respuesta antes de cambiar de agente');
+    if (model !== undefined && model !== null) validateModel(model);
+    const entry = this.nodes[node.id] ??= { threads: {} }, chat = { ...node.data.chat, ...patch };
+    if (model !== undefined) { const models = { ...chat.models }; if (model === null) delete models[chat.provider]; else models[chat.provider] = model; chat.models = models; }
+    entry.settings = chat; this.save();
+    const next = this.mainNode(workspace);
+    this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: next.id, provider: chat.provider, running: this.running(next.id), reset: true, meta: {}, messages: [] });
+    return this.get(next);
   }
   removeNode(nodeId) { this.stop(nodeId); if (this.nodes[nodeId]) { delete this.nodes[nodeId]; this.save(); } }
   async close() {
