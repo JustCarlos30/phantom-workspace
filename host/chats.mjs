@@ -102,9 +102,19 @@ export function toolOutput(content) {
   const value = typeof content === 'string' ? content : Array.isArray(content) ? content.map(block => typeof block?.text === 'string' ? block.text : '').filter(Boolean).join('\n') : '';
   return value.length > MAX_OUTPUT ? `${value.slice(0, MAX_OUTPUT)}\n… (${value.length - MAX_OUTPUT} caracteres más)` : value;
 }
+// The text an edit replaced and wrote, bounded, so the card can draw the diff.
+const clipChange = value => value.length > MAX_OUTPUT ? value.slice(0, MAX_OUTPUT) : value;
+export function toolChange(name, input) {
+  if (!input || typeof input !== 'object') return undefined;
+  const before = input.old_string ?? input.oldString, after = input.new_string ?? input.newString;
+  if (typeof before === 'string' || typeof after === 'string') return { before: clipChange(String(before ?? '')), after: clipChange(String(after ?? '')) };
+  if (String(name).toLowerCase() === 'write' && typeof input.content === 'string') return { before: '', after: clipChange(input.content) };
+  return undefined;
+}
 const describeTool = (part, name, input, cwd) => {
   part.detail = toolDetail(input, cwd) || part.detail;
   const diff = toolDiff(name, input); if (diff) part.diff = diff;
+  const change = toolChange(name, input); if (change) part.change = change;
 };
 const sum = (...values) => values.reduce((total, value) => total + (Number.isFinite(value) ? value : 0), 0);
 const toolPart = (message, id, name) => {

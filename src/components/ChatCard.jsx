@@ -4,6 +4,7 @@ import { useChat } from '../hooks/useChat';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
+import ToolOutput from './ToolOutput';
 import { ProviderGlyph, ProviderTile } from './Glyphs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 
@@ -139,8 +140,9 @@ const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name
 
 function ToolRow({ part }) {
   const [, Icon, kind] = toolKind(part.name);
+  const expandable = Boolean(part.output || (kind === 'edit' && part.change));
   const summary = <>
-    {part.output ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
+    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
     <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={13} /></span>
     <span className="pc-tool-name">{part.name}</span>
     <span className="pc-tool-detail" title={part.detail}>{part.detail}</span>
@@ -150,8 +152,8 @@ function ToolRow({ part }) {
     {part.status === 'stopped' && <span className="pc-tool-state">detenida</span>}
     {part.status === 'done' && !part.diff && <Check className="pc-tool-state is-done" size={12} aria-label="Completada" />}
   </>;
-  if (!part.output) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
-  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><pre className="pc-tool-output">{part.output}</pre></details></li>;
+  if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
+  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output"><ToolOutput part={part} kind={kind} /></div></details></li>;
 }
 
 const OTHER = '\u0000other';

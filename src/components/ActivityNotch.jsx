@@ -64,7 +64,7 @@ function Source({ name, source, activity }) {
   </div>;
 }
 
-export function ActivityTray({ activity, workspace, filter = 'all', onFilter, onClose, onTerminal, onInspector, onRead }) {
+export function ActivityTray({ activity, workspace, filter = 'all', onFilter, onClose, onTerminal, onInspector, onPanel, onRead }) {
   const root = useRef(null), restore = useRef(true);
   const [draftBase, setDraftBase] = useState(activity.base);
   const [reading, setReading] = useState(''), [readError, setReadError] = useState('');
@@ -111,6 +111,7 @@ export function ActivityTray({ activity, workspace, filter = 'all', onFilter, on
         <Source name="Host · terminal.list" source={activity.sources.sessions} activity={activity} />
       </section>}
       {show('integration') && <section aria-labelledby="activity-integration"><h2 id="activity-integration"><GitBranch size={15} />Integración <b>{activity.branches.length} ramas</b></h2>
+        {onPanel && <button onClick={() => { restore.current = false; onClose(); onPanel('repo'); }}>Abrir Repositorio (grafo, worktrees y cambios)</button>}
         <button onClick={() => navigate('incorporaciones')}>Revisar incorporaciones</button>
         <button onClick={() => navigate('branches')}>Ordenar ramas y worktrees</button>
         <form className="activity-base" onSubmit={e => { e.preventDefault(); activity.setBase(draftBase.trim()); if (activity.base === draftBase.trim()) activity.retry(); }}><label>Base explícita<input aria-label="Base de integración" value={draftBase} maxLength={512} onChange={e => setDraftBase(e.target.value)} placeholder="p. ej. main" /></label><button disabled={!activity.connected || activity.sources.git.loading}>Comparar</button></form>

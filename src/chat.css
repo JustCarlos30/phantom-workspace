@@ -117,7 +117,62 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc-tool-state.is-error { color: var(--pc-del); }
 .pc-tool-state.is-running { color: var(--ink); }
 .pc-tool.is-error .pc-tool-name { color: var(--pc-del); }
-.pc-tool-output { margin: 2px 0 4px 34px; max-height: 220px; padding: 10px 12px; border-radius: 8px; background: var(--terminal-bg); color: var(--terminal-ink); font: 12px/1.55 var(--mono); white-space: pre-wrap; overflow: auto; overflow-wrap: anywhere; }
+.pc-tool-output { margin: 2px 6px 6px 34px; animation: tv-in var(--dur-fast) var(--ease-out); }
+@keyframes tv-in { from { opacity: 0; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .pc-tool-output { animation: none; } }
+
+/* Tool output viewer: a framed panel whose body depends on the tool kind. */
+.tv { --tv-accent: var(--muted); position: relative; overflow: hidden; border: 1px solid var(--hairline); border-radius: var(--r-sm); background: color-mix(in srgb, var(--ink) 3%, var(--terminal-bg)); color: var(--ink); font: 12px/1.55 var(--mono); }
+.tv::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--tv-accent); opacity: .7; }
+.tv-diff { --tv-accent: var(--pc-add); }
+.tv-shell { --tv-accent: var(--pc-hue); background: var(--terminal-bg); }
+.tv-read { --tv-accent: color-mix(in srgb, var(--ink) 45%, transparent); }
+.tv-search { --tv-accent: var(--pc-caution); }
+.tv-json { --tv-accent: var(--pc-hue); }
+.tv-error { --tv-accent: var(--pc-del); background: color-mix(in srgb, var(--pc-del) 7%, var(--terminal-bg)); border-color: color-mix(in srgb, var(--pc-del) 30%, transparent); }
+.tv-head { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px 0 12px; border-bottom: 1px solid var(--hairline); background: var(--fill); color: var(--muted); font: 500 11px/1 var(--sans, inherit); }
+.tv-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
+.tv-label svg { flex-shrink: 0; color: var(--tv-accent); }
+.tv-meta { display: inline-flex; gap: 6px; margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tv-meta b { color: var(--pc-add); font-weight: 600; }
+.tv-meta i { color: var(--pc-del); font-style: normal; font-weight: 600; }
+.tv-error .tv-label { color: var(--pc-del); }
+.tv-head .md-copy { width: 22px; height: 22px; opacity: .6; }
+.tv:hover .tv-head .md-copy, .tv-head .md-copy:focus-visible, .tv-head .md-copy.is-copied { opacity: 1; }
+.tv-scroll { max-height: 280px; overflow: auto; overscroll-behavior: contain; }
+.tv-body { margin: 0; padding: 8px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tv-shell .tv-body { color: var(--terminal-ink); }
+.tv-prompt { display: flex; gap: 8px; margin: 0; padding: 8px 12px 0; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.tv-prompt span { color: var(--pc-hue); user-select: none; }
+
+/* Line tables: diffs, numbered reads, grep hits. */
+.tv-lines { width: 100%; border-collapse: collapse; }
+.tv-lines td { padding: 0 8px; vertical-align: top; }
+.tv-lines tr:first-child td { padding-top: 6px; }
+.tv-lines tr:last-child td { padding-bottom: 6px; }
+.tv-n { width: 1%; min-width: 2.5ch; color: color-mix(in srgb, var(--muted) 70%, transparent); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; user-select: none; }
+.tv-op { width: 1%; padding: 0 2px !important; text-align: center; user-select: none; }
+.tv-code { width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tv-lines tr.is-add { background: color-mix(in srgb, var(--pc-add) 13%, transparent); }
+.tv-lines tr.is-del { background: color-mix(in srgb, var(--pc-del) 13%, transparent); }
+.tv-lines tr.is-add .tv-op, .tv-lines tr.is-add .tv-n { color: var(--pc-add); }
+.tv-lines tr.is-del .tv-op, .tv-lines tr.is-del .tv-n { color: var(--pc-del); }
+.tv-lines tr.is-del .tv-code { color: color-mix(in srgb, var(--ink) 75%, transparent); }
+
+/* Search results: files with their path, hits grouped under each file. */
+.tv-files { margin: 0; padding: 4px; list-style: none; }
+.tv-files li, .tv-group h5 { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 8px; border-radius: var(--r-xs, 4px); white-space: nowrap; }
+.tv-files li:hover { background: var(--fill); }
+.tv-files svg, .tv-group h5 svg { flex-shrink: 0; color: var(--tv-accent); }
+.tv-files strong, .tv-group h5 strong { flex-shrink: 0; color: var(--ink); font-weight: 600; }
+.tv-files span, .tv-group h5 span { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
+.tv-group + .tv-group { border-top: 1px solid var(--hairline); }
+.tv-group h5 { margin: 0; padding-top: 6px; font: inherit; }
+.tv-group .tv-lines tr:first-child td { padding-top: 2px; }
+
+.tv-json .tv-key { color: var(--pc-hue); }
+.tv-json .tv-str { color: var(--pc-add); }
+.tv-json .tv-num, .tv-json .tv-lit { color: var(--pc-caution); }
 
 .pc-thinking { color: var(--muted); font-size: 12px; }
 .pc-thinking summary { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 7px; cursor: pointer; list-style: none; border-radius: 99px; background: var(--fill); transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }

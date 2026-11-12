@@ -23,7 +23,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
       ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission' && tab !== 'skills-catalog' && !PLUGIN_MANIFESTS.some(plugin => plugin.panels.some(panel => panel.nodeType === tab))).map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: `Panel · ${node.type}`, action: { type: 'panel', id: node.id } })),
-      ...['terminal', 'browser', 'note', 'tasks', 'context', 'git', 'branches', 'incorporaciones', 'services', 'docker', 'mission', 'workflows', 'playwright', 'playground'].map(panelType => ({ title: `Crear ${TOOL_TITLES[panelType] || ({ terminal: 'terminal', browser: 'navegador', note: 'nota' })[panelType]}`, group: 'Nuevo panel', action: { type: 'create', panelType } })),
+      ...['terminal', 'browser', 'note', 'tasks', 'context', 'repo', 'git', 'branches', 'incorporaciones', 'services', 'docker', 'mission', 'workflows', 'playwright', 'playground'].map(panelType => ({ title: `Crear ${TOOL_TITLES[panelType] || ({ terminal: 'terminal', browser: 'navegador', note: 'nota' })[panelType]}`, group: 'Nuevo panel', action: { type: 'create', panelType } })),
     ] : []),
   ], [workspace]);
   const results = actions.filter(item => `${item.title} ${item.group}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));

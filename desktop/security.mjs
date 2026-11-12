@@ -19,6 +19,8 @@ export const HOST_METHODS = new Set([
   'merge.status', 'merge.configure',
   // Ramas: the user's own Git decisions from the panel; the host never forces or discards.
   'branch.overview', 'branch.commit', 'branch.integrate', 'branch.update', 'branch.remove',
+  // Repositorio: graph, diffs and edits of existing text files inside the project's own worktrees.
+  'repo.graph', 'repo.commit', 'repo.diff', 'repo.files', 'repo.file.read', 'repo.file.write',
   'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control',
   'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
