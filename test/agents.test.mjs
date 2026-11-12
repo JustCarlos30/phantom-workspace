@@ -89,3 +89,28 @@ test('OpenCode catalog scopes canonical folders/worktrees and handles missing ru
   context.execFile=async()=>{throw new Error('ENOENT');};
   const unavailable=await opencodeSessions({},context);assert.equal(unavailable.available,false);assert.deepEqual(unavailable.items,[]);
 });
+
+test('a never-linked terminal adopts the single open Phantom task on its own worktree',async t=>{
+  const root=fs.realpathSync(fs.mkdtempSync('/tmp/opencode/phantom-autobind-')),dataDir=path.join(root,'state');
+  const tree=name=>{const dir=path.join(root,name);fs.mkdirSync(dir);return dir;};
+  const solo=tree('solo'),twice=tree('twice'),closed=tree('closed'),named=tree('named'),unlinked=tree('unlinked');
+  const task=(id,home,goal,status='ready',kind='card')=>({id,kind,status,title:goal,location:{path:home},raw:{id,kind,status,contract:{goal,workspace:home}}});
+  let items=[task('t-solo',solo,'Iconos del canvas'),task('t-a',twice,'Uno'),task('t-b',twice,'Dos','blocked','task'),task('t-done',closed,'Hecha','completed'),task('t-named',named,'Otra'),task('t-unlinked',unlinked,'Desvinculada')];
+  const handleIntegration=async method=>method==='phantom.list'?{handled:true,result:{available:true,items}}:{handled:false};
+  const host=await createHost({dataDir,handleIntegration});
+  t.after(async()=>{await host.close();fs.rmSync(root,{recursive:true,force:true});});
+  const w=await host.invoke('workspace.open',{path:root});
+  const terminal=(home,title='Terminal',extra={})=>host.invoke('node.create',{workspaceId:w.id,type:'terminal',title,data:{worktree:{path:home,branch:'b',source:root,createdAt:new Date().toISOString()},...extra}});
+  const ids={solo:(await terminal(solo)).id,twice:(await terminal(twice)).id,closed:(await terminal(closed)).id,named:(await terminal(named,'Mi agente',{agent:{step:'Leyendo',status:'working',source:'agent'}})).id,unlinked:(await terminal(unlinked,'Terminal',{agent:{cardId:'',cardTitle:''}})).id};
+  const node=async key=>(await host.invoke('state.get')).workspaces[0].nodes.find(n=>n.id===ids[key]);
+  await host.invoke('phantom.list',{workspaceId:w.id,topic:'tasks',query:'Iconos'});
+  assert.equal((await node('solo')).data.agent,undefined,'a filtered catalog cannot prove uniqueness');
+  await host.invoke('phantom.list',{workspaceId:w.id,topic:'tasks'});
+  assert.equal((await node('solo')).title,'Iconos del canvas');assert.equal((await node('solo')).data.agent.cardId,'t-solo');
+  assert.equal((await node('twice')).data.agent,undefined,'ambiguous worktree binds nothing');
+  assert.equal((await node('closed')).data.agent,undefined,'closed tasks are not adopted');
+  const keep=await node('named');assert.equal(keep.title,'Mi agente');assert.equal(keep.data.agent.cardId,'t-named');assert.equal(keep.data.agent.step,'Leyendo');assert.equal(keep.data.agent.status,'working');
+  assert.equal((await node('unlinked')).data.agent.cardId,'','an explicit unlink is respected');
+  items=[task('t-other',solo,'Nueva tarea')];await host.invoke('phantom.list',{workspaceId:w.id,topic:'tasks'});
+  assert.equal((await node('solo')).data.agent.cardId,'t-solo','an existing link is never replaced');
+});
