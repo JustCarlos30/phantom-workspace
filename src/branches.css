@@ -114,7 +114,7 @@
 .br-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .br-card:disabled { cursor: default; }
 .br-card > svg { flex: none; color: var(--accent); }
-.br-card-title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-card-title { min-width: 0; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .br-card-status { flex: none; padding: 0 6px; border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 10.5px; line-height: 17px; }
 .br-card-status.is-live { color: var(--accent); background: var(--accent-soft); }
 .br-card-status.is-done { color: var(--br-ahead); }
@@ -128,6 +128,9 @@
 .br-mix-key b { color: var(--ink); font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .br-mix-bar .is-added { background: var(--success, #5fe0a5); }
 .br-mix-bar .is-modified { background: var(--c-sky, #7cc4ff); }
+.br-mix-bar .is-renamed { background: var(--accent); }
+.br-mix-bar .is-copied { background: var(--c-sand, #d7c296); }
+.br-mix-bar .is-type { background: var(--muted); }
 .br-mix-bar .is-removed { background: var(--danger, #ee788a); }
 .br-mix-bar .is-conflict { background: var(--warning, #edbf79); }
 .br-files > summary::-webkit-details-marker { display: none; }

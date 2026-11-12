@@ -110,7 +110,7 @@ test('the desktop serves reference files only by workspace and content-hash name
   assert.deepEqual(byteRange('bytes=-10', 100), { start: 90, end: 99 });
   assert.deepEqual(byteRange('bytes=0-999', 100), { start: 0, end: 99 });
   assert.equal(byteRange('bytes=200-', 100), false); assert.equal(byteRange(null, 100), null);
-  assert.match(contentSecurityPolicy(), /img-src 'self' data: blob: phantom-ref:;.*media-src 'self' blob: phantom-ref:;/);
+  assert.match(contentSecurityPolicy(), /img-src 'self' data: blob: phantom-ref:;.*media-src 'self' blob: phantom-ref: phantom-review:;/);
   for (const method of ['reference.add', 'reference.link', 'comment.add', 'comment.reply', 'comment.update', 'comment.remove']) assert.ok(HOST_METHODS.has(method));
   validateInvocation('reference.add', { workspaceId: id, data: 'A'.repeat(15 * 1024 * 1024) });
   assert.throws(() => validateInvocation('comment.add', { text: 'A'.repeat(2 * 1024 * 1024) }), /grande/);

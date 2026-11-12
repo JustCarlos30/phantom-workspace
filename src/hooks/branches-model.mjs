@@ -65,11 +65,18 @@ export function buildBranches(data, { query = '', content, cards = [] } = {}) {
 // How a set of changes splits by kind, in a fixed order for the stacked bar.
 export const MIX = [
   { id: 'added', label: 'Nuevos' }, { id: 'modified', label: 'Modificados' },
+  { id: 'renamed', label: 'Renombrados' }, { id: 'copied', label: 'Copiados' },
+  { id: 'type', label: 'Tipo cambiado' },
   { id: 'removed', label: 'Borrados' }, { id: 'conflict', label: 'En conflicto' },
 ];
-export function changeMix(changes = []) {
-  const counts = { added: 0, modified: 0, removed: 0, conflict: 0 };
-  for (const change of changes) counts[changeTone(change.status)]++;
+export function changeMix(changes = [], summary) {
+  const counts = Object.fromEntries(MIX.map(kind => [kind.id, 0]));
+  const entries = summary ? Object.entries(summary) : changes.map(change => [change.status, 1]);
+  for (const [status, count] of entries) {
+    const code = changeCode(status);
+    const kind = ({ R: 'renamed', C: 'copied', T: 'type' })[code] || changeTone(status);
+    counts[kind] += count;
+  }
   return MIX.map(kind => ({ ...kind, count: counts[kind.id] })).filter(kind => kind.count);
 }
 

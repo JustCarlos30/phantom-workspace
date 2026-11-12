@@ -4,7 +4,7 @@
 .project-switcher > summary::-webkit-details-marker { display: none; }
 .project-switcher > summary:hover { background: var(--fill-3); }
 .project-switcher > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.project-switcher > summary > svg { flex-shrink: 0; color: var(--muted); }
+.project-switcher > summary > svg { flex-shrink: 0; color: var(--muted); transition: transform var(--dur) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .project-switcher[open] > summary > svg { transform: rotate(180deg); }
 .project-switcher-label { min-width: 0; flex: 1; }
 .project-switcher-label strong, .project-switcher-label small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

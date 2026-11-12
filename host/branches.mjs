@@ -43,6 +43,10 @@ function parseStatus(output) {
   }
   return changes;
 }
+const summarizeChanges = changes => changes.reduce((counts, change) => {
+  counts[change.status] = (counts[change.status] || 0) + 1;
+  return counts;
+}, {});
 // git() trims stdout, which would eat the first status column (" M path"); read this one raw.
 async function status(cwd) {
   const { stdout } = await execute('git', ['-C', cwd, '--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=normal'], { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024, env: hostGitEnv() });
@@ -102,7 +106,7 @@ export class Branches {
           else if (row.ahead) row.conflicts = [];
         }
         if (exists) {
-          const changes = await status(tree.path); row.changeCount = changes.length; row.changes = changes.slice(0, MAX_FILES);
+          const changes = await status(tree.path); row.changeCount = changes.length; row.changeSummary = summarizeChanges(changes); row.changes = changes.slice(0, MAX_FILES);
           if (!isBase) { await markInBase(base.source, base.oid, tree.path, row.changes); row.inBase = row.changes.filter(change => change.inBase).length; }
         }
       } catch (error) { row.error = error.message.slice(0, 300); }
@@ -111,7 +115,7 @@ export class Branches {
     // Worktrees without a branch still hold files; show them so nothing stays hidden.
     for (const tree of trees.filter(item => !item.branch)) {
       const exists = !tree.prunable && fs.existsSync(tree.path), changes = exists ? await status(tree.path).catch(() => []) : [];
-      rows.push({ name: null, oid: tree.oid ?? null, detached: true, isBase: false, last: null, worktree: { path: tree.path, exists, main: real(tree.path) === base.source, locked: Boolean(tree.locked) }, terminal: null, ahead: 0, behind: 0, committed: [], changes: changes.slice(0, MAX_FILES), changeCount: changes.length, conflicts: null, request: null });
+      rows.push({ name: null, oid: tree.oid ?? null, detached: true, isBase: false, last: null, worktree: { path: tree.path, exists, main: real(tree.path) === base.source, locked: Boolean(tree.locked) }, terminal: null, ahead: 0, behind: 0, committed: [], changes: changes.slice(0, MAX_FILES), changeCount: changes.length, changeSummary: summarizeChanges(changes), conflicts: null, request: null });
     }
     // Files touched (committed or not) by more than one branch with pending work: order matters there.
     const touching = new Map();

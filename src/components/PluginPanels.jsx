@@ -4,6 +4,7 @@ import { PLUGIN_MANIFESTS } from '../../shared/plugins.mjs';
 import { PluginCenter } from './PluginCenter';
 import { PhantomCards } from './PhantomCards';
 import { PhantomSkills } from './PhantomSkills';
+import { VideoLog } from './VideoLog';
 import { Button, ErrorNotice, ResourceState, useResource } from './PluginPrimitives';
 import '../plugins.css';
 
@@ -36,7 +37,7 @@ function Content({ type, ...props }) {
   if (!registry.data && (registry.loading || registry.error)) return <ResourceState resource={registry} />;
   if (!Array.isArray(registry.data?.items)) return <ErrorNotice error="El registro de plugins no es válido." retry={registry.reload} />;
   if (!plugin?.enabled || workspace.plugins?.[panel?.pluginId]?.enabled === false) return <section className="plugin-gate tw-section"><h3>{panel?.name || 'Panel'} · Plugin desactivado</h3><p>Activa {plugin?.name || panel?.pluginId} en el Centro de Plugins. Tus datos nativos, configuración y referencias guardadas se conservan al desactivar.</p><Button onClick={() => onOpenPanel?.('plugins')}>Abrir Centro</Button><Button onClick={registry.reload}>Actualizar estado</Button></section>;
-  const Native = type === 'phantom-cards' ? PhantomCards : type === 'phantom-skills' ? PhantomSkills : null;
+  const Native = type === 'phantom-cards' ? PhantomCards : type === 'phantom-skills' ? PhantomSkills : type === 'video-log' ? VideoLog : null;
   return Native ? <Native {...props} api={nativeApi} plugin={plugin} /> : null;
 }
 

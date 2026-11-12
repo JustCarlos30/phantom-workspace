@@ -180,6 +180,39 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .tv-json .tv-str { color: var(--pc-add); }
 .tv-json .tv-num, .tv-json .tv-lit { color: var(--pc-caution); }
 
+/* Sub-agent: a delegated piece of work, framed as its own small card with an
+   accent rail while it runs, so a delegation never hides among tool rows. */
+.pc-subagent { position: relative; display: grid; gap: 6px; padding: 10px 12px 10px 14px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--surface); font-size: 12px; overflow: hidden; }
+.pc-subagent::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--hairline-strong); }
+.pc-subagent.is-running::before { background: var(--accent); }
+.pc-subagent.is-error { background: color-mix(in srgb, var(--danger) 6%, var(--surface)); }
+.pc-subagent.is-error::before { background: var(--danger); }
+.pc-subagent-head { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); }
+.pc-subagent-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--fill-2); color: var(--ink); flex-shrink: 0; }
+.pc-subagent-label { color: var(--ink); font-weight: 600; }
+.pc-subagent-type { padding: 1px 7px; border-radius: 99px; background: var(--fill); font: 11px/1.5 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.pc-subagent-state { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex-shrink: 0; }
+.pc-subagent.is-running .pc-subagent-state { color: var(--ink); }
+.pc-subagent.is-error .pc-subagent-state { color: var(--pc-del); }
+.pc-subagent-goal { margin: 0; color: var(--ink); font-size: 13px; font-weight: 550; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pc-subagent-now { display: flex; gap: 8px; min-width: 0; margin: 0; color: var(--muted); font: 12px/1.4 var(--mono); }
+.pc-subagent-said { margin: 0; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.pc-subagent-more { color: var(--muted); }
+.pc-subagent-more > summary { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 5px; border-radius: 99px; cursor: pointer; list-style: none; transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
+.pc-subagent-more > summary::-webkit-details-marker { display: none; }
+.pc-subagent-more > summary:hover { color: var(--ink); background: var(--fill); }
+.pc-subagent-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pc-subagent-more > summary > svg { transition: transform var(--dur-fast) var(--ease-out); }
+.pc-subagent-more[open] > summary > svg { transform: rotate(90deg); }
+.pc-subagent-steps { display: grid; gap: 1px; margin: 4px 0 0; padding: 0 0 0 10px; border-left: 1px solid var(--hairline); list-style: none; max-height: 220px; overflow: auto; }
+.pc-subagent-steps > li { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 22px; font: 11.5px/1.4 var(--mono); }
+.pc-subagent-steps > li > .pc-tool-name { font-weight: 500; }
+.pc-subagent-steps > li.is-error > .pc-tool-name { color: var(--pc-del); }
+.pc-subagent-hidden { color: var(--muted); font-style: italic; }
+.pc-subagent-prompt { margin: 4px 0 0; padding: 8px 10px; max-height: 200px; overflow: auto; border-radius: var(--r-sm); background: var(--fill); color: var(--ink); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.pc-subagent-output { margin-top: 4px; }
+.pc-working-agents { color: var(--ink); }
+
 .pc-thinking { color: var(--muted); font-size: 12px; }
 .pc-thinking summary { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 7px; cursor: pointer; list-style: none; border-radius: 99px; background: var(--fill); transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
 .pc-thinking summary::-webkit-details-marker { display: none; }
@@ -217,7 +250,7 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc.is-focused .pc-dock { padding: 0 20px 10px; }
 .pc-composer { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
 .pc-field { display: flex; flex-direction: column; border: 1px solid var(--hairline-strong); border-radius: var(--r-lg); background: var(--surface-2); cursor: text; transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
-.pc-field:focus-within { border-color: color-mix(in srgb, var(--ink) 32%, transparent); }
+.pc-field:focus-within { border-color: color-mix(in srgb, var(--pc-hue) 48%, var(--hairline-strong)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-hue) 14%, transparent); }
 .pc-field textarea { display: block; width: 100%; min-height: 38px; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-y: auto; }
 .pc-field textarea::placeholder { color: var(--muted); }
 .pc-field textarea:focus-visible { outline: none; }

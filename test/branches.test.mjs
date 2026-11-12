@@ -122,6 +122,11 @@ test('Ramas: all unmerged Git states read as conflicts, including both-added and
   assert.deepEqual(changeMix(changes).map(kind => [kind.id, kind.count]), [['conflict', 7]]);
   assert.equal(changeLabel(' T'), 'Tipo cambiado');
   assert.equal(changeLabel('R '), 'Renombrado');
+  assert.deepEqual(changeMix(['R ', 'C ', ' T', 'AA'].map(status => ({ status }))).map(kind => [kind.id, kind.count]),
+    [['renamed', 1], ['copied', 1], ['type', 1], ['conflict', 1]]);
+  // The full host summary takes precedence over the capped file list.
+  assert.deepEqual(changeMix([{ status: ' M' }], { ' M': 220, '??': 12, 'DD': 2 }).map(kind => [kind.id, kind.count]),
+    [['added', 12], ['modified', 220], ['conflict', 2]]);
 });
 
 test('Ramas: Card locations include main and detached checkouts, and search finds branch Cards', () => {

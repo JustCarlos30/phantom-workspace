@@ -22,7 +22,7 @@ export function preferredCardMode() {
 }
 const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
 const AUTO_APPROVE = {
-  claude: { auto: 'Trabaja libremente dentro de su carpeta (ediciones, git local, npm, tests) y te pide permiso aquí antes de tocar algo fuera: otras carpetas, push, red o sistema.', ask: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.', full: `Hace todo sin preguntar, también fuera de su carpeta, en la red y con herramientas externas. Solo te pide permiso para una lista corta de acciones peligrosas: ${FULL_LIST}. Git queda protegido por el guardián de Incorporaciones.` },
+  claude: { auto: 'Trabaja sin interrumpirte: edita, ejecuta comandos, instala dependencias, corre tests y usa archivos temporales. Solo te pide permiso aquí para lo delicado: borrar o escribir fuera de su carpeta, commit y push, herramientas MCP externas, servicios y proveedores externos, bases de datos y cambios al sistema.', ask: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.', full: `Hace todo sin preguntar, también fuera de su carpeta, en la red y con herramientas externas. Solo te pide permiso para una lista corta de acciones peligrosas: ${FULL_LIST}. Git queda protegido por el guardián de Incorporaciones.` },
   opencode: { auto: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', ask: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.', full: 'OpenCode aprueba todo permiso que no esté denegado en su configuración (igual que Puede editar). Git queda protegido por el guardián de Incorporaciones.' },
   codex: { auto: 'Codex puede editar dentro de la carpeta con sandbox workspace-write. Los permisos que requieren confirmación se deniegan en modo headless.', ask: 'Codex usa sandbox de solo lectura y no solicita aprobaciones en modo headless.', full: 'Codex trabaja sin sandbox (danger-full-access): puede escribir fuera de la carpeta y usar la red. No puede preguntar en modo headless. Git queda protegido por el guardián de Incorporaciones.' },
 };
@@ -170,6 +170,53 @@ function ToolRow({ part }) {
   return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output"><ToolOutput part={part} kind={kind} /></div></details></li>;
 }
 
+// A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
+// OpenCode's task, Codex's spawn_agent). Drawn as its own card in the turn so
+// the user sees who was delegated, what it is doing now and how it ended.
+const AGENT_STATE = { running: 'Trabajando', done: 'Terminó', error: 'Falló', stopped: 'Detenido' };
+function StepState({ status }) {
+  if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={11} aria-label="En curso" />;
+  if (status === 'error') return <X className="pc-tool-state is-error" size={11} aria-label="Falló" />;
+  if (status === 'stopped') return <span className="pc-tool-state">detenido</span>;
+  return <Check className="pc-tool-state is-done" size={11} aria-label="Completado" />;
+}
+export function SubagentCard({ part }) {
+  const agent = part.agent || { steps: [] }, steps = agent.steps || [], total = Math.max(agent.total || 0, steps.length);
+  const running = part.status === 'running', current = running ? steps.findLast(step => step.status === 'running') || steps.at(-1) : null;
+  const hidden = total - steps.length;
+  return <section className={`pc-subagent is-${part.status}`} aria-label={`Subagente${agent.type ? ` ${agent.type}` : ''}: ${part.detail || part.name}`}>
+    <header className="pc-subagent-head">
+      <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={13} /></span>
+      <span className="pc-subagent-label">Subagente</span>
+      {agent.type && <span className="pc-subagent-type">{agent.type}</span>}
+      <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={11} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
+    </header>
+    <p className="pc-subagent-goal" title={part.detail}>{part.detail || part.name}</p>
+    {current && <p className="pc-subagent-now"><span className="pc-tool-name">{current.name}</span><span className="pc-tool-detail" title={current.detail}>{current.detail}</span></p>}
+    {agent.text && <p className="pc-subagent-said" title={agent.text}>{agent.text}</p>}
+    {steps.length > 0 && <details className="pc-subagent-more">
+      <summary><ChevronRight size={12} aria-hidden="true" />Pasos del subagente</summary>
+      <ol className="pc-subagent-steps">
+        {hidden > 0 && <li className="pc-subagent-hidden">{hidden} {hidden === 1 ? 'paso anterior' : 'pasos anteriores'} sin detalle</li>}
+        {steps.map(step => { const [, Icon] = toolKind(step.name); return <li key={step.id} className={`is-${step.status}`}>
+          <Icon size={11} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
+        </li>; })}
+      </ol>
+    </details>}
+    {agent.prompt && <details className="pc-subagent-more">
+      <summary><ChevronRight size={12} aria-hidden="true" />Encargo</summary>
+      <pre className="pc-subagent-prompt">{agent.prompt}</pre>
+    </details>}
+    {part.output && <details className="pc-subagent-more">
+      <summary><ChevronRight size={12} aria-hidden="true" />Resultado</summary>
+      <div className="pc-subagent-output"><ToolOutput part={part} kind="agent" /></div>
+    </details>}
+  </section>;
+}
+const isSubagent = part => part.type === 'tool' && Boolean(part.agent);
+// Sub-agents still at work in a reply, for the "Trabajando" line.
+export const activeSubagents = parts => parts.filter(part => isSubagent(part) && part.status === 'running').length;
+
 const OTHER = '\u0000other';
 const QUESTION_STATUS = { skipped: 'Sin responder · el agente sigue con su criterio', cancelled: 'La respuesta terminó antes de contestar' };
 // AskUserQuestion: the agent is waiting on a choice. Each question is a
@@ -233,6 +280,7 @@ function groupParts(parts) {
   const groups = [], asked = new Set(parts.filter(p => p.type === 'question' && p.toolUseId).map(p => p.toolUseId));
   for (const part of parts) {
     if (part.type === 'tool' && asked.has(part.id)) continue;
+    if (isSubagent(part)) { groups.push({ type: 'subagent', part }); continue; }
     const last = groups.at(-1);
     if (part.type === 'tool' && last?.type === 'tools') last.items.push(part);
     else groups.push(part.type === 'tool' ? { type: 'tools', items: [part] } : part);
@@ -250,11 +298,14 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
+  const delegated = streaming ? activeSubagents(message.parts) : 0;
   const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
   return <article className={`pc-message is-agent is-${message.status}`}>
     <header className="pc-turn-head"><span className="pc-avatar" aria-hidden="true"><ProviderGlyph provider={provider} size={13} /></span><strong>{label}</strong>{(message.model || model) && <span className="pc-mono">{message.model || model}</span>}<time dateTime={message.createdAt}>{clock(message.createdAt)}</time></header>
     {groups.map((group, i) => group.type === 'tools'
       ? <ul key={i} className="pc-tools" aria-label="Herramientas usadas">{group.items.map(part => <ToolRow key={part.id} part={part} />)}</ul>
+      : group.type === 'subagent'
+        ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
         ? <PermissionRow key={group.id} part={group} onAnswer={onAnswer} />
       : group.type === 'question'
@@ -262,7 +313,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}</p>}
+    {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
     {!streaming && (facts.length > 0 || text) && <footer className="pc-turn-foot"><span className="pc-num">{facts.join(' · ')}</span>{text && <CopyButton text={text} label="Copiar respuesta" />}</footer>}

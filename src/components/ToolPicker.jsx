@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, X } from 'lucide-react';
 import EmptyState from './EmptyState.jsx';
 
-export const TOOL_GROUPS = [['space', 'En el mapa'], ['project', 'Proyecto'], ['automation', 'Automatización'], ['phantom', 'Phantom']];
+export const TOOL_GROUPS = [['space', 'En el mapa'], ['project', 'Proyecto'], ['automation', 'Automatización'], ['phantom', 'Phantom'], ['plugins', 'Plugins']];
 
 // The launcher behind the dock's "Herramientas": every panel type, grouped by
 // what it is for and filtered as you type. Neutral icons keep the labels first.

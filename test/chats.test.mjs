@@ -106,6 +106,45 @@ test('Claude stream folds partial text, tool calls and results into one reply', 
   assert.equal(failed.error, 'Sin crédito');
 });
 
+test('Sub-agent work nests under the call that delegated it, for every provider', () => {
+  // Claude: events with parent_tool_use_id fold into the Agent call.
+  const c = turn();
+  applyClaudeEvent(c, { type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', id: 'a1', name: 'Agent', input: { description: 'Buscar tests', prompt: 'Encuentra los tests de chats', subagent_type: 'Explore' } }] } });
+  assert.equal(applyClaudeEvent(c, { type: 'assistant', parent_tool_use_id: 'a1', message: { id: 's1', model: 'claude-haiku', content: [{ type: 'text', text: 'Busco…' }, { type: 'tool_use', id: 's-t1', name: 'Grep', input: { pattern: 'applyClaudeEvent' } }] } }), true);
+  applyClaudeEvent(c, { type: 'user', parent_tool_use_id: 'a1', message: { content: [{ type: 'tool_result', tool_use_id: 's-t1', content: 'x' }] } });
+  applyClaudeEvent(c, { type: 'assistant', parent_tool_use_id: 'a1', message: { id: 's2', content: [{ type: 'tool_use', id: 's-t2', name: 'Read', input: { file_path: '/repo/test/chats.test.mjs' } }] } });
+  let [agent] = c.message.parts;
+  assert.equal(agent.detail, 'Buscar tests'); assert.equal(agent.status, 'running');
+  assert.deepEqual({ ...agent.agent }, { type: 'Explore', prompt: 'Encuentra los tests de chats', model: 'claude-haiku', text: 'Busco…', total: 2, steps: [{ id: 's-t1', name: 'Grep', detail: 'applyClaudeEvent', status: 'done' }, { id: 's-t2', name: 'Read', detail: 'test/chats.test.mjs', status: 'running' }] });
+  // The sub-agent's chatter never leaks into the main reply.
+  assert.equal(c.message.parts.length, 1);
+  applyClaudeEvent(c, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'a1', content: [{ type: 'text', text: 'Están en test/' }] }] } });
+  [agent] = c.message.parts;
+  assert.equal(agent.status, 'done'); assert.equal(agent.output, 'Están en test/'); assert.equal(agent.agent.steps[1].status, 'done');
+  // Only the latest steps are kept, but the total still counts every one.
+  for (let i = 0; i < 50; i++) applyClaudeEvent(c, { type: 'assistant', parent_tool_use_id: 'a1', message: { id: `x${i}`, content: [{ type: 'tool_use', id: `x${i}`, name: 'Read', input: {} }] } });
+  assert.equal(c.message.parts[0].agent.steps.length, 40); assert.equal(c.message.parts[0].agent.total, 52);
+
+  // OpenCode: parts of the child session belong to the running task call.
+  const o = turn(), root = { sessionID: 'root' };
+  applyOpenCodeEvent(o, { type: 'tool_use', ...root, part: { sessionID: 'root', callID: 'k1', tool: 'task', state: { status: 'running', input: { description: 'Revisar CSS', prompt: 'Mira chat.css', subagent_type: 'general' } } } });
+  applyOpenCodeEvent(o, { type: 'tool_use', ...root, part: { sessionID: 'child', callID: 'k1-a', tool: 'read', state: { status: 'completed', input: { filePath: '/repo/src/chat.css' } } } });
+  applyOpenCodeEvent(o, { type: 'text', ...root, part: { sessionID: 'child', text: 'Hecho' } });
+  applyOpenCodeEvent(o, { type: 'step_finish', ...root, part: { sessionID: 'child', tokens: { total: 999999 } } });
+  assert.equal(o.contextTokens, undefined, 'a child step never stands for the main context');
+  applyOpenCodeEvent(o, { type: 'tool_use', ...root, part: { sessionID: 'root', callID: 'k1', tool: 'task', state: { status: 'completed', input: { description: 'Revisar CSS' }, output: 'ok', metadata: { sessionId: 'child', summary: [{ id: 'k1-a', tool: 'read', state: { status: 'completed', title: 'chat.css' } }, { id: 'k1-b', tool: 'grep', state: { status: 'running', title: '.pc-tool' } }] } } } });
+  assert.equal(o.message.parts.length, 1);
+  const task = o.message.parts[0];
+  assert.equal(task.status, 'done'); assert.equal(task.agent.type, 'general'); assert.equal(task.agent.sessionId, 'child'); assert.equal(task.agent.text, 'Hecho');
+  assert.deepEqual(task.agent.steps.map(s => [s.name, s.detail, s.status]), [['read', 'src/chat.css', 'done'], ['grep', '.pc-tool', 'done']]);
+
+  // Codex: spawn_agent reports its child threads' state on the call itself.
+  const x = turn();
+  applyCodexEvent(x, { type: 'item.started', item: { id: 'sp', type: 'collab_tool_call', tool: 'spawn_agent', prompt: 'Revisa la UI\ncon detalle', receiver_thread_ids: ['t-123'], status: 'in_progress' } });
+  applyCodexEvent(x, { type: 'item.completed', item: { id: 'sp', type: 'collab_tool_call', tool: 'spawn_agent', prompt: 'Revisa la UI\ncon detalle', receiver_thread_ids: ['t-123'], agents_states: { 't-123': { status: 'completed', message: 'UI revisada' } }, status: 'completed' } });
+  assert.deepEqual(x.message.parts.map(p => [p.name, p.detail, p.status, p.agent.text]), [['spawn_agent', 'Revisa la UI', 'done', 'UI revisada']]);
+});
+
 test('OpenCode events become text and tool parts; arguments resume the right session', () => {
   const t = turn();
   applyOpenCodeEvent(t, { type: 'step_start', sessionID: 'ses_1', part: { type: 'step-start' } });

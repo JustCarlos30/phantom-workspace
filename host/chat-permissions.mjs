@@ -6,11 +6,13 @@ import path from 'node:path';
 // so every permission it would prompt for comes here (through the approval
 // gate) and is either granted at once or shown to the user in the card.
 //
-// The line it draws: work that stays inside the card's own folder (normally
-// its Phantom worktree) is the agent's job; anything that reaches beyond it —
-// other folders, the shared Git refs/remotes, the network, the system — asks.
-// The shell classifier is a heuristic over the command text: when it cannot
-// tell, it asks. It is a guard against surprises, not a sandbox.
+// The line Autónomo draws: the agent works without interruptions and asks only
+// for what cannot be taken back or leaves the machine — deleting or writing
+// beyond its folder (temporary folders are fine), commits, pushes and shared
+// Git refs, external MCP tools, external services and providers, databases,
+// privilege and the system. "Pregunta todo" keeps the stricter folder rule.
+// The shell classifiers are heuristics over the command text: a guard against
+// surprises, not a sandbox.
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead', 'WebSearch', 'WebFetch', 'TodoWrite', 'TodoRead', 'Task', 'Agent', 'Skill', 'ToolSearch', 'BashOutput', 'TaskOutput', 'KillShell', 'KillBash', 'TaskStop', 'Monitor', 'EnterPlanMode', 'ExitPlanMode', 'ListMcpResourcesTool', 'ReadMcpResourceTool']);
 const EDIT_TOOLS = { Edit: 'file_path', MultiEdit: 'file_path', Write: 'file_path', NotebookEdit: 'notebook_path' };
@@ -210,13 +212,18 @@ export function classifyCommand(line, cwd) {
 }
 
 // The key a "Siempre" answer remembers for the rest of the conversation.
+const KEYED_SUBCOMMANDS = ['git', 'npm', 'pnpm', 'yarn', 'bun', 'docker', 'gh', 'kubectl', 'cargo'];
+function commandKey(words) {
+  const rest = [...words];
+  while (rest.length && (/=/.test(rest[0]) || ['rtk', 'time', 'nice', 'nohup'].includes(rest[0]))) rest.shift();
+  const [command = '', sub] = rest, name = path.basename(command);
+  return `Bash:${KEYED_SUBCOMMANDS.includes(name) && sub ? `${name} ${sub}` : name}`;
+}
 function grantKey(tool, input, cwd) {
   if (tool === 'Bash') {
     const tokens = tokenize(String(input?.command || '')) || [];
     const words = []; for (const token of tokens) { if (token.op) break; if (token.word !== undefined) words.push(token.word); }
-    while (words.length && (/=/.test(words[0]) || ['rtk', 'time', 'nice', 'nohup'].includes(words[0]))) words.shift();
-    const [command = '', sub] = words, name = path.basename(command);
-    return `Bash:${['git', 'npm', 'pnpm', 'yarn', 'bun', 'docker', 'gh', 'kubectl', 'cargo'].includes(name) && sub ? `${name} ${sub}` : name}`;
+    return commandKey(words);
   }
   const field = EDIT_TOOLS[tool];
   if (field && typeof input?.[field] === 'string') return `${tool}:${path.dirname(path.resolve(cwd || '/', input[field]))}`;
@@ -228,6 +235,7 @@ function grantKey(tool, input, cwd) {
 // shell startup, the system, piping the network into a shell, raw disks.
 // Everything else Git-related is left to the merge guard's hooks.
 const HOME = os.homedir();
+const TMP_DIRS = [...new Set(['/tmp', '/var/tmp', os.tmpdir()].flatMap(dir => [dir, real(dir)]))];
 const PROTECTED_DIRS = [...['.ssh', '.gnupg', '.aws'].map(dir => path.join(HOME, dir)), '/etc', '/usr', '/boot'];
 const PROTECTED_FILES = ['.bashrc', '.bash_profile', '.bash_login', '.zshrc', '.zprofile', '.zshenv', '.profile'].map(file => path.join(HOME, file));
 const expandHome = target => target.replace(/^~(?=\/|$)/, HOME).replace(/^\$\{?HOME\}?(?=\/|$)/, HOME);
@@ -240,16 +248,18 @@ function protectedPath(target, cwd) {
 }
 // A target too wide to wipe or re-permission without asking: the root, the
 // home, or anything outside the working folder.
-function wideTarget(target, cwd) {
+function wideTarget(target, cwd, relaxed) {
   const expanded = expandHome(target).replace(/\/\*?$/, '') || '/';
   if (expanded === '/' || expanded === HOME || /^~|\$/.test(expanded)) return true;
+  // Autónomo also lets the agent clear what it left in a temporary folder.
+  if (relaxed && path.isAbsolute(expanded) && TMP_DIRS.some(dir => real(expanded).startsWith(dir + path.sep))) return false;
   return !inside(cwd, expanded);
 }
 const WRITE_COMMANDS = new Set(['cp', 'mv', 'tee', 'install', 'ln', 'touch', 'truncate', 'mkdir', 'rm', 'rmdir', 'rsync', 'chmod', 'chown', 'chgrp', 'unzip', 'tar', 'patch', 'sed', 'perl']);
 // These read their sources: only the destination (last argument) is written.
 const COPY_COMMANDS = new Set(['cp', 'rsync', 'install', 'ln']);
 
-function hardSegment(words, cwd) {
+function hardSegment(words, cwd, relaxed) {
   const args = [...words];
   while (args.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(args[0])) args.shift();
   for (;;) {
@@ -265,7 +275,7 @@ function hardSegment(words, cwd) {
   if (/^mkfs/.test(name) || ['fdisk', 'parted', 'wipefs'].includes(name)) return `${name} formatea o reparticiona discos`;
   if (name === 'dd' && rest.some(arg => /^of=\/dev\//.test(arg))) return 'dd escribe directamente en un dispositivo';
   if (name === 'rm' && rest.some(arg => /^-[a-zA-Z]*[rRf]/.test(arg) || /^--(recursive|force)$/.test(arg))) {
-    const wide = paths.find(arg => wideTarget(arg, cwd));
+    const wide = paths.find(arg => wideTarget(arg, cwd, relaxed));
     if (wide) return `rm borra a la fuerza ${wide}, fuera de la carpeta de trabajo`;
   }
   if (['chmod', 'chown', 'chgrp'].includes(name) && rest.some(arg => /^-[a-zA-Z]*R/.test(arg) || arg === '--recursive')) {
@@ -291,15 +301,17 @@ function hardSegment(words, cwd) {
   return null;
 }
 
-// Why a Bash line must still ask in Total mode, or null.
-export function hardStopCommand(line, cwd) {
+// Why a Bash line must still ask in Total mode, or null. Autónomo reads it
+// `relaxed`: here-document bodies are data and temporary folders can be cleared.
+export function hardStopCommand(line, cwd, relaxed = false) {
   if (typeof line !== 'string' || !line.trim()) return null;
+  if (relaxed) line = stripHeredocs(line);
   if (/\b(curl|wget)\b[^;&]*\|\s*(sudo\s+)?(env\s+)?(\S*\/)?(ba|z|da|k|fi)?sh\b/.test(line) || /\b(ba|z|da|k)?sh\b[^|;&]*(<\(|\$\(|`)\s*(curl|wget)\b/.test(line)) return 'descarga un script de internet y lo ejecuta';
   // Substitutions run in Total mode rather than being refused, so look inside them too.
   const tokens = tokenize(line.replace(/\$\(|<\(|>\(|`/g, ' ; ').replace(/\)/g, ' ; '));
   if (!tokens) return 'no se puede leer el comando completo (comillas sin cerrar)';
   let words = [], reason = null;
-  const close = () => { if (!reason && words.length) reason = hardSegment(words, cwd); words = []; };
+  const close = () => { if (!reason && words.length) reason = hardSegment(words, cwd, relaxed); words = []; };
   for (let i = 0; i < tokens.length && !reason; i++) {
     const token = tokens[i];
     if (token.op) { close(); continue; }
@@ -317,10 +329,204 @@ export function hardStopCommand(line, cwd) {
 }
 
 // Why any tool call must still ask in Total mode, or null.
-export function hardStop(tool, input, cwd) {
-  if (tool === 'Bash') return hardStopCommand(input?.command, cwd);
+export function hardStop(tool, input, cwd, relaxed = false) {
+  if (tool === 'Bash') return hardStopCommand(input?.command, cwd, relaxed);
   const field = EDIT_TOOLS[tool];
   if (field && protectedPath(input?.[field], cwd)) return `escribe en ${input[field]}, una zona protegida`;
+  return null;
+}
+
+// ---- Autónomo: what still asks -------------------------------------------
+// Everything not named here runs without a prompt.
+
+const under = (dir, target) => target === dir || target.startsWith(dir + path.sep);
+// Where a path lands: 'in' the folder, in a 'tmp' folder, 'out' of both, or
+// 'unknown' when a variable hides it. `at` is the directory the shell is in.
+function reach(target, root, at) {
+  if (typeof target !== 'string' || !target) return 'unknown';
+  const expanded = expandHome(target).replace(/^\$\{?PWD\}?(?=\/|$)/, at || '$PWD').replace(/^\$\{?TMPDIR\}?(?=\/|$)/, os.tmpdir());
+  if (/^~|\$/.test(expanded) || (!path.isAbsolute(expanded) && !at)) return 'unknown';
+  const absolute = real(path.resolve(at || '/', expanded));
+  if (under('/dev', absolute)) return 'in';
+  if (root && under(real(root), absolute)) return 'in';
+  return TMP_DIRS.some(dir => absolute.startsWith(dir + path.sep)) ? 'tmp' : 'out';
+}
+
+const NETWORK_COMMANDS = new Set(['ssh', 'scp', 'sftp', 'nc', 'ncat', 'netcat', 'telnet', 'ftp', 'socat', 'mail', 'mailx', 'sendmail']);
+const SYSTEM_COMMANDS = new Set(['service', 'launchctl', 'at', 'mount', 'umount', 'shutdown', 'reboot', 'poweroff', 'halt', 'iptables', 'nft', 'ufw', 'useradd', 'userdel', 'usermod', 'groupadd', 'passwd', 'visudo', 'osascript', 'apt', 'apt-get', 'dpkg', 'brew', 'pacman', 'yay', 'paru', 'dnf', 'yum', 'zypper', 'snap', 'flatpak']);
+const PROVIDER_COMMANDS = new Set(['aws', 'gcloud', 'gsutil', 'bq', 'az', 'terraform', 'tofu', 'pulumi', 'cdk', 'sam', 'serverless', 'sls', 'vercel', 'netlify', 'fly', 'flyctl', 'heroku', 'firebase', 'supabase', 'wrangler', 'doctl', 'railway', 'render', 'eas', 'ansible', 'ansible-playbook', 'helm', 'stripe', 'twilio', 'sentry-cli']);
+// Subcommands of those CLIs that only run or check things on this machine.
+const PROVIDER_LOCAL = new Set(['dev', 'help', 'version', 'fmt', 'validate', 'status', 'start', 'stop', 'emulators:start', 'emulators:exec', 'lint', 'template', 'synth']);
+const DATABASE_COMMANDS = new Set(['psql', 'pg_dump', 'pg_dumpall', 'pg_restore', 'dropdb', 'createdb', 'dropuser', 'createuser', 'mysql', 'mariadb', 'mysqldump', 'mysqladmin', 'mongosh', 'mongo', 'mongodump', 'mongorestore', 'mongoimport', 'mongoexport', 'redis-cli', 'sqlcmd', 'bcp', 'cqlsh', 'clickhouse', 'clickhouse-client', 'influx', 'cockroach', 'turso', 'pscale', 'neonctl']);
+const FILE_DATABASES = new Set(['sqlite3', 'sqlite', 'duckdb']);
+// Migration and schema tools reached through a runner (npx prisma migrate…).
+const MIGRATION = /(^|\s)(prisma\s+(migrate|db)\b|drizzle-kit\s+(push|migrate|drop)\b|knex\s+(migrate|seed)|typeorm\s+(migration|schema):|sequelize(-cli)?\s+db:|(rails|rake)\s+db:|\S*manage\.py\s+(migrate|flush|sqlflush|loaddata)\b|alembic\s+(upgrade|downgrade)\b|(flyway|liquibase|dbmate|atlas)\s+\S)/;
+const DOCKER_ASK = new Set(['push', 'login', 'logout', 'rm', 'rmi', 'prune', 'kill', 'system', 'volume', 'network', 'image', 'container', 'swarm', 'stack', 'context', 'buildx']);
+const GH_LOCAL = new Set(['pr checkout', 'repo clone', 'release download', 'run download']);
+const NPM_PUBLISH = new Set(['publish', 'unpublish', 'login', 'logout', 'adduser', 'deprecate', 'owner', 'token', 'dist-tag', 'access', 'team', 'org']);
+const DELETERS = new Set(['rm', 'rmdir', 'shred', 'mv']);
+const LOCAL_HOST = /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)([:/]|$)/;
+
+function sensitiveGit(rest) {
+  const tail = [...rest];
+  while (tail[0]?.startsWith('-')) { const flag = tail.shift(); if (flag === '-C' || flag === '-c') tail.shift(); }
+  const [sub = '', ...args] = tail, has = pattern => args.some(arg => pattern.test(arg));
+  if (sub === 'commit') return has(/^--dry-run$/) ? null : 'git commit registra un commit';
+  if (sub === 'push') return has(/^(-n|--dry-run)$/) ? null : 'git push publica en el remoto';
+  if (sub === 'branch' && has(/^-(d|D|m|M|f)$|^--(delete|move|force)$/)) return 'git branch borra o mueve ramas compartidas por todos los worktrees';
+  if (sub === 'tag' && has(/^(-d|--delete)$/)) return 'git tag borra una etiqueta';
+  if (sub === 'worktree' && ['remove', 'prune', 'move'].includes(args[0])) return `git worktree ${args[0]} afecta a otros worktrees`;
+  if (sub === 'remote' && ['add', 'remove', 'rm', 'rename', 'set-url', 'set-head', 'set-branches'].includes(args[0])) return 'git remote cambia los remotos del repositorio';
+  if (sub === 'config' && has(/^--(global|system)$/)) return 'git config global cambia la configuración de todos tus repositorios';
+  if (sub === 'stash' && ['drop', 'clear'].includes(args[0])) return `git stash ${args[0]} descarta trabajo guardado`;
+  if (sub === 'reflog' && ['expire', 'delete'].includes(args[0])) return 'git reflog borra el historial de recuperación';
+  if (sub === 'symbolic-ref' && pathArgs(args).length < 2) return null;
+  if (['update-ref', 'symbolic-ref', 'filter-branch', 'filter-repo', 'replace', 'send-email'].includes(sub)) return `git ${sub} reescribe refs compartidas o sale del repositorio`;
+  return null;
+}
+
+// Why one simple command asks in Autónomo, or null. `state.at` follows cd.
+function sensitiveSegment(words, root, state, depth) {
+  const args = [...words];
+  if (args[0]) args[0] = args[0].replace(/^[({]+/, '');
+  if (args.length) args[args.length - 1] = args.at(-1).replace(/[)}]+$/, '');
+  for (;;) {
+    while (args.length && (!args[0] || /^[A-Za-z_][A-Za-z0-9_]*=/.test(args[0]))) args.shift();
+    if (args[0] === 'rtk') { args.shift(); if (args[0] === 'proxy') args.shift(); continue; }
+    if (['time', 'nice', 'nohup', 'command', 'builtin', 'exec', 'then', 'do', 'else', 'if', 'while', '!'].includes(args[0])) { args.shift(); continue; }
+    if (args[0] === 'env') { args.shift(); while (args[0] && (args[0].startsWith('-') || args[0].includes('='))) args.shift(); continue; }
+    if (args[0] === 'timeout') { args.shift(); while (args[0]?.startsWith('-')) args.shift(); args.shift(); continue; }
+    if (args[0] === 'xargs') { args.shift(); while (args[0]?.startsWith('-')) { if (/^-[nIPLds]$/.test(args.shift())) args.shift(); } continue; }
+    break;
+  }
+  if (!args.length) return null;
+  const [command, ...rest] = args, name = path.basename(command), paths = pathArgs(rest), at = state.at;
+  const sub = rest.find(arg => !arg.startsWith('-')) ?? '';
+  const beyond = (target, strict = false) => { const where = reach(target, root, at); return where === 'out' || (strict && where === 'unknown'); };
+  if (name === 'cd' || name === 'pushd') {
+    const where = !rest[0] ? HOME : rest[0] === '-' ? null : expandHome(rest[0]);
+    state.at = where && !/^~|\$/.test(where) && (path.isAbsolute(where) || at) ? path.resolve(at || '/', where) : null;
+    return null;
+  }
+  if (name === 'eval') return sensitiveCommand(rest.join(' '), root, depth + 1)?.reason ?? null;
+  if (SHELLS.has(name)) {
+    const inline = rest.findIndex(arg => /^-[a-z]*c[a-z]*$/.test(arg));
+    if (inline >= 0) return sensitiveCommand(rest[inline + 1] ?? '', root, depth + 1)?.reason ?? null;
+    return paths.length ? null : `${name} ejecuta lo que recibe por la entrada`;
+  }
+  if (name === 'git') return sensitiveGit(rest);
+  if (DATABASE_COMMANDS.has(name)) return `«${name}» opera sobre una base de datos`;
+  if (FILE_DATABASES.has(name)) { const file = paths.find(arg => beyond(arg, true)); return file ? `«${name}» abre una base de datos fuera de la carpeta (${file})` : null; }
+  if (MIGRATION.test(` ${args.join(' ')}`)) return 'ejecuta migraciones o cambios de esquema en una base de datos';
+  if (NETWORK_COMMANDS.has(name)) return `«${name}» se conecta a otra máquina`;
+  if (PROVIDER_COMMANDS.has(name)) return PROVIDER_LOCAL.has(sub) || !sub ? null : `«${name} ${sub}» actúa en un proveedor externo`;
+  if (name === 'kubectl') return SUBCOMMAND_READ.kubectl.has(sub) || !sub ? null : `kubectl ${sub} actúa en el clúster`;
+  if (name === 'docker' || name === 'podman') {
+    if (sub === 'compose') return rest.includes('rm') || rest.includes('push') || (rest.includes('down') && rest.some(arg => /^(-v|--volumes)$/.test(arg))) ? `${name} compose borra contenedores o volúmenes` : null;
+    return DOCKER_ASK.has(sub) ? `${name} ${sub} borra o publica fuera de la carpeta` : null;
+  }
+  if (name === 'gh') {
+    const subs = rest.filter(arg => !arg.startsWith('-')), two = subs.slice(0, 2).join(' ');
+    if (subs[0] === 'api') {
+      const method = flagValue(rest, '-X', '--method');
+      return rest.some(arg => /^(-f|-F|--field|--raw-field|--input)$|^--(field|raw-field|input|method)=/.test(arg)) || (method && method.toUpperCase() !== 'GET') ? 'gh api envía datos a GitHub' : null;
+    }
+    return !subs.length || GH_READ.has(two) || GH_READ.has(subs[0]) || GH_LOCAL.has(two) ? null : `gh ${two} actúa en GitHub`;
+  }
+  if (PACKAGE_MANAGERS.has(name) || name === 'npx' || name === 'pnpx') {
+    if (rest.some(arg => /^(-g|--global|--location=global)$/.test(arg))) return `${name} instala o cambia paquetes globales`;
+    return NPM_PUBLISH.has(sub) && PACKAGE_MANAGERS.has(name) ? `${name} ${sub} publica o cambia tu cuenta del registro` : null;
+  }
+  if (['claude', 'codex', 'opencode'].includes(name) && rest[0] === 'mcp' && rest[1] && !['list', 'get'].includes(rest[1])) return `${name} mcp ${rest[1]} conecta o cambia servidores MCP`;
+  if (name === 'systemctl' || name === 'crontab') {
+    const reads = name === 'crontab' ? rest.includes('-l') : ['status', 'is-active', 'is-enabled', 'is-failed', 'list-units', 'list-unit-files', 'list-timers', 'show', 'cat'].includes(sub);
+    return reads ? null : `«${name}» cambia servicios o tareas programadas del sistema`;
+  }
+  if (SYSTEM_COMMANDS.has(name)) return `«${name}» actúa sobre el sistema`;
+  if (name === 'curl' || name === 'wget') {
+    const method = flagValue(rest, '-X', '--request');
+    const sends = rest.some(arg => /^(-d|--data.*|--json|-F|--form.*|-T|--upload-file|--post-data.*|--post-file.*|--method.*|--body-data.*)$/.test(arg) || /^-X(?!GET$|HEAD$)\w+$/.test(arg)) || (method && !['GET', 'HEAD'].includes(method.toUpperCase()));
+    const urls = rest.filter(arg => /^https?:\/\//.test(arg) || LOCAL_HOST.test(arg));
+    if (sends && !(urls.length && urls.every(url => LOCAL_HOST.test(url)))) return `${name} envía datos a un servicio externo`;
+    const target = flagValue(rest, '-o', '--output', '-O', '--output-document');
+    return target && beyond(target) ? `${name} escribe en ${target}, fuera de la carpeta` : null;
+  }
+  if (name === 'rsync' && paths.some(arg => /^[^/]+:/.test(arg))) return 'rsync copia hacia o desde otra máquina';
+  if (name === 'find') {
+    const roots = []; for (const arg of rest) { if (arg.startsWith('-') || arg === '(' || arg === '!') break; roots.push(arg); }
+    const removes = rest.includes('-delete') || rest.some((arg, i) => /^-(exec|execdir|ok)$/.test(arg) && ['rm', 'shred', 'mv'].includes(path.basename(rest[i + 1] || '')));
+    const wide = removes && roots.find(dir => beyond(dir, true));
+    return wide ? `find borra dentro de ${wide}, fuera de la carpeta` : null;
+  }
+  if (name === 'dd') { const to = rest.find(arg => arg.startsWith('of='))?.slice(3); return to && beyond(to) ? `dd escribe en ${to}, fuera de la carpeta` : null; }
+  if (WRITE_COMMANDS.has(name) || name === 'shred' || name === 'unzip') {
+    const edits = rest.some(arg => /^-i|^--in-place/.test(arg));
+    if ((name === 'sed' || name === 'perl') && !edits) return null;
+    const targets = name === 'sed' || name === 'perl' ? (rest.some(arg => /^(-e|-f|--expression|--file)/.test(arg)) ? paths : paths.slice(1))
+      : name === 'tar' ? [flagValue(rest, '-C', '--directory')].filter(Boolean)
+      : name === 'unzip' ? [flagValue(rest, '-d')].filter(Boolean)
+      : COPY_COMMANDS.has(name) ? paths.slice(-1) : paths;
+    const target = targets.find(arg => beyond(arg, DELETERS.has(name)));
+    if (target) return DELETERS.has(name) ? `${name} borra o mueve ${target}, fuera de la carpeta de trabajo` : `${name} escribe en ${target}, fuera de la carpeta de trabajo`;
+  }
+  return null;
+}
+
+// Here-document bodies are data, not commands.
+function stripHeredocs(line) {
+  const mark = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/g, rows = line.split('\n'), kept = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]; kept.push(row.replace(mark, ' '));
+    for (const found of row.matchAll(mark)) { i++; while (i < rows.length && rows[i].trim() !== found[2]) i++; }
+  }
+  return kept.join('\n');
+}
+// Pull $(…), `…` and <(…) out so each is judged as a command of its own.
+function unnest(line) {
+  const inner = []; let text = line, before;
+  do { before = text; text = text.replace(/\$\(([^()]*)\)|[<>]\(([^()]*)\)|`([^`]*)`/g, (_, a, b, c) => { inner.push(a ?? b ?? c); return '$SUBST'; }); } while (text !== before && inner.length < 64);
+  return [text, ...inner];
+}
+
+// Why a Bash line asks in Autónomo: { reason, key } or null.
+export function sensitiveCommand(line, cwd, depth = 0) {
+  if (typeof line !== 'string' || !line.trim()) return null;
+  const unreadable = { reason: 'no se puede leer el comando completo', key: 'Bash:?' };
+  if (depth > 3) return unreadable;
+  const parts = unnest(stripHeredocs(line));
+  if (/\$\((?!\()|`/.test(parts[0])) return unreadable;
+  for (const part of parts) {
+    const tokens = tokenize(part);
+    if (!tokens) return unreadable;
+    const state = { at: cwd }; let words = [], found = null;
+    const close = () => { if (!found && words.length) { const reason = sensitiveSegment(words, cwd, state, depth); if (reason) found = { reason, key: commandKey(words) }; } words = []; };
+    for (let i = 0; i < tokens.length && !found; i++) {
+      const token = tokens[i];
+      if (token.op) { close(); continue; }
+      if (token.redirect) {
+        const target = tokens[++i]?.word;
+        if (token.redirect.startsWith('<') || target === undefined) continue;
+        if (reach(target, cwd, state.at) === 'out') found = { reason: `escribe en ${target}, fuera de la carpeta de trabajo`, key: commandKey(words) };
+        continue;
+      }
+      words.push(token.word);
+    }
+    close();
+    if (found) return found;
+  }
+  return null;
+}
+
+// Why any tool call asks in Autónomo: { reason, key? } or null.
+export function sensitive(tool, input, cwd) {
+  if (tool === 'Bash') { const found = sensitiveCommand(input?.command, cwd); return found && { ...found, reason: `Acción delicada: ${found.reason}` }; }
+  const field = EDIT_TOOLS[tool];
+  if (field) {
+    const target = input?.[field];
+    if (typeof target === 'string' && /(^|\/)\.?mcp(_servers)?\.json$/.test(target)) return { reason: 'Quiere cambiar la configuración de servidores MCP' };
+    return ['in', 'tmp'].includes(reach(target, cwd, cwd)) ? null : { reason: `Quiere escribir fuera de la carpeta de trabajo (${target})` };
+  }
+  if (tool.startsWith('mcp__')) return { reason: `Herramienta externa ${tool.split('__')[1] || ''}`.trim() };
   return null;
 }
 
@@ -331,7 +537,8 @@ export const phantomTool = tool => typeof tool === 'string' && /^mcp__phantom(_w
 export const PERMISSION_MODES = ['ask', 'auto', 'full'];
 
 // mode 'full': everything goes except the short hard list above, which asks.
-// mode 'auto': the agent works freely inside cwd and asks beyond it.
+// mode 'auto': everything goes except the hard list and the sensitive actions
+// above (destructive, commit/push, external tools and services, databases).
 // mode 'ask': it may read anything, but every change asks.
 export function permissionDecision({ tool, input = {}, cwd, mode = 'ask' }) {
   const key = grantKey(tool, input, cwd);
@@ -340,15 +547,17 @@ export function permissionDecision({ tool, input = {}, cwd, mode = 'ask' }) {
     const reason = hardStop(tool, input, cwd);
     return reason ? { allow: false, key, reason: `Acción delicada, pregunta incluso en modo Total: ${reason}` } : { allow: true, key };
   }
-  const field = EDIT_TOOLS[tool];
-  if (field) {
-    const target = input[field];
-    if (inside(cwd, target)) return mode === 'auto' ? { allow: true, key } : { allow: false, key, reason: 'Quiere editar un archivo de esta carpeta' };
-    return { allow: false, key, reason: `Quiere escribir fuera de la carpeta de trabajo (${target})` };
+  if (mode === 'auto') {
+    const hard = hardStop(tool, input, cwd, true);
+    if (hard) return { allow: false, key, reason: `Acción delicada: ${hard}` };
+    const found = sensitive(tool, input, cwd);
+    return found ? { allow: false, key: found.key || key, reason: found.reason } : { allow: true, key };
   }
+  const field = EDIT_TOOLS[tool];
+  if (field) return { allow: false, key, reason: inside(cwd, input[field]) ? 'Quiere editar un archivo de esta carpeta' : `Quiere escribir fuera de la carpeta de trabajo (${input[field]})` };
   if (tool === 'Bash') {
     const verdict = classifyCommand(input.command, cwd);
-    if (verdict.scope === 'read' || (verdict.scope === 'local' && mode === 'auto')) return { allow: true, key };
+    if (verdict.scope === 'read') return { allow: true, key };
     return { allow: false, key, reason: verdict.scope === 'local' ? 'Quiere ejecutar un comando que modifica esta carpeta' : `Comando fuera del trabajo: ${verdict.reason}` };
   }
   if (tool.startsWith('mcp__')) return { allow: false, key, reason: `Herramienta externa ${tool.split('__')[1] || ''}`.trim() };

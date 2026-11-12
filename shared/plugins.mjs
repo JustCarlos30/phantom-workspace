@@ -49,9 +49,18 @@ export const PHANTOM_PLUGIN = validatePluginManifest({
   panels: [{ id: 'cards', name: 'Cards', nodeType: 'phantom-cards' }, { id: 'skills', name: 'Skills', nodeType: 'phantom-skills' }],
   actions: [{ id: 'phantom.cards', name: 'Abrir Cards', panelId: 'cards' }, { id: 'phantom.skills', name: 'Abrir Skills', panelId: 'skills' }],
 });
-export const PLUGIN_MANIFESTS = [PHANTOM_PLUGIN];
-export function validatePluginConfig(input) {
-  keys(input, Object.keys(PHANTOM_PLUGIN.configuration), 'plugin config'); json(input);
+export const VIDEO_LOG_PLUGIN = validatePluginManifest({
+  id: 'video-log', version: '1.0.0', name: 'Bitácora de videos',
+  description: 'Aprendizajes de una fuente Markdown local, con su evidencia, límites y contexto completo.',
+  configuration: { sourcePath: { type: 'string', default: '', label: 'Archivo Markdown (ruta absoluta)' } },
+  panels: [{ id: 'insights', name: 'Bitácora de videos', nodeType: 'video-log' }],
+  actions: [{ id: 'video-log.open', name: 'Abrir Bitácora de videos', panelId: 'insights' }],
+});
+export const PLUGIN_MANIFESTS = [PHANTOM_PLUGIN, VIDEO_LOG_PLUGIN];
+export function validatePluginConfig(input, id = 'phantom') {
+  const manifest = PLUGIN_MANIFESTS.find(plugin => plugin.id === id);
+  if (!manifest) fail('Unknown plugin');
+  keys(input, Object.keys(manifest.configuration), 'plugin config'); json(input);
   for (const [key, value] of Object.entries(input)) {
     if (typeof value !== 'string' || value.length > (key === 'model' ? 200 : 4096) || /[\x00-\x1f\x7f]/.test(value)) fail(`Invalid ${key}`);
     if (value && !value.trim()) fail(`Invalid ${key}`);
@@ -59,25 +68,30 @@ export function validatePluginConfig(input) {
   }
   return structuredClone(input);
 }
-export function defaultPlugins() { return { phantom: { enabled: false, config: { phantomPath: '', phantomData: '', model: '' } } }; }
+export function defaultPlugins() {
+  return Object.fromEntries(PLUGIN_MANIFESTS.map(plugin => [plugin.id, { enabled: false, config: Object.fromEntries(Object.entries(plugin.configuration).map(([key, field]) => [key, field.default])) }]));
+}
 export function validatePluginPreferences(input = defaultPlugins()) {
-  keys(input, ['phantom'], 'workspace plugins');
+  keys(input, PLUGIN_MANIFESTS.map(plugin => plugin.id), 'workspace plugins');
   const result = defaultPlugins();
-  if (input.phantom !== undefined) {
-    keys(input.phantom, ['enabled', 'config', 'refreshMs'], 'plugin preferences');
-    if (typeof input.phantom.enabled !== 'boolean') fail('Invalid plugin enabled');
-    result.phantom = { enabled: input.phantom.enabled, config: { ...result.phantom.config, ...validatePluginConfig(input.phantom.config ?? {}) } };
-  }
-  if (input.phantom?.refreshMs !== undefined) {
-    if (!Number.isInteger(input.phantom.refreshMs) || input.phantom.refreshMs < 3000 || input.phantom.refreshMs > 5000) fail('Invalid plugin refreshMs');
-    result.phantom.refreshMs = input.phantom.refreshMs;
+  for (const { id } of PLUGIN_MANIFESTS) {
+    const prefs = input[id];
+    if (prefs === undefined) continue;
+    keys(prefs, ['enabled', 'config', 'refreshMs'], 'plugin preferences');
+    if (typeof prefs.enabled !== 'boolean') fail('Invalid plugin enabled');
+    result[id] = { enabled: prefs.enabled, config: { ...result[id].config, ...validatePluginConfig(prefs.config ?? {}, id) } };
+    if (prefs.refreshMs !== undefined) {
+      if (!Number.isInteger(prefs.refreshMs) || prefs.refreshMs < 3000 || prefs.refreshMs > 5000) fail('Invalid plugin refreshMs');
+      result[id].refreshMs = prefs.refreshMs;
+    }
   }
   return result;
 }
 export function validatePluginPanel(type, data) {
-  if (data.pluginId !== undefined && data.pluginId !== 'phantom') fail('Unknown panel pluginId');
-  if (data.panelId !== undefined && !PHANTOM_PLUGIN.panels.some(panel => panel.id === data.panelId && panel.nodeType === type)) fail('Invalid panelId');
-  if (type === 'phantom-cards' || type === 'phantom-skills') {
-    data.pluginId ??= 'phantom'; data.panelId ??= type === 'phantom-cards' ? 'cards' : 'skills';
+  const plugin = PLUGIN_MANIFESTS.find(item => item.panels.some(panel => panel.nodeType === type));
+  if (data.pluginId !== undefined && data.pluginId !== (plugin?.id || 'phantom')) fail('Unknown panel pluginId');
+  if (data.panelId !== undefined && !plugin?.panels.some(panel => panel.id === data.panelId && panel.nodeType === type)) fail('Invalid panelId');
+  if (plugin) {
+    data.pluginId ??= plugin.id; data.panelId ??= plugin.panels.find(panel => panel.nodeType === type).id;
   }
 }
