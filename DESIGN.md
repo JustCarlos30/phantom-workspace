@@ -161,6 +161,16 @@ Carlos pidió una paleta más oscura centrada en Gengar y reducir la iconografí
 
 Verificación de esta capa: build de Vite correcto; Electron real con proyecto sintético a 1520×980 y 1100×760, inspección de mapa, lanzador y Apariencia; nueve pares texto/fondo ≥4.5:1; acento Iris persistido tras recarga y restablecimiento a Violeta; cero excepciones del renderizador. Evidencia y alcance en `.impeccable/review/gengar-review.md`.
 
+## Escalera de foco: fondo y cards (2026-11-11)
+
+Fondo y cards se mueven juntos en tres niveles de atención (bloque final de `src/canvas-ui.css`):
+
+- **Mapa.** Una viñeta en el canvas (sobre atmósfera y retícula) oscurece los bordes y concentra la mirada en la zona de trabajo. En el preset Gengar el arte es atmósfera, no sujeto: más pequeño (`clamp(200px, 38%, 480px)`), anclado abajo a la derecha, con saturación .68 y brillo .78, y disuelto en la bruma con una máscara radial hacia el centro. Las cards son losas opacas: hairline al 10 % con borde superior iluminado al 17 %, anillo de contacto oscuro de 1 px que sostiene el borde sobre arte claro y una sola sombra larga con desplazamiento.
+- **Selección.** La card seleccionada conserva toda su luz, borde superior de acento y sombra más larga; las demás bajan a `brightness(.7) saturate(.72)`, sin transparencia, y la atmósfera baja al 55 % de su intensidad. Hover, foco de teclado y cards que te necesitan (atención, turno, fallo) no se atenúan. Las zonas no seleccionadas bajan a .7.
+- **Foco.** Sin cambios: atmósfera al 12 %, sin retícula ni viñeta.
+
+Las cards en atención o turno recuperan su halo ámbar, antes anulado por la sombra de reposo. Movimiento reducido elimina las transiciones. Verificación: build de Vite correcto; capturas en Electron real con fixture sintética (mapa, selección, foco, ventana estrecha) sin excepciones del renderer.
+
 ## Jerarquía de sidebar (2026-11-11)
 
 `src/sidebar.css`, cargado después de la capa canvas, refina el rail conservando vidrio nocturno. El proyecto actual es el ancla: nombre y ruta en un selector desplegable con recientes y Abrir carpeta. A continuación, Actividad del proyecto destaca en ámbar solo cuando las fuentes existentes declaran intervenciones. Espacios precede a dos grupos estables, Sesiones (terminales con estado de fuente) y Recursos (resto de paneles), dentro de una región desplazable. No se reordenan las sesiones al cambiar de estado. Ver todo el mapa permanece al pie de la navegación; Plugins y Comandos son utilidades secundarias; Apariencia y Configuración son controles compactos junto al estado del host. Las acciones de enfocar se revelan con hover o foco de teclado y permanecen visibles en dispositivos sin hover.
