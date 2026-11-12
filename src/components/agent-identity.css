@@ -1,9 +1,10 @@
-.agent-identity { flex: 0 0 auto; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.agent-identity { flex: 0 0 auto; min-width: 0; border-bottom: 0; background: var(--surface); color: var(--ink); }
 .agent-identity-bar { display: flex; align-items: center; gap: 8px; padding: 5px 12px; min-height: 32px; }
 .agent-identity button { color: var(--ink); }
 .agent-identity-toggle { display: flex; align-items: center; gap: 7px; min-width: 0; background: none; border: 0; cursor: pointer; font-size: 12px; text-align: left; }
 .agent-identity-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-identity-toggle:hover, .agent-card-link:hover { color: var(--accent); }
+.agent-identity-toggle, .agent-card-link { color: var(--muted); }
+.agent-identity-toggle:hover, .agent-card-link:hover { color: var(--ink); }
 .agent-card-link, .agent-editor header button { display: grid; place-items: center; background: none; border: 0; padding: 5px; cursor: pointer; }
 .agent-state { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .agent-identity-bar > .agent-state { margin-left: auto; }
@@ -23,7 +24,7 @@
 .agent-editor input, .agent-editor select { width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-2); color: var(--ink); font: inherit; }
 .agent-hint, .agent-catalog-error, .agent-actions { grid-column: 1 / -1; }
 .agent-hint { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
-.agent-catalog-error, .agent-error { color: var(--warning); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.agent-catalog-error, .agent-error { color: var(--danger); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .agent-error { grid-column: 1 / -1; margin: 0; }
 .agent-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .agent-identity :is(button,input,select):focus-visible, .card-agents button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -33,7 +34,7 @@
 .agent-editor .tw-button { min-width: 0; white-space: normal; }
 @container (max-width: 420px) { .agent-editor form { grid-template-columns: minmax(0,1fr); gap: 10px; } .agent-actions > button:last-child { flex-basis: 100%; } }
 .card-agents { padding: 0; margin: 12px 0; list-style: none; }
-.card-agents li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding: 12px 0; }
+.card-agents li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line-soft); padding: 12px 0; }
 .card-agents li > div { min-width: 0; flex: 1 1 180px; }
 .card-agents strong { display: block; overflow-wrap: anywhere; }
 .card-agents p { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }

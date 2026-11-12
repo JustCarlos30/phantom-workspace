@@ -232,6 +232,8 @@ Evidence checked: `.impeccable/review/studio-desktop.png`, `studio-appearance.pn
 
 **The Selection Is State Rule.** Use the current accent for action, selection and keyboard ownership; keep accompanying labels and status text.
 
+**The Quiet State Rule.** Each state has exactly one value (success, warning, danger, idle); grounds derive from it with `color-mix`, never as separate literals. Decorative icons, hovers and links stay neutral (muted → ink); the accent appears only on selection, focus, pressed tools and the primary action. Dividers inside a plane use `--line-soft`; `--line` is reserved for control edges and panel frames. Do not nest bordered containers: a terminal well, header or tray section separates by tone, not by an extra stroke. Mission chips are neutral.
+
 ## Typography
 
 The shell inherits `-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` at 13px; first-party tools explicitly use `system-ui, sans-serif` at 13px/1.5. No imported display face is introduced. The appearance headline is a functional interface heading, not a marketing/display prescription.
@@ -278,7 +280,7 @@ Native browser content is an Electron WebContentsView, not a CSS stacking layer:
 
 ## Shapes
 
-Precise rounded rectangles, not universal pills. Frames retain 10px rounding and 1px borders; selected map panels add a 1px accent outline, while focused panels remove that selection outline and use the seam border. Dock rounding is 12px; presets 8px; shell buttons/terminal wells/upload 7px; panel rows/icon controls 6px; fields/tool controls 5px; badges 3px. Circular accent swatches communicate palette choice. Icons are stroked SVGs.
+Precise rounded rectangles, not universal pills. Frames retain 10px rounding and 1px borders; selected map panels switch the 1px frame border to the accent (no extra outline), while focused panels use the seam border. Node headers and terminal wells separate by tone, without inner borders. Dock rounding is 12px; presets 8px; shell buttons/terminal wells/upload 7px; panel rows/icon controls 6px; fields/tool controls 5px; badges 3px. Circular accent swatches communicate palette choice. Icons are stroked SVGs.
 
 ## Components
 

@@ -5,8 +5,8 @@
 .plugin-surface h3 { font-size: 15px; }
 .plugin-surface h4 { font-size: 13px; margin: 0 0 10px; }
 .plugin-surface p, .plugin-surface dd, .plugin-surface small { overflow-wrap: anywhere; }
-.plugin-surface .tw-section, .plugin-surface .tw-item { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 12px; margin-bottom: 12px; min-width: 0; }
-.plugin-surface .tw-item { background: var(--surface-2); }
+.plugin-surface .tw-section, .plugin-surface .tw-item { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 7px; padding: 12px; margin-bottom: 12px; min-width: 0; }
+.plugin-surface .tw-item { background: var(--surface-2); border-color: transparent; }
 .plugin-surface .tw-heading, .plugin-surface .tw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .plugin-surface .tw-heading { justify-content: space-between; margin-bottom: 12px; }
 .plugin-surface .tw-form, .plugin-surface fieldset { display: grid; gap: 10px; min-width: 0; }
@@ -33,10 +33,10 @@
 .plugin-manager, .command-center { color: var(--ink); font-size: 13px; line-height: 1.55; min-width: 0; overflow-wrap: anywhere; }
 .plugin-manager p, .command-center p { margin: 8px 0 14px; }
 .plugin-muted, .cc-freshness, .cc-task small, .cc-path { color: var(--muted); }
-.plugin-entry { border-top: 1px solid var(--line); padding: 20px 0; margin-top: 20px; }
+.plugin-entry { border-top: 1px solid var(--line-soft); padding: 20px 0; margin-top: 20px; }
 .plugin-entry header, .cc-header, .plugin-actions, .cc-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .plugin-entry h3, .cc-header h3 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
-.plugin-entry header svg { color: var(--accent); }
+.plugin-entry header svg { color: var(--muted); }
 .plugin-entry header>span { color: var(--muted); }
 .plugin-actions, .cc-toolbar { margin: 14px 0; }
 .plugin-preference { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 20px 0; }
@@ -49,20 +49,20 @@
 .cc-stale, .cc-blocked { color: var(--warning); }
 .cc-header { justify-content: space-between; }
 .cc-freshness { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-variant-numeric: tabular-nums; margin-bottom: 18px; }
-.cc-notice { display: flex; align-items: flex-start; gap: 10px; padding: 14px 0; border-block: 1px solid var(--line); margin: 16px 0; }
+.cc-notice { display: flex; align-items: flex-start; gap: 10px; padding: 14px 0; border-block: 1px solid var(--line-soft); margin: 16px 0; }
 .cc-notice>svg { flex-shrink: 0; margin-top: 3px; }
 .cc-notice p { margin-bottom: 8px; }
 .cc-filters { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 10px; }
 .cc-filters label { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0; }
 .cc-filters input { width: 100%; }
 .cc-filters select { flex: 1 1 150px; }
-.cc-task { display: flex; flex-direction: column; gap: 6px; padding: 15px 10px; border-bottom: 1px solid var(--line); color: var(--ink); width: 100%; min-width: 0; text-align: left; line-height: 1.5; }
+.cc-task { display: flex; flex-direction: column; gap: 6px; padding: 15px 10px; border-bottom: 1px solid var(--line-soft); color: var(--ink); width: 100%; min-width: 0; text-align: left; line-height: 1.5; }
 .cc-task strong { font-size: 14px; font-weight: 600; white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
 .cc-task:hover { background: var(--surface-2); }
 .cc-task.selected { background: var(--accent-soft); }
 .cc-task span, .cc-task small { max-width: 100%; overflow-wrap: anywhere; }
 .cc-empty { color: var(--muted); padding: 24px 0; }
-.cc-detail { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 20px; }
+.cc-detail { border-top: 1px solid var(--line-soft); margin-top: 24px; padding-top: 20px; }
 .cc-detail h3 { font-size: 18px; letter-spacing: -.02em; margin: 0 0 12px; }
 .cc-section { margin: 20px 0; }
 .cc-section h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
@@ -70,5 +70,5 @@
 .cc-section:first-of-type pre { font: inherit; max-width: 72ch; }
 .cc-section summary { cursor: pointer; color: var(--muted); }
 .cc-events { margin: 0; padding-left: 20px; }
-.cc-events li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cc-events li { padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
 @media (max-width: 600px) { .cc-toolbar .tw-button { flex: 1 1 auto; justify-content: center; } .cc-filters { flex-direction: column; } .cc-filters label, .cc-filters select { flex-basis: auto; width: 100%; } }
