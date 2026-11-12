@@ -9,6 +9,7 @@ import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
 import { driveOpenCode, openCodeServerEnv } from './opencode-chat.mjs';
+import { codexModels } from './chat-models.mjs';
 
 // Chat cards drive an agent CLI headlessly, one process per turn, and render
 // its structured event stream. No PTY is involved: the conversation lives in
@@ -446,17 +447,26 @@ export class Chats {
     return { ok: true, messageId: reply.id };
   }
   // Models the selected provider can run. Claude takes aliases for its latest
-  // models (any full model name is also valid); OpenCode lists its own catalog.
-  async models(node) {
+  // models (any full model name is also valid); other providers list their catalog.
+  async models(workspace, node) {
     const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente primero');
-    if (provider === 'codex') return { provider, items: [], note: 'Escribe el identificador del modelo o usa el predeterminado de Codex.' };
     if (provider === 'claude') return { provider, items: ['fable', 'opus', 'sonnet', 'haiku'].map(id => ({ id, group: 'Alias del modelo más reciente' })) };
-    const cached = this.catalog;
+    let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
+    const definition = CHAT_PROVIDERS[provider], bin = this.store.state.settings[definition.setting] || definition.bin;
+    const key = JSON.stringify([provider, bin, cwd]);
+    this.catalogs ??= new Map();
+    const cached = this.catalogs.get(key);
     if (cached && Date.now() - cached.at < 5 * 60_000) return cached.value;
-    const bin = this.store.state.settings[CHAT_PROVIDERS.opencode.setting] || CHAT_PROVIDERS.opencode.bin;
-    const stdout = await new Promise((resolve, reject) => execFile(bin, ['models'], { timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
-    const items = stdout.split('\n').map(line => line.trim()).filter(line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/')).slice(0, 2000).map(id => ({ id, group: id.slice(0, id.indexOf('/')) }));
-    const value = { provider, items }; this.catalog = { at: Date.now(), value };
+    let items;
+    if (provider === 'codex') items = await codexModels(bin, cwd);
+    else {
+      const stdout = await new Promise((resolve, reject) => execFile(bin, ['models'], { cwd, env: { ...process.env, PWD: cwd }, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
+      const ids = stdout.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split('\n').map(line => line.trim()).filter(line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/'));
+      items = [...new Set(ids)].slice(0, 2000).map(id => ({ id, group: id.slice(0, id.indexOf('/')) }));
+      if (!items.length) throw new Error('OpenCode no pudo listar sus modelos: el catálogo está vacío');
+    }
+    const value = { provider, items }; this.catalogs.delete(key); this.catalogs.set(key, { at: Date.now(), value });
+    while (this.catalogs.size > 50) this.catalogs.delete(this.catalogs.keys().next().value);
     return value;
   }
   // From the approval gate of a running Claude turn. Resolves when policy or

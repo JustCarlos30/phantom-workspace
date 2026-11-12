@@ -182,7 +182,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='chat.clear') return chats.clear(w,node);
       if(method==='chat.queue.remove') return chats.removeQueued(w,node,p.id);
       if(method==='chat.queue.send') return chats.sendQueued(w,node,p.id);
-      if(method==='chat.models') return chats.models(node);
+      if(method==='chat.models') return chats.models(w,node);
       if(method==='chat.permission.answer') return chats.answerPermission(node,p.requestId,p.decision);
       if(method==='chat.question.answer') return chats.answerQuestion(node,p.requestId,p.answers===undefined?null:p.answers);
       // permissionMode ('ask'|'auto'|'full') wins over the older boolean autoApprove.
