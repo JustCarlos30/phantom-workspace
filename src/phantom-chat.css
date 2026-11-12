@@ -23,8 +23,8 @@
 /* The narrower canvas keeps its bottom row clear of the view controls: the
    dock centers between the rail and the zoom island instead of the full width. */
 @media (min-width: 851px) and (max-width: 1800px) {
-  .phantom-chat-open:not(.studio-inspector-open) { --dock-x: calc((100% - 220px) / 2); }
-  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - 220px) / 2); }
+  .phantom-chat-open:not(.studio-inspector-open) { --dock-x: calc((100% - 250px) / 2); }
+  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - 250px) / 2); }
 }
 /* Compact: a drawer over the workspace, like the rail. */
 @media (max-width: 850px) {
@@ -94,7 +94,7 @@
    full-width centring of the docked layout). */
 @media (min-width: 851px) and (max-width: 1800px) {
   .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .create-dock,
-  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100% - 220px) / 2); }
+  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100% - 250px) / 2); }
   .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .create-dock,
-  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .tool-picker { left: calc((100% - 220px) / 2); }
+  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .tool-picker { left: calc((100% - 250px) / 2); }
 }
