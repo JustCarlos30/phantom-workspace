@@ -8,6 +8,7 @@ import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES
 import { Terminals } from './terminals.mjs';
 import { Chats, validateChat, validateModel } from './chats.mjs';
 import { Merges } from './merges.mjs';
+import { createLimits } from './limits.mjs';
 import { agentContext, validateAgent } from './agents.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
 
@@ -30,6 +31,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
   let store,terminals,chats,merges,server,closingPromise,ownsSocket=false;
   const clients=new Set();
+  const limits=createLimits();
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
@@ -136,6 +138,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     // Chat cards: a terminal node whose data.chat.provider selects an agent CLI
     // driven headlessly. data.chat changes only through chat.configure.
     // The approval gate of a running turn proves itself with that turn's token.
+    // Plan quotas of the signed-in agent CLIs: percentages only, never tokens.
+    if(method==='limits.read') return limits.read({force:p.force===true});
     if(method==='chat.permission.request') return chats.requestPermission(p);
     if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.models','chat.permission.answer'].includes(method)) {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);

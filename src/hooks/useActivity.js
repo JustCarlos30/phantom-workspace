@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, subscribe } from './useWorkspace';
 import { buildActivity } from './activityModel.mjs';
 
-const empty = () => ({ sessions: {}, tasks: {}, git: {} });
+const empty = () => ({ sessions: {}, tasks: {}, git: {}, limits: {} });
 const relevant = new Set(['state.changed', 'attention.new', 'terminal.exit', 'tool.status', 'task.changed', 'git.changed', 'session.changed']);
 async function readSource(name, method, payload) {
   let timeout;
@@ -11,6 +11,7 @@ async function readSource(name, method, payload) {
     if (name === 'sessions' && !Array.isArray(data)) throw new Error('El host devolvió un catálogo de sesiones inválido.');
     if (name === 'tasks' && data?.available !== false && !Array.isArray(data?.items)) throw new Error('Phantom devolvió un catálogo de tareas inválido.');
     if (name === 'git' && (typeof data?.available !== 'boolean' || !Array.isArray(data?.branches))) throw new Error('Git devolvió un radar inválido.');
+    if (name === 'limits' && !Array.isArray(data?.providers)) throw new Error('El host devolvió límites inválidos.');
     return data;
   } finally { clearTimeout(timeout); }
 }
@@ -31,7 +32,7 @@ export function useActivity(workspace, connection, workspaceReadAt) {
       if (inFlight) { again = true; return; }
       inFlight = true;
       const request = ++revision;
-      const queries = { sessions: ['terminal.list', {}], tasks: ['phantom.list', { topic: 'tasks' }], git: ['git.inspect', base ? { base } : {}] };
+      const queries = { sessions: ['terminal.list', {}], tasks: ['phantom.list', { topic: 'tasks' }], git: ['git.inspect', base ? { base } : {}], limits: ['limits.read', {}] };
       for (const name of Object.keys(queries)) sources[name] = { ...sources[name], loading: true };
       publish();
       await Promise.all(Object.entries(queries).map(async ([name, [method, payload]]) => {

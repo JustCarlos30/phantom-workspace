@@ -9,7 +9,12 @@
 .pc-num { font-variant-numeric: tabular-nums; }
 
 /* Each provider tints its card: Claude follows the project accent, OpenCode is mint. */
-.pc { --pc-hue: var(--hue-claude); --pc-hue-soft: color-mix(in srgb, var(--pc-hue) 14%, transparent); --pc-hue-line: color-mix(in srgb, var(--pc-hue) 34%, transparent); }
+.pc { --pc-hue: var(--hue-claude); --pc-hue-soft: color-mix(in srgb, var(--pc-hue) 14%, transparent); --pc-hue-line: color-mix(in srgb, var(--pc-hue) 34%, transparent);
+  /* Chat-local state inks: desaturated so they sit on the plum planes instead
+     of glowing. The provider hue marks identity only (glyphs, links, caret);
+     actions and states are carried by ink, fills and these three. */
+  --pc-add: #9cc5a4; --pc-del: #d99098; --pc-caution: #d6b07a;
+  --pc-solid: var(--ink); --pc-solid-ink: var(--bg); }
 .pc[data-provider="opencode"] { --pc-hue: var(--hue-opencode); }
 
 /* ---------- Mode switch (Claude · OpenCode · Terminal): a segmented control ---------- */
@@ -41,7 +46,8 @@
 .pc-location > svg { flex-shrink: 0; }
 .pc-permission { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 99px; background: var(--fill); color: var(--muted); font-size: 12px; font-weight: 550; white-space: nowrap; flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .pc-permission:hover { color: var(--ink); background: var(--fill-2); }
-.pc-permission[aria-pressed="true"] { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.pc-permission[aria-pressed="true"] { color: var(--ink); box-shadow: inset 0 0 0 1px var(--hairline-strong); }
+.pc-permission[aria-pressed="true"] > svg { color: var(--pc-caution); }
 .pc-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--muted); flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .pc-icon:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
 .pc-icon:disabled { opacity: .35; cursor: not-allowed; }
@@ -52,14 +58,14 @@
 .pc-thread ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
 .pc-column { display: flex; flex-direction: column; gap: 28px; min-height: 100%; max-width: 780px; margin: 0 auto; padding: 24px 24px 20px; }
 .pc-message { min-width: 0; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
-.pc-message.is-user { align-self: flex-end; max-width: 85%; padding: 8px 14px; border-radius: 18px 18px 6px 18px; background: color-mix(in srgb, var(--pc-hue) 20%, var(--surface-2)); }
+.pc-message.is-user { align-self: flex-end; max-width: 85%; padding: 8px 14px; border-radius: 18px 18px 6px 18px; background: var(--surface-3); }
 .pc-message.is-user p { margin: 0; white-space: pre-wrap; }
 .pc-message.is-agent { display: flex; flex-direction: column; gap: 10px; }
 
 /* Who answered, with which model, when. */
 .pc-turn-head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; line-height: 1.3; color: var(--muted); }
 .pc-turn-head strong { color: var(--ink); font-weight: 600; }
-.pc-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--pc-hue-soft); color: var(--pc-hue); flex-shrink: 0; }
+.pc-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--fill); color: var(--pc-hue); flex-shrink: 0; }
 .pc-turn-head .pc-mono { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
 .pc-turn-head time { margin-left: auto; flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
 /* What the turn cost, once it is over. */
@@ -78,27 +84,22 @@ summary.pc-tool-row:hover { background: var(--fill); }
 summary.pc-tool-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .pc-tool-caret { width: 12px; flex-shrink: 0; opacity: .7; transition: transform var(--dur-fast) var(--ease-out); }
 details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-child { transform: rotate(90deg); }
-/* Tool kinds keep one hue each, from the terminal's own palette. */
-.pc-tool-kind { --kind: var(--muted); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: color-mix(in srgb, var(--kind) 15%, transparent); color: var(--kind); flex-shrink: 0; }
-.pc-tool-kind[data-kind="read"] { --kind: #7da8ff; }
-.pc-tool-kind[data-kind="edit"] { --kind: #7aeec4; }
-.pc-tool-kind[data-kind="shell"] { --kind: #f5cf8a; }
-.pc-tool-kind[data-kind="search"] { --kind: #c39bff; }
-.pc-tool-kind[data-kind="web"] { --kind: #6fe3f2; }
-.pc-tool-kind[data-kind="agent"] { --kind: #ff86b7; }
-.pc-tool-kind[data-kind="todo"] { --kind: #9df4d4; }
-.pc-tool.is-running { background: color-mix(in srgb, var(--pc-hue) 7%, transparent); }
+/* Tool kinds read by their glyph, not a rainbow. Only writes (edit, write,
+   patch) are lifted, because they are the steps that change the tree. */
+.pc-tool-kind { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--fill); color: var(--muted); flex-shrink: 0; }
+.pc-tool-kind[data-kind="edit"] { background: var(--fill-2); color: var(--ink); }
+.pc-tool.is-running { background: var(--fill); }
 .pc-tool.is-error { background: color-mix(in srgb, var(--danger) 8%, transparent); }
 .pc-tool-name { flex-shrink: 0; color: var(--ink); font-weight: 600; }
 .pc-tool-detail { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-tool-diff { display: inline-flex; gap: 6px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.pc-tool-diff b { color: var(--success); font-weight: 500; }
-.pc-tool-diff i { color: var(--danger); font-style: normal; }
+.pc-tool-diff b { color: var(--pc-add); font-weight: 500; }
+.pc-tool-diff i { color: var(--pc-del); font-style: normal; }
 .pc-tool-state { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--muted); }
-.pc-tool-state.is-done { color: var(--success); }
-.pc-tool-state.is-error { color: var(--danger); }
-.pc-tool-state.is-running { color: var(--pc-hue); }
-.pc-tool.is-error .pc-tool-name { color: var(--danger); }
+.pc-tool-state.is-done { color: var(--muted); }
+.pc-tool-state.is-error { color: var(--pc-del); }
+.pc-tool-state.is-running { color: var(--ink); }
+.pc-tool.is-error .pc-tool-name { color: var(--pc-del); }
 .pc-tool-output { margin: 2px 0 4px 34px; max-height: 220px; padding: 10px 12px; border-radius: 8px; background: var(--terminal-bg); color: var(--terminal-ink); font: 12px/1.55 var(--mono); white-space: pre-wrap; overflow: auto; overflow-wrap: anywhere; }
 
 .pc-thinking { color: var(--muted); font-size: 12px; }
@@ -114,7 +115,7 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc-note > svg { flex-shrink: 0; margin-top: 3px; color: var(--danger); }
 .pc-working { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 22px; color: var(--muted); font-size: 12px; }
 .pc-dots { display: inline-flex; gap: 3px; }
-.pc-dots > i { width: 4px; height: 4px; border-radius: 50%; background: var(--pc-hue); opacity: .35; }
+.pc-dots > i { width: 4px; height: 4px; border-radius: 50%; background: var(--ink); opacity: .35; }
 @media (prefers-reduced-motion: no-preference) {
   .pc-tool-state.is-running { animation: pc-spin 900ms linear infinite; }
   .pc-dots > i { animation: pc-pulse 1.2s ease-in-out infinite; }
@@ -139,19 +140,19 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc-error > svg { flex-shrink: 0; margin-top: 2px; color: var(--danger); }
 .pc-composer { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
 .pc-field { display: flex; flex-direction: column; border: 1px solid var(--hairline-strong); border-radius: var(--r-lg); background: var(--surface-2); cursor: text; transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
-.pc-field:focus-within { border-color: color-mix(in srgb, var(--pc-hue) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-hue) 18%, transparent); }
+.pc-field:focus-within { border-color: color-mix(in srgb, var(--ink) 32%, transparent); }
 .pc-field textarea { display: block; width: 100%; min-height: 38px; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-y: auto; }
 .pc-field textarea::placeholder { color: var(--muted); }
 .pc-field textarea:focus-visible { outline: none; }
 .pc-status { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 6px 6px 8px; color: var(--muted); font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; cursor: default; }
-.pc-model { display: inline-flex; align-items: center; gap: 6px; height: 26px; min-width: 0; padding: 0 9px 0 7px; border-radius: 99px; background: var(--pc-hue-soft); color: var(--ink); }
+.pc-model { display: inline-flex; align-items: center; gap: 6px; height: 26px; min-width: 0; padding: 0 9px 0 7px; border-radius: 99px; background: var(--fill); color: var(--ink); }
 .pc-model > span { font-family: var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-model > svg { flex-shrink: 0; color: var(--pc-hue); }
 .pc-model.is-empty { background: var(--fill); color: var(--muted); }
 .pc-model.is-empty > svg { color: var(--muted); }
 .pc-model-picker { position: relative; min-width: 0; display: flex; }
 button.pc-model { cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
-button.pc-model:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-hue) 24%, transparent); }
+button.pc-model:hover:not(:disabled) { background: var(--fill-2); }
 button.pc-model.is-empty:hover:not(:disabled) { background: var(--fill-2); }
 button.pc-model:disabled { cursor: not-allowed; opacity: .6; }
 button.pc-model:focus-visible { outline: 2px solid var(--pc-hue); outline-offset: 2px; }
@@ -165,25 +166,25 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .pc-models-list button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 9px; border-radius: 8px; color: var(--ink); font-size: 12px; text-align: left; flex-shrink: 0; }
 .pc-models-list button > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-models-list button:hover { background: var(--fill-2); }
-.pc-models-list button[aria-selected="true"] { background: var(--pc-hue-soft); color: var(--pc-hue); }
+.pc-models-list button[aria-selected="true"] { background: var(--fill-2); color: var(--ink); }
 .pc-models-list button:focus-visible { outline: 2px solid var(--pc-hue); outline-offset: -2px; }
 .pc-models-list p { margin: 0; padding: 10px 9px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .pc-context { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 9px; border-radius: 99px; background: var(--fill); flex-shrink: 0; white-space: nowrap; }
 .pc-context-bar { width: 44px; height: 4px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
-.pc-context-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--pc-hue); }
+.pc-context-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--muted); }
 .pc-context-share { color: var(--ink); }
-.pc-context.is-high .pc-context-bar > i { background: var(--warning); }
-.pc-context.is-high .pc-context-share { color: var(--warning); }
-.pc-context.is-full .pc-context-bar > i { background: var(--danger); }
-.pc-context.is-full .pc-context-share { color: var(--danger); }
-.pc-cost { display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 99px; background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); flex-shrink: 0; }
+.pc-context.is-high .pc-context-bar > i { background: var(--pc-caution); }
+.pc-context.is-high .pc-context-share { color: var(--pc-caution); }
+.pc-context.is-full .pc-context-bar > i { background: var(--pc-del); }
+.pc-context.is-full .pc-context-share { color: var(--pc-del); }
+.pc-cost { display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 99px; background: var(--fill); color: var(--muted); flex-shrink: 0; }
 .pc-hint { flex-shrink: 0; height: auto; padding: 0; border: 0; background: none; color: var(--muted); font: 11px/1 inherit; white-space: nowrap; }
-.pc-send { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--pc-hue); color: var(--primary-ink); flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
-.pc-send:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-hue), white 14%); }
+.pc-send { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--pc-solid); color: var(--pc-solid-ink); flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
+.pc-send:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-solid) 86%, var(--muted)); }
 .pc-send:active:not(:disabled) { scale: .94; }
 .pc-send:disabled { background: var(--fill-2); color: var(--muted); opacity: 1; cursor: not-allowed; }
 .pc-send.is-stop { background: var(--fill-2); color: var(--ink); }
-.pc-send.is-stop:hover { background: var(--error-bg); color: var(--danger); }
+.pc-send.is-stop:hover { background: var(--fill-3); color: var(--pc-del); }
 .pc-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Focused: a reading column ---------- */
@@ -223,14 +224,14 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .md-link-error { margin-top: 6px; color: var(--danger); overflow-wrap: anywhere; }
 .md-copy { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; color: var(--muted); flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
 .md-copy:hover { background: var(--fill-2); color: var(--ink); }
-.md-copy.is-copied { color: var(--success); }
+.md-copy.is-copied { color: var(--ink); }
 .md-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* A permission the agent waits on: answered in place, then kept as a record. */
-.pc-ask { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 10px 10px 12px; border: 1px solid color-mix(in srgb, var(--warning) 34%, transparent); border-radius: var(--r-md); background: color-mix(in srgb, var(--warning) 8%, var(--surface)); }
+.pc-ask { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 10px 10px 12px; border: 1px solid var(--hairline-strong); border-radius: var(--r-md); background: var(--surface-2); }
 .pc-ask:not(.is-pending) { border-color: var(--hairline); background: none; padding-block: 7px; }
-.pc-ask-icon { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px; background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning); }
-.pc-ask:not(.is-pending) .pc-ask-icon { width: 22px; height: 22px; border-radius: 7px; background: var(--fill); color: var(--muted); }
+.pc-ask-icon { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; color: var(--pc-caution); }
+.pc-ask:not(.is-pending) .pc-ask-icon { color: var(--muted); }
 .pc-ask-body { display: grid; gap: 3px; flex: 1; min-width: 0; }
 .pc-ask-body p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .pc-ask-body strong { color: var(--ink); font-weight: 600; }
@@ -238,11 +239,10 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .pc-ask-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .pc-ask-actions button { min-height: 28px; padding: 0 12px; border: 0; border-radius: 99px; background: var(--fill-2); color: var(--ink); font: 550 12px/1 inherit; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-ask-actions button:hover:not(:disabled) { background: var(--fill-3); }
-.pc-ask-actions button.is-primary { background: var(--pc-hue, var(--accent)); color: var(--primary-ink); }
-.pc-ask-actions button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-hue, var(--accent)), white 14%); }
+.pc-ask-actions button.is-primary { background: var(--pc-solid); color: var(--pc-solid-ink); }
+.pc-ask-actions button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-solid) 86%, var(--muted)); }
 .pc-ask-actions button:disabled { opacity: .5; cursor: default; }
 .pc-ask-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pc-ask-state { flex-shrink: 0; color: var(--muted); font-size: 11px; }
-.pc-ask.is-denied .pc-ask-state { color: var(--danger); }
-.pc-ask:is(.is-allowed, .is-always) .pc-ask-state { color: var(--success); }
+.pc-ask.is-denied .pc-ask-state { color: var(--pc-del); }
 @container (max-width: 460px) { .pc-ask { flex-wrap: wrap; } .pc-ask-actions { width: 100%; justify-content: flex-end; } }
