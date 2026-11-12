@@ -782,7 +782,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
 @media (min-width: 851px) {
   /* Rail: a docked plane, not a floating card. */
   .app-shell:not(.rail-collapsed) .project-rail {
-    left: 0; top: 0; bottom: 0; width: var(--rail-width);
+    left: 0; top: 0; bottom: 0; width: var(--rail-width); height: auto; margin: 0;
     padding: 0 12px 12px; border: 0; border-right: 1px solid var(--hairline); border-radius: 0;
     box-shadow: none;
   }
@@ -793,7 +793,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: 6px; background: var(--fill-2
   }
   /* Collapsed: the rail shrinks to its top cell, still part of the bar. */
   .rail-collapsed .project-rail {
-    left: 0; top: 0; bottom: auto; width: var(--rail-width); max-width: none; height: var(--bar);
+    left: 0; top: 0; bottom: auto; width: var(--rail-width); max-width: none; height: var(--bar); margin: 0;
     padding: 0 10px 0 12px; border: 0; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
     border-radius: 0; box-shadow: none;
   }

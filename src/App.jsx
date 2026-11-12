@@ -297,7 +297,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       if (!window.matchMedia('(max-width: 850px)').matches) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setSidebar(false); }
       if (e.key !== 'Tab') return;
-      const controls = [...railRef.current.querySelectorAll('button:not(:disabled)')].filter(el => el.getClientRects().length);
+      const controls = [...railRef.current.querySelectorAll('button:not(:disabled),summary')].filter(el => el.getClientRects().length && (!el.closest('details:not([open])') || el.tagName === 'SUMMARY'));
       const first = controls[0], last = controls.at(-1);
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }

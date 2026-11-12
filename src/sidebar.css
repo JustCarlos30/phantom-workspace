@@ -31,7 +31,7 @@
 .rail-panel-row .rail-panel-label { min-width: 0; }
 .rail-panel-label > span:first-child { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-panel-focus { opacity: 0; }
-.rail-panel-row:hover .rail-panel-focus, .rail-panel-row:focus-within .rail-panel-focus { opacity: 1; }
+.rail-panel-row:hover .rail-panel-focus, .rail-panel-row:focus-within .rail-panel-focus, .rail-panel-focus[aria-pressed=true] { opacity: 1; }
 .project-rail .rail-map-action { margin-top: var(--s-2); font-size: 12px; }
 .project-rail .rail-bottom { margin-top: auto; padding-top: var(--s-2); }
 .rail-system { display: flex; align-items: center; gap: 2px; margin-top: var(--s-2); }
