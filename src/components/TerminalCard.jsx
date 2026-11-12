@@ -51,7 +51,8 @@ export function locationOf(node, workspace) {
 export default function TerminalCard({ node, workspace, api, notify, overview = false, connected = true, onOpen, onRelaunch }) {
   const sessionId = node.data?.sessionId;
   const lines = Math.max(4, Math.min(40, Math.floor(((node.height || 400) - 150) / LINE_HEIGHT)));
-  const { tail, error } = useTerminalTail({ sessionId, api, lines: overview ? 1 : lines, connected });
+  // Overview keeps a few lines so the glimpse can skip a blank prompt row.
+  const { tail, error } = useTerminalTail({ sessionId, api, lines: overview ? 4 : lines, connected });
   const agent = node.data?.agent || {};
   const provider = providerOf(node, tail?.foreground);
   const state = effectiveStatus(agent, tail?.screenState);
@@ -64,13 +65,16 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     : !sessionId ? node.data?.launchError || 'Sin sesión activa. Inicia una nueva para continuar.'
     : error ? `No se pudo leer la salida: ${error}`
     : !tail ? 'Leyendo la salida…' : 'Sin salida todavía.';
+  const glimpse = overview ? (tail?.lines || []).filter(line => line.trim()).slice(-3).join('\n') : null;
   return <div className={`pt-card ${overview ? 'is-overview' : ''}`} data-agent={state || 'idle'} data-session={status} onDoubleClick={e => { if (!e.target.closest('button')) onOpen(); }}>
     <div className="pt-card-identity">
       {!overview && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />}
       <ProviderBadge provider={provider} />
       {state && <AgentState agent={agent} status={state} />}
+      {overview && <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>}
       {agent.step && <p className="pt-card-step" title={agent.step}>{agent.step}</p>}
     </div>
+    {overview && !agent.step && <p className="pt-card-glimpse" aria-hidden="true">{glimpse || (ended || preparing ? '' : '…')}</p>}
     {!overview && <div className={`pt-card-screen ${alternate ? 'is-alternate' : ''}`} role="log" aria-label={`Últimas líneas de ${node.title}`} aria-live="off" style={alternate ? { '--rows': tail.lines.length || 1, '--cols': tail.cols || 80 } : undefined}>
       {tail?.lines?.length ? <pre>{tail.lines.join('\n')}</pre> : <p className="pt-card-empty">{emptyText}</p>}
     </div>}
