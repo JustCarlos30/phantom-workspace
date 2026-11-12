@@ -154,3 +154,33 @@ test('status line readings are compact and never invent a context window', async
   assert.deepEqual(contextUse({ contextTokens: 14915 }), { tokens: 14915, window: null, ratio: null });
   assert.equal(contextUse({}), null);
 });
+
+test('the project\'s Phantom chat runs in the project folder with its identity, without a canvas card', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-main-chat-'));
+  // Echoes its prompt, its system prompt and the flags that matter here.
+  const claude = fixture(root, 'claude', `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{const a=process.argv,i=a.indexOf('--append-system-prompt'),out=e=>console.log(JSON.stringify(e));
+    out({type:'system',subtype:'init',session_id:'main-1',model:'claude-x'});
+    out({type:'assistant',message:{id:'m1',content:[{type:'text',text:'eco:'+input+' phantom:'+(i>=0&&a[i+1].includes('You are Phantom'))+' panel:'+(i>=0&&a[i+1].includes('Notas de misión'))+' modelo:'+(a.includes('--model')?a[a.indexOf('--model')+1]:'-')+' cwd:'+process.cwd()}]}});
+    out({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'main-1',duration_ms:10,usage:{output_tokens:1}});});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await host.invoke('settings.update', { patch: { claudePath: claude } });
+  const w = await host.invoke('workspace.open', { path: root });
+  await host.invoke('node.create', { workspaceId: w.id, type: 'note', title: 'Notas de misión', data: {} });
+  const ref = { workspaceId: w.id, nodeId: `phantom:${w.id}` };
+  let chat = await host.invoke('chat.get', ref);
+  assert.deepEqual([chat.provider, chat.mode, chat.messages.length], ['claude', 'ask', 0]);
+  await assert.rejects(host.invoke('chat.configure', { ...ref, provider: null }), /Phantom/);
+  await host.invoke('chat.configure', { ...ref, model: 'opus' });
+  await host.invoke('chat.send', { ...ref, text: 'hola' });
+  await until(async () => !(await host.invoke('chat.get', ref)).running);
+  chat = await host.invoke('chat.get', ref);
+  assert.equal(chat.messages[1].parts[0].text, `eco:hola phantom:true panel:true modelo:opus cwd:${fs.realpathSync(root)}`);
+  assert.equal(chat.sessionId, 'main-1');
+  // It is never a node of the canvas, and another project has its own thread.
+  assert.equal((await host.invoke('state.get')).workspaces.find(x => x.id === w.id).nodes.some(n => n.id === ref.nodeId), false);
+  await assert.rejects(host.invoke('chat.get', { workspaceId: w.id, nodeId: 'phantom:otro' }), /not found/);
+  // The permission switch is stored with the thread.
+  await host.invoke('chat.configure', { ...ref, autoApprove: true });
+  assert.equal((await host.invoke('chat.get', ref)).autoApprove, true);
+});
