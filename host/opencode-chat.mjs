@@ -1,4 +1,28 @@
 import { randomUUID } from 'node:crypto';
+import http from 'node:http';
+import { Readable } from 'node:stream';
+
+// Long turns and quiet SSE streams must not inherit fetch/undici's five-minute
+// headers/body deadlines. The caller's signal is their only deadline.
+export function loopbackRequest(url, { method = 'GET', headers, body, signal } = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, { method, headers, signal }, response => {
+      const stream = Readable.toWeb(response);
+      resolve({
+        ok: response.statusCode >= 200 && response.statusCode < 300,
+        status: response.statusCode,
+        body: stream,
+        async json() {
+          const chunks = [];
+          for await (const chunk of stream) chunks.push(chunk);
+          return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        },
+      });
+    });
+    request.on('error', reject);
+    request.end(body);
+  });
+}
 
 // `opencode run` answers permission.asked with reject before a host can ask
 // the user. Own a loopback server instead and answer through its HTTP API.
@@ -52,14 +76,14 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
       const timer = connection ? setTimeout(() => connection.abort(new Error('OpenCode: tiempo de conexión agotado')), 30000) : null;
       let response;
       try {
-        response = await fetch(`${base}${route}?directory=${encodeURIComponent(cwd)}`, {
+        response = await (bounded ? fetch : loopbackRequest)(`${base}${route}?directory=${encodeURIComponent(cwd)}`, {
           method: body === undefined ? 'GET' : 'POST', headers,
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
           signal: bounded ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : connection ? AbortSignal.any([signal, connection.signal]) : signal,
         });
       } finally { clearTimeout(timer); }
       if (!response.ok) {
-        await response.body?.cancel();
+        await response.body?.cancel().catch(() => {});
         // An answered/expired request may disappear while its reply is in flight.
         if (response.status === 404 && body !== undefined && /^\/(permission|question)\//.test(route)) return response;
         throw Object.assign(new Error(`OpenCode ${route}: HTTP ${response.status}`), { transient: response.status === 408 || response.status === 429 || response.status >= 500 });
