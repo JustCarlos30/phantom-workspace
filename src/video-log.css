@@ -1,0 +1,42 @@
+.video-log { color: var(--ink); background: var(--surface); min-width: 0; overflow-wrap: anywhere; }
+.vl-title, .vl-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vl-title svg { flex: none; color: var(--accent); }
+.vl-freshness, .vl-source, .vl-count, .vl-origin { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.vl-freshness { margin: 0 0 16px; }
+.vl-source { margin: 0 0 20px; }
+.vl-filters { align-items: flex-start; margin: 18px 0 10px; }
+.vl-filters .tw-field { flex: 1 1 200px; }
+.vl-filters small { display: block; color: var(--muted); margin-top: 5px; }
+.video-log input { caret-color: var(--accent); }
+.video-log input::placeholder { color: var(--muted); opacity: 1; }
+.video-log ::selection { background: var(--accent); color: var(--primary-ink); }
+.video-log :is(button,input,select,summary,[tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.vl-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.vl-list, .vl-detail { min-width: 0; }
+.vl-insight { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 14px 8px; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.vl-insight:hover { background: var(--surface-2); }
+.vl-insight[aria-pressed=true] { background: var(--accent-soft); }
+.vl-insight strong { font-size: 14px; }
+.vl-insight span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.vl-insight small { color: var(--muted); }
+.vl-detail { border-top: 1px solid var(--line); padding-top: 20px; }
+.plugin-surface .vl-detail h3 { font-size: 20px; line-height: 1.3; margin: 24px 0 10px; text-wrap: balance; letter-spacing: -.02em; }
+.vl-prose { max-width: 72ch; font-size: 14px; line-height: 1.7; }
+.vl-prose p { white-space: pre-wrap; margin: 0 0 14px; }
+.vl-prose :is(h4,h5,h6) { font-size: 15px; line-height: 1.4; margin: 24px 0 8px; }
+.vl-prose :is(ul,ol) { padding-left: 22px; }
+.vl-prose li { margin-block: 6px; }
+.vl-prose blockquote { margin: 16px 0; padding: 12px 16px; background: var(--surface-2); }
+.vl-prose pre, .vl-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; padding: 12px; background: var(--bg); color: var(--ink); font: 12px/1.7 ui-monospace, monospace; }
+.vl-prose .md-link { text-decoration: underline; text-underline-offset: 3px; }
+.vl-table { width: 100%; overflow: auto; scrollbar-color: var(--line) var(--surface); margin: 18px 0; }
+.vl-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vl-table :is(th,td) { min-width: 120px; max-width: 32ch; padding: 10px; vertical-align: top; text-align: left; border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
+.vl-table th { background: var(--surface-2); }
+.vl-context { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+.vl-context h4 { font-size: 15px; }
+.vl-raw { margin-top: 24px; }
+.vl-raw summary { cursor: pointer; color: var(--muted); }
+.vl-notice { padding: 16px 0; }
+@container (min-width: 900px) { .vl-has-detail .vl-layout { grid-template-columns: minmax(240px, .75fr) minmax(0, 1.5fr); } .vl-detail { border-top: 0; padding-top: 0; } }
+@container (max-width: 899px) { .vl-has-detail .vl-list { display: none; } }
