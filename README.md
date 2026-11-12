@@ -102,6 +102,8 @@ node "$PHANTOM_BROWSER_CLI" console
 
 `preview` y `open` esperan HTTP 2xx/3xx antes de crear/enfocar la vista y reutilizan el panel de la misma terminal y `--key` (predeterminada: `preview`). Read, click, fill y captura operan sobre el mismo WebContentsView visible y su sesión; los selectores son CSS, deben resolver un elemento para click/fill y no tienen auto-wait de Playwright. No existe ejecución de JavaScript arbitrario ni debugger público. Las capturas del CLI tienen nombres privados generados, límite de 8 MiB y retención por proyecto de 16 PNG/64 MiB.
 
+**Abridores del sistema redirigidos.** Muchas skills y CLIs (p. ej. impeccable live, logins OAuth) abren URLs con `xdg-open` o `$BROWSER`, sin conocer este puente. En terminales de Phantom, `scripts/browser-shims/` va primero en `PATH` y `BROWSER` apunta a él: `xdg-open`, `sensible-browser`, `x-www-browser`, `www-browser`, `kde-open(5)` y `gio open` con una sola URL http(s) hacen `open` en el panel integrado. Si el puente falla, devuelven error (no abren el navegador externo a escondidas). Rutas, `mailto:` y otros subcomandos pasan al comando real con el `BROWSER` original. `PHANTOM_BROWSER_EXTERNAL=1` restaura el navegador del sistema.
+
 La API del host acepta estos payloads para `automation.start` (no son subcomandos del CLI browser):
 
 ```json

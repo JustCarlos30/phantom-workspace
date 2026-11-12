@@ -1,0 +1,44 @@
+#!/bin/sh
+# Phantom Workspace: http(s) opened by agents/skills goes to the integrated browser
+# panel, never the system browser. Placed first in PATH and as $BROWSER only inside
+# Phantom terminals; the same file answers as xdg-open, sensible-browser,
+# x-www-browser, www-browser, kde-open(5) and gio (symlinks dispatch on $0).
+# Anything that is not a single http(s) URL is passed to the real system command.
+# PHANTOM_BROWSER_EXTERNAL=1 restores the system opener for URLs as well.
+name=${0##*/}
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+
+url=
+case $name in
+  gio) [ "$1" = open ] && [ $# -eq 2 ] && url=$2 ;;
+  *) [ $# -eq 1 ] && url=$1 ;;
+esac
+case $url in http://*|https://*) ;; *) url= ;; esac
+
+if [ -n "$url" ] && [ -z "$PHANTOM_BROWSER_EXTERNAL" ] && [ -n "$PHANTOM_BROWSER_CLI" ]; then
+  if "${PHANTOM_AGENT_NODE:-node}" "$PHANTOM_BROWSER_CLI" open "$url" >/dev/null; then exit 0; fi
+  echo "Phantom Workspace: no se pudo abrir $url en el navegador integrado (PHANTOM_BROWSER_EXTERNAL=1 usa el del sistema)." >&2
+  exit 1
+fi
+
+# Fallthrough: restore the user's original $BROWSER so a real xdg-open cannot loop back here.
+if [ -n "$PHANTOM_BROWSER_ORIGINAL" ]; then BROWSER=$PHANTOM_BROWSER_ORIGINAL; export BROWSER; else unset BROWSER; fi
+
+real() {
+  cmd=$1; shift
+  set -f; old_ifs=$IFS; IFS=:
+  for dir in $PATH; do
+    [ -n "$dir" ] || continue
+    [ "$dir" = "$PHANTOM_BROWSER_SHIMS" ] && continue
+    [ "$(CDPATH= cd -- "$dir" 2>/dev/null && pwd -P)" = "$self_dir" ] && continue
+    if [ -f "$dir/$cmd" ] && [ -x "$dir/$cmd" ]; then IFS=$old_ifs; set +f; exec "$dir/$cmd" "$@"; fi
+  done
+  IFS=$old_ifs; set +f
+}
+
+real "$name" "$@"
+case $name in
+  sensible-browser|x-www-browser|www-browser|kde-open|kde-open5) real xdg-open "$@" ;;
+esac
+echo "$name: no encontrado" >&2
+exit 127
