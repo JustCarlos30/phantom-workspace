@@ -72,7 +72,6 @@
 .rp-side-item.is-selected > svg { color: var(--accent); }
 .rp-side-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-side-badges { display: flex; align-items: center; gap: 3px; flex: none; font-size: 10px; }
-.rp-side-empty { padding: 2px 12px 4px 26px; font-size: 11px; }
 .rp-pill { padding: 0 4px; border-radius: 4px; font: 600 10px/15px var(--rp-mono); }
 .rp-pill.is-dirty { color: var(--rp-dirty); background: color-mix(in srgb, var(--rp-dirty) 14%, transparent); }
 .rp-pill.is-ahead { color: var(--rp-add); background: color-mix(in srgb, var(--rp-add) 14%, transparent); }

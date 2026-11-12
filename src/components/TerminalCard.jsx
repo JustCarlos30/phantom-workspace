@@ -4,6 +4,7 @@ import { ProviderTile, providerKey } from './Glyphs';
 import { AGENT_LABELS } from './AgentIdentity';
 import { useTerminalTail } from '../hooks/useTerminalTail';
 import { ModeSwitch } from './ChatCard';
+import EmptyState from './EmptyState.jsx';
 
 const LINE_HEIGHT = 18;
 
@@ -76,7 +77,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     </div>
     {overview && !agent.step && <p className="pt-card-glimpse" aria-hidden="true">{glimpse || (ended || preparing ? '' : '…')}</p>}
     {!overview && <div className={`pt-card-screen ${alternate ? 'is-alternate' : ''}`} role="log" aria-label={`Últimas líneas de ${node.title}`} aria-live="off" style={alternate ? { '--rows': tail.lines.length || 1, '--cols': tail.cols || 80 } : undefined}>
-      {tail?.lines?.length ? <pre>{tail.lines.join('\n')}</pre> : <p className="pt-card-empty">{emptyText}</p>}
+      {tail?.lines?.length ? <pre>{tail.lines.join('\n')}</pre> : preparing || !sessionId || error || !tail ? <p className="pt-card-status" role="status">{emptyText}</p> : <EmptyState className="pt-card-empty" description={emptyText} />}
     </div>}
     {!overview && <footer className="pt-card-footer">
       <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>

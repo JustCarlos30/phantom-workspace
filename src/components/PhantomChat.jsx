@@ -97,12 +97,8 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
     </div>
     <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
-        {!messages.length && <div className="phantom-chat-empty">
-          <span className="phantom-chat-hero" aria-hidden="true"><PhantomGlyph size={26} /></span>
-          <h3>{!connected ? 'Sin conexión con el host' : chat ? 'Pregúntale a Phantom' : 'Cargando la conversación…'}</h3>
-          {chat && <><p>Da instrucciones, pregunta por el proyecto o dicta con el micrófono. Phantom trabaja en <span className="pc-mono" title={workspace.canonicalPath}>{workspace.name}</span> con {label}.</p>
-            <div className="phantom-chat-suggestions">{SUGGESTIONS.map(text => <button key={text} type="button" disabled={running || sending} onClick={() => submit(text)}>{text}</button>)}</div></>}
-        </div>}
+        {!messages.length && (!connected || !chat) && <p role="status">{!connected ? 'Sin conexión con el host' : 'Cargando la conversación…'}</p>}
+        {!messages.length && connected && chat && <EmptyState className="phantom-chat-empty" icon={PhantomGlyph} title="Pregúntale a Phantom" description={<>Da instrucciones, pregunta por el proyecto o dicta con el micrófono. Phantom trabaja en <span className="pc-mono" title={workspace.canonicalPath}>{workspace.name}</span> con {label}.</>} actions={<div className="phantom-chat-suggestions">{SUGGESTIONS.map(text => <button key={text} type="button" disabled={running || sending} onClick={() => submit(text)}>{text}</button>)}</div>} />}
         {messages.map(message => <Message key={message.id} message={message} label="Phantom" provider={active} model={meta.model} onAnswer={answer} onReply={reply} />)}
       </div>
     </div>
@@ -133,3 +129,4 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
     </form>
   </aside>;
 }
+import EmptyState from './EmptyState.jsx';

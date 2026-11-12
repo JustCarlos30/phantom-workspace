@@ -15,8 +15,9 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
           <button onClick={() => onJump(node.id)} title={`${node.title} · Ver en el mapa`} aria-label={`Ver ${node.title} en el mapa`} aria-current={active ? 'true' : undefined}><Icon size={15} /><span className="rail-panel-label"><span>{node.title}</span>{node.type === 'terminal' && <TerminalActivityStatus session={sessions[node.id]} compact />}</span></button>
           <button className="rail-panel-focus" title={`Enfocar ${node.title}`} aria-label={`Enfocar ${node.title}`} aria-pressed={focused === node.id} onClick={() => onFocus(node.id)}><Maximize2 size={12} /></button>
         </div>;
-      })}{!items.length && <p className="rail-empty">{title === 'Sesiones' ? 'Sin terminales en este espacio.' : 'Sin recursos en este espacio.'}</p>}</nav>
+      })}{!items.length && <EmptyState className="rail-empty" size="compact" description={title === 'Sesiones' ? 'Sin terminales en este espacio.' : 'Sin recursos en este espacio.'} />}</nav>
     </section>)}</div>
     <button className="rail-map-action" onClick={onMap}><Layers size={15} /> Ver todo el mapa <kbd>0</kbd></button>
   </section>;
 }
+import EmptyState from './EmptyState.jsx';

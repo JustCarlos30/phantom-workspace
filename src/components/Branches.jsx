@@ -129,7 +129,7 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
     } finally { await reload(); }
   });
 
-  if (!enabled) return <p className="tw-empty">Abre una carpeta para ver sus ramas.</p>;
+  if (!enabled) return <EmptyState className="tw-empty" description="Abre una carpeta para ver sus ramas." />;
   if (!shown) return <div className="br-root">{resource.error ? <ErrorNotice error={resource.error} retry={reload} /> : <p className="br-quiet br-pad" role="status">Leyendo ramas y worktrees…</p>}</div>;
   if (!shown.available) return <div className="br-root"><div className="br-pad"><p className="br-warning">{shown.reason || 'Git no está disponible en esta carpeta.'}</p><button type="button" className="br-button" onClick={reload}><RefreshCw size={14} aria-hidden="true" />Reintentar</button></div></div>;
   const baseRow = model.baseRow, base = model.base;
@@ -162,13 +162,14 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
           </div>}
       </section>}
       {op.busy && <p className="br-quiet" role="status">Trabajando en Git…</p>}
-      {model.total > 0 && !model.visible && <p className="br-quiet">Ninguna rama coincide con «{query}».</p>}
+      {model.total > 0 && !model.visible && <EmptyState className="br-quiet" description={<>Ninguna rama coincide con «{query}».</>} />}
       {model.groups.filter(group => group.rows.length).map(group => <section key={group.id} className={`br-group br-${group.id}`} aria-label={group.title}>
         <h3 className="br-group-title" title={group.hint}><i aria-hidden="true" />{group.title}<span>{group.rows.length}</span></h3>
         <p className="br-quiet br-group-hint">{group.hint}</p>
         {group.rows.map(row => <Row key={row.id} row={row} base={base} content={content.get(row.name)} busy={op.busy} notice={notices[row.id]} mode={mode} setMode={setMode} act={act} onOpenPanel={onOpenPanel} />)}
       </section>)}
-      {!model.total && <p className="br-quiet">No hay más ramas ni worktrees en este repositorio. Cada terminal nueva crea la suya.</p>}
+      {!model.total && <EmptyState className="br-quiet" description="No hay más ramas ni worktrees en este repositorio. Cada terminal nueva crea la suya." />}
     </div>
   </div>;
 }
+import EmptyState from './EmptyState.jsx';

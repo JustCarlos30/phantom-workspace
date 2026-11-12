@@ -127,20 +127,20 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
       </dl>
       <div className="pc-columns">
         <section><h3 className="pc-label">Checks de aceptación · {contract.checks?.length || 0}</h3>
-          {contract.checks?.length ? <ul className="pc-list">{contract.checks.map((check, index) => <li key={`${check.name}:${index}`}><Check size={13} aria-hidden="true" className="pc-list-icon" /><div><strong>{check.name || `Check ${index + 1}`}</strong><code>{argvText(check.argv)}</code></div></li>)}</ul> : <p className="pc-quiet">No declarados.</p>}
+          {contract.checks?.length ? <ul className="pc-list">{contract.checks.map((check, index) => <li key={`${check.name}:${index}`}><Check size={13} aria-hidden="true" className="pc-list-icon" /><div><strong>{check.name || `Check ${index + 1}`}</strong><code>{argvText(check.argv)}</code></div></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="No declarados." />}
           <p className="pc-quiet">El resultado de cada check lo registra Phantom en las ejecuciones; aquí se muestra el contrato.</p></section>
         <section><h3 className="pc-label">Alcance · {contract.scope?.length || 0} rutas</h3>
-          {contract.scope?.length ? <ul className="pc-list">{contract.scope.map(path => <li key={path}><FileText size={13} aria-hidden="true" className="pc-list-icon" /><code>{path}</code></li>)}</ul> : <p className="pc-quiet">No declarado.</p>}
+          {contract.scope?.length ? <ul className="pc-list">{contract.scope.map(path => <li key={path}><FileText size={13} aria-hidden="true" className="pc-list-icon" /><code>{path}</code></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="No declarado." />}
           <h3 className="pc-label">Dependencias</h3>
-          {contract.dependencies?.length ? <div className="pc-deps">{contract.dependencies.map(dep => { const known = depStatus(dep); return <span key={dep} className={`pc-dep pc-${statusTone(known?.status)}`} title={known?.goal || dep}><i aria-hidden="true" />{known ? `${known.goal.slice(0, 48)} · ${statusLabel(known.status)}` : dep}</span>; })}</div> : <p className="pc-quiet">Ninguna.</p>}
+          {contract.dependencies?.length ? <div className="pc-deps">{contract.dependencies.map(dep => { const known = depStatus(dep); return <span key={dep} className={`pc-dep pc-${statusTone(known?.status)}`} title={known?.goal || dep}><i aria-hidden="true" />{known ? `${known.goal.slice(0, 48)} · ${statusLabel(known.status)}` : dep}</span>; })}</div> : <EmptyState className="pc-quiet" size="compact" description="Ninguna." />}
         </section>
       </div>
       <section><h3 className="pc-label">Ejecuciones</h3>
-        {runs.length ? <ul className="pc-runs">{runs.slice(0, 6).map((run, index) => <li key={run.id || index}><StatusPill status={run.status === 'failed' ? 'blocked' : run.status} /><span>{run.mode === 'verification' ? 'Verificación' : 'Ejecución'}</span><span className="pc-quiet">{relative(run.startedAt)}</span><span className="pc-num">{duration(run.startedAt, run.endedAt)}</span>{Number.isFinite(run.turns) && <span className="pc-quiet">{run.turns} turnos · {run.tools ?? 0} herramientas</span>}</li>)}</ul> : <p className="pc-quiet">Sin ejecuciones registradas.</p>}
+        {runs.length ? <ul className="pc-runs">{runs.slice(0, 6).map((run, index) => <li key={run.id || index}><StatusPill status={run.status === 'failed' ? 'blocked' : run.status} /><span>{run.mode === 'verification' ? 'Verificación' : 'Ejecución'}</span><span className="pc-quiet">{relative(run.startedAt)}</span><span className="pc-num">{duration(run.startedAt, run.endedAt)}</span>{Number.isFinite(run.turns) && <span className="pc-quiet">{run.turns} turnos · {run.tools ?? 0} herramientas</span>}</li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="Sin ejecuciones registradas." />}
       </section>
       {related.length > 0 && <section><h3 className="pc-label">Procesos del controlador</h3>{related.map(item => <div key={item.id} className="pc-controller"><div className="pc-controller-head"><StatusPill status={item.status === 'running' ? 'running' : item.status === 'failed' ? 'blocked' : item.status} /><span>{item.action}</span><span className="pc-quiet">{relative(item.createdAt)}</span></div>{item.output && <pre className="pc-output">{item.output.slice(-4000)}</pre>}</div>)}<p className="pc-quiet">El fin del controlador no completa la Card; el estado lo decide Phantom.</p></section>}
       <section><h3 className="pc-label">Eventos recientes</h3>
-        {events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.id || index}><span className="pc-num">{event.at ? new Date(event.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '··:··'}</span><code>{event.type || 'evento'}</code></li>)}</ol> : <p className="pc-quiet">{events.loading ? 'Leyendo eventos…' : 'Sin eventos observados.'}</p>}
+        {events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.id || index}><span className="pc-num">{event.at ? new Date(event.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '··:··'}</span><code>{event.type || 'evento'}</code></li>)}</ol> : events.loading ? <p className="pc-quiet" role="status">Leyendo eventos…</p> : events.data?.available === false ? <p className="pc-notice">{events.data.reason}</p> : <EmptyState className="pc-quiet" size="compact" description="Sin eventos observados." />}
       </section>
       <div className="pc-sheet-actions">
         <Button disabled={op.busy} aria-expanded={Boolean(editing)} onClick={() => setEditing(old => old ? null : { ...native, id })}>{editing ? 'Ocultar reemplazo' : 'Preparar reemplazo'}</Button>
@@ -252,7 +252,7 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
     await api('phantom.control', { workspaceId: workspace.id, pluginId: 'phantom', id: card.id, action: 'run' });
     source.seen(card.id); await source.reload(); await refresh?.();
   }, 'Ejecución solicitada a Phantom');
-  if (!workspace?.id) return <p className="plugin-empty tw-empty">Selecciona un proyecto.</p>;
+  if (!workspace?.id) return <EmptyState className="plugin-empty tw-empty" description="Selecciona un proyecto." />;
   const unavailable = source.data?.available === false;
   const stale = source.error || unavailable || !reading;
   const showDesk = wide || (!selected && !creating);
@@ -278,11 +278,11 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
         <ErrorNotice error={runOp.error} clear={runOp.clear} />
         {unavailable && <p className="pc-notice">Phantom no está disponible: {source.data.reason || 'sin motivo informado'}.</p>}
         {source.loading && !source.data && <div className="pc-skeleton is-desk" role="status" aria-label="Leyendo Cards"><i /><i /><i /></div>}
-        {source.data && !unavailable && !items.length && <div className="pc-empty"><Layers size={22} aria-hidden="true" /><strong>No hay tareas ni Cards nativas para este proyecto.</strong><p>Una Card es un contrato con objetivo, rutas y checks. Crea la primera para que Phantom la ejecute y la verifique.</p><Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Crear la primera Card</Button></div>}
-        {items.length > 0 && !desk.total && <div className="pc-empty"><Search size={20} aria-hidden="true" /><strong>{query ? `Sin resultados para «${query}»` : 'Sin Cards en esta rama'}</strong><Button onClick={() => { setQuery(''); setPlace(''); }}>Limpiar filtros</Button></div>}
+        {source.data && !source.loading && !source.error && !unavailable && !items.length && <EmptyState className="pc-empty" icon={Layers} title="No hay tareas ni Cards nativas para este proyecto." description="Una Card es un contrato con objetivo, rutas y checks. Crea la primera para que Phantom la ejecute y la verifique." actions={<Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Crear la primera Card</Button>} />}
+        {items.length > 0 && !desk.total && <EmptyState className="pc-empty" icon={Search} title={query ? `Sin resultados para «${query}»` : 'Sin Cards en esta rama'} actions={<Button onClick={() => { setQuery(''); setPlace(''); }}>Limpiar filtros</Button>} />}
         {desk.total > 0 && view === 'desk' && ZONES.map(zone => <section key={zone.id} className={`pc-zone pc-zone-${zone.id}`} aria-label={zone.title}>
           <h3 className="pc-zone-title"><i aria-hidden="true" />{zone.title}<span>{desk.zones[zone.id].length}</span></h3>
-          {desk.zones[zone.id].length ? <div className="pc-zone-items">{desk.zones[zone.id].map(card => <DeskCard key={card.id} card={card} now={now} selected={card.id === selected} fresh={source.fresh.has(card.id)} onSelect={select} runModel={runModel} onRun={runCard} busy={runOp.busy} where={placeOf(card)} />)}</div> : <p className="pc-zone-empty">{zone.empty}</p>}
+          {desk.zones[zone.id].length ? <div className="pc-zone-items">{desk.zones[zone.id].map(card => <DeskCard key={card.id} card={card} now={now} selected={card.id === selected} fresh={source.fresh.has(card.id)} onSelect={select} runModel={runModel} onRun={runCard} busy={runOp.busy} where={placeOf(card)} />)}</div> : <EmptyState className="pc-zone-empty" size="compact" description={zone.empty} />}
         </section>)}
         {desk.total > 0 && view === 'board' && <div className="plugin-board pc-board">{states.map(state => <section key={state} className="plugin-board-column pc-column" aria-label={statusLabel(state)}>
           <h3 className="pc-zone-title"><StatusPill status={state} /><span>{desk.cards.filter(card => card.status === state).length}</span></h3>
@@ -295,3 +295,4 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
     </div>
   </div>;
 }
+import EmptyState from './EmptyState.jsx';

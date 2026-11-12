@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
+import EmptyState from './EmptyState.jsx';
 
 export function Button({ children, icon: Icon, tone, type = 'button', className = '', ...props }) {
   return <button {...props} type={type} className={`plugin-button tw-button ${tone ? `tw-${tone}` : ''} ${className}`}>{Icon && <Icon size={15} aria-hidden="true" />}{children}</button>;
@@ -77,6 +78,6 @@ export function ResourceState({ resource, empty = 'No hay elementos.' }) {
   if (resource.loading) return <p className="plugin-loading tw-muted" role="status">Consultando la fuente…</p>;
   if (resource.error) return <ErrorNotice error={resource.error} retry={resource.reload} />;
   if (resource.data?.available === false) return <div className="plugin-unavailable tw-warning" role="status">{resource.data.reason || 'Fuente no disponible.'}<Button onClick={resource.reload}>Reintentar</Button></div>;
-  if (empty && Array.isArray(resource.data?.items) && !resource.data.items.length) return <p className="plugin-empty tw-empty">{empty}</p>;
+  if (empty && Array.isArray(resource.data?.items) && !resource.data.items.length) return <EmptyState className="plugin-empty tw-empty" description={empty} />;
   return null;
 }

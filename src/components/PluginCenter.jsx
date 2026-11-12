@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, RefreshCw } from 'lucide-react';
+import EmptyState from './EmptyState.jsx';
 import { Button, Field, ErrorNotice, DataView, OperationState, ResourceState, useOperation, useResource } from './PluginPrimitives';
 
 const configOf = plugin => ({ phantomPath: '', phantomData: '', model: '', ...plugin.config });
@@ -59,7 +60,7 @@ export function PluginCenter({ workspace, api, refresh, notify, onOpenPanel }) {
   const valid = registry.data == null || Array.isArray(registry.data.items);
   return <div className="plugin-center tw-content">
     <header className="plugin-header tw-heading"><h2>Plugins</h2><Button icon={RefreshCw} disabled={registry.loading || !workspace?.id} onClick={registry.reload}>Actualizar registro</Button></header>
-    {!workspace?.id ? <p className="plugin-empty tw-empty">Selecciona un proyecto para configurar sus plugins.</p> : <>
+    {!workspace?.id ? <EmptyState className="plugin-empty tw-empty" description="Selecciona un proyecto para configurar sus plugins." /> : <>
       <ResourceState resource={registry} empty="No hay plugins registrados para este proyecto." />
       {!valid && <ErrorNotice error="El registro devolvió un listado inválido." retry={registry.reload} />}
       {valid && registry.data?.items.map(plugin => <PluginCard key={`${workspace.id}:${plugin.id}`} plugin={plugin} workspace={workspace} api={api} refresh={refresh} notify={notify} onOpenPanel={onOpenPanel} />)}

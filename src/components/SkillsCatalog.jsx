@@ -122,7 +122,7 @@ export default function SkillsCatalog({ workspace, api, notify, onOpenPanel }) {
   const loading = files.loading || phantom.loading;
   const reload = () => { files.reload(); phantom.reload(); };
 
-  if (!enabled) return <p className="tw-empty">Abre una carpeta para ver sus Skills.</p>;
+  if (!enabled) return <EmptyState className="tw-empty" description="Abre una carpeta para ver sus Skills." />;
   const showList = wide || !selected;
   return <div ref={root} className={`sk-root${wide ? ' is-wide' : ''}${selected ? ' has-detail' : ''}`}>
     <header className="sk-head">
@@ -142,16 +142,18 @@ export default function SkillsCatalog({ workspace, api, notify, onOpenPanel }) {
       {showList && <nav className="sk-list" aria-label="Skills disponibles">
         {phantom.data?.available === false && (origin === 'all' || origin === 'phantom') && <p className="sk-notice">Phantom no respondió, así que sus Skills no aparecen. {textOf(phantom.data.reason).replace(/^Phantom unavailable:\s*/, '')}</p>}
         {files.error && <p className="sk-notice is-error">No se pudieron leer las Skills locales: {files.error.message}<button type="button" onClick={files.reload}>Reintentar</button></p>}
+        {phantom.error && <p className="sk-notice is-error">Phantom no respondió: {phantom.error.message}<button type="button" onClick={phantom.reload}>Reintentar</button></p>}
         {loading && !catalog.total && <div className="sk-skeleton is-list" role="status" aria-label="Cargando Skills"><i /><i /><i /><i /></div>}
-        {!loading && !catalog.total && <div className="sk-empty"><Sparkles size={22} /><strong>Aún no hay Skills</strong><p>Crea una carpeta con un SKILL.md en <code>.claude/skills/</code> de este proyecto o instala un plugin.</p></div>}
-        {catalog.total > 0 && !catalog.visible && <div className="sk-empty"><Search size={20} /><strong>Sin coincidencias</strong><p>Prueba otro término o vuelve a «Todas».</p><button type="button" className="sk-link-button" onClick={() => { setQuery(''); setOrigin('all'); setAgent('all'); }}>Limpiar filtros</button></div>}
+        {!loading && !files.error && !phantom.error && files.data && phantom.data?.available !== false && !catalog.total && <EmptyState className="sk-empty" icon={Sparkles} title="Aún no hay Skills" description={<>Crea una carpeta con un SKILL.md en <code>.claude/skills/</code> de este proyecto o instala un plugin.</>} />}
+        {catalog.total > 0 && !catalog.visible && <EmptyState className="sk-empty" icon={Search} title="Sin coincidencias" description="Prueba otro término o vuelve a «Todas»." actions={<button type="button" className="sk-link-button" onClick={() => { setQuery(''); setOrigin('all'); setAgent('all'); }}>Limpiar filtros</button>} />}
         {catalog.groups.map(group => <section key={`${group.origin}:${group.title}`} className="sk-group" aria-label={group.title}>
           <h3 className="sk-group-title"><i className={`sk-dot sk-${group.origin}`} />{group.title}<span>{group.items.length}</span></h3>
           {group.items.map(entry => <Row key={entry.id} entry={entry} active={entry.id === selectedId} copies={catalog.copiesOf(entry)} onSelect={setSelectedId} />)}
         </section>)}
       </nav>}
       {selected ? <Detail key={selected.id} entry={selected} copies={catalog.copiesOf(selected)} api={api} notify={notify} onOpenPanel={onOpenPanel} onClose={() => setSelectedId(null)} onSelect={setSelectedId} />
-        : wide && catalog.total > 0 && <div className="sk-placeholder"><Sparkles size={22} /><p>Elige una Skill para leer qué hace, dónde vive y sus instrucciones.</p></div>}
+        : wide && catalog.total > 0 && <EmptyState className="sk-placeholder" icon={Sparkles} description="Elige una Skill para leer qué hace, dónde vive y sus instrucciones." />}
     </div>
   </div>;
 }
+import EmptyState from './EmptyState.jsx';

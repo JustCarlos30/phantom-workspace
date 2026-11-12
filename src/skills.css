@@ -18,6 +18,8 @@
 /* Header & toolbar */
 .sk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 10px; }
 .sk-title { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--accent); }
+.sk-title > svg { flex-shrink: 0; }
+.sk-title > div { min-width: 0; }
 .sk-title h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.02em; color: var(--ink); }
 .sk-title p { margin: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sk-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 12px; border-bottom: 1px solid var(--line); }
@@ -105,10 +107,6 @@
 .sk-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 4px; padding: 8px 10px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--line)); background: color-mix(in srgb, var(--warning) 8%, var(--surface)); font-size: 12px; color: var(--ink); }
 .sk-notice.is-error { border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
 .sk-notice button { margin-left: auto; padding: 2px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
-.sk-empty, .sk-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 40px 24px; text-align: center; color: var(--muted); }
-.sk-empty strong { color: var(--ink); font-size: 15px; font-weight: 600; }
-.sk-empty p, .sk-placeholder p { margin: 0; max-width: 34ch; font-size: 12px; }
-.sk-empty code { font-size: 11px; color: var(--ink); }
 .sk-skeleton { display: grid; gap: 8px; padding: 8px 0; }
 .sk-skeleton i { display: block; height: 12px; border-radius: 4px; background: linear-gradient(90deg, var(--surface-2), color-mix(in srgb, var(--surface-2) 60%, var(--line)), var(--surface-2)); background-size: 200% 100%; animation: sk-shimmer 1.2s linear infinite; }
 .sk-skeleton i:nth-child(2) { width: 82%; } .sk-skeleton i:nth-child(3) { width: 64%; }

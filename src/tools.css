@@ -26,7 +26,6 @@
 .tw-content p { margin: 8px 0 12px; max-width: 72ch; overflow-wrap: anywhere; }
 .tw-content small, .tw-item > small { display: block; font-size: 11px; color: var(--muted, #526174); overflow-wrap: anywhere; }
 .tw-muted, .tw-field > small { color: var(--muted, #526174); }
-.tw-empty { padding: 16px 0; color: var(--muted, #526174); }
 .tw-prose { white-space: pre-wrap; }
 .tw-form { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 10px; }
 .tw-field { display: flex; flex-direction: column; min-width: 0; gap: 5px; margin-bottom: 9px; flex: 1; }
@@ -92,7 +91,6 @@
 .tw-palette-results li small { color: var(--muted, #526174); font-size: 11px; text-align: right; }
 .tw-palette-results li[aria-selected="true"] button { background: var(--accent-soft, #e8edff); color: var(--ink, #202b3b); }
 .tw-palette-results li[aria-selected="true"] small { color: inherit; }
-.tw-palette > .tw-empty { padding: 16px; }
 .tw-voice { width: min(660px, 100%); }
 .tw-voice > .tw-content { height: auto; }
 .tw-target { padding-bottom: 12px; border-bottom: 1px solid var(--line-soft, var(--line, #d7dee8)); }
