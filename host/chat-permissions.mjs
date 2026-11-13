@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Permission policy for chat cards. A headless agent cannot ask in a terminal,
 // so every permission it would prompt for comes here (through the approval
@@ -534,6 +535,40 @@ export function sensitive(tool, input, cwd) {
 // this app's context.
 export const phantomTool = tool => typeof tool === 'string' && /^mcp__phantom(_workspace_chat)?__/.test(tool);
 
+// Phantom Workspace's own CLIs talk to this app (its socket), not to the
+// system: every agent — Claude, Codex, OpenCode — may run them in any mode,
+// the same way the policy and the server prompt tell it to. Only subcommands
+// that stay inside the app count; branches' commit/integrate/publish and a
+// Remotion export (writes a folder) keep the normal rules.
+export const PHANTOM_SCRIPTS = fileURLToPath(new URL('../scripts', import.meta.url));
+const PHANTOM_CLIS = {
+  'agent.mjs': () => true,
+  'canvas.mjs': args => !args.some(arg => arg === '--remotion' || arg.startsWith('--remotion=')),
+  'workspace-browser.mjs': () => true,
+  'branches.mjs': args => args.length === 0 || ['status', 'help', '--help', '-h'].includes(args[0]),
+};
+// The same rule, asked by name (the Phantom MCP server for sandboxed agents).
+export const phantomCliAllowed = (name, args) => Object.hasOwn(PHANTOM_CLIS, name) && args.every(arg => typeof arg === 'string') && PHANTOM_CLIS[name](args);
+const PHANTOM_ENV_CLIS = { PHANTOM_AGENT_CLI: 'agent.mjs', PHANTOM_BROWSER_CLI: 'workspace-browser.mjs' };
+const envName = word => /^\$(?:\{([A-Z_]+)(?::-[^}]*)?\}|([A-Z_]+))$/.exec(word)?.slice(1).find(Boolean);
+const nodeWord = word => word === 'node' || envName(word) === 'PHANTOM_AGENT_NODE' || word === process.execPath || /^\/\S*\/node$/.test(word);
+function phantomScript(word) {
+  const name = PHANTOM_ENV_CLIS[envName(word)];
+  if (name) return name;
+  if (!path.isAbsolute(word)) return null;
+  return real(path.dirname(word)) === real(PHANTOM_SCRIPTS) && Object.hasOwn(PHANTOM_CLIS, path.basename(word)) ? path.basename(word) : null;
+}
+// One plain command: node + a Phantom CLI + arguments. Pipes, lists,
+// redirections to files and substitutions are not this.
+export function phantomCommand(line) {
+  const tokens = typeof line === 'string' ? tokenize(line.trim()) : null;
+  if (!tokens?.length || tokens.some(token => token.word === undefined)) return false;
+  const [runner, script, ...args] = tokens.map(token => token.word);
+  if (!nodeWord(runner) || !script) return false;
+  const name = phantomScript(script);
+  return Boolean(name && PHANTOM_CLIS[name](args));
+}
+
 export const PERMISSION_MODES = ['ask', 'auto', 'full'];
 
 // mode 'full': everything goes except the short hard list above, which asks.
@@ -543,6 +578,7 @@ export const PERMISSION_MODES = ['ask', 'auto', 'full'];
 export function permissionDecision({ tool, input = {}, cwd, mode = 'ask' }) {
   const key = grantKey(tool, input, cwd);
   if (READ_TOOLS.has(tool) || phantomTool(tool)) return { allow: true, key };
+  if (tool === 'Bash' && phantomCommand(input.command)) return { allow: true, key };
   if (mode === 'full') {
     const reason = hardStop(tool, input, cwd);
     return reason ? { allow: false, key, reason: `Acción delicada, pregunta incluso en modo Total: ${reason}` } : { allow: true, key };

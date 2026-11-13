@@ -4,7 +4,8 @@ import { spawn, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomicJSON, assert, text } from './store.mjs';
-import { permissionDecision, PERMISSION_MODES } from './chat-permissions.mjs';
+import { permissionDecision, phantomCommand, PHANTOM_SCRIPTS, inside, PERMISSION_MODES } from './chat-permissions.mjs';
+import { codexWriteArgs, phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
@@ -83,6 +84,14 @@ export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
 export function gateConfig({ token, socketPath }) {
   return { mcpServers: { [GATE_SERVER]: { type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../scripts/chat-approval-mcp.mjs', import.meta.url))], env: { PHANTOM_CHAT_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: socketPath } } } };
 }
+// OpenCode asks for the shell command itself (bash) and for reading the CLI
+// outside the folder (external_directory); Phantom's own CLIs pass either way.
+export function phantomRequest(permission, patterns) {
+  if (!patterns.length) return false;
+  if (permission === 'bash') return patterns.every(phantomCommand);
+  if (permission === 'external_directory') return patterns.every(p => inside(PHANTOM_SCRIPTS, p.replace(/\/\*+$/, '')));
+  return false;
+}
 // OpenCode uses its local server; run's noninteractive auto-reject loop must
 // never own the permission replies of a chat card.
 // `opencode models --verbose` prints each model id on its own line followed by
@@ -108,14 +117,20 @@ export function openCodeModels(stdout) {
   return [...items.values()];
 }
 
-export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions }) {
+export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions, phantom }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
   const sandbox = access === 'full' ? 'danger-full-access' : access === 'auto' ? 'workspace-write' : 'read-only';
+  // Phantom's CLIs reach the app through its Unix socket, which Codex's
+  // sandbox counts as network, and native Phantom writes its own database:
+  // workspace-write opens both so Codex works like Claude and OpenCode do.
+  // read-only has no switch for either; the MCP servers cover it.
   if (provider === 'codex') return ['exec', ...(sessionId ? ['resume'] : []), '--json', '--skip-git-repo-check',
     '-c', `sandbox_mode=${JSON.stringify(sandbox)}`, '-c', 'approval_policy="never"',
+    ...(sandbox === 'workspace-write' ? codexWriteArgs(phantom || process.env) : []),
     ...(model ? ['--model', model] : []), ...(reasoning ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoning)}`] : []),
-    ...(instructions ? ['-c', `developer_instructions=${JSON.stringify(instructions)}`] : []), ...(sessionId ? [sessionId] : []), '-'];
+    ...(phantom ? ['-c', phantomMcpConfig(phantom)] : []),
+    ...(instructions || phantom ? ['-c', `developer_instructions=${JSON.stringify([instructions, phantom && PHANTOM_MCP_HINT].filter(Boolean).join('\n\n'))}`] : []), ...(sessionId ? [sessionId] : []), '-'];
   if (provider === 'claude') return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     ...(reasoning ? ['--effort', reasoning] : []),
     ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' || mode === 'full' ? ['--permission-mode', 'acceptEdits'] : []),
@@ -531,7 +546,7 @@ export class Chats {
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
       env = { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) };
       if (provider === 'opencode') env = openCodeServerEnv(env);
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions }),
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
@@ -612,7 +627,7 @@ export class Chats {
     const key = `OpenCode:${JSON.stringify([request.permission, [...patterns].sort()])}`;
     turn.denied ??= new Set();
     if (turn.denied.has(key)) return { behavior: 'deny', ...(request.child ? {} : { message: 'El usuario rechazó este permiso en Phantom Workspace.' }) };
-    if (turn.autoApprove || turn.thread.grants?.includes(key)) return { behavior: 'allow' };
+    if (turn.autoApprove || phantomRequest(request.permission, patterns) || turn.thread.grants?.includes(key)) return { behavior: 'allow' };
     const part = { type: 'permission', id: randomUUID(), tool: String(request.permission).slice(0, 120), detail: patterns.join(', ').slice(0, 240), reason: 'OpenCode solicita tu aprobación', key, status: 'pending', ...(request.tool?.callID ? { toolUseId: request.tool.callID } : {}) };
     turn.message.parts.push(part); turn.schedule();
     const decision = await new Promise(resolve => turn.pending.set(part.id, { part, input: {}, resolve }));
