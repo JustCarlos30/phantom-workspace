@@ -41,7 +41,7 @@
 
 /* ---------- Frame and identity bar ---------- */
 .pc:not(.is-overview) { font-size: 13px; background: var(--terminal-bg); }
-.pc-bar { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px 0 12px; background: var(--surface); font-size: 12px; flex-shrink: 0; }
+.pc-bar { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 12px 8px; background: var(--surface); font-size: 12px; flex-shrink: 0; }
 .pc-bar-space { flex: 1; min-width: 0; }
 .pc-location { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; }
 .pc-bar .pc-location { flex: 0 1 auto; }
@@ -57,7 +57,7 @@
 
 /* Compact agent switch: who answers, as a button that opens a short menu downward. */
 .pc-agent { position: relative; display: flex; flex-shrink: 0; min-width: 0; }
-.pc-agent-trigger { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px 0 7px; border-radius: var(--r-ctl); background: var(--fill); color: var(--ink); font-size: 12px; font-weight: 550; line-height: 1; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-out); }
+.pc-agent-trigger { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px 0 7px; border-radius: var(--r-ctl); background: transparent; color: var(--ink); font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-agent-trigger:hover:not(:disabled), .pc-agent-trigger[aria-expanded="true"] { background: var(--fill-2); }
 .pc-agent-trigger:disabled { opacity: .5; cursor: not-allowed; }
 .pc-agent-trigger > svg:last-child { color: var(--muted); }
@@ -71,11 +71,11 @@
 .pc-agent-menu button > svg:last-child { color: var(--ink); }
 
 /* ---------- Thread ---------- */
-.pc-thread { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; user-select: text; cursor: auto; }
+.pc-thread { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; user-select: text; cursor: auto; }
 .pc-thread ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
 .pc-column { display: flex; flex-direction: column; gap: 28px; min-height: 100%; max-width: 780px; margin: 0 auto; padding: 24px 24px 20px; }
 .pc-message { min-width: 0; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
-.pc-message.is-user { align-self: flex-end; max-width: 85%; padding: 8px 14px; border-radius: var(--r-obj) var(--r-obj) var(--r-ctl) var(--r-obj); background: var(--surface-3); }
+.pc-message.is-user { align-self: flex-end; max-width: 85%; padding: 10px 14px; border-radius: var(--r-obj) var(--r-obj) var(--r-ctl) var(--r-obj); background: var(--surface-2); }
 /* What the user typed reads as Markdown too; a bubble holding a table or code
    takes the full width so the block is not squeezed into 85%. */
 .pc-message.is-user .md { gap: 6px; }
@@ -232,15 +232,11 @@ summary.pc-tool-row:focus-visible { outline: 2px solid var(--accent); outline-of
 .pc-note > svg { flex-shrink: 0; margin-top: 3px; color: var(--danger); }
 .pc-working { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 22px; color: var(--muted); font-size: 12px; }
 .pc-dots { display: inline-flex; gap: 3px; }
-.pc-dots > i { width: 4px; height: 4px; border-radius: 50%; background: var(--ink); opacity: .35; }
+.pc-dots > i { width: 4px; height: 4px; border-radius: 50%; background: var(--working); opacity: .7; }
 @media (prefers-reduced-motion: no-preference) {
   svg.pc-tool-state.is-running, .pc-tool-spinner { animation: pc-spin 900ms linear infinite; }
-  .pc-dots > i { animation: pc-pulse 1.2s ease-in-out infinite; }
-  .pc-dots > i:nth-child(2) { animation-delay: 160ms; }
-  .pc-dots > i:nth-child(3) { animation-delay: 320ms; }
 }
 @keyframes pc-spin { to { transform: rotate(360deg); } }
-@keyframes pc-pulse { 0%, 100% { opacity: .3; } 40% { opacity: 1; } }
 
 /* Empty: the facts of the session about to start, not a greeting. */
 .pc-conversation-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 16px; margin: 0; font-size: 12px; line-height: 1.5; text-align: left; }
@@ -255,8 +251,9 @@ summary.pc-tool-row:focus-visible { outline: 2px solid var(--accent); outline-of
 .pc-dock { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 8px; flex-shrink: 0; }
 .pc.is-focused .pc-dock { padding: 0 20px 10px; }
 .pc-composer { display: flex; flex-direction: column; width: 100%; max-width: 780px; max-height: calc(100% - 40px); min-height: 0; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
-.pc-field { display: flex; flex-direction: column; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-obj); background: var(--surface-2); cursor: text; transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
-.pc-field:focus-within { border-color: color-mix(in srgb, var(--pc-hue) 48%, var(--hairline)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-hue) 14%, transparent); }
+.pc-field { display: flex; flex-direction: column; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-obj); background: var(--surface-2); cursor: text; transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.pc-field:hover { background: color-mix(in srgb, var(--surface-2) 94%, var(--ink)); }
+.pc-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent); }
 .pc-field textarea { display: block; width: 100%; min-height: 38px; flex: none; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-y: auto; overscroll-behavior: contain; transition: none; }
 .pc-field textarea::placeholder { color: var(--muted); }
 .pc-field textarea:focus-visible { outline: none; }
@@ -267,7 +264,7 @@ summary.pc-tool-row:focus-visible { outline: 2px solid var(--accent); outline-of
 .pc-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .pc-settings > .pc-model-picker { flex: 0 1 auto; min-width: 72px; }
 .pc-controls > button { flex-shrink: 0; }
-.pc-meta { display: flex; flex-shrink: 0; align-items: center; gap: 10px; min-height: 26px; padding: 7px 12px 0; color: var(--muted); font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; }
+.pc-meta { display: flex; flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 8px 10px; min-height: 26px; padding: 8px 12px 0; color: var(--muted); font-size: 11px; line-height: 1.4; font-variant-numeric: tabular-nums; }
 .pc-model { display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 0; padding: 0 10px 0 9px; border-radius: var(--r-pill); background: none; color: var(--ink); }
 .pc-model > span { font-family: var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-model > svg { flex-shrink: 0; color: var(--pc-hue); }
@@ -319,7 +316,7 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .pc-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Focused: a reading column ---------- */
-.pc.is-focused .pc-column { gap: 24px; padding: 28px 22px 20px; }
+.pc.is-focused .pc-column { gap: 32px; padding: 28px 24px 24px; }
 .pc.is-focused .pc-composer { padding: 0 20px 20px; }
 .pc.is-focused .pc-field textarea { min-height: 38px; padding: 11px 14px 4px; }
 .pc.is-focused .pc-controls { padding: 6px 9px 9px 12px; }
@@ -335,6 +332,12 @@ button.pc-model > svg:last-child { color: var(--muted); }
   .tv-meta { font-size: 10px; }
 }
 @container (max-width: 330px) { .pc-agent-trigger > span { display: none; } }
+@container (max-width: 460px) {
+  .pc-bar { flex-wrap: wrap; }
+  .pc-bar .pt-state { max-width: 100%; white-space: normal; }
+  .pc-settings { flex-wrap: wrap; gap: 4px; }
+  .pc-column, .pc.is-focused .pc-column { padding-inline: 16px; }
+}
 
 /* ---------- Markdown ---------- */
 .md { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
@@ -371,6 +374,7 @@ button.pc-model > svg:last-child { color: var(--muted); }
 /* A permission the agent waits on: answered in place, then kept as a record. */
 .pc-ask { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 10px 10px 12px; border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface-2); }
 .pc-ask:not(.is-pending) { border-color: transparent; background: none; padding-block: 7px; padding-inline: 0; }
+.pc-ask.is-pending { border-color: color-mix(in srgb, var(--attention) 65%, var(--hairline)); background: color-mix(in srgb, var(--attention) 8%, var(--surface-2)); }
 .pc-ask-icon { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; color: var(--pc-caution); }
 .pc-ask:not(.is-pending) .pc-ask-icon { color: var(--muted); }
 .pc-ask-body { display: grid; gap: 3px; flex: 1; min-width: 0; }
