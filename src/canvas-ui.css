@@ -1108,6 +1108,26 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    own edge, not a frame floating around it. */
 button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2px; }
 
+/* Phantom launcher: the last control of the view island, bottom right. Its
+   mark says whether the orchestration is working, waiting or needs a look. */
+.canvas-navigation .phantom-launcher { position: relative; min-width: 36px; color: var(--accent); }
+.canvas-navigation .phantom-launcher[aria-pressed="true"] { background: var(--accent-soft); }
+.phantom-launcher-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--muted); box-shadow: 0 0 0 2px var(--island, var(--glass)); }
+.phantom-launcher[data-tone="idle"] .phantom-launcher-dot { background: var(--accent); }
+.phantom-launcher[data-tone="working"] .phantom-launcher-dot { background: var(--success); animation: phantom-pulse 1.4s ease-in-out infinite; }
+.phantom-launcher[data-tone="waiting"] .phantom-launcher-dot { background: var(--warning); }
+.phantom-launcher[data-tone="attention"] .phantom-launcher-dot { background: var(--danger); }
+.phantom-launcher-count { position: absolute; top: -3px; right: -3px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: var(--r-pill); background: var(--accent); color: #140f1f; font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; font-variant-numeric: tabular-nums; }
+.phantom-launcher[data-tone="waiting"] .phantom-launcher-count { background: var(--warning); color: #1d1204; }
+@keyframes phantom-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .phantom-launcher-dot { animation: none !important; } }
+
+/* The orchestrator's card names its role beside the title. */
+.node-role { flex-shrink: 0; margin-left: 6px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 650; letter-spacing: .02em; line-height: 16px; white-space: nowrap; }
+.canvas-node[data-role="orchestrator"]:not(.selected) { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.canvas-node[data-role="orchestrator"] .node-title { display: flex; align-items: center; }
+.canvas-node[data-role="orchestrator"] .title-button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* State owns the inner edge even when selected, hovered or focused. The
    detached solid outline above continues to mean selection, never activity. */
 .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error) { border-color: color-mix(in srgb, var(--pulse) 65%, var(--hairline)); }
