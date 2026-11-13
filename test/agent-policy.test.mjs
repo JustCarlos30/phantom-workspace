@@ -273,11 +273,19 @@ test('Claude Code and Codex started in a Phantom terminal receive the terminal p
   const { run, policy } = fakeAgents(t);
   assert.equal(shimmedPath(shimmedPath('/usr/bin')).split(':').filter(dir => dir === agentShims).length, 1);
   assert.deepEqual(run('claude', ['--model', 'opus', 'fix "it"']), ['--append-system-prompt', policy.replace(/\n+$/, ''), '--model', 'opus', 'fix "it"']);
-  const codex = run('codex', ['exec', 'fix it']);
-  assert.deepEqual(codex.slice(2), ['exec', 'fix it']);
-  assert.equal(codex[0], '-c');
-  // The value is a TOML multi-line literal string: the policy arrives verbatim.
-  assert.equal(codex[1], `developer_instructions='''\n${policy.replace(/\n+$/, '')}'''`);
+  // A subcommand's -c list replaces the global one in codex: ours follows
+  // the subcommand. Without one (the TUI) it leads.
+  for (const [args, lead, rest] of [[['exec', 'fix it'], ['exec'], ['fix it']], [['fix it'], [], ['fix it']]]) {
+    const codex = run('codex', args);
+    assert.deepEqual(codex.slice(0, lead.length), lead);
+    const [c1, mcp, c2, dev, ...tail] = codex.slice(lead.length);
+    assert.deepEqual([c1, c2, tail], ['-c', '-c', rest]);
+    // Phantom's CLIs as a pre-approved MCP tool, outside Codex's sandbox.
+    assert.match(mcp, /^mcp_servers\.phantom_workspace=\{ command=".*", args=\[".*phantom-mcp\.mjs"\], env=\{ .* \}, default_tools_approval_mode="approve" \}$/);
+    // The value is a TOML multi-line literal string: the policy arrives verbatim.
+    assert.ok(dev.startsWith(`developer_instructions='''\n${policy.replace(/\n+$/, '')}\n\nPhantom Workspace commands`), dev.slice(0, 80));
+    assert.ok(dev.endsWith("cannot reach the app.'''"));
+  }
   assert.ok(!policy.includes("'''"));
 });
 

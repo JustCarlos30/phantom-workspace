@@ -20,6 +20,18 @@ const TOOL = {
   inputSchema: { type: 'object', properties: { cli: { type: 'string', enum: Object.keys(SCRIPTS) }, args: { type: 'array', items: { type: 'string' } } }, required: ['cli'] },
 };
 
+// Codex's read-only sandbox has no network switch, so its shell cannot reach
+// the app's socket in any mode for sure. Chat cards (host/chats.mjs) and the
+// codex shim of Phantom terminals both hand Codex this server, pre-approved:
+// codex exec with approval_policy="never" otherwise rejects every MCP call.
+// Codex gives MCP servers a filtered environment, so it travels explicitly.
+export const phantomEnv = (env, socket, cwd) => ({ ...Object.fromEntries(Object.entries(env).filter(([key, value]) => key.startsWith('PHANTOM_') && typeof value === 'string')), ...(socket ? { PHANTOM_WORKSPACE_SOCKET: socket } : {}), PHANTOM_MCP_CWD: cwd, PATH: env.PATH || '/usr/bin:/bin', HOME: env.HOME || '' });
+export function phantomMcpConfig(env, node = process.execPath) {
+  const table = Object.entries(env).filter(([key, value]) => /^[A-Z_][A-Z0-9_]*$/.test(key) && typeof value === 'string').map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(', ');
+  return `mcp_servers.phantom_workspace={ command=${JSON.stringify(node)}, args=[${JSON.stringify(fileURLToPath(import.meta.url))}], env={ ${table} }, default_tools_approval_mode="approve" }`;
+}
+export const PHANTOM_MCP_HINT = 'Phantom Workspace commands (`node <canvas.mjs|$PHANTOM_AGENT_CLI|$PHANTOM_BROWSER_CLI|branches.mjs> …`) go through the MCP tool phantom_workspace.phantom ({"cli":"canvas|agent|browser|branches","args":[…]}); your shell sandbox cannot reach the app.';
+
 export function runCli({ cli, args = [] } = {}, env = process.env) {
   const name = SCRIPTS[cli];
   if (!name || !Array.isArray(args) || !phantomCliAllowed(name, args)) return Promise.resolve({ isError: true, text: `No permitido por Phantom Workspace: ${cli} ${Array.isArray(args) ? args.join(' ') : ''}`.trim() });
@@ -56,4 +68,8 @@ export function serve({ input = process.stdin, output = process.stdout, env = pr
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) serve();
+// `--codex-config`: the -c value for a codex started in a Phantom terminal.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (process.argv[2] === '--codex-config') process.stdout.write(phantomMcpConfig(phantomEnv(process.env, null, process.cwd())));
+  else serve();
+}

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomicJSON, assert, text } from './store.mjs';
 import { permissionDecision, phantomCommand, PHANTOM_SCRIPTS, inside, PERMISSION_MODES } from './chat-permissions.mjs';
+import { phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
@@ -83,9 +84,6 @@ export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
 export function gateConfig({ token, socketPath }) {
   return { mcpServers: { [GATE_SERVER]: { type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../scripts/chat-approval-mcp.mjs', import.meta.url))], env: { PHANTOM_CHAT_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: socketPath } } } };
 }
-// What Phantom's CLIs need, handed to the MCP server (Codex gives MCP servers
-// a filtered environment).
-const phantomEnv = (env, dir, cwd) => ({ ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('PHANTOM_'))), PHANTOM_WORKSPACE_SOCKET: path.join(dir, 'host.sock'), PHANTOM_MCP_CWD: cwd, PATH: env.PATH || '/usr/bin:/bin', HOME: env.HOME || '' });
 // OpenCode asks for the shell command itself (bash) and for reading the CLI
 // outside the folder (external_directory); Phantom's own CLIs pass either way.
 export function phantomRequest(permission, patterns) {
@@ -96,15 +94,6 @@ export function phantomRequest(permission, patterns) {
 }
 // OpenCode uses its local server; run's noninteractive auto-reject loop must
 // never own the permission replies of a chat card.
-// Codex's read-only sandbox has no network switch, so its shell cannot reach
-// the app's socket in any mode for sure: Phantom's CLIs also come as an MCP
-// tool, which runs outside the sandbox under the same permission rule.
-export function phantomMcpConfig(env) {
-  const script = fileURLToPath(new URL('../scripts/phantom-mcp.mjs', import.meta.url));
-  const table = Object.entries(env).filter(([key, value]) => /^[A-Z_][A-Z0-9_]*$/.test(key) && typeof value === 'string').map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(', ');
-  return `mcp_servers.phantom_workspace={ command=${JSON.stringify(process.execPath)}, args=[${JSON.stringify(script)}], env={ ${table} }, default_tools_approval_mode="approve" }`;
-}
-const PHANTOM_MCP_HINT = 'Phantom Workspace commands (`node <canvas.mjs|$PHANTOM_AGENT_CLI|$PHANTOM_BROWSER_CLI|branches.mjs> …`) go through the MCP tool phantom_workspace.phantom ({"cli":"canvas|agent|browser|branches","args":[…]}); your shell sandbox cannot reach the app.';
 export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions, phantom }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
@@ -533,7 +522,7 @@ export class Chats {
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
       env = { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) };
       if (provider === 'opencode') env = openCodeServerEnv(env);
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, this.store.dir, cwd) : null }),
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });

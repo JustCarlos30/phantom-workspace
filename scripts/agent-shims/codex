@@ -44,7 +44,20 @@ case $name in
     case $text in
       *"'''"*) echo "Phantom Workspace: la política contiene ''' y no puede pasarse a codex; no se añadió." >&2; exec "$real" "$@" ;;
     esac
-    exec "$real" -c "developer_instructions='''
-$text'''" "$@" ;;
+    # Its sandbox cannot reach the app's socket (read-only has no network):
+    # Phantom's CLIs also come as a pre-approved MCP tool that runs outside it.
+    mcp=$("${PHANTOM_AGENT_NODE:-node}" "$self_dir/../phantom-mcp.mjs" --codex-config 2>/dev/null) || mcp=
+    [ -z "$mcp" ] || text="$text
+
+Phantom Workspace commands (\`node <canvas.mjs|\$PHANTOM_AGENT_CLI|\$PHANTOM_BROWSER_CLI|branches.mjs> …\`) go through the MCP tool phantom_workspace.phantom ({\"cli\":\"canvas|agent|browser|branches\",\"args\":[…]}) when your shell sandbox cannot reach the app."
+    dev="developer_instructions='''
+$text'''"
+    # A subcommand's own -c list replaces the global one in codex, so ours
+    # goes after the subcommand when there is one.
+    sub=
+    case ${1-} in exec|e|resume|review|fork) sub=$1; shift ;; esac
+    if [ -n "$mcp" ]; then set -- -c "$mcp" -c "$dev" "$@"; else set -- -c "$dev" "$@"; fi
+    if [ -n "$sub" ]; then exec "$real" "$sub" "$@"; fi
+    exec "$real" "$@" ;;
 esac
 exec "$real" "$@"
