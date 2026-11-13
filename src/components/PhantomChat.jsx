@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useComposerSize } from '../hooks/useComposerSize';
 import { AlertCircle, ArrowUp, GitMerge, ListPlus, MessageSquare, Mic, MessageSquarePlus, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
@@ -51,10 +52,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   const listening = voice.status === 'recording';
   useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, pendingAsks.length]);
   useEffect(() => { if (focusRequest && tab === 'chat') input.current?.focus({ preventScroll: true }); }, [focusRequest, tab]);
-  useLayoutEffect(() => {
-    const el = input.current; if (!el) return;
-    el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-  }, [draft]);
+  useComposerSize(input, draft);
   const configure = async change => {
     try { await api('chat.configure', { workspaceId: workspace.id, nodeId, ...change }); }
     catch (e) { notify?.(e.message, 'error'); }
@@ -116,11 +114,11 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className={`pc-field ${listening ? 'is-listening' : ''}`} style={{ '--voice-level': voice.level }} onPointerDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         {voiceLabel && <p className="phantom-chat-voice" role="status"><span className="phantom-chat-wave" aria-hidden="true"><i /><i /><i /><i /></span>{voiceLabel}{listening && <button type="button" onClick={voice.cancel}>Descartar</button>}</p>}
-        <textarea ref={input} rows={2} value={draft} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+        <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         <div className="pc-controls">
           <div className="pc-settings">
             {chat && <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={running} />}
-            {chat && <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} disabled={running} />}
+            {chat && <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} observed={meta.model} disabled={running} />}
           </div>
           {onTask && <button type="button" className="pc-icon phantom-chat-task" title="Convertir en tarea" aria-label="Convertir el texto en una tarea" disabled={!draft.trim() || listening} onClick={() => onTask(draft.trim())}><ListPlus size={15} /></button>}
           <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || ['requesting', 'transcribing'].includes(voice.status)} title={listening ? 'Detener y transcribir' : 'Dictar por voz'} aria-label={listening ? 'Detener y transcribir' : 'Dictar por voz'} onClick={toggleVoice}>{listening ? <Square size={11} /> : <Mic size={15} />}</button>

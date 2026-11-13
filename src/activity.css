@@ -91,3 +91,55 @@
 .activity-integration-details .activity-row strong { font-weight: 500; }
 .activity-integrations .plugin-error { min-width: 0; overflow-wrap: anywhere; }
 .activity-integrations .plugin-error .tw-row { flex-wrap: wrap; }
+.activity-secondary { padding: 0 16px 8px; font-size: 11px; color: var(--muted); }
+.activity-secondary summary, .activity-tray-scroll summary { cursor: pointer; }
+.activity-secondary .activity-actions { margin-top: 8px; }
+.activity-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.activity-row.activity-compact { align-items: flex-start; }
+.activity-compact > details { min-width: 0; flex: 1; }
+.activity-compact summary strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.5; overflow-wrap: anywhere; }
+.activity-compact summary > span { display: block; font-size: 11px; margin-top: 4px; }
+.activity-row.activity-compact > .activity-actions { flex: 0 1 auto; flex-direction: row; max-width: 45%; }
+.activity-tray summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.activity-tray .activity-filters { flex-wrap: wrap; }
+
+/* Status rows: why it is here (glyph and ink), what it is, where from and
+   when, and the one place to go. Rows are separated by space, not by lines. */
+.activity-tray [data-ink] { --tone: var(--muted); }
+.activity-tray [data-ink="attention"] { --tone: var(--attention); }
+.activity-tray [data-ink="danger"] { --tone: var(--danger); }
+.activity-tray [data-ink="working"] { --tone: var(--working); }
+.activity-tray [data-ink="success"] { --tone: var(--success); }
+.activity-tray [data-ink="accent"] { --tone: var(--accent); }
+.activity-item { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: start; gap: 4px 10px; min-width: 0; margin-inline: -8px; padding: 9px 8px; border-radius: var(--r-ctl); font-size: 12px; }
+.activity-item:hover { background: var(--fill); }
+.activity-item-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-ctl); color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
+.activity-item-main { display: grid; gap: 3px; min-width: 0; }
+.activity-item-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.activity-item-meta { display: flex; flex-wrap: wrap; margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.activity-item-meta > span + span::before { content: '·'; margin: 0 6px; color: var(--muted); font-weight: 400; }
+.activity-item-state { color: var(--tone); font-weight: 550; }
+.activity-item > .activity-actions { align-self: center; justify-content: flex-end; max-width: 200px; }
+.activity-item .mp-missing { margin-top: 3px; }
+.activity-tray .activity-filters button b { min-width: 16px; padding: 0 5px; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.activity-tray .activity-filters button b.is-zero { background: none; color: var(--muted); font-weight: 400; }
+.activity-tray .activity-filters button[data-tab="needs"] b:not(.is-zero) { background: color-mix(in srgb, var(--attention) 20%, transparent); color: var(--attention); }
+.activity-sources { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.activity-tray-scroll > section > .activity-actions { margin-top: 10px; }
+.activity-tray .activity-copy { margin: 0 0 10px; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.activity-notch > .notch-stale { padding: 1px 7px; border-radius: var(--r-pill); background: var(--fill-2); font-size: 10px; white-space: nowrap; }
+.activity-summary-action.has-returned > span { color: var(--danger); }
+
+/* Active branches: one object per branch, its road to the base inside. */
+.activity-tally { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 10px; font-size: 11px; color: var(--muted); }
+.activity-tally b { color: var(--tone); font-variant-numeric: tabular-nums; }
+.activity-branch { display: grid; gap: 9px; min-width: 0; margin-bottom: 8px; padding: 12px; border-radius: var(--r-obj); background: var(--surface-2); font-size: 12px; }
+.activity-branch > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.activity-branch > header > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.activity-chip { flex: none; padding: 1px 8px; border-radius: var(--r-pill); font-size: 11px; white-space: nowrap; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
+.activity-branch-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.activity-branch-note { margin: 0; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.activity-branch > footer { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; min-width: 0; }
+.activity-branch > footer > .inc-review { flex: 1 1 200px; min-width: 0; }
+.activity-branch > footer > .activity-actions { margin-left: auto; }
+@media (max-width: 850px) { .activity-item { grid-template-columns: 26px minmax(0, 1fr); } .activity-item > .activity-actions { grid-column: 2; justify-content: flex-start; max-width: 100%; } }

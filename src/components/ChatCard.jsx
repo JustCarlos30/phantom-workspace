@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, Gauge, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { useComposerSize } from '../hooks/useComposerSize';
+import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
@@ -151,23 +152,32 @@ export function useElapsed(since, active) {
 
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
+const TOOL_LABELS = { read: 'Leer', edit: 'Editar', shell: 'Ejecutar', search: 'Buscar', web: 'Web', agent: 'Agente', todo: 'Tareas' };
+const TOOL_STATES = { running: 'En curso', error: 'Falló', stopped: 'Detenida', done: 'Completada' };
 
 function ToolRow({ part }) {
   const [, Icon, kind] = toolKind(part.name);
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
+  const label = part.detail ? TOOL_LABELS[kind] || part.name : part.name;
+  const codeDetail = ['read', 'edit', 'shell', 'search', 'web'].includes(kind);
   const summary = <>
-    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
-    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={13} /></span>
-    <span className="pc-tool-name">{part.name}</span>
-    <span className="pc-tool-detail" title={part.detail}>{part.detail}</span>
+    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={14} /></span>
+    <span className="pc-tool-label" title={part.name}>{label}</span>
+    {part.detail && <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail}>{part.detail}</span>}
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
-    {part.status === 'running' && <LoaderCircle className="pc-tool-state is-running" size={12} aria-label="En curso" />}
-    {part.status === 'error' && <span className="pc-tool-state is-error"><X size={12} aria-hidden="true" />falló</span>}
-    {part.status === 'stopped' && <span className="pc-tool-state">detenida</span>}
-    {part.status === 'done' && !part.diff && <Check className="pc-tool-state is-done" size={12} aria-label="Completada" />}
+    {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`} role="img" aria-label={TOOL_STATES[part.status]} title={TOOL_STATES[part.status]}>
+      {part.status === 'running' ? <LoaderCircle className="pc-tool-spinner" size={12} aria-hidden="true" />
+        : part.status === 'error' ? <X size={12} aria-hidden="true" />
+          : part.status === 'stopped' ? <Square size={10} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
+      {part.status !== 'done' && <span aria-hidden="true">{TOOL_STATES[part.status]}</span>}
+    </span>}
+    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
   </>;
   if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
-  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output"><ToolOutput part={part} kind={kind} /></div></details></li>;
+  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
+    <p className="pc-tool-context"><span>{part.name}</span>{part.detail && (kind !== 'shell' || part.status === 'error') && <span className={codeDetail ? 'is-code' : undefined}>{part.detail}</span>}</p>
+    <ToolOutput part={part} kind={kind} />
+  </div></details></li>;
 }
 
 // A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
@@ -296,6 +306,7 @@ export const Message = React.memo(function Message({ message, label, provider, m
 
 function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const streaming = message.status === 'streaming', usage = message.usage;
+  const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
   const delegated = streaming ? activeSubagents(message.parts) : 0;
@@ -311,9 +322,9 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'question'
         ? <QuestionCard key={group.id} part={group} onReply={onReply} />
       : group.type === 'thinking'
-        ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
+        ? <details key={i} className="pc-thinking"><summary><ChevronRight className="pc-thinking-caret" size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
+    {streaming && !waiting && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
     {!streaming && (facts.length > 0 || text) && <footer className="pc-turn-foot"><span className="pc-num">{facts.join(' · ')}</span>{text && <CopyButton text={text} label="Copiar respuesta" />}</footer>}
@@ -366,33 +377,51 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
 
 // How much of the model's window the conversation occupies, as read from the
 // provider. Without a known window only the occupied tokens are stated.
-export function ReasoningPicker({ node, workspace, api, notify, provider, disabled }) {
+export function ReasoningPicker({ node, workspace, api, notify, provider, observed, disabled }) {
   const selected = node.data.chat.reasoning?.[provider] || '';
-  const [value, setValue] = useState(selected);
-  useEffect(() => { setValue(selected); }, [selected, provider]);
   const save = async next => {
     if (next === selected) return;
     try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, reasoning: next || null }); }
-    catch (error) { setValue(selected); notify?.(error.message, 'error'); }
+    catch (error) { notify?.(error.message, 'error'); }
   };
-  if (provider === 'opencode') return <label className={`pc-reasoning ${value ? '' : 'is-empty'}`} data-disabled={disabled || undefined}>
-    <Gauge size={12} aria-hidden="true" /><span className="pc-reasoning-label">Variant</span>
-    <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="auto" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
-  </label>;
-  return <EffortMenu key={provider} provider={provider} selected={selected} disabled={disabled} onChoose={save} />;
+  if (provider === 'opencode') return <VariantPicker key={provider} node={node} workspace={workspace} api={api} observed={observed} selected={selected} disabled={disabled} onChoose={save} />;
+  return <EffortMenu key={provider} label="Effort" heading="Esfuerzo de razonamiento" ariaName={`Effort de ${provider}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" levels={EFFORTS[provider] || []} selected={selected} disabled={disabled} onChoose={save} />;
+}
+
+// OpenCode's variants belong to each model: the catalog (`opencode models
+// --verbose`) names the ones the chosen model accepts.
+function VariantPicker({ node, workspace, api, observed, selected, disabled, onChoose }) {
+  const model = node.data.chat.models?.opencode || observed || '';
+  const [catalog, setCatalog] = useState(null), [failure, setFailure] = useState('');
+  useEffect(() => {
+    let stale = false; setFailure('');
+    api('chat.models', { workspaceId: workspace.id, nodeId: node.id }).then(value => { if (!stale) setCatalog(value); }, e => { if (!stale) setFailure(e.message); });
+    return () => { stale = true; };
+  }, [workspace.id, node.id, model]); // eslint-disable-line react-hooks/exhaustive-deps
+  const item = model ? catalog?.items?.find(entry => entry.id === model) : null;
+  const levels = item?.variants || [];
+  const note = failure ? `${failure}.`
+    : !catalog ? 'Leyendo las variantes del modelo…'
+    : !model ? 'Elige un modelo para ver sus variantes.'
+    : !item ? `OpenCode no informa variantes de ${model}.`
+    : !levels.length ? `${model} no tiene variantes.` : '';
+  return <EffortMenu label="Variant" heading={model ? `Variantes de ${model}` : 'Variant'} ariaName="Variant de OpenCode" title="Variant del modelo en OpenCode; auto usa el predeterminado" levels={levels} selected={selected} note={note} disabled={disabled} onChoose={onChoose} />;
 }
 
 // Levels as a short ascending meter: the pill reads at a glance, the menu
 // lines every option up against the same scale.
 function EffortMeter({ level, total }) {
-  const bars = Math.min(total, 5), filled = level < 0 ? 0 : Math.max(1, Math.round((level + 1) / total * bars));
+  const bars = Math.max(1, Math.min(total, 5)), filled = level < 0 ? 0 : Math.max(1, Math.round((level + 1) / Math.max(total, 1) * bars));
   return <span className="pc-effort-meter" aria-hidden="true">{Array.from({ length: bars }, (_, i) => <i key={i} className={i < filled ? 'is-on' : ''} style={{ height: `${4 + i * 2}px` }} />)}</span>;
 }
 
-function EffortMenu({ provider, selected, disabled, onChoose }) {
-  const levels = EFFORTS[provider] || [], options = ['', ...levels];
+function EffortMenu({ label, heading, ariaName, title, levels, selected, note, disabled, onChoose }) {
+  // A saved value the current model no longer offers stays visible so it can be cleared.
+  const stray = selected && !levels.includes(selected) ? selected : '';
+  const options = ['', ...levels, ...(stray ? [stray] : [])];
   const [open, setOpen] = useState(false), [active, setActive] = useState(0);
   const root = useRef(null), list = useRef(null), trigger = useRef(null);
+  const id = React.useId();
   useEffect(() => {
     if (!open) return;
     setActive(Math.max(0, options.indexOf(selected)));
@@ -413,21 +442,23 @@ function EffortMenu({ provider, selected, disabled, onChoose }) {
   };
   const level = levels.indexOf(selected);
   return <div ref={root} className="pc-effort">
-    <button ref={trigger} type="button" className={`pc-reasoning ${selected ? '' : 'is-empty'} ${open ? 'is-open' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-label={`Effort de ${provider}: ${selected || 'auto'}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" disabled={disabled}
+    <button ref={trigger} type="button" className={`pc-reasoning ${selected ? '' : 'is-empty'} ${open ? 'is-open' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-label={`${ariaName}: ${selected || 'auto'}`} title={title} disabled={disabled}
       onClick={() => setOpen(value => !value)} onKeyDown={e => { if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); setOpen(true); } }}>
-      <EffortMeter level={level} total={levels.length} />
-      <span className="pc-reasoning-label">Effort</span>
+      <EffortMeter level={stray ? -1 : level} total={levels.length || 3} />
+      <span className="pc-reasoning-label">{label}</span>
       <span className="pc-reasoning-value">{selected || 'auto'}</span>
       <ChevronDown size={11} aria-hidden="true" />
     </button>
-    {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={`Effort de ${provider}`} aria-activedescendant={`pc-effort-${provider}-${active}`} onKeyDown={keys}>
-      <h4>Esfuerzo de razonamiento</h4>
-      {options.map((option, i) => <div key={option || 'auto'} id={`pc-effort-${provider}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
-        <EffortMeter level={i - 1} total={levels.length} />
+    {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={ariaName} aria-activedescendant={`${id}-${active}`} onKeyDown={keys}>
+      <h4>{heading}</h4>
+      {options.map((option, i) => <div key={option || 'auto'} id={`${id}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
+        <EffortMeter level={option === stray && stray ? -1 : i - 1} total={levels.length || 3} />
         <span>{option || 'auto'}</span>
         {!option && <small>predeterminado</small>}
+        {option && option === stray && <small>no disponible en este modelo</small>}
         {option === selected && <Check size={12} aria-hidden="true" />}
       </div>)}
+      {note && <p className="pc-effort-note" role="status">{note}</p>}
     </div>}
   </div>;
 }
@@ -508,7 +539,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const { cwd, folder, branch } = locationOf(node, workspace);
   // Announce transitions only, never the state found on mount.
   const [announcement, setAnnouncement] = useState('');
-  const phase = !running ? 'idle' : waiting ? 'waiting' : 'running', seenPhase = useRef(null);
+  const phase = waiting ? 'waiting' : running ? 'running' : 'idle', seenPhase = useRef(null);
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
@@ -524,10 +555,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, overview, focused, pendingAsks.length]);
   useEffect(() => { pinned.current = true; }, [provider]);
   useEffect(() => { if (focused) input.current?.focus({ preventScroll: true }); }, [focused, provider]);
-  useLayoutEffect(() => {
-    const el = input.current; if (!el) return;
-    el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, focused ? 220 : 120)}px`;
-  }, [draft, focused, overview]);
+  useComposerSize(input, draft, !overview);
   const submit = async () => {
     const text = draft.trim();
     if (!text || sending || !connected) return;
@@ -538,19 +566,19 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const model = meta.model, cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
-    return <div className="pt-card pc is-overview" data-agent={running ? 'working' : 'idle'}>
+    return <div className="pt-card pc is-overview" data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
-        {running && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
+        {(running || waiting) && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{plainMarkdown(lastText).slice(-240)}</p>}
       </div>
     </div>;
   }
-  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
+  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
       <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
-      {running && (waiting
+      {(running || waiting) && (waiting
         ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
         : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
       <span className="pc-bar-space" />
@@ -581,7 +609,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         <div className="pc-controls">
           <div className="pc-settings">
             <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
-            <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
+            <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={running} />
             <PermissionSwitch mode={permissionMode} provider={provider} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
           </div>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}

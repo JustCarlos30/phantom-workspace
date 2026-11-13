@@ -31,7 +31,7 @@ function Frame({ variant, label, meta, copy, children }) {
 function DiffView({ part }) {
   const rows = diffLines(part.change.before, part.change.after);
   let old = 0, now = 0;
-  return <Frame variant="diff" label={<><FileText size={12} aria-hidden="true" />{basename(part.detail || 'archivo')}</>} meta={<><b>+{part.diff?.added ?? rows.filter(r => r.op === '+').length}</b><i>−{part.diff?.removed ?? rows.filter(r => r.op === '-').length}</i></>} copy={part.change.after}>
+  return <Frame variant="diff" label={<><FileText size={14} aria-hidden="true" /><span className="tv-path" title={part.detail}>{basename(part.detail || 'archivo')}</span></>} meta={<><b>+{part.diff?.added ?? rows.filter(r => r.op === '+').length}</b><i>−{part.diff?.removed ?? rows.filter(r => r.op === '-').length}</i></>} copy={part.change.after}>
     <table className="tv-lines" role="presentation"><tbody>
       {rows.map((row, i) => {
         if (row.op !== '+') old++;
@@ -58,18 +58,18 @@ export default function ToolOutput({ part, kind }) {
   </Frame>;
   if (kind === 'read') {
     const lines = numberedLines(text);
-    if (lines) return <Frame variant="read" label={<><FileText size={12} aria-hidden="true" />{basename(part.detail || 'archivo')}</>} meta={lines.length > 1 ? `líneas ${lines[0].n}–${lines.at(-1).n}` : plural(lines.length, 'línea', 'líneas')} copy={lines.map(line => line.text).join('\n')}>
+    if (lines) return <Frame variant="read" label={<><FileText size={14} aria-hidden="true" /><span className="tv-path" title={part.detail}>{basename(part.detail || 'archivo')}</span></>} meta={lines.length > 1 ? `líneas ${lines[0].n}–${lines.at(-1).n}` : plural(lines.length, 'línea', 'líneas')} copy={lines.map(line => line.text).join('\n')}>
       <table className="tv-lines" role="presentation"><tbody>{lines.map((line, i) => <tr key={i}><td className="tv-n">{line.n}</td><td className="tv-code">{line.text || ' '}</td></tr>)}</tbody></table>
     </Frame>;
   }
   if (kind === 'search') {
     const found = searchResults(text);
     if (found?.kind === 'files') return <Frame variant="search" label="Archivos" meta={plural(found.files.length, 'resultado', 'resultados')} copy={text}>
-      <ul className="tv-files">{found.files.map(path => <li key={path} title={path}><FileText size={12} aria-hidden="true" /><strong>{basename(path)}</strong><span>{path}</span></li>)}</ul>
+      <ul className="tv-files">{found.files.map(path => <li key={path} title={path}><FileText size={14} aria-hidden="true" /><strong>{basename(path)}</strong><span>{path}</span></li>)}</ul>
     </Frame>;
     if (found?.kind === 'matches') return <Frame variant="search" label="Coincidencias" meta={`${plural(found.files.reduce((n, f) => n + f.hits.length, 0), 'línea', 'líneas')} · ${plural(found.files.length, 'archivo', 'archivos')}`} copy={text}>
       {found.files.map(file => <section key={file.path} className="tv-group">
-        <h5 title={file.path}><FileText size={12} aria-hidden="true" /><strong>{basename(file.path)}</strong><span>{file.path}</span></h5>
+        <h5 title={file.path}><FileText size={14} aria-hidden="true" /><strong>{basename(file.path)}</strong><span>{file.path}</span></h5>
         <table className="tv-lines" role="presentation"><tbody>{file.hits.map((hit, i) => <tr key={i}><td className="tv-n">{hit.n}</td><td className="tv-code">{hit.text || ' '}</td></tr>)}</tbody></table>
       </section>)}
     </Frame>;

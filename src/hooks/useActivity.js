@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, subscribe } from './useWorkspace';
 import { buildActivity } from './activityModel.mjs';
 
-const empty = () => ({ sessions: {}, tasks: {}, git: {}, limits: {} });
+const empty = () => ({ sessions: {}, tasks: {}, git: {}, limits: {}, merges: {} });
 const relevant = new Set(['state.changed', 'attention.new', 'terminal.exit', 'tool.status', 'task.changed', 'git.changed', 'session.changed']);
 async function readSource(name, method, payload) {
   let timeout;
@@ -12,6 +12,7 @@ async function readSource(name, method, payload) {
     if (name === 'tasks' && data?.available !== false && !Array.isArray(data?.items)) throw new Error('Phantom devolvió un catálogo de tareas inválido.');
     if (name === 'git' && (typeof data?.available !== 'boolean' || !Array.isArray(data?.branches))) throw new Error('Git devolvió un radar inválido.');
     if (name === 'limits' && !Array.isArray(data?.providers)) throw new Error('El host devolvió límites inválidos.');
+    if (name === 'merges' && data?.available !== false && (!Array.isArray(data?.queue) || !Array.isArray(data?.active))) throw new Error('El host devolvió incorporaciones inválidas.');
     return data;
   } finally { clearTimeout(timeout); }
 }
@@ -32,7 +33,7 @@ export function useActivity(workspace, connection, workspaceReadAt) {
       if (inFlight) { again = true; return; }
       inFlight = true;
       const request = ++revision;
-      const queries = { sessions: ['terminal.list', {}], tasks: ['phantom.list', { topic: 'tasks' }], git: ['git.inspect', base ? { base } : {}], limits: ['limits.read', {}] };
+      const queries = { sessions: ['terminal.list', {}], tasks: ['phantom.list', { topic: 'tasks' }], git: ['git.inspect', base ? { base } : {}], limits: ['limits.read', {}], merges: ['merge.status', {}] };
       for (const name of Object.keys(queries)) sources[name] = { ...sources[name], loading: true };
       publish();
       await Promise.all(Object.entries(queries).map(async ([name, [method, payload]]) => {
@@ -66,10 +67,10 @@ export function useActivity(workspace, connection, workspaceReadAt) {
   }, [identity, workspace?.id, connection.status, base]);
   const sources = snapshot.key === identity ? snapshot.sources : empty();
   const activity = useMemo(() => {
-    const result = buildActivity({ workspace, sessions: sources.sessions.data, tasks: sources.tasks.data, git: sources.git.data, connected: connection.status === 'connected' });
+    const result = buildActivity({ workspace, sessions: sources.sessions.data, tasks: sources.tasks.data, git: sources.git.data, merges: sources.merges.data, connected: connection.status === 'connected' });
     if (sources.sessions.error || sources.tasks.error) result.sessions = result.sessions.map(s => ({ ...s, label: `${s.label} · lectura sin confirmar`, tone: 'unknown' }));
     return result;
-  }, [workspace, sources.sessions.data, sources.tasks.data, sources.git.data, sources.sessions.error, sources.tasks.error, connection.status]);
+  }, [workspace, sources.sessions.data, sources.tasks.data, sources.git.data, sources.merges.data, sources.sessions.error, sources.tasks.error, connection.status]);
   const retry = useCallback(() => runner.current(), []);
   return { ...activity, sources, base, setBase, retry, connected: connection.status === 'connected', workspaceReadAt, now: Date.now() };
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, ExternalLink, Globe, Maximize2, RotateCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, ExternalLink, Globe, Maximize2, MessageCircle, RotateCw, AlertCircle } from 'lucide-react';
 import { subscribe } from '../hooks/useWorkspace';
 import { createBrowserIntent, isSiteURL } from '../hooks/browserIntent';
 import ResearchReader from './ResearchReader';
@@ -11,7 +11,10 @@ function contentBounds(element) {
   const r = element.getBoundingClientRect(), x = Math.max(0, Math.ceil(r.x)), y = Math.max(0, Math.ceil(r.y));
   return { x, y, width: Math.max(1, Math.floor(Math.min(r.right, window.innerWidth) - x)), height: Math.max(1, Math.floor(Math.min(r.bottom, window.innerHeight) - y)) };
 }
-export default function BrowserPanel({ node, workspace, api, active, obscured, onFocus, onChange }) {
+export default function BrowserPanel({ node, workspace, api, active, obscured: covered, commenting = false, commentCount = 0, onComment, onFocus, onChange }) {
+  // While commenting, the native page (drawn above all DOM) steps aside for its
+  // last capture so pins, the composer and the click itself stay reachable.
+  const obscured = covered || (active && commenting);
   const content = useRef(null), intent = useRef(null), captureTimer = useRef(null);
   const latest = useRef({ node, onChange }); latest.current = { node, onChange };
   const [url, setUrl] = useState(isSiteURL(node.data?.url) ? node.data.url : '');
@@ -100,11 +103,13 @@ export default function BrowserPanel({ node, workspace, api, active, obscured, o
       {node.data?.reader
         ? <button type="button" title="Cerrar lector de research" aria-label="Cerrar lector de research" aria-pressed onClick={toggleReader}><BookOpen size={14} /></button>
         : <button type="button" title="Abrir lector de research" aria-label="Abrir lector de research" aria-pressed={false} onClick={toggleReader}><BookOpen size={14} /></button>}
+      {onComment && active && <button type="button" className={`browser-comment ${commenting ? 'is-on' : ''}`} title={commenting ? 'Volver a la página en vivo · Esc' : 'Comentar sobre esta página'} aria-label={commenting ? 'Salir del modo comentario' : 'Comentar sobre esta página'} aria-pressed={commenting} onClick={onComment}><MessageCircle size={14} />{commentCount > 0 && <b className="comment-count">{commentCount}</b>}</button>}
     </form>
     {error && <div className="inline-error"><AlertCircle size={14} /><span>{error}</span><button onClick={navigate}>Reintentar</button></div>}
     <div className="browser-body">
       <div ref={content} className="browser-content">
-        {(!active || obscured || error) && <div className="browser-preview">{capture && <img src={capture.dataUrl} alt={`Última captura de ${capture.url}`} />}<div className="browser-preview-label"><Globe size={25} /><strong>{capture?.title || (isSiteURL(info.url) ? info.title || info.url : '') || url || 'Navegador del proyecto'}</strong><span>{capture ? `Última captura: ${capture.url}` : 'Sin captura de una página cargada'}</span><span>Enfocar para navegar</span><button className="button" onClick={() => onFocus(node.id)}><Maximize2 size={14} /> Enfocar navegador</button></div></div>}
+        {active && commenting && !covered && !error && <div className="browser-freeze">{capture ? <img data-browser-page={capture.url} data-browser-title={capture.title || ''} src={capture.dataUrl} alt={`Página congelada para comentar: ${capture.url}`} draggable={false} /> : <div className="browser-preview-label"><Globe size={25} /><strong>Congelando la página…</strong><span>Comenta cuando aparezca la captura</span></div>}</div>}
+        {(!active || covered || error) && <div className="browser-preview">{capture && <img src={capture.dataUrl} alt={`Última captura de ${capture.url}`} />}<div className="browser-preview-label"><Globe size={25} /><strong>{capture?.title || (isSiteURL(info.url) ? info.title || info.url : '') || url || 'Navegador del proyecto'}</strong><span>{capture ? `Última captura: ${capture.url}` : 'Sin captura de una página cargada'}</span><span>Enfocar para navegar</span><button className="button" onClick={() => onFocus(node.id)}><Maximize2 size={14} /> Enfocar navegador</button></div></div>}
       </div>
       {node.data?.reader && <ResearchReader node={node} nodes={workspace.nodes || []} spaceId={node.data?.spaceId ?? null} workspaceId={workspace.id} api={api} onChange={onChange} browserUrl={info.url || url} browserTitle={info.title} onNavigate={destination => { setUrl(destination); intent.current?.navigate(destination).catch(() => {}); if (!active) onFocus(node.id); }} />}
     </div>

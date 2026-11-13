@@ -31,9 +31,9 @@
   --c-slate: #a3a8bd;
   --accent: var(--c-lilac);
   --accent-soft: color-mix(in srgb, var(--accent) 17%, transparent);
-  /* State ladder: working is calm and cool, attention is warm and saturated,
-     danger is a true red (no longer a pink beside the lilac accent). */
-  --working: #6cb8ff;
+  /* State is independent of the project accent: violet breathes at the inner
+     perimeter, selection stays solid outside it; attention is always amber. */
+  --working: #bb9af7;
   --attention: #e9b46a;
   --danger: #ee788a;
   --success: #7cc9a0;
@@ -112,10 +112,22 @@
 .studio-tide .canvas-region, .background-option.tide { --atmosphere: radial-gradient(ellipse at 75% 28%, #245c63 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #283f62 0%, transparent 58%); }
 .studio-ember .canvas-region, .background-option.ember { --atmosphere: radial-gradient(ellipse at 72% 28%, #744535 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #49354d 0%, transparent 58%); }
 .studio-plain .canvas-region, .background-option.plain { --atmosphere: none; }
-.studio-gengar .canvas-region, .background-option.gengar { --atmosphere: radial-gradient(ellipse at 94% 62%, #362447 0%, transparent 57%), radial-gradient(ellipse at 78% 100%, #211629 0%, transparent 64%); }
+.studio-gengar .canvas-region, .background-option.gengar { --atmosphere: radial-gradient(ellipse at 78% 58%, #624085 0%, transparent 62%), radial-gradient(ellipse at 38% 100%, #352044 0%, transparent 68%); }
 .canvas-region::before { content: ''; position: absolute; inset: 0; background-image: var(--personal-background), var(--atmosphere); background-size: cover; background-position: center; opacity: var(--background-intensity, .55); pointer-events: none; transition: opacity 220ms cubic-bezier(.16,1,.3,1); }
-.studio-gengar:not(.studio-personal) .canvas-region::before { background-image: var(--gengar-art), var(--atmosphere); background-size: clamp(220px, 48%, 560px) auto, cover, cover; background-position: right 2% bottom 16%, center, center; background-repeat: no-repeat; }
+.canvas-region::after { content: ''; position: absolute; z-index: 0; inset: 0; pointer-events: none; background-image: var(--gengar-art); background-size: clamp(200px, 38%, 480px) auto; background-position: right 1% bottom 4%; background-repeat: no-repeat; opacity: 0; }
+.canvas-region > .canvas { z-index: 1; }
+.studio-character .canvas-region::after { opacity: var(--gengar-intensity, .55); }
 .studio-focused .canvas-region::before { opacity: calc(var(--background-intensity, .55) * .12); }
+.studio-focused .canvas-region::after { opacity: calc(var(--gengar-intensity, .55) * .12); }
+.app-shell.studio-concentration .canvas-region::before { opacity: calc(var(--background-intensity, .55) * .12); animation: none; }
+.app-shell.studio-concentration .canvas-region::after { opacity: calc(var(--gengar-intensity, .55) * .12); }
+.app-shell:not(.studio-character) .canvas-region::after { opacity: 0; }
+.studio-pulse:not(.studio-focused):not(.studio-concentration) .canvas-region::before { animation: ambient-breathe 16s ease-in-out infinite; }
+@keyframes ambient-breathe { 50% { filter: brightness(.8); } }
+.studio-concentration .canvas { background-image: none; }
+.studio-concentration *, .studio-concentration *::before, .studio-concentration *::after { animation: none !important; }
+.studio-concentration .pixel-field { display: none; }
+@media (prefers-reduced-motion: reduce) { .studio-pulse .canvas-region::before { animation: none !important; } }
 .canvas { background-color: transparent; background-image: radial-gradient(#8a80a842 .7px, transparent .7px); background-size: 24px 24px; }
 .studio-no-grid .canvas, .canvas.focus-mode { background-image: none; }
 .canvas-node { background: var(--surface); border-color: var(--hairline); box-shadow: var(--shadow-rest); }
