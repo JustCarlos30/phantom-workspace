@@ -181,6 +181,8 @@ Sin side-tabs: un borde lateral de color no marca tipo ni categoría (el tipo de
 
 Estado del presupuesto: chat 14, terminal 1 y chat lateral 1. Plugins 9, Skills 4 y Repository 12: cabeceras, segmentados, listas y pozos de lectura se separan por espacio y tono; los bordes restantes incluyen campos, estados y guías estructurales. `test/design-budget.json` conserva el recuento exigible por hoja.
 
+Excepción acotada al presupuesto descendente: `src/studio.css` pasa de 7 a 8 por `.interface-scale select`, el selector nativo de escala de interfaz en Apariencia. Su borde `--hairline` delimita el área donde se elige un valor, en coherencia con los campos existentes; `focus-visible` identifica el foco de teclado. Es un borde funcional de formulario, no un contenedor decorativo. Se conserva y se contabiliza en el presupuesto; esta excepción no amplía los demás presupuestos.
+
 ## Material y paleta
 
 - **Planos.** Ciruela casi negra `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Texto `--ink #eee9f4`, secundario `--muted #a69bb7`. Terminal opaca `--terminal-bg #0e0b13`. Nunca negro puro.
