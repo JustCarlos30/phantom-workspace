@@ -78,7 +78,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     broadcast(event);
   };
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
-  const mainEnv=w=>roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null});
+  const mainEnv=w=>({...roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null}),PHANTOM_WORKSPACE_ID:w.id});
   const persist=workspaceId=>{store.persist();emit({type:'state.changed',...(workspaceId?{workspaceId}:{})});};
   const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;

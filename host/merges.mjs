@@ -145,6 +145,14 @@ export class Merges {
     return { session, w, node };
   }
   orchestrator(p) {
+    // The project's Phantom conversation integrates for the user without a
+    // terminal session: it proves the role with the project's merge token.
+    if (p.sessionId === undefined && p.workspaceId !== undefined) {
+      const w = this.store.getWorkspace(text(p.workspaceId, 'workspace ID', 128));
+      assert(this.of(w).enabled, 'Incorporaciones no está activo en este proyecto.');
+      assert(typeof p.token === 'string' && p.token === mergeToken(this.store.dir, w.id), 'Solo la sesión orquestadora puede ordenar, incorporar o rechazar.');
+      return { w };
+    }
     const found = this.session(p.sessionId);
     assert(roleOf(found.node) === 'orchestrator' && p.token === mergeToken(this.store.dir, found.w.id), 'Solo la sesión orquestadora puede ordenar, incorporar o rechazar.');
     return found;

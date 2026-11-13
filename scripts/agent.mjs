@@ -30,6 +30,11 @@ const MERGE={
 export async function main(args=process.argv.slice(2), env=process.env) {
   const [action,...rest]=args,merge=Object.hasOwn(MERGE,action??'')?MERGE[action]:null;
   if ((!merge && !['context','report','bind'].includes(action)) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512))) throw new Error(USAGE);
+  // The project's Phantom conversation orchestrates without a terminal: it reads the queue and runs token commands by workspace.
+  if(!env.PHANTOM_TERMINAL_SESSION_ID && merge && env.PHANTOM_WORKSPACE_ID && (merge.token || action==='queue')) {
+    if(action==='queue') return invokeAgent('merge.status',{workspaceId:env.PHANTOM_WORKSPACE_ID},env.PHANTOM_WORKSPACE_SOCKET);
+    return invokeAgent(merge.method,{workspaceId:env.PHANTOM_WORKSPACE_ID,token:env.PHANTOM_MERGE_TOKEN??'',...merge.payload(rest)},env.PHANTOM_WORKSPACE_SOCKET,merge.timeout);
+  }
   if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
   if(merge) return invokeAgent(merge.method,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...(merge.token?{token:env.PHANTOM_MERGE_TOKEN??''}:{}),...merge.payload(rest)},env.PHANTOM_WORKSPACE_SOCKET,merge.timeout);
   if(action==='bind') {

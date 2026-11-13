@@ -77,6 +77,13 @@ test('workers own one branch; only the orchestrator session orders and integrate
   const token = mergeToken(dataDir, workspaceId), lead = { sessionId: orchestrator.session.id, token };
   await assert.rejects(host.invoke('merge.run', { sessionId: one.session.id, token, id: first.id }), /Solo la sesión orquestadora/);
   await assert.rejects(host.invoke('merge.run', { sessionId: orchestrator.session.id, id: first.id }), /Solo la sesión orquestadora/);
+  // The project's Phantom conversation has no terminal session: the merge token for the workspace is its proof.
+  await assert.rejects(host.invoke('merge.note', { workspaceId, token: 'f'.repeat(64), id: first.id, text: 'x' }), /Solo la sesión orquestadora/);
+  await assert.rejects(host.invoke('merge.note', { workspaceId, id: first.id, text: 'x' }), /Solo la sesión orquestadora/);
+  const mainEnv = { PHANTOM_WORKSPACE_ID: workspaceId, PHANTOM_MERGE_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: host.socketPath };
+  assert.equal((await agent(['note', first.id.slice(0, 8), 'Desde el chat de Phantom'], mainEnv)).note, 'Desde el chat de Phantom');
+  assert.deepEqual((await agent(['queue'], mainEnv)).queue.map(item => item.id).sort(), [first.id, second.id].sort());
+  await assert.rejects(agent(['submit'], mainEnv), /Falta la identidad de terminal/);
   await host.invoke('terminal.write', { sessionId: orchestrator.session.id, data: 'printf "LEAD_%s_%s\\n" "$PHANTOM_TERMINAL_ROLE" "${PHANTOM_MERGE_TOKEN:+token}"\n' });
   await until(async () => (await host.invoke('terminal.attach', { sessionId: orchestrator.session.id })).data.includes('LEAD_orchestrator_token'));
   const leadEnv = { ...orchestrator.env, PHANTOM_MERGE_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: host.socketPath };
