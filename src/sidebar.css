@@ -35,7 +35,7 @@
 .project-rail .rail-map-action { margin-top: var(--s-2); font-size: 12px; }
 .project-rail .rail-bottom { margin-top: auto; padding-top: var(--s-2); }
 .rail-system { display: flex; align-items: center; gap: 2px; margin-top: var(--s-2); }
-.rail-system .host-indicator { flex: 1; min-width: 0; padding: 0 4px 0 8px; gap: 6px; font-size: 10.5px; line-height: 1.4; }
+.rail-system .host-indicator { flex: 1; min-width: 0; padding: 0 4px 0 8px; gap: 6px; font-size: 11px; line-height: 1.4; }
 .rail-system .host-indicator i { flex-shrink: 0; }
 .rail-system > button { flex-shrink: 0; width: 28px; height: 30px; color: var(--muted); border-radius: var(--r-ctl); }
 .rail-system > button:hover, .rail-system > button.active { color: var(--ink); background: var(--fill-2); }

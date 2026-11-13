@@ -172,7 +172,9 @@ Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 
 `test/design-tokens.test.mjs` falla si: un `border-radius` usa otro valor (se admiten `0`, `50%`, `em` y los ajustes concéntricos `calc(token - 1px)`); un `box-shadow` no es `--shadow-rest`, `--shadow-float` o un anillo de estado (desplazamiento y desenfoque cero); reaparece un token retirado (`--line`, `--hairline-strong`, `--elev-*`, `--r-xs…xl`, `--object-*`, `--shadow-popover`, etc.); o una hoja supera su presupuesto de bordes en `test/design-budget.json`. El presupuesto solo baja: al quitar bordes, se reduce el número en el mismo cambio.
 
-Estado del presupuesto: la card de chat y terminal ya cumple la regla 1 (`chat.css` 25 → 14, `terminal.css` 7 → 1). El resto de hojas conserva su cifra de partida y está pendiente: `plugins.css`, `styles.css`, `repository.css` y `skills.css` son las más cargadas.
+Sin side-tabs: un borde lateral de color no marca tipo ni categoría (el tipo de memoria se lee en su glifo y etiqueta con tono). Skills usa el glifo de libro de `PanelIcons.js`, no el emblema genérico de IA.
+
+Estado del presupuesto: la card de chat y terminal ya cumple la regla 1 (`chat.css` 25 → 14, `terminal.css` 7 → 1); al quitar los side-tabs bajaron `branches.css`, `memory.css` y `repository.css`. El resto de hojas conserva su cifra de partida y está pendiente: `plugins.css`, `styles.css`, `repository.css` y `skills.css` son las más cargadas.
 
 ## Material y paleta
 
@@ -181,7 +183,7 @@ Estado del presupuesto: la card de chat y terminal ya cumple la regla 1 (`chat.c
 - **Acento.** Violeta `#a78bda` (clave `lilac`) para selección, foco y acción. Iris, Menta, Ámbar, Rosa y Cian siguen disponibles por proyecto.
 - **Estados.** `--working` azul frío, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado.
 - **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Los planos de trabajo (terminal, hilo, paneles) son opacos. `prefers-reduced-transparency` lo vuelve todo opaco.
-- **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Chrome a 12–13 px, mínimo 10,5 px. Iconos lucide y `PanelIcons.js` con trazo 1,75.
+- **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Chrome a 12–13 px, mínimo 10 px, siempre en píxeles enteros (sin medios píxeles). Las etiquetas van en caja natural, peso 600 y `--muted`; nunca en mayúsculas con tracking. Iconos lucide y `PanelIcons.js` con trazo 1,75.
 - **Atmósfera.** El fondo es por proyecto (Gengar, Aurora, Marea, Brasa, Grafito o imagen propia). El preset Gengar usa el arte oficial local (`assets/gengar-source.md`) como atmósfera atenuada, no como marca: la identidad es el glifo Phantom. El arte no se redistribuye fuera de uso personal.
 
 ## Lienzo y chrome

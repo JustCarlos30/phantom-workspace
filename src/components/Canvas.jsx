@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame, Sparkles, MessageCircle, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame, MessageCircle, LoaderCircle } from 'lucide-react';
 import Minimap from './Minimap';
 import TerminalPanelContent from './TerminalPanel';
 import TerminalCardContent from './TerminalCard';
@@ -17,7 +17,7 @@ import ReferencePanelContent, { CommentLayer } from './References';
 import { INLINE_LIMIT, readTransfer, toBase64, visibleComments } from '../hooks/references.mjs';
 import '../references.css';
 
-const icons = { ...PANEL_ICONS, 'skills-catalog': Sparkles };
+const icons = { ...PANEL_ICONS, 'skills-catalog': PANEL_ICONS['phantom-skills'] };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const editable = isEditingTarget;
 const defaultCamera = { x: 300, y: 84, zoom: 1 };

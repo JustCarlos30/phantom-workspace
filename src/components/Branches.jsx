@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownToLine, Check, FolderGit2, GitBranch, GitMerge, Layers, RefreshCw, Save, Search, Sparkles, SquareTerminal, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, Check, FolderGit2, GitBranch, GitMerge, Layers, RefreshCw, Save, Search, SquareTerminal, Trash2 } from 'lucide-react';
+import { PANEL_ICONS } from './PanelIcons';
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
 import { buildBranches, cardsOf, changeLabel, changeMix, changeTone, commitsText, contentByBranch, filesText, groupByDir, plural, shortBranch, span } from '../hooks/branches-model.mjs';
 import { statusLabel, statusTone } from '../hooks/phantom-desk.mjs';
@@ -8,6 +9,7 @@ import '../branches.css';
 // Ramas: every branch of the repository on one rail, with the worktree that
 // holds it and the work it still carries. Actions are explicit, one at a time,
 // and the host refuses anything that would lose work.
+const SkillsIcon = PANEL_ICONS['phantom-skills'];
 const POLL_MS = 8000;
 const REQUEST = { queued: 'En cola de Incorporaciones', merging: 'Incorporándose', conflict: 'Devuelta por conflicto', failed: 'Devuelta: checks fallidos' };
 const when = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
@@ -81,7 +83,7 @@ function Row({ row, base, content, catalog, busy, notice, mode, setMode, act, on
     <p className="br-summary">{row.summary}{row.last?.subject ? <span className="br-quiet"> · último commit: {row.last.subject}{row.last.at ? ` (${when(row.last.at)})` : ''}</span> : null}</p>
     <p className="br-meta" title={row.worktree?.path || ''}>{row.name ? <code>{row.name}</code> : 'Sin rama'}{row.worktree?.path && <span> · {row.worktree.path}</span>}</p>
     {(content?.skills.length > 0 || row.request || row.terminal?.step) && <div className="br-chips">
-      {content?.skills.length > 0 && <button type="button" className="br-chip is-button" onClick={() => onOpenPanel?.('skills-catalog')} title={content.skills.map(skill => skill.name).join('\n')}><Sparkles size={11} aria-hidden="true" />{plural(content.skills.length, 'Skill', 'Skills')} sin integrar</button>}
+      {content?.skills.length > 0 && <button type="button" className="br-chip is-button" onClick={() => onOpenPanel?.('skills-catalog')} title={content.skills.map(skill => skill.name).join('\n')}><SkillsIcon size={11} aria-hidden="true" />{plural(content.skills.length, 'Skill', 'Skills')} sin integrar</button>}
       {row.request && <span className="br-chip">{REQUEST[row.request]}</span>}
       {row.terminal?.step && <span className="br-chip" title={row.terminal.step}>{row.terminal.step.slice(0, 80)}</span>}
     </div>}

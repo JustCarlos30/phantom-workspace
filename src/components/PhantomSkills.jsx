@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Copy, ExternalLink, FileText, GitBranch, Lock, Plus, RefreshCw, Search, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, FileText, GitBranch, Lock, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { PANEL_ICONS } from './PanelIcons';
 import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from './PluginPrimitives';
 import { Markdown } from './SkillsMarkdown';
 import '../skills.css';
 import { itemsOf, linesOf, refOf } from '../hooks/plugin-model.mjs';
+
+const SkillsIcon = PANEL_ICONS['phantom-skills'];
 
 const exactRef = value => {
   const ref = refOf(value) || value;
@@ -169,7 +172,7 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
   const showList = wide || !side;
   return <div ref={root} className={`plugin-skills sk-root${wide ? ' is-wide' : ''}${side ? ' has-detail' : ''}`}>
     <header className="sk-head">
-      <div className="sk-title"><Sparkles size={16} /><div><h2>Biblioteca de Skills · Phantom</h2><p>{source.loading && !source.data ? 'Leyendo Phantom…' : `${counts.all} ${allVersions ? 'revisiones' : 'Skills'} · ${counts.workspace} de proyecto, ${counts.global} globales`}</p></div></div>
+      <div className="sk-title"><SkillsIcon size={16} /><div><h2>Biblioteca de Skills · Phantom</h2><p>{source.loading && !source.data ? 'Leyendo Phantom…' : `${counts.all} ${allVersions ? 'revisiones' : 'Skills'} · ${counts.workspace} de proyecto, ${counts.global} globales`}</p></div></div>
       <div className="pc-head-actions">
         <button type="button" className="sk-icon" aria-label="Actualizar biblioteca" title="Actualizar" disabled={source.loading} onClick={source.reload}><RefreshCw size={14} className={source.loading ? 'spinning' : ''} /></button>
         <Button tone="primary" icon={Plus} aria-expanded={creating} onClick={() => { setCreating(old => !old); setSelected(null); }}>Nueva Skill</Button>
@@ -187,7 +190,7 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
         {unavailable && <p className="sk-notice">Phantom no está disponible: {source.data.reason || 'sin motivo informado'}.</p>}
         {source.data && !unavailable && !Array.isArray(source.data.items) && <ErrorNotice error="La fuente no devolvió una biblioteca válida." retry={source.reload} />}
         {source.loading && !source.data && <div className="sk-skeleton is-list" role="status" aria-label="Leyendo Skills"><i /><i /><i /></div>}
-        {source.data && !source.loading && !source.error && !unavailable && Array.isArray(source.data.items) && !items.length && <EmptyState className="sk-empty" icon={Sparkles} title="No hay Skills nativas disponibles." description="Publica la primera Skill del proyecto: instrucciones versionadas que cualquier agente puede cargar." actions={<Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Publicar la primera Skill</Button>} />}
+        {source.data && !source.loading && !source.error && !unavailable && Array.isArray(source.data.items) && !items.length && <EmptyState className="sk-empty" icon={SkillsIcon} title="No hay Skills nativas disponibles." description="Publica la primera Skill del proyecto: instrucciones versionadas que cualquier agente puede cargar." actions={<Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Publicar la primera Skill</Button>} />}
         {items.length > 0 && !filtered.length && <EmptyState className="sk-empty" icon={Search} title="Sin resultados para esta búsqueda." actions={<button type="button" className="sk-link-button" onClick={() => { setQuery(''); setScope('all'); }}>Limpiar filtros</button>} />}
         {filtered.length > 0 && <div className="plugin-skill-list">{filtered.map((item, index) => {
           const ref = exactRef(item);
@@ -205,7 +208,7 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
       </nav>}
       {creating ? <div className="sk-detail"><SkillForm key={workspace.id} workspace={workspace} api={api} notify={notify} onSaved={published} onClose={() => setCreating(false)} /></div>
         : selected ? <SkillDetail key={`${workspace.id}:${refKey(exactRef(selected)) || selected.id}`} selection={selected} workspace={workspace} api={api} notify={notify} onOpenPanel={onOpenPanel} onPublished={published} onClose={() => setSelected(null)} />
-        : wide && items.length > 0 && <EmptyState className="sk-placeholder" icon={Sparkles} description="Elige una Skill para leer sus instrucciones, recursos y versiones." />}
+        : wide && items.length > 0 && <EmptyState className="sk-placeholder" icon={SkillsIcon} description="Elige una Skill para leer sus instrucciones, recursos y versiones." />}
     </div>
   </div>;
 }

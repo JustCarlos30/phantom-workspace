@@ -16,7 +16,7 @@
 .vl-insight { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid var(--hairline); padding: 14px 8px; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
 .vl-insight:hover { background: var(--surface-2); }
 .vl-insight[aria-pressed=true] { background: var(--accent-soft); }
-.vl-insight strong { font-size: 14px; }
+.vl-insight strong { font-size: 15px; }
 .vl-insight span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .vl-insight small { color: var(--muted); }
 .vl-detail { border-top: 1px solid var(--hairline); padding-top: 20px; }

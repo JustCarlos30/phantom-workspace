@@ -166,7 +166,7 @@
 .pc-next-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pc-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; margin: 0; border: 1px solid var(--hairline); border-radius: var(--r-ctl); overflow: hidden; background: var(--hairline); }
 .pc-facts div { padding: 9px 12px; background: var(--surface); min-width: 0; }
-.pc-facts dt, .pc-label { font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.pc-facts dt, .pc-label { font-size: 10px; font-weight: 600; color: var(--muted); }
 .pc-facts dd { margin: 2px 0 0; font-size: 13px; }
 .plugin-surface .pc-label { margin: 0 0 8px; font-size: 11px; }
 .pc-label + * + .pc-label, .pc-list + .pc-label, .pc-quiet + .pc-label { margin-top: 18px; }
