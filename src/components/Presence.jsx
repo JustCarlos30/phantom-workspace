@@ -13,11 +13,12 @@ export function Presence({ children, show = !!children, onExit }) {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const animations = [...root.current.children].map(element => {
       const backdrop = element.matches('.popover-dismiss,.rail-scrim,.app-modal-backdrop,.tw-overlay,.main-workspace,.project-rail,.canvas-region,.toast-stack');
-      const side = element.matches('.inspector-host,.attention-tray');
       const panel = element.matches('.canvas-node');
-      const shift = reduced || backdrop || panel ? '0 0' : side ? '14px 0' : '0 7px';
-      const rest = { opacity: 1, translate: '0 0', ...(panel && { scale: '1' }) };
-      const edge = { opacity: 0, translate: shift, ...(panel && { scale: reduced ? '1' : show ? '.98' : '.96' }) };
+      // Ghost motion: surfaces condense out of a haze and disperse back into
+      // it. Nothing slides; position is where the thing is, not how it got there.
+      const still = reduced || backdrop;
+      const rest = { opacity: 1, translate: '0 0', filter: 'blur(0px)', ...(!still && { scale: '1' }) };
+      const edge = { opacity: 0, translate: '0 0', filter: still ? 'blur(0px)' : show ? 'blur(8px)' : 'blur(12px)', ...(!still && { scale: show ? '.985' : '1.02' }) };
       return element.animate(show ? [edge, rest] : [rest, edge], {
         duration: reduced ? 60 : show ? 200 : panel ? 160 : 120,
         easing: show ? 'cubic-bezier(.16,1,.3,1)' : 'cubic-bezier(.4,0,1,1)',

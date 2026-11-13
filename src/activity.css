@@ -1,5 +1,5 @@
-.activity-strip { flex-shrink: 0; display: flex; justify-content: center; min-width: 0; padding: 5px 12px; background: var(--rail); border-bottom: 1px solid var(--line); z-index: 20; }
-.activity-notch { display: flex; align-items: center; justify-content: center; gap: 12px; min-width: 0; max-width: 100%; min-height: 30px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 0 0 9px 9px; background: var(--surface); font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.activity-strip { flex-shrink: 0; display: flex; justify-content: center; min-width: 0; padding: 5px 12px; background: var(--rail); border-bottom: 1px solid var(--hairline); z-index: 20; }
+.activity-notch { display: flex; align-items: center; justify-content: center; gap: 12px; min-width: 0; max-width: 100%; min-height: 30px; padding: 5px 12px; border: 1px solid var(--hairline); border-radius: 0 0 var(--r-ctl) var(--r-ctl); background: var(--surface); font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .activity-notch:hover, .activity-notch[aria-expanded=true] { background: var(--surface-2); border-color: var(--accent); }
 .activity-notch.needs-you>strong, .activity-warning, .terminal-activity-status.warning { color: var(--attention); }
 .terminal-activity-status.working { color: var(--working); }
@@ -8,28 +8,28 @@
 .activity-notch>.notch-freshness { font-size: 10px; }
 .activity-notch>strong { min-width: 0; overflow-wrap: anywhere; }
 .activity-notch svg { flex-shrink: 0; }
-.activity-tray { position: fixed; z-index: 46; top: 108px; right: 20px; width: min(570px, calc(100vw - 28px)); max-height: calc(100dvh - 126px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px; box-shadow: var(--shadow-popover); color: var(--ink); min-width: 0; }
+.activity-tray { position: fixed; z-index: 46; top: 108px; right: 20px; width: min(570px, calc(100vw - 28px)); max-height: calc(100dvh - 126px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-ctl); box-shadow: var(--shadow-float); color: var(--ink); min-width: 0; }
 .activity-tray .popover-heading { flex-shrink: 0; }
 .activity-tray-scroll { overflow: auto; min-height: 0; padding: 0 16px; overscroll-behavior: contain; }
-.activity-tray-scroll>section { padding: 16px 0; border-top: 1px solid var(--line-soft); }
+.activity-tray-scroll>section { padding: 16px 0; border-top: 1px solid var(--hairline); }
 .activity-tray h2 { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; margin: 0 0 10px; }
 .activity-tray h2 b { margin-left: auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .activity-source { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 8px 0; overflow-wrap: anywhere; }
 .activity-source { display: flex; flex-direction: column; gap: 4px; }
 .activity-source.source-error { color: var(--danger); }
 .activity-source>button { align-self: flex-start; }
-.activity-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); min-width: 0; font-size: 12px; }
+.activity-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--hairline); min-width: 0; font-size: 12px; }
 .activity-row:last-child { border-bottom: 0; }
 .activity-row>div { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
 .activity-row small { font-size: 11px; color: var(--muted); }
-.activity-tray button:not(.icon-button) { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; min-height: 29px; font-size: 11px; border: 1px solid transparent; border-radius: 5px; flex-shrink: 0; color: var(--ink); background: var(--surface-2); }
+.activity-tray button:not(.icon-button) { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; min-height: 29px; font-size: 11px; border: 1px solid transparent; border-radius: var(--r-mark); flex-shrink: 0; color: var(--ink); background: var(--surface-2); }
 .activity-tray button:not(:disabled):hover { background: color-mix(in srgb, var(--ink) 8%, var(--surface-2)); }
 .activity-tray button:disabled { opacity: .55; cursor: default; }
 .activity-tray button.activity-link { align-self: flex-start; background: transparent; color: var(--accent); text-align: left; overflow-wrap: anywhere; max-width: 100%; }
 .activity-base { display: flex; align-items: flex-end; gap: 8px; }
 .activity-base label { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; font-size: 11px; color: var(--muted); }
-.activity-base input { min-width: 0; width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--line-soft); border-radius: 5px; padding: 7px 9px; }
-.activity-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line-soft); font-size: 10px; color: var(--muted); }
+.activity-base input { min-width: 0; width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--hairline); border-radius: var(--r-mark); padding: 7px 9px; }
+.activity-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--hairline); font-size: 10px; color: var(--muted); }
 .terminal-activity-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); min-width: 0; line-height: 1.4; }
 .terminal-activity-status i { display: block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .node-header>.terminal-activity-status { max-width: 175px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: calc(9px * var(--map-label-scale, 1)); }
@@ -42,18 +42,18 @@
 @media (prefers-reduced-motion: reduce) { .activity-notch, .activity-tray { animation: none; transition: none; } }
 /* Plan limits: one block per provider, one meter per window. Neutral until a
    window nears its cap; then the same caution/danger inks as the chat card. */
-.activity-limit { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.activity-limit { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
 .activity-limit:first-of-type { padding-top: 4px; }
 .activity-limit>header { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.activity-limit-plan { padding: 2px 7px; border-radius: 99px; background: var(--fill); color: var(--muted); font-size: 10px; text-transform: capitalize; }
+.activity-limit-plan { padding: 2px 7px; border-radius: var(--r-pill); background: var(--fill); color: var(--muted); font-size: 10px; text-transform: capitalize; }
 .activity-limit-row { display: flex; flex-direction: column; gap: 5px; --limit-ink: var(--muted); }
 .activity-limit-row.limit-high { --limit-ink: var(--attention); }
 .activity-limit-row.limit-full { --limit-ink: #d99098; }
 .activity-limit-line { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--ink); }
 .activity-limit-line b { font-weight: 550; font-variant-numeric: tabular-nums; color: var(--ink); }
 .activity-limit-row:not(.limit-ok) .activity-limit-line b { color: var(--limit-ink); }
-.activity-limit-bar { height: 4px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
-.activity-limit-bar>i { display: block; height: 100%; border-radius: 2px; background: var(--limit-ink); }
+.activity-limit-bar { height: 4px; border-radius: var(--r-mark); background: var(--fill-2); overflow: hidden; }
+.activity-limit-bar>i { display: block; height: 100%; border-radius: var(--r-mark); background: var(--limit-ink); }
 .activity-limit-row.limit-ok .activity-limit-bar>i { background: color-mix(in srgb, var(--ink) 55%, transparent); }
 .activity-limit-row small { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .activity-summary-action.limit-high>span { color: var(--attention); }
@@ -64,7 +64,7 @@
 .activity-integration-base { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0 0 12px; font-size: 11px; color: var(--muted); }
 .activity-integration-base .rp-ref { max-width: min(260px, 75%); }
 .activity-branch-cards { display: grid; gap: 8px; min-width: 0; }
-.activity-branch-card { min-width: 0; padding: 12px; border-radius: var(--r-md); border-left: 2.5px solid var(--branch-color); background: var(--surface-2); }
+.activity-branch-card { min-width: 0; padding: 12px; border-radius: var(--r-obj); border-left: 2.5px solid var(--branch-color); background: var(--surface-2); }
 .activity-branch-card > header { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; }
 .activity-branch-card > header > svg { flex: none; color: var(--branch-color); }
 .activity-branch-card > header > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -72,7 +72,7 @@
 .activity-branch-stats .is-wip { color: var(--warning); }
 .activity-integration-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .activity-tray .activity-integrations .activity-integration-actions button { max-width: 100%; min-width: 0; min-height: 32px; white-space: normal; overflow-wrap: anywhere; text-align: left; }
-.activity-tray .activity-integrations button.activity-integrate { background: var(--accent-soft); color: var(--ink); border-radius: var(--r-sm); }
+.activity-tray .activity-integrations button.activity-integrate { background: var(--accent-soft); color: var(--ink); border-radius: var(--r-ctl); }
 .activity-tray .activity-integrations button.activity-integrate:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 24%, var(--surface)); }
 .activity-integrations .activity-warning, .activity-integration-notice { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .activity-integration-notice { margin: 10px 0; color: var(--success); }
@@ -83,7 +83,7 @@
 .activity-tray .activity-history .rp-graph button.rp-graph-row { display: grid; min-height: 28px; height: 28px; padding: 0 6px 0 4px; border: 0; border-radius: 0; background: transparent; font-size: 11px; }
 .activity-tray .activity-history .rp-graph button.rp-graph-row:hover { background: var(--fill-2); }
 .activity-tray .activity-history .rp-graph button.rp-graph-row:focus-visible { outline-offset: -2px; }
-.activity-tray .activity-history button.activity-open-repo { display: flex; justify-content: center; width: 100%; min-height: 32px; margin-top: 10px; border-radius: var(--r-sm); }
+.activity-tray .activity-history button.activity-open-repo { display: flex; justify-content: center; width: 100%; min-height: 32px; margin-top: 10px; border-radius: var(--r-ctl); }
 .activity-integration-details { margin-top: 14px; min-width: 0; }
 .activity-integration-details > summary { width: fit-content; padding: 5px 0; color: var(--muted); cursor: pointer; font-size: 11px; }
 .activity-integration-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
