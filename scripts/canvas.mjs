@@ -38,6 +38,11 @@ Tablero de referencias (imágenes, videos, sitios) y comentarios:
           [--request-id UUID]            Región normalizada 0–1 del contenido; frame base 0
   retry N                               Reintenta solo un handoff fallido, sin crear otro hilo
   add-version ID RUTA                    Importa un render nuevo enlazado, conservando el original
+Plugins (los mismos ajustes del Centro de Plugins):
+  plugins [--json]                      Plugins del proyecto: activado, configuración y paneles
+  plugin PLUGIN [--on|--off] [--set CLAVE=VALOR]… [--json]
+                                        Activa/desactiva y configura; muestra su estado actual
+  open-plugin PLUGIN [PANEL]            Abre (o vuelve a mostrar) un panel del plugin en el canvas
 ID: prefijo del id, del título o de la rama del panel. Opción global: --workspace RUTA`;
 
 export const ZONE_COLORS = ['iris', 'mint', 'amber', 'rose', 'slate'];
@@ -110,7 +115,8 @@ function flags(args) {
   const out = { _: [] };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (['--all', '--json', '--zones', '--dry-run', '--no-captions'].includes(a)) out[a.slice(2)] = true;
+    if (['--all', '--json', '--zones', '--dry-run', '--no-captions', '--on', '--off'].includes(a)) out[a.slice(2)] = true;
+    else if (a === '--set') { if (i + 1 >= args.length) throw new Error(`Falta el valor de --set\n\n${USAGE}`); (out.set ??= []).push(args[++i]); }
     else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--from', '--cols', '--at', '--time', '--author', '--remotion', '--seconds', '--fps', '--size', '--region', '--scope', '--end', '--element', '--editable-source', '--request-id'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
     else if (a.startsWith('--')) throw new Error(`Opción desconocida: ${a}\n\n${USAGE}`);
     else out._.push(a);
@@ -177,6 +183,22 @@ export function exportRemotion(dir, title, rows, { seconds = 3, fps = 30, width 
     fs.writeFileSync(path.join(root, MARKER), 'Exportado desde Phantom Workspace (canvas.mjs storyboard --remotion).\n');
   }
   return { root, shots: shots.length, seconds: shots.reduce((t, s) => t + s.frames, 0) / fps, fresh };
+}
+
+// Plugins match by id or by a prefix of their id or visible name ("bitacora" → video-log).
+const fold = text => String(text).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function pick(list, ref, kind) {
+  const q = fold(ref), exact = list.filter(item => fold(item.id) === q || fold(item.name) === q);
+  const hits = exact.length ? exact : list.filter(item => fold(item.id).startsWith(q) || fold(item.name).startsWith(q));
+  if (hits.length === 1) return hits[0];
+  throw new Error(hits.length ? `"${ref}" es ambiguo: ${hits.map(item => item.id).join(', ')}` : `No hay ningún ${kind} "${ref}". Disponibles: ${list.map(item => `${item.id} (${item.name})`).join(', ')}`);
+}
+export const resolvePlugin = (plugins, ref) => pick(plugins, ref, 'plugin');
+const resolvePanel = (plugin, ref) => pick(plugin.panels, ref, `panel en ${plugin.name}`);
+export function describePlugin(p) {
+  return [`${p.id}  ${p.name}  ${p.enabled ? 'activado' : 'desactivado'}`,
+    ...Object.entries(p.configuration).map(([key, field]) => `   ${field.label} (${key}): ${p.config?.[key] || '(vacío)'}`),
+    `   Paneles: ${p.panels.map(panel => `${panel.id} (${panel.name})`).join(', ') || 'ninguno'}`].join('\n');
 }
 
 export function describe(n) {
@@ -279,6 +301,43 @@ export async function main(args = process.argv.slice(2), env = process.env, call
   }
   if (action === 'reply') { need(2); const c = thread(ids[0]); await call('comment.reply', { workspaceId: w.id, id: c.id, text: ids[1], author: opt.author || 'Agente' }); return `Respuesta añadida al comentario #${c.number}.`; }
   if (action === 'resolve') { need(1); const c = thread(ids[0]); await call('comment.update', { workspaceId: w.id, id: c.id, patch: { resolved: true } }); return `Comentario #${c.number} resuelto.`; }
+  if (action === 'plugins' || action === 'plugin' || action === 'open-plugin') {
+    const { items } = await call('plugins.list', { workspaceId: w.id });
+    if (action === 'plugins') return opt.json ? items : items.map(describePlugin).join('\n\n');
+    need(1, false); let plugin = resolvePlugin(items, ids[0]);
+    if (action === 'open-plugin') {
+      if (ids.length > 2) throw new Error(USAGE);
+      if (!plugin.enabled) throw new Error(`${plugin.name} está desactivado. Actívalo con: plugin ${plugin.id} --on`);
+      const panel = ids[1] ? resolvePanel(plugin, ids[1]) : plugin.panels[0];
+      if (!panel) throw new Error(`${plugin.name} no tiene paneles`);
+      // Same rule as the app: one generic panel per plugin panel type.
+      const existing = nodes.find(n => n.type === panel.nodeType && !n.data?.cardId && !n.data?.ref);
+      if (existing) {
+        if (existing.data?.hidden) { await update(existing.id, { data: { ...existing.data, hidden: false } }); return `Mostrado de nuevo el panel ${existing.title} (${existing.id.slice(0, 8)}).`; }
+        return `El panel ${existing.title} ya está en el canvas (${existing.id.slice(0, 8)}).`;
+      }
+      const made = await call('node.create', { workspaceId: w.id, type: panel.nodeType, title: panel.name, width: 640, height: 400, ...beside(), data: { pluginId: plugin.id, panelId: panel.id } });
+      return `Abierto el panel ${panel.name} (${made.id.slice(0, 8)}).`;
+    }
+    if (ids.length !== 1) throw new Error(USAGE);
+    if (opt.on && opt.off) throw new Error('Usa --on o --off, no ambos');
+    const config = {};
+    for (const pair of opt.set || []) {
+      const at = pair.indexOf('='), key = at > 0 ? pair.slice(0, at).trim() : '';
+      if (!key) throw new Error(`--set espera CLAVE=VALOR (recibí "${pair}")`);
+      if (!Object.hasOwn(plugin.configuration, key)) throw new Error(`${plugin.name} no tiene la opción "${key}". Opciones: ${Object.keys(plugin.configuration).join(', ')}`);
+      const value = pair.slice(at + 1).trim();
+      config[key] = value && key !== 'model' && !path.isAbsolute(value) ? path.resolve(value) : value;
+    }
+    const patch = { ...(opt.on || opt.off ? { enabled: !!opt.on } : {}), ...(Object.keys(config).length ? { config } : {}) };
+    if (Object.keys(patch).length) plugin = await call('plugins.update', { workspaceId: w.id, id: plugin.id, patch });
+    let status = null;
+    if (plugin.enabled) { try { status = await call('plugins.status', { workspaceId: w.id, id: plugin.id }); } catch (error) { status = { available: false, reason: error.message }; } }
+    if (opt.json) return { ...plugin, status };
+    const summary = status ? (status.available === false ? `Estado: no disponible · ${status.reason || status.state || 'sin detalle'}` : `Estado: ${status.state || 'disponible'}${Array.isArray(status.insights) ? ` · ${status.insights.length} aprendizajes` : ''}`) : '';
+    const next = plugin.enabled && !nodes.some(n => plugin.panels.some(p => p.nodeType === n.type)) ? `Abre su panel con: open-plugin ${plugin.id}` : '';
+    return [Object.keys(patch).length ? `Guardado ${plugin.name}.` : '', describePlugin(plugin), summary, next].filter(Boolean).join('\n');
+  }
   if (action === 'list') { const rows = nodes.filter(n => opt.all || !n.data?.hidden).map(describe); return opt.json ? rows : rows.length ? rows.map(r => `${r.id}  ${r.type.padEnd(14)} ${r.title.slice(0, 40).padEnd(40)} ${String(r.x).padStart(6)},${String(r.y).padEnd(6)} ${r.width}x${r.height}${r.branch ? `  [${r.branch}]` : ''}${r.status ? `  ${r.status}` : ''}${r.hidden ? '  (oculto)' : ''}${r.zone ? `  (zona ${r.zone})` : ''}`).join('\n') : 'No hay paneles visibles.'; }
   if (action === 'arrange') {
     const by = opt.by || 'type'; if (!['type', 'branch', 'status', 'none'].includes(by)) throw new Error('--by debe ser type, branch, status o none');
