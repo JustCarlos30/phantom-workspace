@@ -65,3 +65,30 @@ test('CLI edits the real host state and the main chat is told about it', async t
   await assert.rejects(run('resize', 'Ideas', '10', '10'), /mínimo/);
   assert.match(phantomInstructions(w), /scripts\/canvas\.mjs" help/);
 });
+
+test('CLI activates, configures and opens a plugin panel through the host', async t => {
+  const { handleIntegration } = await import('../integrations/index.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-canvas-plugins-')), project = path.join(root, 'project'), log = path.join(root, 'bitacora.md');
+  fs.mkdirSync(project); fs.writeFileSync(log, '# Bitácora\n');
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const w = await host.invoke('workspace.open', { path: project }), call = (method, payload) => host.invoke(method, payload);
+  const run = (action, ...rest) => canvas([action, '--workspace', w.canonicalPath, ...rest], {}, call);
+  assert.match(await run('plugins'), /video-log\s+Bitácora de videos\s+desactivado/);
+  await assert.rejects(run('open-plugin', 'video-log'), /desactivado[\s\S]*--on/);
+  await assert.rejects(run('plugin', 'bitacora', '--set', 'otra=/x'), /no tiene la opción "otra"/);
+  await assert.rejects(run('plugin', 'zzz'), /No hay ningún plugin/);
+  const saved = await run('plugin', 'bitacora', '--on', '--set', `sourcePath=${log}`);
+  assert.match(saved, /Guardado Bitácora de videos[\s\S]*activado[\s\S]*bitacora\.md[\s\S]*open-plugin video-log/);
+  const prefs = (await host.invoke('plugins.list', { workspaceId: w.id })).items.find(p => p.id === 'video-log');
+  assert.deepEqual([prefs.enabled, prefs.config.sourcePath], [true, log]);
+  assert.match(await run('open-plugin', 'video-log'), /Abierto el panel Bitácora de videos/);
+  assert.match(await run('open-plugin', 'video-log', 'insights'), /ya está en el canvas/);
+  let panels = (await host.invoke('state.get')).workspaces[0].nodes.filter(n => n.type === 'video-log');
+  assert.equal(panels.length, 1); assert.deepEqual([panels[0].data.pluginId, panels[0].data.panelId], ['video-log', 'insights']);
+  await run('hide', panels[0].id);
+  assert.match(await run('open-plugin', 'video-log'), /Mostrado de nuevo/);
+  panels = (await host.invoke('state.get')).workspaces[0].nodes.filter(n => n.type === 'video-log');
+  assert.equal(panels[0].data.hidden, false);
+  assert.match(await run('plugin', 'video-log', '--off'), /desactivado/);
+});
