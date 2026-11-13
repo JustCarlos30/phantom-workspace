@@ -38,7 +38,7 @@
 .phantom-chat-title strong { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: -.01em; }
 .phantom-chat-title small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .phantom-chat-live { color: var(--pc-hue); }
-.phantom-chat-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; animation: phantom-pulse 1.4s ease-in-out infinite; }
+.phantom-chat-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 99px; background: currentColor; vertical-align: 1px; animation: phantom-pulse 1.4s ease-in-out infinite; }
 @keyframes phantom-pulse { 50% { opacity: .3; } }
 
 .phantom-chat-settings { display: flex; align-items: center; gap: 8px; padding: 8px 12px; flex-shrink: 0; border-bottom: 1px solid var(--hairline); }
@@ -68,9 +68,9 @@
 .phantom-chat-composer { max-width: none; padding: 0 12px 12px; }
 
 /* Voice: the field itself shows that the microphone is live. */
-.phantom-chat-mic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--muted); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.phantom-chat-mic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 99px; color: var(--muted); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .phantom-chat-mic:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
-.phantom-chat-mic.is-live { background: var(--danger); color: #fff; box-shadow: 0 0 0 calc(2px + var(--voice-level, 0) * 6px) color-mix(in srgb, var(--danger) 30%, transparent); }
+.phantom-chat-mic.is-live { background: var(--danger); color: var(--ink); box-shadow: 0 0 0 calc(2px + var(--voice-level, 0) * 6px) color-mix(in srgb, var(--danger) 30%, transparent); }
 .phantom-chat-mic:disabled { opacity: .4; cursor: not-allowed; }
 .phantom-chat-mic:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pc-field.is-listening { border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
@@ -78,7 +78,7 @@
 .phantom-chat-voice button { margin-left: auto; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
 .phantom-chat-voice button:hover { color: var(--ink); }
 .phantom-chat-wave { display: inline-flex; align-items: center; gap: 2px; height: 12px; }
-.phantom-chat-wave i { display: block; width: 2px; height: 100%; border-radius: 1px; background: var(--danger); transform: scaleY(calc(.25 + var(--voice-level, 0) * .75)); transition: transform 80ms linear; }
+.phantom-chat-wave i { display: block; width: 2px; height: 100%; border-radius: 2px; background: var(--danger); transform: scaleY(calc(.25 + var(--voice-level, 0) * .75)); transition: transform 80ms linear; }
 .phantom-chat-wave i:nth-child(2), .phantom-chat-wave i:nth-child(4) { transform: scaleY(calc(.2 + var(--voice-level, 0) * .5)); }
 .pc-field:not(.is-listening) .phantom-chat-wave i { background: var(--muted); animation: phantom-pulse 1.2s ease-in-out infinite; }
 

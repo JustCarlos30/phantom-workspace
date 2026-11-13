@@ -16,7 +16,7 @@ import { useActivity } from './hooks/useActivity';
 import { useReadyBranches } from './hooks/useReadyBranches';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
-import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Sparkles, Film } from 'lucide-react';
+import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Film } from 'lucide-react';
 import { PhantomGlyph as Ghost } from './components/Glyphs';
 import { PANEL_ICONS } from './components/PanelIcons';
 import { structuralShare } from './hooks/structuralShare';
@@ -43,7 +43,7 @@ const TYPES = [
   ['review', 'Revisión de video', Film, 'Frames, zonas y comentarios del taller de videos', 'project'],
   ['workflows', 'Workflows', Workflow, 'Secuencias de trabajo reutilizables', 'automation'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales', 'automation'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente', 'automation'],
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales', 'phantom'],
-  ['skills-catalog', 'Skills', Sparkles, 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],
+  ['skills-catalog', 'Skills', PANEL_ICONS['phantom-skills'], 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],
   ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto', 'phantom'],
   ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, panel.pluginId === 'video-log' ? 'Aprendizajes, evidencia y contexto de tu bitácora local' : `Panel nativo de ${panel.pluginId}`, 'plugins']),
 ].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);

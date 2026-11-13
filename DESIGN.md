@@ -74,11 +74,14 @@ typography:
     fontWeight: 500
     lineHeight: 1.4
 rounded:
+  xxxs: "2px"
+  xxs: "4px"
   xs: "6px"
   sm: "9px"
   md: "12px"
   lg: "16px"
   xl: "22px"
+  pill: "99px"
 spacing:
   compact: "4px"
   field-gap: "5px"
@@ -149,6 +152,20 @@ components:
 
 # Design System: Phantom Workspace
 
+## Limpieza de AI slop (2026-11-12)
+
+Esta revisión registra la limpieza integrada y prevalece sobre las descripciones anteriores de los elementos afectados.
+
+- **Navegación:** sin side-tabs; las rutas de panel y los controles de cada herramienta mantienen la navegación directa.
+- **Skills:** icono de libro, compartido con la iconografía funcional del workspace.
+- **Selección y foco:** sin halos de 3 px en cards ni en el compositor del chat. La selección se reconoce por el borde y el tono; el foco de teclado conserva su contorno accesible.
+- **Etiquetas:** sin transformación a mayúsculas; se conserva la capitalización natural de nombres y textos.
+- **Radios:** escala única de 2/4/6/9/12/16/22/99px, recogida en `rounded` del frontmatter. Los extremos de 2 y 4 px cubren detalles pequeños; 99 px queda reservado para cápsulas.
+- **Tipografía:** rampa de tamaños en píxeles enteros, sin medios píxeles. Se conservan las compensaciones de zoom y los interlineados proporcionales.
+- **Tema:** las superficies, tintes y sombras se expresan mediante los tokens vigentes; se retiran las referencias a literales del tema claro eliminados.
+
+Este registro documental no acredita una validación visual de la limpieza. Los resultados de los checks corresponden al controlador.
+
 ## Estados vacíos
 
 `src/components/EmptyState.jsx` comparte la anatomía de icono, título, descripción, detalles, acciones y pista; `src/empty-state.css` controla su geometría. Los mensajes de carga, error y estado pertenecen a su fuente.
@@ -163,9 +180,9 @@ components:
 
 Pulido sin cambio de estilo (bloque final de `src/canvas-ui.css`). Tres reglas: lo elegido se ve sin dudar, cada borde cierra sobre su propio radio y todo cambio de estado se suaviza con la única curva.
 
-- **Selección.** La card seleccionada lleva el borde completo en acento y un anillo de 3 px al 34 % (antes 26 %, casi invisible sobre el fondo oscuro), con la costura de la cabecera teñida al 22 %. El contorno existe siempre con el mismo grosor y offset en transparente, así que al seleccionar solo se funde el color, sin saltos.
+- **Selección.** La card seleccionada lleva el borde completo en acento, con la costura de la cabecera teñida. La limpieza posterior retira el halo; el cambio de estado se expresa por color, sin saltos de geometría.
 - **Foco.** La card enfocada no lleva cromo de selección: borde parejo `--hairline-strong` y costura neutra. Se retira el borde superior de acento, que sobre un radio de 16 px se desvanecía en las esquinas y parecía un fallo de render. La animación de llegada recorta con `--r-lg`, no con 10 px, para que las esquinas no se cuadren y salten al terminar.
-- **Superficies de escritura.** La nota no dibuja anillo interior (era un rectángulo de esquinas rectas dentro de la card redondeada); el cursor basta. El compositor del chat recibe el anillo del tono del proveedor que ya describía «Vidrio nocturno» (borde al 48 % y halo de 3 px al 14 %).
+- **Superficies de escritura.** La nota no dibuja anillo interior (era un rectángulo de esquinas rectas dentro de la card redondeada); el cursor basta. El compositor del chat conserva el borde del tono del proveedor, sin halo tras la limpieza posterior.
 - **Fluidez.** Botones, enlaces, `summary`, campos y roles interactivos suavizan fondo, borde, color, sombra y opacidad con `--dur-fast` y `--ease-out` mediante `:where()` (especificidad cero: lo que ya declara su transición la conserva). El chevron del selector de proyecto gira con `--dur`. Movimiento reducido sigue anulándolo todo desde `styles.css`.
 - **Radios y anillos.** Las esquinas sueltas de 7–8 px (botones de cabecera, rail, campos de renombrado) pasan a `--r-sm`. El anillo de teclado genérico baja de 3 a 2 px de offset; los anillos interiores específicos (rail, dock, listas) no cambian.
 
@@ -241,9 +258,9 @@ Carlos pidió conservar el carácter de Phantom pero limpio, «like Apple» y co
 - **Material.** El chrome (rail, barras superiores, dock, navegación, minimapa, inspector, menús, paleta, toasts) es vidrio: `--glass` (64 % de superficie) o `--glass-thick` (84 %, planos de lectura) con `backdrop-filter: blur(28px) saturate(170%)`, hairline blanca al 13 % y una sola sombra suave con desplazamiento. Los planos de trabajo (terminal, hilo del chat, cuerpo de herramientas, paneles del mapa) siguen opacos. `prefers-reduced-transparency` vuelve todo opaco.
 - **Planos sin relieve.** Nada de degradados, luces interiores ni sombras hundidas en controles: los planos difieren por un tono y una hairline. Los rellenos de control salen de una sola escalera blanca-alfa (`--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %).
 - **Paleta.** Índigo noche, nunca negro puro (tokens en el frontmatter). Lila sigue siendo el acento predeterminado; se añade **Cian** (`#6fe3f2`, el acento del escritorio). El ANSI de la terminal es el de kitty/Neón Suave (`src/components/TerminalPanel.jsx`).
-- **Tipografía.** `--sans`: Inter → SF Pro → sistema. `--mono`: Monaspace Neon → GeistMono → JetBrains Mono. Las fuentes no se empaquetan: se usan las del sistema con esa cadena de respaldo. Texto de chrome 12–13 px; el mínimo sube de 10 a 10,5–11 px. Los iconos lucide usan trazo 1,75.
+- **Tipografía.** `--sans`: Inter → SF Pro → sistema. `--mono`: Monaspace Neon → GeistMono → JetBrains Mono. Las fuentes no se empaquetan: se usan las del sistema con esa cadena de respaldo. Texto de chrome 12–13 px; tamaños de apoyo de 10 y 11 px, sin medios píxeles. Los iconos lucide usan trazo 1,75.
 - **Radios concéntricos.** `--r-xs` 6 · `--r-sm` 9 · `--r-md` 12 · `--r-lg` 16 · `--r-xl` 22. El radio de una isla es el de su control interior más su padding (dock 20 = 12 + 8; rail 22 = 12 + 10). Las cápsulas (99px) son solo para controles pequeños: chips, acciones de pie de card, estado del agente.
-- **Selección.** Un panel seleccionado lleva borde de acento y un anillo de 3 px al 26 %; filas seleccionadas usan `--fill-2` o `--accent-soft` con texto en tinta, no en acento.
+- **Selección.** Un panel seleccionado lleva borde de acento sin halo; filas seleccionadas usan `--fill-2` o `--accent-soft` con texto en tinta, no en acento.
 - **Quién responde.** En el chat, la barra superior (40 px: identidad, ubicación, estado) lleva un selector compacto «Claude ▾» y el segmentado vive en el estado vacío; el compositor lleva modelo, permisos (en tinta sobre relleno, nunca ámbar: el ámbar es «te necesita») y contexto, y los permisos pendientes se anclan sobre él. Claude · OpenCode · Terminal es un control segmentado (`.pc-modes`): pista `--fill`, segmento activo elevado con texto en tinta y glifo en el tono del proveedor. Cada proveedor tiene un glifo y un tono fijos (`src/components/Glyphs.jsx`): Claude sigue el acento del proyecto, OpenCode es menta, otros agentes azul, shell neutro. El mismo glifo aparece en el avatar del chat, la identidad de la card y el selector de modelo.
 - **Card de terminal.** Cabecera de 44 px con el glifo del tipo en una tesela; fila de identidad (segmentado, proveedor detectado, estado como cápsula a la derecha, paso actual debajo); pozo de salida a sangre; pie de 44 px con acciones en cápsula.
 - **Pasos y bloques del chat.** Las llamadas a herramientas de un turno son una lista plana con hairlines, una tesela de 22 px por tipo (tonos del ANSI) y la fila en curso con un lavado del tono del proveedor. Razonamiento es una cápsula desplegable; código y permisos son planos con hairline; el compositor es un campo de radio 16 con anillo de foco del proveedor.
@@ -289,7 +306,7 @@ La intensidad controla conjuntamente arte y atmósfera; el modo foco reduce esa 
 
 A personal development studio: graphite navigation and opaque working planes over an optional atmospheric canvas. Compact native controls keep projects, panels and commands within reach. Focusing a panel quiets the personal background while preserving spatial identity and the route back to the map.
 
-This replaces the superseded light “Atlas de estudio” world at the user's request. `.impeccable/surfaces/workspace.md` records the pinned dark, Figma-inspired DX direction; it is code-led, not a randomly selected concept or comp reproduction. `src/styles.css` remains the layout/input base and imports `src/tools.css`; `src/App.jsx` imports `src/studio.css` after that base. **The shipping visual authority is the resulting cascade with `studio.css` overrides**, not the light literals left in the base. Appearance state comes from `src/hooks/useAppearance.js`, `src/components/Appearance.jsx` and their App integration. Frontmatter captures reusable values; the sidecar extends it with previews, depth and behavior.
+This replaces the superseded light “Atlas de estudio” world at the user's request. `.impeccable/surfaces/workspace.md` records the pinned dark, Figma-inspired DX direction; it is code-led, not a randomly selected concept or comp reproduction. `src/styles.css` remains the layout/input base and imports `src/tools.css`; `src/App.jsx` imports `src/studio.css` after that base. **The shipping visual authority is the resulting cascade with the current theme tokens and overrides.** Appearance state comes from `src/hooks/useAppearance.js`, `src/components/Appearance.jsx` and their App integration. Frontmatter captures reusable values; the sidecar extends it with previews, depth and behavior.
 
 **Key Characteristics:**
 - Graphite shell, opaque tools, iris selection and optional personal atmosphere.
@@ -357,7 +374,7 @@ Opaque tonal planes and fine seams carry most depth. Soft black shadows lift flo
 - **Floating dock / zoom:** `0 8px 24px #0005` (`--shadow-float`).
 - **Popover:** `0 16px 40px #0006` (`--shadow-popover`).
 - **Palette / voice:** `0 18px 64px #0007`; **narrow inspector:** `-12px 0 35px #0004`.
-- Retained local base shadows: app dialog `0 20px 70px #0f1b3555`, inline-name error `0 4px 14px #202c4420`, and canvas busy `0 4px 15px #202c441a`. These are not new studio shadow tokens.
+- App dialogs, inline-name errors and canvas busy treatments use the current theme's shadow tokens.
 
 **The Opaque Work Rule.** Personal atmosphere belongs behind the canvas; terminal and tool operating planes stay opaque.
 
@@ -367,7 +384,7 @@ Native browser content is an Electron WebContentsView, not a CSS stacking layer:
 
 ## Shapes
 
-Precise rounded rectangles, not universal pills. Frames retain 10px rounding and 1px borders; selected map panels switch the 1px frame border to the accent (no extra outline), while focused panels use the seam border. Node headers and terminal wells separate by tone, without inner borders. Dock rounding is 12px; presets 8px; shell buttons/terminal wells/upload 7px; panel rows/icon controls 6px; fields/tool controls 5px; badges 3px. Circular accent swatches communicate palette choice. Icons are stroked SVGs.
+Precise rounded rectangles, not universal pills. Use the 2/4/6/9/12/16/22/99px radius scale recorded in the frontmatter. Selected map panels switch the frame border to the accent without a halo, while focused panels use the seam border. Node headers and terminal wells separate by tone, without inner borders. Reserve 99px for small capsule controls. Circular accent swatches communicate palette choice. Icons are stroked SVGs.
 
 ## Components
 
@@ -427,7 +444,7 @@ Only focused, unobscured browser panels display the native view; overview captur
 - **Do** quote the studio evidence and scoped verdict with their verification limits.
 
 ### Don't:
-- **Don't** restore the superseded light palette from base CSS literals or old documentation.
+- **Don't** restore the superseded light palette from old documentation.
 - **Don't** treat optional local uploads, runtime captures or review screenshots as shipping identity assets.
 - **Don't** redirect terminal keystrokes through canvas navigation or inspector fields.
 - **Don't** infer mobile readiness, whole-product approval or a clean general suite from this packet.
