@@ -18,7 +18,7 @@ Reference: node `reference` con `data.tags?:string[]`; research usa exactamente 
 
 `window.phantom.invoke(method,payload={})` → Promise resultado; errores rechazados con mensaje útil. `window.phantom.onEvent(callback)` → unsubscribe. Evento `{type,workspaceId?,sessionId?,...}`. `window.phantom.platform` literal Linux. No APIs Node en renderer remoto.
 
-Renderer sin bridge muestra 'Abre la aplicación de escritorio' (no datos fake). Puedes usar test bridge solo dentro de pruebas.
+Renderer sin bridge muestra 'Abre la aplicación de escritorio' (no datos fake), salvo la ruta exacta `/mobile`, que carga la aplicación móvil dedicada y su transporte HTTP. Puedes usar test bridge solo dentro de pruebas.
 
 ## Host RPC
 
@@ -41,6 +41,26 @@ Socket Unix privado en directorio de estado. Una línea JSON por mensaje: reques
 - `attention.list {workspaceId}`, `.ack {workspaceId,id}`, `.create {workspaceId,title,source,ref?}`.
 - `storage.export {includeHistory?}` → JSON portable sin secrets/transcript default; `.import {data}` valida y nunca ejecuta.
 - `host.shutdown` explícito termina procesos de este host y daemon.
+
+### Acceso móvil local
+
+`host/mobile.mjs` administra un listener HTTP independiente, opt-in, en memoria, cerrado por `host.close`. No se restaura al reiniciar. Métodos de control por socket privado y allowlist desktop, nunca por móvil:
+
+- `mobile.status {}` → `{enabled,interfaces:[{name,address}],workspaceId,url,pairingExpiresAt,devices:[{id,name,createdAt,lastSeenAt,expiresAt}]}`. No devuelve secretos.
+- `mobile.start {workspaceId,address,port?:0}` → status + `pairing:{code,expiresAt}`. Solo una IPv4 LAN privada detectada (loopback admitido para pruebas); puerto 0 o entero 1024–65535. Rechaza activación duplicada. Sirve el build `dist` existente, sin fallback a source.
+- `mobile.stop {}` → status, corta conexiones y borra autorizaciones. `mobile.pairing {}` → `{code,expiresAt}`, sustituye el código anterior sin revocar dispositivos ya autorizados. `mobile.revoke {id}` → status, elimina el bearer correspondiente y cierra sus conexiones.
+
+`GET /mobile` sirve el HTML del build; únicamente assets canónicos de `dist/assets` de extensiones estáticas permitidas se añaden a una allowlist en la activación. Rechaza query, traversal, symlinks, rutas source/home y assets reemplazados. Cabeceras `no-store`, `nosniff`, `no-referrer` y CSP self-only sin frames. El Host debe coincidir literalmente con la IPv4/puerto servido; Origin ajeno se rechaza también en assets. No CORS, cookies ni autorización ambiental.
+
+`POST /api/pair` con Origin exacto y JSON `{code,name?}` consume un secreto aleatorio de 256 bits, de un uso y 120 s de vida; devuelve `{token,expiresAt}`. Bearer de 256 bits, ocho horas, solo en memoria del host (indexado por hash) y `sessionStorage` móvil. Nunca en URL/logs. Máximo diez intentos globales/minuto y ocho dispositivos. HTTP requiere red de confianza y no ofrece confidencialidad frente a observadores de la LAN; Ajustes lo advierte.
+
+`POST /api/rpc` requiere Origin exacto, JSON y `Authorization: Bearer …`. Envelope `{method,payload?:{},requestId?}` → `{result}` o `{error}` con estado HTTP. Allowlist independiente: `sessions.list`, `terminal.list/attach/write/stop`, `chat.get/send/stop/permission.answer/question.answer`. `sessions.list` devuelve solo `{workspace:{id,name},sessions:[{nodeId,title,kind,provider,terminals:[{id,status,createdAt}]}]}`. Sin settings/env/rutas/worktrees/pids ni metadatos del proveedor. `chat.get` proyecta mensajes, partes explícitas, estado y cola; no expone sesiones/tokens/metadatos internos del motor. La conversación puede contener texto de rutas o comandos escrito por usuario/agente, como parte del hilo autorizado.
+
+El alcance es el workspace elegido al activar, independientemente del proyecto seleccionado después en el escritorio. Cada operación valida que node/session sigue perteneciendo a ese workspace, incluido el chat principal `phantom:<workspaceId>`. Si se envía workspaceId debe coincidir. Campos ajenos a cada método se rechazan. No se expone proxy RPC ni gestión host/git/files/desktop. `terminal.attach {sessionId}` móvil devuelve `{status,seq,lines}` de una captura en texto acotada, distinta del snapshot ANSI desktop; nunca crea procesos. El móvil permite permisos solo `allow`/`deny` de una vez; las preguntas usan el contrato existente `{nodeId,requestId,answers}` o null explícito para omitir.
+
+Límites: 64 KiB por body, ocho solicitudes simultáneas, 32 sockets, 120 solicitudes/minuto por dispositivo, hilo de 200 mensajes/100 partes y respuesta de 2 MiB. Cada escritura requiere `requestId`; se conserva su resultado/promesa, incluso errores, durante la vida del bearer, hasta 256 acciones sin expulsar identidades. Repetir identidad y contenido no repite la acción; cambiar contenido se rechaza. El cliente nunca reintenta escrituras automáticamente, tampoco al reconectar. Una acción ya aceptada puede seguir ejecutándose aunque se cierre su conexión.
+
+Polling móvil secuencial cada dos segundos, cancelado al salir/cambiar sesión y pausado con página oculta. Error de red detiene lecturas, conserva la vista y exige reconexión explícita; 401 borra el bearer y vuelve al emparejamiento. No hay creación/reinicio de agentes o terminales al visitar/restaurar. Historial completo, configuración, archivos, cola y creación de procesos se gestionan en escritorio. Pruebas: `test/mobile.test.mjs` y `test/mobile-browser.mjs`; solo fixtures aislados en loopback, sin perfiles/sesiones del usuario. Evidencia browser: `/tmp/phantom-mobile-evidence`; la implementación del check no acredita su ejecución.
 
 ## Routing integraciones
 

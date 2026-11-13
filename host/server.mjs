@@ -15,6 +15,7 @@ import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle, ca
 import { validatePluginPanel } from '../shared/plugins.mjs';
 import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
+import { MobileAccess } from './mobile.mjs';
 
 function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
@@ -48,7 +49,7 @@ export function probeSocket(socketPath) { return new Promise(resolve => { const 
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
 }
-export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations}={}) {
+export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions}={}) {
   assert(!process.versions.electron,'Run the host with system Node, never Electron');
   dataDir=path.resolve(dataDir); fs.mkdirSync(dataDir,{recursive:true,mode:0o700}); fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock'), lockPath=path.join(dataDir,'host.lock');
@@ -57,7 +58,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,chats,merges,branches,repo,server,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,branches,repo,server,mobile,closingPromise,ownsSocket=false;
   const clients=new Set();
   const limits=createLimits();
   const outputs = new WeakMap();
@@ -93,6 +94,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   async function invoke(method,p={}) {
     assert(!closingPromise,'Host is shutting down');
     text(method,'method',128); object(p);
+    if(method==='mobile.status') return mobile.status();
+    if(method==='mobile.start') return mobile.start(p);
+    if(method==='mobile.stop') return mobile.stop();
+    if(method==='mobile.pairing') return mobile.pairing();
+    if(method==='mobile.revoke') return mobile.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
     if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
     if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
@@ -249,6 +255,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(closingPromise)return closingPromise;
     closingPromise=(async()=>{
       try {
+        await mobile?.stop();
         // Let short RPCs finish, then stop integration-owned work; never import
         // production adapters solely to close a host using injected fixtures.
         await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
@@ -266,6 +273,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
+    mobile=new MobileAccess({...mobileOptions,store,terminals,chats});
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};
