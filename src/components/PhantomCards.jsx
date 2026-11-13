@@ -102,7 +102,7 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
       <button type="button" className="pc-icon pc-back" aria-label="Volver a la mesa" onClick={onClose}><ArrowLeft size={15} /></button>
       <div className="pc-contract-title">
         <div className="pc-contract-meta"><StatusPill status={status} /><span>{native?.kind === 'card' ? 'Card coordinada' : native?.kind || 'Card'}</span><code>{id}</code></div>
-        <h2>{native ? goalOf(native) : catalog?.goal || id}</h2>
+        <h2 className="pc-goal-summary">{native ? goalOf(native) : catalog?.goal || id}</h2>
       </div>
       <button type="button" className="pc-icon" aria-label="Actualizar detalle, eventos y controladores" title="Actualizar" onClick={reload}><RefreshCw size={14} className={detail.loading ? 'spinning' : ''} /></button>
       <button type="button" className="pc-icon pc-close" aria-label="Cerrar detalle" onClick={onClose}><X size={15} /></button>
@@ -111,6 +111,7 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
     {detail.error && <ErrorNotice error={detail.error} retry={detail.reload} />}
     {value?.available === false && <p className="pc-notice">Phantom no está disponible: {value.reason || 'sin motivo informado'}.</p>}
     {ready && <>
+      <details className="pc-full-goal"><summary>Objetivo completo</summary><p>{goalOf(native)}</p></details>
       {catalog?.reason && status === 'blocked' && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />{catalog.reason}</p>}
       <section className="pc-next" aria-label="Siguiente paso">
         <div className="pc-next-copy"><strong>Siguiente paso</strong><span>{available.length ? 'Solo se muestran las acciones que Phantom admite ahora para esta Card.' : 'Phantom no admite acciones sobre esta Card en su estado actual.'}</span></div>

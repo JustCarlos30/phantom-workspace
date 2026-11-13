@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
 import { GUARD_MARKER, mergeToken, integrationPolicy } from '../host/merge-guard.mjs';
 import { main as agent } from '../scripts/agent.mjs';
+import { Merges } from '../host/merges.mjs';
 
 const until = async (fn, ms = 8000) => { const end = Date.now() + ms; while (Date.now() < end) { const value = await fn(); if (value) return value; await new Promise(r => setTimeout(r, 30)); } throw new Error('Timed out'); };
 // Git as a process of a given terminal would run it: only the environment tells the guard who is asking.
@@ -60,7 +61,11 @@ test('workers own one branch; only the orchestrator session orders and integrate
   commit(two, 'dos\n', 'Dos cambia shared');
   status = await host.invoke('merge.status', { workspaceId });
   assert.deepEqual(status.active.map(item => [item.title, item.ahead, item.overlaps[0]?.path, item.overlaps[0]?.with]), [['Uno', 1, 'shared.txt', ['Dos']], ['Dos', 1, 'shared.txt', ['Uno']]]);
+  host.store.getWorkspace(workspaceId).nodes.find(n => n.id === one.node.id).data.agent = { cardId: 'fixture-card-at-submit' };
   const first = await agent(['submit', 'Uno: nuevo contenido'], { ...one.env, PHANTOM_WORKSPACE_SOCKET: host.socketPath });
+  assert.equal(first.cardId, 'fixture-card-at-submit');
+  host.store.getWorkspace(workspaceId).nodes.find(n => n.id === one.node.id).data.agent.cardId = 'fixture-card-later';
+  assert.equal((await host.invoke('merge.status', { workspaceId })).queue[0].cardId, 'fixture-card-at-submit');
   const second = await host.invoke('merge.submit', { sessionId: two.session.id, summary: 'Dos: otro contenido' });
   assert.deepEqual([first.position, second.position], [1, 2]);
   assert.equal(host.store.getWorkspace(workspaceId).nodes.find(n => n.id === one.node.id).data.agent.status, 'review');
@@ -114,6 +119,42 @@ test('workers own one branch; only the orchestrator session orders and integrate
   status = await host.invoke('merge.configure', { workspaceId, enabled: false });
   assert.equal(status.enabled, false); assert.equal(fs.existsSync(path.join(repository, '.git/hooks/reference-transaction')), false);
   await assert.rejects(host.invoke('merge.submit', { sessionId: two.session.id }), /no está activo/);
+});
+
+test('merge review inspects the submitted commit despite branch movement, rebinding or a removed terminal', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-merge-review-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => gitAs({}, root, ...args);
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  fs.writeFileSync(path.join(root, 'base.txt'), 'base\n'); git('add', '.'); git('commit', '-m', 'Base');
+  const baseOid = git('rev-parse', 'HEAD');
+  git('checkout', '-b', 'worker');
+  fs.writeFileSync(path.join(root, 'sent.txt'), 'submitted content\n'); git('add', '.'); git('commit', '-m', 'Sent');
+  const headOid = git('rev-parse', 'HEAD');
+  fs.writeFileSync(path.join(root, 'later.txt'), 'must not appear\n'); git('add', '.'); git('commit', '-m', 'Later');
+  git('checkout', 'main');
+  const request = { id: 'request', nodeId: 'worker-node', title: 'Worker', branch: 'worker', cardId: 'card-at-submit', headOid, status: 'queued' };
+  const workspace = { id: 'fixture', path: root, nodes: [{ id: 'worker-node', type: 'terminal', title: 'Worker', data: { worktree: { branch: 'worker', path: root }, agent: { cardId: 'rebound-card' } } }], integration: { enabled: true, queue: [request] } };
+  const merges = new Merges({ store: { state: { workspaces: [workspace] } }, terminals: { sessions: [] } });
+  let result = await merges.status(workspace, request.id);
+  assert.equal(result.queue[0].stale, true);
+  assert.equal(result.queue[0].cardId, 'card-at-submit');
+  assert.equal(result.queue[0].inspection.baseOid, baseOid);
+  assert.equal(result.queue[0].inspection.headOid, headOid);
+  assert.deepEqual(result.queue[0].files, ['sent.txt']);
+  assert.match(result.queue[0].inspection.diff, /submitted content/);
+  assert.doesNotMatch(result.queue[0].inspection.diff, /later.txt|must not appear/);
+  assert.equal((await merges.status(workspace)).queue[0].inspection.diff, undefined, 'diff is read only on demand');
+  workspace.nodes = [];
+  result = await merges.status(workspace, request.id);
+  assert.equal(result.queue[0].stale, null);
+  assert.deepEqual(result.queue[0].files, ['sent.txt']);
+  assert.equal(result.queue[0].cardId, 'card-at-submit');
+  request.headOid = 'f'.repeat(40);
+  result = await merges.status(workspace, request.id);
+  assert.equal(result.queue[0].inspection.available, false);
+  assert.equal(result.queue[0].fileCount, null, 'unreadable commit is not zero changed files');
+  assert.equal(result.queue[0].checks, undefined, 'queued is not passed checks');
 });
 
 test('the guard never replaces hooks it does not own, and policies name each role', async t => {
