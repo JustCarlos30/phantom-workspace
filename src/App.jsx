@@ -16,6 +16,7 @@ import { useActivity } from './hooks/useActivity';
 import { useReadyBranches } from './hooks/useReadyBranches';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
+import ProjectSwitcher from './components/ProjectSwitcher';
 import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Film } from 'lucide-react';
 import { PhantomGlyph as Ghost } from './components/Glyphs';
 import { PANEL_ICONS } from './components/PanelIcons';
@@ -110,6 +111,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [tools, setTools] = useState(false);
   const [list, setList] = useState(false);
   const [sidebar, setSidebar] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
   const [railCollapsed, setRailCollapsed] = useState(() => { try { return localStorage.getItem('phantom.rail') === 'collapsed'; } catch { return false; } });
   const toggleRail = () => setRailCollapsed(v => { try { localStorage.setItem('phantom.rail', v ? 'open' : 'collapsed'); } catch { /* per-viewer preference only */ } return !v; });
   const [railOwnsFocus, setRailOwnsFocus] = useState(false);
@@ -138,6 +140,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const railRef = useRef(null);
   const projectRename = useInlineName({ stage: (id, name) => patch(id, null, { name }), flush, registerBeforeFlush });
   const workspace = state?.workspaces?.find(w => w.id === state.activeWorkspaceId);
+  useEffect(() => { setContextMenu(null); }, [workspace?.id, railCollapsed, sidebar]);
   useReadyBranches(api, workspace, connection, notify);
   const activity = useActivity(workspace, connection, model.stateReadAt);
   const activityButton = useRef(null);
@@ -331,9 +334,12 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     const openingFrame = requestAnimationFrame(() => railRef.current?.querySelector('.rail-close')?.focus({ preventScroll: true }));
     const handleKey = e => {
       if (!window.matchMedia('(max-width: 850px)').matches) return;
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setSidebar(false); }
+      if (e.key === 'Escape') {
+        if (e.target.closest('.context-switcher') && (e.target.closest('.project-switcher[open]') || e.target.closest('.rail-spaces')?.querySelector('[aria-expanded="true"]'))) return;
+        e.preventDefault(); e.stopPropagation(); setSidebar(false);
+      }
       if (e.key !== 'Tab') return;
-      const controls = [...railRef.current.querySelectorAll('button:not(:disabled),summary')].filter(el => el.getClientRects().length && (!el.closest('details:not([open])') || el.tagName === 'SUMMARY'));
+      const controls = [...railRef.current.querySelectorAll('button:not(:disabled),summary,input:not(:disabled)')].filter(el => el.getClientRects().length && (!el.closest('details:not([open])') || el.tagName === 'SUMMARY'));
       const first = controls[0], last = controls.at(-1);
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
@@ -411,13 +417,9 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     {sidebar && <button key="rail-scrim" className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
     <aside key="project-rail" id="project-rail" ref={railRef} aria-label="Navegación del espacio" role={compactRail && sidebar ? 'dialog' : undefined} aria-modal={compactRail && sidebar ? true : undefined} inert={compactRail && !sidebar} onKeyDown={navigateRailList} onFocusCapture={() => setRailOwnsFocus(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setRailOwnsFocus(false); }} className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
       <div className="brand"><span className="brand-mark"><Ghost size={17} /></span><span>Phantom<span>Workspace</span></span><button className="rail-collapse icon-button" aria-label={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} title={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} aria-expanded={!railCollapsed} onClick={toggleRail}>{railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button><button className="rail-close icon-button" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)}><X size={17} /></button></div>{railCollapsed && workspace && <button className="rail-collapsed-project" onClick={toggleRail} title={workspace.path}><span className="project-initials">{initials(workspace.name)}</span><span>{workspace.name}{spaces.activeSpace && <em> / {spaces.activeSpace.name}</em>}</span></button>}
-      <details className="project-switcher" key={workspace?.id || 'projects'}>
-        <summary title={workspace?.path || 'Elegir proyecto'}><span className="project-initials">{workspace ? initials(workspace.name) : <Folder size={16} />}</span><span className="project-switcher-label"><strong>{workspace?.name || 'Elegir proyecto'}</strong><small>{workspace?.path || 'Carpetas y proyectos recientes'}</small></span><ChevronDown size={14} /></summary>
-        <nav className="project-list" aria-label="Proyectos recientes">{state.workspaces.map(w => <button key={w.id} className={`project-item ${w.id === workspace?.id ? 'active' : ''}`} aria-current={w.id === workspace?.id ? 'true' : undefined} onClick={e => { e.currentTarget.closest('details').open = false; setSidebar(false); selectWorkspace(w.id); }} title={`${w.name}\nCarpeta: ${w.path}\nRuta canónica: ${w.canonicalPath || w.path}`}><Folder size={15} /><span><strong>{w.name}</strong><small>{w.path}</small></span></button>)}</nav>
-        <button className="open-folder" onClick={openFolder} disabled={busy === 'folder'}><FolderOpen size={16} /> Abrir carpeta</button>
-      </details>
+      <ProjectSwitcher projects={state.workspaces} active={workspace} open={contextMenu === 'project'} onOpenChange={value => setContextMenu(value ? 'project' : null)} onSelect={id => { setSidebar(false); selectWorkspace(id); }} onOpenFolder={openFolder} busy={busy === 'folder'} />
+      {workspace && <Spaces key={workspace.id} spaces={spaces.spaces} active={spaces.active} nodes={workspace.nodes || []} open={contextMenu === 'space'} onOpenChange={value => setContextMenu(value ? 'space' : null)} onSelect={id => { setFocused(null); setSelected([]); spaces.select(id); }} onCreate={spaces.create} onRename={spaces.rename} onRemove={spaces.remove} />}
       {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><Bell size={15} /><span>{activity.needs.length ? 'Necesitan de ti' : 'Actividad del proyecto'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
-      {workspace && <Spaces spaces={spaces.spaces} active={spaces.active} nodes={workspace.nodes || []} onSelect={id => { setFocused(null); setSelected([]); spaces.select(id); }} onCreate={spaces.create} onRename={spaces.rename} onRemove={spaces.remove} />}
       {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={jump} onFocus={id => { setSidebar(false); focusPanel(id); }} onSearch={() => { setSidebar(false); setList(v => !v); }} onMap={() => { setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
       <div className="rail-bottom">
         {workspace && <button onClick={() => { setSidebar(false); onOpenPanel('plugins'); }}><Blocks size={15} /> Centro de Plugins</button>}
