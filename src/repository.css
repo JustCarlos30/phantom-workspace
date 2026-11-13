@@ -5,7 +5,7 @@
   --rp-del: var(--danger, #ee788a);
   --rp-dirty: var(--warning);
   display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; container-type: inline-size;
-  font: 13px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--surface);
+  font: 13px/1.5 var(--sans); color: var(--ink); background: var(--surface);
 }
 .rp-root * { box-sizing: border-box; }
 .rp-root :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -45,23 +45,23 @@
 .rp-disclosure h4 { margin: 0; }
 
 /* Top bar */
-.rp-bar { flex: none; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
+.rp-bar { flex: none; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 14px; background: var(--surface); }
 .rp-brand { display: flex; align-items: center; gap: 7px; color: var(--accent); }
-.rp-brand b { color: var(--ink); font-size: 13px; font-weight: 650; }
+.rp-brand b { color: var(--ink); font-size: 15px; font-weight: 600; }
 .rp-bar-stats { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Three columns */
 .rp-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr) minmax(260px, 340px); }
 .rp-side, .rp-detail { min-height: 0; display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg) 55%, var(--surface)); }
-.rp-side { border-right: 1px solid var(--hairline); }
-.rp-detail { border-left: 1px solid var(--hairline); overflow: auto; }
+.rp-side { border: 0; }
+.rp-detail { overflow: auto; }
 .rp-center { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
 /* Sidebar */
 .rp-side-search { margin: 8px; }
 .rp-side-scroll { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
 .rp-side-section + .rp-side-section { margin-top: 6px; }
-.rp-side-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 4px 10px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rp-side-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 6px 10px; font-size: 12px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--muted); }
 .rp-side-head .rp-disclosure { gap: 5px; }
 .rp-side-list { margin: 0; padding: 0 4px; list-style: none; }
 .rp-side-item { display: flex; align-items: center; gap: 7px; width: 100%; height: 26px; padding: 0 6px 0 10px; border: 0; border-radius: var(--r-mark); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
@@ -100,7 +100,7 @@
 /* Graph */
 .rp-graph { --rp-dirty: var(--warning); position: absolute; inset: 0; overflow: auto; }
 .rp-graph-head, .rp-graph-row { display: grid; grid-template-columns: var(--graph-width, 78px) minmax(0, 180px) minmax(120px, 1fr) minmax(70px, 130px) 78px 62px; align-items: center; column-gap: 10px; padding: 0 10px 0 4px; }
-.rp-graph-head { position: sticky; top: 0; z-index: 1; height: 24px; background: var(--surface); border-bottom: 1px solid var(--hairline); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.rp-graph-head { position: sticky; top: 0; z-index: 1; height: 28px; background: var(--surface); font-size: 12px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--muted); }
 .rp-graph-head > span { overflow: hidden; white-space: nowrap; }
 .rp-graph-row { width: 100%; height: 28px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .rp-graph-row:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
@@ -169,7 +169,7 @@
 
 /* Detail */
 .rp-detail-body { display: grid; align-content: start; }
-.rp-detail-head { display: grid; gap: 6px; padding: 14px 14px 12px; border-bottom: 1px solid var(--hairline); }
+.rp-detail-head { display: grid; gap: 6px; padding: 14px 14px 12px; }
 .rp-kicker { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
 .tw-content .rp-detail-title, .rp-detail-title { margin: 0; font-size: 14px; font-weight: 650; line-height: 1.35; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .rp-commit-body { margin: 0; white-space: pre-wrap; font: 12px/1.5 system-ui, sans-serif; color: var(--ink); opacity: .85; max-height: 160px; overflow: auto; }
@@ -179,8 +179,8 @@
 .rp-notice { font-size: 12px; padding: 6px 8px; border-radius: var(--r-ctl); background: var(--surface-2); }
 .rp-notice.is-ok { color: var(--rp-add); }
 .rp-notice.is-warn { color: var(--warning); }
-.rp-detail-section { display: grid; gap: 6px; padding: 10px 8px 12px; border-bottom: 1px solid var(--hairline); }
-.rp-detail-section h4 { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0 6px; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.rp-detail-section { display: grid; gap: 6px; padding: 10px 8px 12px; }
+.rp-detail-section h4 { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0 6px; font-size: 12px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--muted); }
 .rp-filelist { margin: 0; padding: 0; list-style: none; }
 .rp-filerow { display: flex; align-items: center; gap: 2px; border-radius: var(--r-mark); }
 .rp-filerow:hover { background: var(--surface-2); }
@@ -212,7 +212,7 @@
 .rp-card-status.is-live { color: var(--accent); }
 .rp-card-status.is-done { color: var(--rp-add); }
 .rp-card-status.is-blocked { color: var(--rp-del); }
-.rp-nocard { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); padding: 5px 8px; border: 1px dashed var(--hairline); border-radius: var(--r-ctl); }
+.rp-nocard { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); padding: 5px 8px; border-radius: var(--r-ctl); }
 
 /* Change mix: a stacked bar + legend over the file list */
 .rp-mix { display: grid; gap: 6px; padding: 2px 6px 4px; }

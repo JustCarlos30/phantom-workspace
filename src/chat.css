@@ -254,20 +254,20 @@ summary.pc-tool-row:focus-visible { outline: 2px solid var(--accent); outline-of
 .pc-error > svg { flex-shrink: 0; margin-top: 2px; color: var(--danger); }
 .pc-dock { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 8px; flex-shrink: 0; }
 .pc.is-focused .pc-dock { padding: 0 20px 10px; }
-.pc-composer { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
-.pc-field { display: flex; flex-direction: column; border: 1px solid transparent; border-radius: var(--r-obj); background: var(--surface-2); cursor: text; transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.pc-composer { display: flex; flex-direction: column; width: 100%; max-width: 780px; max-height: calc(100% - 40px); min-height: 0; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
+.pc-field { display: flex; flex-direction: column; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-obj); background: var(--surface-2); cursor: text; transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
 .pc-field:focus-within { border-color: color-mix(in srgb, var(--pc-hue) 48%, var(--hairline)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-hue) 14%, transparent); }
-.pc-field textarea { display: block; width: 100%; min-height: 38px; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-y: auto; }
+.pc-field textarea { display: block; width: 100%; min-height: 38px; flex: none; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-y: auto; overscroll-behavior: contain; transition: none; }
 .pc-field textarea::placeholder { color: var(--muted); }
 .pc-field textarea:focus-visible { outline: none; }
 /* Inside the field: what the next turn runs with (model, effort) on the left,
    the actions on the right. Measurements of the conversation live below. */
 .pc-controls { display: flex; align-items: flex-end; gap: 8px; padding: 6px 8px 8px 10px; color: var(--muted); font-size: 11px; line-height: 1; cursor: default; }
 /* One line: the model name truncates before anything wraps. */
-.pc-settings { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.pc-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .pc-settings > .pc-model-picker { flex: 0 1 auto; min-width: 72px; }
 .pc-controls > button { flex-shrink: 0; }
-.pc-meta { display: flex; align-items: center; gap: 10px; min-height: 26px; padding: 7px 12px 0; color: var(--muted); font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; }
+.pc-meta { display: flex; flex-shrink: 0; align-items: center; gap: 10px; min-height: 26px; padding: 7px 12px 0; color: var(--muted); font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; }
 .pc-model { display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 0; padding: 0 10px 0 9px; border-radius: var(--r-pill); background: none; color: var(--ink); }
 .pc-model > span { font-family: var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-model > svg { flex-shrink: 0; color: var(--pc-hue); }
@@ -321,7 +321,7 @@ button.pc-model > svg:last-child { color: var(--muted); }
 /* ---------- Focused: a reading column ---------- */
 .pc.is-focused .pc-column { gap: 24px; padding: 28px 22px 20px; }
 .pc.is-focused .pc-composer { padding: 0 20px 20px; }
-.pc.is-focused .pc-field textarea { min-height: 44px; padding: 13px 16px 6px; }
+.pc.is-focused .pc-field textarea { min-height: 38px; padding: 11px 14px 4px; }
 .pc.is-focused .pc-controls { padding: 6px 9px 9px 12px; }
 @container (max-width: 560px) { .pc-hint, .pc-location { display: none; } }
 @container (max-width: 440px) { .pc-permission > span { display: none; } .pc-permission { padding: 0 8px; } }
@@ -471,7 +471,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 @container (max-width: 460px) { .pc-question-head > span:last-child { display: none; } }
 
 /* Messages waiting for the agent to finish its turn. */
-.pc-queue { margin: 0 0 8px; border-radius: var(--r-ctl); background: var(--fill); font-size: 12px; overflow: hidden; }
+.pc-queue { min-height: 0; margin: 0 0 8px; border-radius: var(--r-ctl); background: var(--fill); font-size: 12px; overflow: auto; }
 .pc-queue > header { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 6px 0 12px; color: var(--muted); font-size: 11px; }
 .pc-queue > header > span { flex: 1; }
 .pc-queue.is-paused > header > span { color: var(--pc-caution); }
