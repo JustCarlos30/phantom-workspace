@@ -144,7 +144,7 @@ test('Electron laptop scale: 115/125%, controls, terminal, native browser and re
     await page.waitForFunction(() => document.querySelector('#interface-scale')?.disabled === false);
   }
   async function withinViewport(selector) {
-    // Focus animates the panel's transform for 220ms; the canvas region also
+    // Focus animates the panel's appearance for 220ms; the canvas region also
     // transitions when focus/inspector state changes. Assert settled geometry,
     // rather than a transient animation frame before ResizeObserver catches up.
     let previous, stableSince = Date.now();
@@ -159,15 +159,55 @@ test('Electron laptop scale: 115/125%, controls, terminal, native browser and re
       previous = current;
       return current && Date.now() - stableSince >= 250 && current;
     }, `${selector} geometry settles`);
-    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    const { viewport, layout, stylesheets } = await page.evaluate(() => ({
+      viewport: { width: innerWidth, height: innerHeight },
+      layout: Object.fromEntries(['.app-shell', '.main-workspace', '.workspace-body', '.canvas-region', '.canvas', '.canvas-stage', '.canvas-world', '.canvas-node.focused', '.project-rail', '.inspector-host'].map(selector => {
+        const element = document.querySelector(selector);
+        if (!element) return [selector, null];
+        const { x, y, width, height } = element.getBoundingClientRect();
+        const css = getComputedStyle(element);
+        return [selector, { x, y, width, height, position: css.position, display: css.display,
+          left: css.left, right: css.right, cssWidth: css.width, flex: css.flex, transform: css.transform,
+          inlineWidth: element.style.width }];
+      })),
+      stylesheets: [...document.styleSheets].map(sheet => sheet.href),
+    }));
+    const geometry = JSON.stringify({ box, viewport, layout, stylesheets });
     assert.ok(box && box.width > 0 && box.height > 0, selector);
     assert.ok(box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1,
-      `${selector} within viewport: ${JSON.stringify({ box, viewport })}`);
+      `${selector} within viewport: ${geometry}`);
+    assert.equal(layout['.workspace-body'].position, 'absolute', `desktop workspace layout: ${geometry}`);
+    assert.equal(layout['.canvas-region'].position, 'absolute', `desktop canvas layout: ${geometry}`);
   }
   const nodeView = id => page.locator(`[data-node-id="${id}"]`);
+  async function focusPanel({ id, title }) {
+    try {
+      // Fitting beside the inspector can put the map into overview, whose
+      // header icon buttons are intentionally display:none (terminal.css).
+      // The rail exposes the same focus action at every spatial zoom tier.
+      const button = page.locator('.project-rail').getByLabel(`Enfocar ${title}`, { exact: true });
+      await button.hover();
+      await button.click();
+    } catch (error) {
+      const geometry = await page.evaluate(({ id, title }) => {
+        const node = document.querySelector(`[data-node-id="${id}"]`);
+        const elements = { node, mapButton: node?.querySelector('[aria-label="Enfocar panel"]'),
+          railButton: [...document.querySelectorAll('.rail-panel-focus')].find(button => button.getAttribute('aria-label') === `Enfocar ${title}`),
+          region: document.querySelector('.canvas-region'), stage: document.querySelector('.canvas-stage'),
+          world: document.querySelector('.canvas-world'), rail: document.querySelector('.project-rail') };
+        return { id, viewport: { width: innerWidth, height: innerHeight }, elements: Object.fromEntries(Object.entries(elements).map(([name, element]) => {
+          if (!element) return [name, null];
+          const { x, y, width, height } = element.getBoundingClientRect(), css = getComputedStyle(element);
+          return [name, { x, y, width, height, position: css.position, transform: css.transform, left: css.left, right: css.right }];
+        })) };
+      }, { id, title });
+      error.message += `\nFocus geometry: ${JSON.stringify(geometry)}`;
+      throw error;
+    }
+  }
   async function browserGeometry(browser, workspaceId, scale) {
     const node = nodeView(browser.id);
-    await node.getByLabel('Enfocar panel', { exact: true }).click();
+    await focusPanel(browser);
     await withinViewport('.canvas-node.focused');
     const readBounds = () => node.locator('.browser-content').evaluate(element => {
       const r = element.getBoundingClientRect();
@@ -245,7 +285,7 @@ test('Electron laptop scale: 115/125%, controls, terminal, native browser and re
     for (const selector of ['.dock-main', '.canvas-navigation', '.canvas']) await withinViewport(selector);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1), false, 'no document overflow');
     const node = nodeView(terminal.id);
-    await node.getByLabel('Enfocar panel', { exact: true }).click();
+    await focusPanel(terminal);
     await page.locator('.xterm-screen').waitFor();
     await page.waitForFunction(() => {
       const host = document.querySelector('.terminal-host')?.getBoundingClientRect();

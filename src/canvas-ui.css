@@ -146,9 +146,13 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 
 /* ---------- Shell: full-bleed canvas ---------- */
 .app-shell { position: relative; overflow: hidden; background: var(--bg); }
-.main-workspace { position: absolute; inset: 0; }
-.workspace-body { position: absolute; inset: 0; }
-.canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
+/* The desktop entry also imports styles.css independently of App's CSS chunk.
+   Outrank its legacy flex/relative layout regardless of stylesheet load order.
+   A relative region keeps its full flex width when focus adds a left inset;
+   an absolute region shrinks, so the stage's ResizeObserver sees the free area. */
+.app-shell .main-workspace { position: absolute; inset: 0; }
+.app-shell .workspace-body { position: absolute; inset: 0; }
+.app-shell .canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
 
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,

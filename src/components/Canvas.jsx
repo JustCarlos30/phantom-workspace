@@ -219,7 +219,10 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     // settled stage, so a round trip through focus keeps the map camera.
     const timer = setTimeout(() => {
       const measured = stage.current?.getBoundingClientRect();
-      if (!measured || measured.width !== size.width || measured.height !== size.height) return;
+      // Native UI zoom can round the DOM rect and ResizeObserver's content
+      // rect differently. Subpixel noise must not suppress every reframe;
+      // still reject a stage that has actually resized since this callback.
+      if (!measured || Math.abs(measured.width - size.width) > .5 || Math.abs(measured.height - size.height) > .5) return;
       const previous = mapSize.current;
       if (previous?.width === size.width && previous?.height === size.height) return;
       mapSize.current = size;
