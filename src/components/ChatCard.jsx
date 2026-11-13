@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, Gauge, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, Gauge, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
@@ -36,7 +36,7 @@ export function PermissionSwitch({ mode, provider, descriptions = AUTO_APPROVE, 
   const text = permissionLabel(mode, provider), next = NEXT_MODE[mode] || 'ask';
   return <button type="button" className="pc-permission" data-mode={mode} aria-pressed={mode !== 'ask'} disabled={disabled}
     aria-label={`Permisos: ${text}. Cambiar a ${permissionLabel(next, provider)}`} title={`${descriptions[provider]?.[mode] || ''}\n\nPulsa para cambiar a «${permissionLabel(next, provider)}».`}
-    onClick={() => onChange(next)}><Shield size={13} aria-hidden="true" /><span>{text}</span></button>;
+    onClick={() => onChange(next)}><Shield size={14} aria-hidden="true" /><span>{text}</span></button>;
 }
 const PERMISSION_STATUS = { allowed: 'Aprobado', always: 'Aprobado siempre', denied: 'Rechazado', cancelled: 'Sin respuesta' };
 
@@ -127,11 +127,11 @@ function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
   };
   return <div ref={root} className="pc-agent" onKeyDown={onKeyDown} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
     <button ref={trigger} type="button" className="pc-agent-trigger" aria-haspopup="menu" aria-expanded={open} aria-label={`Quién responde: ${mode.label}`} title="Quién responde en esta card" disabled={disabled} onClick={() => setOpen(value => !value)}>
-      <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={11} aria-hidden="true" />
+      <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Quién responde en esta card">
       {CARD_MODES.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
-        <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={13} aria-hidden="true" />}
+        <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={14} aria-hidden="true" />}
       </button>)}
     </div>}
   </div>;
@@ -152,22 +152,55 @@ export function useElapsed(since, active) {
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
 
+// One action, one quiet line: its glyph, what it was, and on what. A finished
+// step states nothing more; only running, failed and stopped ones speak up.
 function ToolRow({ part }) {
   const [, Icon, kind] = toolKind(part.name);
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
   const summary = <>
-    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
-    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={13} /></span>
+    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={14} /></span>
     <span className="pc-tool-name">{part.name}</span>
     <span className="pc-tool-detail" title={part.detail}>{part.detail}</span>
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
-    {part.status === 'running' && <LoaderCircle className="pc-tool-state is-running" size={12} aria-label="En curso" />}
-    {part.status === 'error' && <span className="pc-tool-state is-error"><X size={12} aria-hidden="true" />falló</span>}
+    {part.status === 'running' && <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />}
+    {part.status === 'error' && <span className="pc-tool-state is-error">falló</span>}
     {part.status === 'stopped' && <span className="pc-tool-state">detenida</span>}
-    {part.status === 'done' && !part.diff && <Check className="pc-tool-state is-done" size={12} aria-label="Completada" />}
+    {expandable && <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" />}
   </>;
   if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
   return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output"><ToolOutput part={part} kind={kind} /></div></details></li>;
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const KIND_PHRASE = {
+  read: items => `leyó ${plural(new Set(items.map(part => part.detail || part.id)).size, 'archivo', 'archivos')}`,
+  edit: items => `hizo ${plural(items.length, 'cambio', 'cambios')}`,
+  shell: items => `ejecutó ${plural(items.length, 'comando', 'comandos')}`,
+  search: items => `hizo ${plural(items.length, 'búsqueda', 'búsquedas')}`,
+  web: items => `consultó ${plural(items.length, 'página', 'páginas')}`,
+  todo: () => 'actualizó el plan',
+  other: items => `usó ${plural(items.length, 'herramienta', 'herramientas')}`,
+};
+// A run of actions. Up to three stay in view; a longer run folds into one
+// sentence of what was done (open while it is still working).
+function ToolGroup({ items }) {
+  const live = items.some(part => part.status === 'running'), failed = items.some(part => part.status === 'error');
+  const [chosen, setChosen] = useState(null);
+  const list = <ul className="pc-tools" aria-label="Herramientas usadas">{items.map(part => <ToolRow key={part.id} part={part} />)}</ul>;
+  if (items.length < 4) return list;
+  const open = chosen ?? live, kinds = new Map();
+  for (const part of items) { const [, Icon, kind] = toolKind(part.name), key = KIND_PHRASE[kind] ? kind : 'other'; if (!kinds.has(key)) kinds.set(key, { Icon: key === 'other' ? Wrench : Icon, items: [] }); kinds.get(key).items.push(part); }
+  const text = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group.items)).join(' · ');
+  return <details className="pc-steps" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
+    <summary>
+      <span className="pc-steps-kinds" aria-hidden="true">{[...kinds].slice(0, 4).map(([kind, group]) => <group.Icon key={kind} size={14} />)}</span>
+      <span className="pc-steps-text">{text.charAt(0).toUpperCase() + text.slice(1)}</span>
+      {failed && <span className="pc-tool-state is-error">con fallos</span>}
+      {live && <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />}
+      <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" />
+    </summary>
+    {list}
+  </details>;
 }
 
 // A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
@@ -175,10 +208,10 @@ function ToolRow({ part }) {
 // the user sees who was delegated, what it is doing now and how it ended.
 const AGENT_STATE = { running: 'Trabajando', done: 'Terminó', error: 'Falló', stopped: 'Detenido' };
 function StepState({ status }) {
-  if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={11} aria-label="En curso" />;
-  if (status === 'error') return <X className="pc-tool-state is-error" size={11} aria-label="Falló" />;
+  if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />;
+  if (status === 'error') return <X className="pc-tool-state is-error" size={14} aria-label="Falló" />;
   if (status === 'stopped') return <span className="pc-tool-state">detenido</span>;
-  return <Check className="pc-tool-state is-done" size={11} aria-label="Completado" />;
+  return <Check className="pc-tool-state is-done" size={14} aria-label="Completado" />;
 }
 export function SubagentCard({ part }) {
   const agent = part.agent || { steps: [] }, steps = agent.steps || [], total = Math.max(agent.total || 0, steps.length);
@@ -186,29 +219,29 @@ export function SubagentCard({ part }) {
   const hidden = total - steps.length;
   return <section className={`pc-subagent is-${part.status}`} aria-label={`Subagente${agent.type ? ` ${agent.type}` : ''}: ${part.detail || part.name}`}>
     <header className="pc-subagent-head">
-      <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={13} /></span>
+      <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={14} /></span>
       <span className="pc-subagent-label">Subagente</span>
       {agent.type && <span className="pc-subagent-type">{agent.type}</span>}
-      <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={11} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
+      <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={14} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
     </header>
     <p className="pc-subagent-goal" title={part.detail}>{part.detail || part.name}</p>
     {current && <p className="pc-subagent-now"><span className="pc-tool-name">{current.name}</span><span className="pc-tool-detail" title={current.detail}>{current.detail}</span></p>}
     {agent.text && <p className="pc-subagent-said" title={agent.text}>{agent.text}</p>}
     {steps.length > 0 && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Pasos del subagente</summary>
+      <summary><ChevronRight size={14} aria-hidden="true" />Pasos del subagente</summary>
       <ol className="pc-subagent-steps">
         {hidden > 0 && <li className="pc-subagent-hidden">{hidden} {hidden === 1 ? 'paso anterior' : 'pasos anteriores'} sin detalle</li>}
         {steps.map(step => { const [, Icon] = toolKind(step.name); return <li key={step.id} className={`is-${step.status}`}>
-          <Icon size={11} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
+          <Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
         </li>; })}
       </ol>
     </details>}
     {agent.prompt && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Encargo</summary>
+      <summary><ChevronRight size={14} aria-hidden="true" />Encargo</summary>
       <pre className="pc-subagent-prompt">{agent.prompt}</pre>
     </details>}
     {part.output && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Resultado</summary>
+      <summary><ChevronRight size={14} aria-hidden="true" />Resultado</summary>
       <div className="pc-subagent-output"><ToolOutput part={part} kind="agent" /></div>
     </details>}
   </section>;
@@ -269,7 +302,7 @@ function QuestionCard({ part, onReply }) {
     })}
     <footer className="pc-question-actions">
       <button type="button" disabled={busy} onClick={() => submit(null)}>No responder</button>
-      <button type="submit" className="is-primary" disabled={busy || !complete}>{busy ? <LoaderCircle size={13} className="spinning" aria-hidden="true" /> : <ArrowUp size={13} aria-hidden="true" />}Responder</button>
+      <button type="submit" className="is-primary" disabled={busy || !complete}>{busy ? <LoaderCircle size={14} className="spinning" aria-hidden="true" /> : <ArrowUp size={14} aria-hidden="true" />}Responder</button>
     </footer>
   </form>;
 }
@@ -300,10 +333,10 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
   const delegated = streaming ? activeSubagents(message.parts) : 0;
   const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
-  return <article className={`pc-message is-agent is-${message.status}`}>
-    <header className="pc-turn-head"><span className="pc-avatar" aria-hidden="true"><ProviderGlyph provider={provider} size={13} /></span><strong>{label}</strong>{(message.model || model) && <span className="pc-mono">{message.model || model}</span>}<time dateTime={message.createdAt}>{clock(message.createdAt)}</time></header>
+  const stamp = [message.model || model, clock(message.createdAt), ...facts].filter(Boolean).join(' · ');
+  return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
     {groups.map((group, i) => group.type === 'tools'
-      ? <ul key={i} className="pc-tools" aria-label="Herramientas usadas">{group.items.map(part => <ToolRow key={part.id} part={part} />)}</ul>
+      ? <ToolGroup key={i} items={group.items} />
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -311,12 +344,12 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'question'
         ? <QuestionCard key={group.id} part={group} onReply={onReply} />
       : group.type === 'thinking'
-        ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
+        ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
     {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
-    {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
-    {!streaming && (facts.length > 0 || text) && <footer className="pc-turn-foot"><span className="pc-num">{facts.join(' · ')}</span>{text && <CopyButton text={text} label="Copiar respuesta" />}</footer>}
+    {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
+    {!streaming && (stamp || text) && <footer className="pc-turn-foot">{text && <CopyButton text={text} label="Copiar respuesta" />}<time className="pc-num" dateTime={message.createdAt}>{stamp}</time></footer>}
   </article>;
 }
 
@@ -347,13 +380,13 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
   const shown = selected || observed;
   return <div ref={root} className="pc-model-picker" onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
     <button type="button" className={`pc-model ${shown ? '' : 'is-empty'}`} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} title={selected ? `Modelo elegido para ${label}: ${selected}` : observed ? `Modelo predeterminado de ${label}: ${observed}` : `Se usa el modelo predeterminado de ${label}`} onClick={() => setOpen(value => !value)}>
-      <ProviderGlyph provider={provider} size={12} /><span>{shown || 'modelo predeterminado'}</span><ChevronDown size={11} aria-hidden="true" />
+      <ProviderGlyph provider={provider} size={14} /><span>{shown || 'modelo predeterminado'}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div className="pc-models" role="dialog" aria-label={`Modelo de ${label}`}>
       <input ref={search} type="text" value={query} placeholder="Buscar o escribir un modelo…" aria-label="Buscar modelo" spellCheck={false} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const first = custom || items[0]?.id; if (first) choose(first); } }} />
       <div className="pc-models-list" role="listbox" aria-label="Modelos disponibles">
-        {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={12} aria-hidden="true" />}</button>}
-        {groups.map(group => <React.Fragment key={group.name}><h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={12} aria-hidden="true" />}</button>)}</React.Fragment>)}
+        {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={14} aria-hidden="true" />}</button>}
+        {groups.map(group => <React.Fragment key={group.name}><h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
         {custom && <button type="button" role="option" aria-selected={false} onClick={() => choose(custom)}><span>Usar <span className="pc-mono">{custom}</span></span></button>}
         {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
         {failure && <p role="alert">{failure}. Puedes escribir el nombre del modelo.</p>}
@@ -376,7 +409,7 @@ export function ReasoningPicker({ node, workspace, api, notify, provider, disabl
     catch (error) { setValue(selected); notify?.(error.message, 'error'); }
   };
   if (provider === 'opencode') return <label className={`pc-reasoning ${value ? '' : 'is-empty'}`} data-disabled={disabled || undefined}>
-    <Gauge size={12} aria-hidden="true" /><span className="pc-reasoning-label">Variant</span>
+    <Gauge size={14} aria-hidden="true" /><span className="pc-reasoning-label">Variant</span>
     <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="auto" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
   </label>;
   return <EffortMenu key={provider} provider={provider} selected={selected} disabled={disabled} onChoose={save} />;
@@ -418,7 +451,7 @@ function EffortMenu({ provider, selected, disabled, onChoose }) {
       <EffortMeter level={level} total={levels.length} />
       <span className="pc-reasoning-label">Effort</span>
       <span className="pc-reasoning-value">{selected || 'auto'}</span>
-      <ChevronDown size={11} aria-hidden="true" />
+      <ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={`Effort de ${provider}`} aria-activedescendant={`pc-effort-${provider}-${active}`} onKeyDown={keys}>
       <h4>Esfuerzo de razonamiento</h4>
@@ -426,7 +459,7 @@ function EffortMenu({ provider, selected, disabled, onChoose }) {
         <EffortMeter level={i - 1} total={levels.length} />
         <span>{option || 'auto'}</span>
         {!option && <small>predeterminado</small>}
-        {option === selected && <Check size={12} aria-hidden="true" />}
+        {option === selected && <Check size={14} aria-hidden="true" />}
       </div>)}
     </div>}
   </div>;
@@ -453,15 +486,15 @@ export function QueuedMessages({ queue, running, connected = true, unqueue, resu
   return <section className={`pc-queue ${paused ? 'is-paused' : ''}`} aria-label="Mensajes en espera">
     <header>
       <span>{paused ? 'En pausa' : 'En espera'} · {queue.length} {queue.length === 1 ? 'mensaje' : 'mensajes'}</span>
-      {paused && <button type="button" disabled={busy || !connected} onClick={() => act(() => resume())}><ArrowUp size={12} aria-hidden="true" />Reanudar</button>}
+      {paused && <button type="button" disabled={busy || !connected} onClick={() => act(() => resume())}><ArrowUp size={14} aria-hidden="true" />Reanudar</button>}
     </header>
     <ol>
       {queue.map((item, index) => <li key={item.id}>
         <span className="pc-queue-num" aria-hidden="true">{index + 1}</span>
         <p title={item.text}>{item.text}</p>
-        {paused && index > 0 && <button type="button" className="pc-icon" disabled={busy || !connected} title="Enviar este ahora" aria-label="Enviar este mensaje ahora" onClick={() => act(() => resume(item.id))}><ArrowUp size={13} /></button>}
-        <button type="button" className="pc-icon" disabled={busy || !connected} title="Editar" aria-label="Sacar de la cola para editar" onClick={() => act(async () => { const { text } = await unqueue(item.id); onEdit?.(text); })}><Pencil size={13} /></button>
-        <button type="button" className="pc-icon" disabled={busy || !connected} title="Quitar" aria-label="Quitar de la cola" onClick={() => act(() => unqueue(item.id))}><X size={13} /></button>
+        {paused && index > 0 && <button type="button" className="pc-icon" disabled={busy || !connected} title="Enviar este ahora" aria-label="Enviar este mensaje ahora" onClick={() => act(() => resume(item.id))}><ArrowUp size={14} /></button>}
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Editar" aria-label="Sacar de la cola para editar" onClick={() => act(async () => { const { text } = await unqueue(item.id); onEdit?.(text); })}><Pencil size={14} /></button>
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Quitar" aria-label="Quitar de la cola" onClick={() => act(() => unqueue(item.id))}><X size={14} /></button>
       </li>)}
     </ol>
   </section>;
@@ -549,7 +582,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
-      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
       {running && (waiting
         ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
         : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
@@ -572,7 +605,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
       </div>
     </div>
-    {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
+    {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
@@ -584,8 +617,8 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
             <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
             <PermissionSwitch mode={permissionMode} provider={provider} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
           </div>
-          {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}
-          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={15} /></button>}
+          {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
+          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={16} /></button>}
         </div>
       </div>
       <div className="pc-meta">

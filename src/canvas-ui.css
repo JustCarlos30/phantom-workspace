@@ -42,6 +42,30 @@
   --inspector-width: 360px;
   --dot: color-mix(in srgb, var(--ink) 16%, transparent);
   --dot-major: color-mix(in srgb, var(--ink) 26%, transparent);
+  /* Ink: one neutral ink in three levels. Primary is what you read,
+     --muted what accompanies it, --ink-3 metadata and icons at rest. The
+     planes are graphite with a trace of plum; violet is spent only on the
+     accent (action, selection, focus). */
+  --bg: #0b0a0e;
+  --surface: #141318;
+  --surface-2: #1d1c22;
+  --surface-3: #2a2930;
+  --ink: #f4f3f7;
+  --muted: #aaa8b3;
+  --ink-3: #8d8b96;
+  --terminal-bg: #0e0d11;
+  --terminal-ink: #dedce4;
+  --scroll-thumb: color-mix(in srgb, #fff 16%, transparent);
+  /* Type: seven roles, three weights (400, 500, 600; 650 for display only).
+     What is read (body) is larger than what is pressed (control). Use as
+     `font: var(--t-body)`. */
+  --t-display: 650 24px/30px var(--sans);
+  --t-title: 600 17px/22px var(--sans);
+  --t-headline: 600 15px/22px var(--sans);
+  --t-body: 400 14px/22px var(--sans);
+  --t-control: 500 13px/18px var(--sans);
+  --t-support: 400 12px/16px var(--sans);
+  --t-micro: 500 11px/14px var(--sans);
 }
 
 
@@ -523,7 +547,11 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
    one white-alpha ladder (--fill…); radii are concentric: an island's radius
    is its inner control radius plus its padding.
    ===================================================================== */
+/* Icons: three sizes, 14 beside support text, 16 in rows and controls, 20 in
+   bars. The stroke compensates the size so they weigh the same. */
 .lucide { stroke-width: 1.75px; }
+.lucide[width="14"] { stroke-width: 2px; }
+.lucide[width="20"] { stroke-width: 1.5px; }
 * { scrollbar-color: var(--scroll-thumb) transparent; }
 ::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: var(--r-pill); }
 ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }

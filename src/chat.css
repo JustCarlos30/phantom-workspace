@@ -61,6 +61,7 @@
 .pc-agent-trigger:hover:not(:disabled), .pc-agent-trigger[aria-expanded="true"] { background: var(--fill-2); }
 .pc-agent-trigger:disabled { opacity: .5; cursor: not-allowed; }
 .pc-agent-trigger > svg:last-child { color: var(--muted); }
+.pc-agent.is-up .pc-agent-menu { top: auto; bottom: calc(100% + 6px); transform-origin: bottom left; }
 .pc-agent-menu { position: absolute; left: 0; top: calc(100% + 6px); z-index: 5; display: flex; flex-direction: column; gap: 2px; width: 280px; max-width: calc(100cqw - 24px); padding: 5px; border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface-2); box-shadow: var(--shadow-float); animation: island-in var(--dur) var(--ease-out); transform-origin: top left; }
 .pc-agent-menu button { display: grid; grid-template-columns: 16px minmax(0, 1fr) 14px; align-items: center; column-gap: 10px; min-height: 44px; padding: 6px 9px; border-radius: var(--r-ctl); color: var(--ink); text-align: left; }
 .pc-agent-menu button:hover { background: var(--fill-2); }
@@ -71,11 +72,11 @@
 .pc-agent-menu button > svg:last-child { color: var(--ink); }
 
 /* ---------- Thread ---------- */
-.pc-thread { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; user-select: text; cursor: auto; }
+.pc-thread { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; user-select: text; cursor: auto; font: var(--t-body); }
 .pc-thread ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
 .pc-column { display: flex; flex-direction: column; gap: 28px; min-height: 100%; max-width: 780px; margin: 0 auto; padding: 24px 24px 20px; }
-.pc-message { min-width: 0; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
-.pc-message.is-user { align-self: flex-end; max-width: 85%; padding: 8px 14px; border-radius: var(--r-obj) var(--r-obj) var(--r-ctl) var(--r-obj); background: var(--surface-3); }
+.pc-message { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.pc-message.is-user { align-self: flex-end; max-width: 85%; padding: 8px 14px; border-radius: var(--r-obj) var(--r-obj) var(--r-ctl) var(--r-obj); background: var(--fill-2); }
 /* What the user typed reads as Markdown too; a bubble holding a table or code
    takes the full width so the block is not squeezed into 85%. */
 .pc-message.is-user .md { gap: 6px; }
@@ -85,45 +86,50 @@
 .pc-message.is-user p { margin: 0; white-space: pre-wrap; }
 .pc-message.is-agent { display: flex; flex-direction: column; gap: 10px; }
 
-/* Who answered, with which model, when. */
-.pc-turn-head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; line-height: 1.3; color: var(--muted); }
-.pc-turn-head strong { color: var(--ink); font-weight: 600; }
-.pc-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-ctl); background: var(--fill); color: var(--pc-hue); flex-shrink: 0; }
-.pc-turn-head .pc-mono { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
-.pc-turn-head time { margin-left: auto; flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
-/* What the turn cost, once it is over. */
-.pc-turn-foot { display: flex; align-items: center; gap: 8px; min-height: 22px; color: var(--muted); font-size: 11px; }
-.pc-turn-foot .md-copy { opacity: 0; }
+/* Who answered, when and at what cost: stated once the turn is over. */
+.pc-turn-foot { display: flex; align-items: center; gap: 6px; min-height: 24px; margin-left: -5px; color: var(--ink-3); font: var(--t-support); }
+.pc-turn-foot .md-copy { color: var(--ink-3); }
+.pc-turn-foot time { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-message:hover .md-copy, .md-copy:focus-visible, .md-copy.is-copied { opacity: 1; }
 
-/* Steps: every tool call of a turn, one row each, joined by a rail. */
-.pc-tools { position: relative; margin: 0; padding: 4px; list-style: none; border-radius: var(--r-ctl); background: var(--fill); }
+/* Actions: every tool call of a turn is one quiet line (glyph, name, target).
+   No wells and no tiles; a finished step says nothing more. */
+.pc-tools { margin: 0 0 0 -6px; padding: 0; list-style: none; }
 .pc-tool { position: relative; border-radius: var(--r-ctl); }
-.pc-tool + .pc-tool { margin-top: 1px; }
-.pc-tool-row { display: flex; align-items: center; gap: 9px; min-height: 34px; min-width: 0; padding: 0 10px 0 6px; border-radius: var(--r-ctl); color: var(--muted); font: 12px/1.4 var(--mono); list-style: none; }
+
+.pc-tool-row { display: flex; align-items: center; gap: 8px; min-height: 28px; min-width: 0; padding: 0 6px; border-radius: var(--r-ctl); color: var(--ink-3); font: var(--t-support); list-style: none; }
 .pc-tool-row::-webkit-details-marker { display: none; }
 summary.pc-tool-row { cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
 summary.pc-tool-row:hover { background: var(--fill); }
 summary.pc-tool-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.pc-tool-caret { width: 12px; flex-shrink: 0; opacity: .7; transition: transform var(--dur-fast) var(--ease-out); }
-details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-child { transform: rotate(90deg); }
-/* Tool kinds read by their glyph, not a rainbow. Only writes (edit, write,
-   patch) are lifted, because they are the steps that change the tree. */
-.pc-tool-kind { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-ctl); background: var(--fill); color: var(--muted); flex-shrink: 0; }
-.pc-tool-kind[data-kind="edit"] { background: var(--fill-2); color: var(--ink); }
-.pc-tool.is-running { background: var(--fill); }
-.pc-tool.is-error { background: color-mix(in srgb, var(--danger) 8%, transparent); }
-.pc-tool-name { flex-shrink: 0; color: var(--ink); font-weight: 600; }
-.pc-tool-detail { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.pc-tool-diff { display: inline-flex; gap: 6px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.pc-tool-caret { flex-shrink: 0; opacity: 0; transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
+summary:hover > .pc-tool-caret, summary:focus-visible > .pc-tool-caret, details[open] > summary > .pc-tool-caret { opacity: 1; }
+details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
+/* Tool kinds read by their glyph alone. Only writes (edit, write, patch)
+   are lifted to full ink, because they are the steps that change the tree. */
+.pc-tool-kind { display: grid; place-items: center; width: 16px; height: 16px; color: var(--ink-3); flex-shrink: 0; }
+.pc-tool-kind[data-kind="edit"] { color: var(--ink); }
+.pc-tool.is-running .pc-tool-name { color: var(--ink); }
+
+.pc-tool-name { flex-shrink: 0; color: var(--muted); font-weight: 500; }
+.pc-tool-detail { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 12px/16px var(--mono); }
+.pc-tool-diff { display: inline-flex; gap: 6px; flex-shrink: 0; font: 12px/16px var(--mono); font-variant-numeric: tabular-nums; }
 .pc-tool-diff b { color: var(--pc-add); font-weight: 500; }
 .pc-tool-diff i { color: var(--pc-del); font-style: normal; }
-.pc-tool-state { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--muted); }
-.pc-tool-state.is-done { color: var(--muted); }
+.pc-tool-state { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--ink-3); }
+
 .pc-tool-state.is-error { color: var(--pc-del); }
 .pc-tool-state.is-running { color: var(--ink); }
 .pc-tool.is-error .pc-tool-name { color: var(--pc-del); }
-.pc-tool-output { margin: 2px 6px 6px 34px; animation: materialize var(--dur-fast) var(--ease-out); }
+.pc-tool-output { margin: 2px 0 8px 30px; animation: materialize var(--dur-fast) var(--ease-out); }
+/* A long run of actions folds into one sentence of what was done. */
+.pc-steps > summary { display: flex; align-items: center; gap: 8px; min-height: 28px; min-width: 0; margin-left: -6px; padding: 0 6px; border-radius: var(--r-ctl); color: var(--muted); font: var(--t-support); cursor: pointer; list-style: none; transition: background-color var(--dur-fast) var(--ease-out); }
+.pc-steps > summary::-webkit-details-marker { display: none; }
+.pc-steps > summary:hover { background: var(--fill); }
+.pc-steps > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pc-steps-kinds { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; color: var(--ink-3); }
+.pc-steps-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pc-steps[open] > .pc-tools { margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .pc-tool-output { animation: none; } }
 
 /* Tool output viewer: a framed panel whose body depends on the tool kind. */
@@ -212,18 +218,18 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc-subagent-output { margin-top: 4px; }
 .pc-working-agents { color: var(--ink); }
 
-.pc-thinking { color: var(--muted); font-size: 12px; }
-.pc-thinking summary { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 7px; cursor: pointer; list-style: none; border-radius: var(--r-pill); background: var(--fill); transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
+.pc-thinking { color: var(--ink-3); font: var(--t-support); }
+.pc-thinking summary { display: inline-flex; align-items: center; gap: 8px; height: 28px; margin-left: -6px; padding: 0 6px; cursor: pointer; list-style: none; border-radius: var(--r-ctl); transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
 .pc-thinking summary::-webkit-details-marker { display: none; }
-.pc-thinking summary:hover { color: var(--ink); background: var(--fill-2); }
+.pc-thinking summary:hover { color: var(--ink); background: var(--fill); }
 .pc-thinking summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pc-thinking summary > svg { transition: transform var(--dur-fast) var(--ease-out); }
-.pc-thinking p { margin: 8px 0 0; padding-left: 14px; border-left: 1px solid var(--hairline); white-space: pre-wrap; line-height: 1.55; max-width: 72ch; }
+
+.pc-thinking p { margin: 6px 0 0; padding-left: 14px; border-left: 1px solid var(--hairline); white-space: pre-wrap; font: 13px/20px var(--sans); color: var(--muted); max-width: 72ch; }
 
 .pc-note { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; }
 .pc-note.is-error { padding: 9px 12px; border-radius: var(--r-obj); background: var(--error-bg); color: var(--ink); white-space: pre-wrap; }
 .pc-note > svg { flex-shrink: 0; margin-top: 3px; color: var(--danger); }
-.pc-working { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 22px; color: var(--muted); font-size: 12px; }
+.pc-working { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 24px; color: var(--muted); font: var(--t-support); }
 .pc-dots { display: inline-flex; gap: 3px; }
 .pc-dots > i { width: 4px; height: 4px; border-radius: 50%; background: var(--ink); opacity: .35; }
 @media (prefers-reduced-motion: no-preference) {
@@ -250,8 +256,8 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc-composer { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
 .pc-field { display: flex; flex-direction: column; border: 1px solid transparent; border-radius: var(--r-obj); background: var(--surface-2); cursor: text; transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
 .pc-field:focus-within { border-color: color-mix(in srgb, var(--pc-hue) 48%, var(--hairline)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-hue) 14%, transparent); }
-.pc-field textarea { display: block; width: 100%; min-height: 38px; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-y: auto; }
-.pc-field textarea::placeholder { color: var(--muted); }
+.pc-field textarea { display: block; width: 100%; min-height: 38px; resize: none; padding: 12px 14px 4px; border: 0; background: none; color: var(--ink); font: var(--t-body); overflow-y: auto; }
+.pc-field textarea::placeholder { color: var(--ink-3); }
 .pc-field textarea:focus-visible { outline: none; }
 /* Inside the field: what the next turn runs with (model, effort) on the left,
    the actions on the right. Measurements of the conversation live below. */
@@ -260,7 +266,7 @@ details[open] > summary .pc-tool-caret, details[open] > summary > svg:first-chil
 .pc-settings { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .pc-settings > .pc-model-picker { flex: 0 1 auto; min-width: 72px; }
 .pc-controls > button { flex-shrink: 0; }
-.pc-meta { display: flex; align-items: center; gap: 10px; min-height: 26px; padding: 7px 12px 0; color: var(--muted); font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; }
+.pc-meta { display: flex; align-items: center; gap: 10px; min-height: 26px; padding: 7px 12px 0; color: var(--ink-3); font: var(--t-micro); font-weight: 400; font-variant-numeric: tabular-nums; }
 .pc-model { display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 0; padding: 0 10px 0 9px; border-radius: var(--r-pill); background: none; color: var(--ink); }
 .pc-model > span { font-family: var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-model > svg { flex-shrink: 0; color: var(--pc-hue); }
@@ -324,8 +330,8 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .md { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
 .md > * { margin: 0; }
 .md p { white-space: pre-wrap; max-width: 72ch; }
-.md h3, .md h4, .md h5, .md h6 { margin-top: 10px; font-size: 1.05em; font-weight: 600; line-height: 1.35; }
-.md h3 { font-size: 1.15em; letter-spacing: -.015em; }
+.md h3, .md h4, .md h5, .md h6 { margin-top: 10px; font: 600 14px/22px var(--sans); }
+.md h3 { font: var(--t-headline); letter-spacing: -.01em; text-wrap: balance; }
 .md ul, .md ol { display: flex; flex-direction: column; gap: 4px; padding-left: 1.4em; max-width: 72ch; }
 .md li { white-space: pre-wrap; }
 .md li::marker { color: var(--muted); }
@@ -408,7 +414,6 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 @container (max-width: 460px) { .pc-reasoning-label { display: none; } }
 [data-provider="codex"] { --hue: var(--hue-codex); }
 .pc[data-provider="codex"] { --pc-hue: var(--hue-codex); }
-
 
 /* A question the agent waits on (AskUserQuestion). It speaks in the agent's
    hue, not the warning amber: it is a conversation, not a risk. */
