@@ -37,7 +37,7 @@ function SubmittedDiff({ item, workspace, api }) {
 }
 
 // Read-only review. Ordering, rejection and integration remain orchestrator actions.
-export default function IntegrationReview({ item, workspace, api, onCard, onTerminal, base }) {
+export default function IntegrationReview({ item, workspace, api, onCard, onTerminal, base, label }) {
   const [expanded, setExpanded] = useState(false), [diff, setDiff] = useState(false);
   const cardId = cardIdOf(item), submitted = Boolean(item.id);
   const inspection = item.inspection;
@@ -45,7 +45,7 @@ export default function IntegrationReview({ item, workspace, api, onCard, onTerm
   const paths = submitted ? exact ? inspection.files : null : item.missing ? null : item.files;
   return <article className="inc-review" data-request-id={item.id}>
     <details onToggle={event => setExpanded(event.currentTarget.open)}>
-      <summary><span className="inc-review-title">{activityTitle(item)}</span><span className="inc-status">{submitted ? integrationState(item) : item.status === 'working' ? 'Trabajando' : item.status === 'blocked' ? 'Bloqueada' : 'Trabajo sin solicitar'}</span></summary>
+      <summary>{label ? <span className="inc-review-label">{label}</span> : <><span className="inc-review-title">{activityTitle(item)}</span><span className="inc-status">{submitted ? integrationState(item) : item.status === 'working' ? 'Trabajando' : item.status === 'blocked' ? 'Bloqueada' : 'Trabajo sin solicitar'}</span></>}</summary>
       {expanded && <div className="inc-review-body">
         <p className="inc-full-text">{item.summary || item.step || 'Sin resumen declarado.'}</p>
         <p>Rama <code>{item.branch || 'no informada'}</code> → destino <code>{base || item.base || 'no informado'}</code></p>
