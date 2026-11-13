@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomicJSON, assert, text } from './store.mjs';
 import { permissionDecision, phantomCommand, PHANTOM_SCRIPTS, inside, PERMISSION_MODES } from './chat-permissions.mjs';
-import { phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
+import { codexWriteArgs, phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
@@ -99,11 +99,12 @@ export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = 
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
   const sandbox = access === 'full' ? 'danger-full-access' : access === 'auto' ? 'workspace-write' : 'read-only';
   // Phantom's CLIs reach the app through its Unix socket, which Codex's
-  // sandbox counts as network: workspace-write opens it so Codex runs them
-  // like Claude and OpenCode do. read-only has no network switch.
+  // sandbox counts as network, and native Phantom writes its own database:
+  // workspace-write opens both so Codex works like Claude and OpenCode do.
+  // read-only has no switch for either; the MCP servers cover it.
   if (provider === 'codex') return ['exec', ...(sessionId ? ['resume'] : []), '--json', '--skip-git-repo-check',
     '-c', `sandbox_mode=${JSON.stringify(sandbox)}`, '-c', 'approval_policy="never"',
-    ...(sandbox === 'workspace-write' ? ['-c', 'sandbox_workspace_write.network_access=true'] : []),
+    ...(sandbox === 'workspace-write' ? codexWriteArgs(phantom || process.env) : []),
     ...(model ? ['--model', model] : []), ...(reasoning ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoning)}`] : []),
     ...(phantom ? ['-c', phantomMcpConfig(phantom)] : []),
     ...(instructions || phantom ? ['-c', `developer_instructions=${JSON.stringify([instructions, phantom && PHANTOM_MCP_HINT].filter(Boolean).join('\n\n'))}`] : []), ...(sessionId ? [sessionId] : []), '-'];

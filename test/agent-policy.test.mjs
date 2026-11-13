@@ -278,8 +278,11 @@ test('Claude Code and Codex started in a Phantom terminal receive the terminal p
   for (const [args, lead, rest] of [[['exec', 'fix it'], ['exec'], ['fix it']], [['fix it'], [], ['fix it']]]) {
     const codex = run('codex', args);
     assert.deepEqual(codex.slice(0, lead.length), lead);
-    const [c1, mcp, c2, dev, ...tail] = codex.slice(lead.length);
-    assert.deepEqual([c1, c2, tail], ['-c', '-c', rest]);
+    const [c1, mcp, c2, net, c3, roots, c4, dev, ...tail] = codex.slice(lead.length);
+    assert.deepEqual([c1, c2, c3, c4, tail], ['-c', '-c', '-c', '-c', rest]);
+    // workspace-write reaches the app's socket and native Phantom's database.
+    assert.equal(net, 'sandbox_workspace_write.network_access=true');
+    assert.match(roots, /^sandbox_workspace_write\.writable_roots=\[".*\/phantom"\]$/);
     // Phantom's CLIs as a pre-approved MCP tool, outside Codex's sandbox.
     assert.match(mcp, /^mcp_servers\.phantom_workspace=\{ command=".*", args=\[".*phantom-mcp\.mjs"\], env=\{ .* \}, default_tools_approval_mode="approve" \}$/);
     // The value is a TOML multi-line literal string: the policy arrives verbatim.
