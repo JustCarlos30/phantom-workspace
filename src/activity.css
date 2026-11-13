@@ -9,8 +9,9 @@
 .activity-notch>strong { min-width: 0; overflow-wrap: anywhere; }
 .activity-notch svg { flex-shrink: 0; }
 .activity-tray { position: fixed; z-index: 46; top: 108px; right: 20px; width: min(570px, calc(100vw - 28px)); max-height: calc(100dvh - 126px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-ctl); box-shadow: var(--shadow-float); color: var(--ink); min-width: 0; }
-.activity-tray .popover-heading { flex-shrink: 0; }
-.activity-tray-scroll { overflow: auto; min-height: 0; padding: 0 16px; overscroll-behavior: contain; }
+.activity-tray .popover-heading { flex-shrink: 0; gap: 8px; padding: 12px 12px 4px 16px; }
+.activity-tray .popover-heading strong { min-width: 0; overflow-wrap: anywhere; }
+.activity-tray-scroll { flex: 1 1 auto; overflow: auto; min-width: 0; min-height: 0; padding: 0 16px; overscroll-behavior: contain; overflow-wrap: anywhere; }
 .activity-tray-scroll>section { padding: 16px 0; border-top: 1px solid var(--hairline); }
 .activity-tray h2 { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; margin: 0 0 10px; }
 .activity-tray h2 b { margin-left: auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -18,7 +19,7 @@
 .activity-source { display: flex; flex-direction: column; gap: 4px; }
 .activity-source.source-error { color: var(--danger); }
 .activity-source>button { align-self: flex-start; }
-.activity-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--hairline); min-width: 0; font-size: 12px; }
+.activity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--hairline); min-width: 0; font-size: 12px; }
 .activity-row:last-child { border-bottom: 0; }
 .activity-row>div { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
 .activity-row small { font-size: 11px; color: var(--muted); }
@@ -29,7 +30,9 @@
 .activity-base { display: flex; align-items: flex-end; gap: 8px; }
 .activity-base label { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; font-size: 11px; color: var(--muted); }
 .activity-base input { min-width: 0; width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--hairline); border-radius: var(--r-mark); padding: 7px 9px; }
-.activity-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--hairline); font-size: 10px; color: var(--muted); }
+.activity-footer { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--hairline); font-size: 10px; color: var(--muted); }
+.activity-footer > span { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.activity-tray .activity-actions button, .activity-tray .activity-row > button { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .terminal-activity-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); min-width: 0; line-height: 1.4; }
 .terminal-activity-status i { display: block; width: 5px; height: 5px; border-radius: var(--r-pill); background: currentColor; flex-shrink: 0; }
 .node-header>.terminal-activity-status { max-width: 175px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: calc(10px * var(--map-label-scale, 1)); }
@@ -44,7 +47,7 @@
    window nears its cap; then the same caution/danger inks as the chat card. */
 .activity-limit { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
 .activity-limit:first-of-type { padding-top: 4px; }
-.activity-limit>header { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.activity-limit>header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
 .activity-limit-plan { padding: 2px 7px; border-radius: var(--r-pill); background: var(--fill); color: var(--muted); font-size: 10px; text-transform: capitalize; }
 .activity-limit-row { display: flex; flex-direction: column; gap: 5px; --limit-ink: var(--muted); }
 .activity-limit-row.limit-high { --limit-ink: var(--attention); }
@@ -91,9 +94,7 @@
 .activity-integration-details .activity-row strong { font-weight: 500; }
 .activity-integrations .plugin-error { min-width: 0; overflow-wrap: anywhere; }
 .activity-integrations .plugin-error .tw-row { flex-wrap: wrap; }
-.activity-secondary { padding: 0 16px 8px; font-size: 11px; color: var(--muted); }
-.activity-secondary summary, .activity-tray-scroll summary { cursor: pointer; }
-.activity-secondary .activity-actions { margin-top: 8px; }
+.activity-tray-scroll summary { cursor: pointer; }
 .activity-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .activity-row.activity-compact { align-items: flex-start; }
 .activity-compact > details { min-width: 0; flex: 1; }
@@ -101,7 +102,6 @@
 .activity-compact summary > span { display: block; font-size: 11px; margin-top: 4px; }
 .activity-row.activity-compact > .activity-actions { flex: 0 1 auto; flex-direction: row; max-width: 45%; }
 .activity-tray summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.activity-tray .activity-filters { flex-wrap: wrap; }
 
 /* Status rows: why it is here (glyph and ink), what it is, where from and
    when, and the one place to go. Rows are separated by space, not by lines. */
