@@ -21,15 +21,18 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
   const fresh = freshness(activity);
   const settled = fresh.state === 'fresh' || fresh.state === 'stale';
   const count = activity.needs.length;
+  const working = activity.inProgress.filter(item => item.tone === 'working').length + activity.activeSessions.length + activity.integrations.active.filter(item => ['merging', 'working', 'running', 'verifying', 'recovering'].includes(item.status)).length;
+  const mood = fresh.state === 'offline' ? 'asleep' : fresh.state !== 'fresh' ? 'unsure' : count ? 'grin' : working ? 'working' : 'calm';
   const staleWhy = fresh.failing.length ? `No se pudo leer: ${fresh.failing.join(', ')}. El conteo es el de la última lectura correcta.` : 'La última lectura tiene más de 45 s. Se actualiza sola; el conteo puede haber cambiado.';
+  const status = fresh.state === 'offline' ? 'Host desconectado' : fresh.state === 'loading' ? 'Recuperando actividad…' : count ? `${count} ${count === 1 ? 'necesita' : 'necesitan'} de ti` : fresh.state === 'fresh' && working ? 'En curso' : 'Actividad';
   const expanded = filter => open === filter || (open === true && filter === 'all');
   const peak = peakLimit(activity.sources.limits?.data);
   const merges = activity.sources.merges, board = buildBranchBoard(merges?.data);
   const branches = !activity.connected || !merges?.at || merges.data?.enabled === false ? null : board.counts;
   return <div className="activity-strip" role="group" aria-label="Actividad del proyecto">
-    <button ref={buttonRef} className={`activity-notch ${count && settled ? 'needs-you' : ''}`} aria-label="Actividad del proyecto" aria-expanded={expanded('needs')} aria-controls="activity-tray" onClick={() => onToggle('needs')}>
-      <PhantomFace mood={fresh.state === 'offline' ? 'asleep' : fresh.state !== 'fresh' ? 'unsure' : count ? 'grin' : 'calm'} />
-      <strong>{fresh.state === 'offline' ? 'Host desconectado' : fresh.state === 'loading' ? 'Recuperando actividad…' : count ? `${count} ${count === 1 ? 'necesita' : 'necesitan'} de ti` : 'Actividad'}</strong>
+    <button ref={buttonRef} className={`activity-notch ${count && settled ? 'needs-you' : ''}`} aria-label={`Actividad del proyecto · ${status}${fresh.state === 'stale' ? ' · desactualizado' : ''}`} title={fresh.state === 'stale' ? staleWhy : undefined} aria-expanded={expanded('needs')} aria-controls="activity-tray" onClick={() => onToggle('needs')}>
+      <PhantomFace mood={mood} /><CircleDot className="notch-state-fallback" size={14} aria-hidden="true" />
+      <strong>{status}</strong>
       {fresh.state === 'stale' && <span className="notch-stale" title={staleWhy}>desactualizado</span>}<ChevronDown size={12} />
     </button>
     <button className={`activity-summary-action ${branches?.attention ? 'has-returned' : ''}`} aria-label="Integraciones" aria-expanded={expanded('integration')} aria-controls="activity-tray" onClick={() => onToggle('integration')} title={branches ? `${branches.total} ramas sin incorporar · ${branches.queued} en cola · ${branches.attention} devueltas o bloqueadas` : 'Ramas activas y lo que les falta para el merge'}><GitMerge size={14} /><span>{branches ? `${branches.total} ${branches.total === 1 ? 'rama' : 'ramas'}` : 'Integraciones'}</span></button>
