@@ -7,7 +7,7 @@ import React, { useEffect, useRef } from 'react';
 // while something moves: at rest the field paints nothing (or a static halo),
 // so the workspace stays still and focus is never stolen.
 //
-// `call` is an approval, `turn` your move, `error` a failure, `work` an agent
+// `call` is an approval, `turn` your move, `error` a failure, `success` a zero exit, `work` an agent
 // working. Every new state announces itself with one wave; only the hero
 // (needs > failure > done, then whoever waited longest) keeps calling on the
 // 2.4 s bar until the 30 s backoff. Working has a steady halo; its CSS edge
@@ -16,10 +16,11 @@ const WAVE = { reach: 84, minPx: 28, maxPx: 132, life: 1.6, echo: .22, bar: 2.4,
 const PLAN = {
   call: { halo: true, rings: Infinity, rank: 0, alpha: .62, width: 2.6 },
   error: { halo: false, rings: 1, rank: 1, alpha: .7, width: 2.6 },
+  success: { halo: false, rings: 1, rank: 3, alpha: .5, width: 2.2 },
   turn: { halo: true, rings: 2, rank: 2, alpha: .5, width: 2.2 },
   work: { halo: true, rings: 0, rank: 9, alpha: .26, width: 1.6 },
 };
-const COLOR = { call: '--attention', turn: '--attention', error: '--danger', work: '--working' };
+const COLOR = { call: '--attention', turn: '--attention', error: '--danger', success: '--success', work: '--working' };
 const RADIUS = 14;
 
 const easeOut = t => 1 - Math.pow(1 - t, 3);
