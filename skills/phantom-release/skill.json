@@ -1,0 +1,7 @@
+{
+  "id": "phantom-release",
+  "version": "1.0.0",
+  "description": "Construye, empaqueta y finaliza una release local con sus metadatos. Úsala cuando el usuario pida crear un paquete, construir la última versión o preparar/finalizar una release.",
+  "actions": ["release.build", "release.package"],
+  "bodyFile": "SKILL.md"
+}

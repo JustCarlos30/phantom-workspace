@@ -147,6 +147,16 @@ node scripts/canvas.mjs comments | reply 3 "Hecho" | resolve 3
 
 En la exportación a Remotion cada referencia es una toma, en orden de lectura. Un video empieza en su primer comentario con minuto, y la nota sale como subtítulo (`--no-captions` la quita). Si vuelves a exportar a la misma carpeta, solo se reemplazan `src/shots.json` y `public/shots/`, así que tus cambios en `Storyboard.tsx` se conservan.
 
+## Research en el canvas
+
+`node scripts/canvas.mjs research "Tema" --from refs.json` crea o reutiliza un espacio `Research · Tema`: cada research tiene su propio espacio, Bandeja y panel **Lector**. El Lector abre las fuentes para triage; usa `mark ID inbox|liked|discarded` para mover su estado y **C** sobre una fuente para comentar. Sus acciones de comentarios permiten responder y resolver el hilo con `reply` y `resolve`; los atajos del canvas siguen disponibles: **Ctrl + K** abre la paleta y **0** ajusta el mapa.
+
+Un comentario ligado a una URL conserva la URL, el título y, cuando está disponible, una captura PNG de la página que vio la persona. Límites: el Lector mantiene una sola página viva, algunos sitios con login o que bloquean la vista previa no se pueden mostrar, y no hay selección semántica de elementos de la página.
+
+## Skills del producto
+
+Las skills publicadas del producto viven en `skills/`. Para publicar una instalación global usa `phantom skill-publish skills/<id>/skill.json --global`; para comprobar qué skill corresponde a una acción usa `phantom skill-resolve <acción> --workspace RUTA`. Las versiones son inmutables: para cambiar una skill se publica una versión nueva.
+
 ## Navegador del agente y automatización
 
 En una **terminal nueva creada por Phantom**, el agente descubre `PHANTOM_BROWSER_CLI`, `PHANTOM_BROWSER_ENDPOINT`, `PHANTOM_BROWSER_SESSION` y `PHANTOM_BROWSER_WORKSPACE`. La capacidad privada `PHANTOM_BROWSER_TOKEN` se hereda solo en esa terminal; no debe copiarse a prompts, logs ni archivos del proyecto. Las **cards en modo chat** (Claude · OpenCode · Codex) y el chat de Phantom reciben el mismo puente en cada turno: una identidad estable por card (sus paneles se reutilizan entre turnos) y una capacidad que solo vale mientras el turno está en curso y se revoca al terminar. Con la ventana abierta y ese proyecto activo:
