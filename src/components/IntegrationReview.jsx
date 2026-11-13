@@ -4,6 +4,7 @@ import { contractOf } from '../hooks/plugin-model.mjs';
 import { checkResultsOf } from '../hooks/card-view.mjs';
 import { runsOf } from '../hooks/phantom-desk.mjs';
 import { ErrorNotice, useResource } from './PluginPrimitives';
+import MergePath from './MergePath.jsx';
 import '../incorporaciones.css';
 
 function CardRequirements({ id, workspace, api }) {
@@ -37,21 +38,24 @@ function SubmittedDiff({ item, workspace, api }) {
 }
 
 // Read-only review. Ordering, rejection and integration remain orchestrator actions.
-export default function IntegrationReview({ item, workspace, api, onCard, onTerminal, base, label, bare = false }) {
+export default function IntegrationReview({ item, workspace, api, onCard, onTerminal, base, label, bare = false, compact = false, path }) {
   const [expanded, setExpanded] = useState(false), [diff, setDiff] = useState(false);
   const cardId = cardIdOf(item), submitted = Boolean(item.id);
   const inspection = item.inspection;
   const exact = Boolean(item.headOid) && inspection?.available === true && inspection.headOid === item.headOid;
   const paths = submitted ? exact ? inspection.files : null : item.missing ? null : item.files;
-  return <article className={`inc-review${bare ? ' is-bare' : ''}`} data-request-id={item.id}>
+  return <article className={`inc-review${bare ? ' is-bare' : ''}${compact ? ' is-compact' : ''}`} data-request-id={item.id}>
     <details onToggle={event => setExpanded(event.currentTarget.open)}>
       <summary>{label ? <span className="inc-review-label">{label}</span> : <><span className="inc-review-title">{activityTitle(item)}</span><span className="inc-status">{submitted ? integrationState(item) : item.status === 'working' ? 'Trabajando' : item.status === 'blocked' ? 'Bloqueada' : 'Trabajo sin solicitar'}</span></>}</summary>
       {expanded && <div className="inc-review-body">
-        <p className="inc-full-text">{item.summary || item.step || 'Sin resumen declarado.'}</p>
+        {!compact && <p className="inc-full-text">{item.summary || item.step || 'Sin resumen declarado.'}</p>}
+        {path && <details><summary>Camino completo de incorporación</summary><MergePath path={path} /></details>}
         <p>Rama <code>{item.branch || 'no informada'}</code> → destino <code>{base || item.base || 'no informado'}</code></p>
         {!submitted && <p>{item.missing ? 'Rama no encontrada.' : `Commits por incorporar: ${item.ahead ?? 'desconocidos'} · detrás: ${item.behind ?? 'desconocidos'} · archivos sin commitear: ${item.uncommitted ?? 'desconocidos'}.`} {item.running === false ? 'Sin sesión activa.' : item.running === true ? 'Sesión activa; esto no acredita progreso.' : 'Sesión sin confirmar.'} No hay solicitud de integración para este trabajo.</p>}
         {submitted && <><p>Commit enviado <code>{item.headOid || 'no informado'}</code></p><p>{item.stale === true ? 'La rama avanzó: se integrará el commit enviado, no su HEAD actual.' : item.stale === false ? 'La rama conserva el commit enviado.' : 'HEAD actual de la rama sin confirmar.'}</p></>}
-        <p>Orquestador: {item.note || 'sin comentarios para esta solicitud.'}</p>
+        {(item.requestedAt || item.finishedAt || item.updatedAt) && <p>{[['Solicitada', item.requestedAt], ['Finalizada', item.finishedAt], ['Actualizada', item.updatedAt]].filter(([, value]) => value).map(([name, value]) => `${name}: ${value}`).join(' · ')}</p>}
+        {item.mergedOid && <p>Commit incorporado <code>{item.mergedOid}</code></p>}
+        {!(compact && ['conflict', 'failed'].includes(item.status) && item.note) && <p>Orquestador: {item.note || 'sin comentarios para esta solicitud.'}</p>}
         {item.conflicts?.length ? <p className="inc-conflict">Conflictos comprobados en el intento registrado: {item.conflicts.join(', ')}.</p> : <p>Conflictos: sin comprobación disponible para la integración actual.</p>}
         {item.overlaps?.length > 0 && <p className="inc-overlap">Solapes de archivos con otras ramas: {item.overlaps.map(overlap => `${overlap.path} (${overlap.with.join(', ')})`).join('; ')}. Son coincidencias de archivos, no conflictos comprobados.</p>}
         {submitted && <p>Checks de integración: {item.headOid && item.checks?.headOid === item.headOid && typeof item.checks?.ok === 'boolean' ? `${item.checks.ok ? 'pasaron' : 'fallaron'} · ${item.checks.command} · salida ${item.checks.code} · base ${item.checks.baseOid}` : 'sin evidencia registrada para el commit enviado.'}</p>}

@@ -1,11 +1,10 @@
 import React, { useEffect, useId } from 'react';
-import { AlertTriangle, CheckCircle2, GitMerge, Loader2, Power, RefreshCw, TerminalSquare } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, GitMerge, Power, RefreshCw, TerminalSquare } from 'lucide-react';
 import { Button, ErrorNotice, OperationState, useOperation, useResource } from './PluginPrimitives';
 import { preferredCardMode } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 import IntegrationReview from './IntegrationReview.jsx';
-import { buildIncorporaciones, mergePath } from '../hooks/incorporaciones-model.mjs';
-import MergePath from './MergePath.jsx';
+import { buildBranchBoard } from '../hooks/incorporaciones-model.mjs';
 import '../incorporaciones.css';
 
 // Incorporaciones: how many integration requests exist, which branches are
@@ -13,54 +12,34 @@ import '../incorporaciones.css';
 // worked on. The panel observes; ordering and merging belong to the
 // orchestrator session.
 const REQUEST = { queued: 'En cola', merging: 'Incorporando…', conflict: 'Conflicto', failed: 'Checks fallidos', merged: 'Incorporada', rejected: 'Rechazada', withdrawn: 'Retirada' };
-const WORK = { idle: 'En pausa', working: 'Trabajando', blocked: 'Bloqueada', review: 'Lista para revisión' };
 const when = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 const files = count => `${count} ${count === 1 ? 'archivo' : 'archivos'}`;
-const commits = count => `${count} ${count === 1 ? 'commit' : 'commits'}`;
-// Terminal branches end in the node's UUID; the title already names the terminal.
-const short = branch => branch.replace(/^(phantom\/terminal-[0-9a-f]{8})[0-9a-f-]+$/, '$1…');
-
-function Overlaps({ items }) {
-  if (!items?.length) return null;
-  const others = [...new Set(items.flatMap(item => item.with))];
-  return <p className="inc-overlap"><AlertTriangle size={12} aria-hidden="true" />Comparte {files(items.length)} con {others.join(', ')}: {items.slice(0, 4).map(item => item.path).join(', ')}{items.length > 4 ? '…' : ''}. El orden importa.</p>;
-}
-// Commits the branch adds and those it lacks from the base, as two small figures.
-function Delta({ ahead, behind, base }) {
-  if (ahead == null && behind == null) return null;
-  const label = [ahead != null && `${commits(ahead)} por incorporar`, behind != null && `${commits(behind)} detrás de ${base}`].filter(Boolean).join(', ');
-  return <span className="inc-delta" role="img" aria-label={label}>
-    {ahead != null && <span className="is-ahead" title={`Commits por incorporar en ${base}`}>+{ahead}</span>}
-    {behind != null && <span className={`is-behind${behind ? '' : ' is-zero'}`} title={`Commits de ${base} que le faltan`}>−{behind}</span>}
-  </span>;
-}
-function Row({ item, marker, status, tone, focus, delta, children }) {
+function Row({ item, marker, status, tone, children }) {
   return <li className="inc-item" data-tone={tone}>
     <span className="inc-position" aria-hidden="true">{marker ?? '·'}</span>
     <div className="inc-body">
       <div className="inc-title">
-        <button type="button" className="inc-link" title="Ver esta terminal" onClick={() => focus(item.nodeId)}>{item.title}</button>
+        <strong className="inc-row-title">{item.title}</strong>
         <span className="inc-status" data-tone={tone}>{status}</span>
-        {delta}
       </div>
       {children}
     </div>
   </li>;
 }
 function Section({ id, title, count, hint, tone, children }) {
-  return <section id={id} className="inc-section" data-tone={tone} aria-labelledby={`${id}-h`}>
+  return <section id={id} tabIndex={-1} className="inc-section" data-tone={tone} aria-labelledby={`${id}-h`}>
     <header className="inc-section-head"><h3 id={`${id}-h`} className="inc-heading">{title}<span className="inc-count">{count}</span></h3>{hint && <p className="inc-hint">{hint}</p>}</header>
     {children}
   </section>;
 }
 function Stat({ value, label, detail, tone, target }) {
-  const jump = () => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  return <button type="button" className="inc-stat" data-tone={tone} data-empty={value ? undefined : ''} disabled={!target} onClick={jump}>
+  const jump = () => { const section = document.getElementById(target); section?.focus({ preventScroll: true }); section?.scrollIntoView({ block: 'start' }); };
+  return <button type="button" className="inc-stat" data-tone={tone} data-empty={value ? undefined : ''} disabled={!target} aria-controls={target} onClick={jump}>
     <span className="inc-stat-value">{value}</span><span className="inc-stat-label">{label}</span>{detail && <span className="inc-stat-detail">{detail}</span>}
   </button>;
 }
 
-export default function Incorporaciones({ workspace, api, onOpenPanel, notify, active = true }) {
+export default function Incorporaciones({ workspace, api, onOpenPanel, notify, active = true, sessionVisible = false }) {
   const resource = useResource(api, 'merge.status', { workspaceId: workspace.id });
   const op = useOperation(notify), { data, reload } = resource;
   const uid = useId().replace(/:/g, ''), anchor = name => `inc-${uid}-${name}`;
@@ -82,34 +61,30 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
   const base = data.base.branch;
   if (!data.enabled) return <div className="inc">
     <h3 className="inc-heading">Incorporaciones está desactivado</h3>
-    <p>Al activarlo, cada terminal solo puede escribir en su propia rama y una única sesión orquestadora ordena e incorpora el trabajo en <b>{base}</b>. Aquí verás cuántas solicitudes hay, qué ramas están listas para mergear y qué se planea.</p>
-    <p className="tw-muted">Instala dos hooks en <code>.git/hooks</code> de este proyecto (<code>reference-transaction</code> y <code>pre-push</code>). Solo afectan a las terminales de Phantom; tu Git fuera de ellas no cambia. Desactivar los quita.</p>
+    <p>Organiza las solicitudes de tus terminales para incorporarlas en <b>{base}</b>.</p>
     <Button icon={Power} tone="primary" disabled={op.busy} onClick={() => configure(true)}>Activar Incorporaciones</Button>
+    <details className="inc-fold"><summary>Cómo funciona · hooks</summary><p>Cada terminal escribe en su propia rama y una sesión orquestadora ordena e incorpora el trabajo. Instala <code>reference-transaction</code> y <code>pre-push</code> en <code>.git/hooks</code>. Solo afectan a las terminales de Phantom; tu Git fuera de ellas no cambia. Desactivar los quita.</p></details>
     <OperationState op={op} />
     {resource.error && <ErrorNotice error={resource.error} retry={reload} />}
   </div>;
 
-  const model = buildIncorporaciones(data), { counts, merging } = model;
-  // The same road for every row: what is done and what each branch still lacks.
-  const road = item => <MergePath path={mergePath(item, { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator) })} />;
-  const cardsDetail = counts.cards ? [counts.queued && `${counts.queued} en cola`, merging && '1 incorporando', counts.attention && `${counts.attention} devueltas`].filter(Boolean).join(' · ') : 'ninguna abierta';
-  const readyDetail = counts.ready ? [counts.queued && `${counts.queued} solicitadas`, counts.unrequested && `${counts.unrequested} sin solicitar`].filter(Boolean).join(' · ') : 'nada por mergear';
+  const board = buildBranchBoard(data);
+  const groups = [
+    { name: 'attention', title: 'Necesitan atención', tone: 'attention', rows: board.rows.filter(row => ['conflict', 'failed', 'blocked'].includes(row.state)) },
+    { name: 'ready', title: 'Para revisar', tone: 'ready', rows: board.rows.filter(row => ['queued', 'ready'].includes(row.state)) },
+    { name: 'working', title: 'En curso', tone: 'working', rows: board.rows.filter(row => !['conflict', 'failed', 'blocked', 'queued', 'ready'].includes(row.state)) },
+  ];
 
   return <div className="inc">
     <header className="inc-summary">
       <p className="inc-target"><GitMerge size={15} aria-hidden="true" /> Se incorpora en <b>{base}</b><span className={`inc-guard${data.guard.installed ? ' is-on' : ''}`}>{data.guard.installed ? 'guard activo' : 'sin guard'}</span></p>
-      <div className="tw-row">
+      {!sessionVisible && <div className="tw-row">
         <Button icon={TerminalSquare} tone={data.orchestrator ? undefined : 'primary'} onClick={openOrchestrator}>{data.orchestrator ? `Ver ${data.orchestrator.title}` : 'Abrir sesión orquestadora'}</Button>
-        <Button icon={Power} disabled={op.busy} onClick={() => configure(false)}>Desactivar</Button>
-      </div>
+      </div>}
     </header>
 
     <div className="inc-stats" role="group" aria-label="Resumen de Incorporaciones">
-      <Stat value={counts.cards} label={counts.cards === 1 ? 'Solicitud abierta' : 'Solicitudes abiertas'} detail={cardsDetail} tone="cards" target={counts.cards ? anchor(counts.attention ? 'attention' : 'ready') : null} />
-      <Stat value={counts.ready} label="Listas para mergear" detail={readyDetail} tone="ready" target={counts.ready ? anchor('ready') : null} />
-      <Stat value={counts.attention} label="Necesitan atención" detail={counts.attention ? 'conflicto o checks' : 'sin devoluciones'} tone="attention" target={counts.attention ? anchor('attention') : null} />
-      <Stat value={counts.working} label="En curso" detail={counts.working ? 'sin commits listos' : 'nadie trabajando'} tone="working" target={counts.working ? anchor('working') : null} />
-      <Stat value={counts.merged} label="Incorporadas" detail="recientes" tone="merged" target={counts.merged ? anchor('history') : null} />
+      {groups.map(group => <Stat key={group.name} value={group.rows.length} label={group.title} tone={group.tone} target={group.rows.length ? anchor(group.name) : !board.rows.length ? anchor('empty') : undefined} />)}
     </div>
 
     <OperationState op={op} />
@@ -117,59 +92,35 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     {!data.orchestrator && <p className="inc-callout">Todavía no hay sesión orquestadora: las solicitudes esperan en la cola hasta que abras una.</p>}
     {data.base.uncommitted > 0 && <p className="tw-muted">El checkout del proyecto tiene {files(data.base.uncommitted)} con cambios sin commitear. Las terminales nuevas parten del último commit y no los ven.</p>}
 
-    {merging && <p className="inc-now" role="status"><Loader2 size={14} className="spinning" aria-hidden="true" />Incorporando ahora <b>{merging.title}</b> en {base}<span className="inc-meta" title={merging.branch}>{short(merging.branch)}</span></p>}
+    {groups.map(group => group.rows.length > 0 && <Section key={group.name} id={anchor(group.name)} title={group.title} count={group.rows.length} tone={group.tone}>
+      <ol className="inc-list">{group.rows.map(({ key, item, state, label, path }) => <Row key={key} item={item} marker={state === 'queued' ? item.position : group.name === 'attention' ? <AlertTriangle size={13} aria-hidden="true" /> : '·'} status={label} tone={state}>
+        <p className="inc-brief">{item.summary || item.step || item.cardTitle || 'Sin resumen declarado.'}</p>
+        <p className="inc-next"><span>Siguiente</span> {path.missing[0] || 'Sin pasos pendientes'}</p>
+        {(item.status === 'conflict' || item.status === 'failed') && item.note && <p className="inc-conflict">{item.note}</p>}
+        {item.stale && <p className="inc-hint">La rama avanzó: se revisa el commit enviado.</p>}
+        <IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" compact path={path} />
+      </Row>)}</ol>
+    </Section>)}
+    {!board.rows.length && <div id={anchor('empty')} tabIndex={-1} className="inc-empty">
+      <EmptyState size="compact" icon={CheckCircle2} description="Todo al día. No hay solicitudes ni trabajo pendiente de incorporación." />
+    </div>}
 
-    {model.attention.length > 0 && <Section id={anchor('attention')} title="Necesitan atención" count={model.attention.length} tone="attention" hint={`Devueltas a su terminal: deben traer ${base} a la rama, corregir y volver a enviarla.`}>
-      <ul className="inc-list">{model.attention.map(item => <Row key={item.id} item={item} marker={<AlertTriangle size={13} />} status={REQUEST[item.status]} tone={item.status} focus={focus} delta={<Delta ahead={null} behind={item.behind} base={base} />}>
-        {item.summary && <p>{item.summary}</p>}
-        {road(item)}
-        {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
-        <p className="inc-meta" title={item.branch}>{short(item.branch)} · solicitada {when(item.requestedAt)}</p>
-        <IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
-      </Row>)}</ul>
-    </Section>}
-
-    <Section id={anchor('ready')} title="Listas para mergear" count={model.ready.length} tone="ready" hint={`Primero la cola, en el orden en que el orquestador las incorporará en ${base}; después las ramas con commits limpios que nadie ha solicitado.`}>
-      {!model.ready.length ? <EmptyState className="tw-empty" size="compact" icon={CheckCircle2} description={`Ninguna rama está lista para mergear en ${base}.`} />
-        : <ol className="inc-list">{model.ready.map(({ kind, item }) => kind === 'request'
-          ? <Row key={item.id} item={item} marker={item.position} status="En cola" tone="queued" focus={focus} delta={<Delta ahead={null} behind={item.behind} base={base} />}>
-            {item.summary && <p>{item.summary}</p>}
-            {road(item)}
-            <p className="inc-meta" title={item.branch}>{short(item.branch)} · solicitada {when(item.requestedAt)}{item.stale ? ` · commit enviado ${item.headOid.slice(0, 8)}` : ''}</p>
-            {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
-            <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
-          </Row>
-          : <Row key={item.nodeId} item={item} marker="–" status="Sin solicitar" tone="unrequested" focus={focus} delta={<Delta ahead={item.ahead} behind={item.behind} base={base} />}>
-            {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
-            {road(item)}
-            <p className="inc-meta" title={item.branch}>{short(item.branch)} · {commits(item.ahead)} guardados, worktree limpio</p>
-            <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
-          </Row>)}</ol>}
-    </Section>
-
-    <Section id={anchor('working')} title="En curso" count={model.working.length} tone="working" hint="Terminales con cambios sin commitear o trabajando todavía: aún no se pueden mergear.">
-      {!model.working.length ? <EmptyState className="tw-empty" size="compact" description="Ninguna terminal tiene trabajo a medias." />
-        : <ul className="inc-list">{model.working.map(item => <Row key={item.nodeId} item={item} status={WORK[item.status] || item.status} tone={item.status} focus={focus} delta={item.missing ? null : <Delta ahead={item.ahead} behind={item.behind} base={base} />}>
-          {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
-          {road(item)}
-          <p className="inc-meta" title={item.branch}>{short(item.branch)}</p>
-          <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
-        </Row>)}</ul>}
-    </Section>
-
-    <details className="inc-section inc-fold" open={Boolean(data.plan)}>
+    <details className="inc-section inc-fold">
       <summary className="inc-heading">Plan del orquestador{data.planUpdatedAt ? <span className="inc-hint"> · {when(data.planUpdatedAt)}</span> : null}</summary>
-      {data.plan ? <p className="inc-plan">{data.plan}</p> : <EmptyState className="tw-empty" size="compact" description="El orquestador aún no ha publicado un plan." />}
+      {data.plan ? <p className="inc-plan">{data.plan}</p> : <p className="inc-hint">El orquestador aún no ha publicado un plan.</p>}
     </details>
 
     {data.history.length > 0 && <details id={anchor('history')} className="inc-section inc-fold">
       <summary className="inc-heading">Historial<span className="inc-count">{data.history.length}</span></summary>
-      <ul className="inc-list">{data.history.map(item => <Row key={item.id} item={item} status={REQUEST[item.status]} tone={item.status} focus={focus}>
-        {item.summary && <p>{item.summary}</p>}
-        <p className="inc-meta" title={item.branch}>{short(item.branch)}{item.mergedOid ? ` · ${item.mergedOid.slice(0, 8)}` : ''} · {when(item.finishedAt || item.updatedAt)}</p>
+      <ul className="inc-list">{data.history.map(item => <Row key={item.id} item={item} status={REQUEST[item.status]} tone={item.status}>
         <IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={item.base || base} label="Revisar" />
         {item.status === 'rejected' && item.note && <p className="inc-note">Motivo: {item.note}</p>}
       </Row>)}</ul>
     </details>}
+    <details className="inc-section inc-fold">
+      <summary className="inc-heading">Configuración</summary>
+      <p className="inc-hint">Los hooks <code>reference-transaction</code> y <code>pre-push</code> en <code>.git/hooks</code> protegen las ramas de las terminales Phantom. Desactivar los quita; Git fuera de Phantom no cambia.</p>
+      <Button icon={Power} disabled={op.busy} onClick={() => configure(false)}>Desactivar</Button>
+    </details>
   </div>;
 }
