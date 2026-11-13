@@ -10,11 +10,14 @@
 .phantom-chat {
   position: absolute; z-index: 31; top: 0; right: 0; bottom: 0; width: var(--phantom-chat-width);
   display: flex; flex-direction: column; min-width: 0; font-size: 13px;
-  background: var(--glass); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+  background: var(--surface);
   border-left: 1px solid var(--hairline); container-type: inline-size;
   animation: materialize var(--dur) var(--ease-out);
 }
-@media (prefers-reduced-motion: reduce) { .phantom-chat { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .phantom-chat, .phantom-chat-live::before, .pc-field:not(.is-listening) .phantom-chat-wave i { animation: none !important; }
+  .phantom-chat-wave i { transition: none; }
+}
 
 @media (min-width: 851px) {
   .phantom-chat-open .main-workspace { right: var(--phantom-chat-width); }
@@ -31,7 +34,7 @@
 }
 
 /* Head: exactly the bar's height so its seam continues the top bar. */
-.phantom-chat-head { display: flex; align-items: center; gap: 10px; height: var(--bar, 52px); flex-shrink: 0; padding: 0 8px 0 14px; border-bottom: 1px solid var(--hairline); }
+.phantom-chat-head { display: flex; align-items: center; gap: 10px; height: var(--bar, 52px); flex-shrink: 0; padding: 0 8px 0 14px; }
 .phantom-chat-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-ctl); background: var(--pc-hue-soft); color: var(--pc-hue); flex-shrink: 0; }
 .phantom-chat-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .phantom-chat-title strong { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: -.01em; }
@@ -40,7 +43,7 @@
 .phantom-chat-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--r-pill); background: currentColor; vertical-align: 1px; animation: phantom-pulse 1.4s ease-in-out infinite; }
 @keyframes phantom-pulse { 50% { opacity: .3; } }
 
-.phantom-chat-settings { display: flex; align-items: center; gap: 8px; padding: 8px 12px; flex-shrink: 0; border-bottom: 1px solid var(--hairline); }
+.phantom-chat-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; flex-shrink: 0; }
 .phantom-chat-providers { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r-obj); background: var(--fill); }
 .phantom-chat-providers button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--muted); font-size: 11px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .phantom-chat-providers button:hover:not(:disabled) { color: var(--ink); }
@@ -50,14 +53,14 @@
 .phantom-chat-providers button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @container (max-width: 330px) { .phantom-chat-providers button > span { display: none; } }
 
-.phantom-chat .pc-thread { background: transparent; }
+.phantom-chat .pc-thread { background: var(--surface); }
 .phantom-chat .pc-column { padding: 20px 16px; gap: 22px; }
 .phantom-chat .pc-message.is-user { max-width: 90%; }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
 
 .phantom-chat-suggestions { display: flex; flex-direction: column; gap: var(--s-2); width: 100%; }
-.phantom-chat-suggestions button { text-align: left; padding: 9px 12px; border: 1px solid var(--hairline); border-radius: var(--r-obj); color: var(--ink); font-size: 12px; line-height: 1.4; transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
+.phantom-chat-suggestions button { text-align: left; padding: 9px 12px; border-radius: var(--r-ctl); color: var(--ink); font-size: 12px; line-height: 1.4; transition: background var(--dur-fast) var(--ease-out); }
 .phantom-chat-suggestions button:hover:not(:disabled) { background: var(--fill); border-color: var(--pc-hue-line); }
 .phantom-chat-suggestions button:disabled { opacity: .5; cursor: not-allowed; }
 .phantom-chat-suggestions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
