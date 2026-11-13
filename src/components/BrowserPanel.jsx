@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, ExternalLink, Globe, Maximize2, RotateCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, ExternalLink, Globe, Maximize2, RotateCw, AlertCircle } from 'lucide-react';
 import { subscribe } from '../hooks/useWorkspace';
 import { createBrowserIntent, isSiteURL } from '../hooks/browserIntent';
+import ResearchReader from './ResearchReader';
 
 // Transient previews survive view/boundary remounts, never enter workspace JSON.
 const previews = new Map();
@@ -83,6 +84,12 @@ export default function BrowserPanel({ node, workspace, api, active, obscured, o
     if (active && error && contentBounds(content.current)) intent.current?.show(contentBounds(content.current)).catch(() => {});
     if (!active) onFocus(node.id);
   };
+  const toggleReader = () => {
+    onChange(node.id, { data: { ...node.data, reader: !node.data?.reader } });
+    requestAnimationFrame(() => {
+      if (active && !obscured) intent.current?.bounds(contentBounds(content.current));
+    });
+  };
   return <div className="browser-panel" data-browser-id={node.id} data-agent-key={node.data?.agentKey}>
     <form className="browser-toolbar" onSubmit={navigate}>
       <button type="button" title="Atrás" aria-label="Atrás" disabled={!active || !info.canGoBack || info.loading} onClick={() => intent.current?.action('browser.back')}><ArrowLeft size={15} /></button>
@@ -90,10 +97,16 @@ export default function BrowserPanel({ node, workspace, api, active, obscured, o
       <button type="button" title="Recargar" aria-label="Recargar" disabled={!active || info.loading} onClick={() => intent.current?.action('browser.reload')}><RotateCw size={14} className={info.loading ? 'spinning' : ''} /></button>
       <input aria-label="Dirección web" placeholder="https://…" value={url} onChange={e => { intent.current?.edit(); setUrl(e.target.value); }} spellCheck={false} />
       <button type="button" title="Abrir en navegador externo" aria-label="Abrir en navegador externo" disabled={!isSiteURL(url)} onClick={() => api('desktop.openExternal', { url }).catch(e => setError(e.message))}><ExternalLink size={14} /></button>
+      {node.data?.reader
+        ? <button type="button" title="Cerrar lector de research" aria-label="Cerrar lector de research" aria-pressed onClick={toggleReader}><BookOpen size={14} /></button>
+        : <button type="button" title="Abrir lector de research" aria-label="Abrir lector de research" aria-pressed={false} onClick={toggleReader}><BookOpen size={14} /></button>}
     </form>
     {error && <div className="inline-error"><AlertCircle size={14} /><span>{error}</span><button onClick={navigate}>Reintentar</button></div>}
-    <div ref={content} className="browser-content">
-      {(!active || obscured || error) && <div className="browser-preview">{capture && <img src={capture.dataUrl} alt={`Última captura de ${capture.url}`} />}<div className="browser-preview-label"><Globe size={25} /><strong>{capture?.title || (isSiteURL(info.url) ? info.title || info.url : '') || url || 'Navegador del proyecto'}</strong><span>{capture ? `Última captura: ${capture.url}` : 'Sin captura de una página cargada'}</span><span>Enfocar para navegar</span><button className="button" onClick={() => onFocus(node.id)}><Maximize2 size={14} /> Enfocar navegador</button></div></div>}
+    <div className="browser-body">
+      <div ref={content} className="browser-content">
+        {(!active || obscured || error) && <div className="browser-preview">{capture && <img src={capture.dataUrl} alt={`Última captura de ${capture.url}`} />}<div className="browser-preview-label"><Globe size={25} /><strong>{capture?.title || (isSiteURL(info.url) ? info.title || info.url : '') || url || 'Navegador del proyecto'}</strong><span>{capture ? `Última captura: ${capture.url}` : 'Sin captura de una página cargada'}</span><span>Enfocar para navegar</span><button className="button" onClick={() => onFocus(node.id)}><Maximize2 size={14} /> Enfocar navegador</button></div></div>}
+      </div>
+      {node.data?.reader && <ResearchReader node={node} nodes={workspace.nodes || []} spaceId={node.data?.spaceId ?? null} workspaceId={workspace.id} api={api} onChange={onChange} browserUrl={info.url || url} browserTitle={info.title} onNavigate={destination => { setUrl(destination); intent.current?.navigate(destination).catch(() => {}); if (!active) onFocus(node.id); }} />}
     </div>
   </div>;
 }

@@ -1,0 +1,7 @@
+{
+  "id": "phantom-research",
+  "version": "1.0.0",
+  "description": "Recopila investigación amplia y la lleva a un espacio de canvas para triage. Úsala cuando el usuario diga 'hazte un research', 'investiga X y tráelo al canvas' o comparta fuentes.",
+  "actions": ["research.collect", "research.triage", "research.expand"],
+  "bodyFile": "SKILL.md"
+}

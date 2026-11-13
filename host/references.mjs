@@ -145,6 +145,7 @@ export function validateComments(comments, nodes) {
     assert(Number.isFinite(c.x) && Number.isFinite(c.y) && Math.abs(c.x) <= 1e7 && Math.abs(c.y) <= 1e7, 'Invalid comment position');
     if (c.nodeId) assert(c.x >= 0 && c.x <= 1 && c.y >= 0 && c.y <= 1, 'Comment position must be a fraction of its panel');
     if (c.time !== undefined) assert(Number.isFinite(c.time) && c.time >= 0 && c.time <= 1e6, 'Invalid comment time');
+    if (c.page !== undefined) validateCommentPage(c.page);
     if (c.review) {
       validateReview(c.review);
       const node = nodes.find(n => n.id === c.nodeId);
@@ -164,6 +165,22 @@ export function validateComments(comments, nodes) {
   }
 }
 
+function validateCommentPage(page) {
+  object(page);
+  for (const key of Object.keys(page)) assert(['url', 'title', 'capture'].includes(key), 'Unsupported page field');
+  webURL(page.url);
+  if (page.title !== undefined) text(page.title, 'page title', 1024);
+  if (page.capture !== undefined) assert(/^[0-9a-f]{32}\.png$/.test(page.capture), 'Captura de página inválida');
+  return page;
+}
+
+function pageCapture(value) {
+  const data = text(value, 'captura de página', 900000);
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/]*={0,2})$/i.exec(data);
+  assert(match, 'Captura de página PNG requerida');
+  return Buffer.from(match[1], 'base64');
+}
+
 // "@phantom" (or @claude, @agente) in a person's comment hands the thread to the project's agent.
 export const MENTION = /(^|[^\w@])@(phantom|claude|agente)\b/i;
 const clock = seconds => { const t = Math.floor(seconds), m = Math.floor(t / 60); return `${m}:${String(t % 60).padStart(2, '0')}`; };
@@ -174,7 +191,7 @@ export function mentionBrief(w, comment, dataDir, cli) {
   return [`The user asked you in comment thread #${number} on ${where}.`,
     node ? `Pin at ${Math.round(comment.x * 100)}% from the left, ${Math.round(comment.y * 100)}% from the top of the ${comment.review ? 'decoded content (not panel chrome)' : 'panel'}${comment.time !== undefined ? `, at ${clock(comment.time)} (${comment.time}s) into the video` : ''}.` : '',
     file ? `File: ${file} — read it to see what they are pointing at.` : '', node?.data?.url ? `Site: ${node.data.url}` : '', node?.data?.source ? `Source: ${node.data.source}` : '', node?.data?.note ? `Their note on this reference: ${node.data.note}` : '',
-    reviewBrief(comment.review), comment.review?.capture ? `Captura: ${referencePath(dataDir, w.id, comment.review.capture)}` : '', '', 'Thread:', ...comment.messages.map(m => `- ${m.author}: ${m.text}`), '',
+    reviewBrief(comment.review), comment.review?.capture ? `Captura: ${referencePath(dataDir, w.id, comment.review.capture)}` : '', comment.page ? `Página: ${comment.page.url}` : '', comment.page?.capture ? `Captura de la página: ${referencePath(dataDir, w.id, comment.page.capture)} — léela para ver lo que el usuario veía` : '', '', 'Thread:', ...comment.messages.map(m => `- ${m.author}: ${m.text}`), '',
     `Do what they ask. When done, answer in the thread itself: "\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(cli)} reply ${number} "<short answer>" --author Phantom. Do not resolve it; the user does.`].filter(line => line !== '').join('\n').replace('Thread:', '\nThread:');
 }
 const message = p => ({ id: randomUUID(), text: text(p.text, 'comment text', 4000).trim(), author: p.author === undefined ? 'Tú' : text(p.author, 'comment author', 64).trim() || 'Tú', createdAt: new Date().toISOString() });
@@ -262,6 +279,12 @@ export async function handleReference(method, p, { store, mutate, dataDir, menti
   }
   if (method === 'comment.add') { const made = mutate(w.id, () => {
     const node = p.nodeId ? w.nodes.find(n => n.id === p.nodeId) : null; assert(!p.nodeId || node, 'Node not found');
+    if (p.page !== undefined) {
+      object(p.page);
+      for (const key of Object.keys(p.page)) assert(['url', 'title', 'capture'].includes(key), 'Unsupported page field');
+      webURL(p.page.url);
+      if (p.page.title !== undefined) text(p.page.title, 'page title', 1024);
+    }
     const clamp01 = v => Math.min(1, Math.max(0, finite(v, .5)));
     const comment = { id: randomUUID(), nodeId: node?.id ?? null, x: node ? clamp01(p.x) : finite(p.x, 0), y: node ? clamp01(p.y) : finite(p.y, 0), ...(Number.isFinite(p.time) ? { time: Math.max(0, p.time) } : {}), ...(!node && p.spaceId ? { spaceId: p.spaceId } : {}), resolved: false, messages: [message(p)] };
     if (p.requestId) comment.requestId = p.requestId;
@@ -276,6 +299,14 @@ export async function handleReference(method, p, { store, mutate, dataDir, menti
         assert(captured.mime === 'image/png', 'Captura PNG requerida'); comment.review.capture = captured.file;
       }
       if (p.review.kind === 'video') comment.time = p.review.time;
+    }
+    if (p.page) {
+      comment.page = { url: webURL(p.page.url).href, ...(p.page.title !== undefined ? { title: p.page.title } : {}) };
+      if (p.page.capture !== undefined) {
+        const captured = storeBytes(dataDir, w.id, pageCapture(p.page.capture));
+        assert(captured.mime === 'image/png', 'Captura de página PNG requerida');
+        comment.page.capture = captured.file;
+      }
     }
     (w.comments ??= []).push(comment); prepareHandoff(comment, comment.messages[0]); return comment;
   }); return handOff(made, made.messages[0]); }

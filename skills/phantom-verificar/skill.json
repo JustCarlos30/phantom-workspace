@@ -1,0 +1,7 @@
+{
+  "id": "phantom-verificar",
+  "version": "1.0.0",
+  "description": "Prepara y registra la verificación previa a publicar. Úsala cuando el usuario pida verificar, ejecutar checks, validar un cambio o confirmar si está listo para publicar.",
+  "actions": ["verify.prepublish", "verify.run"],
+  "bodyFile": "SKILL.md"
+}

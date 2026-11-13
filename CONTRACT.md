@@ -12,6 +12,8 @@ Node: `{id,type,title,x,y,width,height,groupId:null,data:{}}`. Tipos: `terminal`
 
 Task local: `{id,kind:'draft'|'checklist'|'phantom',title,description,status:'todo'|'doing'|'done',phantomId?,missionId?,refs:[],createdAt}`. Phantom source status permanece separado. Mission: `{id,title,notes,nextAction,refs:[],createdAt}`. ContextRef: `{id,path?,kind,title,source?,ref?}`. Workflow: `{id,title,description,steps:[],version:1}`. Service: `{id,url,title,source:'pinned'|'managed'|'compose',...}`.
 
+Reference: node `reference` con `data.tags?:string[]`; research usa exactamente un tag de estado `research:inbox`, `research:liked` o `research:discarded` (otros tags se conservan). Comment: `{id,number,nodeId?,x,y,messages:[],resolved?,page?}`; `page` es `{url,title?,capture?}`, donde `url` es HTTP(S), `title` es texto y `capture` es el nombre privado `<32-hex>.png` de la captura persistida de la página.
+
 ## Bridge renderer
 
 `window.phantom.invoke(method,payload={})` → Promise resultado; errores rechazados con mensaje útil. `window.phantom.onEvent(callback)` → unsubscribe. Evento `{type,workspaceId?,sessionId?,...}`. `window.phantom.platform` literal Linux. No APIs Node en renderer remoto.
