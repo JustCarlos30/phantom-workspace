@@ -46,3 +46,41 @@
   .rail-panel-group + .rail-panel-group { margin-top: var(--s-3); }
 }
 @media (hover: none) { .rail-panel-focus { opacity: 1; } }
+
+/* Compact context selectors: their menus overlay only the rail's own content. */
+.project-rail .context-switcher { position: relative; flex-shrink: 0; min-width: 0; }
+.project-rail .rail-spaces { margin: 0 0 var(--s-2); min-height: 0; max-height: none; }
+.context-switcher > summary, .space-switcher-trigger { min-height: 48px; }
+.context-switcher .project-switcher-label small { margin: 0 0 2px; font-size: 10px; }
+.space-switcher-trigger { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; text-align: left; border-radius: var(--r-obj); background: var(--fill); }
+.space-switcher-trigger:hover, .space-switcher-trigger[aria-expanded=true] { background: var(--fill-2); }
+.space-switcher-trigger > svg { flex-shrink: 0; color: var(--muted); }
+.space-switcher-trigger[aria-expanded=true] > svg:last-child { transform: rotate(180deg); }
+.context-menu-panel { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5; display: flex; flex-direction: column; gap: 4px; padding: 6px; max-height: min(380px, var(--context-menu-height, calc(100dvh - 290px))); min-height: 0; border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--rail); box-shadow: var(--shadow-float); }
+.context-search { display: flex; align-items: center; gap: 6px; padding: 5px; min-width: 0; flex-shrink: 0; color: var(--muted); border-bottom: 1px solid var(--hairline); }
+.context-search svg { flex-shrink: 0; }
+.context-search input { min-width: 0; width: 100%; padding: 4px 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; }
+.context-search input:focus { outline: none; }
+.context-search:focus-within { outline: 1px solid var(--accent); border-radius: var(--r-ctl); }
+.project-switcher .context-menu-panel .project-list, .rail-spaces .context-menu-panel .space-list { flex: 1 1 auto; min-height: 0; max-height: none; margin: 0; padding: 0; overflow: auto; overflow-x: hidden; overscroll-behavior: contain; }
+.context-menu-panel .project-item { min-height: 44px; }
+.context-menu-panel .project-item > svg { flex-shrink: 0; }
+.context-menu-panel .open-folder { flex-shrink: 0; margin: 0; min-height: 32px; }
+.context-empty { margin: 0; padding: 6px; color: var(--muted); font-size: 12px; }
+.context-menu-panel .space-row { min-height: 34px; flex-shrink: 0; }
+.context-menu-panel .space-select { padding-left: 5px; gap: 6px; font-size: 12px; }
+.space-rename, .context-menu-panel .space-remove { display: grid; place-items: center; width: 24px; height: 28px; flex-shrink: 0; margin: 0; color: var(--muted); border-radius: var(--r-ctl); opacity: 1; }
+.space-rename:hover, .space-rename:focus-visible { color: var(--ink); background: var(--fill-2); }
+.context-menu-panel .space-input { min-width: 0; width: 100%; }
+.project-rail .rail-bottom { flex-shrink: 0; }
+@media (max-height: 600px) {
+  .app-shell:not(.rail-collapsed) .project-rail .brand { height: 36px; padding-top: 0; padding-bottom: 0; margin-bottom: 4px; }
+  .project-rail .project-switcher { margin-bottom: 4px; }
+  .project-rail .context-switcher > summary, .space-switcher-trigger { min-height: 40px; padding-top: 5px; padding-bottom: 5px; }
+  .project-rail .rail-spaces { margin-bottom: 4px; }
+  .project-rail .rail-attention { min-height: 30px; padding-top: 5px; padding-bottom: 5px; }
+  .project-rail .rail-panels { margin-top: 4px; }
+  .project-rail .rail-bottom { padding-top: 4px; }
+  .project-rail .rail-bottom > button { min-height: 28px; padding-top: 4px; padding-bottom: 4px; }
+  .project-rail .rail-system { margin-top: 4px; }
+}
