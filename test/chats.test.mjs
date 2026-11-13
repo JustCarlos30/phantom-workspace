@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHost } from '../host/server.mjs';
-import { applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
+import { applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
 import { mergeChat } from '../src/hooks/chatState.js';
 
 const until = async fn => { const end = Date.now() + 5000; while (Date.now() < end) { if (await fn()) return; await new Promise(r => setTimeout(r, 25)); } throw new Error('Timed out'); };
@@ -361,4 +361,20 @@ test('messages written while the agent works wait their turn; a stop pauses the 
   await host.invoke('chat.queue.send', { ...ref, id: first });
   await until(async () => { const chat = await get(); return !chat.running && !chat.queue.length; });
   assert.deepEqual((await replies()).slice(-2), ['eco:cinco', 'eco:cuatro']);
+});
+
+test('OpenCode catalog reads the variants each model accepts from verbose output', () => {
+  const out = [
+    'openai/gpt-x', JSON.stringify({ id: 'gpt-x', variants: { none: {}, low: {}, high: { reasoningEffort: 'high' }, 'bad variant': {} } }, null, 2),
+    '\x1b[2mopencode/plain\x1b[0m', JSON.stringify({ id: 'plain', limit: { context: 1 } }, null, 2),
+    'acme/broken', '{ not json',
+    'openai/gpt-x', '{}',
+    'ruido sin barra',
+  ].join('\n');
+  assert.deepEqual(openCodeModels(out), [
+    { id: 'openai/gpt-x', group: 'openai', variants: ['none', 'low', 'high'] },
+    { id: 'opencode/plain', group: 'opencode' },
+    { id: 'acme/broken', group: 'acme' },
+  ]);
+  assert.deepEqual(openCodeModels('a/one\nb/two\n'), [{ id: 'a/one', group: 'a' }, { id: 'b/two', group: 'b' }]);
 });

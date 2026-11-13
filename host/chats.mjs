@@ -85,6 +85,29 @@ export function gateConfig({ token, socketPath }) {
 }
 // OpenCode uses its local server; run's noninteractive auto-reject loop must
 // never own the permission replies of a chat card.
+// `opencode models --verbose` prints each model id on its own line followed by
+// its JSON metadata; `variants` names the effort levels that model accepts.
+// Plain output (ids only) still yields the catalog, without variants.
+export function openCodeModels(stdout) {
+  const lines = String(stdout).replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split('\n');
+  const isId = line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/');
+  const items = new Map();
+  for (let i = 0; i < lines.length && items.size < 2000; i++) {
+    const id = lines[i].trim(); if (!isId(id) || items.has(id)) continue;
+    const item = { id, group: id.slice(0, id.indexOf('/')) };
+    let end = i + 1; while (end < lines.length && !isId(lines[end].trim())) end++;
+    const body = lines.slice(i + 1, end).join('\n').trim();
+    if (body.startsWith('{')) {
+      try {
+        const variants = JSON.parse(body)?.variants;
+        if (variants && typeof variants === 'object' && !Array.isArray(variants)) item.variants = Object.keys(variants).filter(name => validReasoning('opencode', name)).slice(0, 20);
+      } catch { /* Metadata is optional; the id is enough to pick the model. */ }
+    }
+    items.set(id, item); i = end - 1;
+  }
+  return [...items.values()];
+}
+
 export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
@@ -560,9 +583,8 @@ export class Chats {
     let items;
     if (provider === 'codex') items = await codexModels(bin, cwd);
     else {
-      const stdout = await new Promise((resolve, reject) => execFile(bin, ['models'], { cwd, env: { ...process.env, PWD: cwd }, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
-      const ids = stdout.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split('\n').map(line => line.trim()).filter(line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/'));
-      items = [...new Set(ids)].slice(0, 2000).map(id => ({ id, group: id.slice(0, id.indexOf('/')) }));
+      const stdout = await new Promise((resolve, reject) => execFile(bin, ['models', '--verbose'], { cwd, env: { ...process.env, PWD: cwd }, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
+      items = openCodeModels(stdout);
       if (!items.length) throw new Error('OpenCode no pudo listar sus modelos: el catálogo está vacío');
     }
     const value = { provider, items }; this.catalogs.delete(key); this.catalogs.set(key, { at: Date.now(), value });

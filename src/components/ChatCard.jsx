@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, Gauge, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
@@ -366,33 +366,51 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
 
 // How much of the model's window the conversation occupies, as read from the
 // provider. Without a known window only the occupied tokens are stated.
-export function ReasoningPicker({ node, workspace, api, notify, provider, disabled }) {
+export function ReasoningPicker({ node, workspace, api, notify, provider, observed, disabled }) {
   const selected = node.data.chat.reasoning?.[provider] || '';
-  const [value, setValue] = useState(selected);
-  useEffect(() => { setValue(selected); }, [selected, provider]);
   const save = async next => {
     if (next === selected) return;
     try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, reasoning: next || null }); }
-    catch (error) { setValue(selected); notify?.(error.message, 'error'); }
+    catch (error) { notify?.(error.message, 'error'); }
   };
-  if (provider === 'opencode') return <label className={`pc-reasoning ${value ? '' : 'is-empty'}`} data-disabled={disabled || undefined}>
-    <Gauge size={12} aria-hidden="true" /><span className="pc-reasoning-label">Variant</span>
-    <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="auto" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
-  </label>;
-  return <EffortMenu key={provider} provider={provider} selected={selected} disabled={disabled} onChoose={save} />;
+  if (provider === 'opencode') return <VariantPicker key={provider} node={node} workspace={workspace} api={api} observed={observed} selected={selected} disabled={disabled} onChoose={save} />;
+  return <EffortMenu key={provider} label="Effort" heading="Esfuerzo de razonamiento" ariaName={`Effort de ${provider}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" levels={EFFORTS[provider] || []} selected={selected} disabled={disabled} onChoose={save} />;
+}
+
+// OpenCode's variants belong to each model: the catalog (`opencode models
+// --verbose`) names the ones the chosen model accepts.
+function VariantPicker({ node, workspace, api, observed, selected, disabled, onChoose }) {
+  const model = node.data.chat.models?.opencode || observed || '';
+  const [catalog, setCatalog] = useState(null), [failure, setFailure] = useState('');
+  useEffect(() => {
+    let stale = false; setFailure('');
+    api('chat.models', { workspaceId: workspace.id, nodeId: node.id }).then(value => { if (!stale) setCatalog(value); }, e => { if (!stale) setFailure(e.message); });
+    return () => { stale = true; };
+  }, [workspace.id, node.id, model]); // eslint-disable-line react-hooks/exhaustive-deps
+  const item = model ? catalog?.items?.find(entry => entry.id === model) : null;
+  const levels = item?.variants || [];
+  const note = failure ? `${failure}.`
+    : !catalog ? 'Leyendo las variantes del modelo…'
+    : !model ? 'Elige un modelo para ver sus variantes.'
+    : !item ? `OpenCode no informa variantes de ${model}.`
+    : !levels.length ? `${model} no tiene variantes.` : '';
+  return <EffortMenu label="Variant" heading={model ? `Variantes de ${model}` : 'Variant'} ariaName="Variant de OpenCode" title="Variant del modelo en OpenCode; auto usa el predeterminado" levels={levels} selected={selected} note={note} disabled={disabled} onChoose={onChoose} />;
 }
 
 // Levels as a short ascending meter: the pill reads at a glance, the menu
 // lines every option up against the same scale.
 function EffortMeter({ level, total }) {
-  const bars = Math.min(total, 5), filled = level < 0 ? 0 : Math.max(1, Math.round((level + 1) / total * bars));
+  const bars = Math.max(1, Math.min(total, 5)), filled = level < 0 ? 0 : Math.max(1, Math.round((level + 1) / Math.max(total, 1) * bars));
   return <span className="pc-effort-meter" aria-hidden="true">{Array.from({ length: bars }, (_, i) => <i key={i} className={i < filled ? 'is-on' : ''} style={{ height: `${4 + i * 2}px` }} />)}</span>;
 }
 
-function EffortMenu({ provider, selected, disabled, onChoose }) {
-  const levels = EFFORTS[provider] || [], options = ['', ...levels];
+function EffortMenu({ label, heading, ariaName, title, levels, selected, note, disabled, onChoose }) {
+  // A saved value the current model no longer offers stays visible so it can be cleared.
+  const stray = selected && !levels.includes(selected) ? selected : '';
+  const options = ['', ...levels, ...(stray ? [stray] : [])];
   const [open, setOpen] = useState(false), [active, setActive] = useState(0);
   const root = useRef(null), list = useRef(null), trigger = useRef(null);
+  const id = React.useId();
   useEffect(() => {
     if (!open) return;
     setActive(Math.max(0, options.indexOf(selected)));
@@ -413,21 +431,23 @@ function EffortMenu({ provider, selected, disabled, onChoose }) {
   };
   const level = levels.indexOf(selected);
   return <div ref={root} className="pc-effort">
-    <button ref={trigger} type="button" className={`pc-reasoning ${selected ? '' : 'is-empty'} ${open ? 'is-open' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-label={`Effort de ${provider}: ${selected || 'auto'}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" disabled={disabled}
+    <button ref={trigger} type="button" className={`pc-reasoning ${selected ? '' : 'is-empty'} ${open ? 'is-open' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-label={`${ariaName}: ${selected || 'auto'}`} title={title} disabled={disabled}
       onClick={() => setOpen(value => !value)} onKeyDown={e => { if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); setOpen(true); } }}>
-      <EffortMeter level={level} total={levels.length} />
-      <span className="pc-reasoning-label">Effort</span>
+      <EffortMeter level={stray ? -1 : level} total={levels.length || 3} />
+      <span className="pc-reasoning-label">{label}</span>
       <span className="pc-reasoning-value">{selected || 'auto'}</span>
       <ChevronDown size={11} aria-hidden="true" />
     </button>
-    {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={`Effort de ${provider}`} aria-activedescendant={`pc-effort-${provider}-${active}`} onKeyDown={keys}>
-      <h4>Esfuerzo de razonamiento</h4>
-      {options.map((option, i) => <div key={option || 'auto'} id={`pc-effort-${provider}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
-        <EffortMeter level={i - 1} total={levels.length} />
+    {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={ariaName} aria-activedescendant={`${id}-${active}`} onKeyDown={keys}>
+      <h4>{heading}</h4>
+      {options.map((option, i) => <div key={option || 'auto'} id={`${id}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
+        <EffortMeter level={option === stray && stray ? -1 : i - 1} total={levels.length || 3} />
         <span>{option || 'auto'}</span>
         {!option && <small>predeterminado</small>}
+        {option && option === stray && <small>no disponible en este modelo</small>}
         {option === selected && <Check size={12} aria-hidden="true" />}
       </div>)}
+      {note && <p className="pc-effort-note" role="status">{note}</p>}
     </div>}
   </div>;
 }
@@ -581,7 +601,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         <div className="pc-controls">
           <div className="pc-settings">
             <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
-            <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
+            <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={running} />
             <PermissionSwitch mode={permissionMode} provider={provider} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
           </div>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}
