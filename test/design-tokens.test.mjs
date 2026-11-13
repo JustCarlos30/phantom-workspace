@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import './appearance-preferences.test.mjs';
 
 // The design system as constraints (see DESIGN.md, «Reglas»). Three radii,
 // two shadows, one hairline, and a per-file budget of drawn edges that can
@@ -87,5 +88,18 @@ test('spectral reading and state inks retain AA contrast on opaque planes', () =
       const a = color(plane), b = color(ink), ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
       assert.ok(ratio >= 4.5, `--${ink} on --${plane}: ${ratio.toFixed(2)} < 4.5`);
     }
+  }
+});
+
+test('working chat planes are opaque and composer height never animates', () => {
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const side = sheets.find(sheet => sheet.name === 'src/phantom-chat.css').css;
+  assert.match(side, /\.phantom-chat\s*\{[^}]*background:\s*var\(--surface\)/);
+  assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--surface\)/);
+  assert.match(chat, /\.pc-field textarea\s*\{[^}]*transition:\s*none/);
+  for (const file of ['ChatCard', 'PhantomChat']) {
+    const source = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
+    assert.match(source, /useComposerSize\(input, draft/);
+    assert.doesNotMatch(source, /Math\.min\(el\.scrollHeight/);
   }
 });

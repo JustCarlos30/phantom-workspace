@@ -91,3 +91,14 @@
 .activity-integration-details .activity-row strong { font-weight: 500; }
 .activity-integrations .plugin-error { min-width: 0; overflow-wrap: anywhere; }
 .activity-integrations .plugin-error .tw-row { flex-wrap: wrap; }
+.activity-secondary { padding: 0 16px 8px; font-size: 11px; color: var(--muted); }
+.activity-secondary summary, .activity-tray-scroll summary { cursor: pointer; }
+.activity-secondary .activity-actions { margin-top: 8px; }
+.activity-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.activity-row.activity-compact { align-items: flex-start; }
+.activity-compact > details { min-width: 0; flex: 1; }
+.activity-compact summary strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.5; overflow-wrap: anywhere; }
+.activity-compact summary > span { display: block; font-size: 11px; margin-top: 4px; }
+.activity-row.activity-compact > .activity-actions { flex: 0 1 auto; flex-direction: row; max-width: 45%; }
+.activity-tray summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.activity-tray .activity-filters { flex-wrap: wrap; }

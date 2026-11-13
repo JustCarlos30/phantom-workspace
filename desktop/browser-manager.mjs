@@ -4,6 +4,38 @@ import { browserURL, browserNode, clampBounds, validateID } from './security.mjs
 const securedSessions = new WeakSet();
 
 // One visible view; up to eight live pages. Reclaiming a page never removes its source node.
+// Runs inside the page (no closure access). Builds a short, stable CSS path for
+// the element at a viewport point plus its visible text.
+export function inspectPoint({ x, y }) {
+  try {
+    let el = document.elementFromPoint(x * innerWidth, y * innerHeight);
+    if (!el) return { url: location.href, title: document.title };
+    const esc = value => (window.CSS?.escape ? CSS.escape(value) : String(value).replace(/[^\w-]/g, '\\$&'));
+    const parts = [];
+    for (let node = el; node && node.nodeType === 1 && parts.length < 6; node = node.parentElement) {
+      const tag = node.tagName.toLowerCase();
+      if (node.id && document.querySelectorAll(`#${esc(node.id)}`).length === 1) { parts.unshift(`#${esc(node.id)}`); break; }
+      if (tag === 'html' || tag === 'body') { parts.unshift(tag); break; }
+      const testid = node.getAttribute('data-testid');
+      if (testid) { parts.unshift(`${tag}[data-testid="${testid.replace(/"/g, '\\"')}"]`); break; }
+      const classes = [...node.classList].filter(c => /^[a-zA-Z][\w-]{0,40}$/.test(c)).slice(0, 2).map(c => `.${esc(c)}`).join('');
+      const siblings = node.parentElement ? [...node.parentElement.children].filter(child => child.tagName === node.tagName) : [];
+      parts.unshift(`${tag}${classes}${siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(node) + 1})` : ''}`);
+    }
+    const label = el.getAttribute('aria-label') || el.getAttribute('alt') || el.getAttribute('title') || el.getAttribute('placeholder') || '';
+    const text = (label || el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+    return { url: location.href, title: document.title, element: { selector: parts.join(' > '), tag: el.tagName.toLowerCase(), text } };
+  } catch { return { url: location.href, title: document.title }; }
+}
+export function inspectResult(result, wc) {
+  const out = { url: String(result?.url || wc.getURL()).slice(0, 8192), title: String(result?.title ?? wc.getTitle()).slice(0, 1024) };
+  const e = result?.element;
+  if (e && typeof e.selector === 'string' && e.selector.trim() && typeof e.tag === 'string') {
+    out.element = { selector: e.selector.slice(0, 1024), tag: e.tag.slice(0, 64), ...(typeof e.text === 'string' && e.text ? { text: e.text.slice(0, 500) } : {}) };
+  }
+  return out;
+}
+
 export class BrowserManager {
   constructor({ window, getState, emit, maxViews = 8 }) {
     this.window = window;
@@ -153,7 +185,7 @@ export class BrowserManager {
     const workspaceId = payload.workspaceId ?? entry?.workspaceId;
     const state = await this.getState();
     if (this.disposed) throw new Error('Ventana cerrada');
-    if (method !== 'browser.capture' && (generation !== this.generation || panelVersion !== (this.panelVersions.get(payload.id) || 0))) return { stale: true };
+    if (method !== 'browser.capture' && method !== 'browser.inspect' && (generation !== this.generation || panelVersion !== (this.panelVersions.get(payload.id) || 0))) return { stale: true };
     browserNode(state, payload.id, workspaceId);
     if (entry && entry.workspaceId !== workspaceId) throw new Error('Panel de otro proyecto');
     if (method === 'browser.attach') {
@@ -203,6 +235,13 @@ export class BrowserManager {
       catch { throw new Error('No hay una captura renderizada disponible; enfoca la página y vuelve a intentar'); }
       if (image.isEmpty()) throw new Error('No hay una captura renderizada disponible');
       return { dataUrl: image.toDataURL() };
+    } else if (method === 'browser.inspect') {
+      // Comment pin on a frozen preview: identify the element under a viewport
+      // point. Only two numbers cross into the page; the function is fixed.
+      const x = Number(payload.x), y = Number(payload.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) throw new Error('Punto inválido');
+      const result = await wc.executeJavaScript(`(${inspectPoint.toString()})(${JSON.stringify({ x, y })})`, true);
+      return inspectResult(result, wc);
     } else throw new Error('Método browser no permitido');
     this.send(entry);
     return { ok: true };

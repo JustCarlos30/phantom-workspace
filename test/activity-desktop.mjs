@@ -35,7 +35,7 @@ function installFixture() {
     state: { activeWorkspaceId: 'a', workspaces: [a, b], settings: {} },
     sessions: { a: [{ id: 's-hidden', workspaceId: 'a', nodeId: 'hidden', status: 'running', cols: 80, rows: 24 }, { id: 's-shell', workspaceId: 'a', nodeId: 'shell', status: 'running', cols: 80, rows: 24 }], b: [] },
     tasks: { a: [{ id: 'task', title: 'Tarea bloqueada', status: 'blocked', source: 'phantom', raw: { sessionId: 's-hidden' } }], b: [] },
-    calls: [], listeners: new Set(), failTasks: false, deferTasks: false, pending: [], nativeVisible: false,
+    calls: [], listeners: new Set(), failTasks: false, deferTasks: false, pending: [], nativeVisible: false, queue: [],
     emit(event) { for (const callback of [...this.listeners]) callback(event); },
     release() { for (const finish of this.pending.splice(0)) finish(); },
   };
@@ -48,6 +48,13 @@ function installFixture() {
       if (method === 'workspace.select') { f.state.activeWorkspaceId = p.id; return {}; }
       if (method === 'node.update') { const n = w.nodes.find(n => n.id === p.id); Object.assign(n, copy(p.patch)); return copy(n); }
       if (method === 'workspace.update') return {};
+      if (method === 'node.create') { const node = { ...copy(p), id: `created-${f.calls.length}`, data: copy(p.data || {}) }; delete node.workspaceId; w.nodes.push(node); return copy(node); }
+      if (method === 'plugins.list') return { items: [{ id: 'phantom', name: 'Phantom', enabled: true, config: {} }] };
+      if (method === 'phantom.detail') return { id: p.id, kind: 'card', status: 'blocked', contract: { goal: `Objetivo completo de ${p.id}: ${'requisitos largos '.repeat(60)}`, scope: ['sent.txt'], checks: [{ name: 'Unit', argv: ['npm', 'test'] }] } };
+      if (method === 'phantom.events' || method === 'phantom.controllers') return { available: true, items: [] };
+      if (method === 'merge.status') return { available: true, enabled: true, base: { branch: 'main', oid: 'base' }, guard: { installed: true }, queue: copy(f.queue).map(item => ({ ...item, inspection: item.inspectionUnavailable ? { available: false, headOid: item.headOid, reason: 'Commit no disponible en fixture' } : { available: true, headOid: item.headOid, baseOid: 'base', files: ['sent.txt'], fileCount: 1, ...(p.requestId === item.id ? { diff: 'diff --git a/sent.txt b/sent.txt\n+submitted content' } : {}) } })), active: [], history: [], plan: 'Revisar evidencia antes de integrar', observedAt: new Date().toISOString() };
+      if (method === 'branch.overview') return { available: false, reason: 'Diagnóstico no disponible en fixture', branches: [] };
+      if (method === 'repo.graph') return { available: false, reason: 'Historia no disponible en fixture', commits: [] };
       if (method === 'terminal.list') return copy(f.sessions[p.workspaceId]);
       if (method === 'terminal.attach') { const s = Object.values(f.sessions).flat().find(s => s.id === p.sessionId); return { session: copy(s), data: 'Fixture de terminal\r\n$ ', seq: 0 }; }
       if (method === 'terminal.resize' || method === 'terminal.write') return {};
@@ -73,7 +80,7 @@ function installFixture() {
 const fixture = fn => page.evaluate(fn);
 const tray = () => page.getByRole('dialog', { name: 'Actividad del proyecto' });
 const notch = () => page.getByRole('button', { name: 'Actividad del proyecto', exact: true });
-async function open() { await notch().click(); await tray().waitFor(); await tray().getByRole('button', { name: 'Todo', exact: true }).click(); }
+async function open() { await notch().click(); await tray().waitFor(); await tray().getByText('Más actividad y diagnósticos', { exact: true }).click(); await tray().getByRole('button', { name: 'Todo y diagnósticos', exact: true }).click(); await tray().locator('.activity-integration-details > summary').click(); }
 async function close() { await tray().getByLabel('Cerrar bandeja de actividad').click(); await tray().waitFor({ state: 'hidden' }); }
 async function settled() { await poll(() => fixture(() => { const text = document.querySelector('.activity-notch')?.textContent || ''; return !!text && !/Recuperando|desconectado|sin confirmar/.test(text); }), 'fuentes recuperadas'); }
 async function viewport(width, height) {
@@ -121,19 +128,19 @@ try {
    });
    await check('Dock: filtros directos, límites honestos y cierre sin resolver pendientes', async () => {
      await notch().click();
-     assert.equal(await tray().getByRole('button', { name: 'Tu atención', exact: true }).getAttribute('aria-pressed'), 'true');
-     assert.equal(await tray().getByRole('heading', { name: /^Integración/ }).count(), 0);
-     await tray().getByRole('button', { name: 'Ir a sesión', exact: true }).click();
+      assert.equal(await tray().getByRole('button', { name: 'Necesita tu decisión', exact: true }).getAttribute('aria-pressed'), 'true');
+      assert.equal(await tray().getByRole('heading', { name: /^Listo para integrar/ }).count(), 0);
+      await tray().getByRole('button', { name: 'Ir a terminal', exact: true }).click();
      await page.locator('.canvas-node.focused').filter({ hasText: 'Terminal oculta' }).waitFor();
      assert.match(await notch().innerText(), /2 necesitan de ti/);
      await page.locator('.activity-strip').getByRole('button', { name: 'Integraciones', exact: true }).click();
-     await tray().getByRole('heading', { name: /^Integración/ }).waitFor();
+      await tray().getByRole('heading', { name: /^Listo para integrar/ }).waitFor();
      assert.equal(await tray().getByRole('button', { name: 'Revisar incorporaciones', exact: true }).count(), 1);
      await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
      await tray().getByRole('heading', { name: /Límites de tus planes/ }).waitFor();
      assert.equal(await tray().getByRole('meter', { name: 'Claude · Sesión · 5 h' }).getAttribute('aria-valuenow'), '42');
      assert.match(await tray().innerText(), /No hay una sesión de ChatGPT/);
-     assert.equal(await tray().getByRole('heading', { name: /^Integración/ }).count(), 0);
+      assert.equal(await tray().getByRole('heading', { name: /^Listo para integrar/ }).count(), 0);
      await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
      await tray().waitFor({ state: 'hidden' });
      await notch().click(); await page.getByRole('button', { name: 'Cerrar actividad', exact: true }).click({ position: { x: 5, y: 5 } });
@@ -154,7 +161,7 @@ try {
     await open(); await tray().getByRole('button', { name: 'Marcar leído', exact: true }).click();
     await poll(async () => (await tray().innerText()).includes('0 sin leer'), 'aviso leído');
     assert.match(await notch().innerText(), /2 necesitan de ti/);
-    assert.equal(await fixture(() => window.__activityFixture.calls.some(c => /approve|merge/.test(c.method))), false);
+    assert.equal(await fixture(() => window.__activityFixture.calls.some(c => /approve|merge\.(run|submit|reject)/.test(c.method))), false);
     await close();
   });
    await check('Navegación directa recupera terminal oculta y mantiene notch en foco', async () => {
@@ -187,27 +194,66 @@ try {
   });
   await check('Errores de fuente visibles y retry recupera datos sin falsa confianza', async () => {
     await fixture(() => { const f = window.__activityFixture; f.failTasks = true; f.emit({ type: 'task.changed', workspaceId: 'a' }); });
-    await open(); await tray().getByText('Fallo de tareas de prueba', { exact: true }).waitFor();
+    await open(); await tray().getByText('Fuentes de atención', { exact: true }).click(); await tray().getByText('Fallo de tareas de prueba', { exact: true }).first().waitFor();
     assert.match(await tray().innerText(), /lectura fallida/);
     await fixture(() => { window.__activityFixture.failTasks = false; });
-    await tray().getByRole('button', { name: 'Reintentar fuente', exact: true }).click();
-    await tray().getByText('Fallo de tareas de prueba', { exact: true }).waitFor({ state: 'hidden' });
+    await tray().getByRole('button', { name: 'Reintentar fuente', exact: true }).first().click();
+    await tray().getByText('Fallo de tareas de prueba', { exact: true }).first().waitFor({ state: 'hidden' });
     await close();
   });
-  await check('Acciones navegan al inspector de tareas y Git', async () => {
-    await open(); await tray().getByRole('button', { name: 'Ir a tareas', exact: true }).first().click();
-    await poll(async () => await page.getByLabel('Herramienta contextual').inputValue() === 'tasks', 'inspector tareas');
-    await page.locator('.inspector-switcher').getByLabel('Cerrar inspector', { exact: true }).click();
+   await check('Acciones abren la Card exacta y el inspector Git', async () => {
+    await open(); await tray().getByRole('button', { name: 'Ver Card', exact: true }).first().click();
+    await page.getByRole('article', { name: 'Detalle task', exact: true }).waitFor();
+    assert.equal(await fixture(() => window.__activityFixture.calls.some(c => c.method === 'node.create' && c.p.type === 'phantom-cards' && c.p.data.cardId === 'task')), true);
+    await page.locator('.pc-full-goal > summary').click();
+    assert.match(await page.locator('.pc-full-goal').innerText(), /requisitos largos/);
+    assert.equal(await page.locator('.pc-goal-summary').evaluate(el => el.clientHeight <= Number.parseFloat(getComputedStyle(el).lineHeight) * 2 + 1), true);
     await open(); await tray().getByRole('button', { name: 'Ir a Git', exact: true }).first().click();
     await poll(async () => await page.getByLabel('Herramienta contextual').inputValue() === 'git', 'inspector Git');
     await page.locator('.inspector-switcher').getByLabel('Cerrar inspector', { exact: true }).click();
   });
-  await check('Browser nativo se oculta bajo la bandeja (ownership del bridge)', async () => {
+   await check('Browser nativo se oculta bajo la bandeja (ownership del bridge)', async () => {
     await page.getByRole('button', { name: 'Enfocar Navegador prueba', exact: true }).click();
     await poll(() => fixture(() => window.__activityFixture.nativeVisible), 'browser visible');
     await open(); await poll(() => fixture(() => !window.__activityFixture.nativeVisible), 'browser oculto');
-    await close(); await poll(() => fixture(() => window.__activityFixture.nativeVisible), 'browser recuperado');
-  });
+     await close(); await poll(() => fixture(() => window.__activityFixture.nativeVisible), 'browser recuperado');
+   });
+   await check('Revisión compacta: solicitud real, commit enviado, desconocidos y navegación a su Card', async () => {
+     await fixture(() => {
+       const f = window.__activityFixture;
+       f.queue = [
+         { id: 'sent-request', nodeId: 'hidden', cardId: 'integration-card', title: 'Solicitud con Card', summary: 'Resumen largo '.repeat(60), headOid: 'a'.repeat(40), branch: 'feature', base: 'main', status: 'queued', stale: true, note: 'Revisar accesibilidad', overlaps: [{ path: 'sent.txt', with: ['Otra rama'] }] },
+         { id: 'unknown-request', title: 'Solicitud sin Card', headOid: 'b'.repeat(40), branch: 'unknown', status: 'queued', inspectionUnavailable: true },
+       ];
+       f.emit({ type: 'state.changed', workspaceId: 'a' });
+     });
+     await page.locator('.activity-strip').getByRole('button', { name: 'Integraciones', exact: true }).click();
+     await poll(async () => (await tray().getByRole('heading', { name: /^Listo para integrar/ }).innerText()).includes('2'), 'dos solicitudes reales');
+     const review = tray().locator('[data-request-id="sent-request"]');
+     const title = review.locator('.inc-review-title');
+     assert.equal(await title.evaluate(el => el.clientHeight <= Number.parseFloat(getComputedStyle(el).lineHeight) * 2 + 1), true);
+     await review.locator(':scope > details > summary').focus(); await page.keyboard.press('Enter');
+     await review.getByText('La rama avanzó:', { exact: false }).waitFor();
+     assert.match(await review.innerText(), /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
+     assert.match(await review.innerText(), /sin evidencia registrada/);
+     assert.match(await review.innerText(), /no conflictos comprobados/);
+     assert.match(await review.innerText(), /Revisar accesibilidad/);
+     await review.getByText('Ver diff del commit enviado', { exact: true }).click();
+     await review.locator('.inc-diff').waitFor();
+     assert.match(await review.locator('.inc-diff').innerText(), /submitted content/);
+     assert.equal(await fixture(() => window.__activityFixture.calls.some(c => c.method === 'merge.status' && c.p.requestId === 'sent-request')), true);
+     const unknown = tray().locator('[data-request-id="unknown-request"]');
+     await unknown.locator(':scope > details > summary').click();
+     assert.match(await unknown.innerText(), /Card asociada desconocida/);
+     assert.match(await unknown.innerText(), /Archivos desconocidos: Commit no disponible/);
+     assert.equal(await unknown.getByRole('button', { name: 'Ver Card', exact: true }).count(), 0);
+     const screenshot = path.join(evidence, 'integration-review.png'); await page.screenshot({ path: screenshot }); report.screenshots.push(screenshot);
+     await review.getByRole('button', { name: 'Ver Card', exact: true }).click();
+     await page.getByRole('article', { name: 'Detalle integration-card', exact: true }).waitFor();
+     assert.equal(await fixture(() => window.__activityFixture.calls.some(c => c.method === 'node.create' && c.p.type === 'phantom-cards' && c.p.data.cardId === 'integration-card')), true);
+     assert.equal(await fixture(() => window.__activityFixture.calls.some(c => /merge\.(run|submit|reject|order)|approve/.test(c.method))), false);
+     await fixture(() => { const f = window.__activityFixture; f.queue = []; f.emit({ type: 'state.changed', workspaceId: 'a' }); });
+   });
   await check('Desktop y narrow sin overflow; capturas reales', async () => {
     for (const [name, width, height] of [['desktop', 1520, 980], ['narrow', 760, 760]]) {
       await viewport(width, height); await open(); await page.waitForTimeout(150);

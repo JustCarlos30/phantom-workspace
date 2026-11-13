@@ -101,7 +101,7 @@ export const LOCAL_METHODS = new Set([
   'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.previewImage',
   'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady', 'desktop.notify',
   'browser.attach', 'browser.bounds', 'browser.navigate', 'browser.back', 'browser.forward',
-  'browser.reload', 'browser.detach', 'browser.capture',
+  'browser.reload', 'browser.detach', 'browser.capture', 'browser.inspect',
 ]);
 
 export function validateJSON(value, maxBytes = 1024 * 1024) {
