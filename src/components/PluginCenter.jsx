@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowUpRight, RefreshCw } from 'lucide-react';
 import EmptyState from './EmptyState.jsx';
 import { Button, Field, ErrorNotice, DataView, OperationState, ResourceState, useOperation, useResource } from './PluginPrimitives';
+import { validateConvencionsSnapshot } from '../../shared/convencions.mjs';
 
 const configOf = plugin => ({ ...Object.fromEntries(Object.entries(plugin.configuration || {}).map(([key, field]) => [key, field.default])), ...plugin.config });
 const labels = { phantomPath: 'CLI Phantom (ruta absoluta)', phantomData: 'Datos Phantom (fuera del proyecto)', model: 'Modelo OpenCode' };
@@ -13,11 +14,19 @@ function PluginCard({ plugin, workspace, api, refresh, notify, onOpenPanel }) {
   useEffect(() => { setSaved(plugin); }, [plugin]);
   const op = useOperation(notify);
   const payload = { workspaceId: workspace.id, id: plugin.id };
-  const status = useResource(api, 'plugins.status', payload, { enabled: false });
+  const readStatus = useCallback(async (method, input) => {
+    const result = await api(method, input);
+    return plugin.id === 'convencions' ? validateConvencionsSnapshot(result, workspace) : result;
+  }, [api, plugin.id, workspace.id, workspace.canonicalPath, workspace.path]);
+  const status = useResource(readStatus, 'plugins.status', payload, { enabled: false });
   const models = useResource(api, 'plugins.models', payload, { enabled: false });
   const baseline = configOf(saved);
   const videoLog = plugin.id === 'video-log';
-  const fieldLabels = videoLog ? { sourcePath: 'Archivo Markdown (ruta absoluta)' } : labels;
+  const convencions = plugin.id === 'convencions';
+  // Activation changes invalidate any earlier capability read. Use the same
+  // validated, sequence-protected read as the panels, including in the Center.
+  useEffect(() => { if (convencions) status.reload(); }, [convencions, saved.enabled, status.reload]);
+  const fieldLabels = convencions ? {} : videoLog ? { sourcePath: 'Archivo Markdown (ruta absoluta)' } : labels;
   const changed = Object.keys(fieldLabels).filter(key => draft[key] !== baseline[key]);
 
   const update = patch => op.run(async () => {
@@ -35,6 +44,7 @@ function PluginCard({ plugin, workspace, api, refresh, notify, onOpenPanel }) {
 
     <section className="plugin-configuration tw-item" aria-label={`Configuración de ${saved.name}`}>
       <h4>Preferencias de este proyecto</h4>
+      {convencions ? <p>La activación es independiente para este proyecto. La conexión MCP está pendiente de implementación: no hay rutas, modelos ni comandos que configurar aquí. Puedes abrir las dos vistas y reintentar la lectura. Activar no registra ni integra el repositorio y no adopta convenciones.</p> : <>
       <p className="tw-muted">{videoLog ? 'Elige una única fuente UTF-8 de hasta 512 KiB. La ruta se guarda solo para este proyecto. Vacío: sin fuente configurada. Guarda y abre el panel para leerla; Actualizar relee el disco.' : 'Un campo vacío hereda el ajuste global. Guarda los cambios antes de probar la conexión o consultar modelos: esas consultas usan la configuración guardada.'}</p>
       <form className="plugin-form tw-form" onSubmit={event => { event.preventDefault(); saveConfig(); }}>
         {(videoLog ? ['sourcePath'] : ['phantomPath', 'phantomData']).map(key => <Field key={key} label={fieldLabels[key]} hint={videoLog ? 'Ruta absoluta del archivo elegido. No se exploran carpetas ni archivos enlazados en su contenido.' : key === 'phantomPath' ? 'Vacío: descubrimiento de Phantom o ruta global.' : 'Ruta absoluta externa al proyecto. Vacío: datos globales o nativos.'}><input value={draft[key] || ''} disabled={op.busy} onChange={event => setDraft(old => ({ ...old, [key]: event.target.value }))} placeholder={videoLog ? 'Sin fuente configurada' : 'Heredar'} /></Field>)}
@@ -48,14 +58,15 @@ function PluginCard({ plugin, workspace, api, refresh, notify, onOpenPanel }) {
         {changed.length > 0 && <DataView label="Comparar borrador con valores guardados" value={Object.fromEntries(changed.map(key => [key, { guardado: baseline[key], borrador: draft[key] }]))} />}
         <div className="tw-row"><Button type="submit" tone="primary" disabled={op.busy || !changed.length}>Guardar preferencias</Button><Button disabled={op.busy || !changed.length} onClick={() => setDraft(configOf(saved))}>Restaurar valores guardados</Button></div>
       </form>
+      </>}
     </section>
     <OperationState op={op} />
 
-    {!videoLog && <section className="plugin-connection tw-item" aria-label="Conexión con Phantom"><h4>Conexión</h4><Button disabled={status.loading || op.busy} onClick={status.reload}>Probar conexión</Button>
+    {!videoLog && <section className="plugin-connection tw-item" aria-label={convencions ? 'Capacidad de Convencions' : 'Conexión con Phantom'}><h4>{convencions ? 'Lectura por MCP' : 'Conexión'}</h4><Button disabled={status.loading || op.busy} onClick={status.reload}>{convencions ? 'Consultar capacidad de lectura' : 'Probar conexión'}</Button>
       <ResourceState resource={status} empty={false} />
-      {status.data && <><p className="plugin-status" role="status">{status.data.available ? 'Conexión disponible' : 'Conexión no disponible'}{status.data.cli ? ` · ${status.data.cli}` : ''}{status.data.version ? ` · ${status.data.version}` : ''}</p><DataView value={status.data} label="Resultado observado de conexión" /></>}
+      {!status.loading && !status.error && status.data && <><p className="plugin-status" role="status">{convencions ? ({ disabled: 'Plugin desactivado', unavailable: 'Backend aún no disponible', ready: 'Lectura disponible' }[status.data.state]) : status.data.available ? 'Conexión disponible' : 'Conexión no disponible'}{status.data.cli ? ` · ${status.data.cli}` : ''}{status.data.version ? ` · ${status.data.version}` : ''}</p><DataView value={status.data} label={convencions ? 'Resultado observado de lectura' : 'Resultado observado de conexión'} /></>}
     </section>}
-    <section className="plugin-panels tw-item" aria-label="Paneles del plugin"><h4>Paneles</h4>{!saved.enabled && <p className="tw-muted">Activa el plugin para abrir sus paneles.</p>}<div className="tw-row">{!videoLog && <Button disabled={!saved.enabled || op.busy || !onOpenPanel} onClick={() => onOpenPanel('command-center')}>Abrir Centro de mando</Button>}{saved.panels?.map(panel => <Button key={panel.id} icon={ArrowUpRight} disabled={!saved.enabled || op.busy || !onOpenPanel} onClick={() => onOpenPanel(panel.nodeType, { pluginId: saved.id, panelId: panel.id }, panel.name)}>Abrir {panel.name}</Button>)}</div></section>
+    <section className="plugin-panels tw-item" aria-label="Paneles del plugin"><h4>Paneles</h4>{!saved.enabled && <p className="tw-muted">Activa el plugin para abrir sus paneles.</p>}<div className="tw-row">{plugin.id === 'phantom' && <Button disabled={!saved.enabled || op.busy || !onOpenPanel} onClick={() => onOpenPanel('command-center')}>Abrir Centro de mando</Button>}{saved.panels?.map(panel => <Button key={panel.id} icon={ArrowUpRight} disabled={!saved.enabled || op.busy || !onOpenPanel} onClick={() => onOpenPanel(panel.nodeType, { pluginId: saved.id, panelId: panel.id }, panel.name)}>Abrir {panel.name}</Button>)}</div></section>
   </article>;
 }
 

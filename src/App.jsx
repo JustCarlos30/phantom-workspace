@@ -48,7 +48,7 @@ const TYPES = [
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales', 'phantom'],
   ['skills-catalog', 'Skills', PANEL_ICONS['phantom-skills'], 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],
   ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto', 'phantom'],
-  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, panel.pluginId === 'video-log' ? 'Aprendizajes, evidencia y contexto de tu bitácora local' : `Panel nativo de ${panel.pluginId}`, 'plugins']),
+  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, PANEL_ICONS[panel.nodeType] || Layers, panel.pluginId === 'convencions' ? 'Base versionada e integración explícita · lectura MCP pendiente' : panel.pluginId === 'video-log' ? 'Aprendizajes, evidencia y contexto de tu bitácora local' : `Panel nativo de ${panel.pluginId}`, 'plugins']),
 ].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);
 const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find(t => t[0] === id));
 // The creation dock: one weight for every action, the icon names the panel and
@@ -199,8 +199,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     try {
       const region = document.querySelector('.canvas')?.getBoundingClientRect();
       const camera = spacesRef.current.view?.camera || w.camera || { x: 64, y: 64, zoom: 1 };
-      const width = type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : 640;
-      const height = type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
+      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : 640;
+      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
       // Reserve before the RPC so rapid/concurrent creations cannot reuse the
       // same slot while state.get or PTY creation is still in flight.
       for (const [key, item] of placements.current) if (item.workspaceId === w.id && w.nodes?.some(n => n.id === item.nodeId)) placements.current.delete(key);

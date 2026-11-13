@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import './appearance-preferences.test.mjs';
 
 // The design system as constraints (see DESIGN.md, «Reglas»). Three radii,
-// two shadows, one hairline, and a per-file budget of drawn edges that can
+// three shadows, one hairline, and a per-file budget of drawn edges that can
 // only go down. A failure names the file and the value; fix the CSS, or if the
 // rule itself should change, change it here and in DESIGN.md together.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,23 +38,35 @@ test('radii come from the three shapes', () => {
   assert.deepEqual(bad, [], 'Use --r-ctl (control), --r-obj (object) or --r-isle (island); --r-mark and --r-pill for marks and chips.');
 });
 
-test('shadows are rest, float, or a state ring', () => {
+test('shadows are chrome, rest, float, or a state ring', () => {
   const ring = /^(inset )?0 0 0 (\S+|calc\(.+\)) \S.*$|^(inset )?0 0 0 0 \S.*$/;
   const bad = [];
   for (const { name, css } of sheets)
     for (const value of declarations(css, 'box-shadow')) {
       if (/^(none|inherit|initial|unset)$/.test(value)) continue;
       for (const layer of split(value, ','))
-        if (!/^var\(--shadow-(rest|float)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
+        if (!/^var\(--shadow-(chrome|rest|float)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
     }
-  assert.deepEqual(bad, [], 'Elevation is --shadow-rest or --shadow-float. Zero-offset, zero-blur rings are allowed for state only.');
+  assert.deepEqual(bad, [], 'Elevation is --shadow-chrome, --shadow-rest or --shadow-float. Zero-offset, zero-blur rings are allowed for state only.');
+});
+
+test('canvas chrome never borrows panel selection elevation, including responsive rules', () => {
+  const bad = [];
+  for (const { name, css } of sheets.filter(sheet => ['src/canvas-ui.css', 'src/studio.css'].includes(sheet.name))) {
+    for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!declarations(match[2], 'box-shadow').includes('var(--shadow-float)')) continue;
+      for (const selector of split(match[1], ','))
+        if (!/^\.canvas-node(?=[\s.:#\[>+~]|$)/.test(selector)) bad.push(`${name}: ${selector}`);
+    }
+  }
+  assert.deepEqual(bad, [], '--shadow-float belongs to canvas panels; chrome uses --shadow-chrome.');
 });
 
 test('retired tokens stay retired', () => {
   const retired = /--(hairline-strong|edge-strong|edge|island-line|island-shadow|island-radius|object-edge|object-heavy|object-light|line-soft|line|node-border|shadow-popover|elev-[a-z0-9]+|r-(xs|sm|md|lg|xl))(?![\w-])/g;
   const bad = [];
   for (const { name, css } of sheets) for (const match of css.matchAll(retired)) bad.push(`${name}: ${match[0]}`);
-  assert.deepEqual([...new Set(bad)], [], 'One hairline (--hairline), two shadows, three radii.');
+  assert.deepEqual([...new Set(bad)], [], 'One hairline (--hairline), three shadows, three radii.');
 });
 
 // One box per object: an edge is drawn by the thing you can move, not by what

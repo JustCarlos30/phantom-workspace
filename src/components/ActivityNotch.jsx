@@ -208,7 +208,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
   };
   const review = item => <IntegrationReview item={item} workspace={workspace} api={api} base={base} label="Detalle" bare />;
   const branchActions = item => <>{cardIdOf(item) && <button onClick={() => openCard(cardIdOf(item))}>Ver Card</button>}{item.nodeId && workspace.nodes?.some(node => node.id === item.nodeId && node.type === 'terminal') && <button onClick={() => navigate('terminal', item.nodeId)}>Ir a terminal</button>}</>;
-  const tabs = [['needs', 'Necesitan de ti', activity.needs.length], ['progress', 'En curso', activity.inProgress.length + activity.integrations.active.length + activity.activeSessions.length], ['done', 'Terminadas', activity.finished.length], ['integration', 'Ramas', board.counts.total], ['notices', 'Avisos', activity.unread]];
+  const tabs = [['needs', 'Necesitan de ti', activity.needs.length], ['progress', 'En curso', activity.inProgress.length + activity.integrations.active.length + activity.activeSessions.length], ['done', 'Terminadas', activity.finished.length], ['integration', 'Ramas', board.counts.total], ['notices', 'Avisos', activity.unread], ['limits', 'Límites'], ['all', 'Todo y diagnósticos']];
   const readAll = async () => { setReading('all'); setReadError(''); try { for (const item of activity.notices.filter(n => !n.read)) await onRead(item.id); } catch (e) { setReadError(e.message); } finally { setReading(''); } };
   const keydown = e => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
@@ -220,8 +220,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
   };
   return <><button className="popover-dismiss top-dismiss" aria-label="Cerrar actividad" onClick={onClose} /><section ref={root} id="activity-tray" className="activity-tray" role="dialog" aria-modal="true" aria-label="Actividad del proyecto" onKeyDown={keydown}>
     <div className="popover-heading"><strong>Actividad del proyecto</strong><button className="icon-button" aria-label="Cerrar bandeja de actividad" onClick={onClose}><X size={16} /></button></div>
-    <nav className="activity-filters" aria-label="Ver actividad">{tabs.map(([id, name, count]) => <button key={id} data-tab={id} aria-pressed={filter === id} onClick={() => onFilter(id)}>{name}<b className={count ? '' : 'is-zero'}>{count}</b></button>)}</nav>
-    <details className="activity-secondary"><summary>Más actividad y diagnósticos</summary><div className="activity-actions">{[['limits', 'Límites'], ['all', 'Todo y diagnósticos']].map(([id, name]) => <button key={id} aria-pressed={filter === id} onClick={() => onFilter(id)}>{name}</button>)}</div></details>
+    <nav className="activity-filters" aria-label="Ver actividad">{tabs.map(([id, name, count]) => <button key={id} type="button" data-tab={id} aria-pressed={filter === id} onClick={() => onFilter(id)}><Check className="activity-filter-check" size={12} aria-hidden="true" /><span>{name}</span>{count != null && <b className={count ? '' : 'is-zero'}>{count}</b>}</button>)}</nav>
     <div className="activity-tray-scroll">
       {!activity.connected && <p className="activity-warning" role="status">Host desconectado. No se puede confirmar el estado actual.</p>}
       {failing.length > 0 && <p className="activity-warning" role="status">Fuentes incompletas: no se pudo leer {failing.join(', ')}. Lo que ves de ahí es la última lectura correcta.</p>}

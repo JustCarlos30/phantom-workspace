@@ -23,20 +23,28 @@ La política no modifica `AGENTS.md`, `CLAUDE.md` ni la configuración personal/
 
 ## Política y ejecución controlada
 
-El bootstrap es una instrucción para el agente, no una barrera técnica que impida editar desde cualquier proceso del shell. Phantom CLI es quien controla los efectos, los checks y el cierre del trabajo ejecutado mediante sus comandos nativos `do`/`run`. El vínculo de identidad de una terminal tampoco demuestra por sí solo que exista una ejecución controlada.
+El bootstrap es una instrucción para el agente, no una barrera técnica que impida editar desde cualquier proceso del shell. Hay dos autoridades nativas: **Phantom CLI `do`/`run` controla las ediciones, sus pruebas y el cierre de la tarea; el controlador de Incorporaciones/ramas controla la finalización Git del trabajo aceptado**. El vínculo de identidad de una terminal tampoco demuestra por sí solo que exista una ejecución controlada.
 
 Para cada solicitud de cambio, antes de editar, el agente debe:
 
 1. Consultar el contexto de la terminal y usar su **cwd exacto**, no la raíz del proyecto ni otro worktree.
 2. Determinar si ya está dentro de un `do`/`run` controlado, a partir del mandato/contexto recibido. En ese caso continúa esa tarea, su scope y sus checks, sin crear ni ejecutar tareas anidadas.
 3. En otro caso, consultar la ayuda y el catálogo del CLI nativo y crear o reutilizar una tarea que corresponda a esa solicitud y ese worktree, con rutas escribibles explícitas y checks de aceptación. No debe pedir al usuario que diga «crea una card».
-4. Vincular el ID canónico devuelto por Phantom a la terminal y ejecutar los efectos del trabajo dentro de `do`/`run`, con argumentos y modelo realmente disponibles según la ayuda instalada.
+4. Vincular el ID canónico devuelto por Phantom a la terminal y ejecutar las ediciones y sus pruebas dentro de `do`/`run`, con argumentos y modelo realmente disponibles según la ayuda instalada.
 
 Una **tarea directa** (`kind: task`, `lane: direct`) corresponde a un cambio sencillo y acotado. Una **card coordinada** (`kind: card`, `lane: coordinated`, con coordinación nativa) corresponde a trabajo que requiere coordinación de varios pasos. No todo cambio necesita una card coordinada. Los campos de identidad históricos `cardId` y `cardTitle` conservan, respectivamente, el ID canónico y el objetivo (`contract.goal`) de cualquiera de estas tareas.
 
 Al retomar la misma solicitud se continúa la misma tarea; una solicitud independiente recibe una tarea independiente. Las preguntas de solo lectura no necesitan tareas ni cards. **Abrir un shell vacío no crea automáticamente ninguna card ni tarea.**
 
 Si faltan runtime, modelo, checks requeridos o una decisión material, el agente comunica el bloqueo y reporta `blocked`, en lugar de hacer cambios sin seguimiento. Un reporte o una consulta nunca completan tareas. `review` solo significa listo para revisión; Phantom conserva la autoridad sobre verificación y cierre. No hay un estado `completed` aceptado por el comando de reportes.
+
+### Integración después de la aceptación
+
+Después de que Phantom acepte el trabajo, el padre puede invocar el controlador nativo de Incorporaciones/ramas mediante `agent.mjs merge ID` (ID de la solicitud de incorporación) o `scripts/branches.mjs integrate RAMA`. Debe respetar los roles y autorizaciones existentes y mantener activos los hooks y los checks de integración. La aceptación de la tarea no acredita que la rama esté integrada: el resultado de integración se informa a partir de la respuesta observada del controlador.
+
+Esta finalización Git es una operación del controlador de ramas, separada de `do`/`run`: no se intenta que `do`/`run` modifique `HEAD`, ni se incluyen merges en los checks de aceptación del harness, ni se concede shell al ejecutor. Se mantienen el registro obligatorio, el worktree exacto, los scopes, los checks de aceptación y el cierre nativo de tareas.
+
+No se permite sustituir el controlador por Git directo, desactivar hooks (`--no-verify`, cambios de `core.hooksPath`), retirar el entorno del guard, omitir checks de integración (`--no-checks`, `checks --none`), modificar a mano el estado de cola ni fingir tareas `completed`. Si falta la aceptación o el controlador autorizado no está disponible, se comunica el bloqueo. El padre conserva el encargo de integración pendiente y lo continúa por ese controlador cuando estén disponibles sus requisitos.
 
 ## Comandos y ejemplos
 

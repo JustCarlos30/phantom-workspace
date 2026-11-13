@@ -130,6 +130,13 @@
 .pd-orchestrator { display: flex; flex-direction: column; gap: 16px; }
 .pd-session { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--r-obj); background: var(--fill); }
 .pd-session-head { display: flex; align-items: center; gap: 10px; }
+.pd-open-session { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; max-width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.pd-open-session:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pd-open-session:hover { background: var(--fill); }
+.pd-session-head { flex-wrap: wrap; }
+.pd-session-title { flex-basis: 120px; }
+.pd-session-title strong { overflow-wrap: anywhere; }
+.pd-orchestrator, .pd-session, .pd-composer, .pd-field { min-width: 0; }
 .pd-dot { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--muted); flex-shrink: 0; }
 .pd-session[data-tone="working"] .pd-dot { background: var(--success); animation: phantom-pulse 1.4s ease-in-out infinite; }
 .pd-session[data-tone="attention"] .pd-dot { background: var(--danger); }

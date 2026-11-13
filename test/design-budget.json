@@ -2,7 +2,7 @@
   "borders": {
     "src/activity.css": 11,
     "src/branches.css": 12,
-    "src/canvas-ui.css": 22,
+    "src/canvas-ui.css": 21,
     "src/chat.css": 14,
     "src/components/agent-identity.css": 3,
     "src/incorporaciones.css": 2,
