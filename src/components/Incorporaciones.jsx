@@ -4,7 +4,8 @@ import { Button, ErrorNotice, OperationState, useOperation, useResource } from '
 import { preferredCardMode } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 import IntegrationReview from './IntegrationReview.jsx';
-import { buildIncorporaciones } from '../hooks/incorporaciones-model.mjs';
+import { buildIncorporaciones, mergePath } from '../hooks/incorporaciones-model.mjs';
+import MergePath from './MergePath.jsx';
 import '../incorporaciones.css';
 
 // Incorporaciones: how many integration requests exist, which branches are
@@ -89,6 +90,8 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
   </div>;
 
   const model = buildIncorporaciones(data), { counts, merging } = model;
+  // The same road for every row: what is done and what each branch still lacks.
+  const road = item => <MergePath path={mergePath(item, { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator) })} />;
   const cardsDetail = counts.cards ? [counts.queued && `${counts.queued} en cola`, merging && '1 incorporando', counts.attention && `${counts.attention} devueltas`].filter(Boolean).join(' · ') : 'ninguna abierta';
   const readyDetail = counts.ready ? [counts.queued && `${counts.queued} solicitadas`, counts.unrequested && `${counts.unrequested} sin solicitar`].filter(Boolean).join(' · ') : 'nada por mergear';
 
@@ -119,7 +122,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     {model.attention.length > 0 && <Section id={anchor('attention')} title="Necesitan atención" count={model.attention.length} tone="attention" hint={`Devueltas a su terminal: deben traer ${base} a la rama, corregir y volver a enviarla.`}>
       <ul className="inc-list">{model.attention.map(item => <Row key={item.id} item={item} marker={<AlertTriangle size={13} />} status={REQUEST[item.status]} tone={item.status} focus={focus} delta={<Delta ahead={null} behind={item.behind} base={base} />}>
         {item.summary && <p>{item.summary}</p>}
-        {item.status === 'conflict' && <p className="inc-conflict">Conflicto en {item.conflicts?.join(', ') || 'archivos sin identificar'}.</p>}
+        {road(item)}
         {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
         <p className="inc-meta" title={item.branch}>{short(item.branch)} · solicitada {when(item.requestedAt)}</p>
         <IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
@@ -131,14 +134,15 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
         : <ol className="inc-list">{model.ready.map(({ kind, item }) => kind === 'request'
           ? <Row key={item.id} item={item} marker={item.position} status="En cola" tone="queued" focus={focus} delta={<Delta ahead={null} behind={item.behind} base={base} />}>
             {item.summary && <p>{item.summary}</p>}
-            <p className="inc-meta" title={item.branch}>{short(item.branch)} · solicitada {when(item.requestedAt)}{item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''}</p>
+            {road(item)}
+            <p className="inc-meta" title={item.branch}>{short(item.branch)} · solicitada {when(item.requestedAt)}{item.stale ? ` · commit enviado ${item.headOid.slice(0, 8)}` : ''}</p>
             {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
-            {item.stale && <p className="inc-meta">La rama tiene commits posteriores a la solicitud; se incorporará el commit enviado ({item.headOid.slice(0, 8)}).</p>}
             <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
           </Row>
           : <Row key={item.nodeId} item={item} marker="–" status="Sin solicitar" tone="unrequested" focus={focus} delta={<Delta ahead={item.ahead} behind={item.behind} base={base} />}>
             {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
-            <p className="inc-meta" title={item.branch}>{short(item.branch)} · {commits(item.ahead)} guardados, worktree limpio{item.running ? '' : ' · sin sesión activa'}. Su terminal debe enviarla a la cola.</p>
+            {road(item)}
+            <p className="inc-meta" title={item.branch}>{short(item.branch)} · {commits(item.ahead)} guardados, worktree limpio</p>
             <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
           </Row>)}</ol>}
     </Section>
@@ -147,7 +151,8 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
       {!model.working.length ? <EmptyState className="tw-empty" size="compact" description="Ninguna terminal tiene trabajo a medias." />
         : <ul className="inc-list">{model.working.map(item => <Row key={item.nodeId} item={item} status={WORK[item.status] || item.status} tone={item.status} focus={focus} delta={item.missing ? null : <Delta ahead={item.ahead} behind={item.behind} base={base} />}>
           {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
-          <p className="inc-meta" title={item.branch}>{item.missing ? `${short(item.branch)} · rama no encontrada` : `${short(item.branch)}${item.uncommitted ? ` · ${files(item.uncommitted)} sin commitear` : ''}${item.ahead ? '' : ' · sin commits nuevos'}${item.running ? '' : ' · sin sesión activa'}`}</p>
+          {road(item)}
+          <p className="inc-meta" title={item.branch}>{short(item.branch)}</p>
           <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
         </Row>)}</ul>}
     </Section>

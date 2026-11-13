@@ -37,13 +37,13 @@ function SubmittedDiff({ item, workspace, api }) {
 }
 
 // Read-only review. Ordering, rejection and integration remain orchestrator actions.
-export default function IntegrationReview({ item, workspace, api, onCard, onTerminal, base, label }) {
+export default function IntegrationReview({ item, workspace, api, onCard, onTerminal, base, label, bare = false }) {
   const [expanded, setExpanded] = useState(false), [diff, setDiff] = useState(false);
   const cardId = cardIdOf(item), submitted = Boolean(item.id);
   const inspection = item.inspection;
   const exact = Boolean(item.headOid) && inspection?.available === true && inspection.headOid === item.headOid;
   const paths = submitted ? exact ? inspection.files : null : item.missing ? null : item.files;
-  return <article className="inc-review" data-request-id={item.id}>
+  return <article className={`inc-review${bare ? ' is-bare' : ''}`} data-request-id={item.id}>
     <details onToggle={event => setExpanded(event.currentTarget.open)}>
       <summary>{label ? <span className="inc-review-label">{label}</span> : <><span className="inc-review-title">{activityTitle(item)}</span><span className="inc-status">{submitted ? integrationState(item) : item.status === 'working' ? 'Trabajando' : item.status === 'blocked' ? 'Bloqueada' : 'Trabajo sin solicitar'}</span></>}</summary>
       {expanded && <div className="inc-review-body">
@@ -62,9 +62,9 @@ export default function IntegrationReview({ item, workspace, api, onCard, onTerm
         {cardId ? <CardRequirements key={cardId} id={cardId} workspace={workspace} api={api} /> : <p>Card asociada desconocida. Requisitos y evidencia de Card no disponibles.</p>}
       </div>}
     </details>
-    <div className="inc-review-actions">
+    {!bare && <div className="inc-review-actions">
       {cardId && onCard && <button type="button" onClick={() => onCard(cardId)}>Ver Card</button>}
       {item.nodeId && onTerminal && workspace.nodes?.some(node => node.id === item.nodeId && node.type === 'terminal') && <button type="button" onClick={() => onTerminal(item.nodeId)}>Ir a terminal</button>}
-    </div>
+    </div>}
   </article>;
 }

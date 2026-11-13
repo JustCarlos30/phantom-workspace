@@ -10,7 +10,7 @@ const states = {
    verifying: ['Verificando', false], recovering: ['Recuperando', false],
   completed: ['Completada en fuente', false], done: ['Completada en fuente', false],
   cancelled: ['Cancelada', false], stopped: ['Detenida', false],
-  queued: ['En cola', false], pending: ['Pendiente', false], todo: ['Por hacer', false],
+  queued: ['En cola', false], pending: ['Pendiente', false], todo: ['Por hacer', false], ready: ['Sin ejecutar', false],
 };
 export function classifyTask(task) {
   const status = text(task?.status) || text(task?.state);
@@ -67,6 +67,48 @@ export function integrationGroups(merges) {
   const queue = itemsOf(merges.queue);
   return { ready: queue.filter(item => item.status === 'queued'), decisions: [...queue.filter(item => ['conflict', 'failed'].includes(item.status)), ...itemsOf(merges.active).filter(item => item.status === 'blocked')], active: [...queue.filter(item => item.status === 'merging'), ...itemsOf(merges.active).filter(item => item.status !== 'blocked')] };
 }
+// When something last changed, from whichever timestamp its source records.
+export function timeOf(item) {
+  for (const value of [item?.finishedAt, item?.updatedAt, item?.raw?.updatedAt, item?.requestedAt, item?.createdAt, item?.raw?.createdAt, item?.observedAt]) {
+    const at = typeof value === 'number' ? value : Date.parse(value);
+    if (Number.isFinite(at)) return at;
+  }
+  return 0;
+}
+export function ago(at, now = Date.now()) {
+  if (!at) return '';
+  const minutes = Math.floor((now - at) / 60000);
+  if (minutes < 1) return 'ahora';
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `hace ${hours} h` : `hace ${Math.floor(hours / 24)} d`;
+}
+const byRecent = rows => rows.map((row, index) => [row, index]).sort((a, b) => (b[0].at || 0) - (a[0].at || 0) || a[1] - b[1]).map(([row]) => row);
+const RUNNING = ['running', 'working', 'doing', 'verifying', 'recovering'], WAITING = ['queued', 'pending', 'todo', 'ready'];
+const CLOSED = { completed: 'done', done: 'done', cancelled: 'cancelled', stopped: 'cancelled' };
+// Which glyph and ink a row gets: the reason it is in its list, not its source.
+export function rowKind(item) {
+  if (item?.target === 'integration') return ['conflict', 'failed'].includes(item.status) ? 'returned' : item.status === 'blocked' ? 'blocked' : item.tone || 'working';
+  if (item?.screen === 'awaiting_approval') return 'approval';
+  if (item?.screen === 'awaiting_input') return 'input';
+  const status = text(item?.status) || text(item?.state);
+  if (/approval/.test(status)) return 'approval';
+  if (/input/.test(status)) return 'input';
+  if (status === 'failed' || status === 'error' || status === 'lost') return 'failed';
+  if (status === 'blocked') return 'blocked';
+  return item?.tone || (item?.needsYou ? 'blocked' : 'working');
+}
+// Only the sources that feed «Necesitan de ti» can make the notch doubt its
+// count. Limits or the Git radar failing say nothing about pending decisions.
+const ATTENTION_SOURCES = { tasks: 'tareas de Phantom', sessions: 'terminales', merges: 'incorporaciones' };
+export function freshness({ sources = {}, connected = true, now = Date.now(), staleMs = 45000 } = {}) {
+  if (!connected) return { state: 'offline', failing: [] };
+  const entries = Object.entries(ATTENTION_SOURCES).map(([key, name]) => [sources[key] || {}, name]);
+  const failing = entries.filter(([source]) => source.error).map(([, name]) => name);
+  if (entries.some(([source]) => !source.at && !source.error)) return { state: 'loading', failing };
+  const stale = entries.some(([source]) => source.at && now - source.at > staleMs);
+  return { state: failing.length || stale ? 'stale' : 'fresh', failing };
+}
 export function buildActivity({ workspace, sessions = [], tasks = [], git = null, merges = null, connected = true }) {
   const nodes = workspace?.nodes || [];
   const sessionRows = itemsOf(sessions).map(s => {
@@ -79,8 +121,8 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
   for (const node of nodes.filter(n => n.type === 'terminal' && !sessionRows.some(s => s.nodeId === n.id))) {
     sessionRows.push({ id: `node:${node.id}`, nodeId: node.id, title: node.title, hidden: !!node.data?.hidden, ...sessionState(null, connected), linkedTasks: [] });
   }
-  const taskRows = itemsOf(tasks).map(t => ({ ...t, cardId: t.id, title: activityTitle(t), ...classifyTask(t), sessions: taskLinks(t, sessionRows, nodes) }));
-  const notices = (workspace?.attention || []).map(n => ({ ...n, ...classifyNotice(n) }));
+  const taskRows = itemsOf(tasks).map(t => ({ ...t, cardId: t.id, title: activityTitle(t), ...classifyTask(t), at: timeOf(t), sessions: taskLinks(t, sessionRows, nodes) }));
+  const notices = byRecent((workspace?.attention || []).map(n => ({ ...n, ...classifyNotice(n), at: timeOf(n) })));
   const branches = (git?.branches || []).map(b => ({ ...b, label: branchState(b, git), sessions: sessionRows.filter(s => {
     const node = nodes.find(n => n.id === s.nodeId);
     // The host's worktree allocation supplies a real branch association.
@@ -93,7 +135,13 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
   ];
   const integrations = integrationGroups(merges);
   needs.push(...integrations.decisions.map(item => ({ ...item, key: `merge:${item.id || item.nodeId}`, target: 'integration', label: item.status === 'blocked' ? 'Bloqueada' : integrationState(item), source: 'Host · merge.status' })));
-  const inProgress = taskRows.filter(t => ['running', 'working', 'doing', 'verifying', 'recovering', 'queued'].includes(t.status));
+  const inProgress = byRecent(taskRows.filter(t => RUNNING.includes(t.status) || WAITING.includes(t.status)).map(t => ({ ...t, tone: RUNNING.includes(t.status) ? 'working' : 'waiting' })))
+    .sort((a, b) => (a.tone === 'working' ? 0 : 1) - (b.tone === 'working' ? 0 : 1));
+  const finished = byRecent([
+    ...taskRows.filter(t => CLOSED[t.status]).map(t => ({ ...t, key: `task:${t.id}`, target: 'tasks', tone: CLOSED[t.status] })),
+    ...(merges?.available === true ? itemsOf(merges.history) : []).map(item => ({ ...item, key: `merge:${item.id}`, target: 'integration', label: integrationState(item), tone: item.status === 'merged' ? 'done' : 'cancelled', at: timeOf(item) })),
+  ]);
   const activeSessions = sessionRows.filter(s => !s.needsYou && !s.linkedTasks.length && !integrations.active.some(item => item.nodeId === s.nodeId) && connected && s.status === 'running' && (s.tone === 'working' || ['working', 'running', 'doing', 'verifying', 'recovering'].includes(s.agentState || s.agent?.status)));
-  return { integrations, inProgress, activeSessions, sessions: sessionRows, sessionCount: itemsOf(sessions).length, unknownViews: sessionRows.filter(s => !s.descriptor).length, tasks: taskRows, notices, branches, needs, pendingBranches: branches.filter(b => b.label === 'No integrada').length, unknownBranches: branches.filter(b => b.label === 'Integración desconocida').length, unread: notices.filter(n => !n.read).length };
+  needs.sort((a, b) => (b.at || 0) - (a.at || 0));
+  return { integrations, inProgress, finished, activeSessions, sessions: sessionRows, sessionCount: itemsOf(sessions).length, unknownViews: sessionRows.filter(s => !s.descriptor).length, tasks: taskRows, notices, branches, needs, pendingBranches: branches.filter(b => b.label === 'No integrada').length, unknownBranches: branches.filter(b => b.label === 'Integración desconocida').length, unread: notices.filter(n => !n.read).length };
 }
