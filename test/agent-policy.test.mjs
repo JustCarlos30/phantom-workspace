@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { agentShims, bootstrapAgentPolicy, mergeAgentConfig, shimmedPath, terminalPolicy } from '../host/agent-policy.mjs';
+import { POLICY_HINTS, agentShims, bootstrapAgentPolicy, mergeAgentConfig, shimmedPath, terminalPolicy } from '../host/agent-policy.mjs';
 import { Merges } from '../host/merges.mjs';
 import { providerArgs } from '../host/chats.mjs';
 import { agentContext } from '../host/agents.mjs';
@@ -115,6 +115,39 @@ test('context keeps existing identity/report fields and exposes worktree and pol
   assert.equal(agentContext(workspace, node, { worktree: null }).branch, null);
   const policy = terminalPolicy({ workspaceId: 'workspace', nodeId: 'node', sessionId: 'session', cwd: '/tree', branch: null });
   for (const text of ['context', 'bind ID', 'report', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes']) assert.ok(policy.includes(text), text);
+});
+
+test('policy hints distinguish controlled edits from accepted-work Git finalization without bypass', () => {
+  const context = agentContext({ id: 'w', canonicalPath: '/project' }, { id: 'n', data: { cwd: '/tree' } });
+  assert.deepEqual(context.policy, POLICY_HINTS);
+  assert.match(context.policy.registration, /Before edits.*exact worktree.*writable paths.*acceptance checks/);
+  assert.match(context.policy.execution, /Edits and their tests.*do\/run.*scope and acceptance checks.*without nesting/);
+  assert.match(context.policy.integration, /After acceptance, the parent may invoke.*agent\.mjs merge ID.*scripts\/branches\.mjs integrate BRANCH.*hooks and integration checks enabled/);
+  assert.match(context.policy.integration, /Git finalization belongs to that controller, not do\/run/);
+  for (const prohibition of ['merge through harness acceptance checks', 'ask do/run to modify HEAD', 'grant shell to the executor', 'disable hooks or integration checks', 'edit queue state by hand', 'fake completed task status']) {
+    assert.ok(context.policy.noBypass.includes(prohibition), prohibition);
+  }
+});
+
+test('bootstrap keeps both native authorities and no-bypass guarantees for every integration role', () => {
+  for (const sessionId of [undefined, 'session']) {
+    for (const role of [undefined, 'worker', 'orchestrator']) {
+      const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', sessionId, cwd: '/tree', branch: 'feature/work', integration: role ? { role, base: 'main' } : undefined });
+      assert.match(policy, /before editing create or reuse a native Phantom task.*exact worktree.*scope.*acceptance checks/);
+      assert.match(policy, /Edits and their tests belong to the native Phantom CLI do\/run, with the registered scope and acceptance checks/);
+      assert.match(policy, /After acceptance, the parent may invoke.*agent\.mjs merge ID.*scripts\/branches\.mjs integrate BRANCH.*existing role\/authorization requirements, hooks and integration checks/);
+      assert.match(policy, /does not remove mandatory task registration, scope, acceptance checks or native closure/);
+      assert.match(policy, /Acceptance is not proof that a branch has been integrated/);
+      assert.match(policy, /Never merge through harness acceptance checks or ask do\/run to modify HEAD/);
+      assert.match(policy, /Do not grant shell to the executor for Git finalization/);
+      assert.match(policy, /Do not bypass the native controller, disable hooks.*--no-verify.*core\.hooksPath.*strip guard environment.*disable integration checks.*--no-checks.*checks --none.*edit queue state by hand.*fake completed task status/);
+      assert.match(policy, /If acceptance or the authorized integration controller is unavailable, report blocked.*do not substitute raw Git or manual state changes/);
+      assert.match(policy, /A report or consult never completes a task; review means ready for review only/);
+      assert.doesNotMatch(policy, /All (?:controlled effects|effects of controlled work) belong/);
+      if (role === 'worker') assert.match(policy, /Only the orchestrator session integrates work/);
+      if (role === 'orchestrator') assert.match(policy, /merge ID.*host merges exactly the submitted commit/);
+    }
+  }
 });
 
 test('real PTYs inherit isolated bootstrap config for their actual Git worktrees; bind uses host ownership', async t => {

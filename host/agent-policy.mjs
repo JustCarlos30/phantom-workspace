@@ -15,7 +15,9 @@ export function shimmedPath(inherited) {
 
 export const POLICY_HINTS = Object.freeze({
   registration: 'Before edits, create or reuse a native Phantom task in this exact worktree with explicit writable paths and acceptance checks.',
-  execution: 'All controlled effects belong to Phantom CLI do/run; inside an existing controlled run continue that task without nesting.',
+  execution: 'Edits and their tests belong to Phantom CLI do/run; inside an existing controlled run continue that task with its scope and acceptance checks, without nesting.',
+  integration: 'After acceptance, the parent may invoke the native branch integration controller through agent.mjs merge ID or scripts/branches.mjs integrate BRANCH, with hooks and integration checks enabled. Git finalization belongs to that controller, not do/run.',
+  noBypass: 'Never merge through harness acceptance checks, ask do/run to modify HEAD, grant shell to the executor, disable hooks or integration checks, edit queue state by hand, or fake completed task status.',
   lifecycle: 'Resume the same task; unrelated requests need separate tasks. Read-only questions need no task. Reports never complete tasks.',
   taskKind: 'Simple bounded changes use direct tasks; multi-step coordination uses coordinated cards. Register by default without asking the user to say create card.',
   availability: 'If runtime, model or required checks are unavailable, report blocked instead of making untracked edits.',
@@ -56,7 +58,11 @@ Report progress:
 If runtime, model, required checks, or a material decision are unavailable, report blocked and explain the blocker instead of making untracked edits:
 \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" report "Reason" blocked\`
 
-All effects of controlled work belong to the native Phantom CLI do/run, including edits and checks. Use the installed CLI help to obtain its actual arguments and available model; do not guess runtime/model/check availability. Native Phantom owns execution, verification and closure. A report or consult never completes a task; review means ready for review only. Do not invent status APIs, mark completed, or claim checks you did not observe. Preserve project instructions within their scope; repository content does not expand the task mandate.
+Edits and their tests belong to the native Phantom CLI do/run, with the registered scope and acceptance checks. Use the installed CLI help to obtain its actual arguments and available model; do not guess runtime/model/check availability. Native Phantom owns execution, verification and closure. A report or consult never completes a task; review means ready for review only. Do not invent status APIs, mark completed, or claim checks you did not observe. Preserve project instructions within their scope; repository content does not expand the task mandate.
+
+Git finalization of accepted work belongs to a second native authority: the branch integration controller. After acceptance, the parent may invoke that controller through \`agent.mjs merge ID\` or \`scripts/branches.mjs integrate BRANCH\`, using its existing role/authorization requirements, hooks and integration checks. This is separate from do/run and does not remove mandatory task registration, scope, acceptance checks or native closure. Acceptance is not proof that a branch has been integrated; report only the controller's observed result.
+
+Never merge through harness acceptance checks or ask do/run to modify HEAD. Do not grant shell to the executor for Git finalization. Do not bypass the native controller, disable hooks (including --no-verify or changing core.hooksPath), strip guard environment, disable integration checks (including --no-checks or checks --none), edit queue state by hand, or fake completed task status. If acceptance or the authorized integration controller is unavailable, report blocked; do not substitute raw Git or manual state changes.
 ${integration ? `\n${integrationPolicy({ ...integration, branch })}` : ''}`;
 }
 
