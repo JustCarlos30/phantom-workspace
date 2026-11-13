@@ -11,6 +11,7 @@
   position: absolute; z-index: 31; top: 0; right: 0; bottom: 0; width: var(--phantom-chat-width);
   display: flex; flex-direction: column; min-width: 0; font-size: 13px;
   background: var(--surface);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
   border-left: 1px solid var(--hairline); container-type: inline-size;
   animation: materialize var(--dur) var(--ease-out);
 }
@@ -30,7 +31,7 @@
 }
 /* Compact: a drawer over the workspace, like the rail. */
 @media (max-width: 850px) {
-  .phantom-chat { left: auto; width: min(100%, 420px); box-shadow: var(--shadow-float); }
+  .phantom-chat { left: auto; width: min(100%, 420px); box-shadow: var(--shadow-workplane-lift); }
 }
 
 /* Head: exactly the bar's height so its seam continues the top bar. */
