@@ -15,9 +15,10 @@
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
   --hairline: color-mix(in srgb, #fff 8%, transparent);
-  /* Two elevations with a static violet penumbra. Only real activity moves;
-     shadows never animate their blur. Reading planes remain opaque. */
-  --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9, 0 0 28px -10px #9563d65c;
+  /* Quiet chrome, faint resting panels, defined lifted panels. Only real activity moves;
+      shadows never animate their blur. Reading planes remain opaque. */
+  --shadow-chrome: 0 2px 5px #100a1870, 0 18px 42px -20px #100a18b3, 0 0 20px -12px #9563d61a;
+  --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9, 0 0 24px -10px #9563d62e;
   --shadow-float: 0 2px 6px #05030a73, 0 30px 68px -24px #05030af2, 0 0 40px -12px #a171e875;
   /* Glass: chrome only. Working planes stay opaque. */
   --glass: color-mix(in srgb, var(--surface) 64%, transparent);
@@ -155,9 +156,9 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .context-menu, .toast, .canvas-busy, .connection-error {
   background: var(--island);
   border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-chrome);
 }
-.canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-float); }
+.canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-chrome); }
 
 /* ---------- Left rail: floating island ---------- */
 @media (min-width: 851px) {
@@ -397,7 +398,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 /* Selection actions float as one island just above the dock, like Figma's selection bar. */
 .zone-selection, .group-selection {
   position: absolute; top: auto; bottom: 84px; z-index: 12; height: 36px; padding: 0 12px; gap: 8px;
-  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-float); color: var(--ink);
+  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-chrome); color: var(--ink);
   animation: materialize var(--dur) var(--ease-out);
 }
 .zone-selection { left: calc(var(--dock-x) - 4px); transform: translateX(-100%); }
@@ -501,7 +502,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 /* ---------- Panels float off the map ----------
    Every panel is a slab lifted above the canvas: a lit top edge, a tight
    contact shadow and a long soft one, so the map reads as the floor below.
-   Selection lifts it further; dragging already uses --elev-lift. */
+   Selection and dragging lift it further with --shadow-float. */
 .canvas-node:not(.focused):not(.is-dragging) { box-shadow: var(--shadow-rest); }
 
 /* =====================================================================
@@ -527,11 +528,11 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   background: var(--glass);
   -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
   border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-chrome);
 }
 /* Reading planes are thicker glass: what is behind tints them, never shows through. */
 .project-rail, .inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background: var(--glass-thick); }
-.tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-float); }
+.tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-chrome); }
 .connection-error { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); background: color-mix(in srgb, var(--error-bg) 86%, transparent); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
 
 /* ---------- Buttons ---------- */
@@ -685,7 +686,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 
 /* ---------- Command palette: spotlight ---------- */
 .app-modal-backdrop, .tw-overlay { background: #07061099; }
-.tw-palette, .tw-voice, .app-dialog { background: var(--glass-thick); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-float); }
+.tw-palette, .tw-voice, .app-dialog { background: var(--glass-thick); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); }
 .tw-palette { width: min(640px, 100%); }
 .tw-palette-search { gap: 12px; padding: 8px 12px 8px 20px; min-height: 60px; border-bottom-color: var(--hairline); }
 .tw-palette-search > svg { color: var(--muted); }
@@ -800,14 +801,14 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
     left: var(--gutter); top: var(--gutter); bottom: auto; height: auto; margin: 0;
     max-height: calc(100% - var(--gutter) * 2); width: var(--rail-width);
     padding: 4px 10px 10px; border: 1px solid var(--hairline); border-radius: var(--r-isle);
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-chrome);
   }
   .app-shell:not(.rail-collapsed) .brand { height: 48px; flex-shrink: 0; margin: 0 0 8px; padding: 0 2px 0 6px; border: 0; }
 
   /* Collapsed: the rail folds into a pill that sits where the rail began. */
   .rail-collapsed .project-rail {
     left: var(--gutter); top: var(--gutter); bottom: auto; height: var(--bar); width: auto; max-width: 340px; margin: 0;
-    padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+    padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
 
   /* Top row: no strip. Title and controls are two separate objects; the space
@@ -819,7 +820,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   }
   .rail-collapsed .workspace-header { left: var(--gutter); }
   .workspace-identity, .header-controls {
-    height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+    height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
   .workspace-identity { padding: 0 18px; max-width: min(44%, 520px); }
   .header-controls { padding: 0 8px; }
@@ -829,13 +830,13 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   /* Focus mode: the stage starts one gap after the rail and stops before the inspector. */
   .studio-focused:not(.rail-collapsed) .canvas-region { left: calc(var(--gutter) * 2 + var(--rail-width) - 12px); }
   .studio-focused.studio-inspector-open .canvas-region { right: calc(var(--gutter) * 2 + var(--inspector-width) - 12px); }
-  .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float); z-index: 29; }
+  .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); z-index: 29; }
 
   /* Inspector: the rail's counterweight. It hangs under the controls it was
      opened from, inset on every side. */
   .inspector-host {
     top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); width: var(--inspector-width);
-    border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-float);
+    border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome);
   }
   .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--inspector-width) + var(--gutter) * 2); }
   .studio-focused.studio-inspector-open :is(.canvas-navigation, .canvas-popover) { right: var(--gutter); }
@@ -854,7 +855,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 }
 @media (max-width: 850px) {
   .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0; background: transparent; border: 0; pointer-events: none; }
-  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float); background: var(--island); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); background: var(--island); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
   .workspace-header > .rail-toggle { width: var(--bar); flex-shrink: 0; }
   .header-controls { padding: 0 6px; }
   .inspector-host { top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); left: var(--gutter); border-radius: var(--r-isle); }
@@ -883,7 +884,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .activity-dock {
   display: flex; flex-direction: column; max-width: calc(100% - 24px);
   background: var(--glass); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
-  border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+  border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
 }
 .activity-dock.activity-open { z-index: 46; }
 @media (min-width: 851px) {
