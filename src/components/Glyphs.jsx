@@ -9,6 +9,26 @@ export function PhantomGlyph({ size = 20, ...props }) {
   return <svg width={size} height={size} {...base} {...props}><path d="M4 4l5 3h6l5-3-1 11-7 5-7-5Z" /><path d="m7.5 11 3 1.5M16.5 11l-3 1.5" /></svg>;
 }
 
+// The same mark with a mood: the one character in the app, living in the
+// activity notch. Only the eyes and the grin change, and only with real state.
+//   asleep  host disconnected          eyes shut
+//   unsure  readings stale or failing  one eye shut
+//   calm    nothing needs you          the brand mark; blinks now and then
+//   grin    something needs you        eyes lit, and it grins
+export function PhantomFace({ mood = 'calm', size = 16, ...props }) {
+  const eyes = {
+    asleep: <path d="M7.5 12h3M13.5 12h3" />,
+    unsure: <path d="m7.5 11 3 1.5M13.5 12.2h3" />,
+    calm: <path d="m7.5 11 3 1.5M16.5 11l-3 1.5" />,
+    grin: <path d="M7.2 10.2l3.6 1.9-3.1.9ZM16.8 10.2l-3.6 1.9 3.1.9Z" fill="currentColor" />,
+  }[mood] || null;
+  return <svg width={size} height={size} {...base} className={`phantom-face is-${mood}`} {...props}>
+    <path d="M4 4l5 3h6l5-3-1 11-7 5-7-5Z" />
+    <g className="phantom-face-eyes">{eyes}</g>
+    {mood === 'grin' && <path className="phantom-face-grin" d="M9 15.4c1.9 1.1 4.1 1.1 6 0" />}
+  </svg>;
+}
+
 export function ClaudeGlyph({ size = 14, ...props }) {
   return <svg width={size} height={size} {...base} {...props}><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg>;
 }

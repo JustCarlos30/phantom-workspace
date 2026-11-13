@@ -8,17 +8,17 @@
 .reference-missing span { max-width: 26ch; }
 .reference-link { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; text-align: left; color: var(--ink); background: var(--surface); }
 .reference-link > img, .reference-link-blank { flex: 1; min-height: 0; width: 100%; object-fit: cover; display: grid; place-items: center; color: var(--muted); background: var(--surface-2); }
-.reference-link-text { display: grid; gap: 3px; padding: 10px 12px; border-top: 1px solid var(--line-soft); min-width: 0; }
+.reference-link-text { display: grid; gap: 3px; padding: 10px 12px; border-top: 1px solid var(--hairline); min-width: 0; }
 .reference-link-text strong { font-size: 12.5px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .reference-link-text em { font-style: normal; font-size: 11.5px; line-height: 1.4; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .reference-link-text small { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .reference-link:hover strong { color: var(--accent); }
-.reference-caption { display: flex; align-items: center; gap: 4px; height: 34px; min-height: 34px; padding: 0 6px 0 12px; border-top: 1px solid var(--line-soft); background: var(--surface); }
+.reference-caption { display: flex; align-items: center; gap: 4px; height: 34px; min-height: 34px; padding: 0 6px 0 12px; border-top: 1px solid var(--hairline); background: var(--surface); }
 .reference-caption input { flex: 1; min-width: 0; height: 26px; border: 0; background: transparent; color: var(--ink); font-size: 12px; }
 .reference-caption input::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
 .reference-caption .icon-button { width: 24px; height: 24px; flex-shrink: 0; }
 .reference-timeline { position: relative; height: 12px; min-height: 12px; margin: 0 12px; }
-.reference-timeline::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 2px; border-radius: 2px; background: var(--fill-3); }
+.reference-timeline::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 2px; border-radius: var(--r-mark); background: var(--fill-3); }
 .reference-timeline button { position: absolute; top: 1px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--attention); border: 2px solid var(--surface); padding: 0; }
 .reference-timeline button:hover { transform: scale(1.3); }
 .overview .reference-caption, .overview .reference-timeline { display: none; }
@@ -28,15 +28,15 @@
 .comment-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 7; }
 .comment-anchor { position: absolute; width: 0; height: 0; pointer-events: auto; transform: scale(var(--overview-scale, 1)); transform-origin: 0 0; z-index: 1; }
 .comment-anchor.open { z-index: 2; }
-.comment-pin { position: absolute; left: 0; bottom: 0; min-width: 26px; height: 26px; padding: 0 7px; display: grid; place-items: center; border-radius: 13px 13px 13px 2px; background: var(--attention); color: #1d1204; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg), var(--shadow-float); cursor: pointer; transition: transform 120ms ease-out; transform-origin: 0 100%; }
+.comment-pin { position: absolute; left: 0; bottom: 0; min-width: 26px; height: 26px; padding: 0 7px; display: grid; place-items: center; border-radius: var(--r-obj) var(--r-obj) var(--r-obj) var(--r-mark); background: var(--attention); color: #1d1204; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg), var(--shadow-float); cursor: pointer; transition: transform 120ms ease-out; transform-origin: 0 100%; }
 .comment-pin:hover, .comment-anchor.open .comment-pin { transform: scale(1.12); }
 .comment-pin.resolved { background: var(--surface-3); color: var(--muted); }
 .comment-pin.draft { background: var(--accent); color: var(--primary-ink); }
-.comment-thread { position: absolute; left: 36px; top: -30px; width: 288px; display: flex; flex-direction: column; max-height: 360px; border-radius: 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-popover); cursor: default; }
-.comment-thread header { display: flex; align-items: center; gap: 2px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--line-soft); }
+.comment-thread { position: absolute; left: 36px; top: -30px; width: 288px; display: flex; flex-direction: column; max-height: 360px; border-radius: var(--r-ctl); background: var(--surface); color: var(--ink); border: 1px solid var(--hairline); box-shadow: var(--shadow-float); cursor: default; }
+.comment-thread header { display: flex; align-items: center; gap: 2px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--hairline); }
 .comment-thread header strong { flex: 1; min-width: 0; font-size: 11.5px; font-weight: 600; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .comment-thread header .icon-button { width: 24px; height: 24px; }
-.comment-time { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--attention); background: color-mix(in srgb, var(--attention) 14%, transparent); border-radius: 5px; padding: 2px 6px; margin-right: 2px; }
+.comment-time { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--attention); background: color-mix(in srgb, var(--attention) 14%, transparent); border-radius: var(--r-mark); padding: 2px 6px; margin-right: 2px; }
 .comment-thread ol { list-style: none; margin: 0; padding: 10px 12px 2px; overflow: auto; display: grid; gap: 10px; }
 .comment-thread li b { font-size: 12px; font-weight: 600; }
 .comment-thread li time { margin-left: 7px; font-size: 10.5px; color: var(--muted); }
@@ -44,12 +44,12 @@
 /* Comment composer: one field (border + focus ring) holding a borderless
    textarea that grows 1 -> 5 lines and a square send button the height of a line. */
 .comment-composer { display: grid; gap: 4px; padding: 10px; }
-.comment-field { display: flex; align-items: flex-end; gap: 4px; padding: 3px 3px 3px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); cursor: text; transition: border-color 120ms ease-out; }
+.comment-field { display: flex; align-items: flex-end; gap: 4px; padding: 3px 3px 3px 9px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); background: var(--surface-2); cursor: text; transition: border-color 120ms ease-out; }
 .comment-field:focus-within { border-color: var(--accent); }
 .comment-field textarea { flex: 1; min-width: 0; display: block; height: 24px; max-height: 96px; overflow-y: auto; resize: none; border: 0; padding: 3px 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; line-height: 18px; }
 .comment-field textarea::placeholder { color: var(--muted); }
 .comment-field textarea:focus-visible { outline: 0; }
-.comment-send { flex-shrink: 0; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 5px; background: var(--accent); color: var(--primary-ink); cursor: pointer; transition: opacity 120ms ease-out, background-color 120ms ease-out; }
+.comment-send { flex-shrink: 0; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; border-radius: var(--r-mark); background: var(--accent); color: var(--primary-ink); cursor: pointer; transition: opacity 120ms ease-out, background-color 120ms ease-out; }
 .comment-send:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
 .comment-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .comment-send:disabled { opacity: 1; background: var(--fill-3); color: var(--muted); cursor: default; }
@@ -57,8 +57,8 @@
 .comment-composer:focus-within .comment-composer-hint { display: block; }
 @media (prefers-reduced-motion: reduce) { .comment-field, .comment-send { transition: none; } }
 .canvas-navigation button { position: relative; }
-.comment-count { position: absolute; top: -3px; right: -3px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--attention); color: #1d1204; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; }
-.comment-hint, .reference-importing { position: absolute; left: 50%; top: 72px; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 99px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-float); font-size: 12px; pointer-events: none; white-space: nowrap; }
+.comment-count { position: absolute; top: -3px; right: -3px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: var(--r-ctl); background: var(--attention); color: #1d1204; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; }
+.comment-hint, .reference-importing { position: absolute; left: 50%; top: 72px; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: var(--r-pill); background: var(--surface); color: var(--ink); border: 1px solid var(--hairline); box-shadow: var(--shadow-float); font-size: 12px; pointer-events: none; white-space: nowrap; }
 .reference-importing { top: 112px; }
 .focus-mode .comment-hint { top: 44px; }
 @media (prefers-reduced-motion: reduce) { .comment-pin { transition: none; } }
@@ -72,7 +72,7 @@
 .reference-media { position: relative; overflow: hidden; }
 .reference-media[data-marking] { cursor: crosshair; touch-action: none; }
 .review-tools { flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: var(--surface); }
-.review-tools button, .review-handoff button { min-height: 32px; padding: 4px 8px; background: var(--fill); color: var(--ink); border-radius: var(--r-xs); font-size: 12px; }
+.review-tools button, .review-handoff button { min-height: 32px; padding: 4px 8px; background: var(--fill); color: var(--ink); border-radius: var(--r-mark); font-size: 12px; }
 .review-tools button:hover, .review-handoff button:hover { background: var(--fill-2); }
 .review-tools button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); }
 .review-tools button:disabled { opacity: .55; cursor: default; }
@@ -80,7 +80,7 @@
 .review-tools input { width: 64px; }
 .review-tools select { max-width: 160px; }
 .review-tools output { font: 11px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.review-tools input, .review-tools select, .review-fields input, .review-fields select { min-height: 32px; min-width: 0; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--surface-2); color: var(--ink); font-size: 12px; caret-color: var(--accent); }
+.review-tools input, .review-tools select, .review-fields input, .review-fields select { min-height: 32px; min-width: 0; padding: 4px 6px; border: 1px solid var(--hairline); border-radius: var(--r-mark); background: var(--surface-2); color: var(--ink); font-size: 12px; caret-color: var(--accent); }
 .review-fields input::placeholder { color: var(--muted); }
 .review-tools :focus-visible, .review-fields :focus-visible, .review-handoff button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .review-marks { position: absolute; pointer-events: none; overflow: visible; }
@@ -98,7 +98,7 @@
 .review-region-fields summary { min-height: 32px; display: flex; align-items: center; cursor: pointer; color: var(--ink); }
 .review-region-fields summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .review-region-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-.comment-thread:has(.review-summary) { max-height: min(620px, 75vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line) var(--surface); }
+.comment-thread:has(.review-summary) { max-height: min(620px, 75vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--hairline) var(--surface); }
 .comment-thread:has(.review-summary) > * { flex-shrink: 0; }
 .comment-thread:has(.review-summary) ol { overflow: visible; }
 .overview .review-tools, .overview .review-seek, .overview .review-compare { display: none; }
