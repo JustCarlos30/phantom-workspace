@@ -1,6 +1,6 @@
 ---
 name: Phantom Workspace
-description: Night glass — a personal spatial workspace; frosted chrome over the canvas, opaque working planes.
+description: Spectral night glass — plum working planes, violet penumbra and quiet activity edges over a spatial canvas.
 colors:
   accent: "#a78bda"
   accent-soft: "color-mix(in srgb, var(--accent) 15%, var(--surface))"
@@ -28,6 +28,8 @@ colors:
   danger: "#ee788a"
   success: "#7cc9a0"
   warning: "#e9b46a"
+  working: "#bb9af7"
+  attention: "#e9b46a"
   error-bg: "color-mix(in srgb, var(--danger) 15%, var(--surface))"
   mission-bg: "color-mix(in srgb, var(--success) 14%, var(--surface))"
   mission-ink: "var(--success)"
@@ -154,7 +156,7 @@ Este documento tiene una sola capa. Si una regla cambia, se edita aquí y en `te
 Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 
 1. **Una caja por objeto.** Solo dibuja contorno lo que se puede mover o lo que flota: panel, zona, rail, islas, dock, menús. Dentro de un objeto se separa con espacio, tipografía y un paso de tono; nunca con líneas. Como mucho un nivel de relleno interior: el control donde se escribe o se elige (campo del compositor, pista del segmentado, pozo de código o de terminal).
-2. **El peso lo da el estado.** En reposo un panel es tono, una hairline y `--shadow-rest`. Seleccionado o arrastrado flota (`--shadow-float`) y toma el acento. Lo que te necesita emite: borde ámbar y ondas en el lienzo. Un borde de color siempre significa algo que está pasando.
+2. **El peso lo da el estado.** En reposo un panel es tono, una hairline y `--shadow-rest`, con penumbra violeta estática visible. Seleccionado o arrastrado flota (`--shadow-float`); selección usa un contorno sólido exterior de 2 px separado 3 px. Trabajando respira el perímetro interior violeta, independiente del acento del proyecto. Lo que te necesita emite: borde ámbar y ondas en el lienzo. Un borde de color siempre significa estado o selección, nunca categoría.
 3. **Lo fantasma es comportamiento y material.** Las superficies se materializan y se dispersan, no se deslizan. Las sombras son ciruela, no negras. Hay un solo personaje, la marca Phantom, y vive en un solo lugar: el notch de actividad. No hay mascotas en estados vacíos ni ilustración decorativa.
 
 ### Tokens (`src/canvas-ui.css`, bloque `:root`)
@@ -167,8 +169,10 @@ Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 | `--r-mark` | 4 px | Marcas de menos de 20 px: kbd, casilla, scrollbar. No es una superficie |
 | `--r-pill` | 999 px | Chips y estados. No es una superficie |
 | `--hairline` | blanco al 8 % | El único borde. Lo dibuja el objeto, una vez |
-| `--shadow-rest` | ciruela, corta | Un objeto apoyado en el lienzo |
-| `--shadow-float` | ciruela, larga | Todo lo que está por encima: chrome, menús, panel seleccionado o arrastrado |
+| `--shadow-rest` | ciruela corta + halo `0 0 28px -10px #9563d65c` | Un objeto apoyado en el lienzo; penumbra estática |
+| `--shadow-float` | ciruela larga + halo `0 0 40px -12px #a171e875` | Chrome, menús, panel seleccionado o arrastrado; penumbra estática |
+| `--working` | `#bb9af7` | Perímetro interior de 2 px, pulso de opacidad .3–.85 cada 4,8 s |
+| `--attention` | `#e9b46a` | Permiso/pregunta pendientes, turno que necesita al usuario |
 
 `test/design-tokens.test.mjs` falla si: un `border-radius` usa otro valor (se admiten `0`, `50%`, `em` y los ajustes concéntricos `calc(token - 1px)`); un `box-shadow` no es `--shadow-rest`, `--shadow-float` o un anillo de estado (desplazamiento y desenfoque cero); reaparece un token retirado (`--line`, `--hairline-strong`, `--elev-*`, `--r-xs…xl`, `--object-*`, `--shadow-popover`, etc.); o una hoja supera su presupuesto de bordes en `test/design-budget.json`. El presupuesto solo baja: al quitar bordes, se reduce el número en el mismo cambio.
 
@@ -181,8 +185,8 @@ Estado del presupuesto: la card de chat y terminal ya cumple la regla 1 (`chat.c
 - **Planos.** Ciruela casi negra `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Texto `--ink #eee9f4`, secundario `--muted #a69bb7`. Terminal opaca `--terminal-bg #0e0b13`. Nunca negro puro.
 - **Rellenos.** Una escalera blanca-alfa: `--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %. Sin degradados, luces interiores ni relieve en controles.
 - **Acento.** Violeta `#a78bda` (clave `lilac`) para selección, foco y acción. Iris, Menta, Ámbar, Rosa y Cian siguen disponibles por proyecto.
-- **Estados.** `--working` azul frío, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado.
-- **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Los planos de trabajo (terminal, hilo, paneles) son opacos. `prefers-reduced-transparency` lo vuelve todo opaco.
+- **Estados.** `--working` violeta espectral, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado: selección y teclado son contornos sólidos; actividad es perímetro interior y etiqueta. `test/design-tokens.test.mjs` exige contraste de texto AA (4,5:1) para texto principal, secundario, trabajo y atención sobre los cinco planos opacos.
+- **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Los planos de trabajo (terminal, hilo, paneles) son opacos. `prefers-reduced-transparency` vuelve el chrome opaco, desactiva su filtro y oculta atmósfera y campo de ondas.
 - **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Chrome a 12–13 px, mínimo 10 px, siempre en píxeles enteros (sin medios píxeles). Las etiquetas van en caja natural, peso 600 y `--muted`; nunca en mayúsculas con tracking. Iconos lucide y `PanelIcons.js` con trazo 1,75.
 - **Atmósfera.** El fondo es por proyecto (Gengar, Aurora, Marea, Brasa, Grafito o imagen propia). El preset Gengar usa el arte oficial local (`assets/gengar-source.md`) como atmósfera atenuada, no como marca: la identidad es el glifo Phantom. El arte no se redistribuye fuera de uso personal.
 
@@ -192,7 +196,8 @@ Estado del presupuesto: la card de chat y terminal ya cumple la regla 1 (`chat.c
 - **Rail:** 252 px, radio `--r-isle`, alto según contenido; contraído es una píldora de 48 px.
 - **Fila superior:** título y controles son dos islas de 48 px (`--bar`); entre ellas hay canvas. `--top-clear` es la primera línea libre.
 - **Inspector:** contrapeso del rail, 360 px, cuelga bajo los controles.
-- **Dock:** lecturas de actividad arriba y fila de herramientas abajo en un mismo objeto, sin línea entre ambas. Botones de 64×52 px, icono sobre palabra, sin acción primaria teñida.
+- **Franja inferior:** el área de paneles (`.canvas-stage`) termina 196 px antes del borde inferior en mapa y 134 px en foco. Navegación, minimapa y creación quedan fuera de su recorte: ninguna cámara puede colocar contenido interactivo bajo esas islas. La franja conserva la atmósfera, sin caja ni borde adicional.
+- **Dock:** lecturas de actividad arriba y fila de herramientas abajo en un mismo objeto, sin línea entre ambas. Botones de 64×52 px, icono sobre palabra, sin acción primaria teñida. En mapa comparte columna con navegación; el minimapa ocupa una columna independiente de 190 px, separada 16 px. El dock termina a 16 px del borde inferior; navegación ocupa la fila de 48 px sobre una fila de 104 px, separadas 12 px. En foco el dock se centra en el área libre y el panel termina 16 px antes de la franja.
 - **Retícula:** puntos en espacio-mundo; duplican el paso por debajo de 14 px. El viewport no se desplaza: solo la cámara.
 - **Ritmo:** múltiplos de 4 px (`--s-1`…`--s-6`).
 
@@ -200,20 +205,20 @@ Estado del presupuesto: la card de chat y terminal ya cumple la regla 1 (`chat.c
 
 La card es la caja. Dentro no hay líneas:
 
-- **Cabecera** (44 px): mismo tono que la card, sin costura. Glifo del tipo, título, acciones.
+- **Cabecera** (44 px): mismo tono que la card, sin costura. Glifo del tipo, título de 13 px/peso 600, acciones con aparición por hover o foco de teclado.
 - **Identidad:** selector de agente y carpeta en una fila, sin fondo propio.
-- **Hilo:** a sangre. Turnos separados por 28 px. Pasos de herramientas, subagentes, bloques de código y salidas son pozos de un tono (`--fill` o un paso sobre `--terminal-bg`) con `--r-ctl`, sin borde ni cabecera subrayada. Las guías de 1 px de razonamiento y pasos anidados se conservan: indican anidamiento, no contienen.
+- **Hilo:** a sangre, opaco, sin pulsos decorativos en el contenido. Turnos separados por 28 px (32 px en foco), mensajes propios un paso de tono, columna de lectura de hasta 780 px. Pasos de herramientas, subagentes, bloques de código y salidas son pozos de un tono (`--fill` o un paso sobre `--terminal-bg`) con `--r-ctl`, sin borde ni cabecera subrayada. Las guías de 1 px de razonamiento y pasos anidados se conservan: indican anidamiento, no contienen.
 - **Segmentado** Claude · OpenCode · Codex · Terminal: pista `--fill`; el segmento activo se tiñe con el tono del proveedor. Sin anillos.
-- **Compositor:** el único relleno interior (`--surface-2`, `--r-obj`). El borde es transparente hasta que tiene foco; entonces toma el tono del proveedor con un anillo de 3 px. Modelo, Effort y permisos son texto con hover, no chips rellenos. Debajo, sin fondo: contexto, costo y pista de teclado.
-- **Terminal:** el pozo de salida se distingue por tono. Su borde superior es transparente y solo se colorea con estado (azul trabajando, ámbar te necesita).
+- **Compositor:** el campo de escritura (`--surface-2`, `--r-obj`). Hover eleva ligeramente su tono; foco usa acento del proyecto y anillo estático de 3 px, sin confundirse con el pulso de actividad. Modelo, Effort y permisos son texto con hover, no chips rellenos. Debajo, sin fondo: contexto, costo y pista de teclado; metadatos y controles envuelven en ancho reducido.
+- **Terminal:** el pozo de salida se distingue por tono. Su borde superior es transparente y solo se colorea con estado (violeta trabajando, ámbar te necesita).
 - **Preguntas y permisos pendientes** sí llevan borde de color: es estado. Resueltos, lo pierden.
 - **Zoom semántico:** por debajo del 45 % la card es una ficha (título, estado, tres líneas de salida); por debajo del 25 %, título y estado.
 
 ## Estados, pulsos y notch
 
 - **Escalera de foco.** Mapa: viñeta suave y atmósfera. Selección: la card elegida conserva su luz y flota; las demás bajan a `brightness(.7) saturate(.72)` y la atmósfera al 55 %. Foco: atmósfera al 12 %, sin retícula. Lo que te necesita nunca se atenúa.
-- **Bordes vivos.** Trabajando: una luz azul recorre el perímetro cada 3,2 s. Te necesita: borde ámbar en el compás de 2,4 s; a los 30 s queda fijo. Error: tres destellos y borde rojo.
-- **Campo de ondas** (`PixelField.jsx`): el estado se propaga por el lienzo como un sonar con la forma del panel. En reposo no pinta nada.
+- **Bordes vivos.** Trabajando: el borde violeta interior respira cada 4,8 s animando solo opacidad; el desenfoque del halo es estático. Te necesita: borde ámbar en el compás de 2,4 s; a los 30 s queda fijo. Error: tres destellos y borde rojo. Estos estados conservan su borde incluso con hover, selección o foco. Permiso/pregunta pendiente prevalece sobre trabajando y reposo, también en la etiqueta accesible.
+- **Campo de ondas** (`PixelField.jsx`): atención se propaga por el lienzo como un sonar con la forma del panel; trabajo mantiene halo estático y no sostiene un bucle de repintado. En reposo no pinta nada. Omite paneles fuera de vista, pausa en documento oculto y se reactiva con cámara/visibilidad. Movimiento reducido conserva estados fijos; transparencia reducida oculta el campo.
 - **Notch.** `PhantomFace` (`Glyphs.jsx`) es la marca con ánimo; solo cambian ojos y sonrisa, y solo con estado real: `asleep` host desconectado (ojos cerrados), `unsure` lecturas viejas o con error (un ojo cerrado), `calm` nada pendiente (parpadea cada 7 s), `grin` algo te necesita (ojos encendidos en ámbar, sonríe; late en el compás de 2,4 s). El texto siempre acompaña al glifo.
 
 ## Movimiento
@@ -259,7 +264,7 @@ Keyboard focus remains a 2px current-accent outline: shell buttons/tab stops off
 
 ### Appearance and local persistence
 
-Available from the rail, contextual selector and command palette; it occupies the nonmodal inspector. Presets: **Aurora** (violet/teal), **Marea** (petroleum/blue), **Brasa** (warm graphite), **Grafito** (no atmosphere). Presets are CSS gradients, with intentionally illustrative preview gradients rather than pixel-identical miniature canvas crops. Selected options use an accent border, checkmark and `aria-pressed`. Accent options are named/checkmarked Iris, Menta, Ámbar and Rosa. Intensity has numeric output, grid has a labelled checkbox, and reset restores Aurora/Iris/grid on/55%/no image.
+Available from the rail, contextual selector and command palette; it occupies the nonmodal inspector. Presets: **Gengar** (plum/violet with existing local artwork), **Aurora** (violet/teal), **Marea** (petroleum/blue), **Brasa** (warm graphite), **Grafito** (no atmosphere). Preview gradients are illustrative rather than pixel-identical miniature canvas crops. Selected options use an accent border, checkmark and `aria-pressed`. Accent options are named/checkmarked Violeta, Iris, Menta, Arena, Rosa and Cian. Intensity has numeric output, grid has a labelled checkbox, and reset restores Gengar/Violeta/grid on/55%/no image. Valid saved accents, including pre-v2 Iris, remain explicit project choices and are not migrated to violet.
 
 Preferences synchronously save to localStorage under `phantom:studio:${workspaceId || 'default'}` on this machine/browser profile, separate from host workspace JSON. Switching projects loads the target project's settings rather than copying the previous entry. Invalid JSON falls back to defaults; load validates preset/accent keys, boolean grid, finite intensity clamped 0–100, and image data URL shape/length. A failed localStorage write reports an error and does not apply the attempted state change. This is not cloud sync or a durability guarantee beyond local storage.
 
@@ -271,7 +276,9 @@ Optional uploads accept PNG/JPEG/WebP MIME types up to 2×1024×1024 bytes; `cre
 
 Selection is the default tool: drag empty canvas to select intersecting panels; Shift adds to the selection. The hand tool (H), held Space outside editing targets, or middle-button drag pans across panel content. V returns to selection. Normal wheel input inside a panel remains with its content; Ctrl/Cmd/Alt + wheel zooms around the cursor in map mode. Trackpad deltas pan the background and pinch events use cursor-anchored zoom. Focus mode retains panel-owned scrolling and input.
 
-The floating navigation toolbar groups selection/hand, zoom, fit and a discoverable gesture guide. It is 42px high with 32px controls, current-accent pressed states and tabular zoom numerals. The zoom popover offers 25/50/100/150%, fit-all (0) and fit-selection (2); 1 restores 100%, and +/− zoom around the viewport center. Below 1270px the toolbar moves to a second row (top 62px, popovers 112px) to clear panel-count and grouping actions. At wider sizes it remains top 17px. Inspector-aware right positioning is retained.
+The navigation toolbar groups selection/hand/comments, zoom, fit, minimap and a discoverable gesture guide. It is 48px high with 32px controls, current-accent pressed states and tabular zoom numerals. The zoom popover offers 25/50/100/150%, fit-all (0) and fit-selection (2); 1 restores 100%, and +/− zoom around the working stage centre. Navigation lives in the bottom shelf, above creation and beside the minimap, at both 1520×980 and 1100×760. Rail and inspector insets constrain the shelf columns; controls retain their names and can scroll horizontally if their column becomes too narrow. Toggling the minimap does not move the working stage or other controls. Explicit popovers open above their toolbar and dismiss through the existing Escape/outside-click route.
+
+Framing and minimap viewport geometry use the measured working stage, with 72px top clearance and 16px bottom clearance. On settled viewport resize, visible panels that exceed that area are reframed through the camera only; panel coordinates and dimensions are untouched. Deliberately offscreen panels stay outside that automatic framing set. Tab focus entering a clipped panel frames that panel; normal pan/zoom remains available. Focus geometry uses 12px side insets, y=72px and height=stage height−88px. Returning from focus at the same viewport size retains the map camera; intermediate widths during the focus/rail transition do not trigger reframing.
 
 Camera input accumulates synchronously in a ref and renders once per animation frame. Persistence is staged after 180ms idle, on pointer release, blur or the existing before-flush protocol, with explicit workspace identity. Discrete navigation interpolates for 180ms with cubic ease-out and is interruptible; reduced motion applies the target directly. Memoized tool bodies avoid camera-only rerenders. Geometry previews commit their latest ref on release.
 
@@ -285,3 +292,7 @@ Only focused, unobscured browser panels display the native view; overview captur
 ## Verificación
 
 `npm test` incluye las reglas de tokens. `node test/design-capture.mjs <etiqueta>` (tras `npm run build`) abre Electron real con un proyecto sintético y escribe capturas en `/tmp/opencode/design-<etiqueta>-*.png` para comparar antes y después.
+
+La primera implementación espectral de `task_96921754-f29f-416f-a5d4-e2ea1d6944b8` pasó cuatro checks, pero la revisión visual encontró superposición: `/tmp/opencode/spectral-ui-GRaGQh/narrow-attention.png` mostraba el minimapa sobre Aprobar; `narrow-rest`, `narrow-working` y `selected-working` mostraban minimapa/toolbar sobre enviar o detener. Ese resultado previo no constituye aprobación visual.
+
+`node test/spectral-ui.mjs` usa Electron compilado y host/perfil aislados; sustituye respuestas de conversación y de Aprobar/enviar/detener mediante un fixture IPC en el proceso de prueba, sin ejecutar proveedores. Captura escritorio 1520×980 y 1100×760 cruzando reposo/trabajando/atención con mapa/selección/foco, además de teclado y preferencias de movimiento/transparencia reducidos. Comprueba nueve puntos de hit-testing por acción, separación geométrica entre chrome y área operativa, clics/activación de teclado que llegan una sola vez al IPC y su respuesta visible (incluido Aprobado), uso y alternancia del minimapa, overflow horizontal, actividad del perímetro y quietud del hilo. Artefactos en `/tmp/opencode/spectral-ui-*`; el controlador ejecuta los checks y el padre inspecciona las capturas. Esta corrección y las nuevas comprobaciones quedan pendientes de ejecución y revisión; no se declara nueva aprobación.

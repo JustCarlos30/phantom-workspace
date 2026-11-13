@@ -17,8 +17,8 @@ function load(id) {
     const saved = JSON.parse(localStorage.getItem(keyFor(id))) || {};
     return {
       background: BACKGROUNDS.some(([key]) => key === saved.background) ? saved.background : defaults.background,
-      // Pre-v2 'iris' was the untouched default, so it migrates to the new default.
-      accent: saved.accent === 'iris' && saved.v !== VERSION ? defaults.accent : ACCENTS.some(([key]) => key === saved.accent) ? saved.accent : defaults.accent,
+      // A saved accent is a project choice, including entries predating v2.
+      accent: ACCENTS.some(([key]) => key === saved.accent) ? saved.accent : defaults.accent,
       grid: typeof saved.grid === 'boolean' ? saved.grid : defaults.grid,
       intensity: Number.isFinite(saved.intensity) ? Math.min(100, Math.max(0, saved.intensity)) : defaults.intensity,
       image: typeof saved.image === 'string' && /^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(saved.image) && saved.image.length < 2800000 ? saved.image : '',

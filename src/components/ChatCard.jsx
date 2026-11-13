@@ -296,6 +296,7 @@ export const Message = React.memo(function Message({ message, label, provider, m
 
 function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const streaming = message.status === 'streaming', usage = message.usage;
+  const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
   const delegated = streaming ? activeSubagents(message.parts) : 0;
@@ -313,7 +314,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
+    {streaming && !waiting && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
     {!streaming && (facts.length > 0 || text) && <footer className="pc-turn-foot"><span className="pc-num">{facts.join(' · ')}</span>{text && <CopyButton text={text} label="Copiar respuesta" />}</footer>}
@@ -508,7 +509,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const { cwd, folder, branch } = locationOf(node, workspace);
   // Announce transitions only, never the state found on mount.
   const [announcement, setAnnouncement] = useState('');
-  const phase = !running ? 'idle' : waiting ? 'waiting' : 'running', seenPhase = useRef(null);
+  const phase = waiting ? 'waiting' : running ? 'running' : 'idle', seenPhase = useRef(null);
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
@@ -538,19 +539,19 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const model = meta.model, cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
-    return <div className="pt-card pc is-overview" data-agent={running ? 'working' : 'idle'}>
+    return <div className="pt-card pc is-overview" data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
-        {running && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
+        {(running || waiting) && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{plainMarkdown(lastText).slice(-240)}</p>}
       </div>
     </div>;
   }
-  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
+  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
       <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
-      {running && (waiting
+      {(running || waiting) && (waiting
         ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
         : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
       <span className="pc-bar-space" />
