@@ -913,9 +913,12 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   left: clamp(min(50%, 299px), var(--dock-x), calc(100% - min(50%, 299px))); transform: translateX(-50%);
   max-height: calc(100dvh - var(--top-clear) - 112px);
 }
-.activity-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--hairline); }
-.activity-tray .activity-filters button { background: none; color: var(--muted); }
-.activity-tray .activity-filters button[aria-pressed=true] { background: var(--fill-2); color: var(--ink); }
+.activity-filters { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 4px; padding: 8px 16px; }
+.activity-tray .activity-filters button { min-width: 0; max-width: 100%; min-height: 32px; padding: 6px 8px; border-radius: var(--r-ctl); background: none; color: var(--muted); text-align: left; }
+.activity-tray .activity-filters button > span { overflow-wrap: anywhere; }
+.activity-tray .activity-filters button[aria-pressed=true] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.activity-filter-check { visibility: hidden; }
+.activity-filters [aria-pressed=true] .activity-filter-check { visibility: visible; color: var(--accent); }
 .activity-tray-scroll > section:first-of-type { border-top: 0; }
 .tool-picker { bottom: calc(var(--gutter) + 100px); max-height: calc(100% - 172px); }
 .zone-selection, .group-selection { bottom: calc(var(--gutter) + 100px); }
