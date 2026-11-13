@@ -296,6 +296,9 @@ test('Phantom CLIs pass in every mode, for every agent', async () => {
   assert.ok(providerArgs('codex', { access: 'auto', message: 'x' }).includes(net));
   assert.ok(!providerArgs('codex', { access: 'ask', message: 'x' }).includes(net));
   assert.ok(!providerArgs('codex', { access: 'full', message: 'x' }).includes(net));
+  const roots = providerArgs('codex', { access: 'auto', message: 'x', phantom: { PHANTOM_HOME: '/st/phantom' } });
+  assert.ok(roots.includes('sandbox_workspace_write.writable_roots=["/st/phantom"]'));
+  assert.ok(!providerArgs('codex', { access: 'ask', message: 'x' }).some(arg => arg.includes('writable_roots')));
 });
 
 test('Phantom MCP server: same rule as the shell, outside the sandbox', async () => {

@@ -17,7 +17,7 @@ async function until(fn) {
   while (Date.now() < end) { if (fn()) return; await new Promise(r => setTimeout(r, 25)); }
   throw new Error('Fixture did not reach expected state');
 }
-async function fixture(t) {
+async function fixture(t, { electron = false } = {}) {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom npm worktree-'));
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
   const env = { npm_config_offline: 'true', npm_config_registry: 'http://127.0.0.1:1', npm_config_ignore_scripts: 'false', npm_config_cache: path.join(cwd, 'cache') };
@@ -25,7 +25,21 @@ async function fixture(t) {
   write(cwd, 'local-tool/package.json', { name: 'local-tool', version: '1.0.0', bin: { 'fixture-tool': 'cli.cjs' } });
   write(cwd, 'local-tool/cli.cjs', '#!/usr/bin/env node\nconsole.log("LOCAL_OFFLINE_TOOL");\n');
   fs.chmodSync(path.join(cwd, 'local-tool/cli.cjs'), 0o755);
-  write(cwd, 'package.json', { name: 'offline-fixture', version: '1.0.0', private: true, dependencies: { 'local-tool': 'file:./local-tool' }, scripts: { install: 'node install.cjs' } });
+  const dependencies = { 'local-tool': 'file:./local-tool' };
+  if (electron) {
+    // Mirrors electron@45+: no postinstall, the binary is fetched by install.js.
+    fs.mkdirSync(path.join(cwd, 'local-electron'));
+    write(cwd, 'local-electron/package.json', { name: 'electron', version: '45.0.0', bin: { 'install-electron': 'install.js' } });
+    write(cwd, 'local-electron/install.js', `const fs=require('node:fs'),path=require('node:path');
+const count=path.join(__dirname,'..','electron-installs');
+fs.writeFileSync(count,String(Number(fs.existsSync(count)?fs.readFileSync(count,'utf8'):0)+1));
+fs.mkdirSync(path.join(__dirname,'dist'),{recursive:true});
+fs.writeFileSync(path.join(__dirname,'dist','electron'),'');
+fs.writeFileSync(path.join(__dirname,'path.txt'),'electron');
+`);
+    dependencies.electron = 'file:./local-electron';
+  }
+  write(cwd, 'package.json', { name: 'offline-fixture', version: '1.0.0', private: true, dependencies, scripts: { install: 'node install.cjs' } });
   write(cwd, 'install.cjs', `const fs=require('node:fs');
 fs.writeFileSync('install-count',String(Number(fs.existsSync('install-count')?fs.readFileSync('install-count','utf8'):0)+1));
 if(fs.existsSync('loud')) console.error('x'.repeat(100000));
@@ -59,6 +73,25 @@ test('real offline npm ci installs local tools independently and is idempotent',
   assert.equal(readMarker(cwd).state, 'ready');
   assert.deepEqual(fs.readFileSync(path.join(cwd, 'package.json')), manifest);
   assert.deepEqual(fs.readFileSync(path.join(cwd, 'package-lock.json')), lock);
+});
+
+test('electron without postinstall gets its runtime before ready, and legacy ready markers are completed', async t => {
+  const { cwd, options } = await fixture(t, { electron: true });
+  const runtime = path.join(cwd, 'node_modules/electron/dist/electron');
+  assert.equal((await prepareWorktree(cwd, options)).status, 'installed');
+  assert.ok(fs.existsSync(runtime));
+  assert.equal((await prepareWorktree(cwd, options)).status, 'reused');
+  assert.equal(Number(fs.readFileSync(path.join(cwd, 'electron-installs'), 'utf8')), 1);
+  // A marker written before Electron preparation existed: ready, but no dist/.
+  fs.rmSync(path.join(cwd, 'node_modules/electron/dist'), { recursive: true });
+  fs.rmSync(path.join(cwd, 'node_modules/electron/path.txt'));
+  const legacy = readMarker(cwd);
+  legacy.inventory = legacy.inventory.filter(item => !/^.:electron\/(dist|path\.txt)/.test(item));
+  write(cwd, `node_modules/${SETUP_MARKER}`, legacy);
+  assert.equal((await prepareWorktree(cwd, options)).status, 'reused');
+  assert.ok(fs.existsSync(runtime));
+  assert.equal(count(cwd), 1);
+  assert.equal(readMarker(cwd).state, 'ready');
 });
 
 test('lock/ABI changes, missing files and missing node_modules repair managed installs', async t => {

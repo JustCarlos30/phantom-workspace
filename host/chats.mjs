@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomicJSON, assert, text } from './store.mjs';
 import { permissionDecision, phantomCommand, PHANTOM_SCRIPTS, inside, PERMISSION_MODES } from './chat-permissions.mjs';
+import { codexWriteArgs, phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
@@ -83,9 +84,6 @@ export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
 export function gateConfig({ token, socketPath }) {
   return { mcpServers: { [GATE_SERVER]: { type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../scripts/chat-approval-mcp.mjs', import.meta.url))], env: { PHANTOM_CHAT_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: socketPath } } } };
 }
-// What Phantom's CLIs need, handed to the MCP server (Codex gives MCP servers
-// a filtered environment).
-const phantomEnv = (env, dir, cwd) => ({ ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('PHANTOM_'))), PHANTOM_WORKSPACE_SOCKET: path.join(dir, 'host.sock'), PHANTOM_MCP_CWD: cwd, PATH: env.PATH || '/usr/bin:/bin', HOME: env.HOME || '' });
 // OpenCode asks for the shell command itself (bash) and for reading the CLI
 // outside the folder (external_directory); Phantom's own CLIs pass either way.
 export function phantomRequest(permission, patterns) {
@@ -96,25 +94,40 @@ export function phantomRequest(permission, patterns) {
 }
 // OpenCode uses its local server; run's noninteractive auto-reject loop must
 // never own the permission replies of a chat card.
-// Codex's read-only sandbox has no network switch, so its shell cannot reach
-// the app's socket in any mode for sure: Phantom's CLIs also come as an MCP
-// tool, which runs outside the sandbox under the same permission rule.
-export function phantomMcpConfig(env) {
-  const script = fileURLToPath(new URL('../scripts/phantom-mcp.mjs', import.meta.url));
-  const table = Object.entries(env).filter(([key, value]) => /^[A-Z_][A-Z0-9_]*$/.test(key) && typeof value === 'string').map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(', ');
-  return `mcp_servers.phantom_workspace={ command=${JSON.stringify(process.execPath)}, args=[${JSON.stringify(script)}], env={ ${table} }, default_tools_approval_mode="approve" }`;
+// `opencode models --verbose` prints each model id on its own line followed by
+// its JSON metadata; `variants` names the effort levels that model accepts.
+// Plain output (ids only) still yields the catalog, without variants.
+export function openCodeModels(stdout) {
+  const lines = String(stdout).replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split('\n');
+  const isId = line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/');
+  const items = new Map();
+  for (let i = 0; i < lines.length && items.size < 2000; i++) {
+    const id = lines[i].trim(); if (!isId(id) || items.has(id)) continue;
+    const item = { id, group: id.slice(0, id.indexOf('/')) };
+    let end = i + 1; while (end < lines.length && !isId(lines[end].trim())) end++;
+    const body = lines.slice(i + 1, end).join('\n').trim();
+    if (body.startsWith('{')) {
+      try {
+        const variants = JSON.parse(body)?.variants;
+        if (variants && typeof variants === 'object' && !Array.isArray(variants)) item.variants = Object.keys(variants).filter(name => validReasoning('opencode', name)).slice(0, 20);
+      } catch { /* Metadata is optional; the id is enough to pick the model. */ }
+    }
+    items.set(id, item); i = end - 1;
+  }
+  return [...items.values()];
 }
-const PHANTOM_MCP_HINT = 'Phantom Workspace commands (`node <canvas.mjs|$PHANTOM_AGENT_CLI|$PHANTOM_BROWSER_CLI|branches.mjs> …`) go through the MCP tool phantom_workspace.phantom ({"cli":"canvas|agent|browser|branches","args":[…]}); your shell sandbox cannot reach the app.';
+
 export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions, phantom }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
   const sandbox = access === 'full' ? 'danger-full-access' : access === 'auto' ? 'workspace-write' : 'read-only';
   // Phantom's CLIs reach the app through its Unix socket, which Codex's
-  // sandbox counts as network: workspace-write opens it so Codex runs them
-  // like Claude and OpenCode do. read-only has no network switch.
+  // sandbox counts as network, and native Phantom writes its own database:
+  // workspace-write opens both so Codex works like Claude and OpenCode do.
+  // read-only has no switch for either; the MCP servers cover it.
   if (provider === 'codex') return ['exec', ...(sessionId ? ['resume'] : []), '--json', '--skip-git-repo-check',
     '-c', `sandbox_mode=${JSON.stringify(sandbox)}`, '-c', 'approval_policy="never"',
-    ...(sandbox === 'workspace-write' ? ['-c', 'sandbox_workspace_write.network_access=true'] : []),
+    ...(sandbox === 'workspace-write' ? codexWriteArgs(phantom || process.env) : []),
     ...(model ? ['--model', model] : []), ...(reasoning ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoning)}`] : []),
     ...(phantom ? ['-c', phantomMcpConfig(phantom)] : []),
     ...(instructions || phantom ? ['-c', `developer_instructions=${JSON.stringify([instructions, phantom && PHANTOM_MCP_HINT].filter(Boolean).join('\n\n'))}`] : []), ...(sessionId ? [sessionId] : []), '-'];
@@ -533,7 +546,7 @@ export class Chats {
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
       env = { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) };
       if (provider === 'opencode') env = openCodeServerEnv(env);
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, this.store.dir, cwd) : null }),
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
@@ -585,9 +598,8 @@ export class Chats {
     let items;
     if (provider === 'codex') items = await codexModels(bin, cwd);
     else {
-      const stdout = await new Promise((resolve, reject) => execFile(bin, ['models'], { cwd, env: { ...process.env, PWD: cwd }, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
-      const ids = stdout.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split('\n').map(line => line.trim()).filter(line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/'));
-      items = [...new Set(ids)].slice(0, 2000).map(id => ({ id, group: id.slice(0, id.indexOf('/')) }));
+      const stdout = await new Promise((resolve, reject) => execFile(bin, ['models', '--verbose'], { cwd, env: { ...process.env, PWD: cwd }, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
+      items = openCodeModels(stdout);
       if (!items.length) throw new Error('OpenCode no pudo listar sus modelos: el catálogo está vacío');
     }
     const value = { provider, items }; this.catalogs.delete(key); this.catalogs.set(key, { at: Date.now(), value });

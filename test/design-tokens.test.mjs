@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import './appearance-preferences.test.mjs';
 
 // The design system as constraints (see DESIGN.md, «Reglas»). Three radii,
 // two shadows, one hairline, and a per-file budget of drawn edges that can
@@ -73,3 +74,32 @@ test('drawn edges stay within budget', () => {
   assert.deepEqual(slack, [], 'Edges were removed: lower test/design-budget.json so they cannot come back.');
 });
 export { drawnEdges, sheets };
+
+test('spectral reading and state inks retain AA contrast on opaque planes', () => {
+  const css = readFileSync(path.join(root, 'src/studio.css'), 'utf8');
+  const color = name => {
+    const value = css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6});`, 'i'))?.[1];
+    assert.ok(value, `Declared opaque palette token --${name}`);
+    const rgb = value.slice(1).match(/../g).map(v => parseInt(v, 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+    return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+  };
+  for (const plane of ['bg', 'surface', 'surface-2', 'surface-3', 'terminal-bg']) {
+    for (const ink of ['ink', 'muted', 'working', 'attention']) {
+      const a = color(plane), b = color(ink), ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+      assert.ok(ratio >= 4.5, `--${ink} on --${plane}: ${ratio.toFixed(2)} < 4.5`);
+    }
+  }
+});
+
+test('working chat planes are opaque and composer height never animates', () => {
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const side = sheets.find(sheet => sheet.name === 'src/phantom-chat.css').css;
+  assert.match(side, /\.phantom-chat\s*\{[^}]*background:\s*var\(--surface\)/);
+  assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--surface\)/);
+  assert.match(chat, /\.pc-field textarea\s*\{[^}]*transition:\s*none/);
+  for (const file of ['ChatCard', 'PhantomChat']) {
+    const source = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
+    assert.match(source, /useComposerSize\(input, draft/);
+    assert.doesNotMatch(source, /Math\.min\(el\.scrollHeight/);
+  }
+});

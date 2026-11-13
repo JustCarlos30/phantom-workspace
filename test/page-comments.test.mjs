@@ -36,3 +36,26 @@ test('research states and page comments persist their PNG capture', async t => {
   await assert.rejects(host.invoke('comment.add', { workspaceId: workspace.id, nodeId: browser.id, text: 'no', page: { url: 'file:///tmp/nope' } }), /HTTP/);
   await assert.rejects(host.invoke('comment.add', { workspaceId: workspace.id, nodeId: browser.id, text: 'no', page: { url: 'https://example.com', extra: true } }), /Unsupported page field/);
 });
+
+test('web preview pins keep their page point and element for the agent', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-preview-comment-'));
+  const project = path.join(root, 'project'), dataDir = path.join(root, 'state'); fs.mkdirSync(project);
+  const host = await createHost({ dataDir });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspace = await host.invoke('workspace.open', { path: project });
+  const browser = await host.invoke('node.create', { workspaceId: workspace.id, type: 'browser', title: 'Preview · app', x: 0, y: 0, width: 400, height: 300, data: { url: 'http://localhost:5173/' } });
+  const page = { url: 'http://localhost:5173/login', title: 'Login', point: { x: .25, y: .6 }, element: { selector: 'form#login > button.primary', tag: 'button', text: 'Entrar' }, capture: `data:image/png;base64,${PNG}` };
+  const comment = await host.invoke('comment.add', { workspaceId: workspace.id, nodeId: browser.id, x: .3, y: .7, text: '@phantom este botón debe ser más grande', page });
+  assert.deepEqual(comment.page.point, page.point); assert.deepEqual(comment.page.element, page.element);
+  assert.match(comment.page.capture, /^[0-9a-f]{32}\.png$/);
+  const state = await host.invoke('state.get');
+  const brief = mentionBrief(state.workspaces[0], state.workspaces[0].comments[0], dataDir, '/cli');
+  assert.match(brief, /Página: http:\/\/localhost:5173\/login \("Login"\)/);
+  assert.match(brief, /Punto en la página: 25% desde la izquierda, 60% desde arriba/);
+  assert.match(brief, /Elemento señalado: <button> form#login > button\.primary — "Entrar"/);
+  const add = extra => host.invoke('comment.add', { workspaceId: workspace.id, nodeId: browser.id, text: 'no', page: { url: 'http://localhost:5173/', ...extra } });
+  await assert.rejects(add({ point: { x: 2, y: .5 } }), /Punto de página inválido/);
+  await assert.rejects(add({ point: { x: .5, y: .5, z: 1 } }), /Unsupported page point field/);
+  await assert.rejects(add({ element: { selector: 'a', tag: 'a', html: '<a>' } }), /Unsupported page element field/);
+  await assert.rejects(add({ element: { selector: ' ', tag: 'a' } }), /Selector vacío/);
+});

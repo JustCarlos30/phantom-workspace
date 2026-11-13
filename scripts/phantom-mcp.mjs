@@ -5,6 +5,7 @@
 // under the same rule the permission policy applies to shell commands, so a
 // sandboxed agent gets exactly what Claude and OpenCode get — no more.
 import { execFile } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { phantomCliAllowed } from '../host/chat-permissions.mjs';
@@ -19,6 +20,23 @@ const TOOL = {
   description: 'Runs a Phantom Workspace CLI and returns its output. Use it for every Phantom Workspace command your instructions give as `node <cli> …` (canvas.mjs, $PHANTOM_AGENT_CLI = agent, $PHANTOM_BROWSER_CLI = browser, branches.mjs status): your shell sandbox cannot reach the app, this tool can. Pass the arguments after the script, one per item, e.g. {"cli":"canvas","args":["list"]}. branches only allows status/help; canvas does not allow --remotion.',
   inputSchema: { type: 'object', properties: { cli: { type: 'string', enum: Object.keys(SCRIPTS) }, args: { type: 'array', items: { type: 'string' } } }, required: ['cli'] },
 };
+
+// Codex's read-only sandbox has no network switch, so its shell cannot reach
+// the app's socket in any mode for sure. Chat cards (host/chats.mjs) and the
+// codex shim of Phantom terminals both hand Codex this server, pre-approved:
+// codex exec with approval_policy="never" otherwise rejects every MCP call.
+// Codex gives MCP servers a filtered environment, so it travels explicitly.
+export const phantomEnv = (env, socket, cwd) => ({ ...Object.fromEntries(Object.entries(env).filter(([key, value]) => key.startsWith('PHANTOM_') && typeof value === 'string')), ...(socket ? { PHANTOM_WORKSPACE_SOCKET: socket } : {}), PHANTOM_MCP_CWD: cwd, PATH: env.PATH || '/usr/bin:/bin', HOME: env.HOME || '', ...(env.XDG_STATE_HOME ? { XDG_STATE_HOME: env.XDG_STATE_HOME } : {}) });
+export function phantomMcpConfig(env, node = process.execPath) {
+  const table = Object.entries(env).filter(([key, value]) => /^[A-Z_][A-Z0-9_]*$/.test(key) && typeof value === 'string').map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(', ');
+  return `mcp_servers.phantom_workspace={ command=${JSON.stringify(node)}, args=[${JSON.stringify(fileURLToPath(import.meta.url))}], env={ ${table} }, default_tools_approval_mode="approve" }`;
+}
+// Native Phantom (phantom-harness) keeps its task database here; a Codex in
+// workspace-write must be able to register and report tasks in it.
+export const phantomHome = (env = process.env) => env.PHANTOM_HOME || path.join(env.XDG_STATE_HOME || path.join(env.HOME || os.homedir(), '.local/state'), 'phantom');
+// workspace-write extras: the app's socket (network, for Codex) and that database.
+export const codexWriteArgs = (env = process.env) => ['-c', 'sandbox_workspace_write.network_access=true', '-c', `sandbox_workspace_write.writable_roots=[${JSON.stringify(phantomHome(env))}]`];
+export const PHANTOM_MCP_HINT = 'Phantom Workspace commands (`node <canvas.mjs|$PHANTOM_AGENT_CLI|$PHANTOM_BROWSER_CLI|branches.mjs> …`) go through the MCP tool phantom_workspace.phantom ({"cli":"canvas|agent|browser|branches","args":[…]}); your shell sandbox cannot reach the app.';
 
 export function runCli({ cli, args = [] } = {}, env = process.env) {
   const name = SCRIPTS[cli];
@@ -56,4 +74,9 @@ export function serve({ input = process.stdin, output = process.stdout, env = pr
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) serve();
+// `--codex-config`: the -c values for a codex started in a Phantom terminal.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  // One -c value per line: the MCP server, then the workspace-write extras.
+  if (process.argv[2] === '--codex-config') process.stdout.write([phantomMcpConfig(phantomEnv(process.env, null, process.cwd())), ...codexWriteArgs().filter(arg => arg !== '-c')].join('\n') + '\n');
+  else serve();
+}
