@@ -257,3 +257,68 @@ process.stdin.resume().on('end', async () => {
   assert.deepEqual(JSON.parse(reply.parts.find(p => p.type === 'text').text), [{ '¿Qué dirección?': 'A', '¿Qué extras?': 'X, mi propia idea' }, 'deny']);
   assert.deepEqual(reply.parts.filter(p => p.type === 'question').map(p => p.status), ['answered', 'skipped']);
 });
+
+test('Phantom CLIs pass in every mode, for every agent', async () => {
+  const { phantomCommand, PHANTOM_SCRIPTS } = await import('../host/chat-permissions.mjs');
+  const { phantomRequest, providerArgs } = await import('../host/chats.mjs');
+  const cwd = '/tmp/some-repo', canvas = `${PHANTOM_SCRIPTS}/canvas.mjs`;
+  const ok = [
+    `"\${PHANTOM_AGENT_NODE:-node}" "${canvas}" list`,
+    `"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" context`,
+    `"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" report "Paso" working`,
+    `node "$PHANTOM_BROWSER_CLI" help`,
+    `node "${PHANTOM_SCRIPTS}/branches.mjs" status 2>&1`,
+  ];
+  const no = [
+    `node "${PHANTOM_SCRIPTS}/branches.mjs" publish`,
+    `node "${canvas}" storyboard Z --remotion /tmp/x`,
+    `node "${canvas}" list > /tmp/out`,
+    `node "${canvas}" list && rm -rf /`,
+    `node "${canvas}" list $(whoami)`,
+    `node /tmp/canvas.mjs list`,
+    `node "${PHANTOM_SCRIPTS}/package.mjs"`,
+    `python "${canvas}" list`,
+  ];
+  for (const command of ok) {
+    assert.ok(phantomCommand(command), command);
+    for (const mode of ['ask', 'auto', 'full']) assert.ok(permissionDecision({ tool: 'Bash', input: { command }, cwd, mode }).allow, `${mode}: ${command}`);
+  }
+  for (const command of no) assert.ok(!phantomCommand(command), command);
+  assert.ok(!permissionDecision({ tool: 'Bash', input: { command: no[0] }, cwd, mode: 'ask' }).allow);
+  // OpenCode
+  assert.ok(phantomRequest('bash', [ok[0], ok[1]]));
+  assert.ok(!phantomRequest('bash', [ok[0], no[0]]));
+  assert.ok(phantomRequest('external_directory', [`${PHANTOM_SCRIPTS}/*`]));
+  assert.ok(!phantomRequest('external_directory', ['/etc/*']));
+  assert.ok(!phantomRequest('edit', [canvas]));
+  // Codex: workspace-write opens the socket; read-only and full unchanged.
+  const net = 'sandbox_workspace_write.network_access=true';
+  assert.ok(providerArgs('codex', { access: 'auto', message: 'x' }).includes(net));
+  assert.ok(!providerArgs('codex', { access: 'ask', message: 'x' }).includes(net));
+  assert.ok(!providerArgs('codex', { access: 'full', message: 'x' }).includes(net));
+});
+
+test('Phantom MCP server: same rule as the shell, outside the sandbox', async () => {
+  const { runCli, serve } = await import('../scripts/phantom-mcp.mjs');
+  const { providerArgs } = await import('../host/chats.mjs');
+  const { PassThrough } = await import('node:stream');
+  assert.equal((await runCli({ cli: 'canvas', args: ['help'] })).isError, false);
+  for (const call of [{ cli: 'branches', args: ['publish'] }, { cli: 'canvas', args: ['storyboard', 'Z', '--remotion', '/tmp/x'] }, { cli: 'package', args: [] }, { cli: 'canvas', args: [1] }])
+    assert.equal((await runCli(call)).isError, true, JSON.stringify(call));
+  const input = new PassThrough(), output = new PassThrough(); let text = '';
+  output.on('data', chunk => { text += chunk; });
+  serve({ input, output, run: async a => ({ isError: false, text: `ran ${a.cli}` }) });
+  input.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) + '\n');
+  input.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'phantom', arguments: { cli: 'canvas', args: ['list'] } } }) + '\n');
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const rows = text.trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(rows[0].result.tools[0].name, 'phantom');
+  assert.equal(rows[1].result.content[0].text, 'ran canvas');
+  // Codex gets the server, pre-approved, plus the hint, in every mode.
+  for (const access of ['ask', 'auto', 'full']) {
+    const args = providerArgs('codex', { access, message: 'x', phantom: { PHANTOM_WORKSPACE_SOCKET: '/s/host.sock' } }).join(' ');
+    assert.match(args, /mcp_servers\.phantom_workspace=\{ command=.*phantom-mcp\.mjs.*PHANTOM_WORKSPACE_SOCKET="\/s\/host\.sock".*default_tools_approval_mode="approve" \}/);
+    assert.match(args, /developer_instructions=.*phantom_workspace\.phantom/);
+  }
+  assert.ok(!providerArgs('codex', { access: 'ask', message: 'x' }).join(' ').includes('phantom_workspace'));
+});
