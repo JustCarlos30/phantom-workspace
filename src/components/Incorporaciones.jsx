@@ -2,37 +2,14 @@ import React, { useEffect } from 'react';
 import { GitMerge, Power, RefreshCw, TerminalSquare } from 'lucide-react';
 import { Button, ErrorNotice, OperationState, useOperation, useResource } from './PluginPrimitives';
 import { preferredCardMode } from './ChatCard';
+import IntegrationReview from './IntegrationReview.jsx';
 import '../incorporaciones.css';
 
 // Incorporaciones: what is being integrated, what waits and in which order, and
 // what each terminal is still working on. The panel observes; ordering and
 // merging belong to the orchestrator session.
-const REQUEST = { queued: 'En cola', merging: 'Incorporando…', conflict: 'Conflicto · devuelta', failed: 'Checks fallidos · devuelta', merged: 'Incorporada', rejected: 'Rechazada', withdrawn: 'Retirada' };
-const WORK = { idle: 'En pausa', working: 'Trabajando', blocked: 'Bloqueada', review: 'Lista para revisión' };
 const when = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 const files = count => `${count} ${count === 1 ? 'archivo' : 'archivos'}`;
-const commits = count => `${count} ${count === 1 ? 'commit' : 'commits'}`;
-// Terminal branches end in the node's UUID; the title already names the terminal.
-const short = branch => branch.replace(/^(phantom\/terminal-[0-9a-f]{8})[0-9a-f-]+$/, '$1…');
-
-function Overlaps({ items }) {
-  if (!items?.length) return null;
-  const others = [...new Set(items.flatMap(item => item.with))];
-  return <p className="inc-overlap">Toca {files(items.length)} que también cambia {others.join(', ')}: {items.slice(0, 4).map(item => item.path).join(', ')}{items.length > 4 ? '…' : ''}. El orden importa.</p>;
-}
-function Files({ item }) {
-  if (!item.fileCount) return null;
-  return <details className="inc-files"><summary>{files(item.fileCount)}</summary><ul>{item.files.map(file => <li key={file}>{file}</li>)}</ul>{item.fileCount > item.files.length && <p className="tw-muted">y {item.fileCount - item.files.length} más</p>}</details>;
-}
-function Row({ item, position, status, tone, focus, children }) {
-  return <li className="inc-item" data-tone={tone}>
-    <span className="inc-position" aria-hidden="true">{position ?? '·'}</span>
-    <div className="inc-body">
-      <div className="inc-title"><button type="button" className="inc-link" title="Ver esta terminal" onClick={() => focus(item.nodeId)}>{item.title}</button><span className="inc-status">{status}</span></div>
-      {children}
-    </div>
-  </li>;
-}
 
 export default function Incorporaciones({ workspace, api, onOpenPanel, notify, active = true }) {
   const resource = useResource(api, 'merge.status', { workspaceId: workspace.id });
@@ -46,6 +23,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     return () => clearInterval(timer);
   }, [active, reload]);
   const focus = nodeId => onOpenPanel?.('terminal', { focusNodeId: nodeId });
+  const openCard = cardId => onOpenPanel?.('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId }, 'Card');
   const configure = enabled => op.run(async () => { await api('merge.configure', { workspaceId: workspace.id, enabled }); await reload(); }, enabled ? 'Incorporaciones activado' : 'Incorporaciones desactivado');
   const openOrchestrator = () => data?.orchestrator ? focus(data.orchestrator.nodeId) : onOpenPanel?.('terminal', { role: 'orchestrator', chat: { provider: preferredCardMode() } }, 'Orquestador');
 
@@ -58,6 +36,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     <p className="tw-muted">Instala dos hooks en <code>.git/hooks</code> de este proyecto (<code>reference-transaction</code> y <code>pre-push</code>). Solo afectan a las terminales de Phantom; tu Git fuera de ellas no cambia. Desactivar los quita.</p>
     <Button icon={Power} tone="primary" disabled={op.busy} onClick={() => configure(true)}>Activar Incorporaciones</Button>
     <OperationState op={op} />
+    {resource.error && <ErrorNotice error={resource.error} retry={reload} />}
   </div>;
 
   return <div className="inc">
@@ -82,33 +61,18 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
       <h3 className="inc-heading">Cola{data.queue.length ? ` · ${data.queue.length}` : ''}</h3>
       {merging && <p className="inc-now" role="status">Incorporando ahora: <b>{merging.title}</b> en {base}</p>}
       {!data.queue.length && <EmptyState className="tw-empty" size="compact" description="Nada espera a ser incorporado." />}
-      <ol className="inc-list">{data.queue.map(item => <Row key={item.id} item={item} position={item.position} status={REQUEST[item.status]} tone={item.status} focus={focus}>
-        {item.summary && <p>{item.summary}</p>}
-        <p className="inc-meta" title={item.branch}>{short(item.branch)}{item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''} · solicitada {when(item.requestedAt)}</p>
-        {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
-        {item.status === 'conflict' && <p className="inc-conflict">Conflicto en {item.conflicts?.join(', ') || 'archivos sin identificar'}. Su terminal debe actualizar la rama desde {base} y volver a enviarla.</p>}
-        {item.stale && item.status === 'queued' && <p className="inc-meta">La rama tiene commits posteriores a la solicitud; se incorporará el commit enviado ({item.headOid.slice(0, 8)}).</p>}
-        <Overlaps items={item.overlaps} /><Files item={item} />
-      </Row>)}</ol>
+      <ol className="inc-list">{data.queue.map(item => <li key={`${item.id}:${item.headOid}`}><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} /></li>)}</ol>
     </section>
 
     <section className="inc-section" aria-label="Trabajo en curso">
       <h3 className="inc-heading">En curso{data.active.length ? ` · ${data.active.length}` : ''}</h3>
       {!data.active.length && <EmptyState className="tw-empty" size="compact" description="Ninguna terminal tiene trabajo sin solicitar." />}
-      <ul className="inc-list">{data.active.map(item => <Row key={item.nodeId} item={item} status={WORK[item.status] || item.status} tone={item.status} focus={focus}>
-        {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
-        <p className="inc-meta" title={item.branch}>{item.missing ? `${short(item.branch)} · rama no encontrada` : `${short(item.branch)} · ${item.ahead ? `${commits(item.ahead)} por incorporar` : 'sin commits nuevos'}${item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''}${item.uncommitted ? ` · ${files(item.uncommitted)} sin commitear` : ''}${item.running ? '' : ' · sin sesión activa'}`}</p>
-        <Overlaps items={item.overlaps} /><Files item={item} />
-      </Row>)}</ul>
+      <ul className="inc-list">{data.active.map(item => <li key={item.nodeId}><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} /></li>)}</ul>
     </section>
 
     {data.history.length > 0 && <details className="inc-section inc-history">
       <summary className="inc-heading">Historial · {data.history.length}</summary>
-      <ul className="inc-list">{data.history.map(item => <Row key={item.id} item={item} status={REQUEST[item.status]} tone={item.status} focus={focus}>
-        {item.summary && <p>{item.summary}</p>}
-        <p className="inc-meta" title={item.branch}>{short(item.branch)}{item.mergedOid ? ` · ${item.mergedOid.slice(0, 8)}` : ''} · {when(item.finishedAt || item.updatedAt)}</p>
-        {item.status === 'rejected' && item.note && <p className="inc-note">Motivo: {item.note}</p>}
-      </Row>)}</ul>
+      <ul className="inc-list">{data.history.map(item => <li key={item.id}><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={item.base} /></li>)}</ul>
     </details>}
   </div>;
 }
