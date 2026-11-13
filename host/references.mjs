@@ -165,11 +165,33 @@ export function validateComments(comments, nodes) {
   }
 }
 
-function validateCommentPage(page) {
+const PAGE_FIELDS = ['url', 'title', 'capture', 'point', 'element'];
+// A pin on a live web preview: where in the page viewport (fractions) and the
+// element under it, as the page reported it. All plain data, never markup.
+function pagePoint(point) {
+  object(point);
+  for (const key of Object.keys(point)) assert(['x', 'y'].includes(key), 'Unsupported page point field');
+  assert(Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1, 'Punto de página inválido');
+  return { x: point.x, y: point.y };
+}
+function pageElement(element) {
+  object(element);
+  for (const key of Object.keys(element)) assert(['selector', 'tag', 'text'].includes(key), 'Unsupported page element field');
+  text(element.selector, 'page element selector', 1024); assert(element.selector.trim(), 'Selector vacío');
+  text(element.tag, 'page element tag', 64);
+  if (element.text !== undefined) text(element.text, 'page element text', 500);
+  return { selector: element.selector, tag: element.tag, ...(element.text !== undefined ? { text: element.text } : {}) };
+}
+function validatePageInput(page) {
   object(page);
-  for (const key of Object.keys(page)) assert(['url', 'title', 'capture'].includes(key), 'Unsupported page field');
+  for (const key of Object.keys(page)) assert(PAGE_FIELDS.includes(key), 'Unsupported page field');
   webURL(page.url);
   if (page.title !== undefined) text(page.title, 'page title', 1024);
+  if (page.point !== undefined) pagePoint(page.point);
+  if (page.element !== undefined) pageElement(page.element);
+}
+function validateCommentPage(page) {
+  validatePageInput(page);
   if (page.capture !== undefined) assert(/^[0-9a-f]{32}\.png$/.test(page.capture), 'Captura de página inválida');
   return page;
 }
@@ -191,7 +213,7 @@ export function mentionBrief(w, comment, dataDir, cli) {
   return [`The user asked you in comment thread #${number} on ${where}.`,
     node ? `Pin at ${Math.round(comment.x * 100)}% from the left, ${Math.round(comment.y * 100)}% from the top of the ${comment.review ? 'decoded content (not panel chrome)' : 'panel'}${comment.time !== undefined ? `, at ${clock(comment.time)} (${comment.time}s) into the video` : ''}.` : '',
     file ? `File: ${file} — read it to see what they are pointing at.` : '', node?.data?.url ? `Site: ${node.data.url}` : '', node?.data?.source ? `Source: ${node.data.source}` : '', node?.data?.note ? `Their note on this reference: ${node.data.note}` : '',
-    reviewBrief(comment.review), comment.review?.capture ? `Captura: ${referencePath(dataDir, w.id, comment.review.capture)}` : '', comment.page ? `Página: ${comment.page.url}` : '', comment.page?.capture ? `Captura de la página: ${referencePath(dataDir, w.id, comment.page.capture)} — léela para ver lo que el usuario veía` : '', '', 'Thread:', ...comment.messages.map(m => `- ${m.author}: ${m.text}`), '',
+    reviewBrief(comment.review), comment.review?.capture ? `Captura: ${referencePath(dataDir, w.id, comment.review.capture)}` : '', comment.page ? `Página: ${comment.page.url}${comment.page.title ? ` ("${comment.page.title}")` : ''}` : '', comment.page?.point ? `Punto en la página: ${Math.round(comment.page.point.x * 100)}% desde la izquierda, ${Math.round(comment.page.point.y * 100)}% desde arriba del área visible` : '', comment.page?.element ? `Elemento señalado: <${comment.page.element.tag}> ${comment.page.element.selector}${comment.page.element.text ? ` — "${comment.page.element.text}"` : ''}` : '', comment.page?.capture ? `Captura de la página: ${referencePath(dataDir, w.id, comment.page.capture)} — léela para ver lo que el usuario veía` : '', '', 'Thread:', ...comment.messages.map(m => `- ${m.author}: ${m.text}`), '',
     `Do what they ask. When done, answer in the thread itself: "\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(cli)} reply ${number} "<short answer>" --author Phantom. Do not resolve it; the user does.`].filter(line => line !== '').join('\n').replace('Thread:', '\nThread:');
 }
 const message = p => ({ id: randomUUID(), text: text(p.text, 'comment text', 4000).trim(), author: p.author === undefined ? 'Tú' : text(p.author, 'comment author', 64).trim() || 'Tú', createdAt: new Date().toISOString() });
@@ -279,12 +301,7 @@ export async function handleReference(method, p, { store, mutate, dataDir, menti
   }
   if (method === 'comment.add') { const made = mutate(w.id, () => {
     const node = p.nodeId ? w.nodes.find(n => n.id === p.nodeId) : null; assert(!p.nodeId || node, 'Node not found');
-    if (p.page !== undefined) {
-      object(p.page);
-      for (const key of Object.keys(p.page)) assert(['url', 'title', 'capture'].includes(key), 'Unsupported page field');
-      webURL(p.page.url);
-      if (p.page.title !== undefined) text(p.page.title, 'page title', 1024);
-    }
+    if (p.page !== undefined) validatePageInput(p.page);
     const clamp01 = v => Math.min(1, Math.max(0, finite(v, .5)));
     const comment = { id: randomUUID(), nodeId: node?.id ?? null, x: node ? clamp01(p.x) : finite(p.x, 0), y: node ? clamp01(p.y) : finite(p.y, 0), ...(Number.isFinite(p.time) ? { time: Math.max(0, p.time) } : {}), ...(!node && p.spaceId ? { spaceId: p.spaceId } : {}), resolved: false, messages: [message(p)] };
     if (p.requestId) comment.requestId = p.requestId;
@@ -301,7 +318,7 @@ export async function handleReference(method, p, { store, mutate, dataDir, menti
       if (p.review.kind === 'video') comment.time = p.review.time;
     }
     if (p.page) {
-      comment.page = { url: webURL(p.page.url).href, ...(p.page.title !== undefined ? { title: p.page.title } : {}) };
+      comment.page = { url: webURL(p.page.url).href, ...(p.page.title !== undefined ? { title: p.page.title } : {}), ...(p.page.point ? { point: pagePoint(p.page.point) } : {}), ...(p.page.element ? { element: pageElement(p.page.element) } : {}) };
       if (p.page.capture !== undefined) {
         const captured = storeBytes(dataDir, w.id, pageCapture(p.page.capture));
         assert(captured.mime === 'image/png', 'Captura de página PNG requerida');

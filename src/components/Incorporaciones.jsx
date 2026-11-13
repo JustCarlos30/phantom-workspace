@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, GitMerge, Loader2, Power, RefreshCw, Termi
 import { Button, ErrorNotice, OperationState, useOperation, useResource } from './PluginPrimitives';
 import { preferredCardMode } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
+import IntegrationReview from './IntegrationReview.jsx';
 import { buildIncorporaciones } from '../hooks/incorporaciones-model.mjs';
 import '../incorporaciones.css';
 
@@ -22,10 +23,6 @@ function Overlaps({ items }) {
   if (!items?.length) return null;
   const others = [...new Set(items.flatMap(item => item.with))];
   return <p className="inc-overlap"><AlertTriangle size={12} aria-hidden="true" />Comparte {files(items.length)} con {others.join(', ')}: {items.slice(0, 4).map(item => item.path).join(', ')}{items.length > 4 ? '…' : ''}. El orden importa.</p>;
-}
-function Files({ item }) {
-  if (!item.fileCount) return null;
-  return <details className="inc-files"><summary>{files(item.fileCount)}</summary><ul>{item.files.map(file => <li key={file}>{file}</li>)}</ul>{item.fileCount > item.files.length && <p className="tw-muted">y {item.fileCount - item.files.length} más</p>}</details>;
 }
 // Commits the branch adds and those it lacks from the base, as two small figures.
 function Delta({ ahead, behind, base }) {
@@ -75,6 +72,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     return () => clearInterval(timer);
   }, [active, reload]);
   const focus = nodeId => onOpenPanel?.('terminal', { focusNodeId: nodeId });
+  const openCard = cardId => onOpenPanel?.('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId }, 'Card');
   const configure = enabled => op.run(async () => { await api('merge.configure', { workspaceId: workspace.id, enabled }); await reload(); }, enabled ? 'Incorporaciones activado' : 'Incorporaciones desactivado');
   const openOrchestrator = () => data?.orchestrator ? focus(data.orchestrator.nodeId) : onOpenPanel?.('terminal', { role: 'orchestrator', chat: { provider: preferredCardMode() } }, 'Orquestador');
 
@@ -87,6 +85,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     <p className="tw-muted">Instala dos hooks en <code>.git/hooks</code> de este proyecto (<code>reference-transaction</code> y <code>pre-push</code>). Solo afectan a las terminales de Phantom; tu Git fuera de ellas no cambia. Desactivar los quita.</p>
     <Button icon={Power} tone="primary" disabled={op.busy} onClick={() => configure(true)}>Activar Incorporaciones</Button>
     <OperationState op={op} />
+    {resource.error && <ErrorNotice error={resource.error} retry={reload} />}
   </div>;
 
   const model = buildIncorporaciones(data), { counts, merging } = model;
@@ -123,7 +122,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
         {item.status === 'conflict' && <p className="inc-conflict">Conflicto en {item.conflicts?.join(', ') || 'archivos sin identificar'}.</p>}
         {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
         <p className="inc-meta" title={item.branch}>{short(item.branch)} · solicitada {when(item.requestedAt)}</p>
-        <Files item={item} />
+        <IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
       </Row>)}</ul>
     </Section>}
 
@@ -135,12 +134,12 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
             <p className="inc-meta" title={item.branch}>{short(item.branch)} · solicitada {when(item.requestedAt)}{item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''}</p>
             {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
             {item.stale && <p className="inc-meta">La rama tiene commits posteriores a la solicitud; se incorporará el commit enviado ({item.headOid.slice(0, 8)}).</p>}
-            <Overlaps items={item.overlaps} /><Files item={item} />
+            <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
           </Row>
           : <Row key={item.nodeId} item={item} marker="–" status="Sin solicitar" tone="unrequested" focus={focus} delta={<Delta ahead={item.ahead} behind={item.behind} base={base} />}>
             {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
             <p className="inc-meta" title={item.branch}>{short(item.branch)} · {commits(item.ahead)} guardados, worktree limpio{item.running ? '' : ' · sin sesión activa'}. Su terminal debe enviarla a la cola.</p>
-            <Overlaps items={item.overlaps} /><Files item={item} />
+            <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
           </Row>)}</ol>}
     </Section>
 
@@ -149,7 +148,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
         : <ul className="inc-list">{model.working.map(item => <Row key={item.nodeId} item={item} status={WORK[item.status] || item.status} tone={item.status} focus={focus} delta={item.missing ? null : <Delta ahead={item.ahead} behind={item.behind} base={base} />}>
           {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
           <p className="inc-meta" title={item.branch}>{item.missing ? `${short(item.branch)} · rama no encontrada` : `${short(item.branch)}${item.uncommitted ? ` · ${files(item.uncommitted)} sin commitear` : ''}${item.ahead ? '' : ' · sin commits nuevos'}${item.running ? '' : ' · sin sesión activa'}`}</p>
-          <Overlaps items={item.overlaps} /><Files item={item} />
+          <Overlaps items={item.overlaps} /><IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={base} label="Revisar" />
         </Row>)}</ul>}
     </Section>
 
@@ -163,6 +162,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
       <ul className="inc-list">{data.history.map(item => <Row key={item.id} item={item} status={REQUEST[item.status]} tone={item.status} focus={focus}>
         {item.summary && <p>{item.summary}</p>}
         <p className="inc-meta" title={item.branch}>{short(item.branch)}{item.mergedOid ? ` · ${item.mergedOid.slice(0, 8)}` : ''} · {when(item.finishedAt || item.updatedAt)}</p>
+        <IntegrationReview item={item} workspace={workspace} api={api} onCard={openCard} onTerminal={focus} base={item.base || base} label="Revisar" />
         {item.status === 'rejected' && item.note && <p className="inc-note">Motivo: {item.note}</p>}
       </Row>)}</ul>
     </details>}

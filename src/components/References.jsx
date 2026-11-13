@@ -177,6 +177,7 @@ export function CommentLayer({ comments, draft, open, active, geometryOf, nodeOf
             <button className="icon-button" title="Cerrar" aria-label="Cerrar hilo" onClick={() => onOpen(null)}><X size={14} /></button></header>
           <ol>{c.messages.map(m => <li key={m.id}><b>{m.author}</b><time dateTime={m.createdAt}>{new Date(m.createdAt).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</time><p>{m.text}</p></li>)}</ol>
           {c.review && <ReviewSummary review={c.review} />}
+          {c.page && <PageSummary page={c.page} />}
           {c.handoff && <div className="review-handoff" role="status"><span>{({ sending: 'Enviando a Phantom…', sent: 'Entregado a Phantom', queued: 'En la cola de Phantom', failed: 'No entregado a Phantom', uncertain: 'Acuse incierto: revisa el chat de Phantom' })[c.handoff.status]}</span>{c.handoff.error && <p>{c.handoff.error}</p>}{c.handoff.status === 'failed' && <button onClick={() => call('comment.retry', { id: c.id })}>Reintentar envío</button>}</div>}
           <Composer placeholder="Responder… (@phantom se lo pide al agente)" onSubmit={async (text, requestId) => { if (!await call('comment.reply', { id: c.id, text, requestId })) throw new Error('Respuesta sin guardar'); }} onCancel={() => onOpen(null)} />
         </section>}
@@ -188,16 +189,23 @@ export function CommentLayer({ comments, draft, open, active, geometryOf, nodeOf
         <header><strong>{draft.review ? 'Revisar región' : 'Nuevo comentario'}</strong><button className="icon-button" aria-label="Cancelar comentario" onClick={() => onDraft(null)}><X size={14} /></button></header>
         {draft.review && <><ReviewSummary review={draft.review} /><ReviewFields draft={draft} onDraft={onDraft} /></>}
         {draft.time !== undefined && <header><strong>En el video</strong><span className="comment-time">{timecode(draft.time)}</span></header>}
+        {draft.page && <PageSummary page={draft.page} />}
         <Composer key={draft.requestId || 'canvas-draft'} autoFocus placeholder="Comenta… @phantom se lo pide al agente" onCancel={() => onDraft(null)} onSubmit={async text => {
-          const { nodeId, x, y, time, spaceId, review, capture, requestId } = draft;
+          const { nodeId, x, y, time, spaceId, review, capture, requestId, page, pageCapture } = draft;
           if (review) validateReview(review);
-          const made = await call('comment.add', { nodeId, x, y, text, ...(requestId ? { requestId } : {}), ...(review ? { review, ...(capture ? { capture } : {}) } : {}), ...(time !== undefined ? { time } : {}), ...(spaceId ? { spaceId } : {}) });
+          const made = await call('comment.add', { nodeId, x, y, text, ...(requestId ? { requestId } : {}), ...(review ? { review, ...(capture ? { capture } : {}) } : {}), ...(time !== undefined ? { time } : {}), ...(spaceId ? { spaceId } : {}), ...(page ? { page: { ...page, ...(pageCapture ? { capture: pageCapture } : {}) } } : {}) });
           if (!made) throw new Error('Comentario sin guardar');
           onDraft(null); onOpen(made.id);
         }} />
       </section>
     </div>}
   </div>;
+}
+
+// What the agent will get about a web preview pin: page, point and element.
+function PageSummary({ page }) {
+  let where = page.url; try { const u = new URL(page.url); where = `${u.host}${u.pathname === '/' ? '' : u.pathname}`; } catch { /* keep raw */ }
+  return <div className="review-summary page-summary"><span title={page.url}>Página: {page.title || where}</span>{page.element ? <span title={page.element.selector}>Elemento: &lt;{page.element.tag}&gt;{page.element.text ? ` “${page.element.text.slice(0, 80)}”` : ''}</span> : page.point && <span>Punto {Math.round(page.point.x * 100)}%, {Math.round(page.point.y * 100)}% de la página</span>}</div>;
 }
 
 function ReviewSummary({ review: r }) {

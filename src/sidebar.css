@@ -30,6 +30,23 @@
 .rail-panel-row > button:first-child > svg { flex-shrink: 0; color: var(--muted); }
 .rail-panel-row .rail-panel-label { min-width: 0; }
 .rail-panel-label > span:first-child { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-session-row { color: var(--ink); border-radius: var(--r-ctl); }
+.rail-session-row.needs-you { background: color-mix(in srgb, var(--warning) 8%, transparent); }
+.rail-session-row > button:first-child { gap: 10px; padding: 8px; }
+.rail-session-row > button > span.rail-agent-mark { position: relative; display: flex; align-items: center; justify-content: center; width: 20px; height: 24px; flex-shrink: 0; overflow: visible; color: var(--muted); }
+.rail-session-row.selected .rail-agent-mark { color: var(--accent); }
+.rail-session-dot { position: absolute; right: 0; bottom: 0; width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; }
+.rail-session-dot.working { background: var(--accent); animation: rail-session-pulse 2s var(--ease-out) infinite; }
+.rail-session-dot.warning { background: var(--warning); }
+.rail-session-dot.neutral { background: var(--muted); }
+.rail-session-dot.unknown { background: color-mix(in srgb, var(--muted) 45%, transparent); }
+.rail-session-row > button > span.rail-panel-label { display: flex; flex: 1; flex-direction: column; align-items: stretch; gap: 3px; min-width: 0; }
+.rail-session-row .rail-session-meta { display: block; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-session-resources { position: relative; padding-left: 30px; }
+.rail-session-resources::before { content: ''; position: absolute; left: 18px; top: 0; bottom: 8px; width: 1px; background: var(--fill-2); }
+.rail-resource-row > button:first-child { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+@keyframes rail-session-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .rail-session-dot.working { animation: none; } }
 .rail-panel-focus { opacity: 0; }
 .rail-panel-row:hover .rail-panel-focus, .rail-panel-row:focus-within .rail-panel-focus, .rail-panel-focus[aria-pressed=true] { opacity: 1; }
 .project-rail .rail-map-action { margin-top: var(--s-2); font-size: 12px; }

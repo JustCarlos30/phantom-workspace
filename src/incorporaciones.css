@@ -66,3 +66,23 @@
 .inc-files ul { margin: 4px 0 0; padding-left: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
 
 @media (prefers-reduced-motion: reduce) { .inc-stat { transition: none; } }
+.inc-review { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 12px 0; min-width: 0; font-size: 12px; }
+.inc-review > details { min-width: 0; }
+.inc-review summary { cursor: pointer; overflow-wrap: anywhere; }
+.inc-review-title { font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.5; }
+.inc-review summary .inc-status { display: block; white-space: normal; margin-top: 4px; }
+.inc-review-body { display: grid; gap: 8px; margin-top: 12px; min-width: 0; }
+.inc-review-body h4 { margin: 8px 0 4px; font-size: 12px; }
+.inc-review-body p { margin: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.inc-review-body ul { padding-left: 16px; margin: 4px 0; overflow-wrap: anywhere; }
+.inc-review-body li code, .inc-review-body li small { display: block; }
+.inc-review code { font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.inc-review-actions { display: flex; flex-wrap: wrap; align-content: start; gap: 6px; max-width: 180px; }
+.inc-review-actions button { min-height: 32px; padding: 6px 10px; background: var(--fill); color: var(--ink); border-radius: var(--r-ctl); font-size: 12px; cursor: pointer; }
+.inc-review-actions button:hover { background: var(--fill-2); }
+.inc-review :is(summary, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.inc-full-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.inc-diff { max-height: 360px; max-width: 100%; overflow: auto; padding: 12px; background: var(--surface-2); border-radius: var(--r-ctl); font: 11px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 850px) { .inc-review { grid-template-columns: minmax(0, 1fr); } .inc-review-actions { max-width: 100%; } }
+.inc-body > .inc-review { padding: 4px 0 0; }
+.inc-review-label { color: var(--muted); font-weight: 600; }

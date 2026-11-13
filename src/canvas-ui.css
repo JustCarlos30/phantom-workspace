@@ -307,7 +307,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   animation: materialize var(--dur) var(--ease-out);
 }
 .inspector-switcher { border-bottom: 1px solid var(--hairline); }
-.inspector-host .tw-inspector, .inspector-host .appearance-panel { background: transparent; }
+.inspector-host .tw-inspector, .inspector-host .appearance-panel { background: var(--surface); }
 @media (max-width: 850px) { .inspector-host { left: var(--gutter); width: auto; } }
 
 /* ---------- Popovers & menus ---------- */
@@ -524,6 +524,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
    is its inner control radius plus its padding.
    ===================================================================== */
 .lucide { stroke-width: 1.75px; }
+.pc-title > svg, .sk-title > svg, .rp-brand > svg { width: 18px; height: 18px; }
 * { scrollbar-color: var(--scroll-thumb) transparent; }
 ::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: var(--r-pill); }
 ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
@@ -742,7 +743,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tw-step { border-inline-start-color: var(--hairline); }
 .tw-action-editor { border-color: var(--hairline); border-radius: var(--r-obj); }
 .tw-table th { background: none; }
-.plugin-surface .tw-section, .plugin-surface .tw-item { border-color: var(--hairline); border-radius: var(--r-obj); background: var(--fill); }
+.plugin-surface .tw-section, .plugin-surface .tw-item { border-radius: var(--r-obj); background: transparent; }
 .plugin-surface .plugin-board-column { background: var(--fill); border-radius: var(--r-obj); }
 .inc-now { border-radius: var(--r-ctl); }
 .inc code, .inc-files ul, .cc-section pre { font-family: var(--mono); }
@@ -1020,13 +1021,12 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   background-repeat: no-repeat, repeat, repeat;
 }
 .studio-no-grid .canvas { background-image: radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%); }
+.app-shell.studio-concentration .canvas { background-image: none; }
 .canvas.focus-mode { background-image: none; }
 
 /* Gengar is atmosphere, not a subject: smaller, anchored in the corner, toned
    down and dissolved into the plum haze toward the centre of the map. */
-.studio-gengar:not(.studio-personal) .canvas-region::before {
-  background-size: clamp(200px, 38%, 480px) auto, cover, cover;
-  background-position: right 1% bottom 4%, center, center;
+.canvas-region::after {
   filter: saturate(.68) brightness(.78);
   -webkit-mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
   mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
@@ -1036,6 +1036,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .app-shell:not(.studio-focused) .canvas-region:has(.canvas-node.selected)::before {
   opacity: calc(var(--background-intensity, .55) * .55);
 }
+.app-shell:not(.studio-focused):not(.studio-concentration).studio-character .canvas-region:has(.canvas-node.selected)::after { opacity: calc(var(--gengar-intensity, .55) * .55); }
+.app-shell.studio-concentration .canvas-region:has(.canvas-node.selected)::before { opacity: calc(var(--background-intensity, .55) * .12); }
 
 /* Cards: an opaque slab with one hairline and one shadow. At rest it lies on
    the canvas; selected or dragged it floats. */
