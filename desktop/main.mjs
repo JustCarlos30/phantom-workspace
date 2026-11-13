@@ -2,16 +2,17 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, net, Notification, protocol,
 import { constants, createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, realpath, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
 import { readLocalImage } from './local-image.mjs';
+import { createInterfaceScaleModel } from '../src/hooks/interfaceScale.js';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
-  contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
+  contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds,
   validateCloseReady, validateID, validateInvocation, validateJSON,
   REFERENCE_SCHEME, REVIEW_SCHEME, createReviewMedia, byteRange, referenceTarget,
 } from './security.mjs';
@@ -27,6 +28,24 @@ app.setPath('userData', path.join(dataDir, 'electron'));
 app.setName('Phantom Workspace');
 
 let mainWindow = null;
+const scaleFile = path.join(app.getPath('userData'), 'interface-scale.json');
+const interfaceScale = createInterfaceScaleModel({
+  read: async () => {
+    try { return JSON.parse(await readFile(scaleFile, 'utf8')); }
+    catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  },
+  write: async value => {
+    const temporary = `${scaleFile}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, `${JSON.stringify(value)}\n`, { mode: 0o600, flag: 'wx' });
+      await rename(temporary, scaleFile);
+    } finally { await rm(temporary, { force: true }); }
+  },
+  apply: factor => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Ventana no disponible');
+    mainWindow.webContents.setZoomFactor(factor);
+  },
+});
 let browsers = null;
 let agentBrowser = null;
 let client = null;
@@ -220,9 +239,13 @@ function openMainWindow() {
       contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInSubFrames: false,
       webSecurity: true, allowRunningInsecureContent: false, webviewTag: false, navigateOnDragDrop: false,
       backgroundThrottling: false,
+      zoomFactor: interfaceScale.snapshot().scale / 100,
     },
   });
   mainWindow = win;
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(interfaceScale.snapshot().scale / 100);
+  });
   const manager = new BrowserManager({ window: win, getState: () => hostInvoke('state.get'), emit });
   browsers = manager;
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -353,7 +376,14 @@ async function quit(stopHost = false) {
 }
 
 async function invokeLocal(method, payload) {
-  if (method.startsWith('browser.')) return browsers.invoke(method, payload);
+  if (method === 'desktop.interfaceScale.get') return interfaceScale.get();
+  if (method === 'desktop.interfaceScale.set') return interfaceScale.set(payload.scale);
+  if (method.startsWith('browser.')) {
+    if (['browser.attach', 'browser.bounds'].includes(method) && 'bounds' in payload) {
+      payload = { ...payload, bounds: nativeUIBounds(payload.bounds, mainWindow.webContents.getZoomFactor()) };
+    }
+    return browsers.invoke(method, payload);
+  }
   if (method === 'desktop.notify') {
     if (!Notification.isSupported()) return { shown: false };
     const { title, body = '', target } = payload;
@@ -476,6 +506,7 @@ if (!app.requestSingleInstanceLock()) {
   // Electron waits for the ESM entrypoint to settle before emitting ready; never
   // top-level-await whenReady() here (that deadlocks the main process).
   app.whenReady().then(async () => {
+   await interfaceScale.load();
   uiSession = session.fromPartition('phantom-local-ui');
   configureUISession(uiSession);
   ipcMain.handle(INVOKE_CHANNEL, async (event, method, payload = {}) => {
