@@ -18,8 +18,8 @@ export function VoiceCapture(props) {
   return createPortal(<Presence show={props.open}>{props.open && <ToolErrorBoundary key={props.workspace?.id || 'voice'} title="Voz e intención" onClose={props.onClose}><VoiceCaptureContent {...props} /></ToolErrorBoundary>}</Presence>, document.body);
 }
 
-function VoiceCaptureContent({ workspace, api, refresh, notify, onClose }) {
-  const [status, setStatus] = useState('idle'), [text, setText] = useState(''), [provider, setProvider] = useState(null);
+function VoiceCaptureContent({ workspace, api, refresh, notify, onClose, initialText = '' }) {
+  const [status, setStatus] = useState('idle'), [text, setText] = useState(initialText), [provider, setProvider] = useState(null);
   const [intent, setIntent] = useState(null), [action, setAction] = useState('task'), [title, setTitle] = useState('');
   const [captureError, setCaptureError] = useState(null), [results, setResults] = useState(null), [nativeCard, setNativeCard] = useState(false);
   const recorder = useRef(null), stream = useRef(null), timer = useRef(null), generation = useRef(0), dialog = useRef(null), first = useRef(null);
