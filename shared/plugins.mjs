@@ -56,7 +56,14 @@ export const VIDEO_LOG_PLUGIN = validatePluginManifest({
   panels: [{ id: 'insights', name: 'Bitácora de videos', nodeType: 'video-log' }],
   actions: [{ id: 'video-log.open', name: 'Abrir Bitácora de videos', panelId: 'insights' }],
 });
-export const PLUGIN_MANIFESTS = [PHANTOM_PLUGIN, VIDEO_LOG_PLUGIN];
+export const CONVENCIONS_PLUGIN = validatePluginManifest({
+  id: 'convencions', version: '1.0.0', name: 'Convencions',
+  description: 'Base madre versionada e integración explícita de convenciones por repositorio. Autoridad Phantom; conexión MCP pendiente.',
+  configuration: {},
+  panels: [{ id: 'base', name: 'Base madre · Convencions', nodeType: 'convencions-base' }, { id: 'project', name: 'Proyecto · Convencions', nodeType: 'convencions-project' }],
+  actions: [{ id: 'convencions.base', name: 'Abrir Base madre · Convencions', panelId: 'base' }, { id: 'convencions.project', name: 'Abrir Proyecto · Convencions', panelId: 'project' }],
+});
+export const PLUGIN_MANIFESTS = [PHANTOM_PLUGIN, VIDEO_LOG_PLUGIN, CONVENCIONS_PLUGIN];
 export function validatePluginConfig(input, id = 'phantom') {
   const manifest = PLUGIN_MANIFESTS.find(plugin => plugin.id === id);
   if (!manifest) fail('Unknown plugin');
@@ -93,5 +100,10 @@ export function validatePluginPanel(type, data) {
   if (data.panelId !== undefined && !plugin?.panels.some(panel => panel.id === data.panelId && panel.nodeType === type)) fail('Invalid panelId');
   if (plugin) {
     data.pluginId ??= plugin.id; data.panelId ??= plugin.panels.find(panel => panel.nodeType === type).id;
+    if (plugin.id === 'convencions') {
+      if (Object.keys(data).some(key => !['pluginId', 'panelId', 'hidden', 'spaceId'].includes(key))) fail('Convencions panels store spatial identity only');
+      if (data.hidden !== undefined && typeof data.hidden !== 'boolean') fail('Invalid hidden');
+      if (data.spaceId !== undefined) string(data.spaceId, 'spaceId', 200);
+    }
   }
 }
