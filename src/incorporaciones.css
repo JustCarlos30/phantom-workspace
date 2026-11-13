@@ -3,13 +3,13 @@
 .inc code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .inc-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .inc-summary > p { display: flex; align-items: center; gap: 6px; }
-.inc-section { display: grid; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
-.inc-heading { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
+.inc-section { display: grid; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.inc-heading { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted, #526174); }
 .inc-history > summary { cursor: pointer; }
 .inc-plan { white-space: pre-wrap; }
-.inc-now { padding: 8px 10px; border-radius: var(--r-xs); background: var(--accent-soft); }
+.inc-now { padding: 8px 10px; border-radius: var(--r-ctl); background: var(--accent-soft, #e8eefc); }
 .inc-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.inc-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.inc-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hairline); }
 .inc-item:last-child { border-bottom: 0; }
 .inc-position { font-variant-numeric: tabular-nums; font-size: 12px; line-height: 20px; text-align: right; color: var(--muted); }
 .inc-body { display: grid; gap: 4px; min-width: 0; }

@@ -1,0 +1,7 @@
+{
+  "id": "phantom-integrar",
+  "version": "1.0.0",
+  "description": "Integra ramas de trabajo en la rama base, publica y limpia sin perder trabajo. Úsala cuando el usuario pida integrar una rama, hacer merge, publicar cambios o limpiar ramas ya integradas.",
+  "actions": ["branch.integrate", "branch.merge", "branch.publish"],
+  "bodyFile": "SKILL.md"
+}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertCircle, Bell, Check, ChevronDown, Gauge, GitBranch, GitMerge, LoaderCircle, RefreshCw, TerminalSquare, X } from 'lucide-react';
+import { AlertCircle, Bell, Check, ChevronDown, Gauge, GitBranch, GitMerge, LoaderCircle, RefreshCw, TerminalSquare, X } from 'lucide-react';
+import { PhantomFace } from './Glyphs.jsx';
 import RepoGraph, { branchColor } from './RepoGraph.jsx';
 import EmptyState from './EmptyState.jsx';
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
@@ -18,7 +19,7 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
   const peak = peakLimit(activity.sources.limits?.data);
   return <div className="activity-strip" role="group" aria-label="Actividad del proyecto">
     <button ref={buttonRef} className={`activity-notch ${activity.needs.length && activity.connected && !uncertain ? 'needs-you' : ''}`} aria-label="Actividad del proyecto" aria-expanded={expanded('needs')} aria-controls="activity-tray" onClick={() => onToggle('needs')}>
-      {activity.needs.length || errors ? <AlertCircle size={14} /> : <Activity size={14} />}
+      <PhantomFace mood={!activity.connected ? 'asleep' : uncertain || unseen ? 'unsure' : activity.needs.length ? 'grin' : 'calm'} />
       <strong>{!activity.connected ? 'Host desconectado' : uncertain ? 'Actividad sin confirmar' : unseen ? 'Recuperando actividad…' : activity.needs.length ? `${activity.needs.length} ${activity.needs.length === 1 ? 'necesita' : 'necesitan'} de ti` : 'Actividad'}</strong><ChevronDown size={12} />
     </button>
     <button className="activity-summary-action" aria-label="Integraciones" aria-expanded={expanded('integration')} aria-controls="activity-tray" onClick={() => onToggle('integration')} title="Revisar ramas e incorporaciones"><GitBranch size={14} /><span>{!activity.connected || activity.sources.git.error || !activity.base || stale ? 'Integraciones' : `${activity.pendingBranches} por integrar`}</span></button>

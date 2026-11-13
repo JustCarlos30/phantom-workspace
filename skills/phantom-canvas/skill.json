@@ -1,0 +1,7 @@
+{
+  "id": "phantom-canvas",
+  "version": "1.0.0",
+  "description": "Organiza el canvas, zonas, referencias y comentarios de Phantom. Úsala cuando el usuario pida ordenar paneles, crear un tablero de referencias, ocultar/mostrar elementos o responder comentarios.",
+  "actions": ["canvas.organize", "canvas.references", "canvas.comments"],
+  "bodyFile": "SKILL.md"
+}

@@ -1,11 +1,11 @@
 /* Markdown tables (chat replies and Skills). Shares the frame language of .md-code. */
-.md-table { width: 100%; max-width: 100%; margin: 2px 0; border: 1px solid var(--hairline); border-radius: var(--r-md, 12px); background: var(--surface); overflow: hidden; }
+.md-table { width: 100%; max-width: 100%; margin: 2px 0; border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface); overflow: hidden; }
 .md-table figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; padding: 0 4px 0 13px; border-bottom: 1px solid var(--hairline); color: var(--muted); font: 11px/1 var(--mono, ui-monospace, monospace); letter-spacing: .01em; }
 .md-table figcaption .md-copy { opacity: .7; }
 .md-table:hover figcaption .md-copy, .md-table figcaption .md-copy:focus-visible, .md-table figcaption .md-copy.is-copied { opacity: 1; }
 
 .md-table-body { position: relative; }
-.md-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, var(--line)) transparent; }
+.md-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, var(--hairline)) transparent; }
 .md-table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Edge shadows say "there is more this way" only while there is. */
 .md-table-body::before, .md-table-body::after { content: ""; position: absolute; top: 0; bottom: 0; width: 20px; pointer-events: none; opacity: 0; transition: opacity var(--dur-fast, 120ms) ease-out; z-index: 2; }

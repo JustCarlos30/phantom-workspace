@@ -4,9 +4,11 @@
 // change is validated by the host and appears live on the canvas.
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { invokeAgent } from './agent.mjs';
 import { frameAt, validateReview, reviewBrief } from '../shared/video-review.mjs';
+import { RESEARCH_STATUS, statusOf, withStatus } from '../shared/research.mjs';
 
 const USAGE = `Uso: canvas.mjs <acción> [opciones]
   list [--all] [--json]                 Paneles del proyecto (id corto, tipo, título, rama, posición)
@@ -24,13 +26,18 @@ Tablero de referencias (imágenes, videos, sitios) y comentarios:
   board "Nombre" --from refs.json [--cols N] [--color C]
                                         Crea una zona con todas las referencias en cuadrícula. refs.json:
                                         [{ "image": RUTA|URL | "url": SITIO, "note", "source", "title" }]
-  refs [--zone ZONA] [--json]           Referencias en orden de lectura: archivo local, fuente, nota
+  refs [--zone ZONA] [--space NOMBRE] [--status inbox|liked|discarded] [--json]
+                                         Referencias en orden de lectura: archivo local, fuente, nota,
+                                         estado de research
                                         ("por qué") y comentarios abiertos. Lee los archivos para verlas.
   storyboard ZONA                       La zona como lista de tomas (Markdown), de izquierda a derecha
   storyboard ZONA --remotion CARPETA [--seconds N] [--fps N] [--size 1920x1080] [--no-captions]
                                         Proyecto Remotion con las tomas en orden; un video empieza en
                                         su primer comentario con minuto. Re-exportar actualiza las tomas.
   comments [--all] [--json]             Hilos de comentarios abiertos (--all incluye resueltos)
+  research "Nombre" --from refs.json [--cols N]
+                                         Crea o reutiliza "Research · Nombre", su Bandeja y Lector.
+  mark ID… inbox|liked|discarded         Cambia el estado de research de referencias.
   comment ID "Texto" [--at X,Y] [--time SEG] [--author NOMBRE]   X,Y en % del panel
   reply N "Texto" [--author NOMBRE] | resolve N                  N: número del hilo
   review ID "Texto" --region X,Y[,ANCHO,ALTO] [--time SEG --fps N]
@@ -38,6 +45,11 @@ Tablero de referencias (imágenes, videos, sitios) y comentarios:
           [--request-id UUID]            Región normalizada 0–1 del contenido; frame base 0
   retry N                               Reintenta solo un handoff fallido, sin crear otro hilo
   add-version ID RUTA                    Importa un render nuevo enlazado, conservando el original
+Plugins (los mismos ajustes del Centro de Plugins):
+  plugins [--json]                      Plugins del proyecto: activado, configuración y paneles
+  plugin PLUGIN [--on|--off] [--set CLAVE=VALOR]… [--json]
+                                        Activa/desactiva y configura; muestra su estado actual
+  open-plugin PLUGIN [PANEL]            Abre (o vuelve a mostrar) un panel del plugin en el canvas
 ID: prefijo del id, del título o de la rama del panel. Opción global: --workspace RUTA`;
 
 export const ZONE_COLORS = ['iris', 'mint', 'amber', 'rose', 'slate'];
@@ -110,8 +122,9 @@ function flags(args) {
   const out = { _: [] };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (['--all', '--json', '--zones', '--dry-run', '--no-captions'].includes(a)) out[a.slice(2)] = true;
-    else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--from', '--cols', '--at', '--time', '--author', '--remotion', '--seconds', '--fps', '--size', '--region', '--scope', '--end', '--element', '--editable-source', '--request-id'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
+    if (['--all', '--json', '--zones', '--dry-run', '--no-captions', '--on', '--off'].includes(a)) out[a.slice(2)] = true;
+    else if (a === '--set') { if (i + 1 >= args.length) throw new Error(`Falta el valor de --set\n\n${USAGE}`); (out.set ??= []).push(args[++i]); }
+    else if (['--by', '--gap', '--workspace', '--color', '--note', '--source', '--title', '--zone', '--space', '--status', '--from', '--cols', '--at', '--time', '--author', '--remotion', '--seconds', '--fps', '--size', '--region', '--scope', '--end', '--element', '--editable-source', '--request-id'].includes(a)) { if (i + 1 >= args.length) throw new Error(`Falta el valor de ${a}\n\n${USAGE}`); out[a.slice(2)] = args[++i]; }
     else if (a.startsWith('--')) throw new Error(`Opción desconocida: ${a}\n\n${USAGE}`);
     else out._.push(a);
   }
@@ -144,10 +157,10 @@ export function freeSlot(zone, members, width, height, gap = 24) {
 }
 const WEB = /^https?:\/\//i;
 const stamp = seconds => { const t = Math.floor(seconds), m = Math.floor(t / 60); return `${m}:${String(t % 60).padStart(2, '0')}`; };
-function describeComment(c) {
-  return { n: c.number, id: c.id.slice(0, 8), resolved: c.resolved, ...(c.review ? { review: c.review } : {}), ...(c.handoff ? { handoff: c.handoff } : {}), ...(c.nodeId ? { at: `${Math.round(c.x * 100)}%,${Math.round(c.y * 100)}%` } : { canvas: `${c.x},${c.y}` }), ...(c.time !== undefined ? { time: stamp(c.time), seconds: c.time } : {}), messages: c.messages.map(m => ({ author: m.author, text: m.text })) };
+function describeComment(c, capturePath) {
+  return { n: c.number, id: c.id.slice(0, 8), resolved: c.resolved, ...(c.review ? { review: c.review } : {}), ...(c.handoff ? { handoff: c.handoff } : {}), ...(c.nodeId ? { at: `${Math.round(c.x * 100)}%,${Math.round(c.y * 100)}%` } : { canvas: `${c.x},${c.y}` }), ...(c.time !== undefined ? { time: stamp(c.time), seconds: c.time } : {}), ...(c.page ? { page: { url: c.page.url, ...(c.page.capture ? { capture: capturePath(c.page.capture) } : {}) } } : {}), messages: c.messages.map(m => ({ author: m.author, text: m.text })) };
 }
-const commentLine = c => (`#${c.n}${c.resolved ? ' (resuelto)' : ''} ${[c.at, c.time].filter(Boolean).join(' · ')} ${c.messages.map(m => `${m.author}: ${m.text}`).join(' ↳ ')}`).replace(/\s+/g, ' ') + (c.review ? `\n${reviewBrief(c.review)}` : '') + (c.handoff ? `\nHandoff: ${c.handoff.status}${c.handoff.error ? ` · ${c.handoff.error}` : ''}` : '');
+const commentLine = c => (`#${c.n}${c.resolved ? ' (resuelto)' : ''} ${[c.at, c.time].filter(Boolean).join(' · ')} ${c.messages.map(m => `${m.author}: ${m.text}`).join(' ↳ ')}`).replace(/\s+/g, ' ') + (c.page ? `\nPágina: ${c.page.url}${c.page.capture ? `\nCaptura: ${c.page.capture}` : ''}` : '') + (c.review ? `\n${reviewBrief(c.review)}` : '') + (c.handoff ? `\nHandoff: ${c.handoff.status}${c.handoff.error ? ` · ${c.handoff.error}` : ''}` : '');
 
 // Remotion export: a small project whose composition plays the zone's shots in
 // reading order. Media is copied into public/; the template is written once.
@@ -179,6 +192,22 @@ export function exportRemotion(dir, title, rows, { seconds = 3, fps = 30, width 
   return { root, shots: shots.length, seconds: shots.reduce((t, s) => t + s.frames, 0) / fps, fresh };
 }
 
+// Plugins match by id or by a prefix of their id or visible name ("bitacora" → video-log).
+const fold = text => String(text).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function pick(list, ref, kind) {
+  const q = fold(ref), exact = list.filter(item => fold(item.id) === q || fold(item.name) === q);
+  const hits = exact.length ? exact : list.filter(item => fold(item.id).startsWith(q) || fold(item.name).startsWith(q));
+  if (hits.length === 1) return hits[0];
+  throw new Error(hits.length ? `"${ref}" es ambiguo: ${hits.map(item => item.id).join(', ')}` : `No hay ningún ${kind} "${ref}". Disponibles: ${list.map(item => `${item.id} (${item.name})`).join(', ')}`);
+}
+export const resolvePlugin = (plugins, ref) => pick(plugins, ref, 'plugin');
+const resolvePanel = (plugin, ref) => pick(plugin.panels, ref, `panel en ${plugin.name}`);
+export function describePlugin(p) {
+  return [`${p.id}  ${p.name}  ${p.enabled ? 'activado' : 'desactivado'}`,
+    ...Object.entries(p.configuration).map(([key, field]) => `   ${field.label} (${key}): ${p.config?.[key] || '(vacío)'}`),
+    `   Paneles: ${p.panels.map(panel => `${panel.id} (${panel.name})`).join(', ') || 'ninguno'}`].join('\n');
+}
+
 export function describe(n) {
   return { id: n.id.slice(0, 8), type: n.type, title: n.title, branch: n.data?.worktree?.branch || '', status: n.data?.agent?.status || '', x: n.x, y: n.y, width: n.width, height: n.height, hidden: !!n.data?.hidden, zone: n.type === 'zone' ? (n.data?.auto === 'canvas' ? 'auto' : 'manual') : '' };
 }
@@ -192,15 +221,20 @@ export async function main(args = process.argv.slice(2), env = process.env, call
   const nodes = w.nodes, update = (id, patch) => call('node.update', { workspaceId: w.id, id, patch });
   const need = (count, exact = true) => { if (exact ? ids.length !== count : ids.length < count) throw new Error(USAGE); };
   const comments = (w.comments || []).map((c, index) => ({ ...c, number: index + 1 }));
+  let dataDir;
+  const capturePath = async file => {
+    dataDir ??= (await call('system.info', {})).dataDir;
+    return path.join(dataDir, 'references', w.id, file);
+  };
   const zoneNamed = name => resolve(nodes.filter(n => n.type === 'zone'), name);
   const thread = ref => { const c = comments.find(c => String(c.number) === String(ref).replace(/^#/, '') || c.id.startsWith(ref)); if (!c) throw new Error(`No hay ningún comentario ${ref}`); return c; };
   // One reference from a local file, an image URL or a site. Created first (the
   // host sizes it from the media), then moved to its place.
-  const addReference = async ({ image, url, note, source, title }) => {
+  const addReference = async ({ image, url, note, source, title, tags, spaceId }) => {
     const common = { workspaceId: w.id, ...(note ? { note } : {}), ...(title ? { title } : {}) };
-    if (image && !WEB.test(image)) return call('reference.add', { ...common, path: path.resolve(image), ...(source ? { source } : {}) });
+    if (image && !WEB.test(image)) return call('reference.add', { ...common, path: path.resolve(image), ...(source ? { source } : {}), ...(tags ? { tags } : {}), ...(spaceId ? { spaceId } : {}) });
     if (!image && !url) throw new Error('Cada referencia necesita "image" (ruta o URL) o "url" (sitio)');
-    return call('reference.link', { ...common, url: image || url, ...(image ? { strict: true } : {}) });
+    return call('reference.link', { ...common, url: image || url, ...(image ? { strict: true } : {}), ...(tags ? { tags } : {}), ...(spaceId ? { spaceId } : {}) });
   };
   const intoZone = async (node, name) => {
     const zone = zoneNamed(name), members = nodes.filter(n => n.type !== 'zone' && n.id !== node.id && !n.data?.hidden && spaceOf(n) === spaceOf(zone) && inside(n, zone));
@@ -210,10 +244,13 @@ export async function main(args = process.argv.slice(2), env = process.env, call
     Object.assign(node, slot); nodes.push(node);
   };
   const beside = () => { const shown = nodes.filter(n => !n.data?.hidden && !spaceOf(n)); return shown.length ? { x: Math.max(...shown.map(n => n.x + n.width)) + GROUP_GAP, y: Math.min(...shown.map(n => n.y)) } : { x: 0, y: 0 }; };
-  const references = async zoneName => {
+  const references = async (zoneName, spaceName, status) => {
     const zone = zoneName ? zoneNamed(zoneName) : null, listed = await call('reference.list', { workspaceId: w.id });
-    const picked = readingOrder(listed.filter(n => !n.data?.hidden && (!zone || inside(n, zone))));
-    return picked.map((n, index) => ({ n: index + 1, id: n.id.slice(0, 8), title: n.title, kind: n.data.kind, ...(n.path ? { file: n.path } : {}), ...(n.data.url ? { url: n.data.url } : {}), ...(n.data.source ? { source: n.data.source } : {}), ...(n.data.note ? { note: n.data.note } : {}), ...(n.data.description ? { description: n.data.description } : {}), comments: comments.filter(c => c.nodeId === n.id && !c.resolved).map(describeComment) }));
+    const space = spaceName ? (w.spaces || []).find(s => s.name === spaceName) : null;
+    if (spaceName && !space) throw new Error(`No hay ningún espacio llamado "${spaceName}"`);
+    if (status !== undefined && !RESEARCH_STATUS.includes(status)) throw new Error('--status debe ser inbox, liked o discarded');
+    const picked = readingOrder(listed.filter(n => !n.data?.hidden && (!zone || inside(n, zone)) && (!space || spaceOf(n) === space.id) && (status === undefined || statusOf(n) === status)));
+    return Promise.all(picked.map(async (n, index) => ({ n: index + 1, id: n.id.slice(0, 8), title: n.title, kind: n.data.kind, ...(n.path ? { file: n.path } : {}), ...(n.data.url ? { url: n.data.url } : {}), ...(n.data.source ? { source: n.data.source } : {}), ...(n.data.note ? { note: n.data.note } : {}), ...(n.data.description ? { description: n.data.description } : {}), status: statusOf(n), comments: await Promise.all(comments.filter(c => c.nodeId === n.id && !c.resolved).map(async c => describeComment(c, capturePath))) })));
   };
   if (action === 'add-image' || action === 'add-site') {
     need(1); const node = await addReference({ [action === 'add-image' ? 'image' : 'url']: ids[0], note: opt.note, source: opt.source, title: opt.title });
@@ -233,9 +270,51 @@ export async function main(args = process.argv.slice(2), env = process.env, call
     await call('node.create', { workspaceId: w.id, type: 'zone', title: ids[0], ...plan.zone, data: { color } });
     return `Tablero "${ids[0]}" creado con ${made.length} referencias.${failed.length ? `\nNo se pudieron añadir ${failed.length}:\n${failed.join('\n')}` : ''}`;
   }
+  if (action === 'research') {
+    need(1); if (!opt.from) throw new Error('research necesita --from refs.json');
+    let items; try { items = JSON.parse(fs.readFileSync(path.resolve(opt.from), 'utf8')); } catch (error) { throw new Error(`No pude leer ${opt.from}: ${error.message}`); }
+    if (!Array.isArray(items) || !items.length || items.length > 200) throw new Error('refs.json debe ser una lista de 1 a 200 referencias');
+    for (const item of items) {
+      if (!item || typeof item !== 'object' || (!item.url && !item.image)) throw new Error('Cada fuente necesita "url" o "image"');
+      if (typeof item.note !== 'string' || !item.note.trim()) throw new Error('cada fuente necesita su porqué');
+    }
+    const title = `Research · ${ids[0]}`;
+    let space = (w.spaces || []).find(s => s.name === title);
+    if (!space) {
+      space = { id: randomUUID(), name: title, camera: { x: 0, y: 0, zoom: 1 } };
+      await call('workspace.update', { id: w.id, patch: { spaces: [...(w.spaces || []), space] } });
+      w.spaces = [...(w.spaces || []), space];
+    }
+    const listed = await call('reference.list', { workspaceId: w.id });
+    const seen = new Set(listed.filter(n => spaceOf(n) === space.id && n.data.url).map(n => n.data.url));
+    const made = []; let skipped = 0;
+    for (const item of items) {
+      const url = item.url || (WEB.test(item.image) ? item.image : null);
+      if (url && seen.has(url)) { skipped++; continue; }
+      if (url) seen.add(url);
+      made.push(await addReference({ ...item, tags: withStatus(item.tags || [], 'inbox'), spaceId: space.id }));
+    }
+    let inbox = nodes.find(n => n.type === 'zone' && n.title === 'Bandeja' && spaceOf(n) === space.id);
+    const inSpace = [...listed.filter(n => spaceOf(n) === space.id), ...made];
+    if (!inbox && inSpace.length) {
+      const plan = planBoard(inSpace, { cols: opt.cols === undefined ? undefined : num(opt.cols, '--cols') });
+      for (const move of plan.moves) await update(move.id, { x: move.x, y: move.y });
+      inbox = await call('node.create', { workspaceId: w.id, type: 'zone', title: 'Bandeja', ...plan.zone, data: { color: 'iris', spaceId: space.id } });
+    }
+    const first = made[0]?.data?.url || listed.find(n => spaceOf(n) === space.id && n.data.url)?.data.url;
+    if (first && !nodes.some(n => n.type === 'browser' && n.title === `Lector · ${ids[0]}` && spaceOf(n) === space.id)) await call('node.create', { workspaceId: w.id, type: 'browser', title: `Lector · ${ids[0]}`, x: (inbox?.x || 0) + (inbox?.width || 0) + GROUP_GAP, y: inbox?.y || 0, data: { url: first, reader: true, spaceId: space.id } });
+    return `${title}: entraron ${made.length} fuentes; se omitieron ${skipped} duplicadas.`;
+  }
+  if (action === 'mark') {
+    need(2, false); const status = ids.at(-1);
+    if (!RESEARCH_STATUS.includes(status)) throw new Error('Estado debe ser inbox, liked o discarded');
+    const picked = ids.slice(0, -1).map(id => resolve(nodes.filter(n => n.type === 'reference'), id));
+    for (const n of picked) await update(n.id, { data: { ...n.data, tags: withStatus(n.data.tags || [], status) } });
+    return `Marcadas ${picked.length} referencias como ${status}.`;
+  }
   if (action === 'refs') {
-    const rows = await references(opt.zone); if (opt.json) return rows;
-    return rows.length ? rows.map(r => [`${r.n}. [${r.kind}] ${r.title}  (${r.id})`, r.file && `   archivo: ${r.file}`, r.url && `   sitio: ${r.url}`, r.source && `   fuente: ${r.source}`, r.note && `   por qué: ${r.note}`, ...r.comments.map(c => `   comentario ${commentLine(c)}`)].filter(Boolean).join('\n')).join('\n') : 'No hay referencias.';
+    const rows = await references(opt.zone, opt.space, opt.status); if (opt.json) return rows;
+    return rows.length ? rows.map(r => [`${r.n}. [${r.kind}] ${r.title}  (${r.id})`, `   research: ${r.status || 'sin estado'}`, r.file && `   archivo: ${r.file}`, r.url && `   sitio: ${r.url}`, r.source && `   fuente: ${r.source}`, r.note && `   por qué: ${r.note}`, ...r.comments.map(c => `   comentario ${commentLine(c)}`)].filter(Boolean).join('\n')).join('\n') : 'No hay referencias.';
   }
   if (action === 'storyboard') {
     need(1); const rows = await references(ids[0]);
@@ -251,7 +330,7 @@ export async function main(args = process.argv.slice(2), env = process.env, call
     return [`# Storyboard: ${zoneNamed(ids[0]).title}`, '', ...rows.flatMap(r => [`## Toma ${r.n} — ${r.title}`, r.note && `${r.note}`, '', r.file && `- Referencia (${r.kind}): ${r.file}`, r.url && `- Sitio: ${r.url}`, r.source && `- Fuente: ${r.source}`, ...r.comments.map(c => `- Nota ${commentLine(c)}`), ''].filter(line => line !== undefined && line !== false))].join('\n');
   }
   if (action === 'comments') {
-    const rows = comments.filter(c => opt.all || !c.resolved).map(c => ({ ...describeComment(c), panel: c.nodeId ? nodes.find(n => n.id === c.nodeId)?.title || '' : 'canvas' }));
+    const rows = await Promise.all(comments.filter(c => opt.all || !c.resolved).map(async c => ({ ...describeComment(c, capturePath), panel: c.nodeId ? nodes.find(n => n.id === c.nodeId)?.title || '' : 'canvas' })));
     return opt.json ? rows : rows.length ? rows.map(c => `[${c.panel}] ${commentLine(c)}`).join('\n') : 'No hay comentarios abiertos.';
   }
   if (action === 'add-version') {
@@ -279,6 +358,43 @@ export async function main(args = process.argv.slice(2), env = process.env, call
   }
   if (action === 'reply') { need(2); const c = thread(ids[0]); await call('comment.reply', { workspaceId: w.id, id: c.id, text: ids[1], author: opt.author || 'Agente' }); return `Respuesta añadida al comentario #${c.number}.`; }
   if (action === 'resolve') { need(1); const c = thread(ids[0]); await call('comment.update', { workspaceId: w.id, id: c.id, patch: { resolved: true } }); return `Comentario #${c.number} resuelto.`; }
+  if (action === 'plugins' || action === 'plugin' || action === 'open-plugin') {
+    const { items } = await call('plugins.list', { workspaceId: w.id });
+    if (action === 'plugins') return opt.json ? items : items.map(describePlugin).join('\n\n');
+    need(1, false); let plugin = resolvePlugin(items, ids[0]);
+    if (action === 'open-plugin') {
+      if (ids.length > 2) throw new Error(USAGE);
+      if (!plugin.enabled) throw new Error(`${plugin.name} está desactivado. Actívalo con: plugin ${plugin.id} --on`);
+      const panel = ids[1] ? resolvePanel(plugin, ids[1]) : plugin.panels[0];
+      if (!panel) throw new Error(`${plugin.name} no tiene paneles`);
+      // Same rule as the app: one generic panel per plugin panel type.
+      const existing = nodes.find(n => n.type === panel.nodeType && !n.data?.cardId && !n.data?.ref);
+      if (existing) {
+        if (existing.data?.hidden) { await update(existing.id, { data: { ...existing.data, hidden: false } }); return `Mostrado de nuevo el panel ${existing.title} (${existing.id.slice(0, 8)}).`; }
+        return `El panel ${existing.title} ya está en el canvas (${existing.id.slice(0, 8)}).`;
+      }
+      const made = await call('node.create', { workspaceId: w.id, type: panel.nodeType, title: panel.name, width: 640, height: 400, ...beside(), data: { pluginId: plugin.id, panelId: panel.id } });
+      return `Abierto el panel ${panel.name} (${made.id.slice(0, 8)}).`;
+    }
+    if (ids.length !== 1) throw new Error(USAGE);
+    if (opt.on && opt.off) throw new Error('Usa --on o --off, no ambos');
+    const config = {};
+    for (const pair of opt.set || []) {
+      const at = pair.indexOf('='), key = at > 0 ? pair.slice(0, at).trim() : '';
+      if (!key) throw new Error(`--set espera CLAVE=VALOR (recibí "${pair}")`);
+      if (!Object.hasOwn(plugin.configuration, key)) throw new Error(`${plugin.name} no tiene la opción "${key}". Opciones: ${Object.keys(plugin.configuration).join(', ')}`);
+      const value = pair.slice(at + 1).trim();
+      config[key] = value && key !== 'model' && !path.isAbsolute(value) ? path.resolve(value) : value;
+    }
+    const patch = { ...(opt.on || opt.off ? { enabled: !!opt.on } : {}), ...(Object.keys(config).length ? { config } : {}) };
+    if (Object.keys(patch).length) plugin = await call('plugins.update', { workspaceId: w.id, id: plugin.id, patch });
+    let status = null;
+    if (plugin.enabled) { try { status = await call('plugins.status', { workspaceId: w.id, id: plugin.id }); } catch (error) { status = { available: false, reason: error.message }; } }
+    if (opt.json) return { ...plugin, status };
+    const summary = status ? (status.available === false ? `Estado: no disponible · ${status.reason || status.state || 'sin detalle'}` : `Estado: ${status.state || 'disponible'}${Array.isArray(status.insights) ? ` · ${status.insights.length} aprendizajes` : ''}`) : '';
+    const next = plugin.enabled && !nodes.some(n => plugin.panels.some(p => p.nodeType === n.type)) ? `Abre su panel con: open-plugin ${plugin.id}` : '';
+    return [Object.keys(patch).length ? `Guardado ${plugin.name}.` : '', describePlugin(plugin), summary, next].filter(Boolean).join('\n');
+  }
   if (action === 'list') { const rows = nodes.filter(n => opt.all || !n.data?.hidden).map(describe); return opt.json ? rows : rows.length ? rows.map(r => `${r.id}  ${r.type.padEnd(14)} ${r.title.slice(0, 40).padEnd(40)} ${String(r.x).padStart(6)},${String(r.y).padEnd(6)} ${r.width}x${r.height}${r.branch ? `  [${r.branch}]` : ''}${r.status ? `  ${r.status}` : ''}${r.hidden ? '  (oculto)' : ''}${r.zone ? `  (zona ${r.zone})` : ''}`).join('\n') : 'No hay paneles visibles.'; }
   if (action === 'arrange') {
     const by = opt.by || 'type'; if (!['type', 'branch', 'status', 'none'].includes(by)) throw new Error('--by debe ser type, branch, status o none');
