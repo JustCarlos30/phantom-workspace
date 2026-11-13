@@ -151,23 +151,32 @@ export function useElapsed(since, active) {
 
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
+const TOOL_LABELS = { read: 'Leer', edit: 'Editar', shell: 'Ejecutar', search: 'Buscar', web: 'Web', agent: 'Agente', todo: 'Tareas' };
+const TOOL_STATES = { running: 'En curso', error: 'Falló', stopped: 'Detenida', done: 'Completada' };
 
 function ToolRow({ part }) {
   const [, Icon, kind] = toolKind(part.name);
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
+  const label = part.detail ? TOOL_LABELS[kind] || part.name : part.name;
+  const codeDetail = ['read', 'edit', 'shell', 'search', 'web'].includes(kind);
   const summary = <>
-    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
-    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={13} /></span>
-    <span className="pc-tool-name">{part.name}</span>
-    <span className="pc-tool-detail" title={part.detail}>{part.detail}</span>
+    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={14} /></span>
+    <span className="pc-tool-label" title={part.name}>{label}</span>
+    {part.detail && <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail}>{part.detail}</span>}
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
-    {part.status === 'running' && <LoaderCircle className="pc-tool-state is-running" size={12} aria-label="En curso" />}
-    {part.status === 'error' && <span className="pc-tool-state is-error"><X size={12} aria-hidden="true" />falló</span>}
-    {part.status === 'stopped' && <span className="pc-tool-state">detenida</span>}
-    {part.status === 'done' && !part.diff && <Check className="pc-tool-state is-done" size={12} aria-label="Completada" />}
+    {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`} role="img" aria-label={TOOL_STATES[part.status]} title={TOOL_STATES[part.status]}>
+      {part.status === 'running' ? <LoaderCircle className="pc-tool-spinner" size={12} aria-hidden="true" />
+        : part.status === 'error' ? <X size={12} aria-hidden="true" />
+          : part.status === 'stopped' ? <Square size={10} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
+      {part.status !== 'done' && <span aria-hidden="true">{TOOL_STATES[part.status]}</span>}
+    </span>}
+    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
   </>;
   if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
-  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output"><ToolOutput part={part} kind={kind} /></div></details></li>;
+  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
+    <p className="pc-tool-context"><span>{part.name}</span>{part.detail && (kind !== 'shell' || part.status === 'error') && <span className={codeDetail ? 'is-code' : undefined}>{part.detail}</span>}</p>
+    <ToolOutput part={part} kind={kind} />
+  </div></details></li>;
 }
 
 // A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
@@ -311,7 +320,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'question'
         ? <QuestionCard key={group.id} part={group} onReply={onReply} />
       : group.type === 'thinking'
-        ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
+        ? <details key={i} className="pc-thinking"><summary><ChevronRight className="pc-thinking-caret" size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
     {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
