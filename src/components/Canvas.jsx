@@ -8,6 +8,7 @@ import BrowserPanelContent from './BrowserPanel';
 import { ToolPanel as ToolPanelContent } from './ToolPanels';
 import { useInlineName } from '../hooks/useInlineName';
 import { isEditingTarget } from '../hooks/inputOwnership';
+import { canScroll, createWheelGesture } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
@@ -100,6 +101,8 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const world = useRef(null);
   const zoomLabel = useRef(null);
   const gesture = useRef(null);
+  const wheelGesture = useRef(null);
+  if (!wheelGesture.current) wheelGesture.current = createWheelGesture();
   const gestureFrame = useRef(null);
   const finishRef = useRef(null);
   const handledJump = useRef(null);
@@ -161,6 +164,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const { camera, cameraRef, updateCamera, navigate, flushCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera, paintCamera);
   useLayoutEffect(() => { paintCamera(cameraRef.current); });
   useEffect(() => registerBeforeFlush?.(flushCamera), [registerBeforeFlush, flushCamera]);
+  useEffect(() => { wheelGesture.current.reset(); }, [focused]);
   // See studio.css: a layer while panning, never across a zoom change. An
   // attribute, not a class, so React's className updates cannot drop it.
   const settle = useRef(null), seenCamera = useRef(camera);
@@ -224,17 +228,24 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   useEffect(() => {
     const el = root.current;
     const wheel = e => {
-      if (inputBlocked || live.current.focused || e.target.closest('.canvas-navigation,.canvas-popover,.agent-editor')) return;
-      // xterm owns wheel gestures, including modified wheel mouse reports.
-      if (e.target.closest('.terminal-host,.canvas-minimap')) return;
-      stopInertia();
+      if (inputBlocked || live.current.focused) return;
       const zooming = e.ctrlKey || e.metaKey || e.altKey;
-      if (!zooming && e.target.closest('.node-body')) return;
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? size.height : 1;
+      const dx = e.deltaX * unit, dy = e.deltaY * unit;
+      const nodeBody = e.target.closest('.node-body');
+      const route = wheelGesture.current.route({
+        zooming,
+        overCanvasChrome: !!e.target.closest('.canvas-navigation,.canvas-popover,.agent-editor'),
+        overTerminal: !!e.target.closest('.terminal-host'),
+        overMinimap: !!e.target.closest('.canvas-minimap'),
+        overBody: !!nodeBody,
+        bodyCanScroll: !!nodeBody && canScroll(e.target, dx, dy, nodeBody),
+      });
+      if (route !== 'canvas') return;
+      stopInertia();
       e.preventDefault();
       if (zooming) e.stopPropagation();
       const r = el.getBoundingClientRect();
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? size.height : 1;
-      const dx = e.deltaX * unit, dy = e.deltaY * unit;
       if (zooming) zoomAt(cameraRef.current.zoom * Math.exp(-clamp(dy, -120, 120) * (e.ctrlKey ? .008 : .003)), e.clientX - r.left, e.clientY - r.top, false);
       else updateCamera({ ...cameraRef.current, x: cameraRef.current.x - (e.shiftKey && !dx ? dy : dx), y: cameraRef.current.y - (e.shiftKey && !dx ? 0 : dy) });
     };
@@ -277,6 +288,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const begin = (e, kind, node) => {
     if (e.button !== 0 && e.button !== 1) return;
     if (inputBlocked || focused || e.target.closest('.agent-editor')) return;
+    wheelGesture.current.reset();
     e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId);
     stopInertia();
     const ids = node && selected.includes(node.id) ? selected : node ? [node.id] : [];
