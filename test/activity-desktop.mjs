@@ -35,7 +35,7 @@ function installFixture() {
     state: { activeWorkspaceId: 'a', workspaces: [a, b], settings: {} },
     sessions: { a: [{ id: 's-hidden', workspaceId: 'a', nodeId: 'hidden', status: 'running', cols: 80, rows: 24 }, { id: 's-shell', workspaceId: 'a', nodeId: 'shell', status: 'running', cols: 80, rows: 24 }], b: [] },
     tasks: { a: [{ id: 'task', title: 'Tarea bloqueada', status: 'blocked', source: 'phantom', raw: { sessionId: 's-hidden' } }], b: [] },
-    calls: [], listeners: new Set(), failTasks: false, deferTasks: false, pending: [], nativeVisible: false, queue: [],
+    calls: [], listeners: new Set(), failTasks: false, deferTasks: false, pending: [], nativeVisible: false, queue: [], active: [], history: [],
     emit(event) { for (const callback of [...this.listeners]) callback(event); },
     release() { for (const finish of this.pending.splice(0)) finish(); },
   };
@@ -52,7 +52,7 @@ function installFixture() {
       if (method === 'plugins.list') return { items: [{ id: 'phantom', name: 'Phantom', enabled: true, config: {} }] };
       if (method === 'phantom.detail') return { id: p.id, kind: 'card', status: 'blocked', contract: { goal: `Objetivo completo de ${p.id}: ${'requisitos largos '.repeat(60)}`, scope: ['sent.txt'], checks: [{ name: 'Unit', argv: ['npm', 'test'] }] } };
       if (method === 'phantom.events' || method === 'phantom.controllers') return { available: true, items: [] };
-      if (method === 'merge.status') return { available: true, enabled: true, base: { branch: 'main', oid: 'base' }, guard: { installed: true }, queue: copy(f.queue).map(item => ({ ...item, inspection: item.inspectionUnavailable ? { available: false, headOid: item.headOid, reason: 'Commit no disponible en fixture' } : { available: true, headOid: item.headOid, baseOid: 'base', files: ['sent.txt'], fileCount: 1, ...(p.requestId === item.id ? { diff: 'diff --git a/sent.txt b/sent.txt\n+submitted content' } : {}) } })), active: [], history: [], plan: 'Revisar evidencia antes de integrar', observedAt: new Date().toISOString() };
+      if (method === 'merge.status') return { available: true, enabled: true, base: { branch: 'main', oid: 'base' }, guard: { installed: true }, queue: copy(f.queue).map(item => ({ ...item, inspection: item.inspectionUnavailable ? { available: false, headOid: item.headOid, reason: 'Commit no disponible en fixture' } : { available: true, headOid: item.headOid, baseOid: 'base', files: ['sent.txt'], fileCount: 1, ...(p.requestId === item.id ? { diff: 'diff --git a/sent.txt b/sent.txt\n+submitted content' } : {}) } })), active: copy(f.active), history: copy(f.history), plan: 'Revisar evidencia antes de integrar', observedAt: new Date().toISOString() };
       if (method === 'branch.overview') return { available: false, reason: 'Diagnóstico no disponible en fixture', branches: [] };
       if (method === 'repo.graph') return { available: false, reason: 'Historia no disponible en fixture', commits: [] };
       if (method === 'terminal.list') return copy(f.sessions[p.workspaceId]);
@@ -81,8 +81,8 @@ const fixture = fn => page.evaluate(fn);
 const tray = () => page.getByRole('dialog', { name: 'Actividad del proyecto' });
 const notch = () => page.getByRole('button', { name: 'Actividad del proyecto', exact: true });
 async function open() { await notch().click(); await tray().waitFor(); await tray().getByText('Más actividad y diagnósticos', { exact: true }).click(); await tray().getByRole('button', { name: 'Todo y diagnósticos', exact: true }).click(); await tray().locator('.activity-integration-details > summary').click(); }
-async function close() { await tray().getByLabel('Cerrar bandeja de actividad').click(); await tray().waitFor({ state: 'hidden' }); }
-async function settled() { await poll(() => fixture(() => { const text = document.querySelector('.activity-notch')?.textContent || ''; return !!text && !/Recuperando|desconectado|sin confirmar/.test(text); }), 'fuentes recuperadas'); }
+async function close() { await tray().getByLabel('Cerrar bandeja de actividad').click(); await tray().waitFor({ state: 'hidden' }); await page.waitForFunction(() => !document.querySelector('#activity-tray')); }
+async function settled() { await poll(() => fixture(() => { const text = document.querySelector('.activity-notch')?.textContent || ''; return !!text && !/Recuperando|desconectado|desactualizado/.test(text); }), 'fuentes recuperadas'); }
 async function viewport(width, height) {
   if (desktop) await desktop.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), [width, height]);
   await page.setViewportSize({ width, height });
@@ -128,19 +128,21 @@ try {
    });
    await check('Dock: filtros directos, límites honestos y cierre sin resolver pendientes', async () => {
      await notch().click();
-      assert.equal(await tray().getByRole('button', { name: 'Necesita tu decisión', exact: true }).getAttribute('aria-pressed'), 'true');
-      assert.equal(await tray().getByRole('heading', { name: /^Listo para integrar/ }).count(), 0);
+      assert.equal(await tray().locator('[data-tab="needs"]').getAttribute('aria-pressed'), 'true');
+      assert.match(await tray().locator('[data-tab="needs"]').innerText(), /Necesitan de ti\s*2/);
+      assert.equal(await tray().locator('.activity-item').count(), 2);
+      assert.equal(await tray().getByRole('heading', { name: /^Ramas activas/ }).count(), 0);
       await tray().getByRole('button', { name: 'Ir a terminal', exact: true }).click();
      await page.locator('.canvas-node.focused').filter({ hasText: 'Terminal oculta' }).waitFor();
      assert.match(await notch().innerText(), /2 necesitan de ti/);
      await page.locator('.activity-strip').getByRole('button', { name: 'Integraciones', exact: true }).click();
-      await tray().getByRole('heading', { name: /^Listo para integrar/ }).waitFor();
+      await tray().getByRole('heading', { name: /^Ramas activas/ }).waitFor();
      assert.equal(await tray().getByRole('button', { name: 'Revisar incorporaciones', exact: true }).count(), 1);
      await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
      await tray().getByRole('heading', { name: /Límites de tus planes/ }).waitFor();
      assert.equal(await tray().getByRole('meter', { name: 'Claude · Sesión · 5 h' }).getAttribute('aria-valuenow'), '42');
      assert.match(await tray().innerText(), /No hay una sesión de ChatGPT/);
-      assert.equal(await tray().getByRole('heading', { name: /^Listo para integrar/ }).count(), 0);
+      assert.equal(await tray().getByRole('heading', { name: /^Ramas activas/ }).count(), 0);
      await page.locator('.activity-strip').getByRole('button', { name: 'Límites', exact: true }).click();
      await tray().waitFor({ state: 'hidden' });
      await notch().click(); await page.getByRole('button', { name: 'Cerrar actividad', exact: true }).click({ position: { x: 5, y: 5 } });
@@ -196,9 +198,14 @@ try {
     await fixture(() => { const f = window.__activityFixture; f.failTasks = true; f.emit({ type: 'task.changed', workspaceId: 'a' }); });
     await open(); await tray().getByText('Fuentes de atención', { exact: true }).click(); await tray().getByText('Fallo de tareas de prueba', { exact: true }).first().waitFor();
     assert.match(await tray().innerText(), /lectura fallida/);
+    // A failed source marks the count as old; it never replaces it.
+    assert.match(await notch().innerText(), /1 necesita de ti/);
+    assert.match(await notch().innerText(), /desactualizado/);
+    assert.match(await tray().innerText(), /no se pudo leer tareas de Phantom/);
     await fixture(() => { window.__activityFixture.failTasks = false; });
     await tray().getByRole('button', { name: 'Reintentar fuente', exact: true }).first().click();
     await tray().getByText('Fallo de tareas de prueba', { exact: true }).first().waitFor({ state: 'hidden' });
+    await poll(async () => !(await notch().innerText()).includes('desactualizado'), 'conteo confirmado de nuevo');
     await close();
   });
    await check('Acciones abren la Card exacta y el inspector Git', async () => {
@@ -227,11 +234,23 @@ try {
        ];
        f.emit({ type: 'state.changed', workspaceId: 'a' });
      });
+     await fixture(() => { const f = window.__activityFixture; f.active = [{ nodeId: 'shell', title: 'Shell abierta', branch: 'phantom/terminal-shell', ahead: 1, behind: 3, uncommitted: 2, status: 'working', running: true, missing: false, overlaps: [], files: [], fileCount: 0 }]; f.history = [{ id: 'old-request', nodeId: 'gone', title: 'Rama ya incorporada', branch: 'old', status: 'merged', finishedAt: new Date().toISOString() }]; f.emit({ type: 'state.changed', workspaceId: 'a' }); });
      await page.locator('.activity-strip').getByRole('button', { name: 'Integraciones', exact: true }).click();
-     await poll(async () => (await tray().getByRole('heading', { name: /^Listo para integrar/ }).innerText()).includes('2'), 'dos solicitudes reales');
+     await poll(async () => (await tray().getByRole('heading', { name: /^Ramas activas/ }).innerText()).includes('3'), 'tres ramas activas');
+     assert.match(await page.locator('.activity-strip').getByRole('button', { name: 'Integraciones', exact: true }).innerText(), /3 ramas/);
+     const card = id => tray().locator('.activity-branch').filter({ has: page.locator(`[data-request-id="${id}"]`) });
      const review = tray().locator('[data-request-id="sent-request"]');
-     const title = review.locator('.inc-review-title');
+     const title = card('sent-request').locator('.activity-branch-summary');
      assert.equal(await title.evaluate(el => el.clientHeight <= Number.parseFloat(getComputedStyle(el).lineHeight) * 2 + 1), true);
+     // Each branch says where it stands on the road to main and what it lacks.
+     assert.deepEqual(await card('sent-request').locator('.mp-step').evaluateAll(steps => steps.map(step => step.dataset.state)), ['done', 'done', 'done', 'now', 'todo']);
+     assert.match(await card('sent-request').locator('.mp-missing').innerText(), /Abrir la sesión orquestadora/);
+     assert.match(await card('sent-request').locator('.mp-missing').innerText(), /Depende de ti/);
+     const working = tray().locator('.activity-branch').filter({ hasText: 'Shell abierta' });
+     assert.deepEqual(await working.locator('.mp-step').evaluateAll(steps => steps.map(step => step.dataset.state)), ['done', 'now', 'todo', 'todo', 'todo']);
+     assert.match(await working.innerText(), /Guardar 2 archivos en un commit/);
+     assert.match(await working.innerText(), /Enviar la solicitud de integración/);
+     assert.match(await working.innerText(), /3 commits detrás de main/);
      await review.locator(':scope > details > summary').focus(); await page.keyboard.press('Enter');
      await review.getByText('La rama avanzó:', { exact: false }).waitFor();
      assert.match(await review.innerText(), /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
@@ -243,26 +262,33 @@ try {
      assert.match(await review.locator('.inc-diff').innerText(), /submitted content/);
      assert.equal(await fixture(() => window.__activityFixture.calls.some(c => c.method === 'merge.status' && c.p.requestId === 'sent-request')), true);
      const unknown = tray().locator('[data-request-id="unknown-request"]');
-     await unknown.locator(':scope > details > summary').click();
+     await unknown.locator(':scope > details > summary').focus(); await page.keyboard.press('Enter');
+     await unknown.getByText('Card asociada desconocida', { exact: false }).waitFor();
      assert.match(await unknown.innerText(), /Card asociada desconocida/);
      assert.match(await unknown.innerText(), /Archivos desconocidos: Commit no disponible/);
-     assert.equal(await unknown.getByRole('button', { name: 'Ver Card', exact: true }).count(), 0);
+     assert.equal(await card('unknown-request').getByRole('button', { name: 'Ver Card', exact: true }).count(), 0);
      const screenshot = path.join(evidence, 'integration-review.png'); await page.screenshot({ path: screenshot }); report.screenshots.push(screenshot);
-     await review.getByRole('button', { name: 'Ver Card', exact: true }).click();
+     // What already closed is one tab away, most recent first.
+     await tray().locator('[data-tab="done"]').click();
+     await tray().locator('.activity-item').filter({ hasText: 'Rama ya incorporada' }).filter({ hasText: 'Integrada' }).waitFor();
+     await tray().locator('.activity-item').filter({ hasText: 'Tarea bloqueada' }).filter({ hasText: 'Completada en fuente' }).waitFor();
+     const done = path.join(evidence, 'done.png'); await page.screenshot({ path: done }); report.screenshots.push(done);
+     await tray().locator('[data-tab="integration"]').click();
+     await card('sent-request').getByRole('button', { name: 'Ver Card', exact: true }).click();
      await page.getByRole('article', { name: 'Detalle integration-card', exact: true }).waitFor();
      assert.equal(await fixture(() => window.__activityFixture.calls.some(c => c.method === 'node.create' && c.p.type === 'phantom-cards' && c.p.data.cardId === 'integration-card')), true);
      assert.equal(await fixture(() => window.__activityFixture.calls.some(c => /merge\.(run|submit|reject|order)|approve/.test(c.method))), false);
-     await fixture(() => { const f = window.__activityFixture; f.queue = []; f.emit({ type: 'state.changed', workspaceId: 'a' }); });
+     await fixture(() => { const f = window.__activityFixture; f.queue = []; f.active = []; f.history = []; f.emit({ type: 'state.changed', workspaceId: 'a' }); });
    });
   await check('Desktop y narrow sin overflow; capturas reales', async () => {
     for (const [name, width, height] of [['desktop', 1520, 980], ['narrow', 760, 760]]) {
       await viewport(width, height); await open(); await page.waitForTimeout(150);
        const bounds = await tray().boundingBox(); assert(bounds.x >= 0 && bounds.y >= 52 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
        const dock = await page.locator('.activity-dock').boundingBox(); assert(dock.x >= 0 && dock.x + dock.width <= width + 1 && bounds.y + bounds.height < dock.y);
-       assert(Math.abs(bounds.x + bounds.width / 2 - dock.x - dock.width / 2) < 1, 'Bandeja alineada con el dock');
+       assert(Math.abs(bounds.x + bounds.width / 2 - dock.x - dock.width / 2) < 1, `Bandeja alineada con el dock (${name}: bandeja ${bounds.x}+${bounds.width}, dock ${dock.x}+${dock.width})`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       assert.equal(await tray().evaluate(el => el.scrollWidth > el.clientWidth + 1), false);
-      assert.equal(await tray().evaluate(el => [...el.querySelectorAll('.activity-tray-scroll,.activity-row,.activity-base')].some(row => row.scrollWidth > row.clientWidth + 1)), false);
+      assert.equal(await tray().evaluate(el => [...el.querySelectorAll('.activity-tray-scroll,.activity-row,.activity-item,.activity-branch,.activity-base')].some(row => row.scrollWidth > row.clientWidth + 1)), false);
       const screenshot = path.join(evidence, `${name}.png`); await page.screenshot({ path: screenshot }); report.screenshots.push(screenshot); await close();
     }
     await viewport(1520, 980);

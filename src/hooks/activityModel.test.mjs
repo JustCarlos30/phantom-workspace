@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildActivity, branchState, classifyNotice, classifyTask, sessionState, taskLinks } from './activityModel.mjs';
+import { ago, buildActivity, branchState, classifyNotice, classifyTask, freshness, rowKind, sessionState, taskLinks, timeOf } from './activityModel.mjs';
 
 test('Un shell abierto no acredita actividad del agente y salir no acredita éxito', () => {
   assert.equal(sessionState({ status: 'running' }).label, 'Conectada · agente sin señal');
@@ -77,4 +77,44 @@ test('screen state turns a quiet agent terminal into a needs-you signal', () => 
   assert.equal(sessionState({ status: 'running', screenState: 'awaiting_input' }).needsYou, true);
   assert.deepEqual(sessionState({ status: 'running', screenState: 'working' }), { needsYou: false, label: 'Trabajando', tone: 'working', screen: 'working' });
   assert.equal(sessionState({ status: 'running', screenState: 'awaiting_input' }, false).needsYou, false);
+});
+
+test('Terminadas reúne tareas cerradas e incorporaciones, lo más reciente primero; lo no empezado no es progreso', () => {
+  const activity = buildActivity({
+    tasks: [
+      { id: 'old', status: 'completed', raw: { updatedAt: '2026-11-10T10:00:00Z' } },
+      { id: 'run', status: 'running' }, { id: 'wait', status: 'ready' }, { id: 'stuck', status: 'blocked' },
+      { id: 'drop', status: 'cancelled', raw: { updatedAt: '2026-11-12T10:00:00Z' } },
+    ],
+    merges: { available: true, queue: [], active: [], history: [{ id: 'm', title: 'Rama', status: 'merged', finishedAt: '2026-11-13T10:00:00Z' }, { id: 'r', status: 'rejected', finishedAt: '2026-11-11T10:00:00Z' }] },
+  });
+  assert.deepEqual(activity.finished.map(item => [item.key, item.tone]), [['merge:m', 'done'], ['task:drop', 'cancelled'], ['merge:r', 'cancelled'], ['task:old', 'done']]);
+  assert.deepEqual(activity.inProgress.map(item => [item.id, item.tone, item.label]), [['run', 'working', 'En curso'], ['wait', 'waiting', 'Sin ejecutar']]);
+  assert.deepEqual(activity.needs.map(item => item.id), ['stuck']);
+  assert.deepEqual(buildActivity({ merges: { available: false, history: [{ id: 'x', status: 'merged' }] } }).finished, []);
+});
+
+test('El conteo solo se marca desactualizado por las fuentes que lo alimentan', () => {
+  const now = 1_000_000, ok = { at: now - 1000 };
+  assert.equal(freshness({ sources: { tasks: ok, sessions: ok, merges: ok, limits: { error: 'sin plan' }, git: { at: now - 900000 } }, now }).state, 'fresh');
+  assert.deepEqual(freshness({ sources: { tasks: { at: now - 1000, error: 'falló' }, sessions: ok, merges: ok }, now }), { state: 'stale', failing: ['tareas de Phantom'] });
+  assert.equal(freshness({ sources: { tasks: ok, sessions: { at: now - 60000 }, merges: ok }, now }).state, 'stale');
+  assert.equal(freshness({ sources: { tasks: ok, sessions: ok, merges: {} }, now }).state, 'loading');
+  assert.equal(freshness({ sources: { tasks: { error: 'Phantom no instalado' }, sessions: ok, merges: ok }, now }).state, 'stale');
+  assert.equal(freshness({ sources: {}, connected: false, now }).state, 'offline');
+});
+
+test('Cada fila dice por qué está ahí y hace cuánto', () => {
+  assert.equal(rowKind({ status: 'awaiting_approval' }), 'approval');
+  assert.equal(rowKind({ status: 'running', screen: 'awaiting_input', needsYou: true }), 'input');
+  assert.equal(rowKind({ status: 'blocked' }), 'blocked');
+  assert.equal(rowKind({ status: 'failed' }), 'failed');
+  assert.equal(rowKind({ target: 'integration', status: 'conflict' }), 'returned');
+  assert.equal(rowKind({ target: 'integration', status: 'blocked' }), 'blocked');
+  assert.equal(rowKind({ status: 'completed', tone: 'done' }), 'done');
+  const now = Date.parse('2026-11-13T12:00:00Z');
+  assert.deepEqual(['2026-11-13T11:59:40Z', '2026-11-13T11:15:00Z', '2026-11-13T07:00:00Z', '2026-11-10T12:00:00Z'].map(value => ago(Date.parse(value), now)), ['ahora', 'hace 45 min', 'hace 5 h', 'hace 3 d']);
+  assert.equal(ago(0, now), '');
+  assert.equal(timeOf({ createdAt: '2026-11-10T12:00:00Z', updatedAt: '2026-11-13T12:00:00Z' }), now);
+  assert.equal(timeOf({}), 0);
 });
