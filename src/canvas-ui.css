@@ -148,7 +148,10 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .app-shell { position: relative; overflow: hidden; background: var(--bg); }
 .main-workspace { position: absolute; inset: 0; }
 .workspace-body { position: absolute; inset: 0; }
-.canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
+/* Keep the inset-sized stage authoritative over the legacy relative flex
+   region, including when base CSS is emitted later by the production bundle. */
+.app-shell .canvas-region { position: absolute; inset: 0; }
+.canvas-region { transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
 
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,

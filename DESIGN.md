@@ -228,6 +228,8 @@ La card es la caja. Dentro no hay líneas:
 
 Una curva (`--ease-out`), dos velocidades (`--dur-fast` 140 ms, `--dur` 240 ms). Una sola entrada, `@keyframes materialize`: opacidad, desenfoque de 8 px y escala .985 → 1. `Presence.jsx` hace lo mismo al montar y, al desmontar, dispersa (desenfoque 12 px, escala 1.02). Nada se desliza. El paneo conserva su inercia. `prefers-reduced-motion` deja solo el fundido y detiene el pulso ambiental. El pulso opcional dura 16 s y está OFF por defecto; solo modula la luz del ambiente. Concentración atenúa ambiente y personaje al 12 %, oculta retícula y detiene animaciones decorativas sin cambiar las preferencias guardadas de presencia, intensidad o pulso. Los estados reales conservan texto y color.
 
+El dictado comparte `VoiceActivity` en terminal, captura global, Voz e intención y todos los compositores. Su momento focal es una onda violeta espectral: 17 trazos cuya escala procede del analizador de audio, con transición de 100 ms, sin bucle que simule escuchar. El permiso pendiente usa texto y atención; al transcribir el micrófono se apaga y los trazos quedan bajos y neutros con un único pulso de opacidad. Movimiento reducido elimina escala reactiva y pulso, conserva nivel en opacidad y estados escritos. No se anima el tamaño del compositor ni se añaden halos o líneas interiores. La captura global usa un objeto flotante opaco con sombra del sistema, destino explícito y foco protegido; terminal requiere revisión e inserción literal sin Enter.
+
 ## Estados vacíos
 
 `src/components/EmptyState.jsx` comparte la anatomía de icono, título, descripción, detalles, acciones y pista; `src/empty-state.css` controla su geometría. Los mensajes de carga, error y estado pertenecen a su fuente.

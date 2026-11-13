@@ -22,6 +22,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
       { title: 'Buscar paneles del proyecto', group: 'Navegación', action: { type: 'panels' } },
       { title: 'Preguntar a Phantom', group: workspace.name, action: { type: 'phantom-chat' } },
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
+      { title: 'Dictado por voz · Ctrl/Cmd + Shift + M', group: workspace.name, action: { type: 'dictation' } },
       ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission' && tab !== 'skills-catalog' && !PLUGIN_MANIFESTS.some(plugin => plugin.panels.some(panel => panel.nodeType === tab))).map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: `Panel · ${node.type}`, action: { type: 'panel', id: node.id } })),
       ...['terminal', 'browser', 'note', 'tasks', 'context', 'repo', 'git', 'branches', 'incorporaciones', 'services', 'docker', 'mission', 'workflows', 'playwright', 'playground'].map(panelType => ({ title: `Crear ${TOOL_TITLES[panelType] || ({ terminal: 'terminal', browser: 'navegador', note: 'nota' })[panelType]}`, group: 'Nuevo panel', action: { type: 'create', panelType } })),

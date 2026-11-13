@@ -15,8 +15,7 @@
   animation: materialize var(--dur) var(--ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
-  .phantom-chat, .phantom-chat-live::before, .pc-field:not(.is-listening) .phantom-chat-wave i { animation: none !important; }
-  .phantom-chat-wave i { transition: none; }
+  .phantom-chat, .phantom-chat-live::before { animation: none !important; }
 }
 
 @media (min-width: 851px) {
@@ -74,17 +73,9 @@
 /* Voice: the field itself shows that the microphone is live. */
 .phantom-chat-mic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-pill); color: var(--muted); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .phantom-chat-mic:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
-.phantom-chat-mic.is-live { background: var(--danger); color: var(--ink); box-shadow: 0 0 0 calc(2px + var(--voice-level, 0) * 6px) color-mix(in srgb, var(--danger) 30%, transparent); }
+.phantom-chat-mic.is-live { background: color-mix(in srgb, var(--working) 18%, var(--surface)); color: var(--working); }
 .phantom-chat-mic:disabled { opacity: .4; cursor: not-allowed; }
 .phantom-chat-mic:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pc-field.is-listening { border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
-.phantom-chat-voice { display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 14px 0; color: var(--muted); font-size: 11px; }
-.phantom-chat-voice button { margin-left: auto; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
-.phantom-chat-voice button:hover { color: var(--ink); }
-.phantom-chat-wave { display: inline-flex; align-items: center; gap: 2px; height: 12px; }
-.phantom-chat-wave i { display: block; width: 2px; height: 100%; border-radius: var(--r-mark); background: var(--danger); transform: scaleY(calc(.25 + var(--voice-level, 0) * .75)); transition: transform 80ms linear; }
-.phantom-chat-wave i:nth-child(2), .phantom-chat-wave i:nth-child(4) { transform: scaleY(calc(.2 + var(--voice-level, 0) * .5)); }
-.pc-field:not(.is-listening) .phantom-chat-wave i { background: var(--muted); animation: phantom-pulse 1.2s ease-in-out infinite; }
 
 /* Header toggle reflects the open chat. */
 .phantom-chat-toggle.active { background: var(--accent-soft); color: var(--accent); }
@@ -140,12 +131,12 @@
 .pd-session-title small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pd-muted { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .pd-composer { display: flex; flex-direction: column; gap: 6px; margin: 0; }
-.pd-composer .phantom-chat-voice { padding: 0 2px; }
+.pd-composer .voice-activity { padding: 4px 2px; }
 .pd-composer .pc-error { display: flex; align-items: center; gap: 8px; margin: 0; }
 .pd-composer .pc-error > span { flex: 1; min-width: 0; }
 .pd-field { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 10px; border-radius: var(--r-ctl); background: var(--fill-2); transition: box-shadow var(--dur-fast) var(--ease-out); }
 .pd-field:focus-within { box-shadow: 0 0 0 1px var(--pc-hue-line, var(--accent)); }
-.pd-field.is-listening { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 60%, transparent); }
+.pd-field.is-listening { box-shadow: 0 0 0 1px var(--working); }
 .pd-field textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 140px; resize: none; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.45; outline: none; field-sizing: content; }
 .pd-field textarea::placeholder { color: var(--muted); }
 .phantom-chat-task:disabled { opacity: .4; cursor: not-allowed; }
