@@ -26,11 +26,13 @@ export default function MobileSettings({ workspace, api }) {
   const expiresAt = pairing?.expiresAt === status?.pairingExpiresAt ? pairing?.expiresAt : null;
   return <section className="tw-section">
     <h3>Conexión móvil local</h3>
-    <p className="tw-muted">Conecta el teléfono a la misma Wi-Fi. HTTP local requiere una red de confianza: quienes puedan observarla podrían leer el tráfico. El acceso se apaga al reiniciar el host.</p>
+    <p className="tw-muted">Conecta el teléfono a la misma Wi-Fi. La conexión usa HTTPS. El acceso se apaga al reiniciar el host.</p>
     {error && <p className="tw-error" role="alert">{error}</p>}
     {!status ? <p role="status">Consultando acceso móvil…</p> : status.enabled ? <>
       <p>Activo para {status.workspaceId === workspace?.id ? workspace.name : 'otro proyecto'}.</p>
       <label className="tw-field">Dirección móvil<input readOnly value={status.url || ''} /></label>
+      <label className="tw-field">Huella SHA-256 del certificado<input readOnly value={status.tls?.fingerprint || ''} /></label>
+      <p className="tw-muted">El teléfono avisará de un certificado propio. Antes de introducir el código, comprueba que la huella del certificado en el navegador coincide con esta.</p>
       <div className="tw-row"><button className="tw-button" disabled={busy} onClick={() => run(() => copy(status.url))}>Copiar dirección</button><button className="tw-button tw-danger" disabled={busy} onClick={() => run(async () => { await api('mobile.stop', {}); setPairing(null); })}>Desactivar acceso móvil</button></div>
       <p className="tw-muted">Abre la dirección en el navegador del teléfono e introduce el código, por separado. Cada código sirve una sola vez.</p>
       {expiresAt && expiresAt > time ? <><label className="tw-field">Código de emparejamiento<input readOnly value={pairing.code} /></label><p role="status">Caduca en {Math.ceil((expiresAt - time) / 1000)} s</p><button className="tw-button" disabled={busy} onClick={() => run(() => copy(pairing.code))}>Copiar código</button></> : <p>Código usado, caducado o no mostrado en este panel.</p>}
