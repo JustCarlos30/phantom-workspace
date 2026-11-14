@@ -1,10 +1,18 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, X } from 'lucide-react';
 import '../sites.css';
 
 export default function GlobalSites({ api, onClose }) {
   const [projects, setProjects] = useState(null), [filter, setFilter] = useState(''), [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(''), [error, setError] = useState(''), [logs, setLogs] = useState(null);
+  const root = useRef(null);
+  useEffect(() => {
+    const previous = document.activeElement;
+    root.current?.querySelector('[aria-label="Cerrar Sitios"]')?.focus();
+    return () => {
+      if (root.current?.contains(document.activeElement) && previous?.isConnected && !previous.closest('[inert]')) previous.focus({ preventScroll: true });
+    };
+  }, []);
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
     try { const result = await api('docker.list', { scope: 'sites' }); setProjects(result.projects); }
@@ -20,7 +28,7 @@ export default function GlobalSites({ api, onClose }) {
     } catch (e) { setError(e.message); } finally { setBusy(''); }
   };
   const visible = (projects || []).filter(p => !filter || p.workspaceId === filter);
-  return <section className="global-sites" aria-label="Sitios globales">
+  return <section ref={root} className="global-sites" aria-label="Sitios globales">
     <header className="sites-header"><div><p className="sites-kicker">TODOS TUS PROYECTOS</p><h1>Sitios</h1><p>Servicios Compose de tus repositorios registrados.</p></div><div className="sites-header-actions"><button className="button" disabled={loading || !!busy} onClick={refresh}><RefreshCw size={15} /> Actualizar</button><button className="icon-button" aria-label="Cerrar Sitios" onClick={onClose}><X size={18} /></button></div></header>
     <div className="sites-filter"><label htmlFor="sites-project">Proyecto</label><select id="sites-project" value={filter} onChange={e => setFilter(e.target.value)}><option value="">Todos los proyectos</option>{(projects || []).map(p => <option key={p.workspaceId} value={p.workspaceId}>{p.name}</option>)}</select></div>
     {error && <p className="sites-error" role="alert">{error}</p>}
