@@ -33,8 +33,10 @@ async function capture(name) {
   const file = path.join(evidence, `${name}.png`); await page.screenshot({ path: file }); captures.push(file);
 }
 async function size(width, height) {
-  await app.evaluate(({ BrowserWindow }, [width, height]) => { const win = BrowserWindow.getAllWindows()[0]; win.setMinimumSize(580, 500); win.setContentSize(width, height); }, [width, height]);
-  await page.waitForFunction(([w, h]) => innerWidth === w && innerHeight === h, [width, height]);
+  const zoom = await app.evaluate(({ BrowserWindow }, [width, height]) => { const win = BrowserWindow.getAllWindows()[0]; win.setMinimumSize(580, 500); win.setContentSize(width, height); return win.webContents.getZoomFactor(); }, [width, height]);
+  // Window content is measured in DIP; the renderer viewport uses CSS pixels
+  // at the app's current interface scale (115% by default).
+  await page.waitForFunction(([w, h, zoom]) => Math.abs(innerWidth - w / zoom) <= 1 && Math.abs(innerHeight - h / zoom) <= 1, [width, height, zoom]);
 }
 async function captureBoth(name, surface) {
   for (const [label, width, height] of [['wide', 1520, 980], ['narrow', 1100, 760]]) {

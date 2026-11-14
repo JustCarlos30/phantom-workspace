@@ -12,6 +12,7 @@ import { findPanelPlacement } from './hooks/panelPlacement';
 import { useInlineName } from './hooks/useInlineName';
 import { overlayPolicy } from './hooks/inputOwnership';
 import { useAppearance } from './hooks/useAppearance';
+import { useInterfaceScale } from './hooks/useInterfaceScale';
 import { Appearance } from './components/Appearance';
 import ActivityNotch, { ActivityTray } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
@@ -49,7 +50,7 @@ const TYPES = [
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales', 'phantom'],
   ['skills-catalog', 'Skills', PANEL_ICONS['phantom-skills'], 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],
   ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto', 'phantom'],
-  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, Layers, panel.pluginId === 'video-log' ? 'Aprendizajes, evidencia y contexto de tu bitácora local' : `Panel nativo de ${panel.pluginId}`, 'plugins']),
+  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, PANEL_ICONS[panel.nodeType] || Layers, panel.pluginId === 'convencions' ? 'Base versionada e integración explícita · lectura MCP pendiente' : panel.pluginId === 'video-log' ? 'Aprendizajes, evidencia y contexto de tu bitácora local' : `Panel nativo de ${panel.pluginId}`, 'plugins']),
 ].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);
 const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find(t => t[0] === id));
 // The creation dock: one weight for every action, the icon names the panel and
@@ -156,6 +157,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const toggleActivity = filter => { setSidebar(false); setTray(value => value === filter ? false : filter); setTools(false); setList(false); setMenu(null); };
   useEffect(() => { setTray(false); }, [workspace?.id]);
   const { appearance, update: updateAppearance, reset: resetAppearance } = useAppearance(workspace?.id, notify);
+  const interfaceScale = useInterfaceScale();
   const current = useRef(workspace); current.current = workspace;
   const selectionRef = useRef(selected); selectionRef.current = selected;
   const focusedRef = useRef(focused); focusedRef.current = focused;
@@ -203,8 +205,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     try {
       const region = document.querySelector('.canvas')?.getBoundingClientRect();
       const camera = spacesRef.current.view?.camera || w.camera || { x: 64, y: 64, zoom: 1 };
-      const width = type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : 640;
-      const height = type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
+      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : 640;
+      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
       // Reserve before the RPC so rapid/concurrent creations cannot reuse the
       // same slot while state.get or PTY creation is still in flight.
       for (const [key, item] of placements.current) if (item.workspaceId === w.id && w.nodes?.some(n => n.id === item.nodeId)) placements.current.delete(key);
@@ -456,7 +458,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker types={TYPES} disabled={!!busy} onPick={onOpenPanel} onClose={() => setTools(false)} /></>}
           {list && <div className="panel-index"><div className="popover-heading"><strong>Paneles del proyecto</strong><button className="icon-button" aria-label="Cerrar lista" onClick={() => setList(false)}><X size={15} /></button></div><label className="index-search"><Search size={15} /><input autoFocus aria-label="Buscar panel por nombre, tipo o misión" placeholder="Buscar nombre, tipo o misión…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="panel-index-items">{filteredNodes.map(n => <div className="index-item" key={n.id}><button onClick={() => jump(n.id)}><span className="index-type">{label(n.type)}{n.data?.hidden ? ' · Vista oculta · clic para recuperar' : ''}</span><strong>{n.title}</strong>{n.groupId && <small>{workspace.missions?.find(m => m.id === n.groupId)?.title}</small>}</button><button className="icon-button" title="Enfocar" aria-label={`Enfocar ${n.title}`} onClick={() => { focusPanel(n.id); setList(false); }}><ExternalLink size={14} /></button></div>)}{!filteredNodes.length && <EmptyState className="small-empty" size="compact" description={query ? 'No hay paneles con ese nombre, tipo o misión.' : 'Aún no hay paneles. Crea uno desde la barra inferior.'} />}</div><div className="index-footer"><button onClick={() => { setFocused(null); setFitRequest(n => n + 1); setList(false); }}>Ver todo el mapa</button><kbd>Ctrl ⇧ F</kbd></div></div>}
         </PresenceGroup></div>
-        {inspector && <div key="inspector-host" className="inspector-host"><div className="inspector-switcher"><select aria-label="Herramienta contextual" value={inspector} onChange={e => setInspector(e.target.value)}>{TYPES.filter(t => !['terminal', 'browser', 'note', 'mission', 'zone'].includes(t[0])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="sessions">Sesiones</option><option value="settings">Configuración</option><option value="appearance">Apariencia</option></select><button className="icon-button" aria-label="Cerrar inspector" onClick={() => setInspector(null)}><X size={16} /></button></div>{inspector === 'appearance' ? <Appearance key={workspace?.id || 'default'} appearance={appearance} update={updateAppearance} reset={resetAppearance} workspace={workspace} /> : <Inspector tab={inspector} workspace={workspace} state={state} api={api} refresh={refresh} onClose={() => setInspector(null)} onOpenPanel={onOpenPanel} notify={notify} />}</div>}
+        {inspector && <div key="inspector-host" className="inspector-host"><div className="inspector-switcher"><select aria-label="Herramienta contextual" value={inspector} onChange={e => setInspector(e.target.value)}>{TYPES.filter(t => !['terminal', 'browser', 'note', 'mission', 'zone'].includes(t[0])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="sessions">Sesiones</option><option value="settings">Configuración</option><option value="appearance">Apariencia</option></select><button className="icon-button" aria-label="Cerrar inspector" onClick={() => setInspector(null)}><X size={16} /></button></div>{inspector === 'appearance' ? <Appearance key={workspace?.id || 'default'} appearance={appearance} update={updateAppearance} reset={resetAppearance} workspace={workspace} interfaceScale={interfaceScale} /> : <Inspector tab={inspector} workspace={workspace} state={state} api={api} refresh={refresh} onClose={() => setInspector(null)} onOpenPanel={onOpenPanel} notify={notify} />}</div>}
       </PresenceGroup></div>
     </main>
     {chatOpen && <PhantomChat key={`phantom-chat:${workspace.id}`} workspace={workspace} api={api} notify={notify} connected={connection.status === 'connected'} focusRequest={chatFocus} onFocusOwnership={setChatOwnsFocus} onClose={() => openPhantomChat(false)} tab={dockTab} onTab={chooseDockTab} status={phantomStatus} onOpenPanel={onOpenPanel} onTask={text => { closeTransient(); setVoiceText(text); setVoice(true); }} />}
