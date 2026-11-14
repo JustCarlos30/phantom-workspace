@@ -45,7 +45,7 @@ test('shadows use chrome or matte workplane elevations, or a state ring', () => 
     for (const value of declarations(css, 'box-shadow')) {
       if (/^(none|inherit|initial|unset)$/.test(value)) continue;
       for (const layer of split(value, ','))
-        if (!/^var\(--shadow-(chrome|rest|float|workplane-rest|workplane-lift)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
+        if (!/^var\(--shadow-(chrome|rest|float|workplane-rest|workplane-lift|key|well)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
     }
   assert.deepEqual(bad, [], 'Use chrome or matte workplane elevation tokens. Zero-offset, zero-blur rings are allowed for state only.');
 });
@@ -86,6 +86,44 @@ test('drawn edges stay within budget', () => {
   assert.deepEqual(slack, [], 'Edges were removed: lower test/design-budget.json so they cannot come back.');
 });
 export { drawnEdges, sheets };
+
+test('dense glass has inset relief, a spring and accessible opaque fallbacks only on chrome', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const tokens = canvas.match(/:root\s*\{([^}]+)\}/)?.[1];
+  assert.ok(tokens);
+  for (const [token, minimum] of [['glass', 76], ['glass-thick', 88]]) {
+    const value = declarations(tokens, `--${token}`)[0];
+    const opacity = value?.match(/^color-mix\(in srgb, var\(--glass-tint\) (\d+(?:\.\d+)?)%, transparent\)$/)?.[1];
+    assert.ok(Number(opacity) >= minimum, `--${token} must be at least ${minimum}% opaque`);
+  }
+  const blur = declarations(tokens, '--glass-filter')[0]?.match(/blur\((\d+(?:\.\d+)?)px\)/)?.[1];
+  assert.ok(Number(blur) >= 36, '--glass-filter must blur at least 36px');
+  const chrome = declarations(tokens, '--shadow-chrome')[0];
+  assert.ok(split(chrome, ',').filter(layer => layer.startsWith('inset ')).length >= 2, 'Chrome needs top and bottom inset relief');
+  assert.match(declarations(tokens, '--ease-spring')[0], /^linear\(/);
+  assert.match(canvas, /@media\s*\(prefers-contrast:\s*more\)/);
+  for (const preference of ['prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
+    const block = canvas.slice(canvas.indexOf(`@media (${preference})`)).match(/:root\s*\{([^}]+)\}/)?.[1];
+    assert.ok(block, `${preference} declares opaque material tokens`);
+    assert.match(block, /--glass:\s*var\(--surface\)/);
+    assert.match(block, /--glass-thick:\s*var\(--surface\)/);
+    assert.match(block, /--glass-filter:\s*none/);
+    assert.match(block, /--glass-sheen:\s*none/);
+  }
+  const bad = [];
+  // Match the plane itself, including its states/pseudo-elements, rather than
+  // controls descended from a plane (which may legitimately have tactile relief).
+  const plane = /(?:^|[\s>+~])(?:\.pc-thread|\.terminal-[\w-]+|\.canvas-node\[data-type=["']terminal["']\])(?=[:.\[#]|$)(?:[^\s>+~]*)$/;
+  for (const { name, css } of sheets) {
+    for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!/var\(--(?:shadow-key|shadow-well|glass-sheen)\)/.test(body)) continue;
+      for (const selector of split(selectors, ',')) {
+        if (plane.test(selector)) bad.push(`${name}: ${selector}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'Workplanes never borrow chrome sheen or control relief');
+});
 
 test('workplane elevation aliases stay local and the canvas exposes environmental art', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
