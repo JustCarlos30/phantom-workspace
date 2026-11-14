@@ -46,7 +46,7 @@
 .project-switcher > summary:is(:hover, :focus-visible) > svg, .project-switcher[open] > summary > svg { opacity: .72; }
 .project-switcher[open] > summary > svg { transform: rotate(180deg); }
 
-.project-rail .rail-spaces { margin: 2px 0 var(--s-3); padding-left: 54px; }
+.project-rail .rail-spaces { margin: var(--s-2) 0 var(--s-3); padding-left: 54px; }
 .space-switcher-trigger {
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 26px; padding: 0 8px 0 10px;
   border-radius: var(--r-pill); background: var(--fill-2); box-shadow: var(--shadow-rim); color: var(--muted); text-align: left;
