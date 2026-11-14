@@ -12,9 +12,12 @@ import VideoReview from './VideoReview.jsx';
 import EmptyState from './EmptyState.jsx';
 import MobileSettings from './MobileSettings.jsx';
 import AndroidGatewaySettings from './AndroidGatewaySettings.jsx';
+import GlobalSites from './GlobalSites.jsx';
+import { HUBS, hubTab } from '../hooks/hubs.mjs';
+import '../hubs.css';
 
-export const TOOL_TITLES = { tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
-Object.assign(TOOL_TITLES, PLUGIN_TITLES, { review: 'Revisión de video', 'command-center': 'Centro de mando', incorporaciones: 'Incorporaciones', branches: 'Ramas', repo: 'Repositorio', 'skills-catalog': 'Skills' });
+export const TOOL_TITLES = { tasks: 'Trabajo', context: 'Contexto', sessions: 'Sesiones', mission: 'Misiones', git: 'Git', services: 'Servicios', docker: 'Docker', workflows: 'Automatizar', playwright: 'Navegador automático', playground: 'Código', settings: 'Configuración' };
+Object.assign(TOOL_TITLES, PLUGIN_TITLES, { review: 'Revisión de video', 'command-center': 'Centro de mando', incorporaciones: 'Cola de integración', branches: 'Ramas', repo: 'Git', 'skills-catalog': 'Skills' });
 const json = value => JSON.stringify(value, null, 2);
 const textValue = (value, fallback = 'Desconocido') => typeof value === 'string' && value.trim() ? value : typeof value === 'number' && Number.isFinite(value) ? String(value) : fallback;
 const message = error => textValue(error?.message, typeof error === 'string' ? error : 'La fuente devolvió un error sin mensaje válido.');
@@ -423,7 +426,27 @@ function Settings({ workspace, state, api, refresh, notify }) {
     <Section title="Cierre y procesos"><p className="tw-muted">Cerrar la interfaz permite reconectar al host. Detener el host termina sus procesos propios.</p><div className="tw-row"><Button disabled={op.busy} onClick={() => op.run(() => api('desktop.quit', { stopHost: false }))}>Cerrar solo interfaz</Button><Button tone="danger" disabled={op.busy} onClick={() => op.run(() => stop('host.shutdown'))}>Detener host y sus procesos</Button><Button tone="danger" disabled={op.busy} onClick={() => op.run(() => stop('desktop.quit'))}>Cerrar y detener host</Button></div>{confirmStop && <div className="tw-warning" role="alert"><p>Se detendrán {confirmStop.count} sesiones o ejecuciones activas de este host.</p><div className="tw-row"><Button tone="danger" disabled={op.busy} onClick={() => op.run(async () => { await api(confirmStop.method, confirmStop.method === 'desktop.quit' ? { stopHost: true } : {}); setConfirmStop(null); })}>Confirmar detención de sesiones</Button><Button onClick={() => setConfirmStop(null)}>Conservar sesiones</Button></div></div>}</Section><OperationState op={op} /></>;
 }
 
-export function ToolContent({ type, ...props }) {
+// A hub: one panel, a few tabs, each tab an existing tool. The tab is kept per
+// hub type so reopening Git lands where you left it; an explicit request
+// (`phantom:hub-tab`) wins, e.g. "Revisar" from the inbox opens Git on Ramas.
+function Hub({ type, ...props }) {
+  const hub = HUBS[type], key = `phantom.hub.${type}`;
+  const [tab, setTab] = useState(() => hubTab(type, props.node?.data?.hubTab || localStorage.getItem(key))[0]);
+  useEffect(() => {
+    const onTab = event => { if (event.detail?.type === type && hubTab(type, event.detail.tab)[0] === event.detail.tab) setTab(event.detail.tab); };
+    window.addEventListener('phantom:hub-tab', onTab);
+    return () => window.removeEventListener('phantom:hub-tab', onTab);
+  }, [type]);
+  const pick = id => { setTab(id); try { localStorage.setItem(key, id); } catch {} };
+  const [, , content] = hubTab(type, tab);
+  return <div className="hub" data-hub={type}>
+    <div className="hub-bar"><div className="hub-tabs" role="tablist" aria-label={hub.name}>{hub.tabs.map(([id, name]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => pick(id)}>{name}</button>)}</div></div>
+    <div className="hub-body" role="tabpanel" aria-label={hub.tabs.find(item => item[0] === tab)?.[1]}>{content === 'sites' ? <GlobalSites api={props.api} embedded /> : <ToolContent type={content} bare {...props} />}</div>
+  </div>;
+}
+
+export function ToolContent({ type, bare, ...props }) {
+  if (HUBS[type] && !bare && props.workspace) return <Hub type={type} {...props} />;
   if (PLUGIN_TITLES[type]) return <ToolErrorBoundary key={`${props.workspace?.id}:${type}:${props.node?.id || 'inspector'}`} title={PLUGIN_TITLES[type]}><PluginPanels type={type} {...props} /></ToolErrorBoundary>;
   if (!props.workspace && type !== 'settings') return <EmptyState className="tw-empty" description="Abre una carpeta para usar las herramientas del workspace." />;
   const components = { review: VideoReview, 'command-center': CommandCenter, incorporaciones: Incorporaciones, branches: Branches, repo: Repository, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };

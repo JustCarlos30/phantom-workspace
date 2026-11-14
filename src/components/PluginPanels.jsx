@@ -12,6 +12,20 @@ import '../plugins.css';
 export const PLUGIN_PANELS = PLUGIN_MANIFESTS.flatMap(plugin => plugin.panels.map(panel => ({ ...panel, pluginId: plugin.id })));
 export const PLUGIN_TITLES = Object.fromEntries([['plugins', 'Centro de Plugins'], ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name])]);
 
+// A panel whose source is switched off for this project. One action turns it
+// on right here; nothing is lost while it is off.
+function PluginGate({ api, workspace, plugin, panel, refresh, reload, notify }) {
+  const [busy, setBusy] = React.useState(false);
+  const name = plugin?.name || panel?.name || 'esta fuente';
+  const connect = async () => {
+    setBusy(true);
+    try { await api('plugins.update', { workspaceId: workspace.id, id: panel.pluginId, patch: { enabled: true } }); await refresh?.(); await reload(); }
+    catch (error) { notify?.(`No se pudo conectar ${name}: ${error.message}`, 'error'); }
+    finally { setBusy(false); }
+  };
+  return <EmptyState className="plugin-gate" title={`${name} no está conectado en este proyecto`} description="Conéctalo para ver su contenido aquí. Puedes desconectarlo después sin perder nada." actions={<Button tone="primary" disabled={busy} onClick={connect}>{busy ? 'Conectando…' : `Conectar ${name}`}</Button>} />;
+}
+
 function Content({ type, ...props }) {
   const { workspace, api, node, refresh, notify, onOpenPanel } = props;
   const registry = useResource(api, 'plugins.list', { workspaceId: workspace?.id }, { enabled: Boolean(workspace?.id) });
@@ -37,7 +51,7 @@ function Content({ type, ...props }) {
   if (!workspace?.id) return <EmptyState className="tw-empty" description="Selecciona un proyecto." />;
   if (!registry.data && (registry.loading || registry.error)) return <ResourceState resource={registry} />;
   if (!Array.isArray(registry.data?.items)) return <ErrorNotice error="El registro de plugins no es válido." retry={registry.reload} />;
-  if (!plugin?.enabled || workspace.plugins?.[panel?.pluginId]?.enabled === false) return <section className="plugin-gate tw-section"><h3>{panel?.name || 'Panel'} · Plugin desactivado</h3><p>Activa {plugin?.name || panel?.pluginId} en el Centro de Plugins. Tus datos nativos, configuración y referencias guardadas se conservan al desactivar.</p><Button onClick={() => onOpenPanel?.('plugins')}>Abrir Centro</Button><Button onClick={registry.reload}>Actualizar estado</Button></section>;
+  if (!plugin?.enabled || workspace.plugins?.[panel?.pluginId]?.enabled === false) return <PluginGate api={api} workspace={workspace} plugin={plugin} panel={panel} refresh={refresh} reload={registry.reload} notify={notify} />;
   const Native = panel?.pluginId === 'convencions' ? PhantomConvencions : type === 'phantom-cards' ? PhantomCards : type === 'phantom-skills' ? PhantomSkills : type === 'video-log' ? VideoLog : null;
   return Native ? <Native {...props} type={type} api={nativeApi} plugin={plugin} /> : null;
 }

@@ -36,6 +36,7 @@ import './terminal.css';
 import './chat.css';
 import { preferredCardMode } from './components/ChatCard';
 import ToolPicker from './components/ToolPicker';
+import { HUBS, HUB_ORDER, resolveHub } from './hooks/hubs.mjs';
 import SidebarPanels from './components/SidebarPanels';
 import './sidebar.css';
 import './shell.css';
@@ -48,15 +49,20 @@ const TYPES = [
   // [type, name, icon, description, launcher group]
   ['terminal', 'Terminal', TerminalSquare, 'Una sesión real en esta carpeta', 'space'], ['browser', 'Navegador', Globe, 'Una página junto al trabajo', 'space'], ['note', 'Nota', StickyNote, 'Contexto que permanece', 'space'],
   ['zone', 'Zona', Frame, 'Área con nombre que agrupa paneles', 'space'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito', 'space'],
-  ['tasks', 'Tareas', ListChecks, 'Borradores, checklists y Phantom', 'project'], ['context', 'Contexto', FileText, 'Archivos, memorias y skills', 'project'], ['repo', 'Repositorio', GitBranch, 'Grafo, worktrees, cambios, editor e integraciones en una vista', 'project'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees', 'project'], ['branches', 'Ramas', GitBranch, 'Todas las ramas y worktrees: guardar, integrar y limpiar', 'project'], ['incorporaciones', 'Incorporaciones', GitMerge, 'Qué se incorpora, en qué orden y qué se planea', 'project'], ['services', 'Servicios', Server, 'Sitios y procesos del proyecto', 'project'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta', 'project'],
-  ['review', 'Revisión de video', Film, 'Frames, zonas y comentarios del taller de videos', 'project'],
-  ['workflows', 'Workflows', Workflow, 'Secuencias de trabajo reutilizables', 'automation'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales', 'automation'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente', 'automation'],
+  ['tasks', 'Trabajo', ListChecks, HUBS.tasks.hint, 'project'], ['context', 'Contexto', FileText, HUBS.context.hint, 'project'], ['repo', 'Git', GitBranch, HUBS.repo.hint, 'project'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees', 'project'], ['branches', 'Ramas', GitBranch, 'Todas las ramas y worktrees: guardar, integrar y limpiar', 'project'], ['incorporaciones', 'Incorporaciones', GitMerge, 'Qué se incorpora, en qué orden y qué se planea', 'project'], ['services', 'Servicios', Server, HUBS.services.hint, 'project'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta', 'project'],
+  ['review', 'Revisión de video', Film, 'Comenta cuadros de tus renders', 'project'],
+  ['workflows', 'Automatizar', Workflow, HUBS.workflows.hint, 'project'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales', 'automation'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente', 'automation'],
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales', 'phantom'],
   ['skills-catalog', 'Skills', PANEL_ICONS['phantom-skills'], 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],
   ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto', 'phantom'],
-  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, PANEL_ICONS[panel.nodeType] || Layers, panel.pluginId === 'convencions' ? 'Base versionada e integración explícita · lectura MCP pendiente' : panel.pluginId === 'video-log' ? 'Aprendizajes, evidencia y contexto de tu bitácora local' : `Panel nativo de ${panel.pluginId}`, 'plugins']),
+  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, PANEL_ICONS[panel.nodeType] || Layers, panel.pluginId === 'convencions' ? 'Convenciones del proyecto' : panel.pluginId === 'video-log' ? 'Lo aprendido en tus videos' : panel.name, 'plugins']),
 ].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);
 const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find(t => t[0] === id));
+// What the launchers offer: things you place on the map and the five hubs.
+// Everything a hub hosts as a tab stays a valid node type (saved canvases keep
+// rendering) but is no longer offered on its own.
+const LAUNCH_TYPES = TYPES.filter(([type]) => ['terminal', 'browser', 'note', 'zone', 'review', 'video-log'].includes(type) || HUBS[type]);
+const HUB_ACTIONS = HUB_ORDER.map(id => TYPES.find(t => t[0] === id));
 // The creation dock: one weight for every action, the icon names the panel and
 // a short word under it says it. Hints are the launcher's own descriptions.
 const DOCK_ACTIONS = QUICK_TYPES.map(([type, name, , hint]) => [type, name, hint]);
@@ -208,18 +214,21 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const onOpenPanel = useCallback(async (type, data = {}, title) => {
     const w = current.current; if (!w) { notify('Abre una carpeta para crear un panel.'); return null; }
     if (!TYPES.some(t => t[0] === type)) { notify(`Tipo de panel desconocido: ${type}`, 'error'); return null; }
+    const hub = resolveHub(type, data);
+    if (hub.tab) { data = { ...data, hubTab: hub.tab }; window.dispatchEvent(new CustomEvent('phantom:hub-tab', { detail: hub })); }
+    type = hub.type;
     setTools(false); setMenu(null); setList(false); setTray(false); setInspector(null);
     const panel = PLUGIN_PANELS.find(item => item.nodeType === type);
     if (panel) data = { ...data, pluginId: panel.pluginId, panelId: panel.id };
-    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (type === 'plugins' || type === 'command-center' || type === 'incorporaciones' || type === 'branches' || type === 'repo' || type === 'skills-catalog' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
+    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (HUBS[type] && !data.cardId || type === 'plugins' || type === 'command-center' || type === 'incorporaciones' || type === 'branches' || type === 'repo' || type === 'skills-catalog' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
     if (existing) { focusPanel(existing.id); return existing; }
     setBusy(type);
     let reservationId, created = false;
     try {
       const region = document.querySelector('.canvas')?.getBoundingClientRect();
       const camera = spacesRef.current.view?.camera || w.camera || { x: 64, y: 64, zoom: 1 };
-      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : type === 'terminal' ? 960 : 640;
-      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 720 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
+      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : type === 'terminal' ? 960 : HUBS[type] ? 920 : 640;
+      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 720 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : HUBS[type] ? 640 : 400;
       // Reserve before the RPC so rapid/concurrent creations cannot reuse the
       // same slot while state.get or PTY creation is still in flight.
       for (const [key, item] of placements.current) if (item.workspaceId === w.id && w.nodes?.some(n => n.id === item.nodeId)) placements.current.delete(key);
@@ -446,9 +455,6 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={!!tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><ActivityIcon size={20} /><span>{activity.needs.length ? 'Necesitan de ti' : 'Actividad del proyecto'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
       {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={id => { setSitesOpen(false); jump(id); }} onFocus={id => { setSitesOpen(false); setSidebar(false); focusPanel(id); }} onSearch={() => { setSitesOpen(false); setSidebar(false); setList(v => !v); }} onMap={() => { setSitesOpen(false); setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
       <div className="rail-bottom">
-        <button title="Sitios" aria-pressed={sitesOpen} onClick={() => { setSidebar(false); setSitesOpen(v => !v); setInspector(null); }}><SiteIcon size={20} /><span>Sitios</span></button>
-        {workspace && <button title="Centro de Plugins" onClick={() => { setSidebar(false); onOpenPanel('plugins'); }}><PluginsIcon size={20} /><span>Centro de Plugins</span></button>}
-        <button title="Comandos · Ctrl K" onClick={() => { setSidebar(false); setPalette(true); }}><CommandsIcon size={20} /><span>Comandos</span><kbd>Ctrl K</kbd></button>
         <VoiceLauncher disabled={!workspace || connection.status !== 'connected'} />
         <div className="rail-system"><span className={`host-indicator ${connection.status}`} title={connection.message || connectionLabel} role="status"><i />{connectionLabel}</span><button className={`icon-button ${inspector === 'appearance' ? 'active' : ''}`} title="Personalizar espacio" aria-label="Personalizar espacio" onClick={() => { setSidebar(false); setInspector(inspector === 'appearance' ? null : 'appearance'); }}><Palette size={15} /></button><button className={`icon-button ${inspector === 'settings' ? 'active' : ''}`} title="Configuración" aria-label="Configuración" onClick={() => { setSidebar(false); setInspector(inspector === 'settings' ? null : 'settings'); }}><Settings2 size={15} /></button></div>
       </div>
@@ -467,12 +473,12 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
           {workspace && <div key="create-dock" className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} />
-            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" /><button className={`dock-action dock-more ${tools ? 'active' : ''}`} title="Tareas, Git, servicios, Docker y más" onClick={() => { setTools(v => !v); setTray(false); }} aria-expanded={tools} aria-haspopup="dialog"><LayoutGrid size={18} aria-hidden="true" /><span>Herramientas</span></button></div>
+            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" />{HUB_ACTIONS.map(([type, name, Icon, hint]) => <button key={type} className="dock-action dock-hub" data-hub={type} disabled={!!busy} title={hint} onClick={() => onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>)}</div>
           </div>}
           {workspace && !focused && <button key="panel-index-button" className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
           {selected.length > 1 && !focused && <button key="zone-selection" className="zone-selection button" onClick={zoneFromSelection}><Frame size={15} /> Crear zona</button>}
           {selected.length > 1 && !focused && <button key="group-selection" className="group-selection button" onClick={groupSelection}><Target size={15} /> Agrupar en misión</button>}
-          {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker types={TYPES} disabled={!!busy} onPick={onOpenPanel} onClose={() => setTools(false)} /></>}
+          {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker types={LAUNCH_TYPES} disabled={!!busy} onPick={onOpenPanel} onClose={() => setTools(false)} /></>}
           {list && <div className="panel-index"><div className="popover-heading"><strong>Paneles del proyecto</strong><button className="icon-button" aria-label="Cerrar lista" onClick={() => setList(false)}><X size={15} /></button></div><label className="index-search"><Search size={15} /><input autoFocus aria-label="Buscar panel por nombre, tipo o misión" placeholder="Buscar nombre, tipo o misión…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="panel-index-items">{filteredNodes.map(n => <div className="index-item" key={n.id}><button onClick={() => jump(n.id)}><span className="index-type">{label(n.type)}{n.data?.hidden ? ' · Vista oculta · clic para recuperar' : ''}</span><strong>{n.title}</strong>{n.groupId && <small>{workspace.missions?.find(m => m.id === n.groupId)?.title}</small>}</button><button className="icon-button" title="Enfocar" aria-label={`Enfocar ${n.title}`} onClick={() => { focusPanel(n.id); setList(false); }}><ExternalLink size={14} /></button></div>)}{!filteredNodes.length && <EmptyState className="small-empty" size="compact" description={query ? 'No hay paneles con ese nombre, tipo o misión.' : 'Aún no hay paneles. Crea uno desde la barra inferior.'} />}</div><div className="index-footer"><button onClick={() => { setFocused(null); setFitRequest(n => n + 1); setList(false); }}>Ver todo el mapa</button><kbd>Ctrl ⇧ F</kbd></div></div>}
           </div>
           {sitesOpen && <GlobalSites key="global-sites" api={api} onClose={closeSites} />}
