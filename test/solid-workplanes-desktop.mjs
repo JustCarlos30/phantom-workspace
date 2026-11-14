@@ -11,13 +11,66 @@ await mkdir('/tmp/opencode', { recursive: true });
 const evidence = await mkdtemp('/tmp/opencode/solid-workplanes-');
 const temp = await mkdtemp('/tmp/phantom-solid-');
 const profile = path.join(temp, 'profile');
-const env = { ...process.env, PHANTOM_WORKSPACE_HOME: profile, PHANTOM_NODE_BINARY: process.execPath, SHELL: '/bin/sh' };
-delete env.ELECTRON_RUN_AS_NODE;
-delete env.PHANTOM_RENDERER_URL;
+const env = { ...process.env };
+// The controller can run inside Phantom: never reuse its host, capabilities,
+// shims, renderer, profile or runtime configuration in this fixture.
+for (const key of Object.keys(env)) {
+  if (key.startsWith('PHANTOM_') || ['ELECTRON_RUN_AS_NODE', 'NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'ENV'].includes(key)) delete env[key];
+}
+Object.assign(env, {
+  PHANTOM_WORKSPACE_HOME: profile, PHANTOM_NODE_BINARY: process.execPath,
+  HOME: temp, XDG_CONFIG_HOME: path.join(temp, 'config'),
+  XDG_DATA_HOME: path.join(temp, 'data'), XDG_STATE_HOME: path.join(temp, 'state'),
+  XDG_CACHE_HOME: path.join(temp, 'cache'), SHELL: '/bin/sh',
+});
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const captures = [], errors = [];
 let app, child, page, host;
+let requestedSize;
 const invoke = (method, payload = {}) => page.evaluate(([m, p]) => window.phantom.invoke(m, p), [method, payload]);
+const windowGeometry = async () => {
+  const native = await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    return { content: win.getContentSize(), outer: win.getBounds(), zoom: win.webContents.getZoomFactor() };
+  });
+  const viewport = await page.evaluate(() => [innerWidth, innerHeight]);
+  return { requested: requestedSize, ...native, viewport,
+    expectedViewport: requestedSize?.map(size => Math.round(size / native.zoom)) };
+};
+const sizeWindow = async (width, height) => {
+  requestedSize = [width, height];
+  await app.evaluate(({ BrowserWindow }, [width, height]) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    win.show(); win.unmaximize(); win.setResizable(true);
+    const [outerWidth, outerHeight] = win.getSize();
+    const [contentWidth, contentHeight] = win.getContentSize();
+    const outer = [width + outerWidth - contentWidth, height + outerHeight - contentHeight];
+    // Lock measured outer constraints so a smaller controller desktop cannot
+    // clamp the requested native content area to the WM work area.
+    win.setMaximumSize(10000, 10000);
+    win.setMinimumSize(...outer);
+    win.setMaximumSize(...outer);
+    win.setContentSize(width, height);
+  }, requestedSize);
+  const deadline = Date.now() + 5000;
+  let geometry;
+  do {
+    geometry = await windowGeometry();
+    // Chromium exposes integer CSS viewport dimensions after native zoom;
+    // native/compositor quantization need not match Math.round (observed:
+    // 1100 / 1.15 = 956.5217..., innerWidth = 956). Require the exact native
+    // content size and one of the two adjacent CSS integers, not an assumed
+    // rounding direction. This does not relax workplane containment checks.
+    if (Number.isFinite(geometry.zoom) && geometry.zoom > 0
+      && geometry.content.every((size, i) => size === requestedSize[i])
+      && geometry.viewport.every((size, i) => {
+        const cssSize = requestedSize[i] / geometry.zoom;
+        return size === Math.floor(cssSize) || size === Math.ceil(cssSize);
+      })) return;
+    await delay(50);
+  } while (Date.now() < deadline);
+  assert.fail(`Window geometry did not settle within 5000ms: ${JSON.stringify(geometry)}`);
+};
 const shot = async name => {
   const file = path.join(evidence, `${name}.png`);
   await page.screenshot({ path: file }); captures.push(file);
@@ -36,11 +89,60 @@ const exposed = async locator => {
 const materials = async () => {
   const result = await page.evaluate(() => {
     const bad = [], reading = [];
+    let focusGeometry;
     if (document.querySelector('.app-shell.studio-focused')) {
-      const region = document.querySelector('.canvas-region').getBoundingClientRect();
-      const panel = document.querySelector('.canvas-node.focused').getBoundingClientRect();
-      if (region.left < 0 || region.right > innerWidth || region.top < 0 || region.bottom > innerHeight) bad.push('focused region outside viewport');
+      const regionElement = document.querySelector('.canvas-region');
+      const panelElement = document.querySelector('.canvas-node.focused');
+      const region = regionElement.getBoundingClientRect();
+      const panel = panelElement.getBoundingClientRect();
+      const vv = window.visualViewport;
+      // At native 1520x980 / zoom 1.15, inner/client dimensions round to
+      // 1322x852 while visualViewport is 1321.7391357421875x852.1739501953125.
+      // The region bottom equals the latter exactly; its right differs by
+      // only 0.000091552734375 CSS px (rect accumulation at native zoom).
+      // Compare to the actual visible bounds, allowing only floating-point
+      // noise, rather than accepting an integer-pixel overflow allowance.
+      const viewport = { left: vv?.offsetLeft ?? 0, top: vv?.offsetTop ?? 0,
+        right: (vv?.offsetLeft ?? 0) + (vv?.width ?? innerWidth),
+        bottom: (vv?.offsetTop ?? 0) + (vv?.height ?? innerHeight) };
+      const rectEpsilon = .001;
+      if (region.left < viewport.left - rectEpsilon || region.right > viewport.right + rectEpsilon
+        || region.top < viewport.top - rectEpsilon || region.bottom > viewport.bottom + rectEpsilon) bad.push('focused region outside viewport');
       if (panel.left < region.left || panel.right > region.right || panel.top < region.top || panel.bottom > region.bottom) bad.push('focused workplane outside region');
+      if (bad.length) {
+        const measure = el => {
+          if (!el) return null;
+          const style = getComputedStyle(el);
+          return {
+            tag: el.tagName, className: el.className,
+            rect: el.getBoundingClientRect().toJSON(),
+            client: [el.clientWidth, el.clientHeight],
+            scroll: [el.scrollWidth, el.scrollHeight, el.scrollLeft, el.scrollTop],
+            offsetParent: el.offsetParent?.className || el.offsetParent?.tagName || null,
+            style: Object.fromEntries([
+              'position', 'display', 'box-sizing', 'width', 'height', 'min-width', 'max-width',
+              'min-height', 'max-height', 'left', 'right', 'top', 'bottom',
+              'margin-left', 'margin-right', 'padding-left', 'padding-right',
+              'border-left-width', 'border-right-width', 'overflow-x', 'overflow-y',
+              'flex', 'flex-basis', 'align-self', 'transform', 'translate', 'scale',
+              'zoom', 'contain', 'transition-property', 'transition-duration',
+              '--gutter', '--rail-width', '--inspector-width',
+            ].map(key => [key, style.getPropertyValue(key)])),
+          };
+        };
+        const ancestors = [];
+        for (let el = panelElement; el; el = el.parentElement) ancestors.push(measure(el));
+        focusGeometry = {
+          viewport: { inner: [innerWidth, innerHeight], client: [document.documentElement.clientWidth, document.documentElement.clientHeight],
+            devicePixelRatio, visual: vv ? { width: vv.width, height: vv.height, offsetLeft: vv.offsetLeft, offsetTop: vv.offsetTop, scale: vv.scale } : null },
+          region: measure(regionElement), stage: measure(document.querySelector('.canvas-stage')),
+          panel: measure(panelElement), rail: measure(document.querySelector('.project-rail')),
+          inspector: measure(document.querySelector('.inspector-host')), ancestors,
+          outsideViewport: { left: -region.left, right: region.right - innerWidth, top: -region.top, bottom: region.bottom - innerHeight },
+          outsideVisualViewport: { left: viewport.left - region.left, right: region.right - viewport.right,
+            top: viewport.top - region.top, bottom: region.bottom - viewport.bottom },
+        };
+      }
     }
     const alpha = color => {
       const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
@@ -76,9 +178,9 @@ const materials = async () => {
       const s = getComputedStyle(el);
       if (!s.backdropFilter.includes('blur(') || alpha(s.backgroundColor) === 255) bad.push(`chrome lost glass ${el.className}`);
     }
-    return { bad, reading };
+    return { bad, reading, focusGeometry };
   });
-  assert.deepEqual(result.bad, []);
+  assert.deepEqual(result.bad, [], `Workplane materials/containment: ${JSON.stringify(result.focusGeometry ?? null)}`);
   return result.reading;
 };
 try {
@@ -86,7 +188,9 @@ try {
   child = app.process(); page = await app.firstWindow(); page.setDefaultTimeout(5000);
   page.on('pageerror', error => errors.push(error.message));
   await page.locator('.app-shell').waitFor();
-  host = (await invoke('system.info')).pid;
+  const system = await invoke('system.info');
+  assert.equal(system.dataDir, profile, 'host uses the private fixture profile');
+  host = system.pid;
   const project = path.join(temp, 'SYNTHETIC-solid'); await mkdir(project);
   const workspace = await invoke('workspace.open', { path: project });
   const nodes = [], sessions = [];
@@ -158,8 +262,7 @@ try {
     await settled();
   };
   for (const [width, height] of [[1520, 980], [1100, 760]]) {
-    await app.evaluate(({ BrowserWindow }, size) => { const win = BrowserWindow.getAllWindows()[0]; win.setMinimumSize(580, 500); win.setContentSize(...size); }, [width, height]);
-    await page.waitForFunction(size => innerWidth === size[0] && innerHeight === size[1], [width, height]);
+    await sizeWindow(width, height);
     await map();
     assert.equal(await page.locator('.canvas-node').count(), 4);
     const before = await materials(); await shot(`${width}-map-rest`);
@@ -193,7 +296,8 @@ try {
 } catch (error) {
   const failure = path.join(evidence, 'failure.png');
   await page?.screenshot({ path: failure }).then(() => captures.push(failure)).catch(() => {});
-  console.error(JSON.stringify({ error: error.stack, captures, errors })); process.exitCode = 1;
+  const geometry = app && page ? await windowGeometry().catch(() => null) : null;
+  console.error(JSON.stringify({ error: error.stack, geometry, captures, errors })); process.exitCode = 1;
 } finally {
   try {
     if (host && (await readFile(`/proc/${host}/cmdline`, 'utf8').catch(() => '')).includes(profile)) {
