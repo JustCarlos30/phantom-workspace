@@ -198,6 +198,9 @@ export class Merges {
       assert(!await git(session.cwd, ['status', '--porcelain']), 'Hay cambios sin commitear en este worktree. Haz commit (o descártalos) antes de solicitar la incorporación.');
       const headOid = await git(session.cwd, ['rev-parse', '--verify', 'HEAD^{commit}']);
       assert(Number(await git(base.source, ['rev-list', '--count', `${base.oid}..${headOid}`])) > 0, `Esta rama no tiene commits nuevos respecto a ${base.branch}.`);
+      // A request must already contain the current base: the worker pulls it in and resolves here, never the orchestrator.
+      const upToDate = await git(base.source, ['merge-base', '--is-ancestor', base.oid, headOid]).then(() => true, () => false);
+      assert(upToDate, `Esta rama no incluye lo último de ${base.branch}. Ejecuta \`git merge ${base.branch}\` en este worktree, resuelve, vuelve a pasar las comprobaciones y solicita de nuevo.`);
       return this.change(w.id, (integration, current) => {
         let item = integration.queue.find(item => item.nodeId === node.id && OPEN.includes(item.status));
         assert(item?.status !== 'merging', 'Esta solicitud se está incorporando ahora mismo.');

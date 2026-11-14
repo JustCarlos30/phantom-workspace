@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, open, readFile, rename, stat, utimes, writeFile, symlin
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { killElectronGroup } from './support/electron-process.mjs';
 import {
   authorizedPath, browserNode, browserURL, clampBounds, contentSecurityPolicy, createReviewMedia,
   isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds, validateCloseReady, validateInvocation, validateJSON,
@@ -338,6 +339,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
       } catch { process.kill('SIGKILL'); }
       await exited;
       clearTimeout(cleanupTimer);
+      killElectronGroup(process);
     }
     const { createConnection } = await import('node:net');
     await new Promise(resolve => {
@@ -468,7 +470,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
   // Playwright's main-process inspector can hold the fixture process after quit.
   // The window has really closed; release only this isolated test process.
   let fixtureExit = new Promise(resolve => electron.process().once('exit', resolve));
-  electron.process().kill('SIGKILL');
+  killElectronGroup(electron.process());
   await fixtureExit;
   electron = null;
   const saved = JSON.parse(await readFile(path.join(base, 'state', 'state.json'), 'utf8'));
@@ -502,7 +504,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
   catch (error) { assert.match(error.message, /Target page, context or browser has been closed/); }
   await stopped;
   fixtureExit = new Promise(resolve => electron.process().once('exit', resolve));
-  electron.process().kill('SIGKILL');
+  killElectronGroup(electron.process());
   await fixtureExit;
   electron = null;
   const stoppedState = JSON.parse(await readFile(path.join(base, 'state', 'state.json'), 'utf8'));
@@ -552,7 +554,7 @@ test('native Electron exits without an inspector only after the UI durable close
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => {
     release?.();
-    if (child?.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    killElectronGroup(child);
     await new Promise(resolve => {
       const socket = createConnection(path.join(stateDir, 'host.sock'));
       const timer = setTimeout(() => { socket.destroy(); resolve(); }, 1000);
