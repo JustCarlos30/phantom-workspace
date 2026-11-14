@@ -16,6 +16,7 @@ import { PANEL_ICONS } from './PanelIcons';
 import PixelField from './PixelField';
 import { pulseState, PIXEL_KIND } from '../hooks/terminalBorderState.mjs';
 import { PhantomGlyph } from './Glyphs';
+import GengarMascot from './GengarMascot.jsx';
 import ReferencePanelContent, { CommentLayer } from './References';
 import { INLINE_LIMIT, readTransfer, toBase64, visibleComments } from '../hooks/references.mjs';
 import { fitCapture } from '../hooks/pageCapture';
@@ -502,7 +503,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const r = panel.getBoundingClientRect(), view = stage.current.getBoundingClientRect(), a = safeArea();
       if (r.left < view.left + a.left || r.right > view.right - a.right || r.top < view.top + a.top || r.bottom > view.bottom - a.bottom) frameNode(panel.dataset.nodeId);
     }}>
-    {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={Layers} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
+    {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={<><GengarMascot /><Layers className="gengar-mascot-fallback" /></>} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
     <PixelField targets={pixelTargets} cameraRef={cameraRef} paintRef={fieldPaint} hidden={!!focused} />
     <div ref={world} className="canvas-world">
       <ReviewContext.Provider value={reviewContext}><PresenceGroup>{nodes.map(node => {

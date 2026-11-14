@@ -9,23 +9,24 @@ export function PhantomGlyph({ size = 20, ...props }) {
   return <svg width={size} height={size} {...base} {...props}><path d="M4 4l5 3h6l5-3-1 11-7 5-7-5Z" /><path d="m7.5 11 3 1.5M16.5 11l-3 1.5" /></svg>;
 }
 
-// The same mark with a mood: the one character in the app, living in the
-// activity notch. Only the eyes and the grin change, and only with real state.
-//   asleep  host disconnected          eyes shut
-//   unsure  readings stale or failing  one eye shut
-//   calm    nothing needs you          the brand mark; blinks now and then
-//   grin    something needs you        eyes lit, and it grins
-export function PhantomFace({ mood = 'calm', size = 16, ...props }) {
+// Gengar's ears, crown, slanted eyes and toothy smile share a native SVG grid.
+// ActivityNotch owns the mood; the drawing never invents activity.
+export function PhantomFace({ mood = 'calm', size = 24, ...props }) {
   const eyes = {
-    asleep: <path d="M7.5 12h3M13.5 12h3" />,
-    unsure: <path d="m7.5 11 3 1.5M13.5 12.2h3" />,
-    calm: <path d="m7.5 11 3 1.5M16.5 11l-3 1.5" />,
-    grin: <path d="M7.2 10.2l3.6 1.9-3.1.9ZM16.8 10.2l-3.6 1.9 3.1.9Z" fill="currentColor" />,
+    asleep: <path d="m5.5 12 4 1m5 0 4-1" />,
+    unsure: <><path d="m5 10 5.5 2.5L6 14Z" fill="currentColor" /><path d="m14 13 4.5-.5" /></>,
+    calm: <><path d="m5 10.5 5.5 2L6 14Zm14 0-5.5 2L18 14Z" fill="currentColor" /><path className="phantom-face-pupils" d="m7.5 12 .3 1.3m8.7-1.3-.3 1.3" /></>,
+    working: <><path d="m5 11 5.5 1.5L6 14Zm14 0-5.5 1.5L18 14Z" fill="currentColor" /><path className="phantom-face-pupils" d="M8 12v1.4m8-1.4v1.4" /></>,
+    grin: <><path d="m4.8 9.5 5.7 2.5L6 14Zm14.4 0L13.5 12l4.5 2Z" fill="currentColor" /><path className="phantom-face-pupils" d="M7.5 11.5V13m9-1.5V13" /></>,
   }[mood] || null;
-  return <svg width={size} height={size} {...base} className={`phantom-face is-${mood}`} {...props}>
-    <path d="M4 4l5 3h6l5-3-1 11-7 5-7-5Z" />
+  return <svg width={size} height={size} {...base} focusable="false" strokeWidth=".85" strokeLinejoin="miter" className={`phantom-face is-${mood}`} data-mood={mood} {...props}>
+    <path className="phantom-face-shell" d="M3.5 10 2 2.5l5.5 4L9 5l2 1 1-3 2 3 2-1 1 1.5 5-4-1.5 7.5 2 3-2 1 .5 2-2 1.5C17 22 7 22 5 17.5L2.5 16l.5-2-2-1Z" />
+    <path className="phantom-face-ear" d="m3.5 5 1 4 2-1.5Zm17 0-1 4-2-1.5Z" fill="var(--gengar-outline, #34253f)" stroke="none" />
     <g className="phantom-face-eyes">{eyes}</g>
-    {mood === 'grin' && <path className="phantom-face-grin" d="M9 15.4c1.9 1.1 4.1 1.1 6 0" />}
+    {mood === 'grin' && <path className="phantom-face-brow" d="m5 8 5 2m4 0 5-2" fill="none" />}
+    {mood === 'asleep' || mood === 'unsure'
+      ? <path d={mood === 'asleep' ? 'M8 17h8' : 'm7 17 5-.5 5 1'} />
+      : <><path className="phantom-face-grin" d="M5.5 14.8Q12 18 18.5 14.8Q17 20 12 20T5.5 14.8Z" fill="var(--gengar-tooth, #d9cfe3)" stroke="var(--gengar-outline, #34253f)" /><path d="m9 16 .5 3.5M15 16l-.5 3.5M12 16.7V20" stroke="var(--gengar-outline, #34253f)" /></>}
   </svg>;
 }
 

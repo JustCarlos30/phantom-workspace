@@ -1017,15 +1017,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .phantom-face-eyes { transform-box: fill-box; transform-origin: center; }
 .phantom-face.is-asleep { opacity: .55; }
 .phantom-face.is-grin { color: var(--attention); }
-.phantom-face-grin { stroke-dasharray: 7; }
-@media (prefers-reduced-motion: no-preference) {
-  .phantom-face.is-calm .phantom-face-eyes { animation: face-blink 7s linear infinite; }
-  .phantom-face.is-grin .phantom-face-eyes { animation: face-glow 2.4s var(--ease-out) infinite; }
-  .phantom-face.is-grin .phantom-face-grin { animation: face-grin 420ms var(--ease-out) both; }
-}
-@keyframes face-blink { 0%, 95.5%, 100% { transform: scaleY(1); } 97.5% { transform: scaleY(.12); } }
-@keyframes face-glow { 0% { opacity: 1; } 55% { opacity: .5; } 100% { opacity: 1; } }
-@keyframes face-grin { from { stroke-dashoffset: 7; } }
+.phantom-face.is-working { color: var(--working); }
+.phantom-face.is-working .phantom-face-shell { stroke: var(--working); }
+/* Expressions are still: source changes, never a timer, drive the face.
+   This also keeps concentration and reduced-motion equally quiet. */
 /* The dock is a little taller with labels; what opens above it clears it. */
 .activity-tray, .tool-picker, .zone-selection, .group-selection { bottom: calc(var(--gutter) + 112px); }
 .tool-picker { max-height: calc(100% - 184px); }
