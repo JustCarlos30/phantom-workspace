@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // The controller runs this file against the production build. All fixtures and
 // captures are temporary; no application profile or project files are reused.
@@ -255,7 +256,7 @@ try {
       }
     }
     if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
-    if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+    killElectronGroup(appProcess);
   } finally {
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
     await detector();

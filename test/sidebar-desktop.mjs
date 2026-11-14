@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await fs.mkdtemp('/tmp/opencode/phantom-sidebar-');
@@ -76,6 +77,6 @@ try {
   }
   console.log(JSON.stringify({ evidence: temp, errors, baseline: !!process.env.SIDEBAR_BASELINE }));
 } finally {
-  await app.close();
+  try { await app.close(); } finally { killElectronGroup(app.process()); }
   if (host) { try { process.kill(host, 'SIGTERM'); } catch {} }
 }

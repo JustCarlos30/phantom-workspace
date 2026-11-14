@@ -437,35 +437,44 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .zone-selection:hover, .group-selection:hover { background: var(--surface-2); border-color: var(--hairline); }
 .zone-selection > svg, .group-selection > svg { color: var(--accent); }
 
-/* ---------- Living borders: pulse only when the state is real ----------
-   Colour never paints the box: state lives in the edge, the header pill and
-   the wave field outside the panel. Working breathes at the inner
-   perimeter; attention swells and settles on the field's 2.4 s bar, in
-   step with each wave it sends outward; failure flashes softly, then holds.
-   All motion is continuous (eased), never stepped. */
+/* ---------- Living borders: a bottom-edge activity glint ----------
+   The ordinary border and selection outline keep their own meaning.
+   A 0.6 s glint opens from 35% to 100% with cubic easeOut, clipped by
+   the panel radius. Its sharp stroke thins from 1.25 to 0.6 px over a
+   3 px, 30% glow. Alpha = .85 * smoothstep(u/.15) * (1-u)^2.
+   Working repeats on a 2.4 s bar; attention stops after 30 s. Error
+   flashes three times then stays dim; turn/success flash once and vanish.
+   Registered progress interpolates continuously without a separate clock. */
+@property --filo-u { syntax: '<number>'; inherits: false; initial-value: 0; }
 .canvas-node::after {
-  --edge-w: 1px;
-  content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none; border-radius: inherit; opacity: 0;
-  box-shadow: inset 0 0 0 var(--edge-w) var(--pulse, transparent);
+  --filo-rest: calc(1 - var(--filo-u));
+  --filo-rise: clamp(0, calc(var(--filo-u) / .15), 1);
+  --filo-width: calc((1 - .65 * var(--filo-rest) * var(--filo-rest) * var(--filo-rest)) * 100%);
+  content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none; border-radius: inherit;
+  opacity: calc(.85 * var(--filo-rise) * var(--filo-rise) * (3 - 2 * var(--filo-rise)) * var(--filo-rest) * var(--filo-rest));
+  background-image: linear-gradient(to right, transparent, var(--pulse, transparent), transparent),
+    linear-gradient(to right, transparent, color-mix(in srgb, var(--pulse, transparent) 30%, transparent), transparent);
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: var(--filo-width) calc(1.25px - .65px * var(--filo-u)), var(--filo-width) 3px;
 }
 .canvas-node { transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
-.canvas-node.pulse-working { --pulse: var(--working); border-color: color-mix(in srgb, var(--working) 30%, var(--hairline)); }
-.canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); border-color: color-mix(in srgb, var(--attention) 70%, var(--hairline)); }
-.canvas-node.pulse-error { --pulse: var(--danger); border-color: var(--danger); }
-.canvas-node.pulse-success { --pulse: var(--success); border-color: var(--success); }
-.canvas-node.pulse-working::after {
-  opacity: .65;
-  animation: pulse-breathe 4.8s ease-in-out infinite;
+.canvas-node.pulse-working { --pulse: var(--working); }
+.canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); }
+.canvas-node.pulse-error { --pulse: var(--danger); }
+.canvas-node.pulse-success { --pulse: var(--success); }
+.canvas-node.pulse-working::after { animation: filo-bar 2.4s linear infinite; }
+.canvas-node.pulse-attention::after { animation: filo-bar 2.4s linear 12.5 forwards; }
+.canvas-node:is(.pulse-turn, .pulse-success)::after { animation: filo-flash .6s linear 1 forwards; }
+.canvas-node.pulse-error::after { animation: filo-flash .6s linear 3 forwards, filo-error-rest .001s linear 1.8s forwards; }
+@keyframes filo-bar {
+  0% { --filo-u: 0; }
+  25%, 100% { --filo-u: 1; }
 }
-.canvas-node.pulse-attention::after { animation: pulse-call 2.4s cubic-bezier(.22, 1, .36, 1) 12.5 forwards; }
-.canvas-node.pulse-turn::after { opacity: .55; animation: pulse-settle 1.2s cubic-bezier(.22, 1, .36, 1) 2; }
-.canvas-node.pulse-error::after { animation: pulse-flash 1s ease-in-out 3 forwards; }
-.canvas-node.pulse-success::after { opacity: .55; animation: pulse-settle 1.2s cubic-bezier(.22, 1, .36, 1) 1 forwards; }
-@keyframes pulse-breathe { 0%, 100% { opacity: .3; } 50% { opacity: .85; } }
-/* Swells at each wave's birth and eases back; after 30 s it holds, half lit. */
-@keyframes pulse-call { 0% { opacity: .35; } 12% { opacity: 1; } 100% { opacity: .35; } }
-@keyframes pulse-settle { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .55; } }
-@keyframes pulse-flash { 0%, 100% { opacity: .4; } 35% { opacity: 1; } }
+@keyframes filo-flash { from { --filo-u: 0; } to { --filo-u: 1; } }
+@keyframes filo-error-rest {
+  to { opacity: .12; background-size: 35% .6px, 35% 3px; }
+}
 /* The same signal echoes on the panel's status dot in the rail and headers. */
 .terminal-activity-status.warning i { animation: dot-call 1.4s var(--ease-out) infinite; }
 @keyframes dot-call { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 60%, transparent); } 60% { box-shadow: 0 0 0 4px transparent; } }
@@ -522,8 +531,9 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .rail-panels { margin-top: var(--s-4); }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error, .pulse-success)::after { animation: none; opacity: .8; }
-  .canvas-node.pulse-working::after { opacity: .4; }
+  .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error, .pulse-success)::after {
+    animation: none; opacity: .2; background-size: 35% .8px, 35% 3px;
+  }
   .terminal-activity-status.warning i, .zone-selection, .group-selection { animation: none; }
 }
 
@@ -1017,15 +1027,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .phantom-face-eyes { transform-box: fill-box; transform-origin: center; }
 .phantom-face.is-asleep { opacity: .55; }
 .phantom-face.is-grin { color: var(--attention); }
-.phantom-face-grin { stroke-dasharray: 7; }
-@media (prefers-reduced-motion: no-preference) {
-  .phantom-face.is-calm .phantom-face-eyes { animation: face-blink 7s linear infinite; }
-  .phantom-face.is-grin .phantom-face-eyes { animation: face-glow 2.4s var(--ease-out) infinite; }
-  .phantom-face.is-grin .phantom-face-grin { animation: face-grin 420ms var(--ease-out) both; }
-}
-@keyframes face-blink { 0%, 95.5%, 100% { transform: scaleY(1); } 97.5% { transform: scaleY(.12); } }
-@keyframes face-glow { 0% { opacity: 1; } 55% { opacity: .5; } 100% { opacity: 1; } }
-@keyframes face-grin { from { stroke-dashoffset: 7; } }
+.phantom-face.is-working { color: var(--working); }
+.phantom-face.is-working .phantom-face-shell { stroke: var(--working); }
+/* Expressions are still: source changes, never a timer, drive the face.
+   This also keeps concentration and reduced-motion equally quiet. */
 /* The dock is a little taller with labels; what opens above it clears it. */
 .activity-tray, .tool-picker, .zone-selection, .group-selection { bottom: calc(var(--gutter) + 112px); }
 .tool-picker { max-height: calc(100% - 184px); }
@@ -1177,10 +1182,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .canvas-node[data-role="orchestrator"] .node-title { display: flex; align-items: center; }
 .canvas-node[data-role="orchestrator"] .title-button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* State owns the inner edge even when selected, hovered or focused. The
-   detached solid outline above continues to mean selection, never activity. */
-.canvas .canvas-node[data-type]:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error, .pulse-success) { border-color: var(--pulse); }
-.canvas .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error, .pulse-success)::after { --edge-w: 1px; }
+/* Activity uses only the clipped bottom glint. The ordinary border and
+   detached solid selection outline retain the same styles in every state. */
 @media (prefers-reduced-transparency: reduce) {
   .canvas-region::before { display: none; }
 }

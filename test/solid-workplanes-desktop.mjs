@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Controller-owned execution. Built renderer, isolated real host and PTYs;
 // only conversation responses are synthetic, with no provider invocation.
@@ -306,7 +307,7 @@ try {
     }
   } finally {
     if (app) await Promise.race([app.close().catch(() => {}), delay(1000)]);
-    if (child?.exitCode === null && child?.signalCode === null) child.kill('SIGKILL');
+    killElectronGroup(child);
     await rm(temp, { recursive: true, force: true });
   }
 }

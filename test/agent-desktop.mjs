@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHost } from '../host/server.mjs';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const temp=await mkdtemp('/tmp/opencode/phantom-agent-desktop-');
@@ -71,4 +72,4 @@ try {
     await page.getByRole('button',{name:'Cerrar identidad',exact:true}).click();
   }
   assert.deepEqual(errors,[]);console.log('PASS reload persistence, desktop/compact rendering, no renderer errors');
-} finally {await app?.close();await host.close();await rm(temp,{recursive:true,force:true});}
+} finally {try{await app?.close();}finally{killElectronGroup(app?.process());}await host.close();await rm(temp,{recursive:true,force:true});}

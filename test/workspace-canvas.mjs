@@ -4,6 +4,7 @@ import { access, mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Dependency provisioning belongs to the controller. Avoid Electron's implicit
@@ -153,5 +154,5 @@ try {
 } finally {
   await writeFile(path.join(evidence, 'checks.json'), JSON.stringify({ checks, errors, profile: temp, recordedAt: new Date().toISOString() }, null, 2));
   await invoke('host.shutdown').catch(() => {});
-  await app.close();
+  try { await app.close(); } finally { killElectronGroup(app.process()); }
 }

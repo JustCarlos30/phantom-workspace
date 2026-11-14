@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createHost } from '../host/server.mjs';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await mkdtemp('/tmp/phantom-terminal-borders-');
@@ -33,7 +34,7 @@ const capture = async name => {
 };
 const style = panel => panel.evaluate(el => {
   const css = getComputedStyle(el), edge = getComputedStyle(el, '::after');
-  const colors = Object.fromEntries(['--success', '--danger', '--attention', '--working', '--accent'].map(token => {
+  const colors = Object.fromEntries(['--success', '--danger', '--attention', '--working', '--accent', '--hairline'].map(token => {
     // The global reduced-motion rule assigns a tiny !important transition
     // duration even to spans. Reusing a probe then samples the previous token
     // while its colour transition is pending. Resolve each token independently
@@ -51,7 +52,7 @@ const style = panel => panel.evaluate(el => {
     borderStyles: ['Top', 'Right', 'Bottom', 'Left'].map(side => css[`border${side}Style`]),
     widths: ['Top', 'Right', 'Bottom', 'Left'].map(side => css[`border${side}Width`]),
     radius: css.borderRadius, edgeRadius: edge.borderRadius, shadow: edge.boxShadow,
-    edgeWidth: edge.getPropertyValue('--edge-w').trim(), opacity: Number(edge.opacity),
+    gradient: edge.backgroundImage, backgroundSize: edge.backgroundSize, opacity: Number(edge.opacity),
     outline: css.outlineColor, outlineWidth: css.outlineWidth, outlineOffset: css.outlineOffset,
     animation: edge.animationName, iterations: edge.animationIterationCount, duration: edge.animationDuration,
     running: el.getAnimations().filter(a => a.playState === 'running').length };
@@ -60,13 +61,13 @@ const assertEdge = async (panel, fixture) => {
   // Let the actual border-color transition complete before sampling.
   await page.waitForTimeout(220);
   const css = await style(panel), color = css.colors[fixture.token];
-  assert.deepEqual(css.borders, [color, color, color, color], fixture.title);
+  assert.ok(css.borders.every(border => border !== color), `${fixture.title}: activity does not recolor the panel border`);
   assert.ok(css.widths.every(width => width === css.widths[0]), 'Continuous, uniform border');
-  assert.ok(parseFloat(css.widths[0]) > 0, 'State border has visible thickness');
-  assert.deepEqual(css.borderStyles, ['solid', 'solid', 'solid', 'solid'], 'State border is uninterrupted');
+  assert.ok(parseFloat(css.widths[0]) > 0, 'Ordinary border has visible thickness');
+  assert.deepEqual(css.borderStyles, ['solid', 'solid', 'solid', 'solid'], 'Ordinary border is uninterrupted');
   assert.equal(css.edgeRadius, css.radius, 'Pulse inherits the actual panel radius');
-  assert.equal(css.edgeWidth, '1px', 'All signals use the same inner edge width');
-  assert.ok(css.shadow.includes(color), 'Inner edge uses the semantic token');
+  assert.equal(css.shadow, 'none', 'Activity adds no inset perimeter');
+  assert.ok(css.gradient.includes('linear-gradient') && css.gradient.includes(color), 'Bottom glint uses the semantic token');
   return css;
 };
 
@@ -106,7 +107,8 @@ try {
     const css = await assertEdge(panel, fixture);
     if (['success', 'error'].includes(fixture.pulse)) {
       assert.notEqual(css.animation, 'none', 'Completion announces itself with a pulse');
-      assert.ok(parseFloat(css.duration) * Number(css.iterations) <= 3, 'Completion pulse is brief and finite');
+      assert.ok(css.duration.split(',').every(duration => parseFloat(duration) <= .6), 'Completion glints last at most 0.6 s');
+      assert.equal(css.iterations.split(',')[0].trim(), fixture.pulse === 'error' ? '3' : '1', 'Completion glints repeat only as specified');
     }
   }
   await capture('01-states');
@@ -152,12 +154,14 @@ try {
   for (const fixture of fixtures.filter(f => ['success', 'error'].includes(f.pulse))) {
     const css = await assertEdge(page.locator(`[data-node-id="${fixture.nodeId}"]`), fixture);
     assert.notEqual(css.iterations, 'infinite'); assert.equal(css.running, 0);
-    assert.ok(css.opacity > 0, 'Settled pulse keeps its inner edge');
+    assert.equal(css.opacity, fixture.pulse === 'error' ? .12 : 0, 'Only failure retains a dim bottom glint');
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const fixture of fixtures.filter(f => f.token)) {
     const css = await assertEdge(page.locator(`[data-node-id="${fixture.nodeId}"]`), fixture);
     assert.equal(css.animation, 'none'); assert.equal(css.running, 0);
+    assert.equal(css.opacity, .2, 'Reduced motion keeps a dim static bottom glint');
+    assert.equal(css.backgroundSize, '35% 0.8px, 35% 3px', 'Static glint stays in the centre of the bottom edge');
   }
   await capture('05-reduced-motion');
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();
@@ -217,6 +221,6 @@ try {
 } finally {
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
   await Promise.race([app?.close().catch(() => {}), delay(2500)]);
-  if (appProcess && appProcess.exitCode === null && appProcess.signalCode === null) appProcess.kill('SIGKILL');
+  killElectronGroup(appProcess);
   await host?.close();
 }

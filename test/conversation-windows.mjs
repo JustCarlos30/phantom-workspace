@@ -113,6 +113,7 @@ try {
   await fs.mkdir(project); await fs.writeFile(received, '');
   await fs.writeFile(fixture, `#!${process.execPath}
 import fs from 'node:fs';
+import { killElectronGroup } from './support/electron-process.mjs';
 process.stdin.setRawMode(true); process.stdin.resume();
 process.stdin.on('data', data => fs.appendFileSync(${JSON.stringify(received)}, JSON.stringify([...data]) + '\\n'));
 let seq = 0;
@@ -344,7 +345,7 @@ process.stdout.write('PTY_FIXTURE_READY\\r\\n');
       let timer;
       try { await Promise.race([app.close(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Electron cleanup timeout')), 5000); })]); }
       catch (error) { process.exitCode = 1; errors.push(error.message); console.error(error.message); }
-      finally { clearTimeout(timer); if (appProcess.exitCode === null && appProcess.signalCode === null) appProcess.kill('SIGKILL'); }
+      finally { clearTimeout(timer); killElectronGroup(appProcess); }
     }
   } finally { await host?.close(); }
   await fs.writeFile(path.join(temp, 'evidence.json'), JSON.stringify({ checks, errors, writes, temp }, null, 2));

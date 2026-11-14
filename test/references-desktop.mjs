@@ -8,6 +8,7 @@ import { mkdtemp, mkdir, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 await mkdir('/tmp/opencode', { recursive: true });
@@ -134,5 +135,5 @@ try {
     }
   }
   await Promise.race([app.close().catch(() => {}), delay(2500)]);
-  if (appProcess.exitCode === null && appProcess.signalCode === null) appProcess.kill('SIGKILL');
+  killElectronGroup(appProcess);
 }
