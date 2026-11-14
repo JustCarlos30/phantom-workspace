@@ -1,4 +1,5 @@
 import net from 'node:net';
+import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 export function invokeAgent(method, payload, socketPath, timeout=10000) {
@@ -14,6 +15,7 @@ export function invokeAgent(method, payload, socketPath, timeout=10000) {
   });
 }
 const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review] | run ID [MODELO] | runs\n'
+  +'Encargos: projects | handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)\n'
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
   +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"';
 // Incorporaciones: [payload from arguments, argument check]. Orchestrator actions carry its token.
@@ -27,9 +29,27 @@ const MERGE={
   merge:{method:'merge.run',token:true,timeout:200000,valid:rest=>rest.length===1,payload:rest=>({id:rest[0]})},
   reject:{method:'merge.reject',token:true,valid:rest=>rest.length===2,payload:rest=>({id:rest[0],reason:rest[1]})},
 };
+function handoffArguments(args) {
+  const payload={},seen=new Set();let source;
+  for(let i=0;i<args.length;i++) {
+    const arg=args[i];
+    if(arg.startsWith('--')) {
+      const key=arg.slice(2);
+      if(!['project','title','agent','file'].includes(key)||seen.has(key)||i+1>=args.length||args[i+1].startsWith('-'))throw new Error(USAGE);
+      seen.add(key);const value=args[++i];
+      if(key==='file'){if(source)throw new Error(USAGE);source={file:value};}else payload[key]=value;
+    } else {
+      if(source||(arg.startsWith('-')&&arg!=='-'))throw new Error(USAGE);
+      source=arg==='-'?{stdin:true}:{brief:arg};
+    }
+  }
+  if(!source||(payload.agent!==undefined&&!['claude','codex','opencode','none'].includes(payload.agent)))throw new Error(USAGE);
+  return {...payload,brief:source.stdin?fs.readFileSync(0,'utf8'):source.file?fs.readFileSync(source.file,'utf8'):source.brief};
+}
 export async function main(args=process.argv.slice(2), env=process.env) {
   const [action,...rest]=args,merge=Object.hasOwn(MERGE,action??'')?MERGE[action]:null;
-  if ((!merge && !['context','report','bind','run','runs'].includes(action)) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512)) || (action==='run' && (rest.length<1 || rest.length>2 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512 || (rest.length===2 && (!rest[1].trim() || /[\x00-\x1f\x7f]/.test(rest[1]) || rest[1].length>200)))) || (action==='runs' && rest.length)) throw new Error(USAGE);
+  if ((!merge && !['context','report','bind','projects','handoff','run','runs'].includes(action)) || (action==='projects'&&rest.length) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512)) || (action==='run' && (rest.length<1 || rest.length>2 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512 || (rest.length===2 && (!rest[1].trim() || /[\x00-\x1f\x7f]/.test(rest[1]) || rest[1].length>200)))) || (action==='runs' && rest.length)) throw new Error(USAGE);
+  const handoff=action==='handoff'?handoffArguments(rest):null;
   if(action==='run' || action==='runs') {
     let workspaceId=env.PHANTOM_WORKSPACE_ID;
     if(!workspaceId) {
@@ -46,6 +66,7 @@ export async function main(args=process.argv.slice(2), env=process.env) {
     return invokeAgent(merge.method,{workspaceId:env.PHANTOM_WORKSPACE_ID,token:env.PHANTOM_MERGE_TOKEN??'',...merge.payload(rest)},env.PHANTOM_WORKSPACE_SOCKET,merge.timeout);
   }
   if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+  if(handoff)return invokeAgent('terminal.agent.handoff',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...handoff},env.PHANTOM_WORKSPACE_SOCKET,60000);
   if(merge) return invokeAgent(merge.method,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...(merge.token?{token:env.PHANTOM_MERGE_TOKEN??''}:{}),...merge.payload(rest)},env.PHANTOM_WORKSPACE_SOCKET,merge.timeout);
   if(action==='bind') {
     const context=await invokeAgent('terminal.agent.context',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},env.PHANTOM_WORKSPACE_SOCKET);

@@ -35,6 +35,23 @@ Estados: `idle`, `working`, `blocked`, `review`. El reporte actualiza únicament
 
 El contexto consulta el nombre y la asignación actuales del host, sin depender de una copia antigua del nombre en el entorno. Una terminal ya abierta antes de esta versión puede recibir un vínculo manual, pero necesita una nueva sesión para heredar las variables de reporte. Una sesión finalizada o reemplazada no puede publicar nuevos reportes.
 
+## Encargar trabajo a otra terminal
+
+```sh
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" projects
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" handoff --project "Nombre del proyecto" --title "Revisar API" "Texto del encargo"
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" handoff --agent codex --file encargo.txt
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" handoff -
+```
+
+`handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)` admite exactamente una fuente; `-` lee stdin. Opciones desconocidas o repetidas dan error de uso. Timeout: 60000 ms. `projects` no recibe argumentos y lista todos los proyectos, marcando el de la sesión.
+
+Por defecto el destino es el proyecto emisor; se admite id exacto o nombre exacto sin distinguir mayúsculas. Un nombre ambiguo o inexistente devuelve los nombres disponibles. El agente por defecto es el detectado en primer plano (Claude Code, Codex u OpenCode); sin uno admitido usa `none`. Se abre un panel visible `Encargo: <título>` con una sesión nueva 120×32 y su worktree, política y entorno habituales. Para trabajo de otro proyecto o rama, usa este camino en vez de escribir fuera del propio worktree.
+
+El texto no puede quedar vacío tras trim y tiene máximo 32000 caracteres. El título es una línea sin controles, máximo 120; por defecto la primera línea no vacía del texto recortada a 60. Límite en memoria: cinco encargos por sesión emisora por hora, reservados al aceptar incluso si falla el arranque; profundidad máxima tres. Sin encargo previo, el emisor tiene profundidad cero.
+
+El arranque escribe una sola línea constante: `claude "<FIJO>"`, `codex "<FIJO>"` u `opencode --prompt "<FIJO>"`, seguida de `\r`. `none` deja la PTY viva sin escribir. La constante pide leer `context`, campo `handoff`; nunca interpola texto, títulos ni nombres en el comando. El encargo viene de otro agente, no del usuario, y no amplía mandato ni permisos. Atención del destino recibe un aviso `Encargo recibido: <título>` con clave única `handoff:<id>`, referencia a la sesión nueva y eventos `attention.new`/`state.changed` (tope 1000). Si falla crear la sesión, el panel conserva `launchState: failed`, se propaga el error y no se añade aviso.
+
 ## Persistencia y fuentes
 
 La asignación se almacena en `node.data.agent`:
@@ -52,14 +69,18 @@ Los campos son opcionales. Desvincular o cambiar la card reinicia el paso declar
 
 Las actualizaciones de presentación mediante `node.update` conservan la asignación actual, evitando que un cambio de tamaño de texto o un guardado antiguo borre un reporte reciente. El editor guarda únicamente campos modificados desde su apertura.
 
+Un panel creado por encargo guarda `data.handoff = {id,from:{workspaceId,workspaceName,nodeId,title},title,brief,agent,depth,createdAt}`. Es inmutable ante `node.update`, que lo preserva incluso al intentar borrarlo. La profundidad es la del emisor más uno. `context` expone `handoff:{id,from,title,brief,createdAt}` y añade la aclaración de origen y permisos a sus instrucciones.
+
 ## API del host
 
 - `opencode.sessions {workspaceId}` → `{available,items:[{id,title,directory,updated}],observedAt,reason?,limit?}`. Lectura del CLI local, ruta opcional en `settings.opencodePath`.
 - `terminal.agent.update {workspaceId,nodeId,patch}` → node. Campos permitidos: `name`, `cardId`, `providerSessionId`, `step`, `status`. Las nuevas asociaciones se validan contra los catálogos del proyecto.
 - `terminal.agent.context {sessionId}` → identidad/asignación vigente y estado de terminal.
 - `terminal.agent.report {sessionId,patch:{step?,status?}}` → contexto actualizado. Solo la sesión viva actual del panel puede reportar.
+- `terminal.agent.projects {sessionId}` → `[{id,name,path,current}]`. Exige una sesión existente; socket privado, no renderer.
+- `terminal.agent.handoff {sessionId,brief,title?,project?,agent?}` → `{handoffId,workspaceId,workspaceName,nodeId,sessionId,title,agent,launched}`. Solo la sesión viva actual del panel; rechaza claves desconocidas. `launched` indica que se escribió la línea fija de arranque, no que el agente terminó su trabajo. Socket privado, no renderer.
 
-Este incremento aporta identidad, vínculos, reportes y navegación. El chat de mando, el envío de instrucciones por SDK y la distribución automática de trabajo son capas posteriores.
+Los encargos abren terminales con contexto y arranque del CLI elegido; conservan el registro, alcance y permisos normales de cada agente.
 
 ## Verificación
 
