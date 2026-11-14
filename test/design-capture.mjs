@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 
 // Design review captures: production Electron + real host on an isolated
 // profile with a synthetic project. Usage: node test/design-capture.mjs <label>
@@ -24,6 +25,73 @@ Object.assign(env, {
 });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const errors = [], captures = [];
+let paintFailed = false;
+
+// Electron screenshots are non-interlaced, 8-bit RGB/RGBA PNGs. Reconstruct
+// every row before measuring the rail, including pixels outside the crop
+// that the PNG predictors depend on.
+function railLuminanceDeviation(png) {
+  if (!png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error('Invalid PNG signature');
+  let width, height, channels;
+  const chunks = [];
+  for (let offset = 8; offset < png.length;) {
+    if (offset + 12 > png.length) throw new Error('Truncated PNG chunk');
+    const length = png.readUInt32BE(offset);
+    const type = png.toString('ascii', offset + 4, offset + 8);
+    const end = offset + 8 + length;
+    if (end + 4 > png.length) throw new Error('Truncated PNG data');
+    const data = png.subarray(offset + 8, end);
+    if (type === 'IHDR') {
+      if (length !== 13 || data[8] !== 8 || ![2, 6].includes(data[9]) || data[10] !== 0 || data[11] !== 0 || data[12] !== 0) {
+        throw new Error('Expected non-interlaced 8-bit RGB/RGBA PNG');
+      }
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      channels = data[9] === 6 ? 4 : 3;
+    } else if (type === 'IDAT') chunks.push(data);
+    offset = end + 4;
+    if (type === 'IEND') break;
+  }
+  if (!width || !height || !channels || !chunks.length) throw new Error('Missing PNG image data');
+  const stride = width * channels;
+  const raw = inflateSync(Buffer.concat(chunks));
+  if (raw.length !== (stride + 1) * height) throw new Error('Unexpected PNG scanline length');
+  let previous = Buffer.alloc(stride), row = Buffer.alloc(stride);
+  let count = 0, mean = 0, squaredDeviations = 0;
+  for (let y = 0; y < height; y++) {
+    const start = y * (stride + 1);
+    const filter = raw[start];
+    if (filter > 4) throw new Error(`Unsupported PNG row filter: ${filter}`);
+    for (let x = 0; x < stride; x++) {
+      const left = x >= channels ? row[x - channels] : 0;
+      const up = previous[x];
+      const upperLeft = x >= channels ? previous[x - channels] : 0;
+      let predictor = 0;
+      if (filter === 1) predictor = left;
+      else if (filter === 2) predictor = up;
+      else if (filter === 3) predictor = Math.floor((left + up) / 2);
+      else if (filter === 4) {
+        const p = left + up - upperLeft;
+        const a = Math.abs(p - left), b = Math.abs(p - up), c = Math.abs(p - upperLeft);
+        predictor = a <= b && a <= c ? left : b <= c ? up : upperLeft;
+      }
+      row[x] = (raw[start + 1 + x] + predictor) & 255;
+    }
+    if (y >= 100 && y < Math.min(640, height)) {
+      for (let x = 30; x < Math.min(300, width); x++) {
+        const i = x * channels;
+        const luminance = 0.2126 * row[i] + 0.7152 * row[i + 1] + 0.0722 * row[i + 2];
+        const delta = luminance - mean;
+        mean += delta / ++count;
+        squaredDeviations += delta * (luminance - mean);
+      }
+    }
+    [previous, row] = [row, previous];
+  }
+  if (!count) throw new Error('Rail region is outside the image');
+  return Math.sqrt(squaredDeviations / count);
+}
+
 let app, appProcess, page, host;
 const invoke = (method, payload = {}) => page.evaluate(([m, p]) => window.phantom.invoke(m, p), [method, payload]);
 const shot = async scene => {
@@ -31,6 +99,15 @@ const shot = async scene => {
   const file = path.join(evidence, `design-${label}-${scene}.png`);
   await page.screenshot({ path: file });
   captures.push(file);
+  try {
+    const deviation = railLuminanceDeviation(await readFile(file));
+    if (!(deviation >= 8)) throw new Error(`rail luminance standard deviation ${deviation.toFixed(3)} < 8`);
+  } catch (error) {
+    paintFailed = true;
+    const message = `${scene}: ${error.message}`;
+    errors.push(message);
+    console.error(message);
+  }
 };
 
 try {
@@ -70,6 +147,7 @@ try {
   await shot('map-rest');
   const notch = page.locator('.activity-notch').first();
   if (await notch.count()) { await notch.click(); await shot('tray'); }
+  if (paintFailed) process.exitCode = 1;
   console.log(JSON.stringify({ label, captures, errors }, null, 2));
 } catch (error) {
   await page?.screenshot({ path: path.join(evidence, `design-${label}-failure.png`) }).catch(() => {});

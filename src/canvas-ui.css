@@ -17,8 +17,8 @@
   --hairline: color-mix(in srgb, #fff 8%, transparent);
   /* Quiet chrome, faint resting panels, defined lifted panels. Only real activity moves;
       shadows never animate their blur. Reading planes remain opaque. */
-  --shadow-chrome: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #05030a66, 0 3px 8px #100a188c, 0 22px 48px -22px #100a18cc, 0 0 28px -12px color-mix(in srgb, var(--accent) 26%, transparent);
-  --shadow-key: inset 0 1px 0 #ffffff2e, inset 0 -1px 0 #05030a52, 0 1px 2px #05030a66;
+  --shadow-chrome: inset 0 1px 0 #ffffff42, inset 0 0 0 1px #ffffff0d, inset 0 -1px 0 #05030a80, 0 4px 10px #08050ea6, 0 26px 54px -22px #08050ee6, 0 0 36px -10px color-mix(in srgb, var(--accent) 36%, transparent);
+  --shadow-key: inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #05030a66, 0 1px 3px #05030a8c;
   --shadow-well: inset 0 1px 2px #05030a8c, inset 0 0 0 1px #05030a33;
   --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9, 0 0 24px -10px #9563d62e;
   --shadow-float: 0 2px 6px #05030a73, 0 30px 68px -24px #05030af2, 0 0 40px -12px #a171e875;
@@ -26,11 +26,12 @@
   --shadow-workplane-rest: 0 2px 4px #05030a66, 0 10px 20px -12px #05030a99;
   --shadow-workplane-lift: 0 3px 6px #05030a73, 0 16px 28px -14px #05030ab3;
   /* Glass: chrome only. Working planes stay opaque. */
-  --glass-tint: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  --glass: color-mix(in srgb, var(--glass-tint) 80%, transparent);
+  --glass-tint: color-mix(in srgb, var(--accent) 13%, var(--surface-3));
+  --glass: color-mix(in srgb, var(--glass-tint) 78%, transparent);
   --glass-thick: color-mix(in srgb, var(--glass-tint) 90%, transparent);
-  --glass-filter: blur(40px) saturate(180%);
-  --glass-sheen: linear-gradient(180deg, #ffffff12 0%, #ffffff05 34%, transparent 62%);
+  --glass-filter: blur(40px) saturate(190%);
+  --ink-on-glass: #a5a3af;
+  --glass-sheen: linear-gradient(180deg, #ffffff1f 0%, #ffffff08 26%, transparent 58%);
   /* One slight overshoot, then a monotonic settle. */
   --ease-spring: linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1);
   --dur-spring: 420ms;
@@ -565,6 +566,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tw-inspector, .tw-tool-panel, .tw-palette, .tw-voice, .tw-button, .plugin-surface { font-family: inherit; }
 
 /* ---------- Glass islands ---------- */
+.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation, .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index, .context-menu, .toast, .activity-tray, .attention-tray, .activity-dock, .tw-palette, .tw-voice, .app-dialog { --ink-3: var(--ink-on-glass); }
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
 .context-menu, .toast, .canvas-busy, .zone-selection, .group-selection, .activity-tray, .attention-tray {
@@ -810,10 +812,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .agent-editor { background: var(--surface-2); border: 1px solid var(--hairline); }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --glass-sheen: none; }
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #8d8b96; --glass-sheen: none; }
 }
 @media (prefers-contrast: more) {
-  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --glass-sheen: none; --hairline: color-mix(in srgb, #fff 22%, transparent); }
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #8d8b96; --glass-sheen: none; --hairline: color-mix(in srgb, #fff 22%, transparent); }
 }
 
 /* Focus bar and activity pill never wrap or clip their leading icon. */
