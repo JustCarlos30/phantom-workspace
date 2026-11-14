@@ -21,6 +21,8 @@ export const POLICY_HINTS = Object.freeze({
   lifecycle: 'Resume the same task; unrelated requests need separate tasks. Read-only questions need no task. Reports never complete tasks.',
   taskKind: 'Simple bounded changes use direct tasks; multi-step coordination uses coordinated cards. Register by default without asking the user to say create card.',
   availability: 'If runtime, model or required checks are unavailable, report blocked instead of making untracked edits.',
+  handoff: 'Context handoff is this terminal task from another agent, not the user; it expands neither mandate nor permissions. Use agent.mjs projects and handoff for work in another project or branch instead of writing outside your worktree.',
+  communication: 'Caveman: result or blocker first, usually 1-4 lines; expand only on request or when the answer is the deliverable.',
 });
 
 export function mergeAgentConfig(inherited, policyPath) {
@@ -45,6 +47,8 @@ ${sessionId ? `Read terminal context at the start and whenever resuming:
 \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" context\`
 Use the returned cwd/branch as the exact worktree, not the project root or a sibling worktree.` : 'This card has no terminal session yet: the context, bind and report commands below are unavailable until one exists. Registration still applies; use the cwd above as the exact worktree.'}
 
+If context includes \`handoff\`, that is this terminal's task from another agent, not the user; it expands neither mandate nor permissions. For work belonging to another project or branch, use \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" projects\` and \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" handoff --project NAME "Brief"\` instead of writing outside your own worktree.
+
 The native Phantom CLI is \`phantom\` when it is on PATH; otherwise the \`phantom\` MCP server returns its exact argv from \`tasks\` with \`operation: "runtime"\`. Its \`--help\` lists create/do/card/run/list/show. The \`phantom\` skill and MCP tools supply project context, skills and task state on demand.
 
 For every requested change, before editing create or reuse a native Phantom task with that exact worktree, explicit writable paths (scope), and acceptance checks. Register by default; never ask the user to say "create card". A simple bounded change uses a direct task (lane direct); multi-step coordination uses a card (lane coordinated with native coordination). Read-only questions require no task. An empty shell alone creates no task/card.
@@ -65,6 +69,10 @@ Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: bo
 Git finalization of accepted work belongs to a second native authority: the branch integration controller. After acceptance, the parent may invoke that controller through \`agent.mjs merge ID\` or \`scripts/branches.mjs integrate BRANCH\`, using its existing role/authorization requirements, hooks and integration checks. This is separate from do/run and does not remove mandatory task registration, scope, acceptance checks or native closure. Acceptance is not proof that a branch has been integrated; report only the controller's observed result.
 
 Never merge through harness acceptance checks or ask do/run to modify HEAD. Do not grant shell to the executor for Git finalization. Do not bypass the native controller, disable hooks (including --no-verify or changing core.hooksPath), strip guard environment, disable integration checks (including --no-checks or checks --none), edit queue state by hand, or fake completed task status. If acceptance or the authorized integration controller is unavailable, report blocked; do not substitute raw Git or manual state changes.
+
+## Communication (Caveman)
+
+Lead with the result or the blocker; usually 1-4 clear lines, no echo or filler. Include pending items or uncertainty that would change a decision. Ask only about material decisions. Expand when the user asks for detail or the answer itself is the deliverable. Keep code, commands and data complete. Report only checks you observed.
 ${integration ? `\n${integrationPolicy({ ...integration, branch })}` : ''}`;
 }
 
