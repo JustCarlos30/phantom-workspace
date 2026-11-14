@@ -12,9 +12,16 @@ const evidence = '/tmp/opencode';
 await mkdir(evidence, { recursive: true });
 const temp = await mkdtemp(path.join(evidence, 'phantom-design-'));
 const profile = path.join(temp, 'profile');
-const env = { ...process.env, PHANTOM_WORKSPACE_HOME: profile, PHANTOM_NODE_BINARY: process.execPath, SHELL: '/bin/sh' };
-delete env.ELECTRON_RUN_AS_NODE;
-delete env.PHANTOM_RENDERER_URL;
+const env = { ...process.env };
+for (const key of Object.keys(env)) {
+  if (key.startsWith('PHANTOM_') || ['ELECTRON_RUN_AS_NODE', 'NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'ENV'].includes(key)) delete env[key];
+}
+Object.assign(env, {
+  PHANTOM_WORKSPACE_HOME: profile, PHANTOM_NODE_BINARY: process.execPath,
+  HOME: temp, XDG_CONFIG_HOME: path.join(temp, 'config'),
+  XDG_DATA_HOME: path.join(temp, 'data'), XDG_STATE_HOME: path.join(temp, 'state'),
+  XDG_CACHE_HOME: path.join(temp, 'cache'), SHELL: '/bin/sh',
+});
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const errors = [], captures = [];
 let app, appProcess, page, host;
@@ -39,7 +46,8 @@ try {
     win.setMinimumSize(580, 500);
     win.setContentSize(1520, 980);
   });
-  await page.waitForFunction(() => innerWidth === 1520);
+  const zoomFactor = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
+  await page.waitForFunction(expected => Math.abs(innerWidth - expected) <= 1, Math.round(1520 / zoomFactor));
   const project = path.join(temp, 'taller-fantasma');
   await mkdir(project);
   await invoke('workspace.open', { path: project });

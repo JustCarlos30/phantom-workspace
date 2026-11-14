@@ -71,8 +71,8 @@
 .phantom-chat .pc-agent-trigger > svg:first-child { color: var(--pc-hue); }
 .phantom-chat .pc-model > svg:first-child { display: none; }
 .phantom-chat .pc-model { padding: 0 6px; border-radius: var(--r-ctl); color: var(--muted); }
-.phantom-chat .pc-send:not(:disabled):not(.is-stop) { background: var(--accent); color: var(--primary-ink); }
-.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); }
+.phantom-chat .pc-send:not(:disabled):not(.is-stop) { background-color: var(--accent); color: var(--primary-ink); }
+.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) { background-color: color-mix(in srgb, var(--accent), white 12%); }
 .phantom-chat .pc-meta { padding: 4px 4px 0; }
 .phantom-chat .pc-meta .pc-permission { height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-ctl); font: var(--t-micro); }
 .phantom-chat .pc-meta .pc-permission > span { display: inline; }

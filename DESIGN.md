@@ -1,6 +1,6 @@
 ---
 name: Phantom Workspace
-description: Spectral night glass — plum working planes, violet penumbra and quiet activity edges over a spatial canvas.
+description: Vidrio esmerilado denso con relieve y resorte en el chrome; planos de trabajo ciruela mates y señales de actividad sobre un lienzo espacial.
 colors:
   accent: "#a78bda"
   accent-soft: "color-mix(in srgb, var(--accent) 15%, var(--surface))"
@@ -19,8 +19,9 @@ colors:
   fill: "color-mix(in srgb, #fff 5%, transparent)"
   fill-2: "color-mix(in srgb, #fff 9%, transparent)"
   fill-3: "color-mix(in srgb, #fff 14%, transparent)"
-  glass: "color-mix(in srgb, var(--surface) 64%, transparent)"
-  glass-thick: "color-mix(in srgb, var(--surface) 84%, transparent)"
+  glass-tint: "color-mix(in srgb, var(--accent) 7%, var(--surface))"
+  glass: "color-mix(in srgb, var(--glass-tint) 80%, transparent)"
+  glass-thick: "color-mix(in srgb, var(--glass-tint) 90%, transparent)"
   rail: "#141318"
   terminal-bg: "#0e0d11"
   terminal-ink: "#dedce4"
@@ -158,7 +159,7 @@ Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 
 1. **Una caja por objeto.** Solo dibuja contorno lo que se puede mover o lo que flota: panel, zona, rail, islas, dock, menús. Dentro de un objeto se separa con espacio, tipografía y un paso de tono; nunca con líneas. Como mucho un nivel de relleno interior: el control donde se escribe o se elige (campo del compositor, pista del segmentado, pozo de código o de terminal).
 2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`: sombra ciruela suave y un rastro mínimo de halo, también en menús, inspector y variantes responsive. Los demás paneles usan `--shadow-rest` con penumbra violeta estática tenue en reposo y `--shadow-float` con halo definido al seleccionar, arrastrar o enfocar. Conversaciones y terminales prevalecen como planos mates opacos: una hairline y `--shadow-workplane-rest`; selección, foco y arrastre usan `--shadow-workplane-lift`, sin halo acumulativo. Selección usa un contorno sólido exterior de 2 px separado 3 px. Trabajando respira el perímetro interior violeta, independiente del acento del proyecto. Lo que te necesita emite: borde ámbar y ondas en el lienzo. Un borde de color siempre significa estado o selección, nunca categoría.
-3. **Lo fantasma es comportamiento y material.** Las superficies se materializan y se dispersan, no se deslizan. Las sombras son ciruela, no negras. La marca Phantom vive en el notch de actividad. El arte Gengar es una capa ambiental opcional, independiente de la marca; no aparece en estados vacíos.
+3. **Lo fantasma es comportamiento y material.** El chrome es vidrio esmerilado denso: detrás solo pasan color y luz, sin detalle ni refracción. Filo de luz, sombra interior y contacto dan relieve; el tinte complementa el acento del proyecto. Las superficies se materializan y se dispersan desde su origen, no se deslizan; los controles recuperan su escala con un resorte leve. Solo acciones primarias, indicadores segmentados y controles activos del dock/navegación tienen relieve elevado; las pistas y su pulsación usan pozo. Conversaciones y terminales siguen siendo planos mates opacos, sin brillo, degradado ni backdrop-filter. Las sombras son ciruela, no negras. La marca Phantom vive en el notch de actividad. El arte Gengar es una capa ambiental opcional, independiente de la marca; no aparece en estados vacíos.
 
 ### Tokens (`src/canvas-ui.css`, bloque `:root`)
 
@@ -170,7 +171,15 @@ Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 | `--r-mark` | 4 px | Marcas de menos de 20 px: kbd, casilla, scrollbar. No es una superficie |
 | `--r-pill` | 999 px | Chips y estados. No es una superficie |
 | `--hairline` | blanco al 8 % | El único borde. Lo dibuja el objeto, una vez |
-| `--shadow-chrome` | ciruela suave + halo mínimo `0 0 20px -12px #9563d61a` | Barras, rail, dock, navegación, minimapa, inspector, menús y overlays; sin halo de selección |
+| `--shadow-chrome` | `inset 0 1px 0 #ffffff24, inset 0 -1px 0 #05030a66, 0 3px 8px #100a188c, 0 22px 48px -22px #100a18cc, 0 0 28px -12px color-mix(in srgb, var(--accent) 26%, transparent)` | Filo especular, sombra interior, contacto y caída ciruela; halo del acento en el chrome |
+| `--shadow-key` | `inset 0 1px 0 #ffffff2e, inset 0 -1px 0 #05030a52, 0 1px 2px #05030a66` | Acción primaria, indicador segmentado y botón activo del dock/navegación |
+| `--shadow-well` | `inset 0 1px 2px #05030a8c, inset 0 0 0 1px #05030a33` | Pistas segmentadas y pulsación de los controles elevados |
+| `--glass-tint` | `color-mix(in srgb, var(--accent) 7%, var(--surface))` | Tinte compartido del proyecto |
+| `--glass` / `--glass-thick` | tinte al 80 % / 90 % sobre transparente | Islas / chrome de lectura, con alpha real |
+| `--glass-filter` | `blur(40px) saturate(180%)` | Elimina el detalle detrás del chrome |
+| `--glass-sheen` | `linear-gradient(180deg, #ffffff12 0%, #ffffff05 34%, transparent 62%)` | Brillo de superficie del vidrio, separado de su background-color |
+| `--ease-spring` | `linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1)` | Un solo rebote de 5 % y asentamiento |
+| `--dur-spring` | 420 ms | Recuperación de controles, segmentado y materialización del chrome |
 | `--shadow-rest` | ciruela corta + halo tenue `0 0 24px -10px #9563d62e` | Panel apoyado en el lienzo; conversaciones y terminales lo resuelven localmente a `--shadow-workplane-rest` |
 | `--shadow-float` | ciruela larga + halo `0 0 40px -12px #a171e875` | Panel seleccionado, arrastrado o en foco; conversaciones y terminales lo resuelven localmente a `--shadow-workplane-lift` |
 | `--shadow-workplane-rest` | contacto 2/4 px + caída 10/20/−12 px | Conversaciones y terminales mates en reposo, sin halo |
@@ -178,7 +187,7 @@ Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 | `--working` | `#bb9af7` | Perímetro interior de 2 px, pulso de opacidad .3–.85 cada 4,8 s |
 | `--attention` | `#e9b46a` | Permiso/pregunta pendientes, turno que necesita al usuario |
 
-`test/design-tokens.test.mjs` falla si: un `border-radius` usa otro valor (se admiten `0`, `50%`, `em` y los ajustes concéntricos `calc(token - 1px)`); un `box-shadow` no usa `--shadow-chrome`, `--shadow-rest`, `--shadow-float`, los tokens de trabajo mate (`--shadow-workplane-rest`, `--shadow-workplane-lift`) o un anillo de estado (desplazamiento y desenfoque cero); una declaración de `--shadow-float` en `src/canvas-ui.css` o `src/studio.css` se aplica fuera de los paneles `.canvas-node`, incluidas reglas responsive; reaparece un token retirado (`--line`, `--hairline-strong`, `--elev-*`, `--r-xs…xl`, `--object-*`, `--shadow-popover`, etc.); o una hoja supera su presupuesto de bordes en `test/design-budget.json`. El presupuesto solo baja: al quitar bordes, se reduce el número en el mismo cambio.
+`test/design-tokens.test.mjs` falla si: un `border-radius` usa otro valor (se admiten `0`, `50%`, `em` y los ajustes concéntricos `calc(token - 1px)`); un `box-shadow` no usa `--shadow-chrome`, `--shadow-rest`, `--shadow-float`, `--shadow-key`, `--shadow-well`, los tokens de trabajo mate (`--shadow-workplane-rest`, `--shadow-workplane-lift`) o un anillo de estado (desplazamiento y desenfoque cero); una declaración de `--shadow-float` en `src/canvas-ui.css` o `src/studio.css` se aplica fuera de los paneles `.canvas-node`, incluidas reglas responsive; reaparece un token retirado (`--line`, `--hairline-strong`, `--elev-*`, `--r-xs…xl`, `--object-*`, `--shadow-popover`, etc.); o una hoja supera su presupuesto de bordes en `test/design-budget.json`. También exige vidrio ≥76 %/88 %, blur ≥36 px, dos capas inset en chrome, resorte `linear()` y fallback de contraste; prohíbe key/well/sheen en los planos de hilo y terminal. El presupuesto solo baja: al quitar bordes, se reduce el número en el mismo cambio.
 
 Sin side-tabs: un borde lateral de color no marca tipo ni categoría (el tipo de memoria se lee en su glifo y etiqueta con tono). Skills usa el glifo de libro de `PanelIcons.js`, no el emblema genérico de IA.
 
@@ -190,10 +199,10 @@ Excepción acotada al presupuesto descendente: `src/studio.css` pasa de 7 a 8 po
 
 - **Planos.** Ciruela/violeta vigente: `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Terminal opaca `--terminal-bg #0e0b13`. Nunca negro puro. Los valores viven en el bloque `:root` de `src/canvas-ui.css`, que manda sobre `studio.css`.
 - **Tinta.** Una sola tinta neutra en tres niveles: `--ink #f4f3f7` lo que se lee, `--muted #aaa8b3` lo que acompaña, `--ink-3 #8d8b96` metadatos e iconos en reposo. Lo secundario no lleva lila; el violeta identifica acento y actividad real con señales distintas.
-- **Rellenos.** Una escalera blanca-alfa: `--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %. Sin degradados, luces interiores ni relieve en controles.
+- **Rellenos.** Una escalera blanca-alfa: `--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %. Relieve acotado a `--shadow-key` y `--shadow-well`: primarias, indicadores segmentados, pistas y botones activos del dock/navegación. La primaria admite un degradado convexo sutil de acento mezclado con blanco al 10 % hacia acento. Los demás controles no ganan caja ni borde. Los planos de conversación y salida de terminal no reciben estos materiales.
 - **Acento.** Violeta `#a78bda` (clave `lilac`) para selección, foco y acción. Iris, Menta, Ámbar, Rosa y Cian siguen disponibles por proyecto.
 - **Estados.** `--working` violeta espectral, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado: selección y teclado son contornos sólidos; actividad es perímetro interior y etiqueta. `test/design-tokens.test.mjs` exige contraste de texto AA (4,5:1) para texto principal, secundario, trabajo y atención sobre los cinco planos opacos.
-- **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Conversaciones y terminales son explícitamente opacas y mates, sin backdrop blur; quedan por encima del arte ambiental. El fondo del canvas es transparente para conservar el arte entre paneles y debajo del chrome. Sus sombras propias no alteran las del chrome. `prefers-reduced-transparency` vuelve el chrome opaco, desactiva su filtro y oculta atmósfera y campo de ondas.
+- **Vidrio.** Solo el chrome: `--glass` (80 %) o `--glass-thick` (90 %) del tinte de proyecto (acento al 7 % sobre superficie), blur de 40 px y saturación al 180 %. Solo atraviesan color y luz; no hay refracción ni desplazamiento. `--glass-sheen` va en background-image, conservando el background-color translúcido incluso en hover y responsive. El relieve combina filo superior, sombra interior inferior, contacto y halo del acento. Conversaciones y terminales son explícitamente opacas y mates, sin degradado ni backdrop blur; quedan por encima del arte ambiental y conservan intactos sus tokens `--shadow-workplane-*`. El fondo del canvas es transparente para conservar el arte entre paneles y debajo del chrome. `prefers-reduced-transparency` vuelve el chrome opaco, desactiva filtro y brillo y oculta atmósfera y campo de ondas. `prefers-contrast: more` también vuelve el chrome opaco, sin filtro ni brillo, y sube `--hairline` al 22 %; las tintas conservan contraste AA.
 - **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Siete roles, cada uno con un trabajo, declarados como `font: var(--t-…)`: Display 24/30·650 (pregunta o título de una vista vacía), Título 17/22·600 (nombre de un panel o isla), Encabezado 15/22·600 (encabezado dentro de contenido), Lectura 14/22·400 (lo que se lee: respuestas, notas), Control 13/18·500 (lo que se pulsa: filas, botones, menús), Apoyo 12/16·400 (lo que acompaña: modelo, hora, ruta, acciones) y Micro 11/14·500 (atajos y contadores; es el mínimo). Tres pesos: 400, 500 y 600; 650 solo en Display. Lo que se lee es más grande que lo que se pulsa. Las etiquetas van en caja natural; nunca en mayúsculas con tracking. Las hojas aún no migradas conservan sus tamaños sueltos y se pasan a roles al tocarlas.
 - **Iconos.** Lucide y `PanelIcons.js` en tres tamaños: 14 px junto a texto de apoyo (trazo 2), 16 px en filas y controles (trazo 1,75) y 20 px en barras y cabeceras (trazo 1,5). El trazo compensa el tamaño para que pesen igual. Sin mosaicos de fondo detrás de un icono.
 - **Atmósfera.** Un solo estilo base ciruela/violeta; las opciones de fondo existentes (Gengar, Aurora, Marea, Brasa, Grafito o imagen propia) no cambian materiales ni tipografía. No se añaden presets. Los dos degradados ambientales se localizan arriba a la derecha (82 % × 80 %) y abajo a la izquierda (64 % × 64 %), sin repetición, para dejar zonas oscuras entre luces. La imagen propia conserva `cover` centrado. Ambiente y arte tienen capas e intensidades independientes. «Mostrar Gengar» controla el arte local existente (`assets/gengar-source.md`), incluso sobre otro fondo; su presencia no depende del deslizador ambiental. La identidad sigue siendo el glifo Phantom. El arte no se redistribuye fuera de uso personal.
@@ -239,7 +248,7 @@ Isla a la derecha, espejo geométrico del rail: `--r-isle` y hueco `--gutter`; f
 
 ## Movimiento
 
-Una curva (`--ease-out`), dos velocidades (`--dur-fast` 140 ms, `--dur` 240 ms). Una sola entrada, `@keyframes materialize`: opacidad, desenfoque de 8 px y escala .985 → 1. `Presence.jsx` hace lo mismo al montar y, al desmontar, dispersa (desenfoque 12 px, escala 1.02). Nada se desliza. El paneo conserva su inercia. `prefers-reduced-motion` deja solo el fundido y detiene el pulso ambiental. El pulso opcional dura 16 s y está OFF por defecto; solo modula la luz del ambiente. Concentración atenúa ambiente y personaje al 12 %, oculta retícula y detiene animaciones decorativas sin cambiar las preferencias guardadas de presencia, intensidad o pulso. Los estados reales conservan texto y color.
+`--ease-out` conserva la respuesta rápida de color (`--dur-fast` 140 ms) y las transiciones generales (`--dur` 240 ms). `--ease-spring`, un `linear()` con un solo rebote de 5 %, y `--dur-spring` 420 ms gobiernan la recuperación al soltar, el deslizamiento del indicador segmentado y las entradas del chrome. Los controles pulsables se hunden a escala .96 (.97 en filas anchas) durante `--dur-fast`; no cambian su geometría de layout. Una sola entrada, `@keyframes materialize`: opacidad, desenfoque de 8 px y escala .96 → 1 desde el transform-origin existente. `Presence.jsx` comparte escala y string de easing al montar, conserva sus duraciones 200/160/120/60 ms y, al desmontar, dispersa con su salida existente (desenfoque 12 px, escala 1.02). Nada se desliza de posición. El paneo conserva su inercia. `prefers-reduced-motion` elimina escala y resorte, deja solo el fundido y detiene el pulso ambiental, tanto en CSS como en Presence. El pulso opcional dura 16 s y está OFF por defecto; solo modula la luz del ambiente. Concentración atenúa ambiente y personaje al 12 %, oculta retícula y detiene animaciones decorativas sin cambiar las preferencias guardadas de presencia, intensidad o pulso. Los estados reales conservan texto y color.
 
 ## Estados vacíos
 
