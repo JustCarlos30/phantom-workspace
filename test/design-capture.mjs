@@ -149,6 +149,33 @@ try {
   await shot('map-selected');
   await page.mouse.click(1440, 300);
   await shot('map-rest');
+  // State language on one screen. The classes are the ones the app sets from
+  // real activity; here they are forced so the colours can be reviewed without
+  // waiting for an agent to work, ask or fail.
+  await page.evaluate(() => {
+    const row = document.querySelector('.rail-session');
+    const variant = (title, meta, tone, needs) => {
+      const copy = row.cloneNode(true), inner = copy.querySelector('.rail-session-row');
+      inner.classList.remove('selected'); inner.classList.toggle('needs-you', needs);
+      copy.querySelector('.rail-panel-label > span').textContent = title;
+      copy.querySelector('.rail-session-meta').textContent = meta;
+      copy.querySelector('.rail-session-dot').className = `rail-session-dot ${tone}`;
+      row.parentNode.append(copy);
+    };
+    variant('Rediseño de materiales', 'Trabajando · 2 min', 'working', false);
+    variant('Phantom Mobile', 'Te necesita · permiso', 'warning', true);
+    const attention = document.querySelector('.rail-attention');
+    attention.classList.add('needs-you');
+    attention.querySelector('span').textContent = 'Necesitan de ti';
+    attention.querySelector('svg:last-child').outerHTML = '<b>1</b>';
+    const notch = document.querySelector('.activity-notch');
+    notch.classList.add('needs-you');
+    notch.querySelector('strong').textContent = '1 te necesita';
+    document.querySelector('.attention-button').insertAdjacentHTML('beforeend', '<i></i>');
+  });
+  await shot('states');
+  await page.reload();
+  await page.locator('.canvas-node').first().waitFor();
   const notch = page.locator('.activity-notch').first();
   if (await notch.count()) { await notch.click(); await shot('tray'); }
   if (paintFailed) process.exitCode = 1;

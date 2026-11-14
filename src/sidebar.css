@@ -25,6 +25,7 @@
 .project-switcher > summary, .space-switcher-trigger {
   display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 52px; padding: 8px 12px 8px 14px;
   border-radius: var(--r-obj); background: var(--fill-2); color: var(--ink); text-align: left; cursor: pointer; list-style: none;
+  box-shadow: var(--shadow-rim);
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 .project-switcher > summary::-webkit-details-marker { display: none; }
@@ -99,12 +100,15 @@
 .rail-attention > span { flex: 1; min-width: 0; }
 .rail-attention > svg:last-child { opacity: .5; }
 .rail-attention b { font: var(--t-micro); font-weight: 600; font-variant-numeric: tabular-nums; }
-.rail-attention.needs-you { color: var(--attention); background: color-mix(in srgb, var(--attention) 10%, transparent); }
+.rail-attention.needs-you { color: var(--attention); background: color-mix(in srgb, var(--attention) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 30%, transparent); }
+.rail-attention.needs-you b { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); line-height: 20px; text-align: center; }
 
-/* On: where you are (a selected panel) and what is open (a tray, a view). */
-.project-rail :is(.rail-panel-row.selected, .rail-attention[aria-expanded=true], .rail-bottom > button[aria-pressed=true]) {
-  background: var(--on); color: var(--on-ink); --muted: var(--on-ink);
-}
+/* Three levels, never more than one light key in the island.
+   1. Where you are: the selected panel is the only solid light key.
+   2. What is open (a tray, a view): a lit veil with a glass rim.
+   3. Everything else rests on nothing. */
+.project-rail .rail-panel-row.selected { background: var(--on); color: var(--on-ink); --muted: var(--on-ink); }
+.project-rail :is(.rail-attention[aria-expanded=true], .rail-bottom > button[aria-pressed=true]) { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 
 /* ---------- Sessions and resources ---------- */
 .project-rail .rail-panels { display: flex; flex-direction: column; flex: 1; min-height: 80px; margin-top: var(--s-2); overflow: hidden; }
@@ -123,19 +127,25 @@
 .rail-panel-row > button:first-child { flex: 1; border-radius: inherit; }
 .rail-panel-row > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-session-row > button:first-child { min-height: 48px; }
-.rail-session-row > button > .rail-agent-mark { position: relative; display: flex; align-items: center; justify-content: center; width: 20px; height: 24px; flex-shrink: 0; overflow: visible; }
+.rail-session-row > button > .rail-agent-mark { position: relative; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-left: -5px; flex-shrink: 0; overflow: visible; border-radius: 50%; background: var(--fill-2); box-shadow: var(--shadow-rim); }
+.rail-session-row.selected > button > .rail-agent-mark { background: color-mix(in srgb, var(--on-ink) 10%, transparent); box-shadow: none; }
+/* State is colour, and only state: a ring on the disc and the status line. */
+.rail-session-row:has(.rail-session-dot.working) .rail-agent-mark { box-shadow: 0 0 0 2px var(--working); }
+.rail-session-row:has(.rail-session-dot.warning) .rail-agent-mark { box-shadow: 0 0 0 2px var(--attention); }
+.rail-session-row:not(.selected):has(.rail-session-dot.working) .rail-session-meta { color: var(--working); opacity: 1; }
+.rail-session-row:not(.selected):has(.rail-session-dot.warning) .rail-session-meta { color: var(--attention); opacity: 1; }
 .rail-session-row > button > .rail-panel-label { display: flex; flex: 1; flex-direction: column; align-items: stretch; gap: 1px; white-space: normal; }
 .rail-panel-label > span:first-child { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .rail-panel-row.selected .rail-panel-label > span:first-child { color: inherit; }
 .rail-session-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-micro); font-weight: 400; opacity: .72; }
-.rail-session-row.needs-you:not(.selected) { background: color-mix(in srgb, var(--attention) 10%, transparent); }
+.rail-session-row.needs-you:not(.selected) { background: color-mix(in srgb, var(--attention) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 30%, transparent); }
 .rail-session-row.needs-you:not(.selected) .rail-session-meta { color: var(--attention); opacity: 1; }
-.rail-session-dot { position: absolute; right: -1px; bottom: 0; width: 7px; height: 7px; border-radius: 50%; }
+.rail-session-dot { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; }
 .rail-session-dot.working { background: var(--working); }
 .rail-session-dot.warning { background: var(--attention); }
 .rail-session-dot.neutral { background: var(--muted); }
 .rail-session-dot.unknown { background: color-mix(in srgb, var(--muted) 45%, transparent); }
-.rail-session-resources { padding-left: 32px; }
+.rail-session-resources { padding-left: 37px; }
 .rail-resource-row > button:first-child { min-height: 32px; font: var(--t-support); }
 .rail-panel-focus { display: grid; place-items: center; width: 28px; height: 28px; margin-right: 6px; flex-shrink: 0; border-radius: 50%; color: inherit; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
 .rail-panel-row:is(:hover, :focus-within) .rail-panel-focus, .rail-panel-focus[aria-pressed=true] { opacity: .72; }
@@ -155,7 +165,7 @@
 .rail-system .host-indicator i { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; }
 .rail-system > button { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: none; color: var(--muted); }
 .rail-system > button:hover { background: var(--fill-2); color: var(--ink); }
-.rail-system > button.active { background: var(--on); color: var(--on-ink); box-shadow: none; }
+.rail-system > button.active { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 
 /* ---------- Collapsed pill ---------- */
 .rail-collapsed-project .project-initials { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; background: var(--fill-2); color: var(--ink); font: var(--t-micro); font-weight: 600; }

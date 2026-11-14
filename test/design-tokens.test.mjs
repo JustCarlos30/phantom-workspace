@@ -45,7 +45,7 @@ test('shadows use chrome or matte workplane elevations, or a state ring', () => 
     for (const value of declarations(css, 'box-shadow')) {
       if (/^(none|inherit|initial|unset)$/.test(value)) continue;
       for (const layer of split(value, ','))
-        if (!/^var\(--shadow-(chrome|rest|float|workplane-rest|workplane-lift|key|well)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
+        if (!/^var\(--shadow-(chrome|rest|float|workplane-rest|workplane-lift|key|well|rim)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
     }
   assert.deepEqual(bad, [], 'Use chrome or matte workplane elevation tokens. Zero-offset, zero-blur rings are allowed for state only.');
 });
