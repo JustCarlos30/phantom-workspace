@@ -60,3 +60,17 @@ export function contextAdvice(use) {
   }[band];
   return { band, title: copy[0], hint: copy[1] };
 }
+
+// A friendly heads-up when the conversation crosses into a costlier band.
+// `dismissed` is the highest band rank the user already waved off: the nudge
+// only returns when the context climbs past it. Figures are the provider's.
+export const BAND_RANK = { ok: 0, watch: 1, compact: 2 };
+export function contextNudge(use, dismissed = 0) {
+  const advice = contextAdvice(use);
+  if (!advice || BAND_RANK[advice.band] <= dismissed) return null;
+  const where = use.window ? `${Math.round(use.ratio * 100)}% del contexto` : `${formatTokens(use.tokens)} tokens de contexto`;
+  const resend = `Cada mensaje reenvía ${formatTokens(use.tokens)} tokens`;
+  return advice.band === 'compact'
+    ? { band: 'compact', rank: 2, title: `Vas en ${where}: conviene compactar`, body: `${resend}, así que cada turno sale bastante más caro y el agente puede olvidar detalles de antes. Compactar o empezar una conversación nueva lo resuelve.` }
+    : { band: 'watch', rank: 1, title: `Vas en ${where}`, body: `${resend}: desde aquí cada turno cuesta más y la precisión empieza a bajar. Buen momento para compactar al cerrar esta tarea.` };
+}

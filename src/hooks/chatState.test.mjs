@@ -1,6 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { contextAdvice, contextUse } from './chatState.js';
+import { contextAdvice, contextNudge, contextUse } from './chatState.js';
+
+test('El aviso aparece al entrar en zona cara y usa el porcentaje real', () => {
+  assert.equal(contextNudge(contextUse({ contextTokens: 50_000, contextWindow: 200_000 })), null);
+  const watch = contextNudge(contextUse({ contextTokens: 84_000, contextWindow: 200_000 }));
+  assert.equal(watch.band, 'watch');
+  assert.match(watch.title, /42% del contexto/);
+  assert.match(watch.body, /84k tokens/);
+  assert.equal(contextNudge(contextUse({ contextTokens: 150_000, contextWindow: 200_000 })).band, 'compact');
+});
+
+test('Descartar silencia la zona actual pero no la siguiente', () => {
+  const watch = contextUse({ contextTokens: 84_000, contextWindow: 200_000 });
+  const high = contextUse({ contextTokens: 150_000, contextWindow: 200_000 });
+  assert.equal(contextNudge(watch, 1), null);
+  assert.equal(contextNudge(high, 1).band, 'compact');
+  assert.equal(contextNudge(high, 2), null);
+});
+
+test('Sin ventana el aviso habla en tokens', () => {
+  assert.match(contextNudge(contextUse({ contextTokens: 70_000 })).title, /70k tokens de contexto/);
+});
 
 const advise = meta => contextAdvice(contextUse(meta))?.band ?? null;
 

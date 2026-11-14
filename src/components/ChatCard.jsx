@@ -1,12 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useComposerSize } from '../hooks/useComposerSize';
-import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, FoldVertical, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, FoldVertical, Folder, GitBranch, Globe, Lightbulb, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
-import { CONTEXT_BANDS, CONTEXT_TOKEN_BANDS, contextAdvice, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
+import { BAND_RANK, CONTEXT_BANDS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
@@ -505,11 +505,13 @@ const share = ratio => ratio < .01 ? '<1' : String(Math.round(ratio * 100));
 // The meter opens a panel that reads the context against quality/cost bands and
 // offers compaction. `onCompact` is optional: until a provider wires it the
 // action stays visible but disabled, so the recommendation is never a dead end.
-export function ContextMeter({ meta, running = false, onCompact }) {
+export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
   const use = contextUse(meta);
   const [open, setOpen] = useState(false);
   const root = useRef(null), trigger = useRef(null), panel = useRef(null);
   const id = React.useId();
+  // A bumped `reveal` opens the panel from outside, e.g. from the context nudge.
+  useEffect(() => { if (reveal) setOpen(true); }, [reveal]);
   useEffect(() => {
     if (!open) return;
     panel.current?.focus({ preventScroll: true });
@@ -575,6 +577,26 @@ export function ContextMeter({ meta, running = false, onCompact }) {
   </span>;
 }
 
+// A friendly, dismissible heads-up when the context crosses into a costlier band.
+// Dismissing silences the current band only; dropping back (after compacting or
+// a new conversation) re-arms it.
+export function ContextNudge({ meta, onReveal }) {
+  const use = contextUse(meta);
+  const [dismissed, setDismissed] = useState(0);
+  const rank = BAND_RANK[contextAdvice(use)?.band ?? 'ok'];
+  useEffect(() => { if (rank < dismissed) setDismissed(rank); }, [rank, dismissed]);
+  const nudge = contextNudge(use, dismissed);
+  if (!nudge) return null;
+  return <section className={`pc-nudge is-${nudge.band}`} role="status" aria-label="Aviso de contexto">
+    <Lightbulb size={15} aria-hidden="true" />
+    <div><strong>{nudge.title}</strong><p>{nudge.body}</p></div>
+    <span className="pc-nudge-actions">
+      <button type="button" onClick={onReveal}>Ver opciones</button>
+      <button type="button" className="pc-icon" title="Entendido" aria-label="Ocultar este aviso" onClick={() => setDismissed(nudge.rank)}><X size={14} /></button>
+    </span>
+  </section>;
+}
+
 // Messages written while the agent works, sent one by one when it finishes.
 // A stopped or failed reply pauses the line until the user resumes it.
 export function QueuedMessages({ queue, running, connected = true, unqueue, resume, onEdit, notify }) {
@@ -627,6 +649,7 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
+  const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
@@ -708,6 +731,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
+      <ContextNudge key={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         <VoiceActivity voice={voice} />
@@ -725,7 +749,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         </div>
       </div>
       <div className="pc-meta">
-        <ContextMeter meta={meta} running={running} />
+        <ContextMeter meta={meta} running={running} reveal={reveal} />
         {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
         <span className="pc-bar-space" />
         <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>

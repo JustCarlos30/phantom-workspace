@@ -523,3 +523,14 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-queue li p { flex: 1; min-width: 0; margin: 0; color: var(--ink); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pc-queue-num { flex-shrink: 0; width: 14px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 .pc-queue .pc-icon { width: 24px; height: 24px; }
+
+/* Context nudge: a calm, dismissible note above the composer, tinted by band. */
+.pc-nudge { --nudge: var(--pc-caution); display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; margin: 0 0 8px; padding: 10px 8px 10px 12px; border-radius: var(--r-obj); background: color-mix(in srgb, var(--nudge) 9%, var(--fill-2)); color: var(--ink); font: 12px/1.45 var(--sans); animation: island-in var(--dur) var(--ease-out); }
+.pc-nudge.is-compact { --nudge: var(--pc-del); }
+.pc-nudge > svg { margin-top: 1px; color: var(--nudge); }
+.pc-nudge strong { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pc-nudge p { margin: 2px 0 0; color: var(--ink-3); }
+.pc-nudge-actions { display: flex; align-items: center; gap: 2px; }
+.pc-nudge-actions > button:not(.pc-icon) { padding: 5px 9px; border-radius: var(--r-ctl); color: var(--nudge); font: 600 12px/1 var(--sans); white-space: nowrap; cursor: pointer; }
+.pc-nudge-actions > button:not(.pc-icon):hover { background: color-mix(in srgb, var(--nudge) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) { .pc-nudge { animation: none; } }
