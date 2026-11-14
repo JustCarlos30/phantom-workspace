@@ -275,10 +275,13 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const dx = e.deltaX * unit, dy = e.deltaY * unit;
       const nodeBody = e.target.closest('.node-body');
       const bodyId = nodeBody?.closest('[data-node-id]')?.dataset.nodeId;
+      const terminal = e.target.closest('.terminal-host');
+      const terminalId = terminal?.closest('[data-node-id]')?.dataset.nodeId;
       const route = wheelGesture.current.route({
         zooming,
         overCanvasChrome: !!e.target.closest('.canvas-navigation,.canvas-popover,.agent-editor'),
-        overTerminal: !!e.target.closest('.terminal-host'),
+        overTerminal: !!terminal,
+        terminalActive: !!terminalId && live.current.selected.includes(terminalId),
         overMinimap: !!e.target.closest('.canvas-minimap'),
         overBody: !!nodeBody,
         bodyActive: !!bodyId && live.current.selected.includes(bodyId),

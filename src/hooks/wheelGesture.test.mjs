@@ -43,7 +43,7 @@ test('una rueda con muescas espaciadas recalcula con la seleccion actual', () =>
 test('tras silencio mayor al idle se recalcula el dueno', () => {
   const { route } = clocked();
   assert.equal(route(0), 'canvas');
-  assert.equal(route(151, { overTerminal: true }), 'element');
+  assert.equal(route(151, { overTerminal: true, terminalActive: true }), 'element');
 });
 
 test('zoom sobre body o terminal pertenece al canvas', () => {
@@ -55,8 +55,8 @@ test('zoom sobre body o terminal pertenece al canvas', () => {
 
 test('cambiar entre zoom y paneo inicia una rafaga nueva', () => {
   const { route } = clocked();
-  assert.equal(route(0, { overTerminal: true }), 'element');
-  assert.equal(route(10, { zooming: true, overTerminal: true }), 'canvas');
+  assert.equal(route(0, { overTerminal: true, terminalActive: true }), 'element');
+  assert.equal(route(10, { zooming: true, overTerminal: true, terminalActive: true }), 'canvas');
 });
 
 test('los controles flotantes se ignoran', () => {
@@ -101,4 +101,21 @@ test('el desplazamiento fino del touchpad no cuenta como muesca', () => {
   assert.equal(isDiscreteWheel({ deltaY: 4.5 }), false);
   assert.equal(isDiscreteWheel({ deltaX: 60, deltaY: 60 }), false);
   assert.equal(wheelZoomFactor(0), 1);
+});
+
+test('una terminal no seleccionada deja pasar el scroll al mapa', () => {
+  const { route } = clocked();
+  assert.equal(route(0, { overTerminal: true }), 'canvas');
+  assert.equal(route(10, { overTerminal: true, terminalActive: true }), 'canvas');
+});
+
+test('la terminal seleccionada recibe su propio scroll', () => {
+  const { route } = clocked();
+  assert.equal(route(0, { overTerminal: true, terminalActive: true }), 'element');
+  assert.equal(route(10), 'element');
+});
+
+test('el minimapa conserva su scroll sin seleccion', () => {
+  const { route } = clocked();
+  assert.equal(route(0, { overMinimap: true }), 'element');
 });

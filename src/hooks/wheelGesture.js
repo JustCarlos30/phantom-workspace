@@ -15,11 +15,13 @@ export function createWheelGesture({ idle = 150, now = () => performance.now() }
       if (owner === null || time - lastTime > idle || input.zooming !== zooming) {
         zooming = input.zooming;
         if (input.overCanvasChrome) owner = 'ignore';
-        else if (!input.zooming && (input.overTerminal || input.overMinimap)) owner = 'element';
         else if (input.zooming) owner = 'canvas';
-        // On the map a card's own content only scrolls once that card is the
-        // active one (clicked). Passing over any other card keeps moving the
-        // map, so the wheel never "sticks" on whatever happens to be under it.
+        else if (input.overMinimap) owner = 'element';
+        // On the map a card's own content (a terminal's scrollback included)
+        // only scrolls once that card is the active one (clicked). Passing over
+        // any other card keeps moving the map, so the wheel never "sticks" on
+        // whatever happens to be under it.
+        else if (input.overTerminal && input.terminalActive) owner = 'element';
         else if (input.overBody && input.bodyActive && input.bodyCanScroll) owner = 'element';
         else owner = 'canvas';
       }
