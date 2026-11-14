@@ -4,14 +4,33 @@ import { mkdtemp, mkdir, open, readFile, rename, stat, utimes, writeFile, symlin
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { killElectronGroup } from './support/electron-process.mjs';
 import {
   authorizedPath, browserNode, browserURL, clampBounds, contentSecurityPolicy, createReviewMedia,
-  isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, validateCloseReady, validateInvocation, validateJSON,
+  isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds, validateCloseReady, validateInvocation, validateJSON,
 } from '../desktop/security.mjs';
 
 const workspaceId = 'e080ca45-0510-41c0-a861-c735db9ca2a5';
 const id = '8955a666-b72a-410d-bf23-02740ac48212';
 const ui = 'file:///opt/phantom/dist/index.html';
+
+test('interface scale IPC is desktop-local, exact-shaped and strictly bounded', async () => {
+  const { HOST_METHODS, LOCAL_METHODS } = await import('../desktop/security.mjs');
+  for (const method of ['desktop.interfaceScale.get', 'desktop.interfaceScale.set']) {
+    assert.equal(LOCAL_METHODS.has(method), true);
+    assert.equal(HOST_METHODS.has(method), false);
+  }
+  assert.doesNotThrow(() => validateInvocation('desktop.interfaceScale.get', {}));
+  for (const scale of [100, 115, 125, 150]) assert.doesNotThrow(() => validateInvocation('desktop.interfaceScale.set', { scale }));
+  for (const payload of [{}, { scale: '115' }, { scale: 114 }, { scale: 151 }, { scale: 1.15 },
+    { scale: null }, { scale: NaN }, { scale: Infinity }, { scale: [] }, { scale: true },
+    { scale: 125, workspaceId }, { scale: 125, factor: 1.25 }, { scale: 125, path: '/tmp/other' }]) {
+    assert.throws(() => validateInvocation('desktop.interfaceScale.set', payload));
+  }
+  assert.throws(() => validateInvocation('desktop.interfaceScale.get', { workspaceId }));
+  assert.throws(() => validateInvocation('desktop.interfaceScale.get', { scale: 115 }));
+  assert.throws(() => validateInvocation('desktop.interfaceScale.reset', {}));
+});
 
 test('review media requires a verified capability and supports only GET/HEAD and bounded ranges', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'phantom-review-media-'));
@@ -183,6 +202,17 @@ test('bounds are intersected with the content viewport, not just moved into it',
   }
 });
 
+test('native view bounds include global UI zoom exactly once without coercing invalid coordinates', () => {
+  const bounds = { x: 80, y: 40, width: 400, height: 240 };
+  for (const factor of [1, 1.15, 1.25, 1.5]) {
+    const native = nativeUIBounds(bounds, factor);
+    for (const key of Object.keys(bounds)) assert.equal(native[key], bounds[key] * factor);
+  }
+  assert.deepEqual(bounds, { x: 80, y: 40, width: 400, height: 240 });
+  for (const bad of [null, {}, { ...bounds, x: '80' }, { ...bounds, width: -1 }, { ...bounds, y: Infinity }]) assert.throws(() => nativeUIBounds(bad, 1.15));
+  for (const factor of ['1.15', NaN, Infinity, .5, 1.51]) assert.throws(() => nativeUIBounds(bounds, factor));
+});
+
 test('native browser identity is checked against the current canonical state, type and active workspace', () => {
   const ws = { id: workspaceId, nodes: [{ id, type: 'browser' }] };
   const state = { activeWorkspaceId: workspaceId, workspaces: [ws] };
@@ -309,6 +339,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
       } catch { process.kill('SIGKILL'); }
       await exited;
       clearTimeout(cleanupTimer);
+      killElectronGroup(process);
     }
     const { createConnection } = await import('node:net');
     await new Promise(resolve => {
@@ -439,7 +470,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
   // Playwright's main-process inspector can hold the fixture process after quit.
   // The window has really closed; release only this isolated test process.
   let fixtureExit = new Promise(resolve => electron.process().once('exit', resolve));
-  electron.process().kill('SIGKILL');
+  killElectronGroup(electron.process());
   await fixtureExit;
   electron = null;
   const saved = JSON.parse(await readFile(path.join(base, 'state', 'state.json'), 'utf8'));
@@ -473,7 +504,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
   catch (error) { assert.match(error.message, /Target page, context or browser has been closed/); }
   await stopped;
   fixtureExit = new Promise(resolve => electron.process().once('exit', resolve));
-  electron.process().kill('SIGKILL');
+  killElectronGroup(electron.process());
   await fixtureExit;
   electron = null;
   const stoppedState = JSON.parse(await readFile(path.join(base, 'state', 'state.json'), 'utf8'));
@@ -523,7 +554,7 @@ test('native Electron exits without an inspector only after the UI durable close
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => {
     release?.();
-    if (child?.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    killElectronGroup(child);
     await new Promise(resolve => {
       const socket = createConnection(path.join(stateDir, 'host.sock'));
       const timer = setTimeout(() => { socket.destroy(); resolve(); }, 1000);

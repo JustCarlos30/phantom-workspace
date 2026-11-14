@@ -1,8 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useComposerSize } from '../hooks/useComposerSize';
-import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, FoldVertical, Folder, GitBranch, Globe, Lightbulb, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
-import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { VoiceActivity } from './VoiceActivity';
+import { useVoiceDraft } from './VoiceProvider';
+import { Mic } from 'lucide-react';
+import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
@@ -37,7 +41,7 @@ export function PermissionSwitch({ mode, provider, descriptions = AUTO_APPROVE, 
   const text = permissionLabel(mode, provider), next = NEXT_MODE[mode] || 'ask';
   return <button type="button" className="pc-permission" data-mode={mode} aria-pressed={mode !== 'ask'} disabled={disabled}
     aria-label={`Permisos: ${text}. Cambiar a ${permissionLabel(next, provider)}`} title={`${descriptions[provider]?.[mode] || ''}\n\nPulsa para cambiar a «${permissionLabel(next, provider)}».`}
-    onClick={() => onChange(next)}><Shield size={13} aria-hidden="true" /><span>{text}</span></button>;
+    onClick={() => onChange(next)}><Shield size={14} aria-hidden="true" /><span>{text}</span></button>;
 }
 const PERMISSION_STATUS = { allowed: 'Aprobado', always: 'Aprobado siempre', denied: 'Rechazado', cancelled: 'Sin respuesta' };
 
@@ -128,11 +132,11 @@ function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
   };
   return <div ref={root} className="pc-agent" onKeyDown={onKeyDown} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
     <button ref={trigger} type="button" className="pc-agent-trigger" aria-haspopup="menu" aria-expanded={open} aria-label={`Quién responde: ${mode.label}`} title="Quién responde en esta card" disabled={disabled} onClick={() => setOpen(value => !value)}>
-      <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={11} aria-hidden="true" />
+      <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Quién responde en esta card">
       {CARD_MODES.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
-        <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={13} aria-hidden="true" />}
+        <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={14} aria-hidden="true" />}
       </button>)}
     </div>}
   </div>;
@@ -155,6 +159,8 @@ const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name
 const TOOL_LABELS = { read: 'Leer', edit: 'Editar', shell: 'Ejecutar', search: 'Buscar', web: 'Web', agent: 'Agente', todo: 'Tareas' };
 const TOOL_STATES = { running: 'En curso', error: 'Falló', stopped: 'Detenida', done: 'Completada' };
 
+// One action, one quiet line: its glyph, what it was, and on what. A finished
+// step states nothing more; only running, failed and stopped ones speak up.
 function ToolRow({ part }) {
   const [, Icon, kind] = toolKind(part.name);
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
@@ -166,12 +172,12 @@ function ToolRow({ part }) {
     {part.detail && <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail}>{part.detail}</span>}
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
     {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`} role="img" aria-label={TOOL_STATES[part.status]} title={TOOL_STATES[part.status]}>
-      {part.status === 'running' ? <LoaderCircle className="pc-tool-spinner" size={12} aria-hidden="true" />
-        : part.status === 'error' ? <X size={12} aria-hidden="true" />
-          : part.status === 'stopped' ? <Square size={10} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
+      {part.status === 'running' ? <LoaderCircle className="pc-tool-spinner" size={14} aria-hidden="true" />
+        : part.status === 'error' ? <X size={14} aria-hidden="true" />
+          : part.status === 'stopped' ? <Square size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
       {part.status !== 'done' && <span aria-hidden="true">{TOOL_STATES[part.status]}</span>}
     </span>}
-    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
+    {expandable ? <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
   </>;
   if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
   return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
@@ -180,15 +186,47 @@ function ToolRow({ part }) {
   </div></details></li>;
 }
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const KIND_PHRASE = {
+  read: items => `leyó ${plural(new Set(items.map(part => part.detail || part.id)).size, 'archivo', 'archivos')}`,
+  edit: items => `hizo ${plural(items.length, 'cambio', 'cambios')}`,
+  shell: items => `ejecutó ${plural(items.length, 'comando', 'comandos')}`,
+  search: items => `hizo ${plural(items.length, 'búsqueda', 'búsquedas')}`,
+  web: items => `consultó ${plural(items.length, 'página', 'páginas')}`,
+  todo: () => 'actualizó el plan',
+  other: items => `usó ${plural(items.length, 'herramienta', 'herramientas')}`,
+};
+// A run of actions. Up to three stay in view; a longer run folds into one
+// sentence of what was done (open while it is still working).
+function ToolGroup({ items }) {
+  const live = items.some(part => part.status === 'running'), failed = items.some(part => part.status === 'error');
+  const [chosen, setChosen] = useState(null);
+  const list = <ul className="pc-tools" aria-label="Herramientas usadas">{items.map(part => <ToolRow key={part.id} part={part} />)}</ul>;
+  if (items.length < 4) return list;
+  const open = chosen ?? live, kinds = new Map();
+  for (const part of items) { const [, Icon, kind] = toolKind(part.name), key = KIND_PHRASE[kind] ? kind : 'other'; if (!kinds.has(key)) kinds.set(key, { Icon: key === 'other' ? Wrench : Icon, items: [] }); kinds.get(key).items.push(part); }
+  const text = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group.items)).join(' · ');
+  return <details className="pc-steps" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
+    <summary>
+      <span className="pc-steps-kinds" aria-hidden="true">{[...kinds].slice(0, 4).map(([kind, group]) => <group.Icon key={kind} size={14} />)}</span>
+      <span className="pc-steps-text">{text.charAt(0).toUpperCase() + text.slice(1)}</span>
+      {failed && <span className="pc-tool-state is-error">con fallos</span>}
+      {live && <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />}
+      <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" />
+    </summary>
+    {list}
+  </details>;
+}
+
 // A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
 // OpenCode's task, Codex's spawn_agent). Drawn as its own card in the turn so
 // the user sees who was delegated, what it is doing now and how it ended.
 const AGENT_STATE = { running: 'Trabajando', done: 'Terminó', error: 'Falló', stopped: 'Detenido' };
 function StepState({ status }) {
-  if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={11} aria-label="En curso" />;
-  if (status === 'error') return <X className="pc-tool-state is-error" size={11} aria-label="Falló" />;
+  if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />;
+  if (status === 'error') return <X className="pc-tool-state is-error" size={14} aria-label="Falló" />;
   if (status === 'stopped') return <span className="pc-tool-state">detenido</span>;
-  return <Check className="pc-tool-state is-done" size={11} aria-label="Completado" />;
+  return <Check className="pc-tool-state is-done" size={14} aria-label="Completado" />;
 }
 export function SubagentCard({ part }) {
   const agent = part.agent || { steps: [] }, steps = agent.steps || [], total = Math.max(agent.total || 0, steps.length);
@@ -196,29 +234,29 @@ export function SubagentCard({ part }) {
   const hidden = total - steps.length;
   return <section className={`pc-subagent is-${part.status}`} aria-label={`Subagente${agent.type ? ` ${agent.type}` : ''}: ${part.detail || part.name}`}>
     <header className="pc-subagent-head">
-      <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={13} /></span>
+      <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={14} /></span>
       <span className="pc-subagent-label">Subagente</span>
       {agent.type && <span className="pc-subagent-type">{agent.type}</span>}
-      <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={11} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
+      <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={14} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
     </header>
     <p className="pc-subagent-goal" title={part.detail}>{part.detail || part.name}</p>
     {current && <p className="pc-subagent-now"><span className="pc-tool-name">{current.name}</span><span className="pc-tool-detail" title={current.detail}>{current.detail}</span></p>}
     {agent.text && <p className="pc-subagent-said" title={agent.text}>{agent.text}</p>}
     {steps.length > 0 && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Pasos del subagente</summary>
+      <summary><ChevronRight size={14} aria-hidden="true" />Pasos del subagente</summary>
       <ol className="pc-subagent-steps">
         {hidden > 0 && <li className="pc-subagent-hidden">{hidden} {hidden === 1 ? 'paso anterior' : 'pasos anteriores'} sin detalle</li>}
         {steps.map(step => { const [, Icon] = toolKind(step.name); return <li key={step.id} className={`is-${step.status}`}>
-          <Icon size={11} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
+          <Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
         </li>; })}
       </ol>
     </details>}
     {agent.prompt && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Encargo</summary>
+      <summary><ChevronRight size={14} aria-hidden="true" />Encargo</summary>
       <pre className="pc-subagent-prompt">{agent.prompt}</pre>
     </details>}
     {part.output && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Resultado</summary>
+      <summary><ChevronRight size={14} aria-hidden="true" />Resultado</summary>
       <div className="pc-subagent-output"><ToolOutput part={part} kind="agent" /></div>
     </details>}
   </section>;
@@ -279,7 +317,7 @@ function QuestionCard({ part, onReply }) {
     })}
     <footer className="pc-question-actions">
       <button type="button" disabled={busy} onClick={() => submit(null)}>No responder</button>
-      <button type="submit" className="is-primary" disabled={busy || !complete}>{busy ? <LoaderCircle size={13} className="spinning" aria-hidden="true" /> : <ArrowUp size={13} aria-hidden="true" />}Responder</button>
+      <button type="submit" className="is-primary" disabled={busy || !complete}>{busy ? <LoaderCircle size={14} className="spinning" aria-hidden="true" /> : <ArrowUp size={14} aria-hidden="true" />}Responder</button>
     </footer>
   </form>;
 }
@@ -311,10 +349,10 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
   const delegated = streaming ? activeSubagents(message.parts) : 0;
   const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
-  return <article className={`pc-message is-agent is-${message.status}`}>
-    <header className="pc-turn-head"><span className="pc-avatar" aria-hidden="true"><ProviderGlyph provider={provider} size={13} /></span><strong>{label}</strong>{(message.model || model) && <span className="pc-mono">{message.model || model}</span>}<time dateTime={message.createdAt}>{clock(message.createdAt)}</time></header>
+  const stamp = [message.model || model, clock(message.createdAt), ...facts].filter(Boolean).join(' · ');
+  return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
     {groups.map((group, i) => group.type === 'tools'
-      ? <ul key={i} className="pc-tools" aria-label="Herramientas usadas">{group.items.map(part => <ToolRow key={part.id} part={part} />)}</ul>
+      ? <ToolGroup key={i} items={group.items} />
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -322,12 +360,12 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'question'
         ? <QuestionCard key={group.id} part={group} onReply={onReply} />
       : group.type === 'thinking'
-        ? <details key={i} className="pc-thinking"><summary><ChevronRight className="pc-thinking-caret" size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
+        ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
     {streaming && !waiting && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
-    {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
-    {!streaming && (facts.length > 0 || text) && <footer className="pc-turn-foot"><span className="pc-num">{facts.join(' · ')}</span>{text && <CopyButton text={text} label="Copiar respuesta" />}</footer>}
+    {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
+    {!streaming && (stamp || text) && <footer className="pc-turn-foot">{text && <CopyButton text={text} label="Copiar respuesta" />}<time className="pc-num" dateTime={message.createdAt}>{stamp}</time></footer>}
   </article>;
 }
 
@@ -358,13 +396,13 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
   const shown = selected || observed;
   return <div ref={root} className="pc-model-picker" onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
     <button type="button" className={`pc-model ${shown ? '' : 'is-empty'}`} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} title={selected ? `Modelo elegido para ${label}: ${selected}` : observed ? `Modelo predeterminado de ${label}: ${observed}` : `Se usa el modelo predeterminado de ${label}`} onClick={() => setOpen(value => !value)}>
-      <ProviderGlyph provider={provider} size={12} /><span>{shown || 'modelo predeterminado'}</span><ChevronDown size={11} aria-hidden="true" />
+      <ProviderGlyph provider={provider} size={14} /><span>{shown || 'modelo predeterminado'}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div className="pc-models" role="dialog" aria-label={`Modelo de ${label}`}>
       <input ref={search} type="text" value={query} placeholder="Buscar o escribir un modelo…" aria-label="Buscar modelo" spellCheck={false} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const first = custom || items[0]?.id; if (first) choose(first); } }} />
       <div className="pc-models-list" role="listbox" aria-label="Modelos disponibles">
-        {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={12} aria-hidden="true" />}</button>}
-        {groups.map(group => <React.Fragment key={group.name}><h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={12} aria-hidden="true" />}</button>)}</React.Fragment>)}
+        {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={14} aria-hidden="true" />}</button>}
+        {groups.map(group => <React.Fragment key={group.name}><h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
         {custom && <button type="button" role="option" aria-selected={false} onClick={() => choose(custom)}><span>Usar <span className="pc-mono">{custom}</span></span></button>}
         {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
         {failure && <p role="alert">{failure}. Puedes escribir el nombre del modelo.</p>}
@@ -447,7 +485,7 @@ function EffortMenu({ label, heading, ariaName, title, levels, selected, note, d
       <EffortMeter level={stray ? -1 : level} total={levels.length || 3} />
       <span className="pc-reasoning-label">{label}</span>
       <span className="pc-reasoning-value">{selected || 'auto'}</span>
-      <ChevronDown size={11} aria-hidden="true" />
+      <ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={ariaName} aria-activedescendant={`${id}-${active}`} onKeyDown={keys}>
       <h4>{heading}</h4>
@@ -456,22 +494,110 @@ function EffortMenu({ label, heading, ariaName, title, levels, selected, note, d
         <span>{option || 'auto'}</span>
         {!option && <small>predeterminado</small>}
         {option && option === stray && <small>no disponible en este modelo</small>}
-        {option === selected && <Check size={12} aria-hidden="true" />}
+        {option === selected && <Check size={14} aria-hidden="true" />}
       </div>)}
       {note && <p className="pc-effort-note" role="status">{note}</p>}
     </div>}
   </div>;
 }
 
-export function ContextMeter({ meta }) {
+const share = ratio => ratio < .01 ? '<1' : String(Math.round(ratio * 100));
+// The meter opens a panel that reads the context against quality/cost bands and
+// offers compaction. `onCompact` is optional: until a provider wires it the
+// action stays visible but disabled, so the recommendation is never a dead end.
+export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
   const use = contextUse(meta);
+  const [open, setOpen] = useState(false);
+  const root = useRef(null), trigger = useRef(null), panel = useRef(null);
+  const id = React.useId();
+  // A bumped `reveal` opens the panel from outside, e.g. from the context nudge.
+  useEffect(() => { if (reveal) setOpen(true); }, [reveal]);
+  useEffect(() => {
+    if (!open) return;
+    panel.current?.focus({ preventScroll: true });
+    const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]);
   if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
+  const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
-  return <span className={`pc-context ${level}`} title={use.window ? `${use.tokens.toLocaleString()} de ${use.window.toLocaleString()} tokens de contexto en uso` : `${use.tokens.toLocaleString()} tokens de contexto en uso; este proveedor no informa el tamaño de la ventana`}>
-    {use.window && <span className="pc-context-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.min(100, use.ratio * 100))}%` }} /></span>}
-    <span>{formatTokens(use.tokens)}{use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}</span>
-    {use.window && <span className="pc-context-share">{use.ratio < .01 ? '<1' : Math.round(use.ratio * 100)}%</span>}
+  const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
+  const perTurn = Number.isFinite(meta.costUsd) && meta.costUsd > 0 && meta.turns > 0 ? meta.costUsd / meta.turns : null;
+  const bands = use.window
+    ? [['ok', 'Óptima', `< ${CONTEXT_BANDS.watch * 100}%`], ['watch', 'Vigilar', `${CONTEXT_BANDS.watch * 100}–${CONTEXT_BANDS.compact * 100}%`], ['compact', 'Compactar', `≥ ${CONTEXT_BANDS.compact * 100}%`]]
+    : [['ok', 'Óptima', `< ${formatTokens(CONTEXT_TOKEN_BANDS.watch)}`], ['watch', 'Vigilar', `${formatTokens(CONTEXT_TOKEN_BANDS.watch)}–${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`], ['compact', 'Compactar', `≥ ${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`]];
+  // Without a window the scale ends at 1.5× the compaction size.
+  const watchAt = use.window ? CONTEXT_BANDS.watch * 100 : 100 / 1.5 * CONTEXT_TOKEN_BANDS.watch / CONTEXT_TOKEN_BANDS.compact;
+  const compactAt = use.window ? CONTEXT_BANDS.compact * 100 : 100 / 1.5;
+  const compactBlocked = !onCompact ? 'La compactación todavía no está conectada a este agente' : running ? 'Disponible cuando termine la respuesta' : '';
+  return <span ref={root} className="pc-context-wrap">
+    <button ref={trigger} type="button" className={`pc-context ${level} is-${advice.band} ${open ? 'is-open' : ''}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
+      title={use.window ? `${use.tokens.toLocaleString()} de ${use.window.toLocaleString()} tokens de contexto en uso · ${advice.title}` : `${use.tokens.toLocaleString()} tokens de contexto en uso · ${advice.title}`}
+      onClick={() => setOpen(value => !value)}>
+      {use.window && <span className="pc-context-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.min(100, use.ratio * 100))}%` }} /></span>}
+      <span>{formatTokens(use.tokens)}{use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}</span>
+      {use.window && <span className="pc-context-share">{share(use.ratio)}%</span>}
+      {advice.band === 'compact' && <span className="pc-context-flag">compactar</span>}
+    </button>
+    {open && <div ref={panel} id={id} className={`pc-context-panel is-${advice.band}`} role="dialog" aria-label="Ventana de contexto" tabIndex={-1}
+      onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }}>
+      <header>
+        <h4>Ventana de contexto</h4>
+        <p className="pc-context-reading"><strong>{formatTokens(use.tokens)}</strong>{use.window ? <> de {formatTokens(use.window)} · <span className="pc-context-share">{share(use.ratio)}%</span></> : ' tokens · ventana no informada'}</p>
+      </header>
+      <div className="pc-context-scale" aria-hidden="true">
+        <span className="pc-context-track" style={{ '--watch': `${watchAt}%`, '--compact': `${compactAt}%` }}>
+          {use.window
+            ? <i style={{ width: `${Math.max(1, Math.min(100, use.ratio * 100))}%` }} />
+            : <i style={{ width: `${Math.max(1, Math.min(100, use.tokens / (CONTEXT_TOKEN_BANDS.compact * 1.5) * 100))}%` }} />}
+          <b style={{ left: `${watchAt}%` }} />
+          <b style={{ left: `${compactAt}%` }} />
+        </span>
+      </div>
+      <ol className="pc-context-bands">
+        {bands.map(([band, name, range]) => <li key={band} className={`is-${band} ${band === advice.band ? 'is-current' : ''}`} aria-current={band === advice.band ? 'true' : undefined}>
+          <i aria-hidden="true" /><span>{name}</span><small>{range}</small>
+        </li>)}
+      </ol>
+      {use.window && (advice.cause === 'size' || use.window * CONTEXT_BANDS.watch > CONTEXT_SIZE_CAPS.watch) && <p className={`pc-context-cap ${advice.cause === 'size' ? 'is-active' : ''}`}>
+        En ventanas grandes también cuenta el tamaño: vigilar desde {formatTokens(CONTEXT_SIZE_CAPS.watch)} y compactar desde {formatTokens(CONTEXT_SIZE_CAPS.compact)} tokens, aunque el porcentaje sea bajo.
+      </p>}
+      <div className="pc-context-advice" role="status">
+        <strong>{advice.title}</strong>
+        <p>{advice.hint}</p>
+      </div>
+      {perTurn != null && <dl className="pc-context-facts">
+        <div><dt>Costo acumulado</dt><dd>{formatCost(meta.costUsd)}</dd></div>
+        <div><dt>Promedio por turno</dt><dd>{formatCost(perTurn)}</dd></div>
+      </dl>}
+      <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || 'Resumir el historial en un brief y liberar la ventana'}
+        onClick={() => { close(); onCompact?.(); }}>
+        <FoldVertical size={14} aria-hidden="true" />Compactar contexto
+      </button>
+      <p className="pc-context-note">{compactBlocked ? `${compactBlocked}. ` : ''}Compactar resume el historial en un brief: libera la ventana y abarata cada turno, a cambio de perder detalles finos.</p>
+    </div>}
   </span>;
+}
+
+// A friendly, dismissible heads-up when the context crosses into a costlier band.
+// Dismissing silences the current band only; dropping back (after compacting or
+// a new conversation) re-arms it.
+export function ContextNudge({ meta, onReveal }) {
+  const use = contextUse(meta);
+  const [dismissed, setDismissed] = useState(0);
+  const rank = BAND_RANK[contextAdvice(use)?.band ?? 'ok'];
+  useEffect(() => { if (rank < dismissed) setDismissed(rank); }, [rank, dismissed]);
+  const nudge = contextNudge(use, dismissed);
+  if (!nudge) return null;
+  return <section className={`pc-nudge is-${nudge.band}`} role="status" aria-label="Aviso de contexto">
+    <Lightbulb size={15} aria-hidden="true" />
+    <div><strong>{nudge.title}</strong><p>{nudge.body}</p></div>
+    <span className="pc-nudge-actions">
+      <button type="button" onClick={onReveal}>Ver opciones</button>
+      <button type="button" className="pc-icon" title="Entendido" aria-label="Ocultar este aviso" onClick={() => setDismissed(nudge.rank)}><X size={14} /></button>
+    </span>
+  </section>;
 }
 
 // Messages written while the agent works, sent one by one when it finishes.
@@ -484,15 +610,15 @@ export function QueuedMessages({ queue, running, connected = true, unqueue, resu
   return <section className={`pc-queue ${paused ? 'is-paused' : ''}`} aria-label="Mensajes en espera">
     <header>
       <span>{paused ? 'En pausa' : 'En espera'} · {queue.length} {queue.length === 1 ? 'mensaje' : 'mensajes'}</span>
-      {paused && <button type="button" disabled={busy || !connected} onClick={() => act(() => resume())}><ArrowUp size={12} aria-hidden="true" />Reanudar</button>}
+      {paused && <button type="button" disabled={busy || !connected} onClick={() => act(() => resume())}><ArrowUp size={14} aria-hidden="true" />Reanudar</button>}
     </header>
     <ol>
       {queue.map((item, index) => <li key={item.id}>
         <span className="pc-queue-num" aria-hidden="true">{index + 1}</span>
         <p title={item.text}>{item.text}</p>
-        {paused && index > 0 && <button type="button" className="pc-icon" disabled={busy || !connected} title="Enviar este ahora" aria-label="Enviar este mensaje ahora" onClick={() => act(() => resume(item.id))}><ArrowUp size={13} /></button>}
-        <button type="button" className="pc-icon" disabled={busy || !connected} title="Editar" aria-label="Sacar de la cola para editar" onClick={() => act(async () => { const { text } = await unqueue(item.id); onEdit?.(text); })}><Pencil size={13} /></button>
-        <button type="button" className="pc-icon" disabled={busy || !connected} title="Quitar" aria-label="Quitar de la cola" onClick={() => act(() => unqueue(item.id))}><X size={13} /></button>
+        {paused && index > 0 && <button type="button" className="pc-icon" disabled={busy || !connected} title="Enviar este ahora" aria-label="Enviar este mensaje ahora" onClick={() => act(() => resume(item.id))}><ArrowUp size={14} /></button>}
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Editar" aria-label="Sacar de la cola para editar" onClick={() => act(async () => { const { text } = await unqueue(item.id); onEdit?.(text); })}><Pencil size={14} /></button>
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Quitar" aria-label="Quitar de la cola" onClick={() => act(() => unqueue(item.id))}><X size={14} /></button>
       </li>)}
     </ol>
   </section>;
@@ -526,9 +652,13 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
-  const [draft, setDraft] = useState('');
+  const [reveal, setReveal] = useState(0);
+  const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
+  const voice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
+    onText: text => setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text) });
+  const listening = voice.status === 'recording';
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
   const chosen = node.data.chat.permissionMode ?? (typeof node.data.chat.autoApprove === 'boolean' ? (node.data.chat.autoApprove ? 'auto' : 'ask') : null);
@@ -559,6 +689,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const submit = async () => {
     const text = draft.trim();
     if (!text || sending || !connected) return;
+    if (voice.status !== 'idle') voice.cancel();
     setSending(true); pinned.current = true;
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
@@ -577,7 +708,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
-      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
       {(running || waiting) && (waiting
         ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
         : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
@@ -600,11 +731,14 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
       </div>
     </div>
-    {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
+    {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
-    <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
+    <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
+      <ContextNudge key={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
+        <VoiceActivity voice={voice} />
+        {voice.error && <p className="voice-inline-error" role="alert">{voice.error}</p>}
         <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         <div className="pc-controls">
           <div className="pc-settings">
@@ -612,12 +746,13 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
             <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={running} />
             <PermissionSwitch mode={permissionMode} provider={provider} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
           </div>
-          {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}
-          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={15} /></button>}
+          <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : listening ? 'Detener y transcribir' : `Dictar a ${label}`} aria-label={listening ? 'Detener y transcribir' : `Dictar a ${label}`} onClick={listening ? voice.stop : voice.start}>{listening ? <Square size={14} /> : <Mic size={16} />}</button>
+          {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
+          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={16} /></button>}
         </div>
       </div>
       <div className="pc-meta">
-        <ContextMeter meta={meta} />
+        <ContextMeter meta={meta} running={running} reveal={reveal} />
         {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
         <span className="pc-bar-space" />
         <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>

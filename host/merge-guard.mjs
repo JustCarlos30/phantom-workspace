@@ -137,7 +137,8 @@ Do not resolve a worker's conflicts yourself and do not rewrite worker branches.
 This terminal is a worker. Its only writable branch is ${branch ? `\`${branch}\`` : 'its own terminal branch'}. A Git guard rejects writes to any other branch, pushes, and commits in the project checkout. Only the orchestrator session integrates work into ${target}.
 
 - Commit your work on your own branch. To pick up newer work, merge or rebase ${target} into your branch inside this worktree and resolve conflicts here.
-- When the work is committed and its checks pass, request integration: \`${cli} submit "One-line summary of what this branch delivers"\`.
+- Before your final commit, before opening a PR, and before saying the work is committed or ready, pull in the latest ${target}: \`git merge ${base || 'main'}\` inside this worktree, resolve any conflicts here, and rerun the checks. \`submit\` rejects a branch that does not contain the current ${target}.
+- When the work is committed, up to date with ${target} and its checks pass, request integration: \`${cli} submit "One-line summary of what this branch delivers"\`.
 - \`${cli} queue\` shows the queue and your request. If it comes back as conflict or rejected, read its note, update your branch from ${target}, fix, and submit again. \`${cli} withdraw\` cancels your request.
 
 Never work around the guard (unsetting variables, --no-verify, editing hooks, pushing). If another branch must change, report blocked and say why.

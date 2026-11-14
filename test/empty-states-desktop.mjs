@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Production Electron + real host. No renderer/API mocks or provider prompts.
 // The controller builds and runs this script; captures survive fixture cleanup.
@@ -204,7 +205,7 @@ try {
     try {
       if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
     } finally {
-      if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+      killElectronGroup(appProcess);
       await rm(temp, { recursive: true, force: true });
     }
   }

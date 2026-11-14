@@ -1,3 +1,29 @@
+/* Discrete native identity at the two entry points. The notch stays legible
+   at any decorative intensity; its text and semantic colors carry the state. */
+.gengar-mascot { display: inline-flex; color: #9b7cb5; opacity: var(--gengar-intensity, .55); }
+.gengar-mascot > svg { width: 104px; height: 88px; overflow: visible; }
+.gengar-mascot-body, .phantom-face-shell { fill: #493354; stroke: #9675ac; }
+.phantom-face { color: #cbb5d9; --gengar-outline: #34253f; --gengar-tooth: #d9cfe3; }
+.phantom-face-pupils { stroke: #835467; stroke-width: 1.15; }
+.activity-notch .phantom-face { width: 28px; height: 28px; }
+.activity-notch .phantom-face.is-asleep .phantom-face-shell { fill: #292133; stroke: var(--muted); }
+.activity-notch .phantom-face.is-unsure .phantom-face-shell { stroke-dasharray: 2 1; }
+.activity-notch .phantom-face.is-unsure { color: var(--muted); }
+.activity-notch .phantom-face.is-grin .phantom-face-shell { stroke: var(--attention); }
+.activity-notch .phantom-face-brow { stroke: var(--attention); }
+.gengar-mascot .phantom-face-eyes { animation: none; }
+.canvas-empty .empty-state__icon:has(.gengar-mascot) { width: 104px; height: 88px; }
+.app-shell:not(.studio-character) .gengar-mascot,
+.studio-character .gengar-mascot-fallback,
+.studio-character .notch-state-fallback,
+.app-shell:not(.studio-character) .activity-notch .phantom-face { display: none; }
+.app-shell:not(.studio-character) .canvas-empty .empty-state__icon { width: 64px; height: 64px; }
+.studio-focused .gengar-mascot, .studio-concentration .gengar-mascot { opacity: calc(var(--gengar-intensity, .55) * .12); }
+/* Avoid a second character behind the entry-point mascot. Existing artwork
+   remains atmospheric only on populated canvases. */
+.canvas-region:has(.canvas-empty)::after { background-image: none; }
+@media (max-height: 700px) { .gengar-mascot > svg { width: 78px; height: 66px; } .canvas-empty .empty-state__icon:has(.gengar-mascot) { height: 66px; } }
+
 /* Studio is the shipping dark theme. Layout/input semantics live in styles.css. */
 :root {
   color-scheme: dark;
@@ -56,7 +82,7 @@
 .button.primary, .tw-button.tw-primary { background: var(--accent); color: var(--primary-ink); border-color: var(--accent); }
 .button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); }
 .icon-button:hover { background: var(--surface-2); }
-.project-rail { width: 232px; height: calc(100% - 24px); margin: 12px; padding: 16px 10px 10px; background: var(--rail); color: var(--ink); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-float); min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.project-rail { width: 232px; height: calc(100% - 24px); margin: 12px; padding: 16px 10px 10px; background: var(--rail); color: var(--ink); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .brand { padding: 0 8px 22px; flex-shrink: 0; }
 .brand-mark { width: 24px; height: 30px; color: var(--ink); background: none; border-radius: 0; }
 .brand>span:last-of-type>span, .rail-heading, .project-item small, .host-indicator, .rail-bottom kbd { color: var(--muted); }
@@ -113,9 +139,10 @@
 .studio-ember .canvas-region, .background-option.ember { --atmosphere: radial-gradient(ellipse at 72% 28%, #744535 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #49354d 0%, transparent 58%); }
 .studio-plain .canvas-region, .background-option.plain { --atmosphere: none; }
 .studio-gengar .canvas-region, .background-option.gengar { --atmosphere: radial-gradient(ellipse at 78% 58%, #624085 0%, transparent 62%), radial-gradient(ellipse at 38% 100%, #352044 0%, transparent 68%); }
-.canvas-region::before { content: ''; position: absolute; inset: 0; background-image: var(--personal-background), var(--atmosphere); background-size: cover; background-position: center; opacity: var(--background-intensity, .55); pointer-events: none; transition: opacity 220ms cubic-bezier(.16,1,.3,1); }
+/* Local atmosphere leaves dark breathing room; a personal image still covers the canvas. */
+.canvas-region::before { content: ''; position: absolute; inset: 0; background-image: var(--personal-background), var(--atmosphere); background-size: cover, 82% 80%, 64% 64%; background-position: center, right top, left bottom; background-repeat: no-repeat; opacity: var(--background-intensity, .55); pointer-events: none; transition: opacity 220ms cubic-bezier(.16,1,.3,1); }
 .canvas-region::after { content: ''; position: absolute; z-index: 0; inset: 0; pointer-events: none; background-image: var(--gengar-art); background-size: clamp(200px, 38%, 480px) auto; background-position: right 1% bottom 4%; background-repeat: no-repeat; opacity: 0; }
-.canvas-region > .canvas { z-index: 1; }
+.canvas-region .canvas { z-index: 1; background-color: transparent; }
 .studio-character .canvas-region::after { opacity: var(--gengar-intensity, .55); }
 .studio-focused .canvas-region::before { opacity: calc(var(--background-intensity, .55) * .12); }
 .studio-focused .canvas-region::after { opacity: calc(var(--gengar-intensity, .55) * .12); }
@@ -147,7 +174,7 @@
 .mission-chip { background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); }
 .focus-return { color: var(--muted); }
 .focus-return>span { border-color: var(--hairline); }
-.dock-main, .canvas-navigation { background: var(--surface); box-shadow: var(--shadow-float); }
+.dock-main, .canvas-navigation { background-color: var(--glass); background-image: var(--glass-sheen); box-shadow: var(--shadow-chrome); }
 .dock-main { height: 50px; padding: 5px 7px; border-radius: var(--r-obj); }
 .dock-main button { height: 38px; color: var(--muted); }
 .dock-main button:first-of-type { color: var(--ink); }
@@ -169,7 +196,7 @@
 .canvas.is-panning, .canvas.is-panning .canvas-node, .canvas.is-panning .canvas-node * { cursor: grabbing; }
 .canvas.is-panning .node-body { pointer-events: none; }
 .canvas-marquee { position: absolute; z-index: 25; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.canvas-popover { position: absolute; top: 67px; right: 20px; width: 320px; max-width: calc(100% - 40px); z-index: 35; padding: 8px; border-radius: var(--r-ctl); color: var(--ink); background: var(--surface); box-shadow: var(--shadow-float); }
+.canvas-popover { position: absolute; top: 67px; right: 20px; width: 320px; max-width: calc(100% - 40px); z-index: 35; padding: 8px; border-radius: var(--r-ctl); color: var(--ink); background: var(--surface); box-shadow: var(--shadow-chrome); }
 .canvas-popover-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 4px 10px 8px; }
 .canvas-popover-heading strong { font-size: 12px; font-weight: 600; }
 .canvas-popover-heading button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-ctl); color: var(--muted); }
@@ -187,7 +214,7 @@
 @media (min-width: 851px) and (max-width: 1100px) { .studio-inspector-open .canvas-popover { right: calc(var(--canvas-inspector-reserve) + 12px); } }
 @media (max-width: 850px) { .canvas-popover { right: 12px; } }
 @media (max-width: 1270px) { .canvas-navigation { top: 62px; } .canvas-popover { top: 112px; } }
-.panel-index-button { background: var(--surface); border-color: transparent; color: var(--muted); box-shadow: var(--shadow-float); }
+.panel-index-button { background: var(--surface); border-color: transparent; color: var(--muted); box-shadow: var(--shadow-chrome); }
 .panel-index-button:hover { border-color: transparent; color: var(--ink); background: var(--surface-2); }
 .panel-index-button.active { border-color: transparent; color: var(--accent); background: var(--accent-soft); }
 .create-dock { left: 50%; bottom: 22px; }
@@ -200,7 +227,7 @@
 .app-dialog>label { color: var(--muted); }
 .dialog-actions, .recovery-screen pre { background: var(--surface-2); }
 .app-modal-backdrop, .tw-overlay { background: #0b0812a8; }
-.tw-palette, .tw-voice { box-shadow: var(--shadow-float); }
+.tw-palette, .tw-voice { box-shadow: var(--shadow-chrome); }
 .inline-error, .inline-name-error, .connection-error { background: var(--error-bg); color: var(--danger); }
 .connection-error>button { color: var(--danger); }
 .desktop-required { background: var(--bg); }
@@ -216,6 +243,11 @@
 .appearance-panel p { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0 0 24px; }
 .appearance-panel fieldset { border: 0; margin: 0 0 24px; padding: 0; min-width: 0; }
 .appearance-panel legend, .intensity-label { font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+.interface-scale label { display: block; font-size: 12px; margin-bottom: 8px; }
+.interface-scale select { width: 100%; min-width: 0; min-height: 34px; padding: 6px 10px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); border-radius: var(--r-ctl); font: inherit; }
+.interface-scale select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.interface-scale select:disabled { opacity: .6; }
+.appearance-panel .interface-scale p { margin: 10px 0 0; font-size: 11px; }
 .background-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .background-option { text-align: left; padding: 5px 5px 9px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); font-size: 11px; position: relative; --atmosphere: radial-gradient(ellipse at 75% 20%, #4b3a80, transparent 75%), radial-gradient(ellipse at 10% 90%, #1f586c, transparent 75%); }
 .background-option:hover { border-color: var(--muted); }
@@ -248,7 +280,7 @@
 .appearance-footer .button { font-size: 11px; }
 @media (min-width: 1450px) { .project-rail { width: 240px; } }
 @media (max-width: 1270px) { .dock-label { display: none; } .create-dock { left: 50%; } }
-@media (max-width: 1100px) { .project-rail { width: 210px; } .create-dock { left: 50%; } .inspector-host { box-shadow: var(--shadow-float); } }
+@media (max-width: 1100px) { .project-rail { width: 210px; } .create-dock { left: 50%; } .inspector-host { box-shadow: var(--shadow-chrome); } }
 @media (min-width: 851px) and (max-width: 1100px) {
   .studio-inspector-open { --canvas-inspector-reserve: calc(var(--inspector-width) + var(--gutter)); }
   .studio-inspector-open .create-dock { left: calc((100% - var(--canvas-inspector-reserve)) / 2); }

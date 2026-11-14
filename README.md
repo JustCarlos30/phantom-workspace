@@ -24,6 +24,26 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 4. Enfoca un panel y usa **Volver al mapa** o **Ctrl + Mayús + Enter** para regresar. La lista permite encontrar paneles fuera de la cámara y recuperar vistas ocultas.
 5. **Ctrl + K** abre la paleta. El inspector derecho ofrece contexto, tareas, sesiones, Git, servicios y otras herramientas junto a la terminal.
 
+### Sitios globales
+
+**Sitios** en la navegación lateral y en la paleta reúne los servicios Compose de todos los proyectos registrados, con filtro por proyecto. Busca `compose.yaml`, `compose.yml`, `docker-compose.yaml` o `docker-compose.yml` en cada raíz. Sin Compose se muestra orientación para añadirlo; Phantom no genera Dockerfiles. La consulta no inicia servicios. **Iniciar** ejecuta Compose `up -d` para el servicio; **Detener** y **Reiniciar** usan `stop` y `restart`, sin borrar volúmenes. Los contenedores no dependen de la terminal ni de mantener abierta la vista.
+
+La URL se muestra para puertos TCP publicados con `app_protocol: http` o `https`, o cuyo puerto interno es 80 o 443; no se presupone que otros puertos sean HTTP. Solo se muestran bindings efectivos de contenedores existentes. Se comprueba que el daemon sea local y que todos los contenedores del proyecto pertenezcan a la raíz y al archivo Compose detectado. Si hay varios proyectos Compose en una raíz o configuraciones adicionales, se indica el conflicto en vez de elegir o adoptar contenedores. Los proyectos todavía sin contenedores usan un nombre Compose estable derivado de su ruta. Los errores de un proyecto no ocultan los demás.
+
+Las pruebas declaradas son `node --test test/sites.test.mjs test/integrations.test.mjs`, `npm run build` y `node test/sites-desktop.mjs`: la prueba Electron emplea perfil, repositorios y ejecutable Docker sintéticos y guarda su captura en `/tmp/phantom-sites-ui-*`. Los resultados corresponden al controlador.
+
+### Dictado por voz
+
+**Dictado por voz**, en la barra de proyectos, y **Ctrl/Cmd + Shift + M** abren el dictado global. Primero enfoca un campo editable o una terminal; el destino y la selección quedan fijados al abrirlo. Las letras normales y los atajos propios de escritura mantienen su comportamiento. La paleta **Ctrl + K** también ofrece Dictado y **Capturar voz o escribir intención**.
+
+Pulsa **Grabar dictado**, después **Detener y transcribir**. Revisa la **Transcripción editable** y pulsa **Insertar en campo** o **Insertar en terminal**. En terminal se comprueba que la misma sesión siga conectada y admita escritura; los saltos de línea y controles se convierten en espacios y **no se envía Enter**. Cambiar de foco no cambia el destino. Si el campo cambió durante la captura, se conserva su borrador y se pide revisar la transcripción.
+
+ChatCard, Phantom y orquestador tienen micrófono propio: añaden la transcripción al borrador, sin enviar mensajes. Sus borradores permanecen en esta ventana al cerrar/reabrir o cambiar de pestaña, separados por proyecto y conversación; recargar la ventana los descarta. Solo hay un dictado activo, desde el permiso del micrófono hasta el final de la transcripción. **Cancelar audio**, Escape o cerrar la captura descartan el resultado pendiente y liberan el micrófono; cambiar de proyecto o desmontar el destino también cancela la captura.
+
+Las ondas violetas responden al nivel real de audio; **Transcribiendo** indica que el micrófono está apagado. Movimiento reducido conserva texto y nivel mediante opacidad, sin movimiento de ondas. El límite por fragmento es **2 minutos o 1 MiB**. Los errores muestran cómo recuperar permisos o configurar el proveedor existente; no se descarga ni se configura un runtime al dictar.
+
+Prueba declarada: `node test/voice-desktop.mjs`, después del build, usa Electron y perfil aislados, audio WebAudio grabado por MediaRecorder y una transcripción **explícitamente sintética**. No evalúa precisión de reconocimiento ni usa el micrófono personal. Las capturas y el informe se escriben en `/tmp/opencode/voice-desktop-*` a 1520×980 y 1100×760. El controlador ejecuta los checks y comunica sus resultados.
+
 ### Plugin Phantom · Centro de mando
 
 Abre **Plugins** en la barra de proyectos y pulsa **Activar Phantom**. La activación y la frecuencia se guardan por proyecto. **Abrir Centro de mando** crea o recupera su panel del canvas; también está disponible en **Ctrl + K** y en el selector del inspector. En Configuración puedes definir las rutas de la CLI y sus datos nativos; no se instala código externo ni hay marketplace.
@@ -72,6 +92,14 @@ Las terminales existentes ofrecen una pantalla reciente en texto (hasta 40 líne
 Las lecturas se actualizan cada dos segundos sin solaparse y se pausan al ocultar la página. Los errores detienen la consulta y ofrecen **Reconectar**; ninguna escritura se reintenta automáticamente. Si se pierde el acuse, consulta el hilo al reconectar antes de enviar de nuevo. Revocación o caducidad requieren otro emparejamiento. El bearer vive solo en `sessionStorage` de esa pestaña y viaja en `Authorization`, nunca en la dirección; no hay cookies ni secretos persistidos en el host. Hay límites de ocho dispositivos y 256 acciones por dispositivo; al agotarlos, revoca/empareja de nuevo según indique el error.
 
 Pruebas declaradas: `test/mobile.test.mjs` usa hosts y builds sintéticos aislados, escuchando solo en loopback; cubre autenticación, caducidad, alcance, límites, rutas y acciones idempotentes. `node test/mobile-browser.mjs`, tras el build, usa Chromium a 390×844 y 360 px con el host/HTTP/autenticación reales y motores de conversación/terminal sintéticos, sin modelos ni shells. El script escribe capturas y resultados en `/tmp/phantom-mobile-evidence`. Los resultados de los checks corresponden al controlador.
+
+#### App Android
+
+Abre **Ajustes → App Android (gateway HTTPS)** para administrar el gateway del repo independiente `phantom-mobile`, sin usar la terminal. El panel permite guardar su ruta, comprueba que contiene el CLI y muestra la versión de Node detectada (requiere **Node >= 26**). La ruta guardada tiene prioridad sobre `PHANTOM_MOBILE_REPO` y el repo hermano `../phantom-mobile`; `PHANTOM_MOBILE_NODE` permite seleccionar el binario Node del host.
+
+Selecciona una interfaz LAN privada, deja el puerto en `0` (automático) o indica uno entre 1024 y 65535 e inicia el gateway para el proyecto. El teléfono debe poder alcanzar al equipo: las Wi-Fi con aislamiento de clientes no sirven; puedes usar el hotspot del teléfono. Copia el bootstrap público al teléfono, importa su JSON en la app, compara la huella SHA256 y genera un código de vinculación de un uso, válido durante 120 segundos. Aprueba el dispositivo desde el panel y desbloquea la acción en el teléfono.
+
+Puedes conceder lectura del chat principal, envío de mensajes, parada de turnos y lectura de herramientas del proyecto. El acceso al chat principal exige reconocer que el teléfono actuará con la autoridad del agente. **Actualizar permisos reemplaza los anteriores** por la selección del formulario; también puedes revocar dispositivos o detener el gateway. Los datos privados del gateway se guardan separados de los del escritorio. Al detener el host se detiene su gateway; al reiniciarlo se pierden las vinculaciones, pero se conserva la identidad TLS.
 
 ### Sesiones y cierre
 

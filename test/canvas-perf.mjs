@@ -6,6 +6,7 @@ import { mkdtemp, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const { values } = parseArgs({ options: { root: { type: 'string' }, renderer: { type: 'string', default: 'dom' }, terminals: { type: 'string', default: '6' } } });
 const root = path.resolve(values.root || path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
@@ -79,6 +80,6 @@ try {
   // Output loops never exit on their own: interrupt them, then don't let close hang.
   for (const s of sessions) await invoke?.('terminal.write', { sessionId: s.id, data: '\u0003exit\r' }).catch(() => {});
   await Promise.race([app.close().catch(() => {}), delay(5000)]);
-  try { app.process().kill('SIGKILL'); } catch {}
+  killElectronGroup(app.process());
   if (hostPid) try { process.kill(hostPid, 'SIGKILL'); } catch {}
 }

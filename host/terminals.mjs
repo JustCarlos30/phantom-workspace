@@ -104,6 +104,7 @@ export class Terminals {
   }
   descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
+  foreground(id) { const entry=this.live.get(id);return entry&&!entry.exited?foregroundOf(entry.child.pid):null; }
   async create(w, node, options) {
     assert(!this.closed, 'Terminal host is closing');
     assert(!this.setupJobs.has(node.id), 'Las dependencias de esta terminal todavía se están deteniendo');

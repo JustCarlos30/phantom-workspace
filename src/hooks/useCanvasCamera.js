@@ -7,7 +7,8 @@ export const cameraTier = zoom => zoom > 1 ? -1 : zoom < .25 ? 2 : zoom < .45 ? 
 
 // Input can arrive faster than the display. Paint once per frame through
 // `onFrame` (imperative DOM writes, no React render), re-render React only
-// when the zoom tier changes or navigation settles, and persist after settle.
+// once navigation settles (tier changes included: switching every terminal's
+// renderer mid-pinch is what made zoom stutter), and persist after settle.
 export function useCanvasCamera(value, onCommit, onFrame) {
   const [camera, setCamera] = useState(value);
   const current = useRef(value);
@@ -42,9 +43,7 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     pending.current = true;
     if (frame.current === null) frame.current = requestAnimationFrame(() => {
       frame.current = null;
-      const latest = current.current;
-      paint.current?.(latest);
-      if (cameraTier(latest.zoom) !== cameraTier(rendered.current.zoom)) render(latest);
+      paint.current?.(current.current);
     });
     clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
@@ -58,9 +57,10 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     destination.current = next;
     pending.current = true;
     const start = { ...current.current }, time = performance.now();
+    const duration = Math.min(360, 180 + 90 * Math.abs(Math.log2(next.zoom / start.zoom)));
     const tick = now => {
       animation.current = null;
-      const progress = Math.min(1, (now - time) / 180), ease = 1 - (1 - progress) ** 3;
+      const progress = Math.min(1, (now - time) / duration), ease = 1 - (1 - progress) ** 3;
       // Animation owns its RAF; deliberate input still interrupts via update.
       if (progress < 1) {
         current.current = Object.fromEntries(['x', 'y', 'zoom'].map(key => [key, start[key] + (next[key] - start[key]) * ease]));

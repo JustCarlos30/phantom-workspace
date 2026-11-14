@@ -12,6 +12,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
   const input = useRef(null), dialog = useRef(null), previousFocus = useRef(null), listId = useId();
   const actions = useMemo(() => [
     { title: 'Abrir carpeta', group: 'Workspace', action: { type: 'openFolder' } },
+    { title: 'Abrir Sitios globales', group: 'Navegación', action: { type: 'sites' } },
     { title: 'Personalizar espacio · fondo y apariencia', group: 'Workspace', action: { type: 'appearance' } },
     ...(workspace ? [
       { title: 'Abrir catálogo de Skills', group: 'Herramientas', action: { type: 'create', panelType: 'skills-catalog' } },
@@ -22,6 +23,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
       { title: 'Buscar paneles del proyecto', group: 'Navegación', action: { type: 'panels' } },
       { title: 'Preguntar a Phantom', group: workspace.name, action: { type: 'phantom-chat' } },
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
+      { title: 'Dictado por voz · Ctrl/Cmd + Shift + M', group: workspace.name, action: { type: 'dictation' } },
       ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission' && tab !== 'skills-catalog' && !PLUGIN_MANIFESTS.some(plugin => plugin.panels.some(panel => panel.nodeType === tab))).map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: `Panel · ${node.type}`, action: { type: 'panel', id: node.id } })),
       ...['terminal', 'browser', 'note', 'tasks', 'context', 'repo', 'git', 'branches', 'incorporaciones', 'services', 'docker', 'mission', 'workflows', 'playwright', 'playground'].map(panelType => ({ title: `Crear ${TOOL_TITLES[panelType] || ({ terminal: 'terminal', browser: 'navegador', note: 'nota' })[panelType]}`, group: 'Nuevo panel', action: { type: 'create', panelType } })),
