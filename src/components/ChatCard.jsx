@@ -1,12 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useComposerSize } from '../hooks/useComposerSize';
-import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, FoldVertical, Folder, GitBranch, Globe, Lightbulb, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
-import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
+import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
@@ -501,15 +501,103 @@ function EffortMenu({ label, heading, ariaName, title, levels, selected, note, d
   </div>;
 }
 
-export function ContextMeter({ meta }) {
+const share = ratio => ratio < .01 ? '<1' : String(Math.round(ratio * 100));
+// The meter opens a panel that reads the context against quality/cost bands and
+// offers compaction. `onCompact` is optional: until a provider wires it the
+// action stays visible but disabled, so the recommendation is never a dead end.
+export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
   const use = contextUse(meta);
+  const [open, setOpen] = useState(false);
+  const root = useRef(null), trigger = useRef(null), panel = useRef(null);
+  const id = React.useId();
+  // A bumped `reveal` opens the panel from outside, e.g. from the context nudge.
+  useEffect(() => { if (reveal) setOpen(true); }, [reveal]);
+  useEffect(() => {
+    if (!open) return;
+    panel.current?.focus({ preventScroll: true });
+    const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]);
   if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
+  const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
-  return <span className={`pc-context ${level}`} title={use.window ? `${use.tokens.toLocaleString()} de ${use.window.toLocaleString()} tokens de contexto en uso` : `${use.tokens.toLocaleString()} tokens de contexto en uso; este proveedor no informa el tamaño de la ventana`}>
-    {use.window && <span className="pc-context-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.min(100, use.ratio * 100))}%` }} /></span>}
-    <span>{formatTokens(use.tokens)}{use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}</span>
-    {use.window && <span className="pc-context-share">{use.ratio < .01 ? '<1' : Math.round(use.ratio * 100)}%</span>}
+  const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
+  const perTurn = Number.isFinite(meta.costUsd) && meta.costUsd > 0 && meta.turns > 0 ? meta.costUsd / meta.turns : null;
+  const bands = use.window
+    ? [['ok', 'Óptima', `< ${CONTEXT_BANDS.watch * 100}%`], ['watch', 'Vigilar', `${CONTEXT_BANDS.watch * 100}–${CONTEXT_BANDS.compact * 100}%`], ['compact', 'Compactar', `≥ ${CONTEXT_BANDS.compact * 100}%`]]
+    : [['ok', 'Óptima', `< ${formatTokens(CONTEXT_TOKEN_BANDS.watch)}`], ['watch', 'Vigilar', `${formatTokens(CONTEXT_TOKEN_BANDS.watch)}–${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`], ['compact', 'Compactar', `≥ ${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`]];
+  // Without a window the scale ends at 1.5× the compaction size.
+  const watchAt = use.window ? CONTEXT_BANDS.watch * 100 : 100 / 1.5 * CONTEXT_TOKEN_BANDS.watch / CONTEXT_TOKEN_BANDS.compact;
+  const compactAt = use.window ? CONTEXT_BANDS.compact * 100 : 100 / 1.5;
+  const compactBlocked = !onCompact ? 'La compactación todavía no está conectada a este agente' : running ? 'Disponible cuando termine la respuesta' : '';
+  return <span ref={root} className="pc-context-wrap">
+    <button ref={trigger} type="button" className={`pc-context ${level} is-${advice.band} ${open ? 'is-open' : ''}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
+      title={use.window ? `${use.tokens.toLocaleString()} de ${use.window.toLocaleString()} tokens de contexto en uso · ${advice.title}` : `${use.tokens.toLocaleString()} tokens de contexto en uso · ${advice.title}`}
+      onClick={() => setOpen(value => !value)}>
+      {use.window && <span className="pc-context-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.min(100, use.ratio * 100))}%` }} /></span>}
+      <span>{formatTokens(use.tokens)}{use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}</span>
+      {use.window && <span className="pc-context-share">{share(use.ratio)}%</span>}
+      {advice.band === 'compact' && <span className="pc-context-flag">compactar</span>}
+    </button>
+    {open && <div ref={panel} id={id} className={`pc-context-panel is-${advice.band}`} role="dialog" aria-label="Ventana de contexto" tabIndex={-1}
+      onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }}>
+      <header>
+        <h4>Ventana de contexto</h4>
+        <p className="pc-context-reading"><strong>{formatTokens(use.tokens)}</strong>{use.window ? <> de {formatTokens(use.window)} · <span className="pc-context-share">{share(use.ratio)}%</span></> : ' tokens · ventana no informada'}</p>
+      </header>
+      <div className="pc-context-scale" aria-hidden="true">
+        <span className="pc-context-track" style={{ '--watch': `${watchAt}%`, '--compact': `${compactAt}%` }}>
+          {use.window
+            ? <i style={{ width: `${Math.max(1, Math.min(100, use.ratio * 100))}%` }} />
+            : <i style={{ width: `${Math.max(1, Math.min(100, use.tokens / (CONTEXT_TOKEN_BANDS.compact * 1.5) * 100))}%` }} />}
+          <b style={{ left: `${watchAt}%` }} />
+          <b style={{ left: `${compactAt}%` }} />
+        </span>
+      </div>
+      <ol className="pc-context-bands">
+        {bands.map(([band, name, range]) => <li key={band} className={`is-${band} ${band === advice.band ? 'is-current' : ''}`} aria-current={band === advice.band ? 'true' : undefined}>
+          <i aria-hidden="true" /><span>{name}</span><small>{range}</small>
+        </li>)}
+      </ol>
+      {use.window && (advice.cause === 'size' || use.window * CONTEXT_BANDS.watch > CONTEXT_SIZE_CAPS.watch) && <p className={`pc-context-cap ${advice.cause === 'size' ? 'is-active' : ''}`}>
+        En ventanas grandes también cuenta el tamaño: vigilar desde {formatTokens(CONTEXT_SIZE_CAPS.watch)} y compactar desde {formatTokens(CONTEXT_SIZE_CAPS.compact)} tokens, aunque el porcentaje sea bajo.
+      </p>}
+      <div className="pc-context-advice" role="status">
+        <strong>{advice.title}</strong>
+        <p>{advice.hint}</p>
+      </div>
+      {perTurn != null && <dl className="pc-context-facts">
+        <div><dt>Costo acumulado</dt><dd>{formatCost(meta.costUsd)}</dd></div>
+        <div><dt>Promedio por turno</dt><dd>{formatCost(perTurn)}</dd></div>
+      </dl>}
+      <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || 'Resumir el historial en un brief y liberar la ventana'}
+        onClick={() => { close(); onCompact?.(); }}>
+        <FoldVertical size={14} aria-hidden="true" />Compactar contexto
+      </button>
+      <p className="pc-context-note">{compactBlocked ? `${compactBlocked}. ` : ''}Compactar resume el historial en un brief: libera la ventana y abarata cada turno, a cambio de perder detalles finos.</p>
+    </div>}
   </span>;
+}
+
+// A friendly, dismissible heads-up when the context crosses into a costlier band.
+// Dismissing silences the current band only; dropping back (after compacting or
+// a new conversation) re-arms it.
+export function ContextNudge({ meta, onReveal }) {
+  const use = contextUse(meta);
+  const [dismissed, setDismissed] = useState(0);
+  const rank = BAND_RANK[contextAdvice(use)?.band ?? 'ok'];
+  useEffect(() => { if (rank < dismissed) setDismissed(rank); }, [rank, dismissed]);
+  const nudge = contextNudge(use, dismissed);
+  if (!nudge) return null;
+  return <section className={`pc-nudge is-${nudge.band}`} role="status" aria-label="Aviso de contexto">
+    <Lightbulb size={15} aria-hidden="true" />
+    <div><strong>{nudge.title}</strong><p>{nudge.body}</p></div>
+    <span className="pc-nudge-actions">
+      <button type="button" onClick={onReveal}>Ver opciones</button>
+      <button type="button" className="pc-icon" title="Entendido" aria-label="Ocultar este aviso" onClick={() => setDismissed(nudge.rank)}><X size={14} /></button>
+    </span>
+  </section>;
 }
 
 // Messages written while the agent works, sent one by one when it finishes.
@@ -564,6 +652,7 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
+  const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
@@ -645,6 +734,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
+      <ContextNudge key={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         <VoiceActivity voice={voice} />
@@ -662,7 +752,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         </div>
       </div>
       <div className="pc-meta">
-        <ContextMeter meta={meta} />
+        <ContextMeter meta={meta} running={running} reveal={reveal} />
         {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
         <span className="pc-bar-space" />
         <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>

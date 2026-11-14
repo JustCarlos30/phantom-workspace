@@ -14,7 +14,7 @@ export function invokeAgent(method, payload, socketPath, timeout=10000) {
     socket.once('end',()=>finish(new Error('Se cerró la conexión con el host.')));
   });
 }
-const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review]\n'
+const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review] | run ID [MODELO] | runs\n'
   +'Encargos: projects | handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)\n'
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
   +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"';
@@ -48,8 +48,18 @@ function handoffArguments(args) {
 }
 export async function main(args=process.argv.slice(2), env=process.env) {
   const [action,...rest]=args,merge=Object.hasOwn(MERGE,action??'')?MERGE[action]:null;
-  if ((!merge && !['context','report','bind','projects','handoff'].includes(action)) || (action==='projects'&&rest.length) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512))) throw new Error(USAGE);
+  if ((!merge && !['context','report','bind','projects','handoff','run','runs'].includes(action)) || (action==='projects'&&rest.length) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512)) || (action==='run' && (rest.length<1 || rest.length>2 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512 || (rest.length===2 && (!rest[1].trim() || /[\x00-\x1f\x7f]/.test(rest[1]) || rest[1].length>200)))) || (action==='runs' && rest.length)) throw new Error(USAGE);
   const handoff=action==='handoff'?handoffArguments(rest):null;
+  if(action==='run' || action==='runs') {
+    let workspaceId=env.PHANTOM_WORKSPACE_ID;
+    if(!workspaceId) {
+      if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+      const context=await invokeAgent('terminal.agent.context',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},env.PHANTOM_WORKSPACE_SOCKET);
+      workspaceId=context.workspaceId;
+    }
+    if(action==='runs') return invokeAgent('phantom.controllers',{workspaceId},env.PHANTOM_WORKSPACE_SOCKET);
+    return invokeAgent('phantom.control',{workspaceId,id:rest[0],action:'run',...(rest.length===2?{model:rest[1]}:{})},env.PHANTOM_WORKSPACE_SOCKET,60000);
+  }
   // The project's Phantom conversation orchestrates without a terminal: it reads the queue and runs token commands by workspace.
   if(!env.PHANTOM_TERMINAL_SESSION_ID && merge && env.PHANTOM_WORKSPACE_ID && (merge.token || action==='queue')) {
     if(action==='queue') return invokeAgent('merge.status',{workspaceId:env.PHANTOM_WORKSPACE_ID},env.PHANTOM_WORKSPACE_SOCKET);

@@ -45,7 +45,7 @@ export function VoiceDictation({ target, api, connected, onClose }) {
       <header className="popover-heading"><h2 id="voice-dictation-title">Dictado por voz</h2><button type="button" className="icon-button" aria-label="Cerrar dictado" onClick={close}><X size={17} /></button></header>
       <p>Destino fijado: <strong>{target.label}</strong></p>
       <p>{target.kind === 'terminal' ? 'Revisa el texto antes de insertarlo en esta sesión. Los saltos de línea se convierten en espacios; Enter lo pulsas tú en la terminal.' : target.kind === 'none' ? 'Enfoca un campo de texto o una terminal y vuelve a abrir el dictado. Puedes preparar o copiar texto aquí.' : 'La transcripción se inserta en la selección original. Tu borrador se conserva hasta que pulses Insertar.'}</p>
-      <VoiceActivity voice={voice} />
+      <VoiceActivity voice={voice} surface={target.surface} />
       {(voice.error || error) && <p className="voice-error" role="alert">{voice.error || error}</p>}
       {voice.busyElsewhere && <p role="status">Otro dictado está usando el micrófono. Detén o cancela su audio para grabar aquí.</p>}
       <div className="voice-actions"><button type="button" className="button" disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} onClick={voice.status === 'recording' ? voice.stop : voice.start}>{voice.status === 'recording' ? <Square size={14} /> : <Mic size={16} />}{voice.status === 'recording' ? 'Detener y transcribir' : 'Grabar dictado'}</button></div>
