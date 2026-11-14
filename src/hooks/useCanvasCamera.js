@@ -41,8 +41,9 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     cancelAnimationFrame(animation.current);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { update(next); return; }
     const start = { ...current.current }, time = performance.now();
+    const duration = Math.min(360, 180 + 90 * Math.abs(Math.log2(next.zoom / start.zoom)));
     const tick = now => {
-      const progress = Math.min(1, (now - time) / 180), ease = 1 - (1 - progress) ** 3;
+      const progress = Math.min(1, (now - time) / duration), ease = 1 - (1 - progress) ** 3;
       update(Object.fromEntries(['x', 'y', 'zoom'].map(key => [key, start[key] + (next[key] - start[key]) * ease])));
       if (progress < 1) animation.current = requestAnimationFrame(tick);
     };

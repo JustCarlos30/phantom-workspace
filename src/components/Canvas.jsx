@@ -11,6 +11,7 @@ import { isEditingTarget } from '../hooks/inputOwnership';
 import { canScroll, createWheelGesture } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
+import { frameFor, needsFraming } from '../hooks/panelFraming';
 import { TerminalActivityStatus } from './ActivityNotch';
 import { PANEL_ICONS } from './PanelIcons';
 import PixelField from './PixelField';
@@ -195,11 +196,8 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   }, []);
   // Camera that centers one panel inside the visible (unobstructed) stage.
   const frameCamera = useCallback((id, view = size) => {
-    const found = live.current.nodes.find(n => n.id === id); if (!found || !view.width || !view.height) return null;
-    const n = found.type === 'zone' ? { ...found, y: found.y - 44, height: found.height + 44 } : found;
-    const a = safeArea(), w = Math.max(160, view.width - a.left - a.right), h = Math.max(80, view.height - a.top - a.bottom);
-    const zoom = clamp(Math.min(1, (w - 64) / n.width, (h - 24) / n.height), .15, 1);
-    return { x: a.left + (w - n.width * zoom) / 2 - n.x * zoom, y: a.top + (h - n.height * zoom) / 2 - n.y * zoom, zoom };
+    const found = live.current.nodes.find(n => n.id === id); if (!found) return null;
+    return frameFor(found, safeArea(), view);
   }, [size, safeArea]);
   const fit = useCallback((selectionOnly = false) => {
     const targets = selectionOnly === true ? nodes.filter(n => selected.includes(n.id)) : nodes;
@@ -491,8 +489,8 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   // Stable callbacks for memoized nodes; they always call the latest closure.
   // Selecting a card happens in the capture phase, so content that stops
   // propagation (menus, pickers, the composer) can no longer swallow it.
-  // A plain click on a card cut off by the edges or the floating chrome
-  // brings it fully into view; a drag or an action button never does.
+  // A plain click brings a clipped or poorly scaled card into working view;
+  // a drag or an action button never does.
   const press = (e, id) => {
     if (e.button !== 0 || inputBlocked) return;
     lastPress.current = { id, x: e.clientX, y: e.clientY, t: performance.now() };
@@ -507,7 +505,8 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     if (focused || e.button !== 0 || e.shiftKey || !p || p.id !== id || Math.hypot(e.clientX - p.x, e.clientY - p.y) > 5) return;
     if (e.target.closest('button,a,[role="menuitem"],[role="option"],[role="radio"]')) return;
     const panel = root.current?.querySelector(`[data-node-id="${CSS.escape(id)}"]`);
-    if (panel && clipped(panel)) frameNode(id);
+    const node = live.current.nodes.find(n => n.id === id), target = frameCamera(id)?.zoom;
+    if (panel && node && needsFraming({ clipped: clipped(panel), zoom: cameraRef.current.zoom, target, type: node.type })) frameNode(id);
   };
   const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename, press, click };
   // Closing a thread or a draft hands the keyboard back to the canvas, so Esc, C and V keep working.
@@ -549,7 +548,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       // click, so the map never slides away while a button is still held.
       if (focused || performance.now() - (lastPress.current?.t || -Infinity) < 800) return;
       const panel = e.target.closest('.canvas-node');
-      if (panel && clipped(panel)) frameNode(panel.dataset.nodeId);
+      if (!panel) return;
+      const id = panel.dataset.nodeId, node = live.current.nodes.find(n => n.id === id), target = frameCamera(id)?.zoom;
+      if (node && needsFraming({ clipped: clipped(panel), zoom: cameraRef.current.zoom, target, type: node.type })) frameNode(id);
     }}>
     {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={<><GengarMascot /><Layers className="gengar-mascot-fallback" /></>} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
     <PixelField targets={pixelTargets} cameraRef={cameraRef} paintRef={fieldPaint} hidden={!!focused} />
