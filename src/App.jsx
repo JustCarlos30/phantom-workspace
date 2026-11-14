@@ -14,14 +14,15 @@ import { overlayPolicy } from './hooks/inputOwnership';
 import { useAppearance } from './hooks/useAppearance';
 import { useInterfaceScale } from './hooks/useInterfaceScale';
 import { Appearance } from './components/Appearance';
-import ActivityNotch, { ActivityTray } from './components/ActivityNotch';
+import ActivityNotch, { ActivityTray, activityMood } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
 import { useReadyBranches } from './hooks/useReadyBranches';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
 import ProjectSwitcher from './components/ProjectSwitcher';
 import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Film } from 'lucide-react';
-import { PhantomGlyph as Ghost } from './components/Glyphs';
+import { PhantomGlyph as Ghost, PhantomFace } from './components/Glyphs';
+import { ActivityIcon, PluginsIcon, CommandsIcon, SiteIcon } from './components/ShellIcons.jsx';
 import { PANEL_ICONS } from './components/PanelIcons';
 import { structuralShare } from './hooks/structuralShare';
 import gengarArtwork from '../assets/gengar.png';
@@ -438,15 +439,15 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     <PresenceGroup>
     {sidebar && <button key="rail-scrim" className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
     <aside key="project-rail" id="project-rail" ref={railRef} aria-label="Navegación del espacio" role={compactRail && sidebar ? 'dialog' : undefined} aria-modal={compactRail && sidebar ? true : undefined} inert={compactRail && !sidebar} onKeyDown={navigateRailList} onFocusCapture={() => setRailOwnsFocus(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setRailOwnsFocus(false); }} className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
-      <div className="brand"><span className="brand-mark"><Ghost size={17} /></span><span>Phantom<span>Workspace</span></span><button className="rail-collapse icon-button" aria-label={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} title={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} aria-expanded={!railCollapsed} onClick={toggleRail}>{railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button><button className="rail-close icon-button" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)}><X size={17} /></button></div>{railCollapsed && workspace && <button className="rail-collapsed-project" onClick={toggleRail} title={workspace.path}><span className="project-initials">{initials(workspace.name)}</span><span>{workspace.name}{spaces.activeSpace && <em> / {spaces.activeSpace.name}</em>}</span></button>}
+      <div className="brand"><span className="brand-mark"><PhantomFace mood={activityMood(activity)} /><Ghost className="brand-state-fallback" size={17} /></span><span>Phantom<span>Workspace</span></span><button className="rail-collapse icon-button" aria-label={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} title={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} aria-expanded={!railCollapsed} onClick={toggleRail}>{railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button><button className="rail-close icon-button" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)}><X size={17} /></button></div>{railCollapsed && workspace && <button className="rail-collapsed-project" onClick={toggleRail} title={workspace.path}><span className="project-initials">{initials(workspace.name)}</span><span>{workspace.name}{spaces.activeSpace && <em> / {spaces.activeSpace.name}</em>}</span></button>}
       <ProjectSwitcher projects={state.workspaces} active={workspace} open={contextMenu === 'project'} onOpenChange={value => setContextMenu(value ? 'project' : null)} onSelect={id => { setSidebar(false); selectWorkspace(id); }} onOpenFolder={openFolder} busy={busy === 'folder'} />
       {workspace && <Spaces key={workspace.id} spaces={spaces.spaces} active={spaces.active} nodes={workspace.nodes || []} open={contextMenu === 'space'} onOpenChange={value => setContextMenu(value ? 'space' : null)} onSelect={id => { setFocused(null); setSelected([]); spaces.select(id); }} onCreate={spaces.create} onRename={spaces.rename} onRemove={spaces.remove} />}
-      {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><Bell size={15} /><span>{activity.needs.length ? 'Necesitan de ti' : 'Actividad del proyecto'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
+      {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={!!tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><ActivityIcon size={20} /><span>{activity.needs.length ? 'Necesitan de ti' : 'Actividad del proyecto'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
       {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={id => { setSitesOpen(false); jump(id); }} onFocus={id => { setSitesOpen(false); setSidebar(false); focusPanel(id); }} onSearch={() => { setSitesOpen(false); setSidebar(false); setList(v => !v); }} onMap={() => { setSitesOpen(false); setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
       <div className="rail-bottom">
-        <button aria-pressed={sitesOpen} onClick={() => { setSidebar(false); setSitesOpen(v => !v); setInspector(null); }}><Globe size={15} /> Sitios</button>
-        {workspace && <button onClick={() => { setSidebar(false); onOpenPanel('plugins'); }}><Blocks size={15} /> Centro de Plugins</button>}
-        <button onClick={() => { setSidebar(false); setPalette(true); }}><Command size={15} /> Comandos <kbd>Ctrl K</kbd></button>
+        <button aria-pressed={sitesOpen} onClick={() => { setSidebar(false); setSitesOpen(v => !v); setInspector(null); }}><SiteIcon size={20} /> Sitios</button>
+        {workspace && <button onClick={() => { setSidebar(false); onOpenPanel('plugins'); }}><PluginsIcon size={20} /> Centro de Plugins</button>}
+        <button onClick={() => { setSidebar(false); setPalette(true); }}><CommandsIcon size={20} /> Comandos <kbd>Ctrl K</kbd></button>
         <VoiceLauncher disabled={!workspace || connection.status !== 'connected'} />
         <div className="rail-system"><span className={`host-indicator ${connection.status}`} title={connection.message || connectionLabel} role="status"><i />{connectionLabel}</span><button className={`icon-button ${inspector === 'appearance' ? 'active' : ''}`} title="Personalizar espacio" aria-label="Personalizar espacio" onClick={() => { setSidebar(false); setInspector(inspector === 'appearance' ? null : 'appearance'); }}><Palette size={15} /></button><button className={`icon-button ${inspector === 'settings' ? 'active' : ''}`} title="Configuración" aria-label="Configuración" onClick={() => { setSidebar(false); setInspector(inspector === 'settings' ? null : 'settings'); }}><Settings2 size={15} /></button></div>
       </div>

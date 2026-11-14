@@ -33,7 +33,9 @@ const capture = async name => {
   await page.screenshot({ path: filename }); captures.push(filename);
 };
 const style = panel => panel.evaluate(el => {
-  const css = getComputedStyle(el), edge = getComputedStyle(el, '::after');
+  const css = getComputedStyle(el), trace = el.querySelector('.activity-trace');
+  const head = trace?.querySelector('.activity-trace__head'), contour = trace?.querySelector('.activity-trace__contour');
+  const edge = trace ? getComputedStyle(el.classList.contains('pulse-error') ? contour : head) : null;
   const colors = Object.fromEntries(['--success', '--danger', '--attention', '--working', '--accent', '--hairline'].map(token => {
     // The global reduced-motion rule assigns a tiny !important transition
     // duration even to spans. Reusing a probe then samples the previous token
@@ -51,11 +53,14 @@ const style = panel => panel.evaluate(el => {
   return { colors, borders: ['Top', 'Right', 'Bottom', 'Left'].map(side => css[`border${side}Color`]),
     borderStyles: ['Top', 'Right', 'Bottom', 'Left'].map(side => css[`border${side}Style`]),
     widths: ['Top', 'Right', 'Bottom', 'Left'].map(side => css[`border${side}Width`]),
-    radius: css.borderRadius, edgeRadius: edge.borderRadius, shadow: edge.boxShadow,
-    gradient: edge.backgroundImage, backgroundSize: edge.backgroundSize, opacity: Number(edge.opacity),
+    radius: css.borderRadius, edgeRadius: edge?.rx, stroke: edge?.stroke, strokeWidth: edge?.strokeWidth,
+    dash: edge?.strokeDasharray, opacity: contour ? Number(getComputedStyle(contour).opacity) : 0,
+    contourStroke: contour ? getComputedStyle(contour).stroke : null,
+    headDisplay: head ? getComputedStyle(head).display : null, settled: trace?.dataset.settled,
+    pointer: trace ? getComputedStyle(trace).pointerEvents : null,
     outline: css.outlineColor, outlineWidth: css.outlineWidth, outlineOffset: css.outlineOffset,
-    animation: edge.animationName, iterations: edge.animationIterationCount, duration: edge.animationDuration,
-    running: el.getAnimations().filter(a => a.playState === 'running').length };
+    animation: edge?.animationName || 'none', iterations: edge?.animationIterationCount, duration: edge?.animationDuration,
+    running: trace?.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length || 0 };
 });
 const assertEdge = async (panel, fixture) => {
   // Let the actual border-color transition complete before sampling.
@@ -65,9 +70,10 @@ const assertEdge = async (panel, fixture) => {
   assert.ok(css.widths.every(width => width === css.widths[0]), 'Continuous, uniform border');
   assert.ok(parseFloat(css.widths[0]) > 0, 'Ordinary border has visible thickness');
   assert.deepEqual(css.borderStyles, ['solid', 'solid', 'solid', 'solid'], 'Ordinary border is uninterrupted');
-  assert.equal(css.edgeRadius, css.radius, 'Pulse inherits the actual panel radius');
-  assert.equal(css.shadow, 'none', 'Activity adds no inset perimeter');
-  assert.ok(css.gradient.includes('linear-gradient') && css.gradient.includes(color), 'Bottom glint uses the semantic token');
+  assert.equal(parseFloat(css.edgeRadius), parseFloat(css.radius) - 1, 'Trace follows the inset panel radius');
+  assert.equal(css.strokeWidth, '2px');
+  assert.equal(css.contourStroke, color, 'Contour uses the semantic state token');
+  assert.equal(css.pointer, 'none', 'Trace cannot intercept actions');
   return css;
 };
 
@@ -101,14 +107,19 @@ try {
     const panel = page.locator(`[data-node-id="${fixture.nodeId}"]`);
     if (!fixture.pulse) {
       assert.equal(await panel.evaluate(el => [...el.classList].some(c => c.startsWith('pulse-'))), false);
+      assert.equal(await panel.locator('.activity-trace').count(), 0);
       continue;
     }
     await page.locator(`[data-node-id="${fixture.nodeId}"].pulse-${fixture.pulse}`).waitFor();
     const css = await assertEdge(panel, fixture);
+    if (['attention', 'turn'].includes(fixture.pulse)) {
+      assert.deepEqual(css.dash.match(/[\d.]+/g).map(Number), [8, 92], 'Two 4% heads are exactly half a perimeter apart');
+      assert.equal(css.duration, '3.2s'); assert.equal(css.iterations, '9.375', 'Attention travels for exactly 30s');
+    }
     if (['success', 'error'].includes(fixture.pulse)) {
-      assert.notEqual(css.animation, 'none', 'Completion announces itself with a pulse');
-      assert.ok(css.duration.split(',').every(duration => parseFloat(duration) <= .6), 'Completion glints last at most 0.6 s');
-      assert.equal(css.iterations.split(',')[0].trim(), fixture.pulse === 'error' ? '3' : '1', 'Completion glints repeat only as specified');
+      assert.notEqual(css.animation, 'none', 'Completion announces itself with a trace');
+      assert.equal(css.duration, fixture.pulse === 'error' ? '0.5s' : '5.6s');
+      assert.equal(css.iterations, fixture.pulse === 'error' ? '3' : '1', 'Completion repeats only as specified');
     }
   }
   await capture('01-states');
@@ -150,18 +161,31 @@ try {
     await assertEdge(page.locator(`[data-node-id="${fixture.nodeId}"]`), fixture);
   }
   await capture('04-overview');
-  // By now the short success/error pulses must have settled without looping.
+  // Finish finite animations deterministically, without waiting on wall time.
+  await page.locator('.activity-trace').evaluateAll(elements => elements.forEach(el => {
+    for (const animation of el.getAnimations({ subtree: true })) {
+      if (animation.effect.getTiming().iterations !== Infinity) animation.finish();
+    }
+  }));
+  await page.waitForFunction(() => [...document.querySelectorAll('.activity-trace[data-state="pulse-success"]')].every(el => el.dataset.settled === 'true'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.activity-trace:is([data-state="pulse-attention"], [data-state="pulse-turn"])')].every(el => el.dataset.settled === 'true'));
+  for (const fixture of fixtures.filter(f => ['attention', 'turn'].includes(f.pulse))) {
+    const css = await assertEdge(page.locator(`[data-node-id="${fixture.nodeId}"]`), fixture);
+    assert.equal(css.opacity, 1, 'Attention settles to a full amber contour after 30s of animation time');
+    assert.equal(css.headDisplay, 'none'); assert.equal(css.running, 0);
+  }
   for (const fixture of fixtures.filter(f => ['success', 'error'].includes(f.pulse))) {
     const css = await assertEdge(page.locator(`[data-node-id="${fixture.nodeId}"]`), fixture);
     assert.notEqual(css.iterations, 'infinite'); assert.equal(css.running, 0);
-    assert.equal(css.opacity, fixture.pulse === 'error' ? .12 : 0, 'Only failure retains a dim bottom glint');
+    assert.equal(css.opacity, fixture.pulse === 'error' ? 1 : 0, 'Only failure retains a complete contour');
+    if (fixture.pulse === 'success') assert.equal(css.headDisplay, 'none', 'Success returns to rest');
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const fixture of fixtures.filter(f => f.token)) {
     const css = await assertEdge(page.locator(`[data-node-id="${fixture.nodeId}"]`), fixture);
     assert.equal(css.animation, 'none'); assert.equal(css.running, 0);
-    assert.equal(css.opacity, .2, 'Reduced motion keeps a dim static bottom glint');
-    assert.equal(css.backgroundSize, '35% 0.8px, 35% 3px', 'Static glint stays in the centre of the bottom edge');
+    assert.equal(css.opacity, 1, 'Reduced motion keeps a complete static contour');
+    assert.equal(css.headDisplay, 'none', 'Reduced motion removes travelling heads');
   }
   await capture('05-reduced-motion');
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();

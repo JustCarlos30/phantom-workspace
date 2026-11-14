@@ -87,17 +87,20 @@ test('drawn edges stay within budget', () => {
 });
 export { drawnEdges, sheets };
 
-test('dense glass has inset relief, a spring and accessible opaque fallbacks only on chrome', () => {
+test('light glass has inset relief, a spring and accessible opaque fallbacks only on chrome', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const tokens = canvas.match(/:root\s*\{([^}]+)\}/)?.[1];
   assert.ok(tokens);
-  for (const [token, minimum] of [['glass', 76], ['glass-thick', 88]]) {
+  for (const [token, minimum] of [['glass', 44], ['glass-thick', 60]]) {
     const value = declarations(tokens, `--${token}`)[0];
     const opacity = value?.match(/^color-mix\(in srgb, var\(--glass-tint\) (\d+(?:\.\d+)?)%, transparent\)$/)?.[1];
     assert.ok(Number(opacity) >= minimum, `--${token} must be at least ${minimum}% opaque`);
   }
   const blur = declarations(tokens, '--glass-filter')[0]?.match(/blur\((\d+(?:\.\d+)?)px\)/)?.[1];
-  assert.ok(Number(blur) >= 36, '--glass-filter must blur at least 36px');
+  assert.ok(Number(blur) >= 34, '--glass-filter must blur at least 34px');
+  assert.match(declarations(tokens, '--glass-filter')[0], /saturate\(190%\)/);
+  assert.equal(declarations(tokens, '--on')[0], '#f1ecf8');
+  assert.equal(declarations(tokens, '--on-ink')[0], '#1a1226');
   const chrome = declarations(tokens, '--shadow-chrome')[0];
   assert.ok(split(chrome, ',').filter(layer => layer.startsWith('inset ')).length >= 2, 'Chrome needs top and bottom inset relief');
   assert.match(declarations(tokens, '--ease-spring')[0], /^linear\(/);
@@ -154,15 +157,106 @@ test('spectral reading and state inks retain AA contrast on opaque planes', () =
   }
 });
 
-test('working chat planes are opaque and composer height never animates', () => {
+test('workplanes transmit colour without blur, wells remain dense and composer height never animates', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
   const side = sheets.find(sheet => sheet.name === 'src/phantom-chat.css').css;
-  assert.match(side, /\.phantom-chat\s*\{[^}]*background:\s*var\(--surface\)/);
-  assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--surface\)/);
+  const terminal = sheets.find(sheet => sheet.name === 'src/terminal.css').css;
+  const tokens = canvas.match(/:root\s*\{([^}]+)\}/)[1];
+  const planeAlpha = Number(declarations(tokens, '--workplane')[0]?.match(/var\(--surface\) (\d+)%/)?.[1]);
+  assert.ok(planeAlpha >= 76 && planeAlpha <= 82, 'Workplane base alpha must be 76–82%');
+  const wash = declarations(tokens, '--workplane-wash')[0];
+  assert.match(wash, /^linear-gradient\(135deg, color-mix\(in srgb, var\(--accent\) (\d+)%?, transparent\), transparent\)$/);
+  const accentAlpha = Number(wash.match(/var\(--accent\) (\d+)%/)[1]);
+  assert.ok(accentAlpha <= 10, 'Diagonal wash must stay subtle');
+  assert.ok(planeAlpha + accentAlpha * (1 - planeAlpha / 100) <= 82, 'Combined wash/base alpha stays within 82%');
+  for (const token of ['well', 'well-raised', 'well-terminal']) {
+    const opacity = Number(declarations(tokens, `--${token}`)[0]?.match(/\) (\d+)%, transparent\)/)?.[1]);
+    assert.ok(opacity >= 86, `--${token} must be at least 86% opaque`);
+  }
+  assert.match(canvas, /\.canvas \.canvas-node\[data-type="terminal"\]\s*\{[^}]*background-color:\s*var\(--workplane\);[^}]*background-image:\s*var\(--workplane-wash\)/);
+  assert.match(side, /\.phantom-chat\s*\{[^}]*background-color:\s*var\(--workplane\);[^}]*background-image:\s*var\(--workplane-wash\)/);
+  assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--well\)/);
+  assert.match(chat, /\.pc-thread\s*\{[^}]*background:\s*var\(--well-terminal\)/);
+  assert.match(chat, /\.pc-field\s*\{[^}]*background:\s*var\(--well-raised\)/);
+  assert.match(terminal, /\.pt-card-screen,[^{]+\{[^}]*background:\s*var\(--well-terminal\)/);
+  const plane = /(?:^|[\s>+~])(?:\.pc|\.pc-thread|\.pc-composer|\.phantom-chat|\.pt-card|\.pt-card-screen|\.terminal-panel|\.terminal-host|\.canvas-node\[data-type="terminal"\])(?=[:.\[#]|$)(?:[^\s>+~]*)$/;
+  for (const { name, css } of sheets) {
+    for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!declarations(body, '(?:-webkit-)?backdrop-filter').some(value => value !== 'none')) continue;
+      for (const selector of split(selectors, ',')) assert.ok(!plane.test(selector), `No backdrop filter on workplane: ${name}: ${selector}`);
+    }
+  }
   assert.match(chat, /\.pc-field textarea\s*\{[^}]*transition:\s*none/);
   for (const file of ['ChatCard', 'PhantomChat']) {
     const source = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
     assert.match(source, /useComposerSize\(input, draft/);
     assert.doesNotMatch(source, /Math\.min\(el\.scrollHeight/);
+  }
+});
+
+test('reading and state inks retain AA on translucent wells, including a white image behind them', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
+  const tokens = canvas.match(/:root\s*\{([^}]+)\}/)[1];
+  const rgb = name => {
+    const value = declarations(tokens, `--${name}`)[0] || declarations(studio, `--${name}`)[0];
+    assert.match(value, /^#[\da-f]{6}$/i);
+    return value.slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
+  };
+  const luminance = rgb => rgb.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
+    .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+  const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + .05) / (Math.min(luminance(a), luminance(b)) + .05);
+  for (const token of ['well', 'well-raised', 'well-terminal']) {
+    const [, base, percent] = declarations(tokens, `--${token}`)[0].match(/var\(--([\w-]+)\) (\d+)%/);
+    const alpha = Number(percent) / 100;
+    for (const background of [[0, 0, 0], [1, 1, 1], rgb('surface-3')]) {
+      const composite = rgb(base).map((v, i) => v * alpha + background[i] * (1 - alpha));
+      for (const ink of ['ink', 'muted', 'working', 'attention']) {
+        const ratio = contrast(rgb(ink), composite);
+        assert.ok(ratio >= 4.5, `--${ink} on --${token}: ${ratio.toFixed(2)} < 4.5`);
+      }
+    }
+  }
+  assert.ok(contrast(rgb('on'), rgb('on-ink')) >= 4.5, 'Solid active keys retain AA');
+});
+
+test('chrome reading inks retain AA across the existing CSS atmospheres and project accents', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
+  const tokens = canvas.match(/:root\s*\{([^}]+)\}/)[1];
+  const rgb = hex => hex.slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
+  const token = name => rgb(declarations(tokens, `--${name}`)[0] || declarations(studio, `--${name}`)[0]);
+  const over = (front, back, alpha) => front.map((v, i) => v * alpha + back[i] * (1 - alpha));
+  const luminance = rgb => rgb.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
+    .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+  const backgrounds = [token('bg'), ...[...studio.matchAll(/--atmosphere:[^;}]+/g)]
+    .flatMap(([value]) => [...value.matchAll(/#[\da-f]{6}\b/gi)].map(([hex]) => rgb(hex)))];
+  // Full intensity at each gradient's brightest stop and top of the sheen.
+  // Personal images are runtime content; opaque accessibility modes remain available.
+  for (const accent of ['c-lilac', 'c-iris', 'c-mint', 'c-sand', 'c-rose', 'c-sky']) {
+    const tint = over(token(accent), token('surface-3'), .13);
+    for (const material of ['glass', 'glass-thick']) {
+      const alpha = Number(declarations(tokens, `--${material}`)[0].match(/ (\d+)%/)[1]) / 100;
+      for (const background of backgrounds) {
+        const composite = over([1, 1, 1], over(tint, background, alpha), 31 / 255);
+        for (const ink of ['ink', 'ink-on-glass']) {
+          const a = luminance(token(ink)), b = luminance(composite);
+          const ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+          assert.ok(ratio >= 4.5, `--${ink} on --${material}/${accent}: ${ratio.toFixed(2)} < 4.5`);
+        }
+      }
+    }
+  }
+});
+
+test('materials retire the old activity glint and keep auxiliary status indicators still', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  assert.doesNotMatch(canvas, /--filo-|@keyframes\s+filo-/);
+  assert.doesNotMatch(canvas, /\.canvas-node::after\s*\{/);
+  for (const state of ['working', 'error', 'success']) assert.match(canvas, new RegExp(`\\.canvas-node\\.pulse-${state}\\s*\\{\\s*--pulse:`));
+  for (const name of ['canvas-ui', 'terminal', 'chat', 'phantom-chat', 'sidebar', 'studio']) {
+    const css = sheets.find(sheet => sheet.name === `src/${name}.css`).css;
+    assert.doesNotMatch(css, /animation\s*:[^;}]*\binfinite\b/, `${name}: no continuous material/status animation`);
   }
 });

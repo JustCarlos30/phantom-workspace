@@ -1,4 +1,4 @@
-import { AppWindow, Image, Network, FolderGit2, BookOpen, Braces, Box, CirclePlay, FileText, Flag, Frame, GitBranch, GitMerge, Layers, ListChecks, PanelsTopLeft, Puzzle, Server, SquareTerminal, Waypoints } from 'lucide-react';
+import { SiteIcon as AppWindow, ImageIcon as Image, NetworkIcon as Network, ResourcesIcon as FolderGit2, BookIcon as BookOpen, CodeIcon as Braces, BoxIcon as Box, PlayIcon as CirclePlay, NoteIcon as FileText, FlagIcon as Flag, ZoneIcon as Frame, BranchIcon as GitBranch, MergeIcon as GitMerge, LayersIcon as Layers, TasksIcon as ListChecks, PanelsIcon as PanelsTopLeft, PluginsIcon as Puzzle, ServerIcon as Server, TerminalIcon as SquareTerminal, WorkflowIcon as Waypoints } from './ShellIcons.jsx';
 
 // Shared by the launcher, rail, command palette and canvas headers. Each symbol
 // names a function; decorative colors and generic AI/robot imagery stay out.

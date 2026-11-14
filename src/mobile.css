@@ -6,6 +6,11 @@
   --ink: #eee9f4;
   --muted: #a69bb7;
   --accent: #a78bda;
+  --on: #f1ecf8;
+  --on-ink: #1a1226;
+  --fill: color-mix(in srgb, #fff 5%, transparent);
+  --fill-3: color-mix(in srgb, #fff 14%, transparent);
+  --shadow-key: inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #05030a66, 0 1px 3px #05030a8c;
   --danger: #ee788a;
   --warning: #e9b46a;
   --r-ctl: 8px;
@@ -22,8 +27,9 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-
 .mobile-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .mobile-heading p, .mobile-muted, .mobile-app small { color: var(--muted); }
 .mobile-heading span { font-size: 13px; }
-.mobile-app button { min-height: 44px; padding: 10px 14px; border: 0; border-radius: var(--r-ctl); background: var(--surface-2); color: var(--ink); font: inherit; cursor: pointer; max-width: 100%; white-space: normal; }
-.mobile-app button.mobile-primary { background: var(--accent); color: var(--bg); font-weight: 600; }
+.mobile-app button { min-height: 44px; padding: 10px 14px; border: 0; border-radius: var(--r-ctl); background: var(--fill); color: var(--ink); font: inherit; cursor: pointer; max-width: 100%; white-space: normal; }
+.mobile-app button:hover:not(:disabled) { background: var(--fill-3); }
+.mobile-app button.mobile-primary { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); font-weight: 600; }
 .mobile-app button:disabled { opacity: .55; cursor: default; }
 .mobile-app :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .mobile-app input, .mobile-app textarea { display: block; width: 100%; min-width: 0; background: var(--surface-2); border: 0; border-radius: var(--r-ctl); padding: 12px; color: var(--ink); font: inherit; font-size: 16px; resize: vertical; }

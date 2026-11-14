@@ -14,6 +14,13 @@ export function TerminalActivityStatus({ session, compact = false }) {
   return <span className={`terminal-activity-status ${session?.tone || 'unknown'} ${compact ? 'compact' : ''}`} title={`Host · terminal.list${session?.linkedTasks?.length ? ' + Phantom · phantom.list (vínculo explícito)' : ''} · ${session?.label || 'Estado desconocido'}`}><i />{session?.label || 'Estado desconocido'}</span>;
 }
 
+export function activityMood(activity) {
+  const fresh = freshness(activity);
+  const working = activity.inProgress.some(item => item.tone === 'working') || activity.activeSessions.length
+    || activity.integrations.active.some(item => ['merging', 'working', 'running', 'verifying', 'recovering'].includes(item.status));
+  return fresh.state === 'offline' ? 'asleep' : fresh.state !== 'fresh' ? 'unsure' : activity.needs.length ? 'grin' : working ? 'working' : 'calm';
+}
+
 export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
   // The count stays on screen whatever happens: a failed or old reading only
   // adds a mark next to it, and only when it is one of the sources the count
@@ -22,7 +29,7 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
   const settled = fresh.state === 'fresh' || fresh.state === 'stale';
   const count = activity.needs.length;
   const working = activity.inProgress.filter(item => item.tone === 'working').length + activity.activeSessions.length + activity.integrations.active.filter(item => ['merging', 'working', 'running', 'verifying', 'recovering'].includes(item.status)).length;
-  const mood = fresh.state === 'offline' ? 'asleep' : fresh.state !== 'fresh' ? 'unsure' : count ? 'grin' : working ? 'working' : 'calm';
+  const mood = activityMood(activity);
   const staleWhy = fresh.failing.length ? `No se pudo leer: ${fresh.failing.join(', ')}. El conteo es el de la última lectura correcta.` : 'La última lectura tiene más de 45 s. Se actualiza sola; el conteo puede haber cambiado.';
   const status = fresh.state === 'offline' ? 'Host desconectado' : fresh.state === 'loading' ? 'Recuperando actividad…' : count ? `${count} ${count === 1 ? 'necesita' : 'necesitan'} de ti` : fresh.state === 'fresh' && working ? 'En curso' : 'Actividad';
   const expanded = filter => open === filter || (open === true && filter === 'all');

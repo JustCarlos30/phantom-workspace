@@ -35,11 +35,7 @@
 .pt-state:is(.is-approval, .is-turn) { color: var(--attention); background: color-mix(in srgb, var(--attention) 18%, transparent); }
 .pt-state.is-approval { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 45%, transparent); }
 .pt-state.is-idle { background: none; padding: 0; }
-@media (prefers-reduced-motion: no-preference) {
-  .pt-state.is-working > i { animation: pt-breathe 1.8s var(--ease-out) infinite; }
-  .pt-state.is-approval > i { animation: pt-breathe 1.3s var(--ease-out) infinite; }
-}
-@keyframes pt-breathe { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 60% { opacity: .75; box-shadow: 0 0 0 .35em transparent; } }
+/* Static state dots keep real status visible without a repaint loop. */
 .pt-focus .status-dot, .pt-card .status-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--muted); flex-shrink: 0; }
 .pt-focus .status-dot.running, .pt-card .status-dot.running { background: var(--success); }
 .pt-focus .status-dot.connecting, .pt-card .status-dot.connecting { background: var(--warning); }
@@ -136,7 +132,6 @@
    hairline stays one pixel, labels stay readable and nothing turns to dust. */
 .canvas-node.overview { --ov: var(--overview-scale, 1); border-width: calc(1px * var(--ov)); border-radius: calc(var(--r-ctl) * var(--ov)); background: var(--surface); }
 .canvas-node.overview.selected { outline: calc(2px * var(--ov)) solid var(--accent); outline-offset: calc(2px * var(--ov)); }
-.canvas-node.overview::after { --edge-w: calc(2px * var(--ov)); }
 .canvas-node.overview > .node-header { height: calc(32px * var(--ov)); min-height: calc(32px * var(--ov)); padding: 0 calc(10px * var(--ov)); gap: calc(6px * var(--ov)); border-bottom: 0; border-radius: 0; background: transparent; cursor: grab; }
 .canvas-node.overview > .node-header .title-button { font-size: calc(13px * var(--ov)); line-height: 1.2; padding: 0; }
 .canvas-node.overview .node-glyph { width: calc(16px * var(--ov)); height: calc(16px * var(--ov)); }
@@ -157,3 +152,18 @@
 /* Farthest tier: a label you can find, nothing more. */
 .canvas-node.compact .pt-card-step, .canvas-node.compact .pt-card-glimpse, .canvas-node.compact .mission-chip { display: none; }
 .canvas-node.compact .pt-card-identity .pt-state { font-size: 1em; }
+
+/* Workplane frame transmits the existing atmosphere; output stays dense. */
+.pt-card, .terminal-panel.pt-focus, .pt-bar, .pt-context,
+.pt-focus .agent-identity, .pt-focus .terminal-message { background: transparent; }
+.pt-card-screen, .pt-focus .terminal-host, .pt-card-glimpse { background: var(--well-terminal); }
+.pt-card-glimpse { opacity: 1; }
+.pt-focus .terminal-host > .xterm, .pt-focus .terminal-host .xterm-viewport { background-color: transparent; }
+.pt-card-action { background: var(--fill); }
+.pt-card-action:hover { background: var(--fill-3); }
+.pt-card-action.is-primary, .pt-card-action.is-primary:hover,
+.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary,
+.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary:hover,
+.pt-focus .terminal-message button:hover:not(:disabled) {
+  background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key);
+}
