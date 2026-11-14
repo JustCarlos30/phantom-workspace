@@ -40,6 +40,7 @@ import './sidebar.css';
 import PhantomChat from './components/PhantomChat';
 import { DOCK_TABS, dockStatus } from './hooks/phantom-dock.mjs';
 import './phantom-chat.css';
+import GlobalSites from './components/GlobalSites';
 
 const TYPES = [
   // [type, name, icon, description, launcher group]
@@ -111,6 +112,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [selected, setSelected] = useState([]);
   const [inspector, setInspector] = useState(null);
   const [palette, setPalette] = useState(false);
+  const [sitesOpen, setSitesOpen] = useState(false);
   const [voice, setVoice] = useState(false);
   const [tray, setTray] = useState(false);
   const [tools, setTools] = useState(false);
@@ -136,6 +138,14 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   // A dictation turned into a task opens the voice capture with that text.
   const [voiceText, setVoiceText] = useState('');
   const [compactRail, setCompactRail] = useState(() => window.matchMedia('(max-width: 850px)').matches);
+  const closeSites = useCallback(() => {
+    const restore = !!document.activeElement?.closest('.global-sites');
+    setSitesOpen(false);
+    if (restore) requestAnimationFrame(() => {
+      const target = document.querySelector(compactRail ? '.rail-toggle' : '.rail-bottom button[aria-pressed]');
+      target?.focus({ preventScroll: true });
+    });
+  }, [compactRail]);
   const [menu, setMenu] = useState(null);
   const [busy, setBusy] = useState('');
   const [fitRequest, setFitRequest] = useState(0);
@@ -293,6 +303,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const commandAction = useCallback((action, data) => {
     setPalette(false);
     const key = typeof action === 'string' ? action : action?.action || action?.type || action?.id;
+    if (key === 'sites') { setSitesOpen(true); setInspector(null); return; }
     if (key === 'open-folder' || key === 'openFolder' || key === 'workspace.open') return openFolder();
     if (key === 'fit' || key === 'fit-all') { setFocused(null); setFitRequest(n => n + 1); return; }
     if (key === 'voice') { setVoiceText(''); setVoice(true); return; }
@@ -320,6 +331,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
         if (edit) { e.preventDefault(); setEdit(null); }
         else if (palette) setPalette(false);
         else if (voice) setVoice(false);
+        else if (sitesOpen && !contextMenu) { e.preventDefault(); e.stopPropagation(); closeSites(); }
         else if (menu) setMenu(null);
         else if (tools) setTools(false);
         else if (tray) setTray(false);
@@ -328,7 +340,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       }
     };
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
-  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat]);
+  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat, sitesOpen, contextMenu, closeSites]);
   useEffect(() => { if (workspace && focused && !workspace.nodes?.some(n => n.id === focused)) setFocused(null); }, [workspace, focused]);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 850px)');
@@ -430,8 +442,9 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       <ProjectSwitcher projects={state.workspaces} active={workspace} open={contextMenu === 'project'} onOpenChange={value => setContextMenu(value ? 'project' : null)} onSelect={id => { setSidebar(false); selectWorkspace(id); }} onOpenFolder={openFolder} busy={busy === 'folder'} />
       {workspace && <Spaces key={workspace.id} spaces={spaces.spaces} active={spaces.active} nodes={workspace.nodes || []} open={contextMenu === 'space'} onOpenChange={value => setContextMenu(value ? 'space' : null)} onSelect={id => { setFocused(null); setSelected([]); spaces.select(id); }} onCreate={spaces.create} onRename={spaces.rename} onRemove={spaces.remove} />}
       {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><Bell size={15} /><span>{activity.needs.length ? 'Necesitan de ti' : 'Actividad del proyecto'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
-      {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={jump} onFocus={id => { setSidebar(false); focusPanel(id); }} onSearch={() => { setSidebar(false); setList(v => !v); }} onMap={() => { setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
+      {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={id => { setSitesOpen(false); jump(id); }} onFocus={id => { setSitesOpen(false); setSidebar(false); focusPanel(id); }} onSearch={() => { setSitesOpen(false); setSidebar(false); setList(v => !v); }} onMap={() => { setSitesOpen(false); setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
       <div className="rail-bottom">
+        <button aria-pressed={sitesOpen} onClick={() => { setSidebar(false); setSitesOpen(v => !v); setInspector(null); }}><Globe size={15} /> Sitios</button>
         {workspace && <button onClick={() => { setSidebar(false); onOpenPanel('plugins'); }}><Blocks size={15} /> Centro de Plugins</button>}
         <button onClick={() => { setSidebar(false); setPalette(true); }}><Command size={15} /> Comandos <kbd>Ctrl K</kbd></button>
         <VoiceLauncher disabled={!workspace || connection.status !== 'connected'} />
@@ -447,7 +460,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       {closeRequest?.status === 'failed' && <div className="connection-error" role="alert"><AlertCircle size={14} /><span>No se cerró la ventana: {closeRequest.error}. Puedes reintentar o descartar explícitamente desde el diálogo del escritorio.</span><button onClick={retryClose}>Guardar y cerrar</button></div>}
       <div className="workspace-body"><PresenceGroup>
         <div key="canvas-region" className="canvas-region"><PresenceGroup>
-          {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked} obscured={browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <GengarMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
+          <div key="canvas-content" className="sites-canvas-content" inert={sitesOpen}>
+          {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked || sitesOpen} obscured={sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <GengarMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
           {workspace && <div key="create-dock" className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} />
@@ -458,6 +472,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {selected.length > 1 && !focused && <button key="group-selection" className="group-selection button" onClick={groupSelection}><Target size={15} /> Agrupar en misión</button>}
           {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker types={TYPES} disabled={!!busy} onPick={onOpenPanel} onClose={() => setTools(false)} /></>}
           {list && <div className="panel-index"><div className="popover-heading"><strong>Paneles del proyecto</strong><button className="icon-button" aria-label="Cerrar lista" onClick={() => setList(false)}><X size={15} /></button></div><label className="index-search"><Search size={15} /><input autoFocus aria-label="Buscar panel por nombre, tipo o misión" placeholder="Buscar nombre, tipo o misión…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="panel-index-items">{filteredNodes.map(n => <div className="index-item" key={n.id}><button onClick={() => jump(n.id)}><span className="index-type">{label(n.type)}{n.data?.hidden ? ' · Vista oculta · clic para recuperar' : ''}</span><strong>{n.title}</strong>{n.groupId && <small>{workspace.missions?.find(m => m.id === n.groupId)?.title}</small>}</button><button className="icon-button" title="Enfocar" aria-label={`Enfocar ${n.title}`} onClick={() => { focusPanel(n.id); setList(false); }}><ExternalLink size={14} /></button></div>)}{!filteredNodes.length && <EmptyState className="small-empty" size="compact" description={query ? 'No hay paneles con ese nombre, tipo o misión.' : 'Aún no hay paneles. Crea uno desde la barra inferior.'} />}</div><div className="index-footer"><button onClick={() => { setFocused(null); setFitRequest(n => n + 1); setList(false); }}>Ver todo el mapa</button><kbd>Ctrl ⇧ F</kbd></div></div>}
+          </div>
+          {sitesOpen && <GlobalSites key="global-sites" api={api} onClose={closeSites} />}
         </PresenceGroup></div>
         {inspector && <div key="inspector-host" className="inspector-host"><div className="inspector-switcher"><select aria-label="Herramienta contextual" value={inspector} onChange={e => setInspector(e.target.value)}>{TYPES.filter(t => !['terminal', 'browser', 'note', 'mission', 'zone'].includes(t[0])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="sessions">Sesiones</option><option value="settings">Configuración</option><option value="appearance">Apariencia</option></select><button className="icon-button" aria-label="Cerrar inspector" onClick={() => setInspector(null)}><X size={16} /></button></div>{inspector === 'appearance' ? <Appearance key={workspace?.id || 'default'} appearance={appearance} update={updateAppearance} reset={resetAppearance} workspace={workspace} interfaceScale={interfaceScale} /> : <Inspector tab={inspector} workspace={workspace} state={state} api={api} refresh={refresh} onClose={() => setInspector(null)} onOpenPanel={onOpenPanel} notify={notify} />}</div>}
       </PresenceGroup></div>
