@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
+import { runTimeoutMs } from '../integrations/phantom.mjs';
 
 const exec = promisify(execFile);
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
@@ -226,6 +227,17 @@ test('Phantom failures never report success and ambiguous writes cannot be blind
   await assert.rejects(f.call('phantom.create', payload), /transport failed/);
   await assert.rejects(f.call('phantom.create', payload), /uncertain outcome/); assert.equal(writes, 1);
   await assert.rejects(f.call('phantom.control', { id: 'task_x', action: 'stop' }), /owned by this host/);
+});
+
+test('Phantom run timeout defaults to six hours and accepts only integer minutes from 1 to 1440', () => {
+  assert.equal(runTimeoutMs(), 6 * 3600000);
+  assert.equal(runTimeoutMs({}), 6 * 3600000);
+  for (const phantomRunTimeoutMinutes of [undefined, 0, 1441, 2.5, '30']) {
+    assert.equal(runTimeoutMs({ phantomRunTimeoutMinutes }), 6 * 3600000);
+  }
+  for (const phantomRunTimeoutMinutes of [1, 30, 1440]) {
+    assert.equal(runTimeoutMs({ phantomRunTimeoutMinutes }), phantomRunTimeoutMinutes * 60000);
+  }
 });
 
 test('Phantom controllers use host Node argv, owned SIGINT, bounded output and retained events', async t => {
