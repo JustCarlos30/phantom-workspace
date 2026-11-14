@@ -172,9 +172,21 @@ try {
       if (state === 'attention') await unobscured(card.getByRole('button', { name: 'Aprobar', exact: true }), `${size}-${mode} permission`);
       await shot(`${size}-${mode}-${state}`);
       if (state === 'working') {
-        const opacity = () => card.evaluate(el => getComputedStyle(el, '::after').opacity);
-        const before = await opacity(); await delay(900);
-        assert.notEqual(await opacity(), before, 'Working edge breathes');
+        const glint = await card.evaluate(async el => {
+          const animation = el.getAnimations().find(a => a.animationName === 'filo-bar');
+          if (!animation) return null;
+          animation.pause();
+          const sample = async time => {
+            animation.currentTime = time;
+            await new Promise(requestAnimationFrame);
+            return Number(getComputedStyle(el, '::after').opacity);
+          };
+          const lit = await sample(90), rest = await sample(1200);
+          animation.play();
+          return { lit, rest };
+        });
+        assert.ok(glint?.lit > 0, 'Working bottom glint lights up');
+        assert.equal(glint.rest, 0, 'Working bottom edge is unlit between glints');
         assert.equal(await card.locator('.pc-column').evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.effect?.getComputedTiming().iterations === Infinity).length), 0, 'Thread remains still');
       }
       if (state === 'attention') assert.equal(await card.locator('.pc').getAttribute('data-agent'), 'approval');
@@ -210,7 +222,7 @@ try {
   await card.locator('.node-glyph').click();
   await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('selected'), node.id);
   const selection = await card.evaluate(el => ({ offset: getComputedStyle(el).outlineOffset, animation: getComputedStyle(el, '::after').animationName }));
-  assert.equal(selection.offset, '3px'); assert.equal(selection.animation, 'pulse-breathe');
+  assert.equal(selection.offset, '3px'); assert.equal(selection.animation, 'filo-bar');
   await shot('selected-working');
   await card.locator('.node-glyph').dblclick();
   await page.locator('.canvas-node.focused').waitFor();
@@ -222,7 +234,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const state of ['working', 'attention']) {
     await setState(state);
-    const opacity = state === 'working' ? '0.4' : '0.8';
+    const opacity = '0.2';
     // A chat reset, the parent pulse and its computed pseudo-element style
     // settle separately. Observe the requested state, not the preceding edge.
     await page.waitForFunction(({ id, state, opacity }) => {
