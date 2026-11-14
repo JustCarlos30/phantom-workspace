@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Mic } from 'lucide-react';
 import { VoiceDictation } from './VoiceDictation';
+import { VOICE_SURFACES } from './VoiceActivity';
 import { cancelVoiceRecording } from '../hooks/useVoiceRecorder';
 
 const VoiceContext = createContext(null);
@@ -91,7 +92,10 @@ export function VoiceProvider({ workspaceId, api, connected, children }) {
     const field = editable(element);
     const chosen = destination || terminals.current.get(element) || (field ? fieldTarget(field, workspaceId) : null);
     if (chosen && !chosen.valid()) return;
-    setTarget(chosen ? { ...chosen, workspaceId } : { workspaceId, label: 'Sin campo seleccionado', kind: 'none' });
+    // The card or terminal receiving the text lights up while it listens.
+    const owner = destination ? [...terminals.current].find(([, value]) => value === destination)?.[0] : element;
+    const surface = chosen ? owner?.closest?.(VOICE_SURFACES) || null : null;
+    setTarget(chosen ? { ...chosen, workspaceId, surface } : { workspaceId, label: 'Sin campo seleccionado', kind: 'none' });
   }, [workspaceId, connected, target]);
   useEffect(() => {
     const shortcut = event => {
