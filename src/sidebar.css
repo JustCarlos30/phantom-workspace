@@ -22,6 +22,10 @@
 
 /* ---------- Context selectors: the two wells ---------- */
 .project-rail .context-switcher { position: relative; flex-shrink: 0; min-width: 0; margin: 0 0 var(--s-2); }
+/* Project and space are one context: two halves of a single capsule. */
+.project-rail .project-switcher { margin-bottom: 2px; }
+.project-switcher > summary { border-radius: var(--r-obj) var(--r-obj) var(--r-mark) var(--r-mark); }
+.space-switcher-trigger { border-radius: var(--r-mark) var(--r-mark) var(--r-obj) var(--r-obj); }
 .project-switcher > summary, .space-switcher-trigger {
   display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 52px; padding: 8px 12px 8px 14px;
   border-radius: var(--r-obj); background: var(--fill-2); color: var(--ink); text-align: left; cursor: pointer; list-style: none;
@@ -82,20 +86,20 @@
 
 /* ---------- The list ---------- */
 /* One row shape for activity, sessions, resources, map and utilities. */
-.rail-attention, .rail-map-action, .rail-bottom > button, .rail-panel-row > button:first-child {
+.rail-attention, .rail-map-action, .rail-panel-row > button:first-child {
   display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-width: 0; min-height: var(--row);
   padding: 0 var(--row-pad); border: 0; background: none; color: inherit; font: var(--t-control); text-align: left;
 }
-.rail-attention, .rail-map-action, .rail-bottom > button, .rail-panel-row {
+.rail-attention, .rail-map-action, .rail-panel-row {
   flex-shrink: 0; margin: 0; border-radius: var(--r-obj); color: var(--muted);
   transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-:is(.rail-attention, .rail-map-action, .rail-bottom > button, .rail-panel-row):hover,
+:is(.rail-attention, .rail-map-action, .rail-panel-row):hover,
 .rail-panel-row:focus-within { background: var(--fill-2); color: var(--ink); }
-.project-rail :is(.rail-attention, .rail-map-action, .rail-bottom > button, .rail-panel-row > button:first-child):active:not(:disabled) { scale: .98; }
-.project-rail :is(.rail-attention, .rail-map-action, .rail-bottom > button, .rail-panel-row) > svg,
+.project-rail :is(.rail-attention, .rail-map-action, .rail-panel-row > button:first-child):active:not(:disabled) { scale: .98; }
+.project-rail :is(.rail-attention, .rail-map-action, .rail-panel-row) > svg,
 .project-rail .rail-panel-row > button:first-child > svg { flex-shrink: 0; color: inherit; }
-.project-rail :is(.rail-attention, .rail-map-action, .rail-bottom > button) :is(kbd, b, svg:last-child:not(:first-child)) { margin-left: auto; }
+.project-rail :is(.rail-attention, .rail-map-action) :is(kbd, b, svg:last-child:not(:first-child)) { margin-left: auto; }
 .project-rail kbd { height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--fill-2); color: inherit; font: var(--t-micro); opacity: .72; }
 .rail-attention > span { flex: 1; min-width: 0; }
 .rail-attention > svg:last-child { opacity: .5; }
@@ -108,7 +112,7 @@
    2. What is open (a tray, a view): a lit veil with a glass rim.
    3. Everything else rests on nothing. */
 .project-rail .rail-panel-row.selected { background: var(--on); color: var(--on-ink); --muted: var(--on-ink); }
-.project-rail :is(.rail-attention[aria-expanded=true], .rail-bottom > button[aria-pressed=true]) { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
+.project-rail .rail-attention[aria-expanded=true] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 
 /* ---------- Sessions and resources ---------- */
 .project-rail .rail-panels { display: flex; flex-direction: column; flex: 1; min-height: 80px; margin-top: var(--s-2); overflow: hidden; }
@@ -157,10 +161,17 @@
 .project-rail .rail-map-action .shell-icon { color: inherit; }
 
 /* ---------- Utilities and system ---------- */
-/* Separated from the list by space, never by a line. */
-.project-rail .rail-bottom { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; margin-top: auto; padding: var(--s-3) 0 0; border: 0; }
+/* Tools you reach for, not places you read: one row of round glass toggles
+   (named by tooltip and for assistive tech) instead of four more list rows.
+   The list above keeps the height for sessions. */
+.project-rail .rail-bottom { display: flex; flex-flow: row wrap; align-items: center; justify-content: space-between; gap: var(--s-2) 0; flex-shrink: 0; margin-top: auto; padding: var(--s-3) 6px 0; border: 0; }
+.project-rail .rail-bottom > button { position: relative; display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; background: var(--fill-2); box-shadow: var(--shadow-rim); color: var(--ink); }
+.project-rail .rail-bottom > button:hover:not(:disabled) { background: var(--fill-3); }
+.project-rail .rail-bottom > button:disabled { opacity: .45; }
 .project-rail .rail-bottom > button > svg { width: 20px; height: 20px; }
-.rail-system { display: flex; align-items: center; gap: 2px; min-height: var(--row); margin-top: var(--s-1); padding-left: var(--row-pad); }
+.project-rail .rail-bottom > button > :is(span, kbd) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.project-rail .rail-bottom > button[aria-pressed=true] { background: var(--on); color: var(--on-ink); box-shadow: none; }
+.rail-system { display: flex; align-items: center; gap: 2px; flex: 1 0 100%; min-height: 36px; margin: 0 -6px; padding-left: var(--row-pad); }
 .rail-system .host-indicator { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 0; font: var(--t-support); color: var(--muted); opacity: .8; overflow-wrap: anywhere; }
 .rail-system .host-indicator i { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; }
 .rail-system > button { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: none; color: var(--muted); }

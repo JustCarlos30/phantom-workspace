@@ -49,14 +49,16 @@
 .app-shell .activity-dock .activity-strip button[aria-expanded="true"] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 .app-shell .activity-dock .activity-strip .activity-notch.needs-you { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 34%, transparent); }
 .app-shell .activity-dock .dock-main { height: auto; padding: 0; gap: 6px; overflow: visible; }
-/* Creation tiles are the only saturated objects in the shell: each carries the
-   colour of the kind of panel it makes, like an app icon on glass. */
+/* Creation discs are the only saturated objects in the shell: each carries the
+   colour of the kind of panel it makes. They are round like every other
+   control in a pill, and stand apart from the readings as their own group. */
+.app-shell .activity-dock .dock-main { margin-left: 4px; gap: 8px; }
 .app-shell .activity-dock .dock-main .dock-action {
-  width: 40px; min-width: 40px; height: 40px; padding: 0; border-radius: var(--r-obj);
+  width: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 50%;
   background: var(--type, var(--fill-3)); color: var(--on-ink); box-shadow: var(--shadow-rim);
 }
 .app-shell .activity-dock .dock-main .dock-action:not([data-type]) { color: var(--ink); }
-.app-shell .activity-dock .dock-main .dock-action svg { width: 20px; height: 20px; color: inherit; }
+.app-shell .activity-dock .dock-main .dock-action svg { width: 18px; height: 18px; color: inherit; }
 .app-shell .activity-dock .dock-main .dock-action > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .app-shell .activity-dock .dock-main .dock-action:hover:not(:disabled) { background: color-mix(in srgb, var(--type, var(--fill-3)), #fff 16%); color: var(--on-ink); }
 .app-shell .activity-dock .dock-main .dock-action:not([data-type]):hover:not(:disabled) { color: var(--ink); }
@@ -65,6 +67,29 @@
 .app-shell .activity-dock .dock-main .dock-action:is(.active, [aria-expanded="true"]),
 .app-shell .activity-dock .dock-main .dock-action:is(.active, [aria-expanded="true"]):hover:not(:disabled) { background: var(--on); color: var(--on-ink); }
 .app-shell .activity-dock .dock-main > i { display: none; }
+
+/* ---------- Tight shelf: Phantom or the inspector take a column ----------
+   The bottom row keeps its centre instead of scrolling: the minimap yields
+   its column, and readings and search fold to their glyphs. */
+@media (max-width: 1700px) {
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) { --map-column: 0px; }
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .canvas-view-controls { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .canvas .canvas-view-controls .canvas-minimap { display: none; }
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .canvas .canvas-view-controls .canvas-popover { right: 0; }
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .activity-dock .activity-summary-action > span,
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .activity-dock .notch-stale { display: none; }
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .search-command > span { display: none; }
+  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .search-command { padding: 0 6px 0 10px; }
+}
+
+/* ---------- Panel header: title on the left, three bare round actions ---------- */
+.app-shell .canvas-node > .node-header .title-button { font-size: calc(14px * var(--map-label-scale, 1)); font-weight: 600; }
+.app-shell .canvas-node > .node-header .icon-button { width: 30px; height: 30px; border-radius: 50%; background: none; color: var(--ink); opacity: .55; }
+.app-shell .canvas-node > .node-header .icon-button > svg { width: 16px; height: 16px; }
+.app-shell .canvas-node:is(:hover, .selected, .focused) > .node-header .icon-button { opacity: .9; }
+.app-shell .canvas-node > .node-header .icon-button:hover { opacity: 1; background: var(--fill-2); }
+.app-shell .canvas-node > .node-header .icon-button:is(.active, [aria-expanded="true"]) { opacity: 1; background: var(--fill-3); box-shadow: var(--shadow-rim); }
+.app-shell .canvas-node > .node-header .icon-button:last-child:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); color: var(--danger); }
 
 /* ---------- Floating menus follow the same curve family ---------- */
 .app-shell :is(.canvas-popover, .tool-picker, .panel-index, .context-menu, .activity-tray, .attention-tray) { border-radius: var(--r-isle); }
