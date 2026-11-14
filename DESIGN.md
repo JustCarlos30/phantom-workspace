@@ -176,6 +176,39 @@ Estado del presupuesto: chat 14, terminal 1 y chat lateral 1. Plugins 9, Skills 
 
 `src/studio.css` tiene presupuesto de 8 bordes, incluido `.interface-scale select`, el selector nativo de escala de interfaz en Apariencia. Su borde `--hairline` delimita el área donde se elige un valor; `focus-visible` identifica el foco de teclado. Es un borde funcional de formulario, contabilizado en ese presupuesto.
 
+## Arquitectura de información
+
+Dirección aprobada por Carlos el 2026-11-14 («que todo se sienta fácil», referencia One UI y Apple). Mocks en `.impeccable/mocks/dx/`.
+
+**Una línea por estado, una acción por fila.** Cada fila lleva un título humano (el nombre de la sesión, nunca un UUID), una palabra de estado, una línea de detalle y como mucho una acción principal. Lo técnico (rutas, identificadores, JSON, salida cruda) vive detrás de un `<details>` llamado «Detalles». La interfaz no explica lo que no hace.
+
+**Cinco destinos, no veinticinco paneles.** El dock separa crear (Terminal, Navegador, Nota, Zona) de ir (Trabajo, Git, Servicios, Contexto, Automatizar). Cada destino es un panel con pestañas (`src/hooks/hubs.mjs`); los tipos de panel anteriores siguen siendo válidos para lienzos guardados y abren su destino en la pestaña correspondiente.
+
+| Destino | Pestañas |
+|---|---|
+| Trabajo | Tareas · Borradores · Misiones |
+| Git | Ramas · Historial · Cola |
+| Servicios | Este proyecto · Docker · Todos los proyectos |
+| Contexto | Documentos y memoria · Skills |
+| Automatizar | Secuencias · Navegador · Código |
+
+**Una bandeja.** «Te necesitan» reúne todo lo que espera una decisión, en dos grupos: «Decide ahora» y «Cuando puedas». Un solo contador.
+
+**Una Configuración**, por categorías, con filas agrupadas. Las fuentes del proyecto se «conectan»; la palabra plugin no aparece en la interfaz.
+
+### Vocabulario
+
+| Se dice | No se dice |
+|---|---|
+| integrar · Cola | incorporar, Incorporaciones, merge, solicitud |
+| sin guardar · Guardar | WIP, sin commitear, commit (como verbo de botón) |
+| sesión | vista, proceso, descriptor |
+| main · la carpeta del proyecto | checkout, rama de integración, base |
+| copia propia de la sesión | worktree |
+| Te necesitan | atención, avisos, bandeja de actividad |
+
+Estados de una rama, y solo estos: Trabajando · Sin guardar · Lista · En cola · Integrando · Conflicto · En main.
+
 ## Vidrio y Planos
 
 - **Bases de plano.** Ciruela/violeta: `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Base de terminal `--terminal-bg #0e0b13`. Son colores sólidos de los que se derivan las mezclas translúcidas; nunca negro puro. Los valores viven en el bloque `:root` de `src/canvas-ui.css`, que manda sobre `studio.css`.

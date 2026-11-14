@@ -1,0 +1,35 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Inicio · mapa</title><link rel="stylesheet" href="shared.css"><style>
+.pn{position:absolute;border-radius:16px;background:rgba(19,16,25,.94);box-shadow:0 24px 50px -28px rgba(3,1,8,.95),0 0 0 1px rgba(255,255,255,.06);display:flex;flex-direction:column;overflow:hidden}
+.pn.sel{box-shadow:0 24px 50px -28px rgba(3,1,8,.95),0 0 0 1px rgba(255,255,255,.06),0 0 0 4px var(--bg),0 0 0 6px var(--accent)}
+.ph{display:flex;align-items:center;gap:10px;height:48px;padding:0 12px 0 16px;flex:none}.ph b{font:600 14px/18px var(--sans)}.ph .sp{flex:1}.ph .ib{width:30px;height:30px;color:var(--muted)}
+.th{flex:1;padding:6px 20px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.me{align-self:flex-end;max-width:78%;background:var(--fill2);border-radius:16px 16px 4px 16px;padding:9px 14px}
+.act{display:flex;align-items:center;gap:8px;color:var(--muted);font:400 13px/20px var(--sans)}
+.ask{margin:0 16px 12px;border-radius:14px;background:rgba(233,180,106,.11);padding:12px 12px 12px 16px;display:flex;align-items:center;gap:12px}
+.ask p{flex:1;font:500 13px/19px var(--sans)}.ask p span{display:block;color:var(--muted);font-weight:400}
+.cmp{margin:0 16px 16px;border-radius:20px;background:var(--s2);height:48px;display:flex;align-items:center;gap:8px;padding:0 6px 0 16px;color:var(--ink3);flex:none}
+.cmp .sp{flex:1}.cmp .pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;background:var(--fill2);color:var(--muted);font:500 12px/1 var(--sans)}
+.cmp .send{width:36px;height:36px;border-radius:18px;background:var(--on);color:var(--on-ink);display:grid;place-items:center}
+.nt{padding:4px 18px 16px;color:var(--muted);font:400 13px/21px var(--sans)}.nt b{color:var(--ink);font-weight:550}
+.zn{position:absolute;border-radius:20px;background:rgba(167,139,218,.055);box-shadow:0 0 0 1px rgba(167,139,218,.2) inset}.zn i{position:absolute;left:14px;top:-30px;font:600 13px/20px var(--sans);font-style:normal;color:#c9b6ee}
+</style>
+<div class="zn" style="left:324px;top:128px;width:1084px;height:480px"><i>Rediseño DX</i></div>
+<section class="pn sel" style="left:344px;top:148px;width:560px;height:440px">
+ <div class="ph"><b>Rediseño de navegación</b><span class="chip w">Trabajando</span><span class="sp"></span><div class="ib" data-i="expand" data-c="s"></div></div>
+ <div class="th"><div class="me">Deja el rail con proyecto, pendientes y sesiones. Nada más.</div>
+  <p>Listo el recorte. El rail pasa de 12 entradas a 4 y Configuración queda abajo.</p>
+  <div class="act" data-i="check" data-c="s">Editó 3 archivos · corrió 41 tests</div>
+  <p>Ahora muevo Sitios dentro de Servicios y quito el acceso duplicado a la paleta.</p>
+  <div class="act" style="color:var(--working)" data-i="wrench" data-c="s">Editando SidebarPanels.jsx</div></div>
+ <div class="cmp">Escribe a Claude…<span class="sp"></span><span class="pill" data-i="shield" data-c="s">Claude · Autónomo</span><div data-i="mic" style="color:var(--muted);display:grid"></div><div class="send" data-i="up" data-c="s"></div></div>
+</section>
+<section class="pn" style="left:924px;top:148px;width:464px;height:264px">
+ <div class="ph"><b>Phantom Mobile</b><span class="chip a">Pide permiso</span><span class="sp"></span><div class="ib" data-i="expand" data-c="s"></div></div>
+ <div class="th"><p>Para probar la cámara en el teléfono necesito una dependencia nueva.</p></div>
+ <div class="ask"><p>Instalar <code>expo-camera</code><span>Codex · en su carpeta</span></p><span class="btn">Rechazar</span><span class="btn p">Aprobar</span></div>
+</section>
+<section class="pn" style="left:924px;top:428px;width:464px;height:160px">
+ <div class="ph" data-i="note" data-c="s"><b>Notas del rediseño</b><span class="sp"></span></div>
+ <div class="nt"><b>Regla:</b> una línea por estado, una acción por fila.<br>Sin descargos. El detalle técnico vive detrás de «Detalles».<br>Probar con el proyecto de video antes de integrar.</div>
+</section>
+<script src="shared.js"></script><script>shell({active:'map',gitBadge:2})</script>

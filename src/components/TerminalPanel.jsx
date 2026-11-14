@@ -65,7 +65,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
   }, [sessionId, workspace.id, node.title, api, registerTerminal]);
   const fontSize = Number.isFinite(node.data?.fontSize) ? Math.min(24, Math.max(12, node.data.fontSize)) : 16;
   const cwd = node.data?.cwd || node.data?.worktree?.path || workspace.canonicalPath || workspace.path;
-  const directoryLabel = node.data?.worktree ? `Worktree · ${node.data.worktree.branch || 'HEAD separado'}` : node.data?.worktreeReason ? `Sin worktree · ${node.data.worktreeReason}` : '';
+  const directoryLabel = node.data?.worktree ? `Copia propia de esta sesión · ${node.data.worktree.branch || 'sin rama'}` : node.data?.worktreeReason ? `Trabaja en la carpeta del proyecto · ${node.data.worktreeReason}` : '';
   useEffect(() => {
     if (!host.current) return;
     let disposed = false, fitting, stream, wheelEvent = null, anchor = null, anchorFrame;
@@ -198,7 +198,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
   const agent = node.data?.agent || {};
   const { tail } = useTerminalTail({ sessionId, api, lines: 1, enabled: status === 'running', connected });
   const provider = providerOf(node, tail?.foreground);
-  const { branch, folder } = locationOf(node, workspace);
+  const { branch, where } = locationOf(node, workspace);
   return <div className="terminal-panel pt-focus" data-agent={agent.status || 'idle'}>
     <div className="pt-bar">
       <div className="pt-bar-identity">
@@ -218,7 +218,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
       </div>
     </div>
     <div className="pt-context" aria-label="Contexto de la terminal">
-      <span className="pt-chip" title={directoryLabel ? `${directoryLabel}\n${cwd}` : cwd}>{branch ? <GitBranch size={13} strokeWidth={1.75} aria-hidden="true" /> : <Folder size={13} strokeWidth={1.75} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      <span className="pt-chip" title={directoryLabel ? `${directoryLabel}\n${cwd}` : cwd}>{branch ? <GitBranch size={13} strokeWidth={1.75} aria-hidden="true" /> : <Folder size={13} strokeWidth={1.75} aria-hidden="true" />}<span>{where}</span></span>
       <span className="pt-session" role="status"><i className={`status-dot ${status}`} aria-hidden="true" />{statusLabel}</span>
     </div>
     <AgentIdentity node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} />
