@@ -1,4 +1,5 @@
-.voice-activity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; color: var(--working); font-size: 12px; }
+.voice-activity { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; color: var(--working); font-size: 12px; min-width: 0; }
+.voice-activity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .voice-activity button { border: 0; background: transparent; color: var(--ink); cursor: pointer; padding: 6px 8px; border-radius: var(--r-ctl); }
 .voice-activity button:hover { background: var(--fill-2); }
 .voice-waves { display: flex; align-items: center; justify-content: center; gap: 3px; width: 112px; height: 32px; flex: 0 0 auto; }
@@ -7,11 +8,52 @@
 .voice-activity[data-state="transcribing"] .voice-waves i { transform: scaleY(.2) !important; background: var(--muted); }
 .voice-activity[data-state="requesting"] { color: var(--attention); }
 .voice-activity[data-state="requesting"] .voice-waves i { background: var(--attention); }
+/* Live transcript: committed words in ink, the tentative tail still forming. */
+.voice-live { margin: 0; max-height: 7.5em; overflow-y: auto; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.voice-live-partial { color: var(--muted); }
+.voice-notice { margin: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 @keyframes voice-thinking { from { opacity: .4; } to { opacity: 1; } }
+
+/* ---------- Aura: the whole surface that owns the microphone glows ----------
+   Mounted only while dictating (no idle animation). A spectral ring spins on
+   the compositor (transform only); its brightness follows the real mic level
+   written to --voice-level on the surface. No filters, no backdrop blur. */
+[data-voice-aura] { isolation: isolate; }
+.voice-aura { position: absolute; inset: 0; z-index: 60; border-radius: inherit; pointer-events: none; overflow: hidden; animation: voice-aura-in var(--dur, 240ms) var(--ease-out, ease-out); }
+.voice-aura-ring, .voice-aura-glow { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; }
+.voice-aura-ring::before, .voice-aura-glow::before {
+  content: ''; position: absolute; top: 50%; left: 50%; width: max(300%, 1200px); aspect-ratio: 1;
+  background: conic-gradient(from 0turn, var(--c-rose), var(--c-lilac), var(--c-iris), var(--c-sky), var(--c-iris), var(--c-rose));
+  transform: translate(-50%, -50%) rotate(0turn); will-change: transform;
+  animation: voice-aura-spin 3.2s linear infinite;
+}
+/* Thin crisp edge. */
+.voice-aura-ring {
+  padding: 2px; opacity: calc(.55 + var(--voice-level, 0) * .45);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Soft inner light that swells with the voice, faded from every edge. */
+.voice-aura-glow {
+  opacity: calc(.12 + var(--voice-level, 0) * .6); transition: opacity 90ms linear;
+  -webkit-mask: linear-gradient(to right, #000, transparent 40px), linear-gradient(to left, #000, transparent 40px), linear-gradient(to bottom, #000, transparent 40px), linear-gradient(to top, #000, transparent 40px);
+  mask: linear-gradient(to right, #000, transparent 40px), linear-gradient(to left, #000, transparent 40px), linear-gradient(to bottom, #000, transparent 40px), linear-gradient(to top, #000, transparent 40px);
+}
+.voice-aura-glow::before { animation-direction: reverse; animation-duration: 5s; }
+/* Waiting for permission: amber, still. Closing the transcript: slow and dim. */
+.voice-aura[data-state="requesting"] .voice-aura-ring::before, .voice-aura[data-state="requesting"] .voice-aura-glow::before { background: var(--attention); animation: none; }
+.voice-aura[data-state="transcribing"] .voice-aura-ring { opacity: .5; }
+.voice-aura[data-state="transcribing"] .voice-aura-glow { opacity: .18; animation: voice-thinking 1.4s ease-in-out infinite alternate; }
+.voice-aura[data-state="transcribing"] :is(.voice-aura-ring, .voice-aura-glow)::before { animation-duration: 9s; }
+@keyframes voice-aura-spin { to { transform: translate(-50%, -50%) rotate(1turn); } }
+@keyframes voice-aura-in { from { opacity: 0; } to { opacity: 1; } }
+
 .voice-dialog { box-sizing: border-box; width: min(540px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); color: var(--ink); border-radius: var(--r-obj); box-shadow: var(--shadow-float); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .app-modal-backdrop.voice-backdrop { z-index: 1100; }
 .voice-dialog h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
 .voice-dialog p { margin: 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.voice-dialog .voice-live { color: var(--ink); }
+.voice-dialog .voice-live-partial { color: var(--muted); }
 .voice-dialog label { display: grid; gap: 8px; font-size: 12px; color: var(--muted); }
 .voice-dialog textarea { width: 100%; box-sizing: border-box; min-height: 120px; resize: vertical; background: var(--surface-2); color: var(--ink); border: 0; border-radius: var(--r-ctl); padding: 12px; font: inherit; font-size: 13px; caret-color: var(--accent); }
 .voice-dialog .voice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -21,4 +63,5 @@
 @media (prefers-reduced-motion: reduce) {
   .voice-waves i { transition: none !important; transform: scaleY(.2) !important; opacity: calc(.4 + var(--voice-level) * .6); }
   .voice-activity[data-state="transcribing"] .voice-waves { animation: none; opacity: .6; }
+  .voice-aura, .voice-aura-glow, .voice-aura-ring::before, .voice-aura-glow::before { animation: none !important; transition: none !important; }
 }
