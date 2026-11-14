@@ -115,7 +115,7 @@ test('context keeps existing identity/report fields and exposes worktree and pol
   assert.equal(agentContext(workspace, node, { worktree: { branch: null } }).branch, null);
   assert.equal(agentContext(workspace, node, { worktree: null }).branch, null);
   const policy = terminalPolicy({ workspaceId: 'workspace', nodeId: 'node', sessionId: 'session', cwd: '/tree', branch: null });
-  for (const text of ['context', 'bind ID', 'report', 'run ID', '"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" runs', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes']) assert.ok(policy.includes(text), text);
+  for (const text of ['context', 'bind ID', 'report', 'run ID', '"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" runs', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes', '## Communication (Caveman)', 'Lead with the result or the blocker']) assert.ok(policy.includes(text), text);
 });
 
 test('chat execution guidance registers tasks and hands runs to the host', () => {
