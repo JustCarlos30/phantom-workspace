@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import net from 'node:net';
 import { execFileSync } from 'node:child_process';
 import { POLICY_HINTS, agentShims, bootstrapAgentPolicy, mergeAgentConfig, shimmedPath, terminalPolicy } from '../host/agent-policy.mjs';
 import { Merges } from '../host/merges.mjs';
 import { providerArgs } from '../host/chats.mjs';
 import { agentContext } from '../host/agents.mjs';
-import { createHost } from '../host/server.mjs';
+import { createHost, phantomInstructions } from '../host/server.mjs';
 import { main as agentCLI } from '../scripts/agent.mjs';
 import { handleIntegration } from '../integrations/index.mjs';
 
@@ -114,7 +115,79 @@ test('context keeps existing identity/report fields and exposes worktree and pol
   assert.equal(agentContext(workspace, node, { worktree: { branch: null } }).branch, null);
   assert.equal(agentContext(workspace, node, { worktree: null }).branch, null);
   const policy = terminalPolicy({ workspaceId: 'workspace', nodeId: 'node', sessionId: 'session', cwd: '/tree', branch: null });
-  for (const text of ['context', 'bind ID', 'report', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes']) assert.ok(policy.includes(text), text);
+  for (const text of ['context', 'bind ID', 'report', 'run ID', '"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" runs', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes', '## Communication (Caveman)', 'Lead with the result or the blocker']) assert.ok(policy.includes(text), text);
+});
+
+test('chat execution guidance registers tasks and hands runs to the host', () => {
+  const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' });
+  const instructions = phantomInstructions({ name: 'Project', canonicalPath: '/project' });
+  for (const text of [policy, instructions]) {
+    const paragraph = text.split('\n\n').find(part => part.startsWith('Do not launch `phantom do`'));
+    assert.ok(paragraph);
+    for (const command of ['phantom do', 'phantom run', 'phantom create', 'phantom card', 'run ID [MODEL]', 'phantom show ID', 'runs']) {
+      assert.ok(paragraph.includes(command), command);
+    }
+    assert.match(paragraph, /both die when the turn ends/);
+    assert.match(paragraph, /scope and checks/);
+    assert.match(paragraph, /hands it to the host and survives your turn/);
+    assert.match(paragraph, /do not relaunch a task already shown as running/);
+  }
+});
+
+test('agent run validates arguments before contacting the host and requires workspace identity', async () => {
+  for (const args of [
+    ['run'], ['run', '-id'], ['run', 'id', 'model', 'extra'],
+    ...['', ' ', 'id\n', 'id\x7f', 'x'.repeat(513)].map(id => ['run', id]),
+    ...['', ' ', 'model\n', 'model\x7f', 'x'.repeat(201)].map(model => ['run', 'id', model]),
+    ['runs', 'extra'],
+  ]) await assert.rejects(agentCLI(args, {}), /Uso/);
+  for (const args of [['run', 'id'], ['runs']]) {
+    await assert.rejects(agentCLI(args, {}), /Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace\./);
+  }
+});
+
+test('agent run and runs use host controllers with workspace identity or terminal context', async t => {
+  const root = temporary(t), socketPath = path.join(root, 'host.sock'), calls = [];
+  const descriptor = { id: 'task-id', status: 'running', pid: 123 };
+  const controllers = [descriptor];
+  const server = net.createServer(socket => {
+    socket.setEncoding('utf8');
+    let buffer = '';
+    socket.on('data', chunk => {
+      buffer += chunk;
+      let index;
+      while ((index = buffer.indexOf('\n')) >= 0) {
+        const request = JSON.parse(buffer.slice(0, index));
+        buffer = buffer.slice(index + 1);
+        calls.push({ method: request.method, payload: request.payload });
+        const result = request.method === 'terminal.agent.context' ? { workspaceId: 'terminal-workspace' }
+          : request.method === 'phantom.control' ? descriptor : controllers;
+        socket.write(JSON.stringify({ id: request.id, result }) + '\n');
+      }
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, resolve);
+  });
+  t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  for (const identity of [
+    { PHANTOM_WORKSPACE_ID: 'workspace' },
+    { PHANTOM_WORKSPACE_ID: 'workspace', PHANTOM_TERMINAL_SESSION_ID: 'session' },
+    { PHANTOM_TERMINAL_SESSION_ID: 'session' },
+  ]) {
+    const env = { ...identity, PHANTOM_WORKSPACE_SOCKET: socketPath };
+    const workspaceId = identity.PHANTOM_WORKSPACE_ID || 'terminal-workspace';
+    const contextCalls = identity.PHANTOM_WORKSPACE_ID ? [] : [{ method: 'terminal.agent.context', payload: { sessionId: 'session' } }];
+    for (const model of [undefined, 'provider/model']) {
+      calls.length = 0;
+      assert.deepEqual(await agentCLI(['run', 'task-id', ...(model ? [model] : [])], env), descriptor);
+      assert.deepEqual(calls, [...contextCalls, { method: 'phantom.control', payload: { workspaceId, id: 'task-id', action: 'run', ...(model ? { model } : {}) } }]);
+    }
+    calls.length = 0;
+    assert.deepEqual(await agentCLI(['runs'], env), controllers);
+    assert.deepEqual(calls, [...contextCalls, { method: 'phantom.controllers', payload: { workspaceId } }]);
+  }
 });
 
 test('policy hints distinguish controlled edits from accepted-work Git finalization without bypass', () => {

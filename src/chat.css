@@ -296,6 +296,41 @@ button.pc-model > svg:last-child { color: var(--muted); }
 .pc-models-list button:focus-visible { outline: 2px solid var(--pc-hue); outline-offset: -2px; }
 .pc-models-list p { margin: 0; padding: 10px 9px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .pc-context { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; white-space: nowrap; }
+.pc-context-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+button.pc-context { margin: -3px -6px; padding: 3px 6px; border-radius: var(--r-ctl); color: inherit; font: inherit; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+button.pc-context:hover, button.pc-context.is-open { background: var(--fill-2); color: var(--ink); }
+button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); outline-offset: 1px; }
+.pc-context-flag { padding: 1px 6px; border-radius: var(--r-mark); background: color-mix(in srgb, var(--pc-caution) 16%, transparent); color: var(--pc-caution); font: 600 10px/1.5 var(--sans); letter-spacing: .02em; }
+.pc-context-panel { position: absolute; left: -8px; bottom: calc(100% + 10px); z-index: 6; display: flex; flex-direction: column; gap: 12px; width: 300px; padding: 14px; border-radius: var(--r-obj); background: var(--surface-2); box-shadow: var(--shadow-float); color: var(--ink); font: 12px/1.45 var(--sans); white-space: normal; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
+.pc-context-panel:focus-visible { outline: none; }
+.pc-context-panel header { display: flex; flex-direction: column; gap: 4px; }
+.pc-context-panel h4 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 600; }
+.pc-context-reading { margin: 0; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pc-context-reading strong { color: var(--ink); font: 600 18px/1.1 var(--mono); margin-right: 4px; }
+.pc-context-track { position: relative; display: block; height: 6px; border-radius: var(--r-mark); background: linear-gradient(90deg, var(--fill-2) 0 var(--watch, 40%), color-mix(in srgb, var(--pc-caution) 14%, var(--fill-2)) var(--watch, 40%) var(--compact, 70%), color-mix(in srgb, var(--pc-del) 16%, var(--fill-2)) var(--compact, 70%)); }
+.pc-context-track > i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--muted); }
+.pc-context-panel.is-watch .pc-context-track > i { background: var(--pc-caution); }
+.pc-context-panel.is-compact .pc-context-track > i { background: var(--pc-del); }
+.pc-context-track > b { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--hairline); }
+.pc-context-bands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0; padding: 0; list-style: none; }
+.pc-context-bands li { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 6px; padding: 6px 7px; border-radius: var(--r-ctl); color: var(--muted); }
+.pc-context-bands li > i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.pc-context-bands li.is-watch > i { background: var(--pc-caution); }
+.pc-context-bands li.is-compact > i { background: var(--pc-del); }
+.pc-context-bands li > small { grid-column: 2; color: var(--ink-3); font: 10.5px/1.3 var(--mono); }
+.pc-context-bands li.is-current { background: var(--fill-2); color: var(--ink); font-weight: 600; }
+.pc-context-advice strong { display: block; font-size: 12.5px; }
+.pc-context-panel.is-watch .pc-context-advice strong { color: var(--pc-caution); }
+.pc-context-panel.is-compact .pc-context-advice strong { color: var(--pc-del); }
+.pc-context-advice p { margin: 3px 0 0; color: var(--ink-3); }
+.pc-context-facts { display: flex; gap: 16px; margin: 0; padding: 8px 10px; border-radius: var(--r-ctl); background: var(--fill-2); }
+.pc-context-facts dt { color: var(--muted); font-size: 10.5px; }
+.pc-context-facts dd { margin: 1px 0 0; font: 12px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
+.pc-context-compact { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 32px; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--ink); font: 600 12px/1 var(--sans); cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
+.pc-context-compact:hover:not(:disabled) { background: var(--fill-3, var(--hairline)); }
+.pc-context-compact.is-primary:not(:disabled) { background: var(--ink); color: var(--surface-2); }
+.pc-context-compact:disabled { opacity: .45; cursor: not-allowed; }
+.pc-context-note { margin: -4px 0 0; color: var(--muted); font-size: 11px; }
 .pc-context-bar { width: 44px; height: 4px; border-radius: var(--r-mark); background: var(--fill-2); overflow: hidden; }
 .pc-context-bar > i { display: block; height: 100%; border-radius: var(--r-mark); background: var(--muted); }
 .pc-context-share { color: var(--ink); }
@@ -488,3 +523,16 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-queue li p { flex: 1; min-width: 0; margin: 0; color: var(--ink); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pc-queue-num { flex-shrink: 0; width: 14px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 .pc-queue .pc-icon { width: 24px; height: 24px; }
+
+/* Context nudge: a calm, dismissible note above the composer, tinted by band. */
+.pc-nudge { --nudge: var(--pc-caution); display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; margin: 0 0 8px; padding: 10px 8px 10px 12px; border-radius: var(--r-obj); background: color-mix(in srgb, var(--nudge) 9%, var(--fill-2)); color: var(--ink); font: 12px/1.45 var(--sans); animation: island-in var(--dur) var(--ease-out); }
+.pc-nudge.is-compact { --nudge: var(--pc-del); }
+.pc-nudge > svg { margin-top: 1px; color: var(--nudge); }
+.pc-nudge strong { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pc-nudge p { margin: 2px 0 0; color: var(--ink-3); }
+.pc-nudge-actions { display: flex; align-items: center; gap: 2px; }
+.pc-nudge-actions > button:not(.pc-icon) { padding: 5px 9px; border-radius: var(--r-ctl); color: var(--nudge); font: 600 12px/1 var(--sans); white-space: nowrap; cursor: pointer; }
+.pc-nudge-actions > button:not(.pc-icon):hover { background: color-mix(in srgb, var(--nudge) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) { .pc-nudge { animation: none; } }
+.pc-context-cap { margin: -4px 0 0; color: var(--muted); font-size: 11px; }
+.pc-context-cap.is-active { color: var(--ink-3); font-weight: 500; }

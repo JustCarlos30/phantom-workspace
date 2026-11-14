@@ -16,6 +16,7 @@ import { validatePluginPanel } from '../shared/plugins.mjs';
 import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 import { MobileAccess } from './mobile.mjs';
+import { AndroidGateway } from './android-gateway.mjs';
 
 function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
@@ -31,6 +32,8 @@ export function phantomInstructions(w) {
 You are Phantom, the main assistant of the Phantom Workspace project "${w.name}" (folder ${w.canonicalPath}). The user talks to you from the chat docked beside their canvas, by typing or by voice dictation (dictated text may contain transcription errors; interpret it sensibly). Reply in the user's language, concisely.
 
 You work in the project folder itself, not in a worktree. Help the user understand the project, plan work, answer questions and give instructions. Prefer reading and explaining; make changes only when asked. When Phantom tools (MCP server "phantom" or the phantom CLI) are available, use them for cards, decisions, skills and tasks instead of guessing.
+
+Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: both die when the turn ends. Register the task with \`phantom create\` (or \`phantom card\`), including its scope and checks, then use \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" run ID [MODEL]\`, which hands it to the host and survives your turn. Check its status with \`phantom show ID\` or \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" runs\`; do not relaunch a task already shown as running.
 
 This product's procedures are published as Phantom skills. Before integrating branches, verifying before publishing, preparing a release, organizing the canvas, or doing research, resolve the appropriate skill with the Phantom MCP \`skills_resolve\` tool and follow it: \`branch.integrate\`, \`verify.prepublish\`, \`release.build\`, \`canvas.organize\`, or \`research.collect\`. If the MCP or skill is unavailable, say so and use the CLI help instead. Each research belongs in its own space created with the canvas CLI \`research\` command, which the user reviews in the Reader panel.
 
@@ -58,7 +61,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,chats,merges,branches,repo,server,mobile,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,branches,repo,server,mobile,android,closingPromise,ownsSocket=false;
   const clients=new Set();
   const limits=createLimits();
   const outputs = new WeakMap();
@@ -99,6 +102,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='mobile.stop') return mobile.stop();
     if(method==='mobile.pairing') return mobile.pairing();
     if(method==='mobile.revoke') return mobile.revoke(p);
+    if(method==='android.status') return android.status();
+    if(method==='android.configure') return android.configure(p);
+    if(method==='android.start') {store.getWorkspace(p.workspaceId);return android.start(p);}
+    if(method==='android.stop') return android.stop();
+    if(method==='android.pairing') return android.pairing();
+    if(method==='android.bootstrap') return android.bootstrap();
+    if(method==='android.approve') return android.approve(p);
+    if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
     if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
     if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
@@ -255,7 +266,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(closingPromise)return closingPromise;
     closingPromise=(async()=>{
       try {
-        try { await mobile?.stop(); } finally {
+        try { await Promise.all([mobile?.stop(),android?.stop()]); } finally {
           // Let short RPCs finish, then stop integration-owned work; never import
           // production adapters solely to close a host using injected fixtures.
           await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
@@ -275,6 +286,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
+    android=new AndroidGateway({hostDataDir:dataDir});
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};

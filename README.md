@@ -93,6 +93,14 @@ Las lecturas se actualizan cada dos segundos sin solaparse y se pausan al oculta
 
 Pruebas declaradas: `test/mobile.test.mjs` usa hosts y builds sintéticos aislados, escuchando solo en loopback; cubre autenticación, caducidad, alcance, límites, rutas y acciones idempotentes. `node test/mobile-browser.mjs`, tras el build, usa Chromium a 390×844 y 360 px con el host/HTTP/autenticación reales y motores de conversación/terminal sintéticos, sin modelos ni shells. El script escribe capturas y resultados en `/tmp/phantom-mobile-evidence`. Los resultados de los checks corresponden al controlador.
 
+#### App Android
+
+Abre **Ajustes → App Android (gateway HTTPS)** para administrar el gateway del repo independiente `phantom-mobile`, sin usar la terminal. El panel permite guardar su ruta, comprueba que contiene el CLI y muestra la versión de Node detectada (requiere **Node >= 26**). La ruta guardada tiene prioridad sobre `PHANTOM_MOBILE_REPO` y el repo hermano `../phantom-mobile`; `PHANTOM_MOBILE_NODE` permite seleccionar el binario Node del host.
+
+Selecciona una interfaz LAN privada, deja el puerto en `0` (automático) o indica uno entre 1024 y 65535 e inicia el gateway para el proyecto. El teléfono debe poder alcanzar al equipo: las Wi-Fi con aislamiento de clientes no sirven; puedes usar el hotspot del teléfono. Copia el bootstrap público al teléfono, importa su JSON en la app, compara la huella SHA256 y genera un código de vinculación de un uso, válido durante 120 segundos. Aprueba el dispositivo desde el panel y desbloquea la acción en el teléfono.
+
+Puedes conceder lectura del chat principal, envío de mensajes, parada de turnos y lectura de herramientas del proyecto. El acceso al chat principal exige reconocer que el teléfono actuará con la autoridad del agente. **Actualizar permisos reemplaza los anteriores** por la selección del formulario; también puedes revocar dispositivos o detener el gateway. Los datos privados del gateway se guardan separados de los del escritorio. Al detener el host se detiene su gateway; al reiniciarlo se pierden las vinculaciones, pero se conserva la identidad TLS.
+
 ### Sesiones y cierre
 
 - Cerrar la ventana conserva el host y sus sesiones. Volver a abrir conecta a los mismos procesos.
