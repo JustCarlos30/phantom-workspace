@@ -27,3 +27,8 @@
   .app-shell .activity-dock .dock-main .dock-action.dock-hub { width: 36px; padding: 0; justify-content: center; }
   .app-shell .activity-dock .dock-main .dock-action.dock-hub > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
+.app-shell .activity-dock .dock-main .dock-action.dock-hub { flex-direction: row; flex: none; }
+
+/* Dictation lives with the other small system controls at the foot of the rail. */
+.rail-system > .voice-launcher > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.rail-system > .voice-launcher:disabled { opacity: .45; }

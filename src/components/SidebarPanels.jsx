@@ -35,8 +35,8 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
         })}{!rows.length && <EmptyState className="rail-empty" size="compact" description="Sin terminales en este espacio." />}</nav>
       </section>
       <section className="rail-panel-group">
-        <div className="rail-heading"><span><ResourcesIcon size={16} /> Recursos <span className="rail-count">{resources.length}</span></span></div>
-        <nav aria-label="Recursos">{resources.map(resourceRow)}{!resources.length && <EmptyState className="rail-empty" size="compact" description="Sin recursos en este espacio." />}</nav>
+        <div className="rail-heading"><span><ResourcesIcon size={16} /> En el mapa <span className="rail-count">{resources.length}</span></span></div>
+        <nav aria-label="En el mapa">{resources.map(resourceRow)}{!resources.length && <EmptyState className="rail-empty" size="compact" description="Aún no hay notas, navegadores ni paneles." />}</nav>
       </section>
     </div>
     <button className="rail-map-action" aria-pressed={!focused && !selected.length} onClick={onMap}><MapIcon size={20} /> Ver todo el mapa <kbd>0</kbd></button>
