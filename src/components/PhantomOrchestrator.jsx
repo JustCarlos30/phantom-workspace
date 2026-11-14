@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { AlertCircle, ArrowUp, ArrowUpRight, Mic, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { VoiceActivity } from './VoiceActivity';
+import { useVoiceDraft } from './VoiceProvider';
 import Incorporaciones from './Incorporaciones';
 
 const AGENT = { working: 'Trabajando', blocked: 'Bloqueado', review: 'Listo para revisión', idle: 'En espera' };
@@ -28,25 +30,25 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
 
 function OrchestratorComposer({ workspace, api, connected, nodeId, title }) {
   const { chat, error, send } = useChat({ workspaceId: workspace.id, nodeId, provider: 'orchestrator', api, connected });
-  const [draft, setDraft] = useState(''), [sending, setSending] = useState(false);
-  const voice = useVoiceRecorder({ api, workspaceId: workspace.id, onText: text => setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text) });
+  const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${nodeId}:orchestrator`);
+  const [sending, setSending] = useState(false);
+  const voice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `phantom:${workspace.id}:orchestrator:${nodeId}`, enabled: connected, onText: text => setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text) });
   const listening = voice.status === 'recording', running = !!chat?.running;
   const submit = async () => {
     const text = draft.trim();
     if (!text || sending || !connected || !chat) return;
-    if (listening) voice.cancel();
+    if (voice.status !== 'idle') voice.cancel();
     setSending(true);
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
   };
-  const voiceLabel = { requesting: 'Esperando el micrófono…', recording: 'Escuchando · pulsa para transcribir', transcribing: 'Transcribiendo…' }[voice.status];
-  return <form className="pd-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && listening) { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
+  return <form className="pd-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
     {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
     {voice.error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{voice.error}</span><button type="button" className="pc-icon" aria-label="Descartar aviso de voz" onClick={voice.clearError}><X size={13} /></button></p>}
-    {voiceLabel && <p className="phantom-chat-voice" role="status"><span className="phantom-chat-wave" aria-hidden="true"><i /><i /><i /><i /></span>{voiceLabel}{listening && <button type="button" onClick={voice.cancel}>Descartar</button>}</p>}
+    <VoiceActivity voice={voice} />
     <div className={`pd-field ${listening ? 'is-listening' : ''}`}>
       <textarea rows={2} value={draft} disabled={!connected} aria-label={`Mensaje para ${title}`} placeholder={running ? `${title} está trabajando · lo que envíes queda en espera` : `Indica algo a ${title}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
-      <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || ['requesting', 'transcribing'].includes(voice.status)} title={listening ? 'Detener y transcribir' : 'Dictar al orquestador'} aria-label={listening ? 'Detener y transcribir' : 'Dictar al orquestador'} onClick={() => { voice.clearError(); if (listening) voice.stop(); else voice.start(); }}>{listening ? <Square size={11} /> : <Mic size={15} />}</button>
+      <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : listening ? 'Detener y transcribir' : 'Dictar al orquestador'} aria-label={listening ? 'Detener y transcribir' : 'Dictar al orquestador'} onClick={() => { voice.clearError(); if (listening) voice.stop(); else voice.start(); }}>{listening ? <Square size={11} /> : <Mic size={15} />}</button>
       <button type="submit" className="pc-send" title="Enviar · Enter" aria-label={`Enviar mensaje a ${title}`} disabled={!draft.trim() || sending || !connected || !chat}><ArrowUp size={15} /></button>
     </div>
   </form>;

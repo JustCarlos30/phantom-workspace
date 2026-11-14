@@ -2,6 +2,10 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useComposerSize } from '../hooks/useComposerSize';
 import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { VoiceActivity } from './VoiceActivity';
+import { useVoiceDraft } from './VoiceProvider';
+import { Mic } from 'lucide-react';
 import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
@@ -560,9 +564,12 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
+  const voice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
+    onText: text => setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text) });
+  const listening = voice.status === 'recording';
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
   const chosen = node.data.chat.permissionMode ?? (typeof node.data.chat.autoApprove === 'boolean' ? (node.data.chat.autoApprove ? 'auto' : 'ask') : null);
@@ -593,6 +600,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const submit = async () => {
     const text = draft.trim();
     if (!text || sending || !connected) return;
+    if (voice.status !== 'idle') voice.cancel();
     setSending(true); pinned.current = true;
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
@@ -636,9 +644,11 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
-    <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
+    <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
+        <VoiceActivity voice={voice} />
+        {voice.error && <p className="voice-inline-error" role="alert">{voice.error}</p>}
         <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         <div className="pc-controls">
           <div className="pc-settings">
@@ -646,6 +656,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
             <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={running} />
             <PermissionSwitch mode={permissionMode} provider={provider} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
           </div>
+          <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : listening ? 'Detener y transcribir' : `Dictar a ${label}`} aria-label={listening ? 'Detener y transcribir' : `Dictar a ${label}`} onClick={listening ? voice.stop : voice.start}>{listening ? <Square size={14} /> : <Mic size={16} />}</button>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
           {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={16} /></button>}
         </div>
