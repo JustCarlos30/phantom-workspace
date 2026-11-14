@@ -39,3 +39,24 @@ export function contextUse(meta) {
   const window = Number.isFinite(meta.contextWindow) && meta.contextWindow > 0 ? meta.contextWindow : null;
   return { tokens: meta.contextTokens, window, ratio: window ? meta.contextTokens / window : null };
 }
+
+// Quality/cost bands for a conversation's context. Every turn resends the whole
+// context, so cost per turn grows with it, and long-context studies (context
+// rot, lost-in-the-middle) show precision falling well before the window is
+// full. With a known window the bands are shares of it; without one they fall
+// back to absolute sizes where most models already degrade.
+export const CONTEXT_BANDS = { watch: .4, compact: .7 };
+export const CONTEXT_TOKEN_BANDS = { watch: 60_000, compact: 120_000 };
+export function contextAdvice(use) {
+  if (!use) return null;
+  const by = use.ratio != null ? use.ratio : null;
+  const band = by != null
+    ? by >= CONTEXT_BANDS.compact ? 'compact' : by >= CONTEXT_BANDS.watch ? 'watch' : 'ok'
+    : use.tokens >= CONTEXT_TOKEN_BANDS.compact ? 'compact' : use.tokens >= CONTEXT_TOKEN_BANDS.watch ? 'watch' : 'ok';
+  const copy = {
+    ok: ['Zona óptima', 'Hay margen: el modelo atiende bien todo el historial y cada turno sigue siendo barato.'],
+    watch: ['Conviene compactar pronto', 'La precisión empieza a bajar y cada turno reenvía más tokens. Compacta al cerrar la subtarea actual.'],
+    compact: ['Compacta ahora', 'Con este volumen el modelo pierde detalles del medio del historial y cada turno cuesta varias veces más que al inicio.'],
+  }[band];
+  return { band, title: copy[0], hint: copy[1] };
+}
