@@ -534,3 +534,5 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-nudge-actions > button:not(.pc-icon) { padding: 5px 9px; border-radius: var(--r-ctl); color: var(--nudge); font: 600 12px/1 var(--sans); white-space: nowrap; cursor: pointer; }
 .pc-nudge-actions > button:not(.pc-icon):hover { background: color-mix(in srgb, var(--nudge) 14%, transparent); }
 @media (prefers-reduced-motion: reduce) { .pc-nudge { animation: none; } }
+.pc-context-cap { margin: -4px 0 0; color: var(--muted); font-size: 11px; }
+.pc-context-cap.is-active { color: var(--ink-3); font-weight: 500; }

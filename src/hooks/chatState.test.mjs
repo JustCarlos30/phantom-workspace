@@ -37,9 +37,19 @@ test('Con ventana conocida las zonas son fracciones de la ventana', () => {
   assert.equal(advise({ contextTokens: 140_000, contextWindow: 200_000 }), 'compact');
 });
 
-test('Una ventana de 1M no esconde un historial grande: se mide por fracción', () => {
-  assert.equal(advise({ contextTokens: 300_000, contextWindow: 1_000_000 }), 'ok');
-  assert.equal(advise({ contextTokens: 450_000, contextWindow: 1_000_000 }), 'watch');
+test('Una ventana de 1M no esconde un historial grande: manda el tamaño', () => {
+  assert.equal(advise({ contextTokens: 100_000, contextWindow: 1_000_000 }), 'ok');
+  assert.equal(advise({ contextTokens: 150_000, contextWindow: 1_000_000 }), 'watch');
+  assert.equal(advise({ contextTokens: 300_000, contextWindow: 1_000_000 }), 'compact');
+  assert.equal(contextAdvice(contextUse({ contextTokens: 300_000, contextWindow: 1_000_000 })).cause, 'size');
+  assert.equal(contextAdvice(contextUse({ contextTokens: 140_000, contextWindow: 200_000 })).cause, 'share');
+});
+
+test('Si manda el tamaño, el aviso habla en tokens y no en un porcentaje bajo', () => {
+  const nudge = contextNudge(contextUse({ contextTokens: 180_000, contextWindow: 1_000_000 }));
+  assert.equal(nudge.band, 'watch');
+  assert.match(nudge.title, /180k tokens de contexto/);
+  assert.doesNotMatch(nudge.title, /%/);
 });
 
 test('Sin ventana se usan tamaños absolutos', () => {

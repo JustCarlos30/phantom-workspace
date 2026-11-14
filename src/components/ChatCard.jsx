@@ -6,7 +6,7 @@ import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
-import { BAND_RANK, CONTEXT_BANDS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
+import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
@@ -560,6 +560,9 @@ export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
           <i aria-hidden="true" /><span>{name}</span><small>{range}</small>
         </li>)}
       </ol>
+      {use.window && (advice.cause === 'size' || use.window * CONTEXT_BANDS.watch > CONTEXT_SIZE_CAPS.watch) && <p className={`pc-context-cap ${advice.cause === 'size' ? 'is-active' : ''}`}>
+        En ventanas grandes también cuenta el tamaño: vigilar desde {formatTokens(CONTEXT_SIZE_CAPS.watch)} y compactar desde {formatTokens(CONTEXT_SIZE_CAPS.compact)} tokens, aunque el porcentaje sea bajo.
+      </p>}
       <div className="pc-context-advice" role="status">
         <strong>{advice.title}</strong>
         <p>{advice.hint}</p>
