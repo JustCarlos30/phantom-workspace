@@ -8,21 +8,22 @@ colors:
   accent-amber: "#e3bf86"
   accent-rose: "#e9a0bf"
   accent-cyan: "#6fe3f2"
-  bg: "#0b0910"
-  surface: "#131019"
-  surface-2: "#1c1725"
-  surface-3: "#292133"
-  ink: "#eee9f4"
-  muted: "#a69bb7"
+  bg: "#0b0a0e"
+  surface: "#141318"
+  surface-2: "#1d1c22"
+  surface-3: "#2a2930"
+  ink: "#f4f3f7"
+  muted: "#aaa8b3"
+  ink-3: "#8d8b96"
   hairline: "color-mix(in srgb, #fff 8%, transparent)"
   fill: "color-mix(in srgb, #fff 5%, transparent)"
   fill-2: "color-mix(in srgb, #fff 9%, transparent)"
   fill-3: "color-mix(in srgb, #fff 14%, transparent)"
   glass: "color-mix(in srgb, var(--surface) 64%, transparent)"
   glass-thick: "color-mix(in srgb, var(--surface) 84%, transparent)"
-  rail: "#131019"
-  terminal-bg: "#0e0b13"
-  terminal-ink: "#ddd5e9"
+  rail: "#141318"
+  terminal-bg: "#0e0d11"
+  terminal-ink: "#dedce4"
   primary-ink: "#130d1e"
   note: "#211d2c"
   danger: "#ee788a"
@@ -187,12 +188,14 @@ Excepción acotada al presupuesto descendente: `src/studio.css` pasa de 7 a 8 po
 
 ## Material y paleta
 
-- **Planos.** Ciruela casi negra `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Texto `--ink #eee9f4`, secundario `--muted #a69bb7`. Terminal opaca `--terminal-bg #0e0b13`. Nunca negro puro.
+- **Planos.** Ciruela/violeta vigente: `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Terminal opaca `--terminal-bg #0e0b13`. Nunca negro puro. Los valores viven en el bloque `:root` de `src/canvas-ui.css`, que manda sobre `studio.css`.
+- **Tinta.** Una sola tinta neutra en tres niveles: `--ink #f4f3f7` lo que se lee, `--muted #aaa8b3` lo que acompaña, `--ink-3 #8d8b96` metadatos e iconos en reposo. Lo secundario no lleva lila; el violeta identifica acento y actividad real con señales distintas.
 - **Rellenos.** Una escalera blanca-alfa: `--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %. Sin degradados, luces interiores ni relieve en controles.
 - **Acento.** Violeta `#a78bda` (clave `lilac`) para selección, foco y acción. Iris, Menta, Ámbar, Rosa y Cian siguen disponibles por proyecto.
 - **Estados.** `--working` violeta espectral, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado: selección y teclado son contornos sólidos; actividad es perímetro interior y etiqueta. `test/design-tokens.test.mjs` exige contraste de texto AA (4,5:1) para texto principal, secundario, trabajo y atención sobre los cinco planos opacos.
 - **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Conversaciones y terminales son explícitamente opacas y mates, sin backdrop blur; quedan por encima del arte ambiental. El fondo del canvas es transparente para conservar el arte entre paneles y debajo del chrome. Sus sombras propias no alteran las del chrome. `prefers-reduced-transparency` vuelve el chrome opaco, desactiva su filtro y oculta atmósfera y campo de ondas.
-- **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Chrome a 12–13 px, mínimo 10 px, siempre en píxeles enteros (sin medios píxeles). Las etiquetas van en caja natural, peso 600 y `--muted`; nunca en mayúsculas con tracking. Iconos lucide y `PanelIcons.js` con trazo 1,75.
+- **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Siete roles, cada uno con un trabajo, declarados como `font: var(--t-…)`: Display 24/30·650 (pregunta o título de una vista vacía), Título 17/22·600 (nombre de un panel o isla), Encabezado 15/22·600 (encabezado dentro de contenido), Lectura 14/22·400 (lo que se lee: respuestas, notas), Control 13/18·500 (lo que se pulsa: filas, botones, menús), Apoyo 12/16·400 (lo que acompaña: modelo, hora, ruta, acciones) y Micro 11/14·500 (atajos y contadores; es el mínimo). Tres pesos: 400, 500 y 600; 650 solo en Display. Lo que se lee es más grande que lo que se pulsa. Las etiquetas van en caja natural; nunca en mayúsculas con tracking. Las hojas aún no migradas conservan sus tamaños sueltos y se pasan a roles al tocarlas.
+- **Iconos.** Lucide y `PanelIcons.js` en tres tamaños: 14 px junto a texto de apoyo (trazo 2), 16 px en filas y controles (trazo 1,75) y 20 px en barras y cabeceras (trazo 1,5). El trazo compensa el tamaño para que pesen igual. Sin mosaicos de fondo detrás de un icono.
 - **Atmósfera.** Un solo estilo base ciruela/violeta; las opciones de fondo existentes (Gengar, Aurora, Marea, Brasa, Grafito o imagen propia) no cambian materiales ni tipografía. No se añaden presets. Los dos degradados ambientales se localizan arriba a la derecha (82 % × 80 %) y abajo a la izquierda (64 % × 64 %), sin repetición, para dejar zonas oscuras entre luces. La imagen propia conserva `cover` centrado. Ambiente y arte tienen capas e intensidades independientes. «Mostrar Gengar» controla el arte local existente (`assets/gengar-source.md`), incluso sobre otro fondo; su presencia no depende del deslizador ambiental. La identidad sigue siendo el glifo Phantom. El arte no se redistribuye fuera de uso personal.
 
 ## Lienzo y chrome
@@ -212,7 +215,8 @@ La card es la caja. Dentro no hay líneas:
 
 - **Cabecera** (44 px): mismo tono que la card, sin costura. Glifo del tipo, título de 13 px/peso 600, acciones con aparición por hover o foco de teclado.
 - **Identidad:** selector de agente y carpeta en una fila, sin fondo propio.
-- **Hilo:** a sangre, opaco, sin pulsos decorativos en el contenido. Turnos separados por 28 px (32 px en foco), mensajes propios un paso de tono, columna de lectura de hasta 780 px. Pasos de herramientas, subagentes, bloques de código y salidas son pozos de un tono (`--fill` o un paso sobre `--terminal-bg`) con `--r-ctl`, sin borde ni cabecera subrayada. Las guías de 1 px de razonamiento y pasos anidados se conservan: indican anidamiento, no contienen.
+- **Hilo:** a sangre, opaco, en Lectura (14/22), sin pulsos decorativos en el contenido. Turnos separados por 28 px (32 px en foco y 20 px en Phantom), mensajes propios un paso de tono, columna de hasta 780 px. La respuesta no lleva avatar ni cabecera: modelo, hora y costo se dicen una vez al pie, en Apoyo y `--ink-3`, junto a Copiar.
+- **Acciones:** cada llamada es una línea sin caja: glifo de 14 px, etiqueta y destino en Apoyo. Conserva el estado accesible y el indicador discreto de main; solo los estados en curso, fallidos o detenidos añaden texto. Solo las escrituras suben el glifo a tinta plena. Cuatro o más acciones seguidas se pliegan en una frase de lo hecho, abierta mientras trabaja. Subagentes, código y salidas siguen siendo pozos de un tono con `--r-ctl`. Las guías de 1 px de razonamiento y pasos anidados indican anidamiento, no contienen.
 - **Segmentado** Claude · OpenCode · Codex · Terminal: pista `--fill`; el segmento activo se tiñe con el tono del proveedor. Sin anillos.
 - **Compositor:** el campo de escritura (`--surface-2`, `--r-obj`). Hover eleva ligeramente su tono; foco usa acento del proyecto y anillo estático de 3 px, sin confundirse con el pulso de actividad. Modelo, Effort y permisos son texto con hover, no chips rellenos. Debajo, sin fondo: contexto, costo y pista de teclado; metadatos y controles envuelven en ancho reducido.
 - **Tamaño compartido:** `ChatCard` y `PhantomChat` usan `useComposerSize`. Altura inicial mínima de 38 px, una fila, mismo padding incluso en foco. El máximo es el menor entre el 45 % del alto del contenedor y el espacio libre tras cabeceras, avisos, controles, metadatos y reserva de hilo (hasta 96 px o 20 % del alto). Se recalcula al escribir, borrar, enviar y cambiar ancho/alto o controles; `ResizeObserver` y observación de contenido conservan el límite sin depender del zoom del canvas. Al llegar al máximo, el texto tiene scroll interno y los controles permanecen fuera de ese scroll. No se anima la altura al teclear.
@@ -221,6 +225,10 @@ La card es la caja. Dentro no hay líneas:
 - **Terminal:** el pozo de salida se distingue por tono. Su borde superior es transparente y solo se colorea con estado (violeta trabajando, ámbar te necesita).
 - **Preguntas y permisos pendientes** sí llevan borde de color: es estado. Resueltos, lo pierden.
 - **Zoom semántico:** por debajo del 45 % la card es una ficha (título, estado, tres líneas de salida); por debajo del 25 %, título y estado.
+
+## Panel de Phantom
+
+Isla a la derecha, espejo geométrico del rail: `--r-isle` y hueco `--gutter`; fondo sólido `--surface` y sombra mate `--shadow-workplane-rest` (elevada en drawer), porque contiene una conversación. El espacio de trabajo cede su ancho. Cabecera de 56 px sin mosaico ni costura: marca en acento a 20 px, «Phantom» en Título y, al lado en Apoyo, el proyecto o lo que está pasando (ámbar solo si te necesita). Conserva las pestañas Chat y Orquestador, la cola de incorporaciones y la conversión de texto dictado en tarea. El agente que responde es un menú compacto dentro del compositor, junto al modelo; no ocupa fila propia. Los permisos viven en la línea bajo el campo. Enviar es la única acción con acento. Las sugerencias de una conversación nueva son filas con glifo, sin borde.
 
 ## Estados, pulsos y notch
 

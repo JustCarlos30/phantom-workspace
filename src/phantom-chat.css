@@ -1,4 +1,4 @@
-/* Phantom chat: the project's main conversation, docked to the right edge and
+/* Phantom chat: the project's main conversation, an island on the right edge
    mirroring the rail on the left. The workspace (bar, canvas, inspector)
    yields its width, so nothing on the canvas — native browser views included —
    ever sits beneath it. */
@@ -8,11 +8,11 @@
 @media (max-width: 1100px) { :root { --phantom-chat-width: 340px; } }
 
 .phantom-chat {
-  position: absolute; z-index: 31; top: 0; right: 0; bottom: 0; width: var(--phantom-chat-width);
-  display: flex; flex-direction: column; min-width: 0; font-size: 13px;
+  position: absolute; z-index: 31; top: var(--gutter); right: var(--gutter); bottom: var(--gutter); width: var(--phantom-chat-width);
+  display: flex; flex-direction: column; min-width: 0; font-size: 13px; overflow: hidden;
   background: var(--surface);
   -webkit-backdrop-filter: none; backdrop-filter: none;
-  border-left: 1px solid var(--hairline); container-type: inline-size;
+  border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-workplane-rest); container-type: inline-size;
   animation: materialize var(--dur) var(--ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -21,7 +21,7 @@
 }
 
 @media (min-width: 851px) {
-  .phantom-chat-open .main-workspace { right: var(--phantom-chat-width); }
+  .phantom-chat-open .main-workspace { right: calc(var(--phantom-chat-width) + var(--gutter)); }
 }
 /* The narrower canvas keeps its bottom row clear of the view controls: the
    dock centers between the rail and the zoom island instead of the full width. */
@@ -31,46 +31,55 @@
 }
 /* Compact: a drawer over the workspace, like the rail. */
 @media (max-width: 850px) {
-  .phantom-chat { left: auto; width: min(100%, 420px); box-shadow: var(--shadow-workplane-lift); }
+  .phantom-chat { left: auto; width: min(calc(100% - 2 * var(--gutter)), 420px); box-shadow: var(--shadow-workplane-lift); }
 }
 
-/* Head: exactly the bar's height so its seam continues the top bar. */
-.phantom-chat-head { display: flex; align-items: center; gap: 10px; height: var(--bar, 52px); flex-shrink: 0; padding: 0 8px 0 14px; }
-.phantom-chat-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-ctl); background: var(--pc-hue-soft); color: var(--pc-hue); flex-shrink: 0; }
-.phantom-chat-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.phantom-chat-title strong { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: -.01em; }
-.phantom-chat-title small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.phantom-chat-live { color: var(--pc-hue); }
+/* Head: the title carries the panel. No tile, no seam; the project (or what
+   Phantom is doing) sits beside it in support type. */
+.phantom-chat-head { display: flex; align-items: center; gap: 8px; height: 56px; flex-shrink: 0; padding: 0 12px 0 20px; }
+.phantom-chat-mark { display: grid; place-items: center; color: var(--accent); flex-shrink: 0; }
+.phantom-chat-mark svg { stroke-width: 1.5px; }
+.phantom-chat-title { margin: 0; font: var(--t-title); letter-spacing: -.015em; color: var(--ink); flex-shrink: 0; }
+.phantom-chat-where, .phantom-chat-live { min-width: 0; margin: 3px 0 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: var(--t-support); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.phantom-chat-live { color: var(--muted); font-weight: 500; }
+.phantom-chat-live.is-waiting { color: var(--attention); }
 .phantom-chat-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--r-pill); background: currentColor; vertical-align: 1px; animation: phantom-pulse 1.4s ease-in-out infinite; }
 @keyframes phantom-pulse { 50% { opacity: .3; } }
-
-.phantom-chat-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; flex-shrink: 0; }
-.phantom-chat-providers { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r-obj); background: var(--fill); }
-.phantom-chat-providers button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--muted); font-size: 11px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.phantom-chat-providers button:hover:not(:disabled) { color: var(--ink); }
-.phantom-chat-providers button[aria-checked="true"] { background: var(--segment, var(--fill-2)); color: var(--ink); box-shadow: none; }
-.phantom-chat-providers button[aria-checked="true"] > svg { color: var(--pc-hue); }
-.phantom-chat-providers button:disabled { opacity: .4; cursor: not-allowed; }
-.phantom-chat-providers button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@container (max-width: 330px) { .phantom-chat-providers button > span { display: none; } }
+@media (prefers-reduced-motion: reduce) { .phantom-chat-live::before { animation: none; } }
+.phantom-chat .pc-icon { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 
 .phantom-chat .pc-thread { background: var(--surface); }
-.phantom-chat .pc-column { padding: 20px 16px; gap: 22px; }
+.phantom-chat .pc-column { padding: 12px 20px 20px; gap: 20px; }
 .phantom-chat .pc-tool-row { gap: 6px; }
 .phantom-chat .pc-tool-output { margin-left: 24px; }
 .phantom-chat .pc-message.is-user { max-width: 90%; }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
 
-.phantom-chat-suggestions { display: flex; flex-direction: column; gap: var(--s-2); width: 100%; }
-.phantom-chat-suggestions button { text-align: left; padding: 9px 12px; border-radius: var(--r-ctl); color: var(--ink); font-size: 12px; line-height: 1.4; transition: background var(--dur-fast) var(--ease-out); }
-.phantom-chat-suggestions button:hover:not(:disabled) { background: var(--fill); border-color: var(--pc-hue-line); }
+/* Starters: rows with a glyph, no boxes. */
+.phantom-chat-suggestions { display: flex; flex-direction: column; width: 100%; }
+.phantom-chat-suggestions button { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 10px; border-radius: var(--r-ctl); color: var(--ink); font: var(--t-control); text-align: left; transition: background-color var(--dur-fast) var(--ease-out); }
+.phantom-chat-suggestions button > svg { flex-shrink: 0; color: var(--ink-3); transition: color var(--dur-fast) var(--ease-out); }
+.phantom-chat-suggestions button:hover:not(:disabled) { background: var(--fill); }
+.phantom-chat-suggestions button:hover:not(:disabled) > svg { color: var(--accent); }
 .phantom-chat-suggestions button:disabled { opacity: .5; cursor: not-allowed; }
-.phantom-chat-suggestions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.phantom-chat-suggestions button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Composer: who answers and with which model read as one phrase. */
+.phantom-chat .pc-agent-trigger { height: 28px; padding: 0 4px 0 6px; background: none; font: var(--t-support); font-weight: 500; }
+.phantom-chat .pc-agent-trigger:hover:not(:disabled), .phantom-chat .pc-agent-trigger[aria-expanded="true"] { background: var(--fill-2); }
+.phantom-chat .pc-agent-trigger > svg:first-child { color: var(--pc-hue); }
+.phantom-chat .pc-model > svg:first-child { display: none; }
+.phantom-chat .pc-model { padding: 0 6px; border-radius: var(--r-ctl); color: var(--muted); }
+.phantom-chat .pc-send:not(:disabled):not(.is-stop) { background: var(--accent); color: var(--primary-ink); }
+.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); }
+.phantom-chat .pc-meta { padding: 4px 4px 0; }
+.phantom-chat .pc-meta .pc-permission { height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-ctl); font: var(--t-micro); }
+.phantom-chat .pc-meta .pc-permission > span { display: inline; }
 
 .phantom-chat .pc-error { display: flex; align-items: center; gap: 8px; }
 .phantom-chat .pc-error > span { flex: 1; min-width: 0; }
-.phantom-chat-composer { max-width: none; padding: 0 12px 12px; }
+.phantom-chat-composer { max-width: none; padding: 0 12px 8px; }
 
 /* Voice: the field itself shows that the microphone is live. */
 .phantom-chat-mic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-pill); color: var(--muted); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
