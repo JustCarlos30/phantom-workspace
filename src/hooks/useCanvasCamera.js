@@ -7,7 +7,8 @@ export const cameraTier = zoom => zoom > 1 ? -1 : zoom < .25 ? 2 : zoom < .45 ? 
 
 // Input can arrive faster than the display. Paint once per frame through
 // `onFrame` (imperative DOM writes, no React render), re-render React only
-// when the zoom tier changes or navigation settles, and persist after settle.
+// once navigation settles (tier changes included: switching every terminal's
+// renderer mid-pinch is what made zoom stutter), and persist after settle.
 export function useCanvasCamera(value, onCommit, onFrame) {
   const [camera, setCamera] = useState(value);
   const current = useRef(value);
@@ -30,9 +31,7 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     pending.current = true;
     if (frame.current === null) frame.current = requestAnimationFrame(() => {
       frame.current = null;
-      const latest = current.current;
-      paint.current?.(latest);
-      if (cameraTier(latest.zoom) !== cameraTier(rendered.current.zoom)) render(latest);
+      paint.current?.(current.current);
     });
     clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
