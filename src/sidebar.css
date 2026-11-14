@@ -20,29 +20,43 @@
 .project-rail .brand .icon-button:hover { background: var(--fill-2); color: var(--ink); opacity: 1; }
 .rail-collapsed .project-rail .brand .icon-button { margin-left: 0; }
 
-/* ---------- Context selectors: the two wells ---------- */
-.project-rail .context-switcher { position: relative; flex-shrink: 0; min-width: 0; margin: 0 0 var(--s-2); }
-/* Project and space are one context: two halves of a single capsule. */
-.project-rail .project-switcher { margin-bottom: 2px; }
-.project-switcher > summary { border-radius: var(--r-obj) var(--r-obj) var(--r-mark) var(--r-mark); }
-.space-switcher-trigger { border-radius: var(--r-mark) var(--r-mark) var(--r-obj) var(--r-obj); }
-.project-switcher > summary, .space-switcher-trigger {
-  display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 52px; padding: 8px 12px 8px 14px;
-  border-radius: var(--r-obj); background: var(--fill-2); color: var(--ink); text-align: left; cursor: pointer; list-style: none;
-  box-shadow: var(--shadow-rim);
+/* ---------- Context: where you are, not a form ----------
+   The project is the rail's title: a coloured disc with its initials and the
+   name. The space is a small chip under the name. Neither is a field with a
+   label and a caret; both open their menu when pressed. */
+.project-rail .context-switcher { position: relative; flex-shrink: 0; min-width: 0; }
+.project-switcher > summary {
+  display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 48px; padding: 6px 8px 6px 6px;
+  border-radius: var(--r-obj); color: var(--ink); text-align: left; cursor: pointer; list-style: none;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 .project-switcher > summary::-webkit-details-marker { display: none; }
-.project-switcher > summary:hover, .space-switcher-trigger:hover,
-.project-switcher[open] > summary, .space-switcher-trigger[aria-expanded=true] { background: var(--fill-3); }
-/* The name is the identity; initials and a layers glyph would only repeat it. */
-.project-switcher > summary > .project-initials, .space-switcher-trigger > svg:first-child { display: none; }
-.project-switcher > summary > svg, .space-switcher-trigger > svg:last-child { flex-shrink: 0; color: var(--muted); opacity: .72; transition: transform var(--dur) var(--ease-out); }
-.project-switcher[open] > summary > svg, .space-switcher-trigger[aria-expanded=true] > svg:last-child { transform: rotate(180deg); }
+.project-switcher > summary:hover, .project-switcher[open] > summary { background: var(--fill-2); }
+.project-switcher > summary > .project-initials {
+  display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--r-ctl);
+  background: var(--accent); color: var(--on-ink); box-shadow: var(--shadow-rim); font: var(--t-support); font-weight: 600; letter-spacing: .02em;
+}
 .project-switcher-label { min-width: 0; flex: 1; }
-.project-switcher-label small, .project-switcher-label strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-switcher-label small { font: var(--t-micro); font-weight: 400; color: var(--muted); opacity: .72; }
-.project-switcher-label strong { font: var(--t-headline); line-height: 20px; }
+.project-switcher-label strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* «Proyecto» and «Espacio» stay for assistive tech; on screen the shape says it. */
+.project-switcher-label small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.project-switcher > summary strong { font: var(--t-title); letter-spacing: -.01em; }
+/* The caret only appears when the row is live, so at rest it reads as a title. */
+.project-switcher > summary > svg { flex-shrink: 0; color: var(--muted); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur) var(--ease-out); }
+.project-switcher > summary:is(:hover, :focus-visible) > svg, .project-switcher[open] > summary > svg { opacity: .72; }
+.project-switcher[open] > summary > svg { transform: rotate(180deg); }
+
+.project-rail .rail-spaces { margin: 2px 0 var(--s-3); padding-left: 54px; }
+.space-switcher-trigger {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 26px; padding: 0 8px 0 10px;
+  border-radius: var(--r-pill); background: var(--fill-2); box-shadow: var(--shadow-rim); color: var(--muted); text-align: left;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.space-switcher-trigger:hover, .space-switcher-trigger[aria-expanded=true] { background: var(--fill-3); color: var(--ink); }
+.space-switcher-trigger > svg { flex-shrink: 0; width: 14px; height: 14px; color: inherit; }
+.space-switcher-trigger > svg:last-child { width: 12px; height: 12px; opacity: .72; transition: transform var(--dur) var(--ease-out); }
+.space-switcher-trigger[aria-expanded=true] > svg:last-child { transform: rotate(180deg); }
+.space-switcher-trigger strong { font: var(--t-support); font-weight: 500; }
 
 /* Their menus overlay only the rail's own content. */
 .context-menu-panel {
@@ -76,8 +90,9 @@
 .project-rail .space-select i { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--fill-3); }
 .project-rail .space-select span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-rail .space-select small { font: var(--t-micro); font-variant-numeric: tabular-nums; opacity: .72; }
-.project-rail :is(.project-item.active, .space-row.active) { background: var(--on); color: var(--on-ink); --muted: var(--on-ink); }
-.project-rail .space-row.active .space-select i { background: var(--on-ink); }
+/* As in every menu, the current value is a lit veil, not a light key. */
+.project-rail :is(.project-item.active, .space-row.active) { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
+.project-rail .space-row.active .space-select i { background: var(--accent); }
 .project-rail :is(.space-rename, .space-remove) { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; margin: 0 2px 0 0; border-radius: 50%; color: inherit; opacity: 0; }
 .project-rail .space-row:is(:hover, :focus-within) :is(.space-rename, .space-remove) { opacity: .72; }
 .project-rail :is(.space-rename, .space-remove):is(:hover, :focus-visible) { opacity: 1; background: var(--fill-3); }
@@ -187,7 +202,9 @@
 /* ---------- Short windows: the list yields before the selectors do ---------- */
 @media (max-height: 700px) {
   .project-rail { --row: 34px; }
-  .project-switcher > summary, .space-switcher-trigger { min-height: 44px; padding-top: 5px; padding-bottom: 5px; }
+  .project-switcher > summary { min-height: 42px; }
+  .project-switcher > summary > .project-initials { width: 30px; height: 30px; }
+  .project-rail .rail-spaces { padding-left: 48px; margin-bottom: var(--s-2); }
   .rail-session-row > button:first-child { min-height: 42px; }
   .project-rail .rail-heading { height: 30px; }
   .project-rail .rail-bottom { padding-top: var(--s-2); }
@@ -195,6 +212,5 @@
 @media (max-height: 600px) {
   .project-rail { --row: 30px; }
   .app-shell:not(.rail-collapsed) .project-rail .brand { height: 36px; margin-bottom: 4px; }
-  .project-rail .context-switcher { margin-bottom: 4px; }
-  .project-switcher > summary, .space-switcher-trigger { min-height: 40px; }
+  .project-switcher > summary { min-height: 38px; }
 }
