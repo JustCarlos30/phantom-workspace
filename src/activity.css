@@ -75,8 +75,8 @@
 .activity-branch-stats .is-wip { color: var(--warning); }
 .activity-integration-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .activity-tray .activity-integrations .activity-integration-actions button { max-width: 100%; min-width: 0; min-height: 32px; white-space: normal; overflow-wrap: anywhere; text-align: left; }
-.activity-tray .activity-integrations button.activity-integrate { background: var(--accent-soft); color: var(--ink); border-radius: var(--r-ctl); }
-.activity-tray .activity-integrations button.activity-integrate:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 24%, var(--surface)); }
+.activity-tray .activity-integrations button.activity-integrate { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); border-radius: var(--r-ctl); }
+.activity-tray .activity-integrations button.activity-integrate:hover:not(:disabled) { background: var(--on); }
 .activity-integrations .activity-warning, .activity-integration-notice { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .activity-integration-notice { margin: 10px 0; color: var(--success); }
 .activity-integration-notice.is-warn { color: var(--warning); }

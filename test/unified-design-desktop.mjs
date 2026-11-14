@@ -165,7 +165,13 @@ try {
   assert.equal(await page.locator('#gengar-intensity').inputValue(), '31');
   await art.uncheck();
   assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::after').opacity), '0');
+  assert.equal(await page.locator('.brand-mark .gengar-icon').isVisible(), false);
+  assert.equal(await page.locator('.brand-state-fallback').isVisible(), true);
   await art.check();
+  const brandSprite = await page.locator('.brand-mark .gengar-icon').evaluate(el => ({ tag: el.tagName, src: el.src, width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, rendering: getComputedStyle(el).imageRendering }));
+  assert.equal(brandSprite.tag, 'IMG'); assert.match(brandSprite.src, /gengar-icon/);
+  assert.equal(brandSprite.width, 40); assert.equal(brandSprite.height, 30); assert.equal(brandSprite.rendering, 'pixelated');
+  assert.equal(await page.locator('.brand-state-fallback').isVisible(), false);
   await range('#background-intensity', 0);
   await range('#gengar-intensity', 70);
   assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::after').opacity), '0.7', 'art independent of zero ambient intensity');
@@ -176,6 +182,8 @@ try {
   await concentration.check();
   const quiet = await page.locator('.canvas-region').evaluate(el => ({ art: Number(getComputedStyle(el, '::after').opacity), pulse: getComputedStyle(el, '::before').animationName }));
   assert.ok(Math.abs(quiet.art - .084) < .001); assert.equal(quiet.pulse, 'none');
+  for (const sprite of await page.locator('.gengar-icon').all())
+    assert.equal(await sprite.evaluate(el => getComputedStyle(el).animationName), 'none', 'Concentración suspende los sprites de estado');
   await capture('concentration');
   const key = `phantom:studio:${workspace.id}`;
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), key);

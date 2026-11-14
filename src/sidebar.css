@@ -34,9 +34,9 @@
 .rail-session-row.needs-you { background: color-mix(in srgb, var(--warning) 8%, transparent); }
 .rail-session-row > button:first-child { gap: 10px; padding: 8px; }
 .rail-session-row > button > span.rail-agent-mark { position: relative; display: flex; align-items: center; justify-content: center; width: 20px; height: 24px; flex-shrink: 0; overflow: visible; color: var(--muted); }
-.rail-session-row.selected .rail-agent-mark { color: var(--accent); }
+.rail-session-row.selected .rail-agent-mark { color: var(--on-ink); }
 .rail-session-dot { position: absolute; right: 0; bottom: 0; width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; }
-.rail-session-dot.working { background: var(--accent); animation: rail-session-pulse 2s var(--ease-out) infinite; }
+.rail-session-dot.working { background: var(--working); }
 .rail-session-dot.warning { background: var(--warning); }
 .rail-session-dot.neutral { background: var(--muted); }
 .rail-session-dot.unknown { background: color-mix(in srgb, var(--muted) 45%, transparent); }
@@ -84,6 +84,15 @@
 .context-menu-panel .project-item > svg { flex-shrink: 0; }
 .context-menu-panel .open-folder { flex-shrink: 0; margin: 0; min-height: 32px; }
 .context-empty { margin: 0; padding: 6px; color: var(--muted); font-size: 12px; }
+.context-menu-panel { background-color: var(--glass-thick); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--shadow-chrome); --ink-3: var(--ink-on-glass); --muted: var(--ink-on-glass); }
+.project-switcher > summary { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); --muted: var(--on-ink); }
+.project-switcher > summary:hover { background: var(--on); }
+.project-switcher > summary > svg, .project-switcher > summary .project-initials { color: inherit; background: none; }
+.rail-session-row.selected { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); --muted: var(--on-ink); }
+.rail-session-row.selected .rail-session-meta { color: var(--on-ink); }
+.rail-system > button, .space-switcher-trigger { background: var(--fill); }
+.rail-system > button:hover, .space-switcher-trigger:hover { background: var(--fill-3); }
+.rail-system > button.active { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
 .context-menu-panel .space-row { min-height: 34px; flex-shrink: 0; }
 .context-menu-panel .space-select { padding-left: 5px; gap: 6px; font-size: 12px; }
 .space-rename, .context-menu-panel .space-remove { display: grid; place-items: center; width: 24px; height: 28px; flex-shrink: 0; margin: 0; color: var(--muted); border-radius: var(--r-ctl); opacity: 1; }

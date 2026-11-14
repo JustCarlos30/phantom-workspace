@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
 
-// Isolated component journey: shipping SVG, notch and empty-state anatomy/CSS.
+// Isolated component journey: local pixel sprites, notch and empty-state anatomy/CSS.
 // Synthetic source readings only; no host, PTY, user profile or network assets.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const evidence = '/tmp/phantom-gengar-identity';
@@ -103,10 +103,21 @@ try {
     await page.screenshot({ path: path.join(evidence, filename) });
     captures.push(filename);
   };
+  const sprite = page.locator('.gengar-mascot img');
+  const assertSprite = async (file, width, height) => {
+    await page.waitForFunction(({ file, width, height }) => {
+      const img = document.querySelector('.gengar-mascot img');
+      return img?.src.includes(file) && img.complete && img.naturalWidth > 0
+        && img.getBoundingClientRect().width === width && img.getBoundingClientRect().height === height;
+    }, { file, width, height });
+    assert.equal(await sprite.evaluate(el => getComputedStyle(el).imageRendering), 'pixelated');
+  };
   for (const screen of ['welcome', 'empty']) {
     await render({ screen });
     assert.equal(await page.locator('.gengar-mascot').count(), 1);
     assert.equal(await page.locator('.gengar-mascot').isVisible(), true);
+    await assertSprite('gengar-icon.png', 80, 60);
+    assert.equal(await page.locator('.gengar-mascot svg').count(), 0);
     await capture(screen);
     await page.getByRole('button', { name: screen === 'welcome' ? 'Abrir carpeta' : 'Crear terminal', exact: true }).click();
     assert.equal(await page.evaluate(() => window.fixtureAction), screen === 'welcome' ? 'Abrir carpeta' : 'Crear terminal');
@@ -114,6 +125,12 @@ try {
   for (const [state, mood] of [['offline', 'asleep'], ['loading', 'unsure'], ['stale', 'unsure'], ['error', 'unsure'], ['grin', 'grin'], ['working', 'working'], ['calm', 'calm']]) {
     await render({ screen: 'empty', state });
     assert.equal(await page.locator('.activity-notch .phantom-face').getAttribute('data-mood'), mood);
+    const face = await page.locator('.activity-notch .phantom-face').evaluate(el => ({ tag: el.tagName, width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, src: el.src, opacity: getComputedStyle(el).opacity, filter: getComputedStyle(el).filter, animation: getComputedStyle(el).animationName }));
+    assert.equal(face.tag, 'IMG'); assert.equal(face.width, 40); assert.equal(face.height, 30);
+    assert.ok(face.src.includes('gengar-icon.png')); assert.equal(face.animation, 'none');
+    assert.equal(Number(face.opacity), mood === 'asleep' ? .5 : mood === 'unsure' ? .7 : 1);
+    if (mood === 'asleep') assert.match(face.filter, /grayscale\(1\)/);
+    if (mood === 'grin') assert.match(face.filter, /drop-shadow/);
     const label = await page.locator('.activity-notch').getAttribute('aria-label');
     assert.ok(label.includes(await page.locator('.activity-notch strong').innerText()));
     await capture(`face-${state}`);
@@ -131,12 +148,35 @@ try {
   assert.equal(await page.locator('.activity-notch .phantom-face').evaluate(el => getComputedStyle(el).opacity), '1');
   await render({ concentration: true, intensity: 1 });
   assert.equal(await page.locator('.gengar-mascot').evaluate(el => getComputedStyle(el).opacity), '0.12');
-  assert.equal(await page.locator('.phantom-face-eyes').first().evaluate(el => getComputedStyle(el).animationName), 'none');
+  await assertSprite('gengar-icon.png', 80, 60);
+  assert.equal(await page.locator('.phantom-face').first().evaluate(el => getComputedStyle(el).animationName), 'none');
   await capture('concentration');
-  await page.setViewportSize({ width: 1100, height: 700 });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await render({ screen: 'empty', state: 'working' });
+  await assertSprite('gengar-idle.gif', 148, 126);
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.phantom-face')).animationName === 'gengar-hop');
+  await render({ screen: 'empty', state: 'calm' });
+  assert.equal(await page.locator('.phantom-face').evaluate(el => getComputedStyle(el).animationName), 'none', 'rest has no state animation');
+  await render({ screen: 'empty', state: 'grin' });
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.phantom-face')).animationDuration === '2.4s');
+  await render({ screen: 'empty', concentration: true });
+  await assertSprite('gengar-icon.png', 80, 60);
   await render({ screen: 'empty' });
+  await assertSprite('gengar-idle.gif', 148, 126);
+  // Visibility lifecycle without moving focus to a real user's window.
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await assertSprite('gengar-icon.png', 80, 60);
+  await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
+  await assertSprite('gengar-idle.gif', 148, 126);
+  await page.locator('.gengar-mascot').evaluate(el => { el.style.transform = 'translateX(3000px)'; });
+  await assertSprite('gengar-icon.png', 80, 60);
+  await page.locator('.gengar-mascot').evaluate(el => { el.style.transform = ''; });
+  await assertSprite('gengar-idle.gif', 148, 126);
+  await page.setViewportSize({ width: 1100, height: 699 });
+  await render({ screen: 'empty' });
+  await assertSprite('gengar-idle.gif', 74, 63);
   const bounds = await page.locator('.gengar-mascot').boundingBox();
-  assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 1100 && bounds.y + bounds.height <= 700);
+  assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 1100 && bounds.y + bounds.height <= 699);
   await capture('compact');
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(evidence, 'gengar-identity-checks.json'), JSON.stringify({ capturedAt: new Date().toISOString(), executablePath, scope: 'Isolated shipping components with synthetic readings; not a host/Electron integration test or human visual approval.', captures, errors }, null, 2));

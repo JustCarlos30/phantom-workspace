@@ -79,8 +79,8 @@
 ::-webkit-scrollbar-thumb { background-color: #5a5270; }
 .button { border-color: var(--hairline); }
 .button:hover { background: var(--surface-2); border-color: var(--muted); }
-.button.primary, .tw-button.tw-primary { background: var(--accent); color: var(--primary-ink); border-color: var(--accent); }
-.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); }
+.button.primary, .tw-button.tw-primary { background: var(--on); color: var(--on-ink); border-color: transparent; }
+.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--on); }
 .icon-button:hover { background: var(--surface-2); }
 .project-rail { width: 232px; height: calc(100% - 24px); margin: 12px; padding: 16px 10px 10px; background: var(--rail); color: var(--ink); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .brand { padding: 0 8px 22px; flex-shrink: 0; }
@@ -149,8 +149,8 @@
 .app-shell.studio-concentration .canvas-region::before { opacity: calc(var(--background-intensity, .55) * .12); animation: none; }
 .app-shell.studio-concentration .canvas-region::after { opacity: calc(var(--gengar-intensity, .55) * .12); }
 .app-shell:not(.studio-character) .canvas-region::after { opacity: 0; }
-.studio-pulse:not(.studio-focused):not(.studio-concentration) .canvas-region::before { animation: ambient-breathe 16s ease-in-out infinite; }
-@keyframes ambient-breathe { 50% { filter: brightness(.8); } }
+/* The atmosphere is still, including when a saved ambient-pulse preference exists. */
+.studio-pulse .canvas-region::before { animation: none; }
 .studio-concentration .canvas { background-image: none; }
 .studio-concentration *, .studio-concentration *::before, .studio-concentration *::after { animation: none !important; }
 .studio-concentration .pixel-field { display: none; }

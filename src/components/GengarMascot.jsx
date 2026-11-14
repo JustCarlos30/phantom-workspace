@@ -1,15 +1,39 @@
-import React from 'react';
-import { PhantomFace } from './Glyphs.jsx';
+import React, { useEffect, useRef, useState } from 'react';
+import gengarIcon from '../../assets/gengar-icon.png';
+import gengarIdle from '../../assets/gengar-idle.gif';
+import '../identity.css';
 
-/** Decorative identity for the two canvas entry points; actions stay in EmptyState. */
+// GIFs cannot be paused with CSS. Remove their source whenever motion is
+// suspended, including when an ancestor hides the sprite or the rail is inert.
+export function useSpriteMotion(ref) {
+  const [moving, setMoving] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+    const shell = element.closest('.app-shell');
+    const media = matchMedia('(prefers-reduced-motion: reduce)');
+    let intersecting = false;
+    const update = () => setMoving(intersecting && !media.matches && !document.hidden
+      && !shell?.classList.contains('studio-concentration')
+      && !element.closest('[inert]') && element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }));
+    const intersection = new IntersectionObserver(entries => { intersecting = entries[0].isIntersecting; update(); });
+    intersection.observe(element);
+    const mutations = new MutationObserver(update);
+    // Only ancestors: observing the sprite itself would feed React's updates back.
+    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement)
+      mutations.observe(ancestor, { attributes: true, attributeFilter: ['class', 'style', 'inert', 'hidden'] });
+    document.addEventListener('visibilitychange', update);
+    media.addEventListener('change', update);
+    return () => { intersection.disconnect(); mutations.disconnect(); document.removeEventListener('visibilitychange', update); media.removeEventListener('change', update); };
+  }, [ref]);
+  return moving;
+}
+
+/** Decorative identity; the surrounding EmptyState always supplies the text. */
 export default function GengarMascot() {
-  return <span className="gengar-mascot" aria-hidden="true">
-    <svg width="104" height="88" viewBox="0 0 104 88" fill="none" focusable="false">
-      <ellipse cx="52" cy="81" rx="32" ry="3" fill="currentColor" opacity=".12" />
-      <path className="gengar-mascot-body" d="m28 42-10 7-6 8 8-1-2 7 12-4-1 12-6 7 17 1 5-6h14l5 6 17-1-6-7-1-12 12 4-2-7 8 1-6-8-10-7Z" strokeLinejoin="miter" />
-      <path d="m31 72 6 1m30 0 6-1" stroke="currentColor" strokeWidth="1.2" />
-      <path d="m20 54 5-3m-4 9 5-3m52-3-5-3m4 9-5-3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="miter" />
-      <PhantomFace size={68} x="18" y="2" />
-    </svg>
+  const ref = useRef(null);
+  const moving = useSpriteMotion(ref);
+  return <span ref={ref} className="gengar-mascot" data-motion={moving ? 'running' : 'stopped'} aria-hidden="true">
+    <img className={moving ? 'gengar-idle' : 'gengar-static'} src={moving ? gengarIdle : gengarIcon} width={moving ? 148 : 80} height={moving ? 126 : 60} alt="" draggable="false" />
   </span>;
 }
