@@ -7,12 +7,17 @@ export default function GlobalSites({ api, onClose }) {
   const [busy, setBusy] = useState(''), [error, setError] = useState(''), [logs, setLogs] = useState(null);
   const root = useRef(null);
   useEffect(() => {
-    const previous = document.activeElement;
     root.current?.querySelector('[aria-label="Cerrar Sitios"]')?.focus();
-    return () => {
-      if (root.current?.contains(document.activeElement) && previous?.isConnected && !previous.closest('[inert]')) previous.focus({ preventScroll: true });
-    };
   }, []);
+  useEffect(() => {
+    const handleKey = event => {
+      if (event.key === 'Escape' && root.current?.contains(event.target)) {
+        event.preventDefault(); event.stopPropagation(); onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKey, true);
+    return () => document.removeEventListener('keydown', handleKey, true);
+  }, [onClose]);
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
     try { const result = await api('docker.list', { scope: 'sites' }); setProjects(result.projects); }
