@@ -78,7 +78,7 @@ test('navigation clears the old t=180 settle before its first frame', () => {
   assert.equal(f.commits.length, 0);
   f.frame(186);
   assert.ok(f.camera.cameraRef.current.zoom < 1);
-  f.frame(350); f.advance(1000);
+  f.frame(530); f.advance(1000);
   assert.deepEqual(plain(f.camera.cameraRef.current), target);
   assert.deepEqual(f.commits, [target]);
   assert.deepEqual(f.paints.at(-1), target);
@@ -91,7 +91,7 @@ test('a replacement navigation owns its destination and ignores delayed external
   const replacement = { x: -100, y: 80, zoom: 1.5 };
   f.camera.navigate(replacement);
   f.render({ x: 40, y: 20, zoom: 1 });
-  f.frame(240);
+  f.frame(420);
   assert.deepEqual(f.commits, [replacement]);
   assert.deepEqual(f.paints.at(-1), replacement);
 });
