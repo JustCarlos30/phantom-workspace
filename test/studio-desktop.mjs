@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Real Electron + isolated local host. The project data below is test content.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -112,4 +113,5 @@ try {
   // The isolated host is stopped above; exit without a second save handshake
   // against that deliberately disconnected host.
   await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
+  killElectronGroup(app.process());
 }

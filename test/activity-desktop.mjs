@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { chromium, _electron } from 'playwright';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Test-only bridge injected before the real React application. No production
 // fixture switches, user profile, host daemon, shell or Git mutations.
@@ -322,6 +323,7 @@ try {
   process.exitCode = 1;
 } finally {
   await desktop?.close().catch(() => {});
+  killElectronGroup(desktop?.process());
   await browser?.close().catch(() => {});
   await server?.close();
   report.summary = { passed: report.checks.filter(c => c.status === 'passed').length, failed: report.checks.filter(c => c.status === 'failed').length, status: process.exitCode ? 'failed' : 'passed' };

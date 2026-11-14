@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Built Electron, real isolated host/layout, synthetic chat responses only.
 // No provider process or production fixture hook. Controller runs after build.
@@ -277,7 +278,7 @@ try {
     }
   } finally {
     if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
-    if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+    killElectronGroup(appProcess);
     await rm(temp, { recursive: true, force: true });
   }
 }

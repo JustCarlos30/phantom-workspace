@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Design review captures: production Electron + real host on an isolated
 // profile with a synthetic project. Usage: node test/design-capture.mjs <label>
@@ -78,7 +79,7 @@ try {
     }
   } finally {
     if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
-    if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+    killElectronGroup(appProcess);
     await rm(temp, { recursive: true, force: true });
   }
 }

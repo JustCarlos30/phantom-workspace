@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
 import { readLocalImage } from './local-image.mjs';
-import { createInterfaceScaleModel } from '../src/hooks/interfaceScale.js';
+import { createInterfaceScaleModel } from '../shared/interface-scale.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds,

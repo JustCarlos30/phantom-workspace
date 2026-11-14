@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Real Electron/PTY/npm, synthetic offline repository and private profile. No models.
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -57,5 +58,5 @@ try {
   console.log(JSON.stringify({passed:true,evidence:temp,checks:['interactive shell during offline npm','visible live install output','failure retained shell','retry without remount or PID change','no disconnects or page errors']}));
 } finally {
   await invoke('host.shutdown').catch(()=>{});
-  await app.close();
+  try { await app.close(); } finally { killElectronGroup(app.process()); }
 }

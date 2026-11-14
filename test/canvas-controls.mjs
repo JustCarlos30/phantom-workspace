@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await mkdtemp('/tmp/opencode/phantom-canvas-');
@@ -136,5 +137,5 @@ try {
   // app.exit() can leave Playwright's close dispatcher waiting indefinitely.
   // Bound graceful shutdown, then terminate only the cached fixture process.
   await Promise.race([app.close().catch(() => {}), delay(2500)]);
-  if (appProcess.exitCode === null && appProcess.signalCode === null) appProcess.kill('SIGKILL');
+  killElectronGroup(appProcess);
 }

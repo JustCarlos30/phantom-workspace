@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createHost } from '../host/server.mjs';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await mkdtemp('/tmp/phantom-terminal-borders-');
@@ -217,6 +218,6 @@ try {
 } finally {
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
   await Promise.race([app?.close().catch(() => {}), delay(2500)]);
-  if (appProcess && appProcess.exitCode === null && appProcess.signalCode === null) appProcess.kill('SIGKILL');
+  killElectronGroup(appProcess);
   await host?.close();
 }
