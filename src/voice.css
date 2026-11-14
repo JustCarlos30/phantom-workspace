@@ -1,6 +1,9 @@
 .voice-activity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; color: var(--working); font-size: 12px; }
 .voice-activity button { border: 0; background: transparent; color: var(--ink); cursor: pointer; padding: 6px 8px; border-radius: var(--r-ctl); }
 .voice-activity button:hover { background: var(--fill-2); }
+.voice-live-text { flex: 1 0 100%; min-width: 0; max-height: 6em; overflow-y: auto; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.5; color: var(--ink); }
+.voice-live-text:empty { display: none; }
+.voice-live-partial { color: var(--muted); font-style: italic; }
 .voice-waves { display: flex; align-items: center; justify-content: center; gap: 3px; width: 112px; height: 32px; flex: 0 0 auto; }
 .voice-waves i { display: block; width: 3px; height: 32px; border-radius: var(--r-pill); background: var(--working); transition: transform 100ms ease-out; opacity: calc(.5 + var(--voice-level) * .5); }
 .voice-activity[data-state="transcribing"] .voice-waves { animation: voice-thinking 1.4s ease-in-out infinite alternate; }
