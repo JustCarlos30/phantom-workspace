@@ -20,6 +20,9 @@
   --shadow-chrome: 0 2px 5px #100a1870, 0 18px 42px -20px #100a18b3, 0 0 20px -12px #9563d61a;
   --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9, 0 0 24px -10px #9563d62e;
   --shadow-float: 0 2px 6px #05030a73, 0 30px 68px -24px #05030af2, 0 0 40px -12px #a171e875;
+  /* Matte workplanes: offset contact depth, without a coloured halo. */
+  --shadow-workplane-rest: 0 2px 4px #05030a66, 0 10px 20px -12px #05030a99;
+  --shadow-workplane-lift: 0 3px 6px #05030a73, 0 16px 28px -14px #05030ab3;
   /* Glass: chrome only. Working planes stay opaque. */
   --glass: color-mix(in srgb, var(--surface) 64%, transparent);
   --glass-thick: color-mix(in srgb, var(--surface) 84%, transparent);
@@ -998,14 +1001,15 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    Focus ladder: background and cards (2026-11-11)
    Attention has three steps, and background and cards move together:
    · Map — the atmosphere sits behind the work; cards are slabs lifted off it.
-   · Selection — the chosen card keeps full light; other cards and the
-     atmosphere step back without turning translucent (Opaque Work Rule).
+   · Selection — the chosen card gains an outline; all reading stays stable.
+     Only atmosphere steps back.
    · Focus mode — the panel alone (unchanged: atmosphere at 12 %).
    ===================================================================== */
 
 /* Background: a vignette keeps the eye on the working area. It lives on the
    canvas, above the atmosphere and the grid, so art and dots fade at the edges. */
 .canvas {
+  z-index: 1;
   background-image:
     radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%),
     radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px),
@@ -1037,7 +1041,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    the canvas; selected or dragged it floats. */
 .canvas-node {
   border-color: var(--hairline);
-  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out), outline-color var(--dur-fast) var(--ease-out), filter var(--dur) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out), outline-color var(--dur-fast) var(--ease-out);
 }
 .canvas-node:not(.focused):not(.is-dragging):not(:is(.pulse-attention, .pulse-turn)) {
   box-shadow: var(--shadow-rest);
@@ -1046,10 +1050,17 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   box-shadow: var(--shadow-float);
 }
 
-/* Spotlight: with a card selected, the rest step back by light, not by
-   transparency. Hover, keyboard focus and cards that need you stay lit. */
-.canvas:not(.focus-mode):has(.canvas-node.selected) .canvas-node:not(.selected):not(:hover):not(:focus-within):not(:is(.pulse-attention, .pulse-turn, .pulse-error, .pulse-success)) {
-  filter: brightness(.7) saturate(.72);
+/* Selection never changes the luminance or saturation of neighbouring text. */
+.canvas .canvas-node[data-type="terminal"] {
+  /* All map/state selectors resolve these locally, regardless of specificity. */
+  --shadow-rest: var(--shadow-workplane-rest);
+  --shadow-float: var(--shadow-workplane-lift);
+  background: var(--surface); opacity: 1; filter: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: var(--shadow-workplane-rest);
+}
+.canvas .canvas-node[data-type="terminal"]:is(.selected, .focused, .is-dragging) {
+  box-shadow: var(--shadow-workplane-lift);
 }
 .canvas-zone { transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), opacity var(--dur) var(--ease-out); }
 .canvas:not(.focus-mode):has(.canvas-node.selected) .canvas-zone:not(.selected) { opacity: .7; }
@@ -1096,8 +1107,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* The arrival clip follows the card's real radius, so corners never square
    off and snap back when the animation ends. */
 @keyframes focus-return {
-  from { clip-path: inset(0 0 3% 0 round var(--r-obj)); filter: brightness(.97); }
-  to { clip-path: inset(0 round var(--r-obj)); filter: brightness(1); }
+  from { clip-path: inset(0 0 3% 0 round var(--r-obj)); }
+  to { clip-path: inset(0 round var(--r-obj)); }
 }
 
 /* Writing surfaces inside a card: the caret is the focus signal. A square

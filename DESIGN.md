@@ -156,7 +156,7 @@ Este documento tiene una sola capa. Si una regla cambia, se edita aquí y en `te
 Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 
 1. **Una caja por objeto.** Solo dibuja contorno lo que se puede mover o lo que flota: panel, zona, rail, islas, dock, menús. Dentro de un objeto se separa con espacio, tipografía y un paso de tono; nunca con líneas. Como mucho un nivel de relleno interior: el control donde se escribe o se elige (campo del compositor, pista del segmentado, pozo de código o de terminal).
-2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`: sombra ciruela suave y un rastro mínimo de halo, también en menús, inspector y variantes responsive. En reposo un panel es tono, una hairline y `--shadow-rest`, con penumbra violeta estática tenue. Seleccionado o arrastrado flota (`--shadow-float`), con halo definido; el panel en foco conserva esa elevación. Selección usa un contorno sólido exterior de 2 px separado 3 px. Trabajando respira el perímetro interior violeta, independiente del acento del proyecto. Lo que te necesita emite: borde ámbar y ondas en el lienzo. Un borde de color siempre significa estado o selección, nunca categoría.
+2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`: sombra ciruela suave y un rastro mínimo de halo, también en menús, inspector y variantes responsive. Los demás paneles usan `--shadow-rest` con penumbra violeta estática tenue en reposo y `--shadow-float` con halo definido al seleccionar, arrastrar o enfocar. Conversaciones y terminales prevalecen como planos mates opacos: una hairline y `--shadow-workplane-rest`; selección, foco y arrastre usan `--shadow-workplane-lift`, sin halo acumulativo. Selección usa un contorno sólido exterior de 2 px separado 3 px. Trabajando respira el perímetro interior violeta, independiente del acento del proyecto. Lo que te necesita emite: borde ámbar y ondas en el lienzo. Un borde de color siempre significa estado o selección, nunca categoría.
 3. **Lo fantasma es comportamiento y material.** Las superficies se materializan y se dispersan, no se deslizan. Las sombras son ciruela, no negras. La marca Phantom vive en el notch de actividad. El arte Gengar es una capa ambiental opcional, independiente de la marca; no aparece en estados vacíos.
 
 ### Tokens (`src/canvas-ui.css`, bloque `:root`)
@@ -170,12 +170,14 @@ Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
 | `--r-pill` | 999 px | Chips y estados. No es una superficie |
 | `--hairline` | blanco al 8 % | El único borde. Lo dibuja el objeto, una vez |
 | `--shadow-chrome` | ciruela suave + halo mínimo `0 0 20px -12px #9563d61a` | Barras, rail, dock, navegación, minimapa, inspector, menús y overlays; sin halo de selección |
-| `--shadow-rest` | ciruela corta + halo tenue `0 0 24px -10px #9563d62e` | Panel apoyado en el lienzo; penumbra estática |
-| `--shadow-float` | ciruela larga + halo `0 0 40px -12px #a171e875` | Panel seleccionado, arrastrado o en foco; penumbra estática definida |
+| `--shadow-rest` | ciruela corta + halo tenue `0 0 24px -10px #9563d62e` | Panel apoyado en el lienzo; conversaciones y terminales lo resuelven localmente a `--shadow-workplane-rest` |
+| `--shadow-float` | ciruela larga + halo `0 0 40px -12px #a171e875` | Panel seleccionado, arrastrado o en foco; conversaciones y terminales lo resuelven localmente a `--shadow-workplane-lift` |
+| `--shadow-workplane-rest` | contacto 2/4 px + caída 10/20/−12 px | Conversaciones y terminales mates en reposo, sin halo |
+| `--shadow-workplane-lift` | contacto 3/6 px + caída 16/28/−14 px | Conversaciones y terminales seleccionadas, enfocadas o arrastradas |
 | `--working` | `#bb9af7` | Perímetro interior de 2 px, pulso de opacidad .3–.85 cada 4,8 s |
 | `--attention` | `#e9b46a` | Permiso/pregunta pendientes, turno que necesita al usuario |
 
-`test/design-tokens.test.mjs` falla si: un `border-radius` usa otro valor (se admiten `0`, `50%`, `em` y los ajustes concéntricos `calc(token - 1px)`); un `box-shadow` no es `--shadow-chrome`, `--shadow-rest`, `--shadow-float` o un anillo de estado (desplazamiento y desenfoque cero); una declaración de `--shadow-float` en `src/canvas-ui.css` o `src/studio.css` se aplica fuera de los paneles `.canvas-node`, incluidas reglas responsive; reaparece un token retirado (`--line`, `--hairline-strong`, `--elev-*`, `--r-xs…xl`, `--object-*`, `--shadow-popover`, etc.); o una hoja supera su presupuesto de bordes en `test/design-budget.json`. El presupuesto solo baja: al quitar bordes, se reduce el número en el mismo cambio.
+`test/design-tokens.test.mjs` falla si: un `border-radius` usa otro valor (se admiten `0`, `50%`, `em` y los ajustes concéntricos `calc(token - 1px)`); un `box-shadow` no usa `--shadow-chrome`, `--shadow-rest`, `--shadow-float`, los tokens de trabajo mate (`--shadow-workplane-rest`, `--shadow-workplane-lift`) o un anillo de estado (desplazamiento y desenfoque cero); una declaración de `--shadow-float` en `src/canvas-ui.css` o `src/studio.css` se aplica fuera de los paneles `.canvas-node`, incluidas reglas responsive; reaparece un token retirado (`--line`, `--hairline-strong`, `--elev-*`, `--r-xs…xl`, `--object-*`, `--shadow-popover`, etc.); o una hoja supera su presupuesto de bordes en `test/design-budget.json`. El presupuesto solo baja: al quitar bordes, se reduce el número en el mismo cambio.
 
 Sin side-tabs: un borde lateral de color no marca tipo ni categoría (el tipo de memoria se lee en su glifo y etiqueta con tono). Skills usa el glifo de libro de `PanelIcons.js`, no el emblema genérico de IA.
 
@@ -189,13 +191,13 @@ Excepción acotada al presupuesto descendente: `src/studio.css` pasa de 7 a 8 po
 - **Rellenos.** Una escalera blanca-alfa: `--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %. Sin degradados, luces interiores ni relieve en controles.
 - **Acento.** Violeta `#a78bda` (clave `lilac`) para selección, foco y acción. Iris, Menta, Ámbar, Rosa y Cian siguen disponibles por proyecto.
 - **Estados.** `--working` violeta espectral, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado: selección y teclado son contornos sólidos; actividad es perímetro interior y etiqueta. `test/design-tokens.test.mjs` exige contraste de texto AA (4,5:1) para texto principal, secundario, trabajo y atención sobre los cinco planos opacos.
-- **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Los planos de trabajo (terminal, hilo, paneles) son opacos. `prefers-reduced-transparency` vuelve el chrome opaco, desactiva su filtro y oculta atmósfera y campo de ondas.
+- **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Conversaciones y terminales son explícitamente opacas y mates, sin backdrop blur; quedan por encima del arte ambiental. El fondo del canvas es transparente para conservar el arte entre paneles y debajo del chrome. Sus sombras propias no alteran las del chrome. `prefers-reduced-transparency` vuelve el chrome opaco, desactiva su filtro y oculta atmósfera y campo de ondas.
 - **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Chrome a 12–13 px, mínimo 10 px, siempre en píxeles enteros (sin medios píxeles). Las etiquetas van en caja natural, peso 600 y `--muted`; nunca en mayúsculas con tracking. Iconos lucide y `PanelIcons.js` con trazo 1,75.
 - **Atmósfera.** Un solo estilo base ciruela/violeta; las opciones de fondo existentes (Gengar, Aurora, Marea, Brasa, Grafito o imagen propia) no cambian materiales ni tipografía. No se añaden presets. Los dos degradados ambientales se localizan arriba a la derecha (82 % × 80 %) y abajo a la izquierda (64 % × 64 %), sin repetición, para dejar zonas oscuras entre luces. La imagen propia conserva `cover` centrado. Ambiente y arte tienen capas e intensidades independientes. «Mostrar Gengar» controla el arte local existente (`assets/gengar-source.md`), incluso sobre otro fondo; su presencia no depende del deslizador ambiental. La identidad sigue siendo el glifo Phantom. El arte no se redistribuye fuera de uso personal.
 
 ## Lienzo y chrome
 
-- El canvas va de borde a borde; el chrome son objetos apoyados sobre él con un único hueco `--gutter` de 16 px.
+- El canvas va de borde a borde; el chrome son objetos apoyados sobre él con un único hueco `--gutter` de 16 px. En foco, la región se posiciona de forma absoluta: los insets del rail e inspector reducen su ancho disponible, sin desplazar un plano de ancho completo fuera del viewport. La prueba de escritorio exige que región y panel enfocado permanezcan dentro de sus límites.
 - **Rail:** 252 px, radio `--r-isle`, alto según contenido; contraído es una píldora de 48 px.
 - **Fila superior:** título y controles son dos islas de 48 px (`--bar`); entre ellas hay canvas. `--top-clear` es la primera línea libre.
 - **Inspector:** contrapeso del rail, 360 px, cuelga bajo los controles.
@@ -222,7 +224,7 @@ La card es la caja. Dentro no hay líneas:
 
 ## Estados, pulsos y notch
 
-- **Escalera de foco.** Mapa: viñeta suave y atmósfera. Selección: la card elegida conserva su luz y flota; las demás bajan a `brightness(.7) saturate(.72)` y la atmósfera al 55 %. Foco: atmósfera al 12 %, sin retícula. Lo que te necesita nunca se atenúa.
+- **Escalera de foco.** Mapa: viñeta suave y atmósfera. Selección: contorno claro y elevación discreta; ningún panel ni su texto cambia de brillo, saturación u opacidad al seleccionar vecinos. Solo la atmósfera baja al 55 %. Foco: atmósfera al 12 %, sin retícula. Lo que te necesita conserva sus señales reales.
 - **Bordes vivos.** Trabajando: el borde violeta interior respira cada 4,8 s animando solo opacidad; el desenfoque del halo es estático. Te necesita: borde ámbar en el compás de 2,4 s; a los 30 s queda fijo. Error: tres destellos y borde rojo. Estos estados conservan su borde incluso con hover, selección o foco. Permiso/pregunta pendiente prevalece sobre trabajando y reposo, también en la etiqueta accesible.
 - **Campo de ondas** (`PixelField.jsx`): atención se propaga por el lienzo como un sonar con la forma del panel; trabajo mantiene halo estático y no sostiene un bucle de repintado. En reposo no pinta nada. Omite paneles fuera de vista, pausa en documento oculto y se reactiva con cámara/visibilidad. Movimiento reducido conserva estados fijos; transparencia reducida oculta el campo.
 - **Notch.** `PhantomFace` (`Glyphs.jsx`) es la marca con ánimo; solo cambian ojos y sonrisa, y solo con estado real: `asleep` host desconectado (ojos cerrados), `unsure` lecturas viejas o con error (un ojo cerrado), `calm` nada pendiente (parpadea cada 7 s), `grin` algo te necesita (ojos encendidos en ámbar, sonríe; late en el compás de 2,4 s). El texto siempre acompaña al glifo.
@@ -296,6 +298,8 @@ Only focused, unobscured browser panels display the native view; overview captur
 
 
 ## Verificación
+
+`node test/solid-workplanes-desktop.mjs` prepara dos conversaciones sintéticas y dos terminales reales en Electron/host aislados, a 1520×980 y 1100×760. Comprueba materiales calculados, ancestros del texto sin atenuación al seleccionar vecinos, elevaciones locales, vidrio del chrome, controles y foco de chat/terminal; guarda capturas en `/tmp/opencode/solid-workplanes-*`. El controlador ejecuta las tres comprobaciones declaradas y revisa las capturas; este contrato de prueba no acredita aceptación visual.
 
 `npm test` incluye las reglas de tokens. `node test/design-capture.mjs <etiqueta>` (tras `npm run build`) abre Electron real con un proyecto sintético y escribe capturas en `/tmp/opencode/design-<etiqueta>-*.png` para comparar antes y después.
 
