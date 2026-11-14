@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { STREAM_RATE, PcmQueue, bytesToBase64, floatToPcm16, liveTranscript, resample } from './voice-pcm.js';
+import { createResampler, floatToPCM16 } from './voiceStream.mjs';
+import { STREAM_RATE, PcmQueue, bytesToBase64, liveTranscript } from './voice-pcm.js';
 
 // One lease covers permission, capture AND transcription across every surface.
 let microphoneOwner = null;
@@ -48,14 +49,20 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
   const stopTracks = () => {
     stream.current?.getTracks().forEach(track => track.stop()); stream.current = null;
     clearTimeout(timer.current);
-    if (meter.current) { cancelAnimationFrame(meter.current.frame); meter.current.tap.onaudioprocess = null; meter.current.context.close().catch(() => {}); meter.current = null; }
+    if (meter.current) {
+      const graph = meter.current; meter.current = null;
+      cancelAnimationFrame(graph.frame);
+      if (graph.tap) graph.tap.onaudioprocess = null;
+      graph.source?.disconnect(); graph.analyser?.disconnect(); graph.tap?.disconnect(); graph.mute?.disconnect();
+      graph.context.close().catch(() => {});
+    }
     setLevel(0);
   };
   const closeLive = () => {
     const session = liveRef.current; liveRef.current = null;
     if (!session) return;
-    clearInterval(session.timer); session.closed = true;
-    if (session.id && !session.finished) apiRef.current('voice.stream.cancel', { workspaceId: session.workspaceId, sessionId: session.id }).catch(() => {});
+    clearInterval(session.timer); session.closed = true; session.queue.clear();
+    if (session.id && !session.finished) session.api('voice.stream.cancel', { workspaceId: session.workspaceId, sessionId: session.id }).catch(() => {});
   };
   const dispose = useCallback(() => {
     generation.current++;
@@ -69,6 +76,8 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
     if (phase.current !== 'recording') return;
     cancelled.current = false; transition('transcribing');
     const current = recorder.current;
+    clearInterval(liveRef.current?.timer);
+    liveRef.current?.flushCapture();
     stopTracks();
     if (current?.state === 'recording') current.stop(); else liveRef.current?.finalize(null);
   }, []);
@@ -90,42 +99,53 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
       // One audio graph: the level meter the user sees and the PCM the engine hears.
       let context;
       try { context = new AudioContext({ sampleRate: STREAM_RATE }); } catch { context = new AudioContext(); }
+      const graph = { context, frame: 0 };
+      meter.current = graph;
       const source = context.createMediaStreamSource(input), analyser = context.createAnalyser(); analyser.fftSize = 256;
+      Object.assign(graph, { source, analyser });
       const tap = context.createScriptProcessor(4096, 1, 1), mute = context.createGain(); mute.gain.value = 0;
+      Object.assign(graph, { tap, mute });
       source.connect(analyser); source.connect(tap); tap.connect(mute); mute.connect(context.destination);
-      meter.current = { context, tap, frame: 0 };
+      const resample = createResampler(context.sampleRate, STREAM_RATE);
       const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => { if (!meter.current) return; analyser.getByteTimeDomainData(data); let peak = 0; for (const v of data) peak = Math.max(peak, Math.abs(v - 128)); setLevel(Math.min(1, peak / 64)); meter.current.frame = requestAnimationFrame(tick); };
       tick();
       context.resume().catch(() => {});
 
       // Live session: audio is queued from the first sample, even while the engine warms up.
-      const session = { workspaceId, id: null, queue: new PcmQueue(), sequence: 0, inflight: null, failed: false, finished: false, closed: false, timer: 0, finalize: null };
+      const session = { workspaceId, api: apiRef.current, id: null, queue: new PcmQueue(), sequence: 0, inflight: null, failed: false, finished: false, closed: false, timer: 0, finalize: null, finalizing: false, cancellation: null };
+      session.flushCapture = () => {
+        if (!session.failed && !session.closed) session.queue.push(floatToPCM16(resample(new Float32Array(0), true)));
+      };
       liveRef.current = session;
       const fail = message => {
         if (session.failed) return;
         session.failed = true; session.queue.clear(); clearInterval(session.timer);
+        if (session.id && !session.finished && !session.closed) {
+          session.cancellation = session.api('voice.stream.cancel', { workspaceId, sessionId: session.id }).catch(() => {});
+          session.id = null;
+        }
         if (current()) { setMode('batch'); setNotice(`Transcripción en vivo no disponible: ${String(message).replace(/\.?\s*$/, '.')} Se transcribirá al detener.`); }
       };
       const sendNext = () => {
         const bytes = session.queue.take(), sequence = session.sequence;
-        session.inflight = apiRef.current('voice.stream.push', { workspaceId, sessionId: session.id, sequence, audioBase64: bytesToBase64(bytes) })
-          .then(result => { session.sequence = sequence + 1; if (current()) setLive(liveTranscript(result)); })
-          .catch(e => { session.id = null; fail(e.message); })
+        session.inflight = session.api('voice.stream.push', { workspaceId, sessionId: session.id, sequence, audioBase64: bytesToBase64(bytes) })
+          .then(result => { session.sequence = sequence + 1; if (current() && !session.closed) setLive(liveTranscript(result)); })
+          .catch(e => { if (current() && !session.closed) fail(e.message); })
           .finally(() => { session.inflight = null; });
         return session.inflight;
       };
       tap.onaudioprocess = event => {
         event.outputBuffer.getChannelData(0).fill(0);
-        if (!current() || session.failed) return;
-        session.queue.push(floatToPcm16(resample(event.inputBuffer.getChannelData(0), context.sampleRate)));
+        if (!current() || session.failed || session.closed || phase.current !== 'recording') return;
+        session.queue.push(floatToPCM16(resample(event.inputBuffer.getChannelData(0))));
       };
       setMode('preparing');
-      const ready = apiRef.current('voice.stream.start', { workspaceId }).then(result => {
-        if (session.closed || !current()) { apiRef.current('voice.stream.cancel', { workspaceId, sessionId: result.sessionId }).catch(() => {}); return; }
+      const ready = session.api('voice.stream.start', { workspaceId }).then(result => {
+        if (session.closed || !current()) { session.api('voice.stream.cancel', { workspaceId, sessionId: result.sessionId }).catch(() => {}); return; }
         session.id = result.sessionId; setMode('live');
-        session.timer = setInterval(() => { if (session.id && !session.inflight && !session.failed && session.queue.size >= MIN_PUSH) sendNext(); }, PUMP_MS);
-      }, e => fail(e.message));
+        if (phase.current === 'recording') session.timer = setInterval(() => { if (phase.current === 'recording' && !session.closed && session.id && !session.inflight && !session.failed && session.queue.size >= MIN_PUSH) sendNext(); }, PUMP_MS);
+      }, e => { if (current() && !session.closed) fail(e.message); });
 
       // Backup capture, used only if the live engine is unavailable or fails.
       const mimeType = typeof MediaRecorder === 'undefined' ? null : ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type));
@@ -149,32 +169,38 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
       }
 
       session.finalize = async backup => {
+        if (!current() || cancelled.current || session.closed || session.finalizing) return;
+        session.finalizing = true;
         stopTracks();
-        if (!current() || cancelled.current) return;
         transition('transcribing');
         let text = '', result = null;
         try {
           await ready;
+          if (!current() || session.closed) return;
           if (!session.failed && session.id) {
             clearInterval(session.timer);
             await session.inflight;
-            while (!session.failed && session.queue.size) await sendNext();
+            if (!current() || session.closed) return;
+            while (current() && !session.closed && !session.failed && session.queue.size) await sendNext();
+            if (!current() || session.closed) return;
             if (!session.failed) {
-              result = await apiRef.current('voice.stream.finish', { workspaceId, sessionId: session.id });
+              result = await session.api('voice.stream.finish', { workspaceId, sessionId: session.id });
               session.finished = true;
               const final = liveTranscript(result);
               if (current()) setLive(final);
               text = joinLive(final);
             }
           }
-        } catch (e) { session.finished = true; fail(e.message); }
+        } catch (e) { if (current() && !session.closed) fail(e.message); }
         if (!current()) return;
         try {
           if (session.failed) {
+            await session.cancellation;
+            if (!current() || session.closed) return;
             if (!backup) throw new Error(oversized ? 'El audio supera 1 MiB. Graba un fragmento más corto.' : 'La grabación está vacía. Vuelve a grabar.');
             const audioBase64 = await blobBase64(backup);
             if (!current()) return;
-            result = await apiRef.current('voice.transcribe', { workspaceId, audioBase64, mimeType: backup.type });
+            result = await session.api('voice.transcribe', { workspaceId, audioBase64, mimeType: backup.type });
             if (!current()) return;
             text = String(result?.text || '').trim();
             setLive({ confirmed: text, partial: '' });
@@ -183,7 +209,7 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
         } catch (e) {
           if (current()) setError(/supera|vacía/.test(e.message) ? e.message : `${e.message} Configura la voz con «npm run setup:voice» o escribe tu mensaje.`);
         }
-        if (current()) { liveRef.current = null; release(); transition('idle'); setMode(null); }
+        if (current()) { closeLive(); release(); transition('idle'); setMode(null); }
       };
 
       recording?.start(1000); transition('recording');
@@ -192,5 +218,5 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
       if (current()) { dispose(); transition('idle'); setMode(null); setError(e.name === 'NotAllowedError' ? 'Permiso de micrófono denegado. Habilítalo en los permisos del sistema y vuelve a grabar.' : e.message); }
     }
   }, [workspaceId, scopeId, enabled, dispose, stop, cancel]);
-  return { status, error, level, live, mode, notice, start, stop, cancel, busyElsewhere: !!lease && lease !== owner.current, clearError: () => setError('') };
+  return { status, error, level, live, liveText: live, mode, notice, start, stop, cancel, busyElsewhere: !!lease && lease !== owner.current, clearError: () => setError('') };
 }
