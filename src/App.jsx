@@ -216,8 +216,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     try {
       const region = document.querySelector('.canvas')?.getBoundingClientRect();
       const camera = spacesRef.current.view?.camera || w.camera || { x: 64, y: 64, zoom: 1 };
-      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : 640;
-      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
+      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : type === 'terminal' ? 960 : 640;
+      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 720 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
       // Reserve before the RPC so rapid/concurrent creations cannot reuse the
       // same slot while state.get or PTY creation is still in flight.
       for (const [key, item] of placements.current) if (item.workspaceId === w.id && w.nodes?.some(n => n.id === item.nodeId)) placements.current.delete(key);

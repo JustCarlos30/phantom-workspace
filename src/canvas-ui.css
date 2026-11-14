@@ -357,8 +357,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas-busy { top: 72px; border-radius: var(--r-obj); }
 .toast-stack { bottom: 84px; }
 
-/* The one entrance: a surface condenses out of a haze. Nothing slides in. */
-@keyframes materialize { from { opacity: 0; filter: blur(8px); scale: .96; } to { opacity: 1; filter: blur(0); scale: 1; } }
+/* The entrance fades and rises without blurring text. */
+@keyframes materialize { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) {
   .canvas-node, .canvas-node.is-dragging, .dock-main button, .canvas-region, .project-rail, .workspace-header, .canvas-navigation, .canvas-minimap { transition: none; }
   .canvas-node.is-dragging, .dock-main button:hover:not(:disabled) { transform: none; }
