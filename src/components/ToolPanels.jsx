@@ -11,6 +11,7 @@ import Repository from './Repository.jsx';
 import VideoReview from './VideoReview.jsx';
 import EmptyState from './EmptyState.jsx';
 import MobileSettings from './MobileSettings.jsx';
+import AndroidGatewaySettings from './AndroidGatewaySettings.jsx';
 
 export const TOOL_TITLES = { tasks: 'Tareas', context: 'Contexto', sessions: 'Sesiones y misiones', mission: 'Misiones', git: 'Radar Git', services: 'Servicios', docker: 'Docker', workflows: 'Workflows', playwright: 'Playwright', playground: 'Playground', settings: 'Ajustes' };
 Object.assign(TOOL_TITLES, PLUGIN_TITLES, { review: 'Revisión de video', 'command-center': 'Centro de mando', incorporaciones: 'Incorporaciones', branches: 'Ramas', repo: 'Repositorio', 'skills-catalog': 'Skills' });
@@ -402,6 +403,7 @@ function Settings({ workspace, state, api, refresh, notify }) {
   };
   return <><Section title="Host y almacenamiento" action={<Refresh resource={info} />}><ErrorNotice error={info.error} retry={info.reload} />{info.loading ? <p role="status">Consultando host…</p> : info.data && <DataView value={info.data} label="Runtime, rutas y opciones de datos del host" />}<ErrorNotice error={desktop.error} retry={desktop.reload} />{desktop.data && <DataView value={desktop.data} label="Aplicación de escritorio" />}<p className="tw-muted">La ruta de datos del host se selecciona al arrancar con --data o PHANTOM_WORKSPACE_HOME. Consulta aquí la ruta efectiva; cambiar el directorio requiere reiniciar el host con esa opción.</p></Section>
     <MobileSettings workspace={workspace} api={api} />
+    <AndroidGatewaySettings workspace={workspace} api={api} />
     <Section title="Preferencias del host"><form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => {
       // Preserve host-discovered configuration and fields changed by another client.
       // Empty inputs mean "no override", not an instruction to overwrite defaults.

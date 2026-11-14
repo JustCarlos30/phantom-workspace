@@ -18,25 +18,28 @@ export function PhantomFace({ mood = 'calm', size: _size, className = '', ...pro
   return <img {...props} ref={ref} src={gengarIcon} width="40" height="30" alt="" aria-hidden="true" draggable="false" className={`phantom-face gengar-icon is-${mood} ${className}`} data-mood={mood} data-motion={moving ? 'running' : 'stopped'} />;
 }
 
+// An open circular C monogram with a filled dot.
 export function ClaudeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="M18 6A8.5 8.5 0 1 0 18 18" /><circle cx="17.5" cy="12" r="1.6" fill="currentColor" stroke="none" /></svg>;
 }
 
+// An open square frame with a solid cursor block.
 export function OpenCodeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><rect x="8" y="8" width="8" height="8" rx="1" fill="currentColor" stroke="none" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="M15 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9" /><rect x="16" y="9" width="4" height="6" rx="1" fill="currentColor" stroke="none" /></svg>;
 }
 
-// A rounded hexagon holding a code caret: distinct from the shell's prompt box.
+// A hexagonal codex module holding left-aligned lines of code.
 export function CodexGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" /><path d="m9.5 9-3 3 3 3M14.5 9l3 3-3 3" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" /><path d="M8.5 9.5h7M8.5 12h4.5M8.5 14.5h6" /></svg>;
 }
 
 export function ShellGlyph({ size = 14, ...props }) {
   return <svg width={size} height={size} {...base} {...props}><rect x="3" y="4" width="18" height="16" rx="3" /><path d="m7 9 3 3-3 3M13 15h4" /></svg>;
 }
 
+// A diamond with a central dot for an unidentified agent process.
 export function AgentGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="m12 3 3 6 6 3-6 3-3 6-3-6-6-3 6-3Z" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="M12 3l9 9-9 9-9-9Z" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></svg>;
 }
 
 const GLYPHS = { claude: ClaudeGlyph, opencode: OpenCodeGlyph, codex: CodexGlyph, agent: AgentGlyph, shell: ShellGlyph };

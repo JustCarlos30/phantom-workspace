@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import https from 'node:https';
+import { X509Certificate, createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import { createHost } from '../host/server.mjs';
 
-// Real host + shipping dist + real HTTP/auth. Only the chat/terminal engines
+// Real host + shipping dist + real HTTPS/auth. Only the chat/terminal engines
 // are controlled fixtures; visiting this test never starts a shell or model.
 const evidence = '/tmp/phantom-mobile-evidence';
 await fs.mkdir(evidence, { recursive: true });
@@ -40,7 +42,22 @@ try {
   host.terminals.write = (id, data) => { assert.equal(id, terminal.id); terminalInputs.push(data); terminal.seq++; return { ok: true }; };
   host.terminals.stop = id => { assert.equal(id, terminal.id); terminal.status = 'exited'; return { ok: true }; };
   const access = await host.invoke('mobile.start', { workspaceId: w.id, address: '127.0.0.1', port: 0 });
-  browser = await chromium.launch({ executablePath: chromium.executablePath(), headless: true });
+  const ca = await fs.readFile(path.join(root, 'state', 'mobile-tls', 'cert.pem'));
+  const certificate = new X509Certificate(ca);
+  assert.equal(access.tls.fingerprint, certificate.fingerprint256);
+  // Node verifies the exact generated certificate and served IP. Chromium trusts
+  // only this fixture key's SPKI, not arbitrary self-signed certificates.
+  const mobileRequest = (url, options = {}) => new Promise((resolve, reject) => {
+    const request = https.request(url, { ...options, ca, agent: false }, response => {
+      try { assert.equal(response.socket.getPeerCertificate().fingerprint256, access.tls.fingerprint); }
+      catch (error) { response.destroy(); reject(error); return; }
+      response.resume(); response.on('error', reject); response.on('end', () => resolve(response.statusCode));
+    });
+    request.on('error', reject); request.end(options.body);
+  });
+  assert.equal(await mobileRequest(access.url), 200);
+  const spki = createHash('sha256').update(certificate.publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
+  browser = await chromium.launch({ executablePath: chromium.executablePath(), headless: true, args: [`--ignore-certificate-errors-spki-list=${spki}`] });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
   page.setDefaultTimeout(12000);
@@ -90,7 +107,11 @@ try {
   let dropped = false;
   await page.route('**/api/rpc', async route => {
     const request = route.request().postDataJSON();
-    if (request.method === 'chat.send' && !dropped) { dropped = true; const response = await route.fetch({ maxRetries: 0 }); assert.equal(response.status(), 200); await route.abort('failed'); }
+    if (request.method === 'chat.send' && !dropped) {
+      dropped = true;
+      const status = await mobileRequest(route.request().url(), { method: 'POST', headers: await route.request().allHeaders(), body: route.request().postData() });
+      assert.equal(status, 200); await route.abort('failed');
+    }
     else await route.continue();
   });
   await page.getByLabel('Mensaje', { exact: true }).fill('Acuse perdido');

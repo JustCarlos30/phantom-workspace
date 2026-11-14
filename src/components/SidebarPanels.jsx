@@ -3,6 +3,7 @@ import { Maximize2, Search } from 'lucide-react';
 import { LayersIcon as Layers, SessionsIcon, ResourcesIcon, MapIcon } from './ShellIcons.jsx';
 import { buildSessionRows } from '../hooks/sidebarModel.mjs';
 import EmptyState from './EmptyState.jsx';
+import { ProviderGlyph } from './Glyphs';
 
 export default function SidebarPanels({ nodes = [], types, selected, focused, sessions, onJump, onFocus, onSearch, onMap }) {
   const { rows, resources } = buildSessionRows(nodes, sessions);
@@ -24,7 +25,7 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
           return <div key={row.id} className="rail-session">
             <div className={`rail-panel-row rail-session-row ${active ? 'selected' : ''} ${row.needsYou ? 'needs-you' : ''}`}>
               <button onClick={() => onJump(row.id)} aria-label={`Ver ${row.fullTitle} en el mapa`} aria-current={active ? 'true' : undefined}>
-                <span className="rail-agent-mark" aria-hidden="true"><SessionsIcon size={20} active={active} /><span className={`rail-session-dot ${row.tone}`} /></span>
+                <span className="rail-agent-mark" aria-hidden="true"><ProviderGlyph provider={row.provider === 'terminal' ? 'shell' : row.provider} size={18} /><span className={`rail-session-dot ${row.tone}`} /></span>
                 <span className="rail-panel-label"><span title={row.fullTitle}>{row.title}</span><span className="rail-session-meta">{[row.statusLabel, row.providerLabel, row.model].filter(Boolean).join(' · ')}</span></span>
               </button>
               {focusButton(row.node)}
