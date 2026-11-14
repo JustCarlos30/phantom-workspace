@@ -15,9 +15,10 @@
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
   --hairline: color-mix(in srgb, #fff 8%, transparent);
-  /* Two elevations with a static violet penumbra. Only real activity moves;
-     shadows never animate their blur. Reading planes remain opaque. */
-  --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9, 0 0 28px -10px #9563d65c;
+  /* Quiet chrome, faint resting panels, defined lifted panels. Only real activity moves;
+      shadows never animate their blur. Reading planes remain opaque. */
+  --shadow-chrome: 0 2px 5px #100a1870, 0 18px 42px -20px #100a18b3, 0 0 20px -12px #9563d61a;
+  --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9, 0 0 24px -10px #9563d62e;
   --shadow-float: 0 2px 6px #05030a73, 0 30px 68px -24px #05030af2, 0 0 40px -12px #a171e875;
   /* Matte workplanes: offset contact depth, without a coloured halo. */
   --shadow-workplane-rest: 0 2px 4px #05030a66, 0 10px 20px -12px #05030a99;
@@ -149,20 +150,22 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 
 /* ---------- Shell: full-bleed canvas ---------- */
 .app-shell { position: relative; overflow: hidden; background: var(--bg); }
-.main-workspace { position: absolute; inset: 0; }
-.workspace-body { position: absolute; inset: 0; }
-.canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
-/* Focus insets must constrain the stage, not translate a full-width flex item. */
-.app-shell.studio-focused .canvas-region { position: absolute; }
+/* The desktop entry also imports styles.css independently of App's CSS chunk.
+   Outrank its legacy flex/relative layout regardless of stylesheet load order.
+   A relative region keeps its full flex width when focus adds a left inset;
+   an absolute region shrinks, so the stage's ResizeObserver sees the free area. */
+.app-shell .main-workspace { position: absolute; inset: 0; }
+.app-shell .workspace-body { position: absolute; inset: 0; }
+.app-shell .canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
 
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
 .context-menu, .toast, .canvas-busy, .connection-error {
   background: var(--island);
   border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-chrome);
 }
-.canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-float); }
+.canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-chrome); }
 
 /* ---------- Left rail: floating island ---------- */
 @media (min-width: 851px) {
@@ -402,7 +405,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 /* Selection actions float as one island just above the dock, like Figma's selection bar. */
 .zone-selection, .group-selection {
   position: absolute; top: auto; bottom: 84px; z-index: 12; height: 36px; padding: 0 12px; gap: 8px;
-  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-float); color: var(--ink);
+  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-chrome); color: var(--ink);
   animation: materialize var(--dur) var(--ease-out);
 }
 .zone-selection { left: calc(var(--dock-x) - 4px); transform: translateX(-100%); }
@@ -419,24 +422,21 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas-node::after {
   --edge-w: 1px;
   content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none; border-radius: inherit; opacity: 0;
-  padding: var(--edge-w);
-  background: var(--pulse, transparent);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
+  box-shadow: inset 0 0 0 var(--edge-w) var(--pulse, transparent);
 }
 .canvas-node { transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
 .canvas-node.pulse-working { --pulse: var(--working); border-color: color-mix(in srgb, var(--working) 30%, var(--hairline)); }
 .canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); border-color: color-mix(in srgb, var(--attention) 70%, var(--hairline)); }
 .canvas-node.pulse-error { --pulse: var(--danger); border-color: var(--danger); }
+.canvas-node.pulse-success { --pulse: var(--success); border-color: var(--success); }
 .canvas-node.pulse-working::after {
-  --edge-w: 2px;
-  background: var(--working);
   opacity: .65;
   animation: pulse-breathe 4.8s ease-in-out infinite;
 }
 .canvas-node.pulse-attention::after { animation: pulse-call 2.4s cubic-bezier(.22, 1, .36, 1) 12.5 forwards; }
 .canvas-node.pulse-turn::after { opacity: .55; animation: pulse-settle 1.2s cubic-bezier(.22, 1, .36, 1) 2; }
 .canvas-node.pulse-error::after { animation: pulse-flash 1s ease-in-out 3 forwards; }
+.canvas-node.pulse-success::after { opacity: .55; animation: pulse-settle 1.2s cubic-bezier(.22, 1, .36, 1) 1 forwards; }
 @keyframes pulse-breathe { 0%, 100% { opacity: .3; } 50% { opacity: .85; } }
 /* Swells at each wave's birth and eases back; after 30 s it holds, half lit. */
 @keyframes pulse-call { 0% { opacity: .35; } 12% { opacity: 1; } 100% { opacity: .35; } }
@@ -498,15 +498,15 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .rail-panels { margin-top: var(--s-4); }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error)::after { animation: none; opacity: .8; }
-  .canvas-node.pulse-working::after { background: var(--working); opacity: .4; }
+  .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error, .pulse-success)::after { animation: none; opacity: .8; }
+  .canvas-node.pulse-working::after { opacity: .4; }
   .terminal-activity-status.warning i, .zone-selection, .group-selection { animation: none; }
 }
 
 /* ---------- Panels float off the map ----------
    Every panel is a slab lifted above the canvas: a lit top edge, a tight
    contact shadow and a long soft one, so the map reads as the floor below.
-   Selection lifts it further; dragging already uses --elev-lift. */
+   Selection and dragging lift it further with --shadow-float. */
 .canvas-node:not(.focused):not(.is-dragging) { box-shadow: var(--shadow-rest); }
 
 /* =====================================================================
@@ -532,11 +532,11 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   background: var(--glass);
   -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
   border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-chrome);
 }
 /* Reading planes are thicker glass: what is behind tints them, never shows through. */
 .project-rail, .inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background: var(--glass-thick); }
-.tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-float); }
+.tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-chrome); }
 .connection-error { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); background: color-mix(in srgb, var(--error-bg) 86%, transparent); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
 
 /* ---------- Buttons ---------- */
@@ -690,7 +690,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 
 /* ---------- Command palette: spotlight ---------- */
 .app-modal-backdrop, .tw-overlay { background: #07061099; }
-.tw-palette, .tw-voice, .app-dialog { background: var(--glass-thick); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-float); }
+.tw-palette, .tw-voice, .app-dialog { background: var(--glass-thick); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); }
 .tw-palette { width: min(640px, 100%); }
 .tw-palette-search { gap: 12px; padding: 8px 12px 8px 20px; min-height: 60px; border-bottom-color: var(--hairline); }
 .tw-palette-search > svg { color: var(--muted); }
@@ -805,14 +805,14 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
     left: var(--gutter); top: var(--gutter); bottom: auto; height: auto; margin: 0;
     max-height: calc(100% - var(--gutter) * 2); width: var(--rail-width);
     padding: 4px 10px 10px; border: 1px solid var(--hairline); border-radius: var(--r-isle);
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-chrome);
   }
   .app-shell:not(.rail-collapsed) .brand { height: 48px; flex-shrink: 0; margin: 0 0 8px; padding: 0 2px 0 6px; border: 0; }
 
   /* Collapsed: the rail folds into a pill that sits where the rail began. */
   .rail-collapsed .project-rail {
     left: var(--gutter); top: var(--gutter); bottom: auto; height: var(--bar); width: auto; max-width: 340px; margin: 0;
-    padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+    padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
 
   /* Top row: no strip. Title and controls are two separate objects; the space
@@ -824,7 +824,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   }
   .rail-collapsed .workspace-header { left: var(--gutter); }
   .workspace-identity, .header-controls {
-    height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+    height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
   .workspace-identity { padding: 0 18px; max-width: min(44%, 520px); }
   .header-controls { padding: 0 8px; }
@@ -834,13 +834,13 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   /* Focus mode: the stage starts one gap after the rail and stops before the inspector. */
   .studio-focused:not(.rail-collapsed) .canvas-region { left: calc(var(--gutter) * 2 + var(--rail-width) - 12px); }
   .studio-focused.studio-inspector-open .canvas-region { right: calc(var(--gutter) * 2 + var(--inspector-width) - 12px); }
-  .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float); z-index: 29; }
+  .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); z-index: 29; }
 
   /* Inspector: the rail's counterweight. It hangs under the controls it was
      opened from, inset on every side. */
   .inspector-host {
     top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); width: var(--inspector-width);
-    border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-float);
+    border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome);
   }
   .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--inspector-width) + var(--gutter) * 2); }
   .studio-focused.studio-inspector-open :is(.canvas-navigation, .canvas-popover) { right: var(--gutter); }
@@ -859,7 +859,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 }
 @media (max-width: 850px) {
   .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0; background: transparent; border: 0; pointer-events: none; }
-  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float); background: var(--island); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); background: var(--island); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
   .workspace-header > .rail-toggle { width: var(--bar); flex-shrink: 0; }
   .header-controls { padding: 0 6px; }
   .inspector-host { top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); left: var(--gutter); border-radius: var(--r-isle); }
@@ -888,7 +888,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .activity-dock {
   display: flex; flex-direction: column; max-width: calc(100% - 24px);
   background: var(--glass); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
-  border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+  border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
 }
 .activity-dock.activity-open { z-index: 46; }
 @media (min-width: 851px) {
@@ -918,9 +918,12 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   left: clamp(min(50%, 299px), var(--dock-x), calc(100% - min(50%, 299px))); transform: translateX(-50%);
   max-height: calc(100dvh - var(--top-clear) - 112px);
 }
-.activity-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--hairline); }
-.activity-tray .activity-filters button { background: none; color: var(--muted); }
-.activity-tray .activity-filters button[aria-pressed=true] { background: var(--fill-2); color: var(--ink); }
+.activity-filters { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 4px; padding: 8px 16px; }
+.activity-tray .activity-filters button { min-width: 0; max-width: 100%; min-height: 32px; padding: 6px 8px; border-radius: var(--r-ctl); background: none; color: var(--muted); text-align: left; }
+.activity-tray .activity-filters button > span { overflow-wrap: anywhere; }
+.activity-tray .activity-filters button[aria-pressed=true] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.activity-filter-check { visibility: hidden; }
+.activity-filters [aria-pressed=true] .activity-filter-check { visibility: visible; color: var(--accent); }
 .activity-tray-scroll > section:first-of-type { border-top: 0; }
 .tool-picker { bottom: calc(var(--gutter) + 100px); max-height: calc(100% - 172px); }
 .zone-selection, .group-selection { bottom: calc(var(--gutter) + 100px); }
@@ -1063,7 +1066,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .canvas:not(.focus-mode):has(.canvas-node.selected) .canvas-zone:not(.selected) { opacity: .7; }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-node, .canvas-zone { transition: none; }
+  .canvas .canvas-node, .canvas .canvas-node.focused, .canvas-zone { transition: none; animation: none; }
 }
 
 /* Lienzo: inspector-open stacking must win over the shared bottom-row baseline above. */
@@ -1094,13 +1097,13 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    exists at the same width and offset, so selecting only fades its colour
    in (no jump of width or offset), and the full border goes accent rather
    than lighting just the top edge. */
-.canvas-node { outline: 2px solid transparent; outline-offset: 3px; }
-.canvas-node.selected { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 3px; }
+.canvas .canvas-node { outline: 2px solid transparent; outline-offset: 3px; }
+.canvas .canvas-node.selected { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 3px; }
 .canvas-node.selected .title-button { color: var(--ink); }
 /* Focus mode is the stage itself: no selection chrome, a calm even edge.
    (A coloured top border on a 16px radius fades into the corners and reads
    as a rendering fault.) */
-.canvas-node.focused { border-color: var(--hairline); outline-color: transparent; }
+.canvas .canvas-node.focused { border-color: var(--hairline); outline-color: transparent; }
 /* The arrival clip follows the card's real radius, so corners never square
    off and snap back when the animation ends. */
 @keyframes focus-return {
@@ -1143,8 +1146,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 
 /* State owns the inner edge even when selected, hovered or focused. The
    detached solid outline above continues to mean selection, never activity. */
-.canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error) { border-color: color-mix(in srgb, var(--pulse) 65%, var(--hairline)); }
-.canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error):not(.focused):not(.is-dragging) { border-top-color: color-mix(in srgb, var(--pulse) 65%, var(--hairline)); }
+.canvas .canvas-node[data-type]:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error, .pulse-success) { border-color: var(--pulse); }
+.canvas .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error, .pulse-success)::after { --edge-w: 1px; }
 @media (prefers-reduced-transparency: reduce) {
   .canvas-region::before { display: none; }
 }

@@ -16,13 +16,13 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
       <div className="pd-session-head">
         <span className="pd-dot" aria-hidden="true" />
         <div className="pd-session-title"><strong>{orchestrator.title}</strong><small>{AGENT[orchestrator.agent] || AGENT.idle}{orchestrator.step ? ` · ${orchestrator.step}` : ''}</small></div>
-        <button type="button" className="pc-icon" title="Ver en el canvas" aria-label={`Ver ${orchestrator.title} en el canvas`} onClick={() => onOpenPanel?.('terminal', { focusNodeId: orchestrator.id })}><ArrowUpRight size={15} /></button>
+        <button type="button" className="pd-open-session" onClick={() => onOpenPanel?.('terminal', { focusNodeId: orchestrator.id })}><ArrowUpRight size={15} aria-hidden="true" />{orchestrator.chat ? 'Abrir conversación' : 'Abrir terminal'}</button>
       </div>
       {orchestrator.chat
         ? <OrchestratorComposer key={orchestrator.id} workspace={workspace} api={api} connected={connected} nodeId={orchestrator.id} title={orchestrator.title} />
-        : <p className="pd-muted">Esta sesión es una terminal: escríbele desde su tarjeta en el canvas.</p>}
+        : null}
     </section>}
-    <Incorporaciones workspace={workspace} api={api} notify={notify} onOpenPanel={onOpenPanel} />
+    <Incorporaciones workspace={workspace} api={api} notify={notify} onOpenPanel={onOpenPanel} sessionVisible={Boolean(orchestrator)} />
   </div>;
 }
 
@@ -49,6 +49,5 @@ function OrchestratorComposer({ workspace, api, connected, nodeId, title }) {
       <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || ['requesting', 'transcribing'].includes(voice.status)} title={listening ? 'Detener y transcribir' : 'Dictar al orquestador'} aria-label={listening ? 'Detener y transcribir' : 'Dictar al orquestador'} onClick={() => { voice.clearError(); if (listening) voice.stop(); else voice.start(); }}>{listening ? <Square size={11} /> : <Mic size={15} />}</button>
       <button type="submit" className="pc-send" title="Enviar · Enter" aria-label={`Enviar mensaje a ${title}`} disabled={!draft.trim() || sending || !connected || !chat}><ArrowUp size={15} /></button>
     </div>
-    <p className="pd-muted">{running ? 'Respondiendo en su tarjeta del canvas.' : 'La respuesta aparece en su tarjeta del canvas.'}</p>
   </form>;
 }

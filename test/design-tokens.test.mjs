@@ -45,9 +45,21 @@ test('shadows use chrome or matte workplane elevations, or a state ring', () => 
     for (const value of declarations(css, 'box-shadow')) {
       if (/^(none|inherit|initial|unset)$/.test(value)) continue;
       for (const layer of split(value, ','))
-        if (!/^var\(--shadow-(rest|float|workplane-rest|workplane-lift)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
+        if (!/^var\(--shadow-(chrome|rest|float|workplane-rest|workplane-lift)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
     }
   assert.deepEqual(bad, [], 'Use chrome or matte workplane elevation tokens. Zero-offset, zero-blur rings are allowed for state only.');
+});
+
+test('canvas chrome never borrows panel selection elevation, including responsive rules', () => {
+  const bad = [];
+  for (const { name, css } of sheets.filter(sheet => ['src/canvas-ui.css', 'src/studio.css'].includes(sheet.name))) {
+    for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!declarations(match[2], 'box-shadow').includes('var(--shadow-float)')) continue;
+      for (const selector of split(match[1], ','))
+        if (!/^\.canvas-node(?=[\s.:#\[>+~]|$)/.test(selector)) bad.push(`${name}: ${selector}`);
+    }
+  }
+  assert.deepEqual(bad, [], '--shadow-float belongs to canvas panels; chrome uses --shadow-chrome.');
 });
 
 test('retired tokens stay retired', () => {

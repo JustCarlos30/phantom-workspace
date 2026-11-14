@@ -1,8 +1,8 @@
 # Plugins first-party: contrato host/UI v1
 
 Los manifiestos de `shared/plugins.mjs` son datos JSON serializables y validados,
-compartidos por renderer y host. El registro inicial contiene **un plugin
-`phantom`**, con dos paneles (`cards`, `skills`). No instala ni ejecuta código
+compartidos por renderer y host. El registro contiene `phantom` (Cards y Skills),
+`video-log` (bitácora local) y `convencions` (base madre y proyecto). No instala ni ejecuta código
 externo. Para extenderlo se añade un manifiesto first-party, un adaptador host
 revisado y sus rutas/allowlist explícitas; el manifiesto por sí solo no concede
 permisos ni registra handlers ejecutables.
@@ -252,3 +252,136 @@ directorio temporal externo al repositorio. Crean contratos temporales y
 versiones Skills sin ejecutar modelos; comparan eventos con la CLI real y
 rechazan ownership ajeno. Si la CLI no está instalada, la prueba nativa informa
 esa ausencia; los casos de indisponibilidad siguen ejercitándose.
+
+## Convencions · contrato de lectura v1
+
+Plugin first-party `convencions@1.0.0`, activación **independiente por proyecto**,
+inicialmente desactivado. Configuración `{}`: el backend instalado no ofrece
+operaciones Convencions. **MCP no está conectado**. No hay CLI, modelo, endpoint
+editable ni credenciales que configurar en esta entrega. El Centro permite
+activar/desactivar, consultar capacidad y abrir ambas vistas; cada panel ofrece
+reintento y retorno al Centro. Activar no registra, integra ni adopta nada.
+
+### Transporte y autoridad
+
+Se reutilizan `plugins.list`, `plugins.update` y
+`plugins.status {workspaceId,id:"convencions"}`, rutas existentes del router
+`integrations/index.mjs`, host y allowlist `desktop/security.mjs` utilizada por
+`desktop/main.mjs`. No se habilitan métodos comodín ni nuevas operaciones de
+escritura. El host rechaza campos adicionales, IDs desconocidos, configuración
+no declarada y ownership ajeno. `plugins.models` rechaza este plugin.
+
+`integrations/convencions.mjs::readConvencions(workspace, {readSnapshot}?)`
+es el punto aislado para conectar en el futuro una lectura MCP revisada.
+La producción no pasa `readSnapshot`: devuelve capacidad `unavailable` con
+motivo explícito, sin explorar instalaciones, ejecutar comandos o fabricar
+catálogos vacíos exitosos. La inyección es interna, no una preferencia ni un
+payload renderer. El proveedor futuro recibirá únicamente
+`{contractVersion:1,workspaceId,repository}`; la respuesta se valida antes de
+mostrarla. Fallos de transporte/contrato son errores recuperables, no vacío.
+El contrato propio de Workspace no afirma que Phantom ya exponga esa API.
+
+### Esquema exacto
+
+Todos los campos siguientes son obligatorios salvo donde se indica una unión
+con `null`. No se admiten campos desconocidos. Texto no vacío y acotado;
+fechas UTC ISO-8601 (`...Z`), listas acotadas e IDs únicos dentro de cada lista.
+`shared/convencions.mjs` es la validación compartida host/renderer.
+También se valida la consulta de capacidad del Centro, no solo las vistas del
+canvas. Activar/desactivar relee esa capacidad e invalida respuestas anteriores;
+durante carga o error no se presenta un resultado previo como estado vigente.
+Las fechas deben existir en el calendario y conservar hora y día al normalizar
+a UTC: no se aceptan fechas imposibles ni `24:00` normalizados por `Date.parse`.
+
+```ts
+type Source = {label: string; reference: string; observedAt: string};
+type Scope = {kind: 'project' | 'path' | 'file'; target: string};
+type Convention = {
+  id: string; title: string;
+  state: 'adopted' | 'observed' | 'proposed' | 'excepted'; scope: Scope;
+  what: string; when: string; why: string; verification: string;
+  sources: Source[];
+  exception: null | {reason: string; until: string | null};
+};
+type Snapshot = {
+  contractVersion: 1; workspaceId: string; repository: string;
+  state: 'disabled' | 'unavailable' | 'ready'; available: boolean;
+  reason: string | null; observedAt: string;
+  bases: {id: string; name: string; versions: {
+    version: string; publishedAt: string; description: string;
+    conventions: Convention[];
+  }[]}[];
+  project: null | {
+    registration: {registeredAt: string; source: string};
+    integration: null | {
+      baseId: string; version: string; profile: string;
+      integratedAt: string; reason: string;
+    };
+    conventions: Convention[];
+    decisions: {id: string; title: string; kind: 'decision' | 'adaptation';
+      reason: string; at: string; scope: Scope; sources: Source[]}[];
+    checks: {id: string; title: string;
+      status: 'not_run' | 'passed' | 'failed' | 'unavailable';
+      at: string | null; detail: string; sources: Source[]}[];
+  };
+};
+```
+
+- `workspaceId` y `repository` deben coincidir exactamente con ID y ruta
+  canónica del proyecto solicitado; no se comparte un snapshot entre proyectos.
+- `available` es verdadero **solo** con `state:"ready"`, cuyo `reason` es `null`.
+  Desactivado/indisponible exigen motivo, `bases:[]` y `project:null`.
+- Solo `ready` puede expresar vacío real: bases sin registrar, versiones sin
+  convenciones o proyecto sin registrar (`project:null`). Registro sin integración
+  se representa por `registration` presente e `integration:null`.
+- Una integración fija una base y versión existentes en el snapshot y declara
+  perfil, fecha y motivo. Otra versión puede consultarse sin mover ese pin.
+- Adoptada significa obligación vigente en su alcance; observada exige fuente
+  y evidencia pero **no obliga**; propuesta no implica adopción; exceptuada exige
+  motivo y fecha de fin o `null` explícito. No se admiten adoptadas/exceptuadas
+  en el proyecto sin integración. El catálogo base no adopta por el repositorio.
+- Comprobaciones superadas/fallidas exigen fecha y evidencia. Mostrar un check
+  no lo ejecuta; `not_run` distingue ausencia de ejecución de fallo o éxito.
+- Referencias y alcances son texto de la fuente: no se abren archivos ni se
+  ejecutan comandos o enlaces derivados de ellos.
+
+Límites: 100 bases × hasta 100 versiones por base; hasta 1000 convenciones por
+versión/proyecto, decisiones y comprobaciones; hasta 100 fuentes por elemento.
+Texto general hasta 16000 caracteres; títulos/etiquetas 512; referencias y
+destinos 4096; identidades y versiones 200. Cambiar la semántica/esquema exige
+otra versión del contrato y revisión del adaptador, no coerción silenciosa.
+
+### Paneles y persistencia
+
+Nodos `convencions-base` (`panelId:"base"`) y `convencions-project`
+(`panelId:"project"`) con `pluginId:"convencions"`. Se restauran por los mecanismos
+normales de Store/canvas, con geometría, título, ocultación y espacio. El host
+recupera identidad por tipo y rechaza metadatos de otro plugin/panel.
+`node.data` solo admite esos identificadores y `hidden`/`spaceId` espaciales.
+No se guardan convenciones, snapshots, pins, decisiones, excepciones o evidencia
+en Store, localStorage ni archivos del proyecto. Búsqueda, filtros, selección
+de versión y detalle son transitorios. Desactivar conserva los nodos.
+
+Índice con búsqueda en texto, motivo, ruta y fuentes, filtros intersecados de
+estado/alcance y detalle qué/cuándo/por qué/cómo comprobar. Proyecto muestra
+registro, pin y perfil, convenciones efectivas, excepciones, decisiones y
+comprobaciones. Carga, desactivado, indisponible, error y vacío son distintos.
+Cambiar de proyecto remonta el contenido y cancela por secuencia las respuestas
+tardías; el adaptador también revalida identidad y activación tras su await.
+Releer nunca escribe adopciones ni actualiza versiones de forma silenciosa.
+
+### Pruebas declaradas de Convencions
+
+`test/convencions.test.mjs`: manifiesto/registro, migración, contrato, evidencia,
+ownership, filtros, carreras de lectura, rutas host/allowlist reales, aislamiento,
+persistencia/restauración espacial y ausencia de procesos/comandos inventados.
+`test/convencions-desktop.mjs`: Electron/Playwright con host y perfil aislados y
+renderer de las fuentes actuales servido por Vite loopback (sin depender de un
+`dist` anterior al reparar/repetir el check; el check build valida el bundle),
+activación/apertura desde Centro, backend real ausente, fixture completo solo
+en el proceso de prueba, búsqueda/filtros/detalle, errores/recuperación/vacío,
+persistencia y tamaños 1520×980 y 1100×760. Capturas bajo `/tmp/opencode`.
+Incluye rechazo de ownership en el Centro y la desaparición de una versión
+consultada sin sustituirla por otra ni modificar la versión fijada del proyecto.
+Los fixtures son sintéticos, no convenciones reales ni conexión MCP. El
+controlador ejecuta los checks; este documento no acredita resultados observados.

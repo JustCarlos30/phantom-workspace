@@ -25,4 +25,6 @@ export const PANEL_ICONS = {
   'phantom-cards': Layers,
   'phantom-skills': BookOpen,
   'video-log': BookOpen,
+  'convencions-base': BookOpen,
+  'convencions-project': ListChecks,
 };

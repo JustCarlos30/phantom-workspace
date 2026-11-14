@@ -2,7 +2,7 @@
   "borders": {
     "src/activity.css": 11,
     "src/branches.css": 12,
-    "src/canvas-ui.css": 22,
+    "src/canvas-ui.css": 21,
     "src/chat.css": 14,
     "src/components/agent-identity.css": 3,
     "src/incorporaciones.css": 2,
@@ -15,7 +15,7 @@
     "src/research-reader.css": 1,
     "src/sidebar.css": 1,
     "src/skills.css": 4,
-    "src/studio.css": 7,
+    "src/studio.css": 8,
     "src/styles.css": 25,
     "src/terminal.css": 1,
     "src/tools.css": 14,

@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ImagePlus, RotateCcw, X } from 'lucide-react';
 import { ACCENTS, BACKGROUNDS } from '../hooks/useAppearance';
+import { INTERFACE_SCALES } from '../hooks/interfaceScale';
 import gengarArtwork from '../../assets/gengar.png';
 
-export function Appearance({ appearance, update, reset, workspace }) {
+export function Appearance({ appearance, update, reset, workspace, interfaceScale }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const request = useRef(0);
@@ -26,6 +27,15 @@ export function Appearance({ appearance, update, reset, workspace }) {
   return <section className="appearance-panel" aria-label="Apariencia del workspace">
     <h2>Tu espacio, a tu manera</h2>
     <p>Un fondo propio para orientarte. Superficies nítidas para trabajar.</p>
+    <fieldset className="interface-scale" aria-busy={interfaceScale.loading}>
+      <legend>Tamaño de la interfaz</legend>
+      <label htmlFor="interface-scale">Escala de la interfaz</label>
+      <select id="interface-scale" value={interfaceScale.scale} disabled={interfaceScale.loading} aria-describedby={`interface-scale-help${interfaceScale.error ? ' interface-scale-error' : ''}`} onChange={event => interfaceScale.update(Number(event.target.value))}>
+        {INTERFACE_SCALES.map(scale => <option key={scale} value={scale}>{scale}%{scale === 115 ? ' (predeterminado)' : ''}</option>)}
+      </select>
+      <p id="interface-scale-help">Amplía toda la interfaz y las terminales. Se guarda en este equipo para todos los proyectos, sin cambiar el zoom del canvas.</p>
+      {interfaceScale.error && <p id="interface-scale-error" className="appearance-error" role="alert">{interfaceScale.error}</p>}
+    </fieldset>
     <fieldset><legend>Fondo del canvas</legend><div className="background-options">{BACKGROUNDS.map(([key, name, description]) => <button key={key} className={`background-option ${key}`} aria-pressed={!appearance.image && appearance.background === key} title={description} onClick={() => update({ background: key, image: '' })}><span className="background-preview" aria-hidden="true">{key === 'gengar' && <img src={gengarArtwork} alt="" />}</span><span>{name}</span>{!appearance.image && appearance.background === key && <Check size={13} />}</button>)}</div></fieldset>
     <label className="background-upload"><ImagePlus size={16} /><span>{loading ? 'Leyendo imagen…' : 'Elegir mi imagen'}<small>PNG, JPG o WebP · hasta 2 MB</small></span><input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Elegir imagen de fondo" onChange={upload} disabled={loading} /></label>
     {appearance.image && <div className="uploaded-background"><img src={appearance.image} alt="Fondo personal seleccionado" /><span>Tu imagen local</span><button className="icon-button" aria-label="Quitar imagen de fondo" onClick={() => update({ image: '' })}><X size={15} /></button></div>}
