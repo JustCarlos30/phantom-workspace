@@ -9,12 +9,12 @@
 .inc-guard.is-on { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
 
 /* Counts at a glance; each one jumps to its section. */
-.inc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; }
-.inc-stat { --tone: var(--muted); display: grid; gap: 2px; justify-items: start; padding: 10px 12px; border: 0; border-radius: var(--r-ctl); background: color-mix(in srgb, var(--tone) 8%, var(--surface-2, transparent)); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast, 120ms) var(--ease-out, ease-out); }
+.inc-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.inc-stat { --tone: var(--muted); display: grid; min-width: 0; gap: 4px; justify-items: start; padding: 10px 8px; border: 0; border-radius: var(--r-ctl); background: color-mix(in srgb, var(--tone) 8%, var(--surface-2, transparent)); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast, 120ms) var(--ease-out, ease-out); }
 .inc-stat:disabled { cursor: default; }
 .inc-stat:not(:disabled):hover, .inc-stat:focus-visible { background: color-mix(in srgb, var(--tone) 16%, var(--surface-2, transparent)); }
 .inc-stat[data-tone="cards"] { --tone: var(--accent); }
-.inc-stat[data-tone="ready"] { --tone: var(--success); }
+.inc-stat[data-tone="ready"] { --tone: var(--accent); }
 .inc-stat[data-tone="attention"] { --tone: var(--danger); }
 .inc-stat[data-tone="working"] { --tone: var(--warning); }
 .inc-stat[data-tone="merged"] { --tone: var(--muted); }
@@ -32,7 +32,7 @@
 .inc-section { display: grid; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--hairline); scroll-margin-top: 8px; }
 .inc-section-head { display: grid; gap: 2px; }
 .inc-heading { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted, #526174); }
-.inc-section[data-tone="ready"] > header .inc-heading { color: var(--success); }
+.inc-section[data-tone="ready"] > header .inc-heading { color: var(--accent); }
 .inc-section[data-tone="attention"] > header .inc-heading { color: var(--danger); }
 .inc-count { min-width: 18px; padding: 0 6px; border-radius: var(--r-pill); font-size: 11px; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; color: var(--ink); background: var(--surface-3, var(--hairline)); }
 .inc-hint { font-size: 11px; font-weight: 400; color: var(--muted); }
@@ -87,6 +87,27 @@
 .inc-body > .inc-review { padding: 4px 0 0; }
 .inc-review-label { color: var(--muted); font-weight: 600; }
 .inc-review.is-bare { display: block; padding: 0; }
+.inc-row-title { flex: 1 1 140px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.inc-brief { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.inc-brief:hover, .inc-item:focus-within .inc-brief { -webkit-line-clamp: unset; }
+.inc-next { font-size: 12px; line-height: 1.5; }
+.inc-next > span { font-size: 11px; color: var(--muted); margin-right: 4px; }
+.inc-review.is-compact { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.inc-review.is-compact > details > summary { display: list-item; width: fit-content; padding: 6px 10px; border-radius: var(--r-ctl); background: var(--fill); color: var(--ink); min-height: 32px; box-sizing: border-box; }
+.inc-review.is-compact .inc-review-label { color: inherit; }
+.inc-review.is-compact .inc-review-actions { max-width: none; }
+.inc-review.is-compact { display: flex; flex-wrap: wrap; align-items: start; }
+.inc-review.is-compact > details { flex: 0 1 auto; }
+.inc-review.is-compact > details[open] { flex-basis: 100%; }
+.inc-review.is-compact .inc-review-actions { flex: 1 1 auto; }
+.inc-status[data-tone="ready"], .inc-status[data-tone="review"] { --tone: var(--muted); }
+.inc-fold { min-width: 0; }
+.inc-fold > summary { min-height: 32px; align-content: center; }
+.inc-fold > summary::before { content: '▸'; margin-right: 5px; }
+.inc-fold[open] > summary::before { content: '▾'; }
+.inc :is(button, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.inc .tw-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.inc-empty { padding: 12px 0; }
 
 /* Road to the merge: the same steps for every branch, so rows compare by eye.
    Done is filled, the next step is ringed, a failure is red; the rest waits. */

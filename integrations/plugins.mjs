@@ -1,5 +1,6 @@
 import { PLUGIN_MANIFESTS, validatePluginConfig, validatePluginPreferences } from '../shared/plugins.mjs';
 import { readVideoLog } from './video-log.mjs';
+import { readConvencions } from './convencions.mjs';
 import { workspaceRoot, externalStatePath, command, observedAt } from './common.mjs';
 import { phantomStatus } from './phantom.mjs';
 
@@ -9,12 +10,12 @@ function record(workspace, manifest) {
 }
 export async function plugins(method, payload, context) {
   const allowed = method === 'plugins.list' ? ['workspaceId'] : method === 'plugins.update' ? ['workspaceId', 'id', 'patch'] : ['workspaceId', 'id'];
-  if (!payload || Object.keys(payload).some(key => !allowed.includes(key)) || typeof payload.workspaceId !== 'string') throw new Error('Invalid plugins payload');
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => !allowed.includes(key)) || typeof payload.workspaceId !== 'string') throw new Error('Invalid plugins payload');
   const { workspace, root } = await workspaceRoot(context, payload);
   if (method === 'plugins.list') return { items: PLUGIN_MANIFESTS.map(manifest => record(workspace, manifest)), observedAt: observedAt() };
   const manifest = PLUGIN_MANIFESTS.find(plugin => plugin.id === payload.id);
   if (!manifest) throw new Error('Unknown plugin');
-  if (method === 'plugins.status') return payload.id === 'video-log' ? readVideoLog(workspace) : phantomStatus(payload, context);
+  if (method === 'plugins.status') return payload.id === 'convencions' ? readConvencions(workspace) : payload.id === 'video-log' ? readVideoLog(workspace) : phantomStatus(payload, context);
   if (method === 'plugins.models') {
     if (payload.id !== 'phantom') throw new Error('Este plugin no utiliza modelos');
     try {

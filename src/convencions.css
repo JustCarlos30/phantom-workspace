@@ -1,0 +1,34 @@
+.convencions { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.convencions > * { min-width: 0; }
+/* Focus is temporary geometry. Use the actual available region, not a cached
+   map measurement from before the rail/focus transition. This does not change
+   the persisted node width or the shared canvas' map layout. */
+.canvas-region:has(.canvas-node.focused .convencions) { container-type: inline-size; }
+.canvas-node.focused:has(.convencions) { width: calc(100cqw - 24px) !important; max-width: calc(100% - 24px); }
+.plugin-surface:has(> .convencions) { overflow: auto; overflow-anchor: none; overscroll-behavior: contain; }
+.cv-heading h2 { display: flex; align-items: center; gap: 8px; }
+.plugin-surface .convencions h3 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 12px; }
+.plugin-surface .convencions h4 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
+.plugin-surface .cv-detail h3, .plugin-surface .convencions .empty-state__title { font-size: 15px; color: var(--ink); }
+.convencions p { margin: 0 0 12px; }
+.cv-authority, .cv-repository, .cv-semantics, .cv-freshness { color: var(--muted); }
+.cv-repository, .cv-sources span { font-family: var(--mono); }
+.cv-context, .cv-index, .cv-decisions, .cv-checks { margin-top: 24px; }
+.cv-selectors, .cv-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: start; }
+.cv-selectors > *, .cv-filters > * { flex: 1 1 160px; min-width: 0; }
+.cv-filters > :first-child { flex-basis: 240px; }
+.cv-reading { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 24px; align-items: start; }
+.cv-list { list-style: none; padding: 0; margin: 0; min-width: 0; }
+.cv-list button { width: 100%; min-width: 0; text-align: left; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: transparent; color: var(--ink); border: 0; border-radius: var(--r-ctl); overflow-wrap: anywhere; font: inherit; cursor: pointer; }
+.cv-list button:hover { background: var(--fill); }
+.cv-list button[aria-pressed="true"] { background: var(--accent-soft); }
+.cv-list span { color: var(--muted); font-size: 12px; }
+.cv-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cv-detail, .cv-detail section, .cv-decisions article, .cv-checks article { min-width: 0; margin-bottom: 24px; }
+.cv-detail section { margin-top: 24px; }
+.cv-sources { padding-left: 20px; margin: 8px 0; }
+.cv-sources li { margin-bottom: 12px; }
+.cv-sources strong, .cv-sources span, .cv-sources small { display: block; }
+.cv-metadata { display: grid; grid-template-columns: minmax(80px, auto) minmax(0, 1fr); gap: 8px 16px; }
+.cv-metadata dt { color: var(--muted); font-size: 12px; }
+.cv-metadata dd { margin: 0; min-width: 0; }

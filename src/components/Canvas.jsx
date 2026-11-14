@@ -14,6 +14,7 @@ import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
 import { TerminalActivityStatus } from './ActivityNotch';
 import { PANEL_ICONS } from './PanelIcons';
 import PixelField from './PixelField';
+import { pulseState, PIXEL_KIND } from '../hooks/terminalBorderState.mjs';
 import { PhantomGlyph } from './Glyphs';
 import GengarMascot from './GengarMascot.jsx';
 import ReferencePanelContent, { CommentLayer } from './References';
@@ -30,21 +31,6 @@ const GRID = 24;
 const snap = value => { const ratio = window.devicePixelRatio || 1; return Math.round(value * ratio) / ratio; };
 export const ZONE_COLORS = ['iris', 'mint', 'amber', 'rose', 'slate'];
 const inside = (n, z) => n.x >= z.x && n.y >= z.y && n.x + n.width <= z.x + z.width && n.y + n.height <= z.y + z.height;
-// Border pulse encodes real state only: working breathes, attention calls, failure flashes then holds.
-// Chat cards have no PTY session: they report their own state (chatPulse).
-function pulseState(node, session, chatPulse) {
-  if (node.type === 'terminal' && node.data?.chat?.provider) return chatPulse || '';
-  if (node.type !== 'terminal' || !session) return '';
-  if (session.status === 'lost' || (session.status === 'exited' && session.exitCode && session.exitCode !== 0)) return 'pulse-error';
-  const agent = String(session.agentState || session.agent?.status || node.data?.agent?.status || '').toLowerCase();
-  // Approval calls (pulses); a finished turn waits steadily. Both mean: your move.
-  if (session.screen === 'awaiting_approval' || ['blocked', 'needs_input', 'awaiting_approval'].includes(agent)) return 'pulse-attention';
-  if (session.needsYou || ['review', 'waiting'].includes(agent)) return 'pulse-turn';
-  if (session.screen === 'working' || ['working', 'running', 'in_progress', 'busy', 'thinking'].includes(agent)) return 'pulse-working';
-  return '';
-}
-// Attention emits waves; work keeps a static violet halo under its CSS pulse.
-const PIXEL_KIND = { 'pulse-attention': 'call', 'pulse-turn': 'turn', 'pulse-error': 'error', 'pulse-working': 'work' };
 // A brand-new workspace starts at the host origin, which now sits under the floating rail.
 const initialCamera = camera => !camera || (camera.x === 0 && camera.y === 0 && camera.zoom === 1) ? defaultCamera : camera;
 const readMinimap = () => { try { return localStorage.getItem('phantom.minimap') !== 'off'; } catch { return true; } };
@@ -220,7 +206,10 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     // settled stage, so a round trip through focus keeps the map camera.
     const timer = setTimeout(() => {
       const measured = stage.current?.getBoundingClientRect();
-      if (!measured || measured.width !== size.width || measured.height !== size.height) return;
+      // Native UI zoom can round the DOM rect and ResizeObserver's content
+      // rect differently. Subpixel noise must not suppress every reframe;
+      // still reject a stage that has actually resized since this callback.
+      if (!measured || Math.abs(measured.width - size.width) > .5 || Math.abs(measured.height - size.height) > .5) return;
       const previous = mapSize.current;
       if (previous?.width === size.width && previous?.height === size.height) return;
       mapSize.current = size;
