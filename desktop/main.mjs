@@ -233,7 +233,7 @@ function openMainWindow() {
   }
   const win = new BrowserWindow({
     title: 'Phantom Workspace', width: 1520, height: 980, minWidth: 1000, minHeight: 700,
-    backgroundColor: '#14121b', show: false,
+    backgroundColor: '#14121b', show: false, autoHideMenuBar: true,
     webPreferences: {
       session: uiSession, preload: fileURLToPath(new URL('./preload.cjs', import.meta.url)),
       contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInSubFrames: false,
@@ -243,6 +243,7 @@ function openMainWindow() {
     },
   });
   mainWindow = win;
+  win.setMenuBarVisibility(false);
   win.webContents.on('did-finish-load', () => {
     win.webContents.setZoomFactor(interfaceScale.snapshot().scale / 100);
   });
