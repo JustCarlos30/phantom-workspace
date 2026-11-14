@@ -1,10 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, AlertCircle, ArrowUp, Check, ChevronDown, Compass, GitBranch, ListChecks, Mic, MessageSquarePlus, Square, X } from 'lucide-react';
+import { useComposerSize } from '../hooks/useComposerSize';
+import { Activity, AlertCircle, ArrowUp, Check, ChevronDown, Compass, GitBranch, GitMerge, ListChecks, ListPlus, MessageSquare, Mic, MessageSquarePlus, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { formatCost, formatElapsed } from '../hooks/chatState';
 import { ContextMeter, Message, ModelPicker, PermissionRow, PermissionSwitch, QueuedMessages, ReasoningPicker, useElapsed, withEdited } from './ChatCard';
 import { PhantomGlyph, ProviderGlyph } from './Glyphs';
+import PhantomOrchestrator from './PhantomOrchestrator';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude', hint: 'Claude Code en la carpeta del proyecto' }, { id: 'opencode', label: 'OpenCode', hint: 'OpenCode en la carpeta del proyecto' }, { id: 'codex', label: 'Codex', hint: 'Codex en la carpeta del proyecto' }];
 const SUGGESTIONS = [
@@ -57,10 +59,12 @@ function ProviderMenu({ active, disabled, onChoose }) {
   </div>;
 }
 
-// The project's main conversation: Phantom, docked beside the canvas. It is
-// not a panel on the canvas; the host keeps one thread per project and runs
-// it in the project folder. Text is typed or dictated, never sent by itself.
-export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership }) {
+// Phantom's dock, beside the canvas, with two tabs. Chat is the project's main
+// conversation: not a panel on the canvas; the host keeps one thread per
+// project and runs it in the project folder. Text is typed or dictated, never
+// sent by itself, and a dictation can become a task instead. Orquestador shows
+// the session that integrates the terminals' work and its queue.
+export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership, tab = 'chat', onTab, status, onOpenPanel, onTask }) {
   const nodeId = `phantom:${workspace.id}`;
   // The host owns the provider; `pending` only shows a switch in flight.
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId, provider: 'phantom', api, connected });
@@ -84,12 +88,9 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
     onText: text => { setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text); requestAnimationFrame(() => input.current?.focus({ preventScroll: true })); },
   });
   const listening = voice.status === 'recording';
-  useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, pendingAsks.length]);
-  useEffect(() => { if (focusRequest) input.current?.focus({ preventScroll: true }); }, [focusRequest]);
-  useLayoutEffect(() => {
-    const el = input.current; if (!el) return;
-    el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-  }, [draft]);
+  useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, pendingAsks.length, tab]);
+  useEffect(() => { if (focusRequest && tab === 'chat') input.current?.focus({ preventScroll: true }); }, [focusRequest, tab]);
+  useComposerSize(input, draft, tab === 'chat');
   const configure = async change => {
     try { await api('chat.configure', { workspaceId: workspace.id, nodeId, ...change }); }
     catch (e) { notify?.(e.message, 'error'); }
@@ -114,18 +115,23 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   const pickerNode = { id: nodeId, data: { chat: { provider: active, models: chat?.models || {}, reasoning: chat?.reasoning || {} } } };
   const voiceLabel = { requesting: 'Esperando el micrófono…', recording: 'Escuchando · pulsa para transcribir', transcribing: 'Transcribiendo…' }[voice.status];
 
-  return <aside className="phantom-chat pc" onFocusCapture={() => onFocusOwnership?.(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) onFocusOwnership?.(false); }} data-provider={active} data-agent={running ? 'working' : 'idle'} aria-label="Chat con Phantom"
+  return <aside className="phantom-chat pc" onFocusCapture={() => onFocusOwnership?.(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) onFocusOwnership?.(false); }} data-provider={active} data-agent={running ? 'working' : 'idle'} aria-label="Phantom"
     onKeyDown={e => { if (e.key === 'Escape' && listening) { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
     <header className="phantom-chat-head">
       <span className="phantom-chat-mark" aria-hidden="true"><PhantomGlyph size={20} /></span>
       <h2 className="phantom-chat-title">Phantom</h2>
-      {running
+      {running && tab === 'chat'
         ? <span className={`phantom-chat-live ${waiting ? 'is-waiting' : ''}`} role="status">{waiting ? 'Te necesita' : 'Respondiendo'} · {formatElapsed(elapsed)}</span>
         : <span className="phantom-chat-where" title={workspace.canonicalPath}>{workspace.name}</span>}
       <span className="pc-bar-space" />
-      <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva con Phantom" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>
-      <button type="button" className="pc-icon" title="Cerrar chat (Ctrl ⇧ Espacio)" aria-label="Cerrar chat con Phantom" onClick={onClose}><X size={16} /></button>
+      {tab === 'chat' && <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva con Phantom" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>}
+      <button type="button" className="pc-icon" title="Cerrar Phantom (Ctrl ⇧ Espacio)" aria-label="Cerrar Phantom" onClick={onClose}><X size={16} /></button>
     </header>
+    <div className="pd-tabs" role="tablist" aria-label="Vistas de Phantom">
+      <button type="button" role="tab" id="pd-tab-chat" aria-controls="pd-panel" aria-selected={tab === 'chat'} onClick={() => onTab?.('chat')}><MessageSquare size={14} aria-hidden="true" />Chat{running && <i className="pd-tab-live" aria-label="respondiendo" />}</button>
+      <button type="button" role="tab" id="pd-tab-orchestrator" aria-controls="pd-panel" aria-selected={tab === 'orchestrator'} data-tone={status?.tone} onClick={() => onTab?.('orchestrator')}><GitMerge size={14} aria-hidden="true" />Orquestador{status?.integration && status.queued > 0 && <b aria-label={`${status.queued} en cola`}>{status.queued}</b>}{status?.integration && !status.queued && status.tone !== 'idle' && <i className="pd-tab-dot" aria-hidden="true" />}</button>
+    </div>
+    {tab === 'orchestrator' ? <div className="pd-panel" id="pd-panel" role="tabpanel" aria-labelledby="pd-tab-orchestrator"><PhantomOrchestrator workspace={workspace} api={api} notify={notify} connected={connected} status={status} onOpenPanel={onOpenPanel} /></div> : <>
     <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{!connected ? 'Sin conexión con el host' : 'Cargando la conversación…'}</p>}
@@ -140,13 +146,14 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className={`pc-field ${listening ? 'is-listening' : ''}`} style={{ '--voice-level': voice.level }} onPointerDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         {voiceLabel && <p className="phantom-chat-voice" role="status"><span className="phantom-chat-wave" aria-hidden="true"><i /><i /><i /><i /></span>{voiceLabel}{listening && <button type="button" onClick={voice.cancel}>Descartar</button>}</p>}
-        <textarea ref={input} rows={2} value={draft} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+        <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         <div className="pc-controls">
           <div className="pc-settings">
             <ProviderMenu active={active} disabled={running || switching || !chat} onChoose={chooseProvider} />
             {chat && <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={running} />}
-            {chat && <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} disabled={running} />}
+            {chat && <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} observed={meta.model} disabled={running} />}
           </div>
+          {onTask && <button type="button" className="pc-icon phantom-chat-task" title="Convertir en tarea" aria-label="Convertir el texto en una tarea" disabled={!draft.trim() || listening} onClick={() => onTask(draft.trim())}><ListPlus size={16} /></button>}
           <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || ['requesting', 'transcribing'].includes(voice.status)} title={listening ? 'Detener y transcribir' : 'Dictar por voz'} aria-label={listening ? 'Detener y transcribir' : 'Dictar por voz'} onClick={toggleVoice}>{listening ? <Square size={14} /> : <Mic size={16} />}</button>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
           {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected || !chat}><ArrowUp size={16} /></button>}
@@ -160,6 +167,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
         <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>
       </div>
     </form>
+    </>}
   </aside>;
 }
 import EmptyState from './EmptyState.jsx';

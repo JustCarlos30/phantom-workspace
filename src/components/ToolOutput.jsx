@@ -31,7 +31,7 @@ function Frame({ variant, label, meta, copy, children }) {
 function DiffView({ part }) {
   const rows = diffLines(part.change.before, part.change.after);
   let old = 0, now = 0;
-  return <Frame variant="diff" label={<><FileText size={14} aria-hidden="true" />{basename(part.detail || 'archivo')}</>} meta={<><b>+{part.diff?.added ?? rows.filter(r => r.op === '+').length}</b><i>−{part.diff?.removed ?? rows.filter(r => r.op === '-').length}</i></>} copy={part.change.after}>
+  return <Frame variant="diff" label={<><FileText size={14} aria-hidden="true" /><span className="tv-path" title={part.detail}>{basename(part.detail || 'archivo')}</span></>} meta={<><b>+{part.diff?.added ?? rows.filter(r => r.op === '+').length}</b><i>−{part.diff?.removed ?? rows.filter(r => r.op === '-').length}</i></>} copy={part.change.after}>
     <table className="tv-lines" role="presentation"><tbody>
       {rows.map((row, i) => {
         if (row.op !== '+') old++;
@@ -58,7 +58,7 @@ export default function ToolOutput({ part, kind }) {
   </Frame>;
   if (kind === 'read') {
     const lines = numberedLines(text);
-    if (lines) return <Frame variant="read" label={<><FileText size={14} aria-hidden="true" />{basename(part.detail || 'archivo')}</>} meta={lines.length > 1 ? `líneas ${lines[0].n}–${lines.at(-1).n}` : plural(lines.length, 'línea', 'líneas')} copy={lines.map(line => line.text).join('\n')}>
+    if (lines) return <Frame variant="read" label={<><FileText size={14} aria-hidden="true" /><span className="tv-path" title={part.detail}>{basename(part.detail || 'archivo')}</span></>} meta={lines.length > 1 ? `líneas ${lines[0].n}–${lines.at(-1).n}` : plural(lines.length, 'línea', 'líneas')} copy={lines.map(line => line.text).join('\n')}>
       <table className="tv-lines" role="presentation"><tbody>{lines.map((line, i) => <tr key={i}><td className="tv-n">{line.n}</td><td className="tv-code">{line.text || ' '}</td></tr>)}</tbody></table>
     </Frame>;
   }

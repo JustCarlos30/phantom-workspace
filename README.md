@@ -59,6 +59,20 @@ node scripts/canvas.mjs retry 1
 
 Pruebas declaradas: `node --test test/references.test.mjs test/canvas-cli.test.mjs test/video-review.test.mjs` y `node test/video-review-desktop.mjs` después de `npm run build`. El recorrido visual genera un ave pixel art sintética en WebM VP8, usa Electron/host aislados y un proveedor local inerte para llenar la cola; guarda capturas, resultados y salida del detector en `/tmp/opencode/video-review-*`. Su implementación no acredita una ejecución: los resultados los informa el controlador.
 
+### Conexión móvil en la misma Wi-Fi
+
+En el escritorio, abre **Ajustes → Conexión móvil local**, elige una interfaz LAN IPv4 privada y pulsa **Activar para el proyecto actual**. El puerto `0` elige uno disponible; también puedes indicar un puerto entre 1024 y 65535. Copia la dirección `/mobile`, ábrela en el navegador del teléfono conectado a la misma Wi-Fi e introduce el código temporal por separado. No se configura ningún túnel ni firewall. Si la Wi-Fi aísla dispositivos, la conexión entre ellos no estará disponible.
+
+HTTP local requiere una **red de confianza**: el tráfico no está cifrado. El código aleatorio caduca a los dos minutos y sirve una sola vez. **Generar nuevo código** invalida el anterior. Cada dispositivo obtiene acceso por ocho horas, revocable en Ajustes; allí se muestra la última conexión observada. Desactivar o cerrar el host corta las conexiones y olvida códigos y dispositivos. Reiniciar el host deja este acceso apagado; cerrar solo la ventana del escritorio conserva el host y su acceso activo.
+
+La vista móvil es independiente del canvas: lista únicamente sesiones del proyecto autorizado, permite leer y enviar mensajes, parar un turno y responder permisos/preguntas explícitamente. La cola existente se ve pero se gestiona desde el escritorio. Conserva la posición de lectura y ofrece **Volver al final**. El texto y los detalles de herramientas se muestran como texto, sin vistas previas de archivos locales. El hilo está acotado a los últimos 200 mensajes y 100 partes por mensaje; respuestas de más de 2 MiB requieren consultar el escritorio.
+
+Las terminales existentes ofrecen una pantalla reciente en texto (hasta 40 líneas de historial, o la pantalla alternativa acotada), entrada enviada exclusivamente con **Enviar** y **Parar** para terminar el proceso. La salida reemplaza la captura anterior; no se reproduce ni se reenvía entrada. Visitar/restaurar una sesión no crea procesos. No es un emulador táctil completo ni modifica el tamaño de la terminal del escritorio.
+
+Las lecturas se actualizan cada dos segundos sin solaparse y se pausan al ocultar la página. Los errores detienen la consulta y ofrecen **Reconectar**; ninguna escritura se reintenta automáticamente. Si se pierde el acuse, consulta el hilo al reconectar antes de enviar de nuevo. Revocación o caducidad requieren otro emparejamiento. El bearer vive solo en `sessionStorage` de esa pestaña y viaja en `Authorization`, nunca en la dirección; no hay cookies ni secretos persistidos en el host. Hay límites de ocho dispositivos y 256 acciones por dispositivo; al agotarlos, revoca/empareja de nuevo según indique el error.
+
+Pruebas declaradas: `test/mobile.test.mjs` usa hosts y builds sintéticos aislados, escuchando solo en loopback; cubre autenticación, caducidad, alcance, límites, rutas y acciones idempotentes. `node test/mobile-browser.mjs`, tras el build, usa Chromium a 390×844 y 360 px con el host/HTTP/autenticación reales y motores de conversación/terminal sintéticos, sin modelos ni shells. El script escribe capturas y resultados en `/tmp/phantom-mobile-evidence`. Los resultados de los checks corresponden al controlador.
+
 ### Sesiones y cierre
 
 - Cerrar la ventana conserva el host y sus sesiones. Volver a abrir conecta a los mismos procesos.

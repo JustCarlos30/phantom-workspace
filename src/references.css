@@ -102,3 +102,15 @@
 .comment-thread:has(.review-summary) > * { flex-shrink: 0; }
 .comment-thread:has(.review-summary) ol { overflow: visible; }
 .overview .review-tools, .overview .review-seek, .overview .review-compare { display: none; }
+
+/* Web preview comments: the live page is frozen into its capture while pinning. */
+.browser-freeze { position: absolute; inset: 0; background: var(--bg); }
+.browser-freeze img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; }
+.browser-freeze .browser-preview-label { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.browser-freeze::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--attention); pointer-events: none; }
+.browser-toolbar .browser-comment { position: relative; }
+.browser-toolbar .browser-comment.is-on { background: var(--attention); color: #1d1204; }
+.canvas.comment-tool .browser-toolbar, .canvas.comment-tool .browser-toolbar * { cursor: default; }
+.canvas.comment-tool .browser-toolbar button, .canvas.comment-tool .browser-toolbar button * { cursor: pointer; }
+.canvas.comment-tool .browser-toolbar input { cursor: text; }
+.page-summary span { overflow-wrap: anywhere; }

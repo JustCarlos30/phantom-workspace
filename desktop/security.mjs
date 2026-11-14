@@ -5,11 +5,13 @@ import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { verifyReviewRender } from '../integrations/video-review.mjs';
 import { safePath } from '../integrations/common.mjs';
+import { validateInterfaceScale } from '../src/hooks/interfaceScale.js';
 
 export const INVOKE_CHANNEL = 'phantom:invoke';
 export const EVENT_CHANNEL = 'phantom:event';
 export const HOST_METHODS = new Set([
   'system.info', 'state.get', 'settings.update', 'limits.read',
+  'mobile.status', 'mobile.start', 'mobile.stop', 'mobile.pairing', 'mobile.revoke',
   'workspace.open', 'workspace.select', 'workspace.update', 'workspace.relocate',
   'node.create', 'node.update', 'node.remove',
   'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.resize', 'terminal.stop', 'terminal.close',
@@ -100,8 +102,9 @@ export function byteRange(header, size) {
 export const LOCAL_METHODS = new Set([
   'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.previewImage',
   'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady', 'desktop.notify',
+  'desktop.interfaceScale.get', 'desktop.interfaceScale.set',
   'browser.attach', 'browser.bounds', 'browser.navigate', 'browser.back', 'browser.forward',
-  'browser.reload', 'browser.detach', 'browser.capture',
+  'browser.reload', 'browser.detach', 'browser.capture', 'browser.inspect',
 ]);
 
 export function validateJSON(value, maxBytes = 1024 * 1024) {
@@ -142,6 +145,13 @@ export function validateInvocation(method, payload) {
   const large = ['storage.import', 'desktop.export', 'voice.transcribe'].includes(method);
   // A pasted image travels as base64: 12 MB of pixels is about 16 MB of text.
   validateJSON(payload, method === 'reference.add' ? 17 * 1024 * 1024 : large ? 16 * 1024 * 1024 : 1024 * 1024);
+  if (method === 'desktop.interfaceScale.get' || method === 'desktop.interfaceScale.set') {
+    const keys = Object.keys(payload);
+    if (method.endsWith('.get') ? keys.length !== 0 : keys.length !== 1 || keys[0] !== 'scale') {
+      throw new Error('Payload de escala no válido');
+    }
+    if (method.endsWith('.set')) validateInterfaceScale(payload.scale);
+  }
   if (method === 'desktop.closeReady') validateCloseReady(payload);
   if (method === 'desktop.notify') {
     if (Object.keys(payload).some(key => !['title', 'body', 'target'].includes(key))
@@ -213,6 +223,14 @@ export function clampBounds(bounds, viewport) {
   const right = Math.max(x, Math.min(width, Math.floor(bounds.x + bounds.width)));
   const bottom = Math.max(y, Math.min(height, Math.floor(bounds.y + bounds.height)));
   return { x, y, width: right - x, height: bottom - y };
+}
+
+// DOM bounds are CSS pixels; native child views use window DIPs. Spatial canvas
+// transforms are already included by getBoundingClientRect, so apply only UI zoom.
+export function nativeUIBounds(bounds, factor) {
+  clampBounds(bounds, { width: 0, height: 0 });
+  if (typeof factor !== 'number' || !Number.isFinite(factor) || factor < 1 || factor > 1.5) throw new Error('Factor de interfaz no válido');
+  return Object.fromEntries(['x', 'y', 'width', 'height'].map(key => [key, bounds[key] * factor]));
 }
 
 export function validateID(value) {

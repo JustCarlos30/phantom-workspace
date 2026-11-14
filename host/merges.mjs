@@ -70,7 +70,7 @@ export class Merges {
     return { env, instructions };
   }
 
-  async status(w) {
+  async status(w, requestId) {
     const integration = this.of(w), orchestratorNode = w.nodes.find(n => n.type === 'terminal' && n.data?.role === 'orchestrator');
     const live = id => this.terminals.sessions.some(s => s.nodeId === id && s.status === 'running');
     const result = {
@@ -105,14 +105,31 @@ export class Merges {
         nodeId: node.id, title: node.title, branch: node.data.worktree.branch, running: live(node.id), missing: !fact,
         ahead: fact?.ahead ?? null, behind: fact?.behind ?? null, uncommitted: fact?.uncommitted ?? null,
         files: fact?.files.slice(0, 200) ?? [], fileCount: fact?.files.length ?? 0, overlaps: overlapsOf(node),
-        step: agent.step ?? '', status: agent.status ?? 'idle', cardTitle: agent.cardTitle ?? '',
+        step: agent.step ?? '', status: agent.status ?? 'idle', cardId: agent.cardId || '', cardTitle: agent.cardTitle ?? '',
       };
     };
-    const byNode = new Map(terminals.map(node => [node.id, node]));
-    result.queue = open.map((item, index) => {
-      const node = byNode.get(item.nodeId), fact = facts.get(item.nodeId);
-      return { ...item, position: index + 1, stale: Boolean(fact && fact.head !== item.headOid), ...(node ? { files: fact?.files.slice(0, 200) ?? [], fileCount: fact?.files.length ?? 0, overlaps: overlapsOf(node), behind: fact?.behind ?? null } : { files: [], fileCount: 0, overlaps: [] }) };
-    });
+    result.queue = await Promise.all(open.map(async (item, index) => {
+      const fact = facts.get(item.nodeId);
+      // Inspect the immutable submitted commit, never the worker's later HEAD.
+      let inspection;
+      try {
+        assert(/^[0-9a-f]{40,64}$/.test(item.headOid), 'Commit enviado inválido');
+        const range = `${base.oid}...${item.headOid}`;
+        const names = (await git(source, ['diff', '--name-only', '-z', range])).split('\0').filter(Boolean);
+        const [behind, ahead] = (await git(source, ['rev-list', '--left-right', '--count', `${base.oid}...${item.headOid}`])).split(/\s+/).map(Number);
+        inspection = { available: true, headOid: item.headOid, baseOid: base.oid, files: names.slice(0, 200), fileCount: names.length, behind, ahead };
+        if (requestId === item.id) {
+          try {
+            const diff = await git(source, ['diff', '--no-ext-diff', '--no-textconv', '--no-color', '--unified=3', range]);
+            inspection.diff = diff.slice(0, 64000); inspection.diffTruncated = diff.length > 64000;
+          } catch (error) { inspection.diffError = error.message; }
+        }
+      } catch (error) { inspection = { available: false, headOid: item.headOid, baseOid: base.oid, reason: error.message }; }
+      const overlaps = (inspection.files || []).filter(file => touching.has(file) && touching.get(file).some(other => other.id !== item.nodeId))
+        .slice(0, 25).map(file => ({ path: file, with: touching.get(file).filter(other => other.id !== item.nodeId).map(other => other.title) }));
+      // Legacy requests without a captured Card ID remain unknown even if the terminal is rebound.
+      return { ...item, position: index + 1, stale: fact ? fact.head !== item.headOid : null, inspection, files: inspection.files || [], fileCount: inspection.fileCount ?? null, overlaps, behind: inspection.behind ?? null };
+    }));
     const requested = new Set(open.map(item => item.nodeId));
     // Work not yet requested: commits or edits to integrate, or a live agent that declared what it is doing.
     result.active = terminals.filter(node => !requested.has(node.id)).map(describe).filter(item => item.ahead || item.uncommitted || (item.running && ['working', 'blocked'].includes(item.status)));
@@ -128,6 +145,14 @@ export class Merges {
     return { session, w, node };
   }
   orchestrator(p) {
+    // The project's Phantom conversation integrates for the user without a
+    // terminal session: it proves the role with the project's merge token.
+    if (p.sessionId === undefined && p.workspaceId !== undefined) {
+      const w = this.store.getWorkspace(text(p.workspaceId, 'workspace ID', 128));
+      assert(this.of(w).enabled, 'Incorporaciones no está activo en este proyecto.');
+      assert(typeof p.token === 'string' && p.token === mergeToken(this.store.dir, w.id), 'Solo la sesión orquestadora puede ordenar, incorporar o rechazar.');
+      return { w };
+    }
     const found = this.session(p.sessionId);
     assert(roleOf(found.node) === 'orchestrator' && p.token === mergeToken(this.store.dir, found.w.id), 'Solo la sesión orquestadora puede ordenar, incorporar o rechazar.');
     return found;
@@ -148,7 +173,7 @@ export class Merges {
   }
 
   async handle(method, p) {
-    if (method === 'merge.status') return this.status(this.store.getWorkspace(p.workspaceId));
+    if (method === 'merge.status') return this.status(this.store.getWorkspace(p.workspaceId), p.requestId);
     if (method === 'merge.configure') {
       const w = this.store.getWorkspace(p.workspaceId);
       assert(p.enabled === undefined || typeof p.enabled === 'boolean', 'Invalid enabled'); assert(p.enabled !== undefined || p.checks !== undefined, 'Nada que configurar');
@@ -176,8 +201,9 @@ export class Merges {
       return this.change(w.id, (integration, current) => {
         let item = integration.queue.find(item => item.nodeId === node.id && OPEN.includes(item.status));
         assert(item?.status !== 'merging', 'Esta solicitud se está incorporando ahora mismo.');
-        if (item) { delete item.conflicts; Object.assign(item, { headOid, summary: summary || item.summary, status: 'queued', updatedAt: now() }); }
-        else { item = { id: randomUUID(), nodeId: node.id, title: node.title, branch, summary, note: '', status: 'queued', headOid, base: base.branch, requestedAt: now(), updatedAt: now() }; integration.queue.push(item); }
+        const cardId = node.data.agent?.cardId || '';
+        if (item) { delete item.conflicts; delete item.checks; Object.assign(item, { headOid, cardId, summary: summary || item.summary, status: 'queued', updatedAt: now() }); }
+        else { item = { id: randomUUID(), nodeId: node.id, title: node.title, branch, cardId, summary, note: '', status: 'queued', headOid, base: base.branch, requestedAt: now(), updatedAt: now() }; integration.queue.push(item); }
         if (integration.queue.length > 500) integration.queue.splice(integration.queue.findIndex(item => !OPEN.includes(item.status)), 1);
         const target = current.nodes.find(n => n.id === node.id);
         target.data.agent = { ...target.data.agent, step: (summary || 'Listo para incorporar').slice(0, 1000), status: 'review', source: 'agent', updatedAt: now() };
@@ -250,13 +276,15 @@ export class Merges {
           return item;
         });
       }
+      let checkEvidence = null;
       if (command) {
         const checks = await runChecks(source, command);
+        checkEvidence = { command, ok: checks.ok, code: checks.code, headOid: queued.headOid, baseOid: base.oid };
         if (!checks.ok) {
           // The merge does not stay; the worker gets the failing output.
           await git(source, ['reset', '--keep', base.oid], { env });
           return this.change(w.id, (integration, current) => {
-            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
+            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', checks: { command, ok: checks.ok, code: checks.code, headOid: queued.headOid, baseOid: base.oid }, note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
             this.returnToWorker(current, item, `Los checks fallaron tras incorporar en ${base.branch} (${command}). Corrígelo en tu rama y vuelve a enviar.`);
             return { ...item, checks };
           });
@@ -264,7 +292,7 @@ export class Merges {
       }
       const mergedOid = await git(source, ['rev-parse', 'HEAD']);
       return this.change(w.id, (integration, current) => {
-        const item = Object.assign(this.item(integration, id, ['merging']), { status: 'merged', mergedOid, finishedAt: now(), updatedAt: now() });
+        const item = Object.assign(this.item(integration, id, ['merging']), { status: 'merged', mergedOid, checks: checkEvidence, finishedAt: now(), updatedAt: now() });
         // The request is settled: its terminal no longer waits for review.
         const node = current.nodes.find(n => n.id === item.nodeId);
         if (node) node.data.agent = { ...node.data.agent, step: `Incorporada en ${base.branch}`, status: 'idle', source: 'agent', updatedAt: now() };

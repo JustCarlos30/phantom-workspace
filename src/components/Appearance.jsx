@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ImagePlus, RotateCcw, X } from 'lucide-react';
 import { ACCENTS, BACKGROUNDS } from '../hooks/useAppearance';
+import { INTERFACE_SCALES } from '../hooks/interfaceScale';
 import gengarArtwork from '../../assets/gengar.png';
 
-export function Appearance({ appearance, update, reset, workspace }) {
+export function Appearance({ appearance, update, reset, workspace, interfaceScale }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const request = useRef(0);
@@ -26,13 +27,27 @@ export function Appearance({ appearance, update, reset, workspace }) {
   return <section className="appearance-panel" aria-label="Apariencia del workspace">
     <h2>Tu espacio, a tu manera</h2>
     <p>Un fondo propio para orientarte. Superficies nítidas para trabajar.</p>
+    <fieldset className="interface-scale" aria-busy={interfaceScale.loading}>
+      <legend>Tamaño de la interfaz</legend>
+      <label htmlFor="interface-scale">Escala de la interfaz</label>
+      <select id="interface-scale" value={interfaceScale.scale} disabled={interfaceScale.loading} aria-describedby={`interface-scale-help${interfaceScale.error ? ' interface-scale-error' : ''}`} onChange={event => interfaceScale.update(Number(event.target.value))}>
+        {INTERFACE_SCALES.map(scale => <option key={scale} value={scale}>{scale}%{scale === 115 ? ' (predeterminado)' : ''}</option>)}
+      </select>
+      <p id="interface-scale-help">Amplía toda la interfaz y las terminales. Se guarda en este equipo para todos los proyectos, sin cambiar el zoom del canvas.</p>
+      {interfaceScale.error && <p id="interface-scale-error" className="appearance-error" role="alert">{interfaceScale.error}</p>}
+    </fieldset>
     <fieldset><legend>Fondo del canvas</legend><div className="background-options">{BACKGROUNDS.map(([key, name, description]) => <button key={key} className={`background-option ${key}`} aria-pressed={!appearance.image && appearance.background === key} title={description} onClick={() => update({ background: key, image: '' })}><span className="background-preview" aria-hidden="true">{key === 'gengar' && <img src={gengarArtwork} alt="" />}</span><span>{name}</span>{!appearance.image && appearance.background === key && <Check size={13} />}</button>)}</div></fieldset>
     <label className="background-upload"><ImagePlus size={16} /><span>{loading ? 'Leyendo imagen…' : 'Elegir mi imagen'}<small>PNG, JPG o WebP · hasta 2 MB</small></span><input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Elegir imagen de fondo" onChange={upload} disabled={loading} /></label>
     {appearance.image && <div className="uploaded-background"><img src={appearance.image} alt="Fondo personal seleccionado" /><span>Tu imagen local</span><button className="icon-button" aria-label="Quitar imagen de fondo" onClick={() => update({ image: '' })}><X size={15} /></button></div>}
     {error && <p className="appearance-error" role="alert">{error}</p>}
     <fieldset><legend>Color de acento</legend><div className="accent-options">{ACCENTS.map(([key, name, color]) => <button key={key} aria-label={`Acento ${name}`} aria-pressed={appearance.accent === key} style={{ '--swatch': color }} onClick={() => update({ accent: key })}><span>{appearance.accent === key && <Check size={14} />}</span>{name}</button>)}</div></fieldset>
-    <label className="intensity-label" htmlFor="background-intensity">Intensidad del fondo <output>{appearance.intensity}%</output></label>
+    <label className="intensity-label" htmlFor="background-intensity">Intensidad ambiental <output>{appearance.intensity}%</output></label>
     <input id="background-intensity" className="intensity-range" type="range" min="0" max="100" value={appearance.intensity} onChange={e => update({ intensity: Number(e.target.value) })} />
+    <label className="grid-toggle"><span>Mostrar Gengar<small>Arte independiente de la intensidad ambiental</small></span><input type="checkbox" checked={appearance.gengar} onChange={e => update({ gengar: e.target.checked })} /></label>
+    <label className="intensity-label" htmlFor="gengar-intensity">Presencia de Gengar <output>{appearance.gengarIntensity}%</output></label>
+    <input id="gengar-intensity" className="intensity-range" type="range" min="0" max="100" disabled={!appearance.gengar} value={appearance.gengarIntensity} onChange={e => update({ gengarIntensity: Number(e.target.value) })} />
+    <label className="grid-toggle"><span>Pulso ambiental<small>Lento y opcional; se detiene con movimiento reducido o concentración</small></span><input type="checkbox" checked={appearance.pulse} onChange={e => update({ pulse: e.target.checked })} /></label>
+    <label className="grid-toggle"><span>Concentración<small>Atenúa ambiente y personaje y detiene la decoración</small></span><input type="checkbox" checked={appearance.concentration} onChange={e => update({ concentration: e.target.checked })} /></label>
     <label className="grid-toggle"><span>Retícula de puntos<small>Una referencia para organizar tus paneles</small></span><input type="checkbox" checked={appearance.grid} onChange={e => update({ grid: e.target.checked })} /></label>
     <div className="appearance-footer"><p>Se guarda en este equipo{workspace ? ` para ${workspace.name}` : ''}. Al enfocar un panel, el fondo se atenúa automáticamente.</p><button className="button" onClick={() => { request.current++; setLoading(false); setError(''); reset(); }}><RotateCcw size={14} /> Restablecer apariencia</button></div>
   </section>;
