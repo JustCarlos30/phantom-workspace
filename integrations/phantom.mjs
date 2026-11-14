@@ -209,6 +209,11 @@ async function control(payload, context, c) {
   starts.set(key, work);
   try { return await work; } finally { starts.delete(key); }
 }
+export function runTimeoutMs(settings) {
+  const minutes = settings?.phantomRunTimeoutMinutes;
+  return Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440 ? minutes * 60000 : 6 * 3600000;
+}
+
 async function controlOwned(payload, context, c) {
   if (payload.action === 'stop') {
     const owned = [...controllers.values()].find(p => p.descriptor.workspaceId === c.workspace.id && p.descriptor.backend === c.backend && (p.descriptor.id === payload.id || p.descriptor.taskId === payload.id) && p.descriptor.status === 'running');
@@ -238,7 +243,7 @@ async function controlOwned(payload, context, c) {
   const timer = setTimeout(() => {
     descriptor.timeout = true; child.kill('SIGINT');
     hardTimer = setTimeout(() => child.kill('SIGKILL'), 10000); hardTimer.unref?.();
-  }, 3600000); timer.unref?.();
+  }, runTimeoutMs(context.state?.settings)); timer.unref?.();
   const output = data => {
     const chunk = Buffer.from(data), remaining = Math.max(0, 1024 * 1024 - bytes); bytes += chunk.length;
     if (remaining) { const text = chunk.subarray(0, remaining).toString(); descriptor.output = (descriptor.output + text).slice(-65536); emit({ type: 'tool.output', data: text }); }
