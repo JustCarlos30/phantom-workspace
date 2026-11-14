@@ -24,6 +24,14 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 4. Enfoca un panel y usa **Volver al mapa** o **Ctrl + Mayús + Enter** para regresar. La lista permite encontrar paneles fuera de la cámara y recuperar vistas ocultas.
 5. **Ctrl + K** abre la paleta. El inspector derecho ofrece contexto, tareas, sesiones, Git, servicios y otras herramientas junto a la terminal.
 
+### Sitios globales
+
+**Sitios** en la navegación lateral y en la paleta reúne los servicios Compose de todos los proyectos registrados, con filtro por proyecto. Busca `compose.yaml`, `compose.yml`, `docker-compose.yaml` o `docker-compose.yml` en cada raíz. Sin Compose se muestra orientación para añadirlo; Phantom no genera Dockerfiles. La consulta no inicia servicios. **Iniciar** ejecuta Compose `up -d` para el servicio; **Detener** y **Reiniciar** usan `stop` y `restart`, sin borrar volúmenes. Los contenedores no dependen de la terminal ni de mantener abierta la vista.
+
+La URL se muestra para puertos TCP publicados con `app_protocol: http` o `https`, o cuyo puerto interno es 80 o 443; no se presupone que otros puertos sean HTTP. Solo se muestran bindings efectivos de contenedores existentes. Se comprueba que el daemon sea local y que todos los contenedores del proyecto pertenezcan a la raíz y al archivo Compose detectado. Si hay varios proyectos Compose en una raíz o configuraciones adicionales, se indica el conflicto en vez de elegir o adoptar contenedores. Los proyectos todavía sin contenedores usan un nombre Compose estable derivado de su ruta. Los errores de un proyecto no ocultan los demás.
+
+Las pruebas declaradas son `node --test test/sites.test.mjs test/integrations.test.mjs`, `npm run build` y `node test/sites-desktop.mjs`: la prueba Electron emplea perfil, repositorios y ejecutable Docker sintéticos y guarda su captura en `/tmp/phantom-sites-ui-*`. Los resultados corresponden al controlador.
+
 ### Plugin Phantom · Centro de mando
 
 Abre **Plugins** en la barra de proyectos y pulsa **Activar Phantom**. La activación y la frecuencia se guardan por proyecto. **Abrir Centro de mando** crea o recupera su panel del canvas; también está disponible en **Ctrl + K** y en el selector del inspector. En Configuración puedes definir las rutas de la CLI y sus datos nativos; no se instala código externo ni hay marketplace.
