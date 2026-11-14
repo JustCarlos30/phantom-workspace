@@ -1,0 +1,43 @@
+/* Shell controls: the single owner of how the top bar, the canvas navigation
+   and the dock look. Each island is one pill of glass; the controls inside
+   rest on nothing. A control that is on is a solid light circle or key; colour
+   is reserved for state. Island position and size live in canvas-ui.css. */
+
+/* ---------- Top bar: two pills ---------- */
+.app-shell :is(.workspace-identity, .header-controls, .focus-return, .workspace-header > .rail-toggle) { border-radius: var(--r-isle); }
+.app-shell .workspace-identity { padding: 0 20px; }
+.app-shell .header-controls { padding: 0 8px 0 14px; gap: 4px; }
+.app-shell .header-controls .icon-button { width: 32px; height: 32px; border-radius: 50%; background: none; color: var(--muted); }
+.app-shell .header-controls .icon-button:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.app-shell .header-controls .icon-button:is(.active, [aria-pressed="true"], [aria-expanded="true"]) { background: var(--on); color: var(--on-ink); box-shadow: none; }
+.app-shell .search-command { height: 32px; margin: 0 4px 0 8px; padding: 0 6px 0 12px; gap: 8px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--muted); font: var(--t-support); }
+.app-shell .search-command:hover { background: var(--fill-3); color: var(--ink); }
+.app-shell .search-command kbd { height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--fill-2); color: inherit; font: var(--t-micro); }
+
+/* ---------- Canvas navigation: one pill of round controls ---------- */
+.app-shell .canvas-navigation { height: 48px; padding: 0 8px; gap: 2px; border-radius: var(--r-isle); }
+.app-shell .canvas-navigation button { display: grid; place-items: center; width: 32px; min-width: 32px; height: 32px; padding: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--muted); }
+.app-shell .canvas-navigation button:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.app-shell .canvas-navigation button:is([aria-pressed="true"], [aria-expanded="true"]) { background: var(--on); color: var(--on-ink); }
+.app-shell .canvas-navigation button:disabled { opacity: .4; }
+.app-shell .canvas-navigation .zoom-value { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 60px; padding: 0 10px; border-radius: var(--r-pill); font: var(--t-support); font-weight: 500; font-variant-numeric: tabular-nums; }
+/* Groups are separated by space; a rule would be one more edge in the pill. */
+.app-shell .canvas-navigation > i { width: 8px; height: 0; margin: 0; background: none; }
+
+/* ---------- Dock: activity above, creation below, one object ---------- */
+.app-shell .activity-dock { border-radius: var(--r-isle); }
+.app-shell .activity-dock .dock-main { height: auto; padding: 6px; gap: 2px; }
+.app-shell .activity-dock .activity-strip { padding: 8px 8px 0; }
+.app-shell .activity-dock .activity-strip button { border-radius: var(--r-pill); padding: 0 12px; font: var(--t-support); }
+.app-shell .dock-main .dock-action { border-radius: var(--r-obj); background: none; box-shadow: none; color: var(--muted); font: var(--t-micro); }
+.app-shell .dock-main .dock-action:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.app-shell .dock-main .dock-action:hover:not(:disabled) svg { color: inherit; }
+.app-shell .dock-main .dock-action:is(.active, [aria-pressed="true"], [aria-expanded="true"]) { background: var(--on); color: var(--on-ink); }
+.app-shell .dock-main .dock-action:is(.active, [aria-pressed="true"], [aria-expanded="true"]) svg { color: inherit; }
+.app-shell .activity-dock .dock-main > i { width: 8px; height: 0; margin: 0; background: none; }
+/* The last row of the dock follows the island's curve. */
+.app-shell .activity-dock .dock-main .dock-action:first-of-type { border-bottom-left-radius: calc(var(--r-isle) - 1px); }
+.app-shell .activity-dock .dock-main .dock-action:last-of-type { border-bottom-right-radius: calc(var(--r-isle) - 1px); }
+
+/* ---------- Floating menus follow the same curve family ---------- */
+.app-shell :is(.canvas-popover, .tool-picker, .panel-index, .context-menu, .activity-tray, .attention-tray) { border-radius: var(--r-isle); }

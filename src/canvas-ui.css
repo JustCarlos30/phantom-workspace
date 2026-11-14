@@ -10,13 +10,13 @@
   --r-mark: 4px;
   --r-ctl: 8px;
   --r-obj: 14px;
-  --r-isle: 22px;
+  --r-isle: 26px;
   --r-pill: 999px;
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
   --hairline: color-mix(in srgb, #fff 8%, transparent);
    /* Quiet chrome and contact depth; shadows never animate their blur. */
-  --shadow-chrome: inset 0 1px 0 #ffffff42, inset 0 0 0 1px #ffffff0d, inset 0 -1px 0 #05030a80, 0 4px 10px #08050ea6, 0 26px 54px -22px #08050ee6, 0 0 36px -10px color-mix(in srgb, var(--accent) 36%, transparent);
+  --shadow-chrome: inset 0 1px 0 #ffffff2e, inset 0 0 0 1px #ffffff0a, 0 2px 6px #05030a59, 0 24px 48px -26px #05030ad9;
   --shadow-key: inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #05030a66, 0 1px 3px #05030a8c;
   --shadow-well: inset 0 1px 2px #05030a8c, inset 0 0 0 1px #05030a33;
   --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9;
@@ -25,12 +25,12 @@
   --shadow-workplane-rest: 0 2px 4px #05030a66, 0 10px 20px -12px #05030a99;
   --shadow-workplane-lift: 0 3px 6px #05030a73, 0 16px 28px -14px #05030ab3;
   /* Glass filters belong only to chrome. Workplanes and wells use real alpha. */
-  --glass-tint: color-mix(in srgb, var(--accent) 13%, var(--surface-3));
+  --glass-tint: color-mix(in srgb, var(--accent) 8%, var(--surface-3));
   --glass: color-mix(in srgb, var(--glass-tint) 46%, transparent);
   --glass-thick: color-mix(in srgb, var(--glass-tint) 62%, transparent);
   --glass-filter: blur(40px) saturate(190%);
   --ink-on-glass: #ece9f2;
-  --glass-sheen: linear-gradient(180deg, #ffffff1f 0%, #ffffff08 26%, transparent 58%);
+  --glass-sheen: linear-gradient(155deg, #ffffff1f 0%, #ffffff12 38%, #ffffff0a 100%);
   --on: #f1ecf8;
   --on-ink: #1a1226;
   --workplane: color-mix(in srgb, var(--surface) 80%, transparent);
@@ -231,12 +231,6 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   .rail-collapsed-project .project-initials { width: 24px; height: 24px; border-radius: var(--r-ctl); background: var(--accent-soft); color: var(--accent); }
 }
 @media (max-width: 850px) { .project-rail { border-radius: 0 var(--r-obj) var(--r-obj) 0; } }
-.project-item, .rail-panel-row, .open-folder, .rail-bottom > button, .rail-map-action, .studio-appearance-button { border-radius: var(--r-ctl); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.project-item:hover, .rail-panel-row:hover, .rail-bottom > button:hover { background: var(--island-hover); }
-.project-item.active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.open-folder { border-color: var(--hairline); background: transparent; }
-.open-folder:hover { background: var(--island-hover); border-color: var(--hairline); }
-.studio-appearance-button { border-top: 0; background: var(--island-hover); }
 
 /* ---------- Top bar: two islands over the canvas ---------- */
 .workspace-header {
@@ -395,24 +389,6 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   .rail-collapsed .project-rail .rail-collapsed-project { display: flex; }
 }
 
-/* ---------- Consistency pass ---------- */
-/* Rail: every action is the same quiet row; only the selected project is filled. */
-.open-folder, .studio-appearance-button, .rail-map-action, .rail-bottom > button {
-  display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%;
-  min-height: 34px; height: auto; margin: 2px 0 0; padding: 0 8px; border: 0; border-radius: var(--r-ctl);
-  background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; text-align: left;
-}
-.open-folder:hover, .studio-appearance-button:hover, .studio-appearance-button.active, .rail-map-action:hover, .rail-bottom > button:hover { background: var(--surface-2); color: var(--ink); border: 0; }
-.open-folder > svg, .studio-appearance-button > svg, .rail-bottom > button > svg, .rail-map-action > svg { color: var(--muted); }
-.open-folder:first-of-type { margin-top: 10px; }
-.studio-appearance-button { margin-top: 8px; padding: 6px 8px; }
-.studio-appearance-button small { margin-top: 2px; }
-.rail-bottom { padding-top: 8px; border-top: 1px solid var(--hairline); }
-.rail-heading { padding: 0 8px 8px; font-size: 11px; letter-spacing: .02em; }
-.project-item.active { background: var(--surface-2); }
-.project-item.active .project-initials { background: var(--accent-soft); color: var(--accent); }
-.rail-panel-row.selected { background: var(--accent-soft); }
-
 /* Minimap: neutral blocks, accent only for what is selected or in view. */
 .minimap-node, .minimap-node.type-terminal, .minimap-node.type-browser, .minimap-node.type-note { fill: color-mix(in srgb, var(--ink) 24%, transparent); }
 .minimap-node.selected { fill: color-mix(in srgb, var(--accent) 55%, transparent); stroke: none; }
@@ -491,22 +467,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .minimap-node.type-zone { fill: transparent; stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-dasharray: 3 2; }
 
 /* ---------- Spaces: pages of a project in the rail ---------- */
-.rail-spaces { margin-top: var(--s-4); flex-shrink: 0; }
-.space-list { display: flex; flex-direction: column; gap: 2px; max-height: 172px; overflow: auto; }
-.space-row { display: flex; align-items: center; border-radius: var(--r-ctl); transition: background var(--dur-fast) var(--ease-out); }
-.space-row:hover, .space-row.active { background: var(--surface-2); }
-.space-select { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s-3); height: 32px; padding: 0 var(--s-2); font-size: 12px; color: var(--muted); text-align: left; }
-.space-row.active .space-select { color: var(--ink); font-weight: 500; }
-.space-select i { width: 6px; height: 6px; border-radius: 50%; background: var(--hairline); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out); }
-.space-row.active .space-select i { background: var(--accent); }
-.space-select span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.space-select small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.space-remove { display: grid; place-items: center; width: 24px; height: 24px; margin-right: var(--s-1); border-radius: var(--r-mark); color: var(--muted); opacity: 0; }
-.space-row:hover .space-remove, .space-remove:focus-visible { opacity: 1; }
-.space-remove:hover { color: var(--ink); background: var(--hairline); }
 .space-input { width: 100%; height: 32px; padding: 0 var(--s-2); border-radius: var(--r-ctl); border: 1px solid var(--accent); background: var(--bg); color: var(--ink); font-size: 12px; }
-.rail-collapsed-project em { font-style: normal; font-weight: 500; color: var(--muted); }
-.rail-panels { margin-top: var(--s-4); }
 
 @media (prefers-reduced-motion: reduce) {
   .terminal-activity-status.warning i, .zone-selection, .group-selection { animation: none; }
@@ -555,7 +516,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   box-shadow: var(--shadow-chrome);
 }
 /* Reading planes are thicker glass: what is behind tints them, never shows through. */
-.project-rail, .inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background-color: var(--glass-thick); }
+.inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background-color: var(--glass-thick); }
 .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-chrome); }
 .connection-error { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); background-color: color-mix(in srgb, var(--error-bg) 86%, transparent); background-image: var(--glass-sheen); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
 
@@ -568,45 +529,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .icon-button { border-radius: var(--r-ctl); transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .icon-button:hover { background: var(--fill-2); color: var(--ink); }
 .icon-button.active { background: var(--accent-soft); color: var(--accent); }
-
-/* ---------- Rail ---------- */
-@media (min-width: 851px) { .project-rail { border-radius: var(--r-isle); padding: 12px 10px 10px; } .rail-collapsed .project-rail { border-radius: var(--r-obj); } }
-.brand { font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
-.brand > span:last-of-type > span { font-size: 11px; font-weight: 450; letter-spacing: 0; margin-top: 1px; }
-.brand-mark { border-radius: var(--r-ctl); background: transparent; color: var(--accent); }
-.rail-heading { padding: 0 8px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--muted); }
-.rail-heading button { border-radius: var(--r-ctl); }
-.rail-heading button:hover { background: var(--fill-2); color: var(--ink); }
-.project-list { gap: 2px; }
-.project-item { gap: 10px; padding: 6px 8px; border-radius: var(--r-obj); color: var(--muted); }
-.project-item:hover { background: var(--fill); }
-.project-item.active { background: var(--fill-2); color: var(--ink); }
-.project-item strong { font-size: 13px; font-weight: 550; letter-spacing: -.005em; }
-.project-item small { font-size: 11px; margin-top: 2px; color: var(--muted); opacity: .85; }
-.project-initials { width: 30px; height: 30px; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--muted); font-size: 11px; font-weight: 650; }
-.project-item.active .project-initials { background: var(--accent); color: var(--primary-ink); }
-.project-active-dot { display: none; }
-.open-folder, .studio-appearance-button, .rail-map-action, .rail-bottom > button { min-height: 32px; border-radius: var(--r-ctl); font-size: 13px; }
-.open-folder:hover, .studio-appearance-button:hover, .studio-appearance-button.active, .rail-map-action:hover, .rail-bottom > button:hover { background: var(--fill-2); color: var(--ink); }
-.studio-appearance-button { background: none; }
-.studio-appearance-button small { font-size: 11px; margin-top: 1px; }
-.rail-bottom { border-top-color: var(--hairline); }
-.host-indicator { font-size: 11px; padding: 2px 8px 10px; gap: 8px; }
-.host-indicator i { width: 6px; height: 6px; background: var(--success); }
-.rail-panel-row { margin: 1px 0; border-radius: var(--r-ctl); }
-.rail-panel-row:hover { background: var(--fill); }
-.rail-panel-row > button:first-child { gap: 10px; padding: 7px 8px; font-size: 13px; }
-.rail-panel-row.selected { background: var(--accent-soft); color: var(--ink); }
-.rail-panel-row.selected > button:first-child > svg { color: var(--accent); }
-.rail-panel-focus { border-radius: var(--r-ctl); }
-.rail-panel-label .terminal-activity-status { font-size: 11px; }
-.space-row { border-radius: var(--r-ctl); }
-.space-row:hover { background: var(--fill); }
-.space-row.active { background: var(--fill-2); }
-.space-select { font-size: 13px; gap: 10px; }
-.space-select i { background: var(--fill-3); }
-.space-input { border-radius: var(--r-ctl); background: var(--fill); }
-.rail-collapsed-project:hover { background: var(--fill-2); }
 
 /* ---------- Top bar ---------- */
 .workspace-identity, .header-controls, .activity-notch, .focus-return { border-radius: var(--r-obj); }
@@ -890,8 +812,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   .panel-index-button { top: var(--top-clear); left: var(--gutter); }
 }
 
-/* Rail rows: one quiet list. No filled tile for an action that is not a selection. */
-.studio-appearance-button { background: transparent; }
 
 /* Bottom row: one baseline and one gutter for everything that floats. */
 .create-dock, .canvas-navigation { bottom: var(--gutter); }
@@ -1226,8 +1146,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
   transition-duration: var(--dur-fast);
   transition-timing-function: var(--ease-out);
 }
-.project-rail :is(.project-item, .rail-panel-row > button:first-child, .space-select,
-    .open-folder, .rail-bottom > button, .rail-map-action, .studio-appearance-button):active:not(:disabled) { scale: .97; }
 
 .button.primary, .tw-button.tw-primary, .pc-send:not(:disabled) { box-shadow: var(--shadow-key); }
 .button.primary, .tw-button.tw-primary, .phantom-chat .pc-send:not(:disabled):not(.is-stop) {
@@ -1262,46 +1180,23 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
   animation: materialize var(--dur-spring) var(--ease-spring);
 }
 
-/* One UI selection: solid light keys, quiet veils at rest. Accent remains
-   reserved for keyboard focus, panel selection and real state indicators. */
-.button, .tw-button, .icon-button, .project-item, .rail-panel-row, .space-row,
-.open-folder, .rail-bottom > button, .rail-map-action, .studio-appearance-button,
-.dock-main button, .canvas-navigation button { background: var(--fill); }
-.button:hover, .tw-button:hover:not(:disabled), .icon-button:hover,
-.project-item:hover, .rail-panel-row:hover, .space-row:hover,
-.open-folder:hover, .rail-bottom > button:hover, .rail-map-action:hover,
-.studio-appearance-button:hover, .dock-main button:hover:not(:disabled),
-.canvas-navigation button:hover { background: var(--fill-3); }
+/* Selection is a solid light key; real buttons rest on a quiet veil. Rows,
+   icon buttons and toolbar controls rest on nothing: the island is their box.
+   The rail, top bar, navigation and dock own their states in sidebar.css and
+   shell.css. */
+.button, .tw-button { background: var(--fill); }
+.button:hover, .tw-button:hover:not(:disabled) { background: var(--fill-3); }
 .button.primary, .button.primary:hover, .tw-button.tw-primary,
 .tw-button.tw-primary:hover:not(:disabled), .icon-button.active,
-.project-item.active, .rail-panel-row.selected, .space-row.active,
-.studio-appearance-button.active, .rail-map-action[aria-pressed="true"],
-.dock-main button.active, .dock-main button.active:hover:not(:disabled),
-.activity-dock .dock-main .dock-action.active,
-.activity-dock .dock-main .dock-action.active:hover:not(:disabled),
-.canvas-navigation button:is([aria-pressed="true"], [aria-expanded="true"]),
-.canvas-navigation .phantom-launcher[aria-pressed="true"],
 .tw-tabs .tw-button[aria-pressed="true"],
 .activity-tray .activity-filters button[aria-pressed=true],
 .tw-palette-results li[aria-selected="true"] button {
   background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key);
   --muted: var(--on-ink); --ink-3: var(--on-ink);
 }
-.project-item.active .project-initials { background: none; color: inherit; }
-.rail-panel-row.selected > button:first-child > svg,
-.space-row.active .space-select, .space-row.active .space-select small,
-.studio-appearance-button.active > svg,
-.activity-dock .dock-main .dock-action.active svg,
-.activity-dock .dock-main .dock-action.active:hover:not(:disabled) svg,
 .activity-filters [aria-pressed=true] .activity-filter-check,
 .tw-palette-results li[aria-selected="true"] small { color: var(--on-ink); }
-.space-row.active .space-select i { background: var(--on-ink); }
-.dock-main button:first-of-type:not(.active), .activity-dock .dock-main .dock-action:not(.active) { background: var(--fill); color: var(--muted); }
-.dock-main button:first-of-type:not(.active):hover:not(:disabled),
-.activity-dock .dock-main .dock-action:not(.active):hover:not(:disabled) { background: var(--fill-3); color: var(--ink); }
-.activity-dock .dock-main .dock-action:not(.active):hover:not(:disabled) svg { color: inherit; }
 .tw-tabs .tw-button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--fill-3); }
-.canvas-navigation .phantom-launcher:not([aria-pressed="true"]) { color: var(--muted); }
 .inspector-host .tw-inspector, .inspector-host .appearance-panel { background: transparent; }
 
 /* A single translucent slab; children do not stack opaque full-size planes. */

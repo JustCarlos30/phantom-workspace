@@ -38,6 +38,7 @@ import { preferredCardMode } from './components/ChatCard';
 import ToolPicker from './components/ToolPicker';
 import SidebarPanels from './components/SidebarPanels';
 import './sidebar.css';
+import './shell.css';
 import PhantomChat from './components/PhantomChat';
 import { DOCK_TABS, dockStatus } from './hooks/phantom-dock.mjs';
 import './phantom-chat.css';

@@ -1,5 +1,5 @@
 import { _electron as electron } from 'playwright';
-import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
@@ -98,7 +98,10 @@ const invoke = (method, payload = {}) => page.evaluate(([m, p]) => window.phanto
 const shot = async scene => {
   await delay(700);
   const file = path.join(evidence, `design-${label}-${scene}.png`);
-  await page.screenshot({ path: file });
+  // The desktop applies an interface zoom; a Playwright screenshot would crop
+  // the window to its unzoomed size and lose the dock. Capture what Electron paints.
+  const png = await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64'));
+  await writeFile(file, Buffer.from(png, 'base64'));
   captures.push(file);
   try {
     const deviation = railLuminanceDeviation(await readFile(file));
