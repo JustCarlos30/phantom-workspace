@@ -12,20 +12,32 @@ const clocked = () => {
 test('una rafaga del fondo conserva el canvas sobre body, terminal y minimapa', () => {
   const { route } = clocked();
   assert.equal(route(0), 'canvas');
-  assert.equal(route(10, { overBody: true, bodyCanScroll: true }), 'canvas');
+  assert.equal(route(10, { overBody: true, bodyActive: true, bodyCanScroll: true }), 'canvas');
   assert.equal(route(20, { overTerminal: true }), 'canvas');
   assert.equal(route(30, { overMinimap: true }), 'canvas');
 });
 
-test('una rafaga en body desplazable conserva el elemento al salir', () => {
+test('una rafaga en body activo desplazable conserva el elemento al salir', () => {
   const { route } = clocked();
-  assert.equal(route(0, { overBody: true, bodyCanScroll: true }), 'element');
+  assert.equal(route(0, { overBody: true, bodyActive: true, bodyCanScroll: true }), 'element');
   assert.equal(route(10), 'element');
 });
 
-test('un body sin desplazamiento pertenece al canvas', () => {
+test('un body desplazable de una card no seleccionada mueve el canvas', () => {
   const { route } = clocked();
-  assert.equal(route(0, { overBody: true }), 'canvas');
+  assert.equal(route(0, { overBody: true, bodyCanScroll: true }), 'canvas');
+  assert.equal(route(10, { overBody: true, bodyActive: true, bodyCanScroll: true }), 'canvas');
+});
+
+test('un body activo sin desplazamiento pertenece al canvas', () => {
+  const { route } = clocked();
+  assert.equal(route(0, { overBody: true, bodyActive: true }), 'canvas');
+});
+
+test('una rueda con muescas espaciadas recalcula con la seleccion actual', () => {
+  const { route } = clocked();
+  assert.equal(route(0, { overBody: true, bodyCanScroll: true }), 'canvas');
+  assert.equal(route(400, { overBody: true, bodyActive: true, bodyCanScroll: true }), 'element');
 });
 
 test('tras silencio mayor al idle se recalcula el dueno', () => {
@@ -37,7 +49,7 @@ test('tras silencio mayor al idle se recalcula el dueno', () => {
 test('zoom sobre body o terminal pertenece al canvas', () => {
   const body = clocked();
   const terminal = clocked();
-  assert.equal(body.route(0, { zooming: true, overBody: true, bodyCanScroll: true }), 'canvas');
+  assert.equal(body.route(0, { zooming: true, overBody: true, bodyActive: true, bodyCanScroll: true }), 'canvas');
   assert.equal(terminal.route(0, { zooming: true, overTerminal: true }), 'canvas');
 });
 
