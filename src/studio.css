@@ -174,7 +174,7 @@
 .mission-chip { background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); }
 .focus-return { color: var(--muted); }
 .focus-return>span { border-color: var(--hairline); }
-.dock-main, .canvas-navigation { background: var(--surface); box-shadow: var(--shadow-chrome); }
+.dock-main, .canvas-navigation { background-color: var(--glass); background-image: var(--glass-sheen); box-shadow: var(--shadow-chrome); }
 .dock-main { height: 50px; padding: 5px 7px; border-radius: var(--r-obj); }
 .dock-main button { height: 38px; color: var(--muted); }
 .dock-main button:first-of-type { color: var(--ink); }

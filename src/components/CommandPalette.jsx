@@ -12,6 +12,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
   const input = useRef(null), dialog = useRef(null), previousFocus = useRef(null), listId = useId();
   const actions = useMemo(() => [
     { title: 'Abrir carpeta', group: 'Workspace', action: { type: 'openFolder' } },
+    { title: 'Abrir Sitios globales', group: 'Navegación', action: { type: 'sites' } },
     { title: 'Personalizar espacio · fondo y apariencia', group: 'Workspace', action: { type: 'appearance' } },
     ...(workspace ? [
       { title: 'Abrir catálogo de Skills', group: 'Herramientas', action: { type: 'create', panelType: 'skills-catalog' } },

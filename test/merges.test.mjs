@@ -116,7 +116,11 @@ test('workers own one branch; only the orchestrator session orders and integrate
   assert.deepEqual(status.queue, []); assert.deepEqual(status.history.map(item => [item.title, item.status]), [['Uno', 'merged'], ['Dos', 'merged']]);
 
   // Rejection returns the reason; withdrawing is the worker's own call.
-  commit(two, 'dos\nuno\nmás\n', 'Dos sigue'); const third = await host.invoke('merge.submit', { sessionId: two.session.id });
+  // A request must contain the current base: Dos is behind main until it merges it in.
+  fs.writeFileSync(path.join(two.session.cwd, 'more.txt'), 'más\n'); gitAs(two.env, two.session.cwd, 'add', 'more.txt'); gitAs(two.env, two.session.cwd, 'commit', '-m', 'Dos sigue');
+  await assert.rejects(host.invoke('merge.submit', { sessionId: two.session.id }), /no incluye lo último de main/);
+  gitAs(two.env, two.session.cwd, 'merge', '--no-edit', 'main');
+  const third = await host.invoke('merge.submit', { sessionId: two.session.id });
   assert.equal((await host.invoke('merge.reject', { ...lead, id: third.id, reason: 'Faltan pruebas' })).status, 'rejected');
   assert.match(host.store.getWorkspace(workspaceId).nodes.find(n => n.id === two.node.id).data.agent.step, /Faltan pruebas/);
   await host.invoke('merge.submit', { sessionId: two.session.id });

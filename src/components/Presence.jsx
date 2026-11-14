@@ -18,10 +18,10 @@ export function Presence({ children, show = !!children, onExit }) {
       // it. Nothing slides; position is where the thing is, not how it got there.
       const still = reduced || backdrop;
       const rest = { opacity: 1, translate: '0 0', filter: 'blur(0px)', ...(!still && { scale: '1' }) };
-      const edge = { opacity: 0, translate: '0 0', filter: still ? 'blur(0px)' : show ? 'blur(8px)' : 'blur(12px)', ...(!still && { scale: show ? '.985' : '1.02' }) };
+      const edge = { opacity: 0, translate: '0 0', filter: still ? 'blur(0px)' : show ? 'blur(8px)' : 'blur(12px)', ...(!still && { scale: show ? '.96' : '1.02' }) };
       return element.animate(show ? [edge, rest] : [rest, edge], {
         duration: reduced ? 60 : show ? 200 : panel ? 160 : 120,
-        easing: show ? 'cubic-bezier(.16,1,.3,1)' : 'cubic-bezier(.4,0,1,1)',
+        easing: reduced ? 'linear' : show ? 'linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1)' : 'cubic-bezier(.4,0,1,1)',
         fill: 'both',
       });
     });

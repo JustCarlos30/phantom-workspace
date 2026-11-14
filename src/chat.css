@@ -24,7 +24,7 @@
 .pc-modes[data-active="claude"] { --mode-hue: var(--hue-claude); }
 .pc-modes[data-active="opencode"] { --mode-hue: var(--hue-opencode); }
 .pc-modes[data-active="codex"] { --mode-hue: var(--hue-codex); }
-.pc-modes::before { content: ''; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--mode-count, 4)); border-radius: var(--r-ctl); background: color-mix(in srgb, var(--mode-hue) 18%, var(--segment)); transform: translateX(calc(var(--mode-index, 0) * 100%)); transition: transform var(--dur) var(--ease-out), background-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.pc-modes::before { content: ''; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--mode-count, 4)); border-radius: var(--r-ctl); background: color-mix(in srgb, var(--mode-hue) 18%, var(--segment)); transform: translateX(calc(var(--mode-index, 0) * 100%)); transition: transform var(--dur-spring) var(--ease-spring), background-color var(--dur) var(--ease-out); }
 .pc-modes button { display: inline-flex; justify-content: center; align-items: center; gap: 6px; min-width: 0; height: 28px; padding: 0 11px; border-radius: var(--r-ctl); color: var(--muted); font-size: 12px; font-weight: 550; line-height: 1; letter-spacing: .005em; white-space: nowrap; transition: color var(--dur-fast) var(--ease-out); }
 .pc-modes button > span { overflow: hidden; text-overflow: ellipsis; }
 .pc-modes button > svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .7; transition: color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
