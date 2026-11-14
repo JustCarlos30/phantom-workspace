@@ -26,10 +26,12 @@ export function preferredCardMode() {
   try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : ['opencode', 'codex'].includes(saved) ? saved : 'claude'; } catch { return 'claude'; }
 }
 const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
+// Branches Phantom creates per session are named after an id; show the project instead.
+const AUTO_BRANCH = /^phantom\/terminal-/;
 const AUTO_APPROVE = {
-  claude: { auto: 'Trabaja sin interrumpirte: edita, ejecuta comandos, instala dependencias, corre tests y usa archivos temporales. Solo te pide permiso aquí para lo delicado: borrar o escribir fuera de su carpeta, commit y push, herramientas MCP externas, servicios y proveedores externos, bases de datos y cambios al sistema.', ask: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.', full: `Hace todo sin preguntar, también fuera de su carpeta, en la red y con herramientas externas. Solo te pide permiso para una lista corta de acciones peligrosas: ${FULL_LIST}. Git queda protegido por el guardián de Incorporaciones.` },
-  opencode: { auto: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', ask: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.', full: 'OpenCode aprueba todo permiso que no esté denegado en su configuración (igual que Puede editar). Git queda protegido por el guardián de Incorporaciones.' },
-  codex: { auto: 'Codex puede editar dentro de la carpeta con sandbox workspace-write. Los permisos que requieren confirmación se deniegan en modo headless.', ask: 'Codex usa sandbox de solo lectura y no solicita aprobaciones en modo headless.', full: 'Codex trabaja sin sandbox (danger-full-access): puede escribir fuera de la carpeta y usar la red. No puede preguntar en modo headless. Git queda protegido por el guardián de Incorporaciones.' },
+  claude: { auto: 'Trabaja solo. Te pide permiso para borrar, publicar o salir de su carpeta.', ask: 'Te pide permiso antes de cada cambio.', full: `Hace todo sin preguntar. Solo te pide permiso para: ${FULL_LIST}.` },
+  opencode: { auto: 'Trabaja solo, según la configuración de OpenCode.', ask: 'Te pide permiso antes de cada cambio.', full: 'Hace todo sin preguntar, según la configuración de OpenCode.' },
+  codex: { auto: 'Edita dentro de su carpeta. No puede pedirte permiso: lo que lo requiera se rechaza.', ask: 'Solo lee. No edita ni pide permiso.', full: 'Hace todo sin preguntar, también fuera de su carpeta y en la red.' },
 };
 const PERMISSION_LABELS = { ask: { claude: 'Pregunta todo', other: 'Solo lectura' }, auto: { claude: 'Autónomo', other: 'Puede editar' }, full: { claude: 'Total', other: 'Total' } };
 const NEXT_MODE = { ask: 'auto', auto: 'full', full: 'ask' };
@@ -505,7 +507,7 @@ const share = ratio => ratio < .01 ? '<1' : String(Math.round(ratio * 100));
 // The meter opens a panel that reads the context against quality/cost bands and
 // offers compaction. `onCompact` is optional: until a provider wires it the
 // action stays visible but disabled, so the recommendation is never a dead end.
-export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
+export function ContextMeter({ meta, running = false, onCompact, onNew, reveal = 0 }) {
   const use = contextUse(meta);
   const [open, setOpen] = useState(false);
   const root = useRef(null), trigger = useRef(null), panel = useRef(null);
@@ -525,12 +527,12 @@ export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
   const perTurn = Number.isFinite(meta.costUsd) && meta.costUsd > 0 && meta.turns > 0 ? meta.costUsd / meta.turns : null;
   const bands = use.window
-    ? [['ok', 'Óptima', `< ${CONTEXT_BANDS.watch * 100}%`], ['watch', 'Vigilar', `${CONTEXT_BANDS.watch * 100}–${CONTEXT_BANDS.compact * 100}%`], ['compact', 'Compactar', `≥ ${CONTEXT_BANDS.compact * 100}%`]]
-    : [['ok', 'Óptima', `< ${formatTokens(CONTEXT_TOKEN_BANDS.watch)}`], ['watch', 'Vigilar', `${formatTokens(CONTEXT_TOKEN_BANDS.watch)}–${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`], ['compact', 'Compactar', `≥ ${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`]];
+    ? [['ok', 'Óptima', `< ${CONTEXT_BANDS.watch * 100}%`], ['watch', 'Vigilar', `${CONTEXT_BANDS.watch * 100}–${CONTEXT_BANDS.compact * 100}%`], ['compact', 'Larga', `≥ ${CONTEXT_BANDS.compact * 100}%`]]
+    : [['ok', 'Óptima', `< ${formatTokens(CONTEXT_TOKEN_BANDS.watch)}`], ['watch', 'Vigilar', `${formatTokens(CONTEXT_TOKEN_BANDS.watch)}–${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`], ['compact', 'Larga', `≥ ${formatTokens(CONTEXT_TOKEN_BANDS.compact)}`]];
   // Without a window the scale ends at 1.5× the compaction size.
   const watchAt = use.window ? CONTEXT_BANDS.watch * 100 : 100 / 1.5 * CONTEXT_TOKEN_BANDS.watch / CONTEXT_TOKEN_BANDS.compact;
   const compactAt = use.window ? CONTEXT_BANDS.compact * 100 : 100 / 1.5;
-  const compactBlocked = !onCompact ? 'La compactación todavía no está conectada a este agente' : running ? 'Disponible cuando termine la respuesta' : '';
+  const compactBlocked = running ? 'Disponible cuando termine la respuesta' : '';
   return <span ref={root} className="pc-context-wrap">
     <button ref={trigger} type="button" className={`pc-context ${level} is-${advice.band} ${open ? 'is-open' : ''}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
       title={use.window ? `${use.tokens.toLocaleString()} de ${use.window.toLocaleString()} tokens de contexto en uso · ${advice.title}` : `${use.tokens.toLocaleString()} tokens de contexto en uso · ${advice.title}`}
@@ -538,7 +540,7 @@ export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
       {use.window && <span className="pc-context-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.min(100, use.ratio * 100))}%` }} /></span>}
       <span>{formatTokens(use.tokens)}{use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}</span>
       {use.window && <span className="pc-context-share">{share(use.ratio)}%</span>}
-      {advice.band === 'compact' && <span className="pc-context-flag">compactar</span>}
+      {advice.band === 'compact' && <span className="pc-context-flag">larga</span>}
     </button>
     {open && <div ref={panel} id={id} className={`pc-context-panel is-${advice.band}`} role="dialog" aria-label="Ventana de contexto" tabIndex={-1}
       onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }}>
@@ -571,11 +573,13 @@ export function ContextMeter({ meta, running = false, onCompact, reveal = 0 }) {
         <div><dt>Costo acumulado</dt><dd>{formatCost(meta.costUsd)}</dd></div>
         <div><dt>Promedio por turno</dt><dd>{formatCost(perTurn)}</dd></div>
       </dl>}
-      <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || 'Resumir el historial en un brief y liberar la ventana'}
-        onClick={() => { close(); onCompact?.(); }}>
-        <FoldVertical size={14} aria-hidden="true" />Compactar contexto
-      </button>
-      <p className="pc-context-note">{compactBlocked ? `${compactBlocked}. ` : ''}Compactar resume el historial en un brief: libera la ventana y abarata cada turno, a cambio de perder detalles finos.</p>
+      {onCompact ? <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || 'Resumir el historial y liberar la ventana'}
+        onClick={() => { close(); onCompact(); }}>
+        <FoldVertical size={14} aria-hidden="true" />Resumir conversación
+      </button> : onNew && advice.band !== 'ok' && <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || undefined}
+        onClick={() => { close(); onNew(); }}>
+        <MessageSquarePlus size={14} aria-hidden="true" />Empezar conversación nueva
+      </button>}
     </div>}
   </span>;
 }
@@ -708,7 +712,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <div className="pc-bar">
       <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
-      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{branch && !AUTO_BRANCH.test(branch) ? `${branch} · ${workspace?.name || folder}` : workspace?.name || folder}</span></span>
       {(running || waiting) && (waiting
         ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
         : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
@@ -722,8 +726,8 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         {!messages.length && connected && chat && <EmptyState className="pc-empty" icon={<ProviderTile provider={provider} />} title={`Conversación nueva con ${label}`}>
           {chat && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />}
           {chat && <dl className="pc-conversation-facts">
-            <div><dt>Carpeta</dt><dd title={cwd}>{cwd}</dd></div>
-            {branch && <div><dt>Rama</dt><dd>{branch}</dd></div>}
+            <div><dt>Carpeta</dt><dd title={cwd}>{branch && AUTO_BRANCH.test(branch) ? `${workspace?.name || folder} · copia propia de esta sesión` : cwd}</dd></div>
+            {branch && !AUTO_BRANCH.test(branch) && <div><dt>Rama</dt><dd>{branch}</dd></div>}
             <div><dt>Permisos</dt><dd className="is-prose">{AUTO_APPROVE[provider]?.[permissionMode]}</dd></div>
             <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
           </dl>}
@@ -752,7 +756,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         </div>
       </div>
       <div className="pc-meta">
-        <ContextMeter meta={meta} running={running} reveal={reveal} />
+        <ContextMeter meta={meta} running={running} reveal={reveal} onNew={() => clear().catch(() => {})} />
         {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
         <span className="pc-bar-space" />
         <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>

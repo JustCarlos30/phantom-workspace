@@ -18,9 +18,9 @@ const SUGGESTIONS = [
   { icon: Compass, text: 'Propón el siguiente paso para la misión actual' },
 ];
 const PERMISSIONS = {
-  claude: { auto: 'Trabaja libremente dentro de la carpeta del proyecto y te pide permiso aquí antes de tocar algo fuera.', ask: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.', full: 'Hace todo sin preguntar, salvo una lista corta de acciones peligrosas (sudo, borrar fuera de la carpeta, git push --force, ~/.ssh o /etc, curl | sh). Git queda protegido por el guardián de Incorporaciones.' },
-  codex: { auto: 'Codex puede editar dentro del proyecto.', ask: 'Codex trabaja en modo de solo lectura.', full: 'Codex trabaja sin sandbox (danger-full-access). Git queda protegido por el guardián de Incorporaciones.' },
-  opencode: { auto: 'OpenCode aprueba todo permiso que no esté denegado en su configuración.', ask: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.', full: 'OpenCode aprueba todo permiso que no esté denegado en su configuración. Git queda protegido por el guardián de Incorporaciones.' },
+  claude: { auto: 'Trabaja solo en la carpeta del proyecto. Te pide permiso para tocar algo fuera.', ask: 'Te pide permiso antes de cada cambio.', full: 'Hace todo sin preguntar, salvo acciones peligrosas: sudo, borrar fuera de la carpeta, git push --force, ~/.ssh o /etc y curl | sh.' },
+  codex: { auto: 'Edita dentro del proyecto.', ask: 'Solo lee.', full: 'Hace todo sin preguntar, también fuera del proyecto.' },
+  opencode: { auto: 'Trabaja solo, según la configuración de OpenCode.', ask: 'Te pide permiso antes de cada cambio.', full: 'Hace todo sin preguntar, según la configuración de OpenCode.' },
 };
 
 // Who answers as Phantom: a compact menu in the composer, beside the model it
