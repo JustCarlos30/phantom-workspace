@@ -137,7 +137,10 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const [minimap, setMinimap] = useState(readMinimap);
   const toggleMinimap = () => setMinimap(on => { try { localStorage.setItem('phantom.minimap', on ? 'off' : 'on'); } catch { /* per-viewer preference only */ } return !on; });
   const stopInertia = useCallback(() => { cancelAnimationFrame(inertia.current); inertia.current = null; }, []);
-  useEffect(() => stopInertia, [stopInertia]);
+  useEffect(() => {
+    window.addEventListener('blur', stopInertia);
+    return () => { window.removeEventListener('blur', stopInertia); stopInertia(); };
+  }, [stopInertia]);
   const nodes = useMemo(() => (workspace.nodes || []).filter(n => !n.data?.hidden).sort((a, b) => Number(b.type === 'zone') - Number(a.type === 'zone')), [workspace.nodes]);
   // Terminals and browsers only read these fields; a stable object keeps
   // edits to other panels from re-rendering every terminal.
@@ -164,7 +167,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     }
   }, []);
   const commitCamera = useCallback(next => onCamera(next, workspace.id), [onCamera, workspace.id]);
-  const { camera, cameraRef, updateCamera, navigate, flushCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera, paintCamera);
+  const { camera, cameraRef, updateCamera, navigate: navigateCamera, flushCamera: settleCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera, paintCamera);
+  const navigate = useCallback(next => { stopInertia(); navigateCamera(next); }, [stopInertia, navigateCamera]);
+  const flushCamera = useCallback(() => { stopInertia(); settleCamera(); }, [stopInertia, settleCamera]);
   useLayoutEffect(() => { paintCamera(cameraRef.current); });
   useEffect(() => registerBeforeFlush?.(flushCamera), [registerBeforeFlush, flushCamera]);
   useEffect(() => { wheelGesture.current.reset(); }, [focused]);
@@ -217,12 +222,15 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     if (focused || !size.width || !size.height) return;
     // Rail/focus transitions produce intermediate widths. Only reframe the
     // settled stage, so a round trip through focus keeps the map camera.
+    const scheduled = cameraRef.current;
     const timer = setTimeout(() => {
       const measured = stage.current?.getBoundingClientRect();
       if (!measured || measured.width !== size.width || measured.height !== size.height) return;
       const previous = mapSize.current;
       if (previous?.width === size.width && previous?.height === size.height) return;
       mapSize.current = size;
+      // Deliberate input or navigation during the settle window owns the camera.
+      if (cameraRef.current !== scheduled) return;
       const c = cameraRef.current, a = safeArea();
       // Resize only the view, never persisted panel geometry. Leave deliberate
       // offscreen panels alone; bring previously visible work clear of the shelf.
@@ -445,8 +453,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const step = Math.min(32, now - previous); previous = now;
       const decay = Math.pow(.9935, step);
       vx *= decay; vy *= decay;
-      const c = cameraRef.current;
-      updateCamera({ ...c, x: c.x + vx * step, y: c.y + vy * step });
+      const c = cameraRef.current, next = { ...c, x: c.x + vx * step, y: c.y + vy * step };
+      // Already inside a frame: paint now instead of one frame behind the camera.
+      updateCamera(next); paintCamera(next);
       inertia.current = Math.hypot(vx, vy) > .02 ? requestAnimationFrame(tick) : null;
     };
     inertia.current = requestAnimationFrame(tick);
@@ -467,12 +476,13 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const finish = e => {
     if (!gesture.current) return;
     if (gestureFrame.current !== null) { cancelAnimationFrame(gestureFrame.current); step(); }
-    if (gesture.current.kind === 'pan' && e?.type === 'pointerup') glide(gesture.current);
+    const released = gesture.current;
     Object.entries(previewRef.current).forEach(([id, patch]) => onChange(id, patch)); previewRef.current = {}; setPreview({}); gesture.current = null; setPanning(false); setMarquee(null); flushCamera();
+    if (released.kind === 'pan' && e?.type === 'pointerup') glide(released);
     if (e?.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
   finishRef.current = finish;
-  useEffect(() => () => cancelAnimationFrame(gestureFrame.current), []);
+  useEffect(() => () => { cancelAnimationFrame(gestureFrame.current); gestureFrame.current = null; }, []);
   // Stable callbacks for memoized nodes; they always call the latest closure.
   const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename };
   // Closing a thread or a draft hands the keyboard back to the canvas, so Esc, C and V keep working.

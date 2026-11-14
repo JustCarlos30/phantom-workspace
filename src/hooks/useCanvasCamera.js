@@ -13,6 +13,7 @@ export function useCanvasCamera(value, onCommit, onFrame) {
   const current = useRef(value);
   const rendered = useRef(value);
   const frame = useRef(null), timer = useRef(null), animation = useRef(null);
+  const destination = useRef(null);
   const pending = useRef(false), commit = useRef(onCommit), paint = useRef(onFrame);
   const external = useRef(value);
   commit.current = onCommit;
@@ -20,12 +21,23 @@ export function useCanvasCamera(value, onCommit, onFrame) {
   const render = useCallback(next => { rendered.current = next; setCamera(next); }, []);
   const flush = useCallback(() => {
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    cancelAnimationFrame(frame.current);
+    frame.current = null;
     clearTimeout(timer.current);
+    timer.current = null;
+    // Blur/save can arrive before the first navigation frame. Persist the
+    // requested destination, never an arbitrary intermediate animation frame.
+    if (destination.current) current.current = destination.current;
+    destination.current = null;
+    if (pending.current) paint.current?.(current.current);
     if (rendered.current !== current.current) render(current.current);
     if (pending.current) { pending.current = false; commit.current(current.current); }
   }, [render]);
   const update = useCallback(next => {
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    destination.current = null;
     current.current = next;
     pending.current = true;
     if (frame.current === null) frame.current = requestAnimationFrame(() => {
@@ -39,15 +51,29 @@ export function useCanvasCamera(value, onCommit, onFrame) {
   }, [flush, render]);
   const navigate = useCallback(next => {
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    clearTimeout(timer.current);
+    timer.current = null;
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { update(next); return; }
+    destination.current = next;
+    pending.current = true;
     const start = { ...current.current }, time = performance.now();
     const tick = now => {
+      animation.current = null;
       const progress = Math.min(1, (now - time) / 180), ease = 1 - (1 - progress) ** 3;
-      update(Object.fromEntries(['x', 'y', 'zoom'].map(key => [key, start[key] + (next[key] - start[key]) * ease])));
-      if (progress < 1) animation.current = requestAnimationFrame(tick);
+      // Animation owns its RAF; deliberate input still interrupts via update.
+      if (progress < 1) {
+        current.current = Object.fromEntries(['x', 'y', 'zoom'].map(key => [key, start[key] + (next[key] - start[key]) * ease]));
+        paint.current?.(current.current);
+        if (cameraTier(current.current.zoom) !== cameraTier(rendered.current.zoom)) render(current.current);
+        animation.current = requestAnimationFrame(tick);
+      } else {
+        current.current = next;
+        flush();
+      }
     };
     animation.current = requestAnimationFrame(tick);
-  }, [update]);
+  }, [update, flush, render]);
   useEffect(() => {
     const previous = external.current;
     external.current = value;
@@ -55,7 +81,12 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     // A delayed acknowledgement of our own commit must not interrupt a newer gesture.
     if (pending.current) return;
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    cancelAnimationFrame(frame.current);
+    frame.current = null;
     clearTimeout(timer.current);
+    timer.current = null;
+    destination.current = null;
     pending.current = false;
     current.current = value;
     paint.current?.(value);
@@ -65,8 +96,6 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     window.addEventListener('blur', flush);
     return () => {
       window.removeEventListener('blur', flush);
-      cancelAnimationFrame(frame.current);
-      cancelAnimationFrame(animation.current);
       flush();
     };
   }, [flush]);
