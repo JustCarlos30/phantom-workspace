@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Real production renderer/Electron and an isolated host. The only chat executable
 // is this deterministic Node fixture: no model, external agent or nested task.
@@ -235,7 +236,7 @@ try {
     }
   } finally {
     if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
-    if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+    killElectronGroup(appProcess);
     await rm(profile, { recursive: true, force: true });
   }
 }

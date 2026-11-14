@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Real packaged UI, fresh fixtures only. No replacement bridge or user profile.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -154,6 +155,7 @@ async function closeUI(stopHost = false) {
   const child = app.process();
   // Debugger attachment can retain a windowless Electron. Only terminate our debug process after renderer close.
   if (child.exitCode === null) { child.kill('SIGKILL'); await poll(() => child.exitCode !== null || child.signalCode !== null, 'owned Electron exits'); }
+  killElectronGroup(child);
   app = null;
 }
 async function signalOwnedHost(pid, signal) {
@@ -175,7 +177,7 @@ const watchdog = setTimeout(() => { result.checks.push({ name: '120-second deadl
 let finishing;
 function finish() { return finishing ||= (async () => {
   clearTimeout(watchdog);
-  if (app) { try { await Promise.race([invoke('desktop.quit', { stopHost: true }), delay(1000)]); } catch {} try { app.process().kill('SIGKILL'); } catch {} }
+  if (app) { try { await Promise.race([invoke('desktop.quit', { stopHost: true }), delay(1000)]); } catch {} killElectronGroup(app.process()); }
   for (const pid of ownedHosts) await signalOwnedHost(pid, 'SIGTERM').catch(error => { result.notes.push(`Cleanup host ${pid}: ${error.message}`); });
   for (const pid of ownedShells) { try { const args = (await fs.readFile(`/proc/${pid}/cmdline`, 'utf8')).split('\0'); const cwd = await fs.readlink(`/proc/${pid}/cwd`); if (cwd === workspacePath && args[0]?.endsWith('/sh')) process.kill(pid, 'SIGKILL'); } catch {} }
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
@@ -578,7 +580,7 @@ async function runRecapture() {
   } catch (error) { report.blocker = { message: error.message, stack: error.stack, windowGeometry: await desktop?.evaluate(({ BrowserWindow, screen }) => ({ windows: BrowserWindow.getAllWindows().map(w => ({ bounds: w.getBounds(), contentSize: w.getContentSize(), visible: w.isVisible() })), displays: screen.getAllDisplays().map(d => ({ bounds: d.bounds, workArea: d.workArea, scaleFactor: d.scaleFactor })) })).catch(() => null), rendererGeometry: await window?.evaluate(() => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio })).catch(() => null) }; console.error(error.stack); }
   finally {
     clearTimeout(timeout);
-    if (desktop) { try { await Promise.race([api('desktop.quit', { stopHost: true }), snooze(1500)]); } catch {} try { desktop.process().kill('SIGKILL'); } catch {} }
+    if (desktop) { try { await Promise.race([api('desktop.quit', { stopHost: true }), snooze(1500)]); } catch {} try { killElectronGroup(desktop.process()); } catch {} }
     if (daemon) { try { const args = (await fs.readFile(`/proc/${daemon}/cmdline`, 'utf8')).split('\0'); if (args.includes(profile) && args.some(a => a.endsWith('/host/server.mjs'))) process.kill(daemon, 'SIGTERM'); } catch {} }
     report.finishedAt = new Date().toISOString(); report.summary = { passed: report.checks.filter(c => c.status === 'passed').length, failed: report.checks.filter(c => c.status === 'failed').length }; report.agentImageReview = 'Pending image reads; pixel checks alone do not substitute for review';
     await fs.writeFile(path.join(evidence, 'recapture-checks.json'), JSON.stringify(report, null, 2));

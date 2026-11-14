@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { verifyReviewRender } from '../integrations/video-review.mjs';
 import { safePath } from '../integrations/common.mjs';
-import { validateInterfaceScale } from '../src/hooks/interfaceScale.js';
+import { validateInterfaceScale } from '../shared/interface-scale.mjs';
 
 export const INVOKE_CHANNEL = 'phantom:invoke';
 export const EVENT_CHANNEL = 'phantom:event';

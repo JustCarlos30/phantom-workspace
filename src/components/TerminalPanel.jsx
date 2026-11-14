@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { AlertCircle, ArrowDown, Folder, GitBranch, Minus, Plus, RotateCcw, Square } from 'lucide-react';
+import { AlertCircle, ArrowDown, Folder, GitBranch, Mic, Minus, Plus, RotateCcw, Square } from 'lucide-react';
+import { useVoiceWorkspace } from './VoiceProvider';
 import '@xterm/xterm/css/xterm.css';
 import { subscribe } from '../hooks/useWorkspace';
 import { createTerminalStream } from '../hooks/terminalStream';
@@ -47,6 +48,21 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
   const [setup, setSetup] = useState(null);
   const [readingHistory, setReadingHistory] = useState(false);
   const sessionId = node.data?.sessionId;
+  const { openDictation, registerTerminal } = useVoiceWorkspace();
+  const destination = useRef(null);
+  useEffect(() => {
+    const element = host.current;
+    let mounted = true;
+    const valid = () => mounted && element?.isConnected && !element.closest('[inert]') && connectedRef.current && !!streamRef.current?.canWrite();
+    const target = { kind: 'terminal', label: `${node.title || 'Terminal'} · ${sessionId || 'Sin sesión'}`, sessionId,
+      valid, insert: async text => {
+        if (!valid()) throw new Error('La sesión de destino no admite escritura. Reconecta esa terminal y vuelve a dictar.');
+        await api('terminal.write', { sessionId, data: text });
+      } };
+    destination.current = target;
+    const unregister = registerTerminal(element, target);
+    return () => { mounted = false; unregister(); destination.current = null; };
+  }, [sessionId, workspace.id, node.title, api, registerTerminal]);
   const fontSize = Number.isFinite(node.data?.fontSize) ? Math.min(24, Math.max(12, node.data.fontSize)) : 16;
   const cwd = node.data?.cwd || node.data?.worktree?.path || workspace.canonicalPath || workspace.path;
   const directoryLabel = node.data?.worktree ? `Worktree · ${node.data.worktree.branch || 'HEAD separado'}` : node.data?.worktreeReason ? `Sin worktree · ${node.data.worktreeReason}` : '';
@@ -192,6 +208,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
         {agent.step && <span className="pt-bar-step" title={agent.step}>{agent.step}</span>}
       </div>
       <div className="pt-bar-tools">
+        <button type="button" title="Dictar en esta terminal · Ctrl/Cmd + Shift + M" aria-label="Dictar en esta terminal" disabled={!connected || status !== 'running'} onClick={() => openDictation(destination.current)}><Mic size={15} strokeWidth={1.75} /></button>
         <div className="pt-type" role="group" aria-label="Tamaño del texto de la terminal">
           <button type="button" aria-label="Reducir texto de la terminal" title="Reducir texto" disabled={fontSize <= 12} onClick={() => changeFontSize(fontSize - 1)}><Minus size={13} strokeWidth={1.75} /></button>
           <button type="button" className="pt-type-reset" aria-label={`Tamaño del texto: ${fontSize} píxeles. Restablecer a 16`} title="Restablecer a 16 px" onClick={() => changeFontSize(16)}>{fontSize}</button>

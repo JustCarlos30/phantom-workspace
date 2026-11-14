@@ -24,6 +24,18 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 4. Enfoca un panel y usa **Volver al mapa** o **Ctrl + Mayús + Enter** para regresar. La lista permite encontrar paneles fuera de la cámara y recuperar vistas ocultas.
 5. **Ctrl + K** abre la paleta. El inspector derecho ofrece contexto, tareas, sesiones, Git, servicios y otras herramientas junto a la terminal.
 
+### Dictado por voz
+
+**Dictado por voz**, en la barra de proyectos, y **Ctrl/Cmd + Shift + M** abren el dictado global. Primero enfoca un campo editable o una terminal; el destino y la selección quedan fijados al abrirlo. Las letras normales y los atajos propios de escritura mantienen su comportamiento. La paleta **Ctrl + K** también ofrece Dictado y **Capturar voz o escribir intención**.
+
+Pulsa **Grabar dictado**, después **Detener y transcribir**. Revisa la **Transcripción editable** y pulsa **Insertar en campo** o **Insertar en terminal**. En terminal se comprueba que la misma sesión siga conectada y admita escritura; los saltos de línea y controles se convierten en espacios y **no se envía Enter**. Cambiar de foco no cambia el destino. Si el campo cambió durante la captura, se conserva su borrador y se pide revisar la transcripción.
+
+ChatCard, Phantom y orquestador tienen micrófono propio: añaden la transcripción al borrador, sin enviar mensajes. Sus borradores permanecen en esta ventana al cerrar/reabrir o cambiar de pestaña, separados por proyecto y conversación; recargar la ventana los descarta. Solo hay un dictado activo, desde el permiso del micrófono hasta el final de la transcripción. **Cancelar audio**, Escape o cerrar la captura descartan el resultado pendiente y liberan el micrófono; cambiar de proyecto o desmontar el destino también cancela la captura.
+
+Las ondas violetas responden al nivel real de audio; **Transcribiendo** indica que el micrófono está apagado. Movimiento reducido conserva texto y nivel mediante opacidad, sin movimiento de ondas. El límite por fragmento es **2 minutos o 1 MiB**. Los errores muestran cómo recuperar permisos o configurar el proveedor existente; no se descarga ni se configura un runtime al dictar.
+
+Prueba declarada: `node test/voice-desktop.mjs`, después del build, usa Electron y perfil aislados, audio WebAudio grabado por MediaRecorder y una transcripción **explícitamente sintética**. No evalúa precisión de reconocimiento ni usa el micrófono personal. Las capturas y el informe se escriben en `/tmp/opencode/voice-desktop-*` a 1520×980 y 1100×760. El controlador ejecuta los checks y comunica sus resultados.
+
 ### Plugin Phantom · Centro de mando
 
 Abre **Plugins** en la barra de proyectos y pulsa **Activar Phantom**. La activación y la frecuencia se guardan por proyecto. **Abrir Centro de mando** crea o recupera su panel del canvas; también está disponible en **Ctrl + K** y en el selector del inspector. En Configuración puedes definir las rutas de la CLI y sus datos nativos; no se instala código externo ni hay marketplace.
