@@ -1,4 +1,4 @@
-/* Repositorio · a Git client inside the canvas: sidebar, graph with file tabs, detail. */
+/* Historial · a Git client inside the canvas: sidebar, graph with file tabs, detail. */
 .rp-root {
   --rp-mono: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   --rp-add: var(--success);
@@ -25,7 +25,7 @@
 /* Buttons & inputs */
 .rp-button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); background: var(--surface-2); color: var(--ink); font-size: 12px; font-weight: 550; white-space: nowrap; cursor: pointer; }
 .rp-button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 55%, var(--hairline)); }
-.rp-button.is-primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.rp-button.is-primary { background: var(--on); border-color: var(--on); color: var(--on-ink); }
 .rp-button.is-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .rp-button.is-wide { width: 100%; justify-content: center; }
 .rp-button kbd { color: inherit; opacity: .7; }
@@ -33,7 +33,7 @@
 .rp-icon.is-small { width: 22px; height: 22px; }
 .rp-icon:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
 .rp-search { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); background: var(--bg); color: var(--muted); min-width: 0; }
-.rp-bar .rp-search { flex: 0 1 280px; }
+.rp-bar .rp-search { flex: 0 1 320px; }
 .rp-search:focus-within { border-color: var(--accent); }
 .rp-root .rp-search input { flex: 1; min-width: 0; height: auto; min-height: 0; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; }
 .rp-field { display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
@@ -46,9 +46,6 @@
 
 /* Top bar */
 .rp-bar { flex: none; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 14px; background: var(--surface); }
-.rp-brand { display: flex; align-items: center; gap: 7px; color: var(--accent); }
-.rp-brand b { color: var(--ink); font-size: 15px; font-weight: 600; }
-.rp-bar-stats { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Three columns */
 .rp-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr) minmax(260px, 340px); }
@@ -64,7 +61,7 @@
 .rp-side-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 6px 10px; font-size: 12px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--muted); }
 .rp-side-head .rp-disclosure { gap: 5px; }
 .rp-side-list { margin: 0; padding: 0 4px; list-style: none; }
-.rp-side-item { display: flex; align-items: center; gap: 7px; width: 100%; height: 26px; padding: 0 6px 0 10px; border: 0; border-radius: var(--r-mark); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.rp-side-item { display: flex; align-items: center; gap: 7px; width: 100%; height: 32px; padding: 0 6px 0 10px; border: 0; border-radius: var(--r-mark); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .rp-side-item > svg { color: var(--muted); }
 .rp-side-item > svg.rp-live { color: var(--rp-add); }
 .rp-side-item:hover { background: var(--surface-2); }
@@ -72,13 +69,12 @@
 .rp-side-item.is-selected > svg { color: var(--accent); }
 .rp-side-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-side-badges { display: flex; align-items: center; gap: 3px; flex: none; font-size: 10px; }
-.rp-pill { padding: 0 4px; border-radius: var(--r-mark); font: 600 10px/15px var(--rp-mono); }
-.rp-pill.is-dirty { color: var(--rp-dirty); background: color-mix(in srgb, var(--rp-dirty) 14%, transparent); }
-.rp-pill.is-ahead { color: var(--rp-add); background: color-mix(in srgb, var(--rp-add) 14%, transparent); }
-.rp-pill.is-behind { color: var(--muted); background: var(--surface-2); }
-.rp-qpos { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--r-pill); background: var(--surface-2); font: 600 10px var(--rp-mono); color: var(--muted); flex: none; }
-.rp-qpos.is-merging { background: var(--accent); color: var(--bg); }
-.rp-qpos.is-conflict { background: var(--rp-del); color: var(--bg); }
+.rp-pill { --tone: var(--muted); flex: none; padding: 0 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--tone); font: var(--t-micro); line-height: 18px; white-space: nowrap; }
+.rp-pill[data-tone="working"] { --tone: var(--working); }
+.rp-pill[data-tone="attention"] { --tone: var(--attention); }
+.rp-pill[data-tone="success"] { --tone: var(--success); }
+.rp-pill[data-tone="danger"] { --tone: var(--danger); }
+.rp-pill[data-tone="neutral"] { background: var(--fill-2); }
 
 /* Tabs */
 .rp-tabs { flex: none; display: flex; align-items: stretch; gap: 1px; height: 34px; padding: 0 6px; border-bottom: 1px solid var(--hairline); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
@@ -95,7 +91,6 @@
 .rp-center-body { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .rp-tab-panel { position: absolute; inset: 0; }
 .rp-tab-panel[hidden] { display: none; }
-.rp-inc { position: absolute; inset: 0; overflow: auto; padding: 14px 18px; }
 
 /* Graph */
 .rp-graph { --rp-dirty: var(--warning); position: absolute; inset: 0; overflow: auto; }
@@ -170,11 +165,9 @@
 /* Detail */
 .rp-detail-body { display: grid; align-content: start; }
 .rp-detail-head { display: grid; gap: 6px; padding: 14px 14px 12px; }
-.rp-kicker { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.rp-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 12px; color: var(--muted); }
 .tw-content .rp-detail-title, .rp-detail-title { margin: 0; font-size: 14px; font-weight: 650; line-height: 1.35; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .rp-commit-body { margin: 0; white-space: pre-wrap; font: 12px/1.5 system-ui, sans-serif; color: var(--ink); opacity: .85; max-height: 160px; overflow: auto; }
-.rp-path { font: 11px var(--rp-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rp-summary { font-size: 12px; }
 .rp-parents { font-size: 12px; color: var(--muted); }
 .rp-notice { font-size: 12px; padding: 6px 8px; border-radius: var(--r-ctl); background: var(--surface-2); }
 .rp-notice.is-ok { color: var(--rp-add); }
@@ -196,23 +189,12 @@
 .rp-same { flex: none; font-size: 10px; color: var(--muted); }
 .rp-finder { display: grid; gap: 6px; margin-top: 4px; padding: 8px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); background: var(--bg); max-height: 320px; overflow: auto; }
 .rp-commit { display: grid; gap: 8px; padding: 12px 14px 16px; }
-
-/* Worktree ↔ Phantom Card */
-.rp-cards { display: grid; gap: 6px; margin: 2px 0; }
-.rp-card { display: flex; align-items: flex-start; gap: 9px; width: 100%; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); background: var(--surface-2); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
-.rp-card.is-bound { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface-2)); }
-.rp-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 55%, var(--hairline)); }
-.rp-card:disabled { cursor: default; }
-.rp-card-icon { flex: none; margin-top: 2px; color: var(--accent); }
-.rp-card-text { display: grid; gap: 2px; min-width: 0; }
-.rp-card-title { font-size: 13px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.rp-card-meta { font-size: 11px; color: var(--muted); }
-.rp-card-meta code { font-size: 10px; }
-.rp-card-status { font-weight: 600; }
-.rp-card-status.is-live { color: var(--accent); }
-.rp-card-status.is-done { color: var(--rp-add); }
-.rp-card-status.is-blocked { color: var(--rp-del); }
-.rp-nocard { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); padding: 5px 8px; border-radius: var(--r-ctl); }
+.rp-facts { padding: 4px 14px 16px; font-size: 12px; }
+.rp-facts summary { width: fit-content; color: var(--muted); cursor: pointer; }
+.rp-facts dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 8px 0 0; }
+.rp-facts dt { color: var(--muted); }
+.rp-facts dd { margin: 0; overflow-wrap: anywhere; }
+.rp-facts .rp-link { margin-right: 0; }
 
 /* Change mix: a stacked bar + legend over the file list */
 .rp-mix { display: grid; gap: 6px; padding: 2px 6px 4px; }
@@ -238,19 +220,7 @@
 .rp-dirhead > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
 .rp-dirhead .rp-count { font-family: system-ui, sans-serif; }
 
-/* Sidebar worktree items: name, the Card it works for, and a thin change mix */
-.rp-side-item.is-tree { height: auto; min-height: 26px; padding-top: 5px; padding-bottom: 5px; align-items: flex-start; }
-.rp-side-item.is-tree > svg { margin-top: 2px; }
-.rp-side-item.is-tree .rp-side-badges { margin-top: 1px; }
-.rp-side-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.rp-side-card, .rp-side-sub { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rp-side-card { color: color-mix(in srgb, var(--accent) 75%, var(--ink)); }
-.rp-side-card > svg { flex: none; }
-.rp-side-card > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.rp-side-mix { display: flex; gap: 1px; height: 3px; margin-top: 2px; border-radius: var(--r-mark); overflow: hidden; opacity: .85; }
-.rp-side-mix i { flex: 1 1 0; min-width: 3px; }
 .rp-status-label { flex: none; font-size: 10px; color: var(--muted); }
-.rp-side-card b { flex: none; margin-left: auto; font-size: 10px; color: var(--muted); }
 
 @container (max-width: 1100px) { .rp-main { grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(240px, 280px); } .rp-graph-head, .rp-graph-row { grid-template-columns: var(--graph-width, 78px) minmax(0, 140px) minmax(100px, 1fr) 0 70px 58px; } .rp-author { visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .rp-root .spinning { animation: none; } }

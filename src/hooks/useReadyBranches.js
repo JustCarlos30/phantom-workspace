@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { readyLabel, trackReady } from './ready-branches.mjs';
+import { readyLabel, readySummary, readyTitle, trackReady } from './ready-branches.mjs';
 
 export function useReadyBranches(api, workspace, connection, notify) {
   const tracking = useRef(null);
@@ -32,16 +32,16 @@ export function useReadyBranches(api, workspace, connection, notify) {
         if (!Array.isArray(overview?.branches)) return;
         const result = trackReady(tracker.seen, overview);
         tracker.seen = result.seen;
-        if (result.initial.length) notify(`${result.initial.length} ramas listas para integrar`);
+        if (result.initial.length === 1) notify(`Lista para integrar: ${readyTitle(result.initial[0])}`);
+        else if (result.initial.length) notify(readySummary(result.initial.length));
         if (result.fresh.length > 3) {
-          const summary = `${result.fresh.length} ramas listas para integrar`;
+          const summary = readySummary(result.fresh.length);
           notify(summary);
           void desktopNotify(summary);
         } else {
           for (const row of result.fresh) {
-            const label = readyLabel(row);
-            notify(`Lista para integrar: ${label}`);
-            void desktopNotify(label);
+            notify(`Lista para integrar: ${readyTitle(row)}`);
+            void desktopNotify(readyLabel(row));
           }
         }
       } catch { /* Retry on the next poll without repeated error toasts. */ }

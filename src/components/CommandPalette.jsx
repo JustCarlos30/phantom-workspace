@@ -16,7 +16,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
     ...(workspace ? [
       ...HUB_ORDER.flatMap(id => [{ title: HUBS[id].name, group: 'Ir a', action: { type: 'create', panelType: id } }, ...HUBS[id].tabs.slice(1).map(tab => ({ title: `${HUBS[id].name} · ${tab[1]}`, group: 'Ir a', action: { type: 'create', panelType: tab[2] === 'sites' ? id : tab[2] } }))]),
       { title: 'Configuración', group: 'Ir a', action: { type: 'tool', tab: 'settings' } },
-      { title: 'Conexiones del proyecto', group: 'Ir a', action: { type: 'create', panelType: 'plugins' } },
+      { title: 'Configuración · Conexiones', group: 'Ir a', action: { type: 'tool', tab: 'plugins' } },
       { title: 'Ver todo el mapa', group: 'Navegación', action: { type: 'fit-all' } },
       { title: 'Buscar paneles del proyecto', group: 'Navegación', action: { type: 'panels' } },
       { title: 'Preguntar a Phantom', group: workspace.name, action: { type: 'phantom-chat' } },

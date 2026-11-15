@@ -27,7 +27,7 @@ export function ProviderBadge({ provider }) {
   return <span className={`pt-provider is-${provider.kind}`} title={provider.source}><ProviderTile provider={providerKey(provider.name, provider.kind)} /><span>{provider.name}</span></span>;
 }
 
-const SCREEN_LABELS = { approval: 'Pide tu aprobación', turn: 'Terminó · tu turno' };
+const SCREEN_LABELS = { approval: 'Pide permiso', turn: 'Terminó · tu turno' };
 
 // The screen outranks a declared 'working': a visible question means it waits on you.
 export function effectiveStatus(agent, screenState) {

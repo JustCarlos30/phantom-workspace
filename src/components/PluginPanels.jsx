@@ -10,7 +10,7 @@ import { Button, ErrorNotice, ResourceState, useResource } from './PluginPrimiti
 import '../plugins.css';
 
 export const PLUGIN_PANELS = PLUGIN_MANIFESTS.flatMap(plugin => plugin.panels.map(panel => ({ ...panel, pluginId: plugin.id })));
-export const PLUGIN_TITLES = Object.fromEntries([['plugins', 'Centro de Plugins'], ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name])]);
+export const PLUGIN_TITLES = Object.fromEntries([['plugins', 'Configuración'], ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name])]);
 
 // A panel whose source is switched off for this project. One action turns it
 // on right here; nothing is lost while it is off.
@@ -47,7 +47,6 @@ function Content({ type, ...props }) {
     }
     return result;
   }, [api, panel?.id, panel?.pluginId]);
-  if (type === 'plugins') return <PluginCenter {...props} />;
   if (!workspace?.id) return <EmptyState className="tw-empty" description="Selecciona un proyecto." />;
   if (!registry.data && (registry.loading || registry.error)) return <ResourceState resource={registry} />;
   if (!Array.isArray(registry.data?.items)) return <ErrorNotice error="El registro de plugins no es válido." retry={registry.reload} />;
@@ -57,5 +56,6 @@ function Content({ type, ...props }) {
 }
 
 export function PluginPanels(props) {
+  if (props.type === 'plugins') return <PluginCenter key={props.workspace?.id || 'none'} {...props} />;
   return <div className="plugin-surface"><Content key={`${props.workspace?.id || 'none'}:${props.type}:${props.node?.id || 'inspector'}`} {...props} /></div>;
 }

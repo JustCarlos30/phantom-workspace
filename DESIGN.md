@@ -172,7 +172,7 @@ Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones est�
 
 Sin pestañas laterales de color para categorías: el tipo se lee en glifo y etiqueta. Skills usa libro; `ShellIcons.jsx` exporta `BookIcon` y lo asocia a `phantom-skills`.
 
-Estado del presupuesto: chat 14, terminal 1 y chat lateral 1. Plugins 9, Skills 4 y Repository 12: cabeceras, segmentados, listas y pozos de lectura se separan por espacio y tono; los bordes restantes incluyen campos, estados y guías estructurales. `test/design-budget.json` conserva el recuento exigible por hoja.
+Estado del presupuesto: chat 14, terminal 1 y chat lateral 1. Plugins 9, Skills 4 y Repository 11: cabeceras, segmentados, listas y pozos de lectura se separan por espacio y tono; los bordes restantes incluyen campos, estados y guías estructurales. `test/design-budget.json` conserva el recuento exigible por hoja.
 
 `src/studio.css` tiene presupuesto de 8 bordes, incluido `.interface-scale select`, el selector nativo de escala de interfaz en Apariencia. Su borde `--hairline` delimita el área donde se elige un valor; `focus-visible` identifica el foco de teclado. Es un borde funcional de formulario, contabilizado en ese presupuesto.
 
@@ -192,7 +192,9 @@ Dirección aprobada por Carlos el 2026-11-14 («que todo se sienta fácil», ref
 | Contexto | Documentos y memoria · Skills |
 | Automatizar | Secuencias · Navegador · Código |
 
-**Una bandeja.** «Te necesitan» reúne todo lo que espera una decisión, en dos grupos: «Decide ahora» y «Cuando puedas». Un solo contador.
+`App.jsx` reutiliza el panel existente de cada destino al abrirlo. `ToolPanels.jsx` recuerda la pestaña elegida en localStorage (`phantom.hub.${type}`, por tipo de destino); una petición explícita de pestaña prevalece sobre ese recuerdo. Las aperturas dirigidas a una tarea (`cardId`), referencia (`ref`) o panel (`focusNodeId`) conservan su destino dedicado en lugar de convertirse en un panel unificado.
+
+**Una bandeja.** Rail y campana abren «Te necesitan», con vistas Pendientes, En curso y Hoy. Pendientes separa «Decide ahora» (permisos, preguntas, tareas o sesiones bloqueadas y problemas de integración) de «Cuando puedas» (ramas listas, cambios sin guardar en la base y cola sin nadie integrando). El contador compartido solo cuenta «Decide ahora»; el modelo evita repetir la misma sesión entre fuentes cuando ya está representada. Los permisos se aprueban o rechazan en la fila y las preguntas ofrecen sus opciones o llevan al chat/sesión para responder. Las demás acciones abren la tarea, sesión, Git o el orquestador; abrir la bandeja no resuelve pendientes. Sin conexión se indica el estado y se desactivan las respuestas; una fuente fallida muestra aviso y Reintentar.
 
 **Una Configuración**, por categorías, con filas agrupadas. Las fuentes del proyecto se «conectan»; la palabra plugin no aparece en la interfaz.
 
@@ -322,9 +324,24 @@ El drawer retiene Tab/Shift+Tab, empieza en cerrar, cierra con Escape o scrim y 
 
 El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el rail el offset es −2 px para no recortarlo. La nota usa el caret sin segundo contorno interior. xterm conserva la propiedad del cursor y de la entrada, sin contorno genérico en su textarea auxiliar.
 
-### Apariencia y persistencia local
+### Configuración, Apariencia y persistencia local
 
-Disponible desde el rail, selector contextual y paleta; ocupa el inspector no modal. Las opciones de fondo existentes usan CSS y assets locales, con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos existentes Violeta, Iris, Menta, Arena, Rosa y Cian. «Intensidad ambiental» y «Presencia de Gengar» tienen salida numérica independiente; «Mostrar Gengar», «Pulso ambiental», «Concentración» y retícula son checkboxes etiquetados. Restablecer devuelve Gengar/Violeta/retícula ON/ambiente 55 %/personaje ON al 55 %/pulso OFF/concentración OFF/sin imagen.
+`Settings.jsx` reúne la configuración en una hoja del inspector no modal. El botón del rail y la acción `settings` de la paleta abren Configuración; la ruta `appearance` abre su categoría Apariencia y la ruta anterior `plugins` abre Conexiones (`Inspector.jsx`). En ancho reducido se muestra primero la lista de categorías y luego su contenido, con regreso a Configuración. `ToolPanels.jsx` también admite el tipo de panel `settings`: carga los ajustes con `state.get` si no recibe el estado; Apariencia solo aparece cuando recibe sus controles, disponibles en el inspector de `App.jsx`.
+
+| Categoría | Contenido implementado |
+|---|---|
+| Agentes | Agente y shell de sesiones nuevas; activación de tareas y memoria de Phantom por proyecto, modelo, ejecutable y carpeta de datos; estado de las cuentas disponibles |
+| Git e integración | Integración automática y comando de pruebas antes de integrar, por proyecto |
+| Apariencia | Fondo, acento, escala de interfaz, ambiente, personaje, concentración y retícula |
+| Voz | Proveedor, modelo, URL de API, comando local y salida del motor; comando para instalar o actualizar el motor local |
+| Teléfono | Controles existentes de `MobileSettings` y `AndroidGatewaySettings` |
+| Conexiones | Bitácora de videos desde Markdown y su apertura; Convenciones cuando su fuente está lista, por proyecto |
+| Datos y respaldo | Exportación con historial opcional, selección y confirmación de importación JSON, carpeta de datos |
+| Avanzado | Cerrar solo la ventana o detener todo y salir, con confirmación si hay actividad; versión y detalles del equipo |
+
+Los campos de texto se editan como borradores con Guardar y Descartar; los selectores e interruptores guardan al cambiar. Shell y voz usan `settings.update`; el agente predeterminado se guarda en localStorage como `phantom.cardMode`. La configuración de Phantom actualiza valores propios del proyecto con `plugins.update` cuando ya existen y usa los ajustes generales para los demás. Conexiones usa `plugins.update` y Git `merge.configure`, ambos con el proyecto explícito; Git y Conexiones piden abrir un proyecto si falta. Los fallos de carga y guardado conservan mensajes visibles. Estas rutas de persistencia son distintas de las preferencias locales de Apariencia descritas a continuación.
+
+Las opciones de fondo de Apariencia usan CSS y assets locales, con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos existentes Violeta, Iris, Menta, Arena, Rosa y Cian. «Intensidad ambiental» y «Presencia de Gengar» tienen salida numérica independiente; «Mostrar Gengar», «Pulso ambiental», «Concentración» y retícula son checkboxes etiquetados. Restablecer devuelve Gengar/Violeta/retícula ON/ambiente 55 %/personaje ON al 55 %/pulso OFF/concentración OFF/sin imagen.
 
 Las preferencias se guardan sincrónicamente en localStorage bajo `phantom:studio:${workspaceId || 'default'}`, por proyecto y perfil local. Cambiar proyecto carga sus preferencias sin copiarlas del anterior. La versión 3 conserva fondo, acento v2 (incluido Iris explícito), retícula, imagen, intensidad y campos desconocidos; migra la presencia antigua según fondo Gengar/sin imagen y copia su intensidad anterior al nuevo deslizador del personaje. Solo Iris anterior a v2 conserva la migración histórica a Violeta. Pulso y concentración nuevos nacen OFF. La lectura normaliza sin sobrescribir el original; el siguiente cambio guarda v3. JSON inválido recupera defaults; claves, booleanos, intensidades finitas 0–100 e imagen se validan. Un fallo al escribir notifica y no aplica el cambio. Es almacenamiento local, no sincronización cloud.
 
