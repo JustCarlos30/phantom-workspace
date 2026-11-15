@@ -1,0 +1,50 @@
+.mobile-settings {
+  container-type: inline-size;
+  color: var(--ink);
+  font: var(--t-body);
+}
+.mobile-settings p { margin: 8px 0; overflow-wrap: anywhere; }
+.mobile-settings h4 { margin: 0 0 10px; font: var(--t-headline); }
+.mobile-settings .tw-field { margin-bottom: 0; font: var(--t-support); }
+.mobile-settings .tw-muted, .mobile-help { font: var(--t-support); }
+.mobile-header { margin-bottom: 20px; }
+.mobile-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.mobile-settings .mobile-title h3 { font: var(--t-title); }
+.mobile-badge { padding: 2px 8px; border-radius: var(--r-pill); background: var(--fill-2); color: var(--muted); font: var(--t-micro); }
+.mobile-badge[data-state="active"] { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+.mobile-badge[data-state="error"] { color: var(--danger); background: var(--error-bg); }
+.mobile-network { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 16px 0; }
+.mobile-config { margin-bottom: 16px; }
+.mobile-config > button { align-self: flex-start; }
+.mobile-runtime { margin-bottom: 20px; font: var(--t-support); }
+.mobile-steps { list-style: none; counter-reset: mobile-step; padding: 0; margin: 24px 0; display: grid; gap: 24px; }
+.mobile-steps > li { counter-increment: mobile-step; position: relative; padding-left: 36px; min-width: 0; }
+.mobile-steps > li::before { content: counter(mobile-step); position: absolute; left: 0; top: 0; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--fill-2); color: var(--ink); font: var(--t-control); }
+.mobile-value { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; padding: 10px; background: var(--surface); border-radius: var(--r-ctl); }
+.mobile-value .tw-field { flex: 1 1 160px; }
+.mobile-settings .mobile-value input, .mobile-settings .mobile-value textarea { font-family: var(--mono); background: transparent; border: 0; padding-inline: 0; box-shadow: none; }
+.mobile-value-stack { flex-direction: column; align-items: stretch; }
+.mobile-value-stack .tw-field { flex-basis: auto; }
+.mobile-value-stack > button { align-self: flex-end; }
+.mobile-mono input { font-family: var(--mono); }
+.mobile-countdown { display: inline-block; padding: 4px 8px; border-radius: var(--r-ctl); background: var(--fill-2); font: var(--t-micro); font-variant-numeric: tabular-nums; }
+.mobile-devices { display: grid; gap: 12px; margin-top: 24px; }
+.mobile-devices > h4 { margin-bottom: 0; }
+.mobile-device { padding: 12px; border-radius: var(--r-obj); background: var(--fill); min-width: 0; }
+.mobile-device-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.mobile-device-row > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mobile-device small { display: block; margin-top: 4px; color: var(--muted); font: var(--t-support); }
+.mobile-permissions { border: 0; padding: 0; margin: 8px 0; min-width: 0; }
+.mobile-permissions legend { padding: 0; font: var(--t-control); }
+.mobile-settings .tw-check { align-items: flex-start; font: var(--t-control); }
+.mobile-authority { color: var(--attention); padding-block: 8px; font: var(--t-support); }
+.mobile-authority .tw-check { color: var(--attention); }
+.mobile-stop { margin-top: 28px; }
+.mobile-help { margin-top: 20px; color: var(--muted); }
+.mobile-help summary { cursor: pointer; color: var(--ink); padding-block: 8px; }
+.mobile-settings :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@container (max-width: 420px) {
+  .mobile-network { grid-template-columns: minmax(0, 1fr); }
+  .mobile-steps > li { padding-left: 32px; }
+  .mobile-value > button { width: 100%; }
+}
