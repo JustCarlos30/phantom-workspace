@@ -19,7 +19,7 @@ export function providerOf(node, foreground) {
 }
 
 export function sessionLabel(status, preparing) {
-  if (preparing) return 'Creando worktree…';
+  if (preparing) return 'Preparando la sesión…';
   return { running: 'En ejecución', connecting: 'Conectando…', disconnected: 'Sin conexión', exited: 'Finalizada', lost: 'Sin sesión activa' }[status] || 'Sin sesión activa';
 }
 
@@ -27,7 +27,7 @@ export function ProviderBadge({ provider }) {
   return <span className={`pt-provider is-${provider.kind}`} title={provider.source}><ProviderTile provider={providerKey(provider.name, provider.kind)} /><span>{provider.name}</span></span>;
 }
 
-const SCREEN_LABELS = { approval: 'Pide tu aprobación', turn: 'Terminó · tu turno' };
+const SCREEN_LABELS = { approval: 'Pide permiso', turn: 'Terminó · tu turno' };
 
 // The screen outranks a declared 'working': a visible question means it waits on you.
 export function effectiveStatus(agent, screenState) {
@@ -46,7 +46,10 @@ export function locationOf(node, workspace) {
   const cwd = node.data?.cwd || node.data?.worktree?.path || workspace.canonicalPath || workspace.path || '';
   const folder = cwd.split('/').filter(Boolean).pop() || cwd || 'Carpeta desconocida';
   const branch = node.data?.worktree ? node.data.worktree.branch || 'HEAD separado' : null;
-  return { cwd, folder, branch };
+  // A branch Phantom made for the session is named after an id: say the project instead.
+  const own = branch && /^phantom\/terminal-/.test(branch);
+  const where = !branch || own ? workspace?.name || folder : `${branch} · ${workspace?.name || folder}`;
+  return { cwd, folder, branch, where };
 }
 
 export default function TerminalCard({ node, workspace, api, notify, overview = false, connected = true, onOpen, onRelaunch }) {
@@ -59,11 +62,11 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
   const state = effectiveStatus(agent, tail?.screenState);
   const preparing = !sessionId && node.data?.launchState === 'creating';
   const status = !connected ? 'disconnected' : !sessionId ? 'lost' : tail?.status || 'connecting';
-  const { cwd, folder, branch } = locationOf(node, workspace);
+  const { cwd, branch, where } = locationOf(node, workspace);
   const alternate = tail?.screen === 'alternate';
   const currentLine = tail?.lines?.findLastIndex(line => line.trim()) ?? -1;
   const ended = !preparing && (status === 'lost' || status === 'exited');
-  const emptyText = preparing ? 'Preparando el worktree de esta terminal…'
+  const emptyText = preparing ? 'Preparando una copia del proyecto para esta sesión…'
     : !sessionId ? node.data?.launchError || 'Sin sesión activa. Inicia una nueva para continuar.'
     : error ? `No se pudo leer la salida: ${error}`
     : !tail ? 'Leyendo la salida…' : 'Sin salida todavía.';
@@ -81,7 +84,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
       {tail?.lines?.length ? <pre>{alternate ? tail.lines.join('\n') : tail.lines.map((line, index) => <React.Fragment key={index}><span className={`pt-card-line${index === currentLine ? ' is-current' : ''}`}>{line}</span>{index < tail.lines.length - 1 ? '\n' : null}</React.Fragment>)}</pre> : preparing || !sessionId || error || !tail ? <p className="pt-card-status" role="status">{emptyText}</p> : <EmptyState className="pt-card-empty" description={emptyText} />}
     </div>}
     {!overview && <footer className="pt-card-footer">
-      <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
+      <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{where}</span></span>
       <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>
       {ended && <button type="button" className="pt-card-action" onClick={() => onRelaunch(node)}><RotateCcw size={14} aria-hidden="true" />Nueva sesión</button>}
       <button type="button" className="pt-card-action is-primary" onClick={onOpen} title="Abrir terminal · doble clic">Abrir<ArrowUpRight size={14} aria-hidden="true" /></button>

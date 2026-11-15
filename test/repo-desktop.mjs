@@ -8,7 +8,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright';
 import { createHost } from '../host/server.mjs';
 
-// Repositorio panel on the canvas against a real host. By default it reads a
+// Historial panel on the canvas against a real host. By default it reads a
 // SYNTHETIC repository built in /tmp; REPO_REAL=<repo> reads that repository
 // instead (read-only: file writes are refused). Captures stay outside the repo.
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -59,7 +59,7 @@ try {
   await page.waitForSelector('.rp-diff-row');
   await page.screenshot({ path: path.join(evidence, '02-commit-diff.png') });
 
-  // A worktree with uncommitted work: diff, then editor.
+  // A session with unsaved work: diff, then editor.
   const dirty = page.locator('.rp-side-item', { has: page.locator('.rp-pill.is-dirty') }).first();
   if (await dirty.count()) {
     await dirty.click();
@@ -78,9 +78,9 @@ try {
     }
     await page.screenshot({ path: path.join(evidence, '04-editor.png') });
   }
-  await page.locator('.rp-tab', { hasText: 'Incorporaciones' }).click();
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(evidence, '05-integrations.png') });
+  // The queue lives in Git › Cola: Historial has no tab or sidebar section for it.
+  assert.equal(await page.locator('.rp-tab', { hasText: 'Incorporaciones' }).count(), 0);
+  assert.deepEqual(await page.locator('.rp-side-head').allTextContents().then(items => items.map(text => text.replace(/\d+$/, ''))), ['Sesiones']);
   assert.deepEqual(errors, []);
   console.log(`Repositorio review OK · ${evidence}`);
 } finally {

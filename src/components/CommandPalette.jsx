@@ -1,32 +1,29 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
-import { Button, TOOL_TITLES } from './ToolPanels.jsx';
+import { Button } from './ToolPanels.jsx';
+import { HUBS, HUB_ORDER } from '../hooks/hubs.mjs';
 import { Presence } from './Presence';
 import '../tools.css';
-import { PLUGIN_MANIFESTS } from '../../shared/plugins.mjs';
 import EmptyState from './EmptyState.jsx';
 
 export function CommandPalette({ open, onClose, workspace, onAction }) {
   const [query, setQuery] = useState(''), [selected, setSelected] = useState(0);
   const input = useRef(null), dialog = useRef(null), previousFocus = useRef(null), listId = useId();
   const actions = useMemo(() => [
-    { title: 'Abrir carpeta', group: 'Workspace', action: { type: 'openFolder' } },
-    { title: 'Abrir Sitios globales', group: 'Navegación', action: { type: 'sites' } },
-    { title: 'Personalizar espacio · fondo y apariencia', group: 'Workspace', action: { type: 'appearance' } },
+    { title: 'Abrir carpeta', group: 'Proyecto', action: { type: 'openFolder' } },
+    { title: 'Apariencia', group: 'Ir a', action: { type: 'appearance' } },
     ...(workspace ? [
-      { title: 'Abrir catálogo de Skills', group: 'Herramientas', action: { type: 'create', panelType: 'skills-catalog' } },
-      { title: 'Abrir Centro de mando', group: 'Plugins', action: { type: 'create', panelType: 'command-center' } },
-      { title: 'Abrir Centro de Plugins', group: 'Plugins', action: { type: 'create', panelType: 'plugins' } },
-      ...PLUGIN_MANIFESTS.filter(plugin => workspace.plugins?.[plugin.id]?.enabled).flatMap(plugin => plugin.actions.map(action => ({ title: action.name, group: plugin.name, action: { type: 'create', panelType: plugin.panels.find(panel => panel.id === action.panelId).nodeType, data: { pluginId: plugin.id, panelId: action.panelId } } }))),
+      ...HUB_ORDER.flatMap(id => [{ title: HUBS[id].name, group: 'Ir a', action: { type: 'create', panelType: id } }, ...HUBS[id].tabs.slice(1).map(tab => ({ title: `${HUBS[id].name} · ${tab[1]}`, group: 'Ir a', action: { type: 'create', panelType: tab[2] === 'sites' ? id : tab[2] } }))]),
+      { title: 'Configuración', group: 'Ir a', action: { type: 'tool', tab: 'settings' } },
+      { title: 'Configuración · Conexiones', group: 'Ir a', action: { type: 'tool', tab: 'plugins' } },
       { title: 'Ver todo el mapa', group: 'Navegación', action: { type: 'fit-all' } },
       { title: 'Buscar paneles del proyecto', group: 'Navegación', action: { type: 'panels' } },
       { title: 'Preguntar a Phantom', group: workspace.name, action: { type: 'phantom-chat' } },
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
       { title: 'Dictado por voz · Ctrl/Cmd + Shift + M', group: workspace.name, action: { type: 'dictation' } },
-      ...Object.entries(TOOL_TITLES).filter(([tab]) => tab !== 'mission' && tab !== 'skills-catalog' && !PLUGIN_MANIFESTS.some(plugin => plugin.panels.some(panel => panel.nodeType === tab))).map(([tab, title]) => ({ title, group: 'Herramientas', action: { type: 'tool', tab } })),
-      ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: `Panel · ${node.type}`, action: { type: 'panel', id: node.id } })),
-      ...['terminal', 'browser', 'note', 'tasks', 'context', 'repo', 'git', 'branches', 'incorporaciones', 'services', 'docker', 'mission', 'workflows', 'playwright', 'playground'].map(panelType => ({ title: `Crear ${TOOL_TITLES[panelType] || ({ terminal: 'terminal', browser: 'navegador', note: 'nota' })[panelType]}`, group: 'Nuevo panel', action: { type: 'create', panelType } })),
+      ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: 'En el mapa', action: { type: 'panel', id: node.id } })),
+      ...[['terminal', 'Nueva terminal'], ['browser', 'Nuevo navegador'], ['note', 'Nueva nota'], ['zone', 'Nueva zona']].map(([panelType, title]) => ({ title, group: 'Crear', action: { type: 'create', panelType } })),
     ] : []),
   ], [workspace]);
   const results = actions.filter(item => `${item.title} ${item.group}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));

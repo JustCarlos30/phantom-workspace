@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isReadyToMerge, readyLabel, trackReady } from './ready-branches.mjs';
+import { isReadyToMerge, readyLabel, readySummary, readyTitle, trackReady } from './ready-branches.mjs';
 
 const row = (patch = {}) => ({ name: 'phantom/feature', oid: 'one', isBase: false, work: 'ready', ahead: 2, behind: 0, changeCount: 0, conflicts: [], terminal: null, ...patch });
 const overview = (...branches) => ({ available: true, branches });
@@ -45,8 +45,11 @@ test('leaving readiness or disappearing drops the tip so returning with the same
   }
 });
 
-test('labels prefer terminal titles and otherwise strip only the phantom prefix', () => {
+test('labels use the session name, never a UUID, and agree in number', () => {
   assert.equal(readyLabel(row({ terminal: { title: 'Mi tarea' } })), 'Mi tarea · 2 commits');
   assert.equal(readyLabel(row()), 'feature · 2 commits');
-  assert.equal(readyLabel(row({ name: 'feature/nested', ahead: 1 })), 'feature/nested · 1 commits');
+  assert.equal(readyLabel(row({ name: 'feature/nested', ahead: 1 })), 'feature/nested · 1 commit');
+  assert.equal(readyTitle(row({ name: 'phantom/terminal-362f2765-6c0b-498c-81c8-aab82e02f145' })), 'Sesión cerrada · 362f2765');
+  assert.equal(readySummary(1), '1 rama lista para integrar');
+  assert.equal(readySummary(4), '4 ramas listas para integrar');
 });

@@ -1,3 +1,5 @@
+import { branchTitle } from './branches-model.mjs';
+
 export function isReadyToMerge(row) {
   return !row.isBase && row.work === 'ready' && row.ahead > 0
     && row.changeCount === 0 && Array.isArray(row.conflicts) && row.conflicts.length === 0
@@ -13,6 +15,15 @@ export function trackReady(seen, overview) {
   };
 }
 
+// The session's name; a closed session is named after its branch, never a UUID.
+export function readyTitle(row) {
+  return row.terminal?.title || branchTitle(row.name).replace(/^phantom\//, '');
+}
+
 export function readyLabel(row) {
-  return `${row.terminal?.title || row.name.replace(/^phantom\//, '')} · ${row.ahead} commits`;
+  return `${readyTitle(row)} · ${row.ahead} ${row.ahead === 1 ? 'commit' : 'commits'}`;
+}
+
+export function readySummary(count) {
+  return count === 1 ? '1 rama lista para integrar' : `${count} ramas listas para integrar`;
 }

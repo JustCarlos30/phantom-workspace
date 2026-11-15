@@ -81,3 +81,26 @@ export function ResourceState({ resource, empty = 'No hay elementos.' }) {
   if (empty && Array.isArray(resource.data?.items) && !resource.data.items.length) return <EmptyState className="plugin-empty tw-empty" description={empty} />;
   return null;
 }
+
+// Grouped-list primitives for Configuración (styles in settings.css): a group
+// is one rounded object, a row is a label with its value or control on the right.
+export function Group({ title, note, children }) {
+  return <section className="st-group">{title && <h3>{title}</h3>}<div className="st-list">{children}</div>{note && <p className="st-note">{note}</p>}</section>;
+}
+export function Row({ label, hint, htmlFor, children, stack }) {
+  return <div className={`st-row${stack ? ' is-stack' : ''}`}><div className="st-row-text">{htmlFor ? <label htmlFor={htmlFor}>{label}</label> : <span>{label}</span>}{hint && <small>{hint}</small>}</div>{children != null && children !== false && <div className="st-row-control">{children}</div>}</div>;
+}
+export function Switch({ checked, onChange, label, disabled }) {
+  return <button type="button" role="switch" className="st-switch" aria-checked={!!checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)}><i aria-hidden="true" /></button>;
+}
+export function Segmented({ label, value, options, onChange, disabled }) {
+  return <div className="st-seg" role="radiogroup" aria-label={label}>{options.map(([id, name]) => <button key={String(id)} type="button" role="radio" aria-checked={value === id} disabled={disabled} onClick={() => onChange(id)}>{name}</button>)}</div>;
+}
+export function TextRow({ label, hint, value, onChange, placeholder, type = 'text', mono, disabled, list, onFocus, readOnly, children }) {
+  const id = useId();
+  return <Row label={label} hint={hint} htmlFor={id}><input id={id} className={`st-input${mono ? ' is-mono' : ''}`} type={type} value={value} placeholder={placeholder} disabled={disabled} readOnly={readOnly} list={list} onFocus={onFocus} spellCheck={false} onChange={event => onChange?.(event.target.value)} />{children}</Row>;
+}
+export function CopyButton({ value, label = 'Copiar' }) {
+  const [copied, setCopied] = useState(false);
+  return <button type="button" className="st-btn" disabled={!value} onClick={async () => { try { await navigator.clipboard.writeText(String(value)); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { setCopied(false); } }}>{copied ? 'Copiado' : label}</button>;
+}

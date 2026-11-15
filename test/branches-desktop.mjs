@@ -69,30 +69,43 @@ try {
   await page.screenshot({ path: path.join(evidence, `canvas${real ? '-real' : ''}.png`) });
   if (!real) {
     const calls = method => page.evaluate(name => window.__branchCalls.filter(([m]) => m === name).map(([, p]) => p), method);
-    assert.equal(await page.locator('.br-row').count(), 5);
-    assert.deepEqual(await page.locator('.br-group-title').allTextContents(), ['Con cambios sin guardar1', 'Con commits por integrar2', 'Sin trabajo pendiente2']);
-    const sidebar = page.locator('.br-row', { has: page.locator('.br-name', { hasText: 'Sidebar' }) });
-    await sidebar.getByText('1 Card en este worktree').waitFor(); await sidebar.getByText('1 Skill sin integrar').waitFor();
-    // Saving asks for a message and reports a conflicting integration without hiding it.
-    await sidebar.getByRole('button', { name: 'Guardar cambios…' }).click();
-    await sidebar.getByLabel('Mensaje del commit').fill('SYNTHETIC save');
+    // main plus five branches, each with one state chip, ordered by urgency.
+    assert.equal(await page.locator('.br-row').count(), 6);
+    assert.equal(await page.locator('.br-group-title').textContent(), '5 ramas de tus sesiones');
+    assert.deepEqual(await page.locator('.br-row .br-chip').allTextContents(), ['Sin guardar', 'Conflicto', 'Lista', 'Trabajando', 'En main', 'En main']);
+    assert.equal(await page.getByText('Sin Card de Phantom asociada').count(), 0);
+    const rowOf = title => page.locator('.br-row', { has: page.locator('.br-title', { hasText: title }) });
+    // Saving asks for a message; integrating on save is opt-in.
+    const mainRow = rowOf('main');
+    await mainRow.getByRole('button', { name: 'Guardar' }).click();
+    await mainRow.getByLabel('Mensaje').fill('SYNTHETIC save');
     await page.screenshot({ path: path.join(evidence, 'save-form.png') });
-    await sidebar.getByRole('button', { name: 'Guardar e integrar en main' }).click();
-    await sidebar.locator('.br-notice.is-warn', { hasText: 'choca en src/App.jsx' }).waitFor();
+    await mainRow.getByRole('button', { name: 'Guardar 1 archivo' }).click();
+    await page.waitForFunction(() => window.__branchCalls.some(([m]) => m === 'branch.commit'));
     assert.deepEqual((await calls('branch.commit')).map(p => p.message), ['SYNTHETIC save']);
-    // A predicted conflict offers no forced action; a clean branch integrates in one step.
-    const clash = page.locator('.br-row', { hasText: 'terminal 33333333' });
-    assert.equal(await clash.getByRole('button').count(), 0);
-    await page.locator('.br-row', { has: page.locator('.br-name', { hasText: 'Notch' }) }).getByRole('button', { name: /Integrar 2 commits en main/ }).click();
+    assert.equal((await calls('branch.integrate')).length, 0);
+    // A conflict offers no forced action; a ready branch integrates on the second click.
+    const clash = rowOf('Sesión cerrada · 33333333');
+    assert.equal(await clash.locator('.br-slot').getByRole('button').count(), 0);
+    const notch = rowOf('Notch');
+    await notch.getByRole('button', { name: 'Integrar', exact: true }).click();
+    assert.equal((await calls('branch.integrate')).length, 0);
+    await notch.getByRole('button', { name: 'Confirmar integrar' }).click();
     await page.locator('.br-notice.is-ok', { hasText: 'Integrada en main' }).waitFor();
-    // Cleaning is confirmed first and only offered for branches without a terminal.
-    await page.getByRole('button', { name: 'Limpiar 2 ramas sin terminal' }).click();
+    // Selecting a row opens its detail: the road to main, its files and its actions.
+    await notch.locator('button.br-main').click();
+    await page.locator('.br-detail-body .mp-steps').waitFor();
+    await page.locator('.br-detail-body').getByText('Detalles').waitFor();
+    await page.screenshot({ path: path.join(evidence, 'detail.png') });
+    await notch.locator('button.br-main').click();
+    // Cleaning is confirmed first and only offered for branches without a session.
+    await page.getByRole('button', { name: 'Limpiar 2 ramas ya integradas' }).click();
     await page.screenshot({ path: path.join(evidence, 'bulk-confirm.png') });
     assert.equal((await calls('branch.remove')).length, 0);
     await page.getByRole('button', { name: 'Limpiar todas' }).click();
     await page.waitForFunction(() => window.__branchCalls.filter(([m]) => m === 'branch.remove').length === 2);
     await page.locator('.br-search input').fill('sidebar-new');
-    assert.equal(await page.locator('.br-row').count(), 1);
+    assert.equal(await page.locator('.br-group .br-row').count(), 2);
     await page.locator('.br-search input').fill('');
   }
   await page.evaluate(() => { const node = document.querySelector('.br-root'); node.closest('.tw-tool-panel').parentElement.style.width = '420px'; });

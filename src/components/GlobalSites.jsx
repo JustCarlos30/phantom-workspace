@@ -2,22 +2,22 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, X } from 'lucide-react';
 import '../sites.css';
 
-export default function GlobalSites({ api, onClose }) {
+export default function GlobalSites({ api, onClose, embedded = false }) {
   const [projects, setProjects] = useState(null), [filter, setFilter] = useState(''), [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(''), [error, setError] = useState(''), [logs, setLogs] = useState(null);
   const root = useRef(null);
   useEffect(() => {
-    root.current?.querySelector('[aria-label="Cerrar Sitios"]')?.focus();
-  }, []);
+    if (!embedded) root.current?.querySelector('[aria-label="Cerrar Sitios"]')?.focus();
+  }, [embedded]);
   useEffect(() => {
     const handleKey = event => {
-      if (event.key === 'Escape' && root.current?.contains(event.target)) {
+      if (!embedded && event.key === 'Escape' && root.current?.contains(event.target)) {
         event.preventDefault(); event.stopPropagation(); onClose();
       }
     };
     document.addEventListener('keydown', handleKey, true);
     return () => document.removeEventListener('keydown', handleKey, true);
-  }, [onClose]);
+  }, [onClose, embedded]);
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
     try { const result = await api('docker.list', { scope: 'sites' }); setProjects(result.projects); }
@@ -33,8 +33,8 @@ export default function GlobalSites({ api, onClose }) {
     } catch (e) { setError(e.message); } finally { setBusy(''); }
   };
   const visible = (projects || []).filter(p => !filter || p.workspaceId === filter);
-  return <section ref={root} className="global-sites" aria-label="Sitios globales">
-    <header className="sites-header"><div><p className="sites-kicker">TODOS TUS PROYECTOS</p><h1>Sitios</h1><p>Servicios Compose de tus repositorios registrados.</p></div><div className="sites-header-actions"><button className="button" disabled={loading || !!busy} onClick={refresh}><RefreshCw size={15} /> Actualizar</button><button className="icon-button" aria-label="Cerrar Sitios" onClick={onClose}><X size={18} /></button></div></header>
+  return <section ref={root} className={`global-sites${embedded ? ' is-embedded' : ''}`} aria-label="Servicios de todos los proyectos">
+    <header className="sites-header"><div>{!embedded && <h1>Servicios de todos los proyectos</h1>}<p>Lo que declara el archivo Compose de cada proyecto.</p></div><div className="sites-header-actions"><button className="button" disabled={loading || !!busy} onClick={refresh}><RefreshCw size={15} /> Actualizar</button>{!embedded && <button className="icon-button" aria-label="Cerrar Sitios" onClick={onClose}><X size={18} /></button>}</div></header>
     <div className="sites-filter"><label htmlFor="sites-project">Proyecto</label><select id="sites-project" value={filter} onChange={e => setFilter(e.target.value)}><option value="">Todos los proyectos</option>{(projects || []).map(p => <option key={p.workspaceId} value={p.workspaceId}>{p.name}</option>)}</select></div>
     {error && <p className="sites-error" role="alert">{error}</p>}
     {loading && <p role="status">Actualizando sitios…</p>}

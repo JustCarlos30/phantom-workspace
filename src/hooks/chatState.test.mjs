@@ -60,6 +60,6 @@ test('Sin ventana se usan tamaños absolutos', () => {
 
 test('Cada zona trae título y explicación', () => {
   const advice = contextAdvice(contextUse({ contextTokens: 150_000, contextWindow: 200_000 }));
-  assert.equal(advice.title, 'Compacta ahora');
+  assert.equal(advice.title, 'Conversación muy larga');
   assert.ok(advice.hint.length > 20);
 });

@@ -62,9 +62,9 @@ export function contextAdvice(use) {
     band = cause === 'size' ? bySize : byShare;
   }
   const copy = {
-    ok: ['Zona óptima', 'Hay margen: el modelo atiende bien todo el historial y cada turno sigue siendo barato.'],
-    watch: ['Conviene compactar pronto', 'La precisión empieza a bajar y cada turno reenvía más tokens. Compacta al cerrar la subtarea actual.'],
-    compact: ['Compacta ahora', 'Con este volumen el modelo pierde detalles del medio del historial y cada turno cuesta varias veces más que al inicio.'],
+    ok: ['Hay margen', 'El agente recuerda bien toda la conversación.'],
+    watch: ['Empieza a alargarse', 'Cada turno ya cuesta más. Al cerrar esta tarea, empieza una conversación nueva.'],
+    compact: ['Conversación muy larga', 'El agente empieza a olvidar detalles y cada turno sale caro. Empieza una conversación nueva.'],
   }[band];
   return { band, cause, title: copy[0], hint: copy[1] };
 }
@@ -80,6 +80,6 @@ export function contextNudge(use, dismissed = 0) {
   const where = use.window && advice.cause === 'share' ? `${Math.round(use.ratio * 100)}% del contexto` : `${formatTokens(use.tokens)} tokens de contexto`;
   const resend = `Cada mensaje reenvía ${formatTokens(use.tokens)} tokens`;
   return advice.band === 'compact'
-    ? { band: 'compact', rank: 2, title: `Vas en ${where}: conviene compactar`, body: `${resend}, así que cada turno sale bastante más caro y el agente puede olvidar detalles de antes. Compactar o empezar una conversación nueva lo resuelve.` }
-    : { band: 'watch', rank: 1, title: `Vas en ${where}`, body: `${resend}: desde aquí cada turno cuesta más y la precisión empieza a bajar. Buen momento para compactar al cerrar esta tarea.` };
+    ? { band: 'compact', rank: 2, title: `Vas en ${where}`, body: `${resend} y el agente puede olvidar detalles. Conviene empezar una conversación nueva.` }
+    : { band: 'watch', rank: 1, title: `Vas en ${where}`, body: `${resend}. Al cerrar esta tarea, empieza una conversación nueva.` };
 }
