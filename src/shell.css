@@ -93,3 +93,22 @@
 
 /* ---------- Floating menus follow the same curve family ---------- */
 .app-shell :is(.canvas-popover, .tool-picker, .panel-index, .context-menu, .activity-tray, .attention-tray) { border-radius: var(--r-isle); }
+
+/* Compactación según el ancho disponible. */
+.app-shell .activity-dock,
+.app-shell .canvas .canvas-view-controls .canvas-navigation { scrollbar-width: none; }
+.app-shell .activity-dock::-webkit-scrollbar,
+.app-shell .canvas .canvas-view-controls .canvas-navigation::-webkit-scrollbar { display: none; }
+.app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main .dock-action.dock-hub { width: 36px; padding: 0; justify-content: center; }
+.app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main .dock-action.dock-hub > span,
+.app-shell .activity-dock[data-fit="tight"] .activity-notch strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .activity-summary-action > span { display: none; }
+.app-shell .activity-dock[data-fit="tight"] { gap: 6px; }
+.app-shell .activity-dock[data-fit="tight"] .dock-main { gap: 4px; }
+.app-shell .activity-dock[data-fit="tight"] .dock-main > i { margin: 0 2px; }
+.app-shell:not(.rail-collapsed) .activity-dock[data-fit="tight"] .activity-strip { display: none; }
+.app-shell:not(.rail-collapsed) .activity-dock[data-fit="tight"] .dock-main { margin-left: 0; }
+.app-shell .canvas .canvas-view-controls .canvas-navigation:is([data-fit="compact"], [data-fit="tight"]) button:is([aria-label="Alejar"], [aria-label="Acercar"]) { display: none; }
+.app-shell .canvas .canvas-view-controls .canvas-navigation:is([data-fit="compact"], [data-fit="tight"]) > i { width: 4px; }
+.app-shell .canvas .canvas-view-controls .canvas-navigation[data-fit="tight"] button:is([aria-label="Herramienta de mano"], [aria-label="Gestos y atajos del canvas"]),
+.app-shell .canvas .canvas-view-controls .canvas-navigation[data-fit="tight"] > i { display: none; }
