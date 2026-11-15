@@ -49,8 +49,8 @@
 .app-shell .activity-dock .activity-strip button[aria-expanded="true"] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 .app-shell .activity-dock .activity-strip .activity-notch.needs-you { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 34%, transparent); }
 .app-shell .activity-dock .dock-main { height: auto; padding: 0; gap: 6px; overflow: visible; }
-/* Creation discs are the only saturated objects in the shell: each carries the
-   colour of the kind of panel it makes. They are round like every other
+/* Creation discs are dark tinted keys with the panel kind's hue as ink and a
+   ring of the same hue, defined in panels.css. They are round like every other
    control in a pill, and stand apart from the readings as their own group. */
 .app-shell .activity-dock .dock-main { margin-left: 4px; gap: 8px; }
 .app-shell .activity-dock .dock-main .dock-action {
