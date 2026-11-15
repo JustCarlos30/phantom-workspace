@@ -3,7 +3,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { workspaceRoot, safePath, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
+import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
@@ -32,11 +32,10 @@ async function client(payload, context) {
   if (data !== undefined) {
     text(data, 'phantomData', 4096);
     // Native Phantom owns this database. Never copy or open it through Store.
-    const home = await stateHome({ ...context, dataDir: data }, root);
-    flags.push('--data', home);
+    flags.push('--data', nativeHome);
   }
   const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root });
-  return { root, workspace, cli, flags, call, config, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+  return { root, workspace, cli, flags, call, config, nativeHome, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
 }
 export async function phantomStatus(payload, context) {
   await workspaceRoot(context, payload);
@@ -96,12 +95,31 @@ async function events(payload, context, c) {
   if (!Array.isArray(result)) throw new Error('Phantom returned invalid events');
   return { items: result.slice(-100), events: result, id: payload.id, source: 'phantom', observedAt: observedAt(), truncated: result.length > 100 };
 }
+async function runEvidence(run, c) {
+  const unavailable = reason => ({ available: false, reason });
+  if (!/^run_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(run.id ?? '')) return unavailable('ID de ejecución no válido para leer evidencia');
+  async function read(name, verification = false) {
+    try {
+      const file = await safePath(c.nativeHome, `artifacts/${run.id}/${name}`);
+      const result = await readBounded(file, 2 * 1024 * 1024);
+      if (result.truncated) return unavailable('Artefacto supera el límite de 2 MiB; no se muestra parcialmente');
+      const value = JSON.parse(result.text), checks = verification ? value?.checks : value;
+      if (!Array.isArray(checks) || checks.some(check => !check || typeof check !== 'object' || Array.isArray(check)
+        || ['name', 'cwd', 'stdout', 'stderr', 'error', 'reason', 'signal'].some(key => check[key] != null && typeof check[key] !== 'string')
+        || ['argv', 'executedArgv'].some(key => check[key] != null && (!Array.isArray(check[key]) || check[key].some(arg => typeof arg !== 'string')))
+        || ['passed', 'executed'].some(key => check[key] != null && typeof check[key] !== 'boolean'))) return unavailable('Formato de evidencia desconocido');
+      return { available: true, checks: checks.map(check => Object.fromEntries(['name', 'argv', 'executedArgv', 'cwd', 'passed', 'exitCode', 'signal', 'error', 'tests', 'stdout', 'stderr', 'durationMs', 'executed', 'reason'].filter(key => Object.hasOwn(check, key)).map(key => [key, check[key]]))) };
+    } catch (error) { return unavailable(error.code === 'ENOENT' ? 'Artefacto no disponible' : `Evidencia no disponible: ${error.message}`); }
+  }
+  return { baseline: await read('baseline-checks.json'), verification: await Promise.all([0, 1, 2, 3].map(async round => ({ round, ...await read(`verification-${round}.json`, true) }))) };
+}
 async function detail(payload, context, c) {
   identifier(payload.id);
   if (payload.topic === 'tasks') {
     const raw = await c.call(['show', payload.id]);
+    if (raw.id !== payload.id) throw new Error('Phantom task ID mismatch');
     if (!await scopedTask(raw, c, context)) throw new Error('Phantom task belongs to another workspace');
-    return raw;
+    return raw.run ? { ...raw, run: { ...raw.run, evidence: await runEvidence(raw.run, c) } } : raw;
   }
   if (payload.topic === 'memories') return c.call(['memory-history', payload.id, '--workspace', c.root]);
   if (payload.topic !== 'skills') throw new Error('Unknown Phantom topic');
