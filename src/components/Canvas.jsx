@@ -10,7 +10,7 @@ import BrowserPanelContent from './BrowserPanel';
 import { ToolPanel as ToolPanelContent } from './ToolPanels';
 import { useInlineName } from '../hooks/useInlineName';
 import { isEditingTarget } from '../hooks/inputOwnership';
-import { canScroll, createWheelGesture, isDiscreteWheel, wheelZoomFactor } from '../hooks/wheelGesture';
+import { canScroll, hasScrollable, createWheelGesture, isDiscreteWheel, wheelZoomFactor } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
 import { frameFor, needsFraming } from '../hooks/panelFraming';
@@ -287,6 +287,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const bodyId = nodeBody?.closest('[data-node-id]')?.dataset.nodeId;
       const terminal = e.target.closest('.terminal-host');
       const terminalId = terminal?.closest('[data-node-id]')?.dataset.nodeId;
+      const bodyCanScroll = !!nodeBody && canScroll(e.target, dx, dy, nodeBody);
       const route = wheelGesture.current.route({
         zooming,
         overCanvasChrome: !!e.target.closest('.canvas-navigation,.canvas-popover,.agent-editor'),
@@ -295,8 +296,10 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
         overMinimap: !!e.target.closest('.canvas-minimap'),
         overBody: !!nodeBody,
         bodyActive: !!bodyId && live.current.selected.includes(bodyId),
-        bodyCanScroll: !!nodeBody && canScroll(e.target, dx, dy, nodeBody),
+        bodyCanScroll,
+        bodyScrollable: !!nodeBody && hasScrollable(e.target, dx, dy, nodeBody),
       });
+      if (route === 'element' && nodeBody && !bodyCanScroll) e.preventDefault();
       if (route !== 'canvas') return;
       stopInertia();
       e.preventDefault();
