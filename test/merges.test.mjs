@@ -14,6 +14,107 @@ const until = async (fn, ms = 8000) => { const end = Date.now() + ms; while (Dat
 const clean = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PHANTOM_')));
 const gitAs = (env, cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env: { ...clean(), ...env }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
+function autoFixture(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-auto-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const repository = path.join(root, 'repo'); fs.mkdirSync(repository);
+  const git = (...args) => gitAs({}, repository, ...args);
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  fs.writeFileSync(path.join(repository, 'base.txt'), 'base\n'); git('add', '.'); git('commit', '-m', 'Base');
+  const workspace = { id: 'auto-fixture', path: repository, nodes: [], attention: [], integration: { enabled: true, auto: false, checks: `${JSON.stringify(process.execPath)} -e "process.exit(require('node:fs').existsSync('bad.txt') ? 1 : 0)"`, queue: [] } };
+  const sessions = [];
+  const store = { dir: path.join(root, 'state'), state: { workspaces: [workspace] }, getWorkspace: () => workspace };
+  const merges = new Merges({ store, terminals: { sessions, get: id => sessions.find(s => s.id === id) }, mutate: (id, fn) => fn(), emit: () => {} });
+  const worker = (name, file = `${name}.txt`, content = name) => {
+    const tree = path.join(root, name); git('worktree', 'add', '-b', name, tree, 'main');
+    fs.writeFileSync(path.join(tree, file), content); gitAs({}, tree, 'add', '.'); gitAs({}, tree, 'commit', '-m', name);
+    const session = { id: name, workspaceId: workspace.id, nodeId: name, cwd: tree, worktree: { branch: name, path: tree } };
+    sessions.push(session); workspace.nodes.push({ id: name, title: name, type: 'terminal', data: { sessionId: name, role: 'worker', worktree: session.worktree } });
+    return name;
+  };
+  const submit = sessionId => merges.handle('merge.submit', { sessionId });
+  const configure = settings => merges.handle('merge.configure', { workspaceId: workspace.id, ...settings });
+  const settled = () => until(() => !merges.running.size && !merges.draining.size);
+  return { root, repository, git, workspace, merges, worker, submit, configure, settled };
+}
+
+test('auto defaults off; enabling it drains and submit integrates without an orchestrator with evidence and stats', async t => {
+  const f = autoFixture(t), first = f.worker('one');
+  await assert.rejects(f.configure({ auto: 'yes' }), /Invalid auto/);
+  await f.submit(first); await f.settled();
+  assert.equal(f.workspace.integration.queue[0].status, 'queued');
+  assert.equal(f.git('rev-list', '--count', 'main'), '1');
+  await f.configure({ auto: true }); await f.settled();
+  const item = f.workspace.integration.queue[0];
+  assert.equal(item.status, 'merged'); assert.equal(item.by, 'auto'); assert.ok(Date.parse(item.startedAt));
+  assert.equal(item.checks.ok, true); assert.ok(item.checks.durationMs >= 0); assert.equal(item.fileCount, 1);
+  await f.submit(f.worker('two')); await f.settled();
+  const status = await f.merges.status(f.workspace);
+  assert.equal(status.auto, true); assert.equal(status.orchestrator, null);
+  assert.deepEqual({ ...status.stats, medianWaitMs: 0, medianChecksMs: 0 }, { queued: 0, returned: 0, oldestWaitMs: null, mergedToday: 2, filesToday: 2, mergedTotal: 2, medianWaitMs: 0, medianChecksMs: 0, autoMerged: 2 });
+  assert.ok(status.stats.medianWaitMs >= 0); assert.ok(status.stats.medianChecksMs >= 0);
+});
+
+test('auto rolls failing checks back, returns the worker and continues the queue', async t => {
+  const f = autoFixture(t);
+  await f.submit(f.worker('bad', 'bad.txt')); await f.submit(f.worker('good'));
+  await f.configure({ auto: true }); await f.settled();
+  assert.deepEqual(f.workspace.integration.queue.map(item => item.status), ['failed', 'merged']);
+  assert.equal(fs.existsSync(path.join(f.repository, 'bad.txt')), false);
+  assert.equal(fs.existsSync(path.join(f.repository, 'good.txt')), true);
+  assert.equal(f.workspace.nodes[0].data.agent.status, 'blocked');
+  assert.ok(f.workspace.integration.queue[0].checks.durationMs >= 0);
+  assert.equal((await f.merges.status(f.workspace)).stats.returned, 1);
+  assert.equal(f.git('status', '--porcelain'), '');
+});
+
+test('auto aborts conflicts, returns the worker and continues the queue', async t => {
+  const f = autoFixture(t);
+  await f.submit(f.worker('one', 'base.txt', 'one\n'));
+  await f.submit(f.worker('two', 'base.txt', 'two\n'));
+  await f.submit(f.worker('three'));
+  await f.configure({ auto: true }); await f.settled();
+  assert.deepEqual(f.workspace.integration.queue.map(item => item.status), ['merged', 'conflict', 'merged']);
+  assert.equal(f.workspace.nodes[1].data.agent.status, 'blocked');
+  assert.deepEqual(f.workspace.integration.queue[1].conflicts, ['base.txt']);
+  assert.throws(() => f.git('rev-parse', '-q', '--verify', 'MERGE_HEAD'));
+  assert.equal(f.git('status', '--porcelain'), '');
+});
+
+test('operational errors leave queued requests blocked until reconfigured', async t => {
+  const f = autoFixture(t);
+  await f.submit(f.worker('one')); await f.submit(f.worker('two'));
+  fs.writeFileSync(path.join(f.repository, 'base.txt'), 'dirty\n');
+  await f.configure({ auto: true }); await f.settled();
+  assert.deepEqual(f.workspace.integration.queue.map(item => item.status), ['queued', 'queued']);
+  assert.match(f.workspace.integration.autoBlocked.reason, /sin commitear/);
+  assert.ok(Date.parse(f.workspace.integration.autoBlocked.at));
+  const status = await f.merges.status(f.workspace);
+  assert.equal(status.stats.queued, 2); assert.ok(status.stats.oldestWaitMs >= 0); assert.ok(status.autoBlocked);
+  f.git('restore', 'base.txt'); f.merges.resume(); await f.settled();
+  assert.equal(f.workspace.integration.queue[0].status, 'queued', 'a block does not retry in a loop');
+  await f.configure({ auto: true }); await f.settled();
+  assert.deepEqual(f.workspace.integration.queue.map(item => item.status), ['merged', 'merged']);
+  assert.equal(f.workspace.integration.autoBlocked, undefined);
+});
+
+test('resume drains enabled automatic projects and stats use the latest thirty integrations', async t => {
+  const f = autoFixture(t);
+  await f.submit(f.worker('one'));
+  f.workspace.integration.auto = true;
+  f.merges.resume(); await f.settled();
+  assert.equal(f.workspace.integration.queue[0].status, 'merged');
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  f.workspace.integration.queue = Array.from({ length: 32 }, (_, index) => ({
+    id: `merged-${index}`, status: 'merged', requestedAt: new Date(today.getTime() + index * 10000).toISOString(),
+    startedAt: new Date(today.getTime() + index * 10000 + index * 100).toISOString(),
+    finishedAt: new Date(today.getTime() + index * 10000 + index * 100 + 1000).toISOString(),
+    checks: { durationMs: index * 10 }, fileCount: 2, by: index % 2 ? 'auto' : 'orchestrator',
+  }));
+  const stats = (await f.merges.status(f.workspace)).stats;
+  assert.deepEqual(stats, { queued: 0, returned: 0, oldestWaitMs: null, mergedToday: 32, filesToday: 64, mergedTotal: 32, medianWaitMs: 1650, medianChecksMs: 165, autoMerged: 15 });
+});
+
 test('workers own one branch; only the orchestrator session orders and integrates', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-merges-')), repository = path.join(root, 'repository'), dataDir = path.join(root, 'state');
   fs.mkdirSync(repository);

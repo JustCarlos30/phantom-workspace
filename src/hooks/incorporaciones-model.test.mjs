@@ -1,9 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBranchBoard, buildCola, buildIncorporaciones, isReadyBranch, mergePath, ownerLabel } from './incorporaciones-model.mjs';
+import { buildBranchBoard, buildCola, buildResumen, buildIncorporaciones, isReadyBranch, mergePath, ownerLabel } from './incorporaciones-model.mjs';
 
 const branch = (patch = {}) => ({ nodeId: 'n1', title: 'Feature', branch: 'phantom/terminal-1', ahead: 2, behind: 0, uncommitted: 0, missing: false, status: 'idle', overlaps: [], ...patch });
 const request = (status, patch = {}) => ({ id: `r-${status}`, nodeId: `n-${status}`, title: status, status, overlaps: [], ...patch });
+
+test('summary formats counts, missing data and durations without mutating status', () => {
+  const data = { stats: { queued: 3, returned: 2, oldestWaitMs: 7920000, mergedToday: 4, filesToday: 12, medianChecksMs: 38000, medianWaitMs: 120000 } };
+  assert.deepEqual(buildResumen(data, 0).map(item => item.value), ['3', '2.2 h', '4 · 12 archivos', '2', '38 s', '2 min']);
+  assert.deepEqual(buildResumen(undefined, 0).map(item => item.value), ['0', '—', '—', '0', '—', '—']);
+  assert.equal(buildResumen({ queue: [{ status: 'queued', requestedAt: new Date(0).toISOString() }] }, 90000)[1].value, '1 min');
+  assert.equal(data.stats.queued, 3);
+});
+
+test('automatic queue names Phantom and displays waiting time and history evidence', () => {
+  const now = Date.parse('2026-11-14T18:00:00');
+  const cola = buildCola({ auto: true, queue: [request('queued', { requestedAt: '2026-11-14T17:58:00' })], history: [request('merged', { finishedAt: '2026-11-14T17:30:00', fileCount: 2, checks: { durationMs: 38000 }, by: 'auto' })] }, now);
+  assert.equal(cola.orchestrator, '1 rama en cola; se integran solas');
+  assert.match(cola.next[0].detail, /Espera 2 min/);
+  assert.match(cola.today[0].detail, /2 archivos · Tests 38 s · Automática/);
+  assert.equal(buildCola({ auto: true, queue: [request('merging')] }).now[0].detail, 'Phantom la está integrando');
+  const path = mergePath(request('queued'), { auto: true, orchestrator: false });
+  assert.deepEqual(path.missing, ['Que Phantom la integre']); assert.equal(path.owner, 'phantom');
+});
 
 test('a branch is ready only with saved commits, a clean worktree and no agent mid-edit', () => {
   assert.equal(isReadyBranch(branch()), true);
