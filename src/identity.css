@@ -27,17 +27,10 @@
 .shell-icon[data-variant="solid"] { color: var(--on-ink); }
 :is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__line { display: none; }
 :is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__solid { display: initial; }
-:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon { color: var(--on-ink); }
-.app-shell .project-rail :is(.rail-panel-row.selected, .rail-attention[aria-expanded="true"], .rail-map-action[aria-pressed="true"]) { background: var(--on); color: var(--on-ink); border-radius: var(--r-ctl); box-shadow: none; }
-.app-shell .project-rail .rail-bottom > button[aria-pressed="true"] { background: var(--on); color: var(--on-ink); border-radius: var(--r-ctl); }
-.project-rail .rail-heading > span:has(.shell-icon) { display: inline-flex; align-items: center; gap: 4px; }
+:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon { color: inherit; }
 .shell-icon[data-variant="line"] > .shell-icon__line { display: initial; }
 .shell-icon[data-variant="line"] > .shell-icon__solid { display: none; }
-.canvas-node:is(.selected, .focused) > .node-header > .node-glyph:has(.shell-icon) { background: var(--on); color: var(--on-ink); border-radius: var(--r-ctl); }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph:has(.shell-icon) { background: var(--type, var(--on)); color: var(--on-ink); border-radius: var(--r-ctl); box-shadow: var(--shadow-rim); }
 .canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon { color: var(--on-ink); }
 .canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon__line { display: none; }
 .canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon__solid { display: initial; }
-/* Activated as the canvas delivery connects the exported glyphs. */
-.app-shell .canvas-navigation button:has(.shell-icon) { width: 32px; height: 32px; border-radius: 50%; }
-.app-shell .canvas-navigation button:has(.shell-icon):is(.active, [aria-pressed="true"], [aria-expanded="true"]) { background: var(--on); color: var(--on-ink); box-shadow: none; }
-.app-shell .dock-main .dock-action:has(.shell-icon):is(.active, [aria-pressed="true"], [aria-expanded="true"]) { background: var(--on); color: var(--on-ink); border-radius: var(--r-ctl); box-shadow: none; }

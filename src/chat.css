@@ -56,7 +56,7 @@
 
 /* Compact agent switch: who answers, as a button that opens a short menu downward. */
 .pc-agent { position: relative; display: flex; flex-shrink: 0; min-width: 0; }
-.pc-agent-trigger { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px 0 7px; border-radius: var(--r-ctl); background: transparent; color: var(--ink); font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-out); }
+.pc-agent-trigger { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 10px; border-radius: var(--r-pill); background: var(--fill); box-shadow: var(--shadow-rim); color: var(--ink); font: var(--t-support); font-weight: 600; line-height: 1; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-agent-trigger:hover:not(:disabled), .pc-agent-trigger[aria-expanded="true"] { background: var(--fill-2); }
 .pc-agent-trigger:disabled { opacity: .5; cursor: not-allowed; }
 .pc-agent-trigger > svg:last-child { color: var(--muted); }
@@ -254,28 +254,32 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-error > svg { flex-shrink: 0; margin-top: 2px; color: var(--danger); }
 .pc-dock { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 780px; margin: 0 auto; padding: 0 12px 8px; flex-shrink: 0; }
 .pc.is-focused .pc-dock { padding: 0 20px 10px; }
-.pc-composer { display: flex; flex-direction: column; width: 100%; max-width: 780px; max-height: calc(100% - 40px); min-height: 0; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
-.pc-field { display: flex; flex-direction: column; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-obj); background: var(--surface-2); cursor: text; transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.pc-composer { position: relative; isolation: isolate; display: flex; flex-direction: column; width: 100%; max-width: 780px; max-height: calc(100% - 40px); min-height: 0; margin: 0 auto; padding: 0 12px 12px; flex-shrink: 0; }
+/* The composer continues the reading plane edge to edge: no second band of
+   tone under the thread. The field is the one object that sits on it. */
+.pc-composer::before { content: ''; position: absolute; z-index: -1; inset: 0 -100vmax; background: var(--well-terminal); pointer-events: none; }
+.pc, .phantom-chat { overflow-x: clip; }
+.pc-field { position: relative; display: flex; flex-direction: column; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-isle); background: var(--surface-2); box-shadow: var(--shadow-rim); cursor: text; transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
 .pc-field:hover { background: color-mix(in srgb, var(--surface-2) 94%, var(--ink)); }
 .pc-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent); }
-.pc-field textarea { display: block; width: 100%; min-height: 38px; flex: none; resize: none; padding: 11px 14px 4px; border: 0; background: none; color: var(--ink); font: var(--t-body); overflow-y: auto; overscroll-behavior: contain; transition: none; }
+.pc-field textarea { display: block; width: 100%; min-height: 38px; flex: none; resize: none; padding: 12px 18px 4px; border: 0; background: none; color: var(--ink); font: var(--t-body); overflow-y: auto; overscroll-behavior: contain; transition: none; }
 .pc-field textarea::placeholder { color: var(--ink-3); }
 .pc-field textarea:focus-visible { outline: none; }
 /* Inside the field: what the next turn runs with (model, effort) on the left,
    the actions on the right. Measurements of the conversation live below. */
-.pc-controls { display: flex; align-items: flex-end; gap: 8px; padding: 6px 8px 8px 10px; color: var(--muted); font-size: 11px; line-height: 1; cursor: default; }
+.pc-controls { display: flex; align-items: center; gap: 6px; padding: 6px 8px 8px 10px; color: var(--muted); font: var(--t-support); line-height: 1; cursor: default; }
 /* One line: the model name truncates before anything wraps. */
 .pc-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .pc-settings > .pc-model-picker { flex: 0 1 auto; min-width: 72px; }
 .pc-controls > button { flex-shrink: 0; }
-.pc-meta { display: flex; flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 8px 10px; min-height: 26px; padding: 8px 12px 0; color: var(--ink-3); font: var(--t-micro); font-weight: 400; font-variant-numeric: tabular-nums; }
-.pc-model { display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 0; padding: 0 10px 0 9px; border-radius: var(--r-pill); background: none; color: var(--ink); }
-.pc-model > span { font-family: var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pc-meta { display: flex; flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 8px 10px; min-height: 26px; padding: 8px 18px 0; color: var(--ink-3); font: var(--t-micro); font-weight: 400; font-variant-numeric: tabular-nums; }
+.pc-model { display: inline-flex; align-items: center; gap: 8px; height: 30px; min-width: 0; padding: 0 12px; border-radius: var(--r-pill); background: none; color: var(--ink); font: var(--t-support); }
+.pc-model > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-model > svg { flex-shrink: 0; color: var(--pc-hue); }
 .pc-model.is-empty { color: var(--muted); }
 .pc-model.is-empty > svg { color: var(--muted); }
 .pc-model.is-empty > span { font-family: inherit; }
-.pc-model-picker { position: relative; min-width: 0; display: flex; }
+.pc-model-picker { min-width: 0; display: flex; }
 button.pc-model { cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
 button.pc-model:hover:not(:disabled) { background: var(--fill-2); }
 button.pc-model.is-empty:hover:not(:disabled) { background: var(--fill-2); }
@@ -283,12 +287,12 @@ button.pc-model:disabled { cursor: not-allowed; opacity: .6; }
 button.pc-model:focus-visible { outline: 2px solid var(--pc-hue); outline-offset: 2px; }
 button.pc-model > svg:last-child { color: var(--muted); }
 /* Opens upward: the composer sits on the card's bottom edge. */
-.pc-models { position: absolute; left: -2px; bottom: calc(100% + 10px); z-index: 5; display: flex; flex-direction: column; width: 300px; max-width: calc(100cqw - 32px); max-height: min(320px, 60cqh); border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface-2); box-shadow: var(--shadow-float); overflow: hidden; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
-.pc-models input { height: 40px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--hairline); background: none; color: var(--ink); font-size: 13px; }
-.pc-models input:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.pc-models { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; width: 320px; max-width: 100%; max-height: min(320px, 60cqh); border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface-2); box-shadow: var(--shadow-float); overflow: hidden; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
+.pc-models input { height: 36px; margin: 6px 6px 0; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font: var(--t-control); font-weight: 400; }
+.pc-models input:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
 .pc-models-list { display: flex; flex-direction: column; padding: 5px; overflow-y: auto; }
 .pc-models-list h4 { margin: 0; padding: 10px 9px 4px; color: var(--muted); font-size: 11px; font-weight: 600; }
-.pc-models-list button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 9px; border-radius: var(--r-ctl); color: var(--ink); font-size: 12px; text-align: left; flex-shrink: 0; }
+.pc-models-list button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: var(--r-ctl); color: var(--ink); font: var(--t-control); font-weight: 400; text-align: left; flex-shrink: 0; }
 .pc-models-list button > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-models-list button:hover { background: var(--fill-2); }
 .pc-models-list button[aria-selected="true"] { background: var(--fill-2); color: var(--ink); }
@@ -337,9 +341,9 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-context.is-high .pc-context-share { color: var(--pc-caution); }
 .pc-context.is-full .pc-context-bar > i { background: var(--pc-del); }
 .pc-context.is-full .pc-context-share { color: var(--pc-del); }
-.pc-permission { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--r-pill); background: none; color: var(--muted); font-size: 11px; font-weight: 550; line-height: 1; white-space: nowrap; flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.pc-permission { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 14px 0 12px; border-radius: var(--r-pill); background: none; color: var(--muted); font: var(--t-support); font-weight: 500; line-height: 1; white-space: nowrap; flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .pc-permission:hover { color: var(--ink); background: var(--fill-2); }
-.pc-permission[aria-pressed="true"] { color: var(--ink); background: var(--fill-2); }
+.pc-permission[aria-pressed="true"] { color: var(--ink); background: var(--fill-2); box-shadow: var(--shadow-rim); }
 .pc-permission[aria-pressed="true"] > svg { color: var(--pc-caution); }
 .pc-permission[data-mode="full"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pc-del) 55%, transparent); }
 .pc-permission[data-mode="full"] > svg { color: var(--pc-del); }.pc-permission:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -439,25 +443,25 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-reasoning.is-empty > svg:first-child { color: var(--muted); }
 .pc-reasoning[data-disabled] { cursor: not-allowed; opacity: .6; }
 /* Effort (Claude, Codex): a button and its own menu, like the model picker. */
-.pc-effort { position: relative; display: flex; flex-shrink: 0; }
+.pc-effort { display: flex; flex-shrink: 0; }
 button.pc-reasoning { border: 0; font-family: inherit; }
 button.pc-reasoning:focus-within { outline: none; }
 button.pc-reasoning:focus-visible { outline: 2px solid var(--pc-hue); outline-offset: 2px; }
 button.pc-reasoning:disabled { cursor: not-allowed; opacity: .6; }
 button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { background: var(--fill-2); }
-.pc-reasoning-value { color: var(--ink); font: 11px/1 var(--mono); white-space: nowrap; }
+.pc-reasoning-value { color: var(--ink); font: var(--t-support); white-space: nowrap; }
 .pc-reasoning.is-empty .pc-reasoning-value { color: var(--muted); font-family: inherit; }
 .pc-reasoning > svg:last-child { color: var(--muted); transition: rotate var(--dur-fast) var(--ease-out); }
 .pc-reasoning.is-open > svg:last-child { rotate: 180deg; }
 .pc-effort-meter { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 12px; flex-shrink: 0; }
 .pc-effort-meter > i { width: 2.5px; border-radius: var(--r-mark); background: color-mix(in srgb, var(--muted) 40%, transparent); transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-effort-meter > i.is-on { background: var(--pc-hue, var(--ink)); }
-.pc-effort-menu { position: absolute; left: -2px; bottom: calc(100% + 10px); z-index: 5; display: flex; flex-direction: column; min-width: 190px; padding: 5px; border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface-2); box-shadow: var(--shadow-float); animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
+.pc-effort-menu { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; width: 320px; max-width: 100%; padding: 5px; border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface-2); box-shadow: var(--shadow-float); animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
 .pc-effort-menu:focus-visible { outline: none; }
 .pc-effort-menu h4 { margin: 0; padding: 6px 9px 6px; color: var(--muted); font-size: 11px; font-weight: 600; }
-.pc-effort-menu [role="option"] { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 0 9px; border-radius: var(--r-ctl); color: var(--ink); font: 12px/1 var(--mono); cursor: pointer; }
+.pc-effort-menu [role="option"] { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 12px; border-radius: var(--r-ctl); color: var(--ink); font: var(--t-control); font-weight: 400; cursor: pointer; }
 .pc-effort-menu [role="option"].is-active { background: var(--fill-2); }
-.pc-effort-menu [role="option"] > small { color: var(--muted); font: 11px/1 var(--sans); }
+.pc-effort-menu [role="option"] > small { color: var(--muted); font: var(--t-micro); font-weight: 400; }
 .pc-effort-menu [role="option"] > svg { margin-left: auto; color: var(--pc-hue, var(--ink)); }
 .pc-effort-menu:focus-visible [role="option"].is-active { box-shadow: inset 0 0 0 1px var(--hairline); }
 .pc-effort-note { max-width: 240px; margin: 6px 0 2px; padding: 4px 9px; color: var(--muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
@@ -534,8 +538,10 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-ask-actions button.is-primary, .pc-ask-actions button.is-primary:hover:not(:disabled) {
   background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key);
 }
-.pc-agent-menu button[aria-checked="true"], .pc-models-list button[aria-selected="true"] {
-  background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); --muted: var(--on-ink);
+/* In a menu the current value is a lit veil with its check, not a light key:
+   the key belongs to the one selection of the island. */
+.pc-agent-menu button[aria-checked="true"], .pc-models-list button[aria-selected="true"], .pc-effort-menu [role="option"].is-active {
+  background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim);
 }
 .pc-agent-menu button[aria-checked="true"] > svg:last-child { color: inherit; }
 
