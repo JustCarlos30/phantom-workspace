@@ -91,6 +91,8 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1840, 1200));
   await page.locator('.canvas-node').first().waitFor();
+  const zoom = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
+  assert.ok(Number.isFinite(zoom) && zoom > 0, 'Native interface zoom is valid');
   const connectedHost = await page.evaluate(() => window.phantom.invoke('system.info', {}));
   assert.equal(connectedHost.dataDir, dataDir, 'Electron uses only the temporary fixture profile');
   assert.equal(connectedHost.pid, process.pid, 'Electron connects to the owned synthetic host');
@@ -121,7 +123,9 @@ try {
     await panel.locator('.title-button').focus();
     const css = await assertEdge(panel, fixture);
     assert.equal(css.outline, css.colors['--accent'], 'Selection has an independent accent outline');
-    assert.equal(css.outlineWidth, '2px'); assert.equal(css.outlineOffset, '3px');
+    // Native interface zoom changes the computed CSS outline dimensions.
+    assert.ok(Math.abs(parseFloat(css.outlineWidth) - 2 / zoom) < .01, `Selection outline width: ${css.outlineWidth}, zoom: ${zoom}`);
+    assert.ok(Math.abs(parseFloat(css.outlineOffset) - 3 / zoom) < .01, `Selection outline offset: ${css.outlineOffset}, zoom: ${zoom}`);
     const glyph = await panel.locator('.node-glyph').boundingBox();
     await page.mouse.move(glyph.x + glyph.width / 2, glyph.y + glyph.height / 2);
     await page.mouse.down();

@@ -120,6 +120,8 @@ try {
   await page.reload();
   const card = page.locator(`[data-node-id="${node.id}"]`);
   await card.locator('.pc-message.is-agent').waitFor();
+  const zoom = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
+  assert.ok(Number.isFinite(zoom) && zoom > 0, 'Native interface zoom is valid');
   const exerciseActions = async (state, label, keyboard = false) => {
     const input = card.getByRole('textbox', { name: 'Mensaje para Claude' });
     const method = state === 'attention' ? 'chat.permission.answer' : state === 'working' ? 'chat.stop' : 'chat.send';
@@ -146,7 +148,11 @@ try {
   };
   for (const [size, width, height] of [['wide', 1520, 980], ['narrow', 1100, 760]]) {
     await app.evaluate(({ BrowserWindow }, { width, height }) => { const win = BrowserWindow.getAllWindows()[0]; win.setMinimumSize(580, 500); win.setContentSize(width, height); }, { width, height });
-    await page.waitForFunction(width => innerWidth === width, width);
+    // Chromium quantizes native size / zoom to either adjacent CSS integer.
+    await page.waitForFunction(({ width, height, zoom }) => [innerWidth, innerHeight].every((size, i) => {
+      const cssSize = [width, height][i] / zoom;
+      return size === Math.floor(cssSize) || size === Math.ceil(cssSize);
+    }), { width, height, zoom });
     for (const mode of ['map', 'selected', 'focus']) {
     await page.locator('.canvas').focus(); await page.keyboard.press('Escape');
     if (mode !== 'map') await card.locator('.node-glyph').click();
@@ -173,7 +179,7 @@ try {
       await shot(`${size}-${mode}-${state}`);
       if (state === 'working') {
         const glint = await card.evaluate(async el => {
-          const animation = el.getAnimations().find(a => a.animationName === 'filo-bar');
+          const animation = el.getAnimations({ subtree: true }).find(a => a.animationName === 'filo-bar' && a.effect?.pseudoElement === '::after');
           if (!animation) return null;
           animation.pause();
           const sample = async time => {
@@ -222,7 +228,8 @@ try {
   await card.locator('.node-glyph').click();
   await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('selected'), node.id);
   const selection = await card.evaluate(el => ({ offset: getComputedStyle(el).outlineOffset, animation: getComputedStyle(el, '::after').animationName }));
-  assert.equal(selection.offset, '3px'); assert.equal(selection.animation, 'filo-bar');
+  assert.ok(Math.abs(parseFloat(selection.offset) - 3 / zoom) < .01, `Selection outline offset: ${selection.offset}, zoom: ${zoom}`);
+  assert.equal(selection.animation, 'filo-bar');
   await shot('selected-working');
   await card.locator('.node-glyph').dblclick();
   await page.locator('.canvas-node.focused').waitFor();
@@ -271,8 +278,12 @@ try {
   assert.equal(await card.locator('.pc-working').count(), 0);
   await page.evaluate(id => localStorage.setItem(`phantom:studio:${id}`, JSON.stringify({ background: 'plain', accent: 'iris', grid: false, intensity: 23, image: '' })), workspace.id);
   await page.reload(); await card.locator('.pc').waitFor();
-  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()), '#8fa2ff', 'Legacy project accent is preserved');
-  assert.equal(await page.locator('.app-shell.studio-plain.studio-no-grid').count(), 1, 'Project background and grid preferences are preserved');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()), '#a78bda', 'Unversioned iris project accent migrates to lilac');
+  assert.equal(await page.locator('.app-shell.studio-plain.studio-no-grid').count(), 1, 'Unversioned appearance preserves plain background and disabled grid');
+  await page.evaluate(id => localStorage.setItem(`phantom:studio:${id}`, JSON.stringify({ background: 'plain', accent: 'iris', grid: false, intensity: 23, image: '', v: 3 })), workspace.id);
+  await page.reload(); await card.locator('.pc').waitFor();
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()), '#8fa2ff', 'Version 3 project appearance preserves iris accent');
+  assert.equal(await page.locator('.app-shell.studio-plain.studio-no-grid').count(), 1, 'Version 3 appearance preserves plain background and disabled grid');
   assert.deepEqual(errors, [], 'No renderer errors');
   console.log(JSON.stringify({ captures, errors, fixtures: 'SYNTHETIC chat and action responses, isolated Electron/host', checks: ['wide/narrow map/selection/focus states', 'nine-point action hit-testing', 'chrome clearance', 'permission/send/stop IPC and UI response', 'minimap pointer/toggle', 'overflow', 'edge motion', 'quiet thread', 'selection', 'keyboard', 'reduced motion/transparency'] }, null, 2));
 } catch (error) {
