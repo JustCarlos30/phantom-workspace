@@ -154,7 +154,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='terminal.agent.launch') {
         assert(sender.status==='running'&&from.data.sessionId===sender.id,'El lanzamiento requiere la sesión viva actual del panel');
         const fields=validateLaunch(p,from),createdAt=reserveProcess(sender.id),process={id:randomUUID(),...fields,cwd:sender.cwd,from:{nodeId:from.id,title:from.title},createdAt};
-        const node=await invoke('node.create',{workspaceId:w.id,type:'terminal',title:`Proceso: ${fields.title}`,...handoffPosition(w.nodes),data:{process}});
+        const node=await invoke('node.create',{workspaceId:w.id,type:'terminal',title:`Proceso: ${fields.title}`,...handoffPosition(w),data:{process}});
         const {session}=await invoke('terminal.create',{workspaceId:w.id,nodeId:node.id,cols:120,rows:32});
         terminals.write(session.id,fields.command+'\r');
         return {processId:process.id,nodeId:node.id,sessionId:session.id,...fields,cwd:process.cwd};
@@ -181,7 +181,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(sender.status==='running'&&fromNode.data.sessionId===sender.id,'El encargo requiere la sesión viva actual del panel');
       const fields=validateHandoff(p,fromNode,terminals.foreground(sender.id)?.agent),target=resolveHandoffProject(store.state.workspaces,p.project,source.id);
       const createdAt=reserveHandoff(sender.id),handoff={id:randomUUID(),from:{workspaceId:source.id,workspaceName:source.name,nodeId:fromNode.id,title:fromNode.title},...fields,createdAt};
-      const node=await invoke('node.create',{workspaceId:target.id,type:'terminal',title:`Encargo: ${fields.title}`,...handoffPosition(target.nodes),data:{handoff}});
+      const node=await invoke('node.create',{workspaceId:target.id,type:'terminal',title:`Encargo: ${fields.title}`,...handoffPosition(target),data:{handoff}});
       const {session}=await invoke('terminal.create',{workspaceId:target.id,nodeId:node.id,cols:120,rows:32});
       const command=handoffCommand(fields.agent);
       if(command)terminals.write(session.id,command);
