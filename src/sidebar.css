@@ -60,7 +60,7 @@
 
 /* Their menus overlay only the rail's own content. */
 .context-menu-panel {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5; display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5; display: flex; flex-direction: column; gap: 6px; padding: var(--s-2);
   max-height: min(380px, var(--context-menu-height, calc(100dvh - 290px))); min-height: 0;
   border: 1px solid var(--hairline); border-radius: var(--r-obj);
   /* Nested inside the rail's own blur, a second filter cannot hide the rows
@@ -73,7 +73,7 @@
 .context-search input { min-width: 0; width: 100%; padding: 4px 0; border: 0; background: transparent; color: var(--ink); font: var(--t-support); }
 .context-search input:focus { outline: none; }
 .context-search:focus-within { outline: 1px solid var(--accent); }
-.context-menu-panel :is(.project-list, .space-list) { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; max-height: none; margin: 0; padding: 0; overflow: auto; overflow-x: hidden; overscroll-behavior: contain; }
+.context-menu-panel :is(.project-list, .space-list) { display: flex; flex-direction: column; gap: var(--s-1); flex: 1 1 auto; min-height: 0; max-height: none; margin: 0; padding: 0; overflow: auto; overflow-x: hidden; overscroll-behavior: contain; }
 .context-empty { margin: 0; padding: 6px 10px; color: var(--muted); font: var(--t-support); }
 
 .project-rail :is(.project-item, .space-row, .open-folder) { border-radius: var(--r-ctl); color: var(--muted); transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
@@ -84,8 +84,8 @@
 .project-rail .project-item :is(strong, small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-rail .project-item strong { font: var(--t-control); }
 .project-rail .project-item small { font: var(--t-micro); font-weight: 400; opacity: .72; }
-.project-rail .space-row { display: flex; align-items: center; min-height: 34px; flex-shrink: 0; }
-.project-rail .space-select { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 34px; padding: 0 10px; font: var(--t-control); color: inherit; text-align: left; }
+.project-rail .space-row { display: flex; align-items: center; min-height: 38px; flex-shrink: 0; }
+.project-rail .space-select { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 38px; padding: 0 10px; font: var(--t-control); color: inherit; text-align: left; }
 .project-rail .space-select small { color: inherit; }
 .project-rail .space-select i { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--fill-3); }
 .project-rail .space-select span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -97,7 +97,7 @@
 .project-rail .space-row:is(:hover, :focus-within) :is(.space-rename, .space-remove) { opacity: .72; }
 .project-rail :is(.space-rename, .space-remove):is(:hover, :focus-visible) { opacity: 1; background: var(--fill-3); }
 .project-rail .space-input { min-width: 0; width: 100%; }
-.project-rail .open-folder { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; min-height: 34px; margin: 0; padding: 0 10px; flex-shrink: 0; border: 0; background: none; font: var(--t-control); }
+.project-rail .open-folder { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; min-height: 38px; margin: 0; padding: 0 10px; flex-shrink: 0; border: 0; background: none; font: var(--t-control); }
 
 /* ---------- The list ---------- */
 /* One row shape for activity, sessions, resources, map and utilities. */
@@ -116,10 +116,11 @@
 .project-rail .rail-panel-row > button:first-child > svg { flex-shrink: 0; color: inherit; }
 .project-rail :is(.rail-attention, .rail-map-action) :is(kbd, b, svg:last-child:not(:first-child)) { margin-left: auto; }
 .project-rail kbd { height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--fill-2); color: inherit; font: var(--t-micro); opacity: .72; }
+.rail-attention { margin-bottom: var(--s-1); }
 .rail-attention > span { flex: 1; min-width: 0; }
 .rail-attention > svg:last-child { opacity: .5; }
 .rail-attention b { font: var(--t-micro); font-weight: 600; font-variant-numeric: tabular-nums; }
-.rail-attention.needs-you { color: var(--attention); background: color-mix(in srgb, var(--attention) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 30%, transparent); }
+.rail-attention.needs-you { color: var(--attention); background: color-mix(in srgb, var(--attention) 12%, transparent); }
 .rail-attention.needs-you b { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); line-height: 20px; text-align: center; }
 
 /* Three levels, never more than one light key in the island.
@@ -134,7 +135,7 @@
 .rail-panel-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 .rail-panel-group { --empty-inset: var(--row-pad); }
 .rail-panel-group + .rail-panel-group { margin-top: var(--s-3); }
-.rail-panel-group nav { display: flex; flex-direction: column; gap: 2px; }
+.rail-panel-group nav { display: flex; flex-direction: column; gap: var(--s-1); }
 .project-rail .rail-heading { display: flex; align-items: center; justify-content: space-between; height: 36px; padding: 0 4px 0 var(--row-pad); font: var(--t-support); font-weight: 600; color: var(--muted); }
 .project-rail .rail-heading > span { display: inline-flex; align-items: center; gap: 8px; opacity: .72; }
 .project-rail .rail-count { font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -145,10 +146,11 @@
 .rail-panel-row { display: flex; align-items: center; }
 .rail-panel-row > button:first-child { flex: 1; border-radius: inherit; }
 .rail-panel-row > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-session-row > button:first-child { min-height: 48px; }
+.rail-session-row > button:first-child { min-height: 52px; }
 .rail-session-row > button > .rail-agent-mark { position: relative; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-left: -5px; flex-shrink: 0; overflow: visible; border-radius: 50%; background: var(--fill-2); box-shadow: var(--shadow-rim); }
 .rail-session-row.selected > button > .rail-agent-mark { background: color-mix(in srgb, var(--on-ink) 10%, transparent); box-shadow: none; }
-/* State is colour, and only state: a ring on the disc and the status line. */
+/* A session that needs you is not a box: amber disc ring, amber status line
+   and title at 600; the only amber fill is “Necesitan de ti”, without a rim. */
 .rail-session-row:has(.rail-session-dot.working) .rail-agent-mark { box-shadow: 0 0 0 2px var(--working); }
 .rail-session-row:has(.rail-session-dot.warning) .rail-agent-mark { box-shadow: 0 0 0 2px var(--attention); }
 .rail-session-row:not(.selected):has(.rail-session-dot.working) .rail-session-meta { color: var(--working); opacity: 1; }
@@ -157,7 +159,8 @@
 .rail-panel-label > span:first-child { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .rail-panel-row.selected .rail-panel-label > span:first-child { color: inherit; }
 .rail-session-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-micro); font-weight: 400; opacity: .72; }
-.rail-session-row.needs-you:not(.selected) { background: color-mix(in srgb, var(--attention) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 30%, transparent); }
+.rail-session-row.needs-you:not(.selected) { }
+.rail-session-row.needs-you:not(.selected) .rail-panel-label > span:first-child { font-weight: 600; }
 .rail-session-row.needs-you:not(.selected) .rail-session-meta { color: var(--attention); opacity: 1; }
 .rail-session-dot { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; }
 .rail-session-dot.working { background: var(--working); }
