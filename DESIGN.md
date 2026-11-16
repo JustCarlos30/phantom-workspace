@@ -1,26 +1,30 @@
 ---
 name: Phantom Workspace
-description: Grafito neutro, vidrio ligero y selección discreta con acento local; estados explícitos e identidad Gengar pixelada sobre un lienzo espacial.
+description: Planos negros mate, teclas marfil y un solo plano elevado para lo que se abre; color solo para estados explícitos e identidad Gengar pixelada sobre un lienzo espacial.
 colors:
-  accent: "#5b9cff"
+  accent: "#f2f0eb"
   accent-soft: "color-mix(in srgb, var(--accent) 17%, transparent)"
   action: "#5b9cff"
-  bg: "#141414"
-  surface: "#1e1e1e"
-  surface-2: "#292929"
-  surface-3: "#303030"
+  bg: "#050505"
+  surface: "#0d0d0d"
+  surface-2: "#151515"
+  surface-3: "#1d1d1d"
+  menu: "#161616"
+  menu-edge: "color-mix(in srgb, #fff 13%, transparent)"
   ink: "#f2f0eb"
-  muted: "#bcbab4"
-  ink-3: "#b0aea8"
-  hairline: "color-mix(in srgb, #fff 8%, transparent)"
+  muted: "#a8a6a0"
+  ink-3: "#8b8983"
+  hairline: "color-mix(in srgb, #fff 10%, transparent)"
   fill: "color-mix(in srgb, #fff 5%, transparent)"
   fill-2: "color-mix(in srgb, #fff 9%, transparent)"
   fill-3: "color-mix(in srgb, #fff 14%, transparent)"
-  glass-tint: "color-mix(in srgb, #141414 25%, var(--surface-3))"
-  glass: "color-mix(in srgb, var(--glass-tint) 48%, transparent)"
-  glass-thick: "color-mix(in srgb, var(--glass-tint) 68%, transparent)"
-  ink-on-glass: "#f2f0eb"
-  on: "#5b9cff"
+  glass-tint: "#0d0d0d"
+  glass: "var(--surface)"
+  glass-thick: "color-mix(in srgb, var(--surface) 60%, var(--surface-2))"
+  glass-filter: "none"
+  glass-sheen: "none"
+  ink-on-glass: "#a8a6a0"
+  on: "#f2f0eb"
   on-ink: "#141414"
   workplane: "color-mix(in srgb, var(--surface) 80%, transparent)"
   workplane-wash: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent)"
@@ -28,7 +32,7 @@ colors:
   well-raised: "color-mix(in srgb, var(--surface-2) 96%, transparent)"
   well-terminal: "color-mix(in srgb, var(--terminal-bg) 90%, transparent)"
   rail: "var(--surface)"
-  terminal-bg: "#161616"
+  terminal-bg: "#080808"
   terminal-ink: "#e1dfda"
   primary-ink: "#141414"
   note: "var(--surface-2)"
@@ -95,7 +99,7 @@ components:
     padding: "7px 9px"
     width: "100%"
   project-item-active:
-    backgroundColor: "{colors.fill-3}"
+    backgroundColor: "transparent"
     textColor: "{colors.ink}"
     rounded: "{rounded.ctl}"
     padding: "0 10px"
@@ -121,15 +125,31 @@ components:
 
 # Design System: Phantom Workspace
 
-Este documento describe la implementación integrada en una sola capa. Los materiales y controles toman como referencia el panel rápido de One UI y la píldora de Spotify, aprobados por Carlos el 2026-11-14. Las restricciones estáticas viven en `test/design-tokens.test.mjs`; los resultados de ejecución pertenecen al controlador. La interfaz usa español.
+Este documento describe la implementación integrada en una sola capa. El material carbón mate aprobado por Carlos el 2026-11-16 sustituye la referencia de vidrio de One UI del 2026-11-14. Las restricciones estáticas viven en `test/design-tokens.test.mjs`; los resultados de ejecución pertenecen al controlador. La interfaz usa español.
 
 ## Reglas
 
+### Paleta negra y menús (2026-11-16)
+
+Prevalece sobre los valores de color de las secciones inferiores. Escalera de planos: lienzo `#050505`, terminal `#080808`, chrome y paneles `#0d0d0d`, campos `#151515`, menús `#161616`, tope `#1d1d1d`. Ningún plano sube a gris; la separación la dan el hairline (10 %) y el paso de tono, no la sombra.
+
+Tres tintas reales: `--ink #f2f0eb` (lo elegido y lo que se lee), `--muted #a8a6a0` (opciones y texto secundario, también en chrome), `--ink-3 #8b8983` (etiquetas, pistas, contadores). Marfil para teclas y selección; azul, naranja, verde y rojo solo significan estado.
+
+Menús, selects y ventanas emergentes (`src/menus.css`, único dueño, cargado al final): (1) plano `--menu` con borde `--menu-edge`, radio `--r-obj`, relleno 6 px; (2) las opciones descansan en `--muted` sin relleno, filas de 34 px (46–48 px con segunda línea), radio `--r-ctl`; (3) un solo relleno, `--fill-2`, para la fila bajo el puntero o el teclado; (4) el valor actual es `--ink`, peso 500 y su marca (check o punto), nunca un relleno ni un borde; (5) la búsqueda es la primera línea del menú, sin caja ni anillo, separada por una línea de 1 px; títulos de grupo, pistas y contadores en `--ink-3` sin negrita; (6) la acción de cierre (Nuevo espacio, Abrir carpeta) va bajo su propia línea; (7) los `<select>` nativos usan `appearance: base-select` y abren el mismo menú, con el chevrón del disparador en `--ink-3`.
+
+La selección de un panel es una línea del acento al 64 % con halo al 14 %.
+
 ### Refinamiento aprobado el 2026-11-15
 
-Esta revisión sustituye las referencias históricas de color y tipografía de las secciones inferiores: carbón `#141414`, `#1e1e1e`, `#292929`, elevación `#303030` y terminal `#161616`; marfil `#f2f0eb`. Azul `#5b9cff` para acciones/trabajo, naranja `#f3a45b` para atención, verde `#65ba83` para éxito y rojo `#f27670` para peligro. El dock y los iconos descansan neutros; selección y estados reciben acento. Las marcas y sprites originales conservan sus colores. El tinte de vidrio es neutro, el lavado del plano es 2 % y el pozo elevado 96 %.
+Esta revisión sustituye las referencias históricas de color y tipografía de las secciones inferiores: carbón `#141414`, `#1e1e1e`, `#292929`, elevación `#303030` y terminal `#161616`; marfil `#f2f0eb`. Azul `#5b9cff` para trabajo, naranja `#f3a45b` para atención, verde `#65ba83` para éxito y rojo `#f27670` para peligro. El dock y los iconos descansan neutros. Las marcas y sprites originales conservan sus colores. El chrome es mate, el lavado del plano es 2 % y el pozo elevado 96 %.
 
-Tipografía vigente: contenido/sidebar/botones 14 px, estados/metadatos 12 px, títulos de sección 17 px y encabezados 24 px; pesos 400/500/600, familia Inter/SF/system existente sin fuentes remotas. El sidebar usa tinta secundaria sin la opacidad adicional .72. El estado no encoge: los metadatos contiguos se truncan antes que «Pide permiso». Targets 40/44 px y filas 44/56 px permanecen tokenizados.
+El chrome es carbón mate opaco, sin blur, brillo degradado, ruido ni filo iluminado.
+Un borde fino y una sombra de contacto separan cada objeto del canvas.
+Las teclas activas son marfil con tinta oscura; el color se reserva al estado.
+Los tipos de panel comparten tono neutro y se distinguen por glifo y etiqueta.
+El acento por defecto es marfil; se conservan las elecciones guardadas y las migraciones existentes.
+
+Tipografía vigente: contenido/sidebar/botones 14 px, estados/metadatos 12 px, título de proyecto 17 px; pesos 400/500/600, familia Inter/SF/system existente sin fuentes remotas. El sidebar usa tinta secundaria sin la opacidad adicional .72; el proyecto es su único título, los encabezados son micro sin icono y las filas utilitarias pesan 400. El estado no encoge: los metadatos contiguos se truncan antes que «Pide permiso». Targets 40/44 px y filas 44/56 px permanecen tokenizados.
 
 En el sidebar, el plano base es `--surface` opaco sin sheen para estabilizar el contraste; selección es `--fill-2` con texto `--ink` e icono sólido/acento. Los agentes seleccionados conservan su silueta y reciben acento local. «Te necesitan» es el resumen; «Pide permiso» conserva el significado específico entregado por el modelo. El estado ocupa el inicio de la segunda línea, con texto explícito y punto compacto; se retiran los aros de agente y el ámbar de toda la línea de metadatos. El estado ámbar y su etiqueta permanecen al seleccionar. No se derivan nuevos estados ni autorizaciones.
 
@@ -140,8 +160,8 @@ Estas reglas y el frontmatter prevalecen sobre las descripciones históricas de 
 Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones estáticas de las dos primeras y del material.
 
 1. **Una caja por objeto.** Solo dibuja contorno lo que se puede mover o lo que flota: panel, zona, rail, islas, dock, menús. Dentro de un objeto se separa con espacio, tipografía y un paso de tono; nunca con líneas. Filas, botones de icono y controles de barra descansan sobre nada: la isla es su caja. Un relleno en reposo sobre cada control convierte la isla en una cuadrícula de cajas y está retirado. Como mucho un nivel de relleno interior: el control donde se escribe o se elige (campo del compositor, pista del segmentado, pozo de código o de terminal).
-2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`, con relieve interior y contacto negro, sin halo de color. Los paneles usan `--shadow-rest` y `--shadow-float`; conversaciones y terminales resuelven esas elevaciones localmente a `--shadow-workplane-rest` y `--shadow-workplane-lift`. Selección y foco conservan señales independientes. El trabajo real usa azul; atención naranja, error rojo y éxito verde. La capa SVG de actividad es independiente del material y del anillo de selección.
-3. **Lo fantasma es comportamiento y material.** El chrome usa vidrio carbón al 48/68 % con blur de 40 px. Los planos de trabajo transmiten color por alpha al 80 % y un lavado diagonal del acento al 2 %, sin backdrop-filter; los pozos de lectura y escritura permanecen densos al 90/96 %. El relieve de controles usa `--shadow-key` y `--shadow-well`, con excepciones planas para iconos propios. La entrada CSS aparece por opacidad y un desplazamiento vertical de 4 px, sin desenfocar texto; al soltar, el control recupera escala con resorte. Gengar pixelado conserva sus assets locales según la preferencia de personaje. El reposo sin animación continua es un requisito de rendimiento; la salvedad del GIF vacío se describe en Movimiento.
+2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`, con contacto negro sin relieve interior ni halo de color. Los paneles usan `--shadow-rest` y `--shadow-float`; conversaciones y terminales resuelven esas elevaciones localmente a `--shadow-workplane-rest` y `--shadow-workplane-lift`. Selección y foco conservan señales independientes. El trabajo real usa azul; atención naranja, error rojo y éxito verde. La capa SVG de actividad es independiente del material y del anillo de selección.
+3. **Lo fantasma es comportamiento y material.** El chrome usa planos carbón mate opacos sin filtro ni brillo. Los planos de trabajo transmiten color por alpha al 80 % y un lavado diagonal del acento al 2 %, sin backdrop-filter; los pozos de lectura y escritura permanecen densos al 90/96 %. Los controles usan sombra de contacto `--shadow-key` y pozos `--shadow-well`, con excepciones planas para iconos propios. La entrada CSS aparece por opacidad y un desplazamiento vertical de 4 px, sin desenfocar texto; al soltar, el control recupera escala con resorte. Gengar pixelado conserva sus assets locales según la preferencia de personaje. El reposo sin animación continua es un requisito de rendimiento; la salvedad del GIF vacío se describe en Movimiento.
 
 ### Tokens (`src/canvas-ui.css`, bloque `:root`)
 
@@ -152,17 +172,21 @@ Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones est�
 | `--r-isle` | 26 px | Islas que flotan: rail, inspector, paleta |
 | `--r-mark` | 4 px | Marcas de menos de 20 px: kbd, casilla, scrollbar. No es una superficie |
 | `--r-pill` | 999 px | Chips y estados. No es una superficie |
-| `--hairline` | blanco al 8 % | El único borde. Lo dibuja el objeto, una vez |
-| `--shadow-chrome` | `inset 0 1px 0 #ffffff26, inset 0 -1px 0 #05030a59, 0 1px 2px #05030a66, 0 18px 40px -20px #05030acc` | Filo de luz superior, sombra interior inferior, contacto y caída ciruela. Un solo filo: el anillo interior se retiró para no duplicar el hairline. Sin halo del acento |
-| `--shadow-key` | `inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #05030a66, 0 1px 3px #05030a8c` | Acción primaria, indicador segmentado y botón activo del dock/navegación |
+| `--bg` / `--terminal-bg` | `#050505` / `#080808` | Lienzo negro y terminal |
+| `--surface` / `--surface-2` / `--surface-3` | `#0d0d0d` / `#151515` / `#1d1d1d` | Chrome y paneles / campos / tope |
+| `--hairline` | blanco al 10 % | El borde del objeto, una vez |
+| `--shadow-chrome` | `0 1px 2px #00000066, 0 18px 40px -20px #000000cc` | Sombra de contacto y caída negra, sin capas inset ni filo iluminado |
+| `--shadow-key` | `0 1px 2px #00000073` | Contacto de la acción primaria, indicador segmentado y botón activo del dock/navegación |
 | `--shadow-well` | `inset 0 1px 2px #05030a8c, inset 0 0 0 1px #05030a33` | Pistas segmentadas y pulsación de los controles elevados |
-| `--glass-tint` | `color-mix(in srgb, #141414 25%, var(--surface-3))` | Tinte neutro independiente del acento |
-| `--glass` / `--glass-thick` | tinte al 48 % / 68 % sobre transparente | Islas / chrome de lectura, con alpha real |
-| `--glass-filter` | `blur(40px) saturate(190%)` | Elimina el detalle detrás del chrome |
-| `--glass-sheen` | Grano fino de ruido fractal (SVG en data URI, alpha 4,5 %) sobre `linear-gradient(172deg, #ffffff12 0%, #ffffff07 26%, #ffffff03 100%)` | Velo de 172° (`#ffffff12` / `#ffffff07` / `#ffffff03`) concentrado arriba que nunca llega a cero, sobre tinte carbón neutro |
-| `--ink-3` / `--muted` | `#b0aea8` / `#bcbab4`; en chrome ambos usan `var(--ink-on-glass)` | Metadatos, texto secundario e iconos en reposo |
-| `--ink-on-glass` | `#f2f0eb`; `#b0aea8` con transparencia reducida o contraste aumentado | Tinta secundaria local del chrome |
-| `--on` / `--on-ink` | `#5b9cff` / `#141414` | Tecla activa sólida y su tinta oscura |
+| `--glass-tint` | `#0d0d0d` | Negro independiente del acento |
+| `--glass` / `--glass-thick` | `var(--surface)` / mezcla 60/40 de `--surface` y `--surface-2` | Islas / chrome de lectura opacos |
+| `--menu` | `#161616` | El único plano elevado, más claro que el chrome |
+| `--menu-edge` | blanco al 13 % | Borde propio del menú |
+| `--glass-filter` | `none` | Chrome sin blur |
+| `--glass-sheen` | `none` | Chrome sin ruido ni brillo |
+| `--ink-3` / `--muted` | `#8b8983` / `#a8a6a0`; los menús conservan estos tres niveles también en chrome | Metadatos, texto secundario e iconos en reposo |
+| `--ink-on-glass` | `#a8a6a0`; `#b0aea8` con transparencia reducida o contraste aumentado | Tinta secundaria local del chrome |
+| `--on` / `--on-ink` | `#f2f0eb` / `#141414` | Tecla activa marfil y su tinta oscura |
 | `--workplane` | `color-mix(in srgb, var(--surface) 80%, transparent)` | Losa translúcida de conversación/terminal |
 | `--workplane-wash` | `linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent)` | Lavado diagonal estático; alpha combinado máximo 80,4 % |
 | `--well` | `color-mix(in srgb, var(--surface) 92%, transparent)` | Pozo de lectura del chat lateral; densidad para conservar AA con imágenes claras detrás |
@@ -177,11 +201,11 @@ Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones est�
 | `--working` | `#5b9cff` | Trabajo en curso |
 | `--attention` | `#f3a45b` | Permiso/pregunta pendientes, turno que necesita al usuario |
 
-`test/design-tokens.test.mjs` restringe radios, sombras, tokens retirados y presupuesto de bordes por hoja (`test/design-budget.json`, sin exceso ni holgura). Admite radios tokenizados, `0`, `50%`, `inherit`, medidas en `em`, ajustes concéntricos y escala de overview. Las sombras usan los tokens de la tabla o anillos de estado sin desplazamiento ni blur. `--shadow-float` pertenece a paneles `.canvas-node`, también en responsive. El test exige vidrio ≥44/60 %, blur ≥34 px y saturación 190 %, dos capas inset, resorte `linear()` y chrome opaco en las dos preferencias de accesibilidad. Exige workplane al 76–82 %, lavado ≤10 % y alpha combinado ≤82 %, pozos ≥86 %, contraste AA de tintas de lectura/estado y ausencia de backdrop-filter en los planos. Comprueba que el compositor no anime su altura, que no vuelva el antiguo filo de actividad y que seis hojas de materiales/indicadores auxiliares no contengan animaciones infinitas. Esto no equivale a comprobar todas las animaciones de la aplicación.
+`test/design-tokens.test.mjs` restringe radios, sombras, tokens retirados y presupuesto de bordes por hoja (`test/design-budget.json`, sin exceso ni holgura). Admite radios tokenizados, `0`, `50%`, `inherit`, medidas en `em`, ajustes concéntricos y escala de overview. Las sombras usan los tokens de la tabla o anillos de estado sin desplazamiento ni blur. En canvas, `--shadow-float` pertenece a paneles `.canvas-node`, también en responsive; el chrome y los menús usan `--shadow-chrome`. El test exige chrome mate opaco sin filtro, brillo ni capas inset en su sombra, teclas marfil, resorte `linear()` y los bloques de accesibilidad. Exige workplane al 76–82 %, lavado ≤10 % y alpha combinado ≤82 %, pozos ≥86 %, contraste AA de tintas de lectura/estado y ausencia de backdrop-filter en los planos. Comprueba que el compositor no anime su altura, que no vuelva el antiguo filo de actividad y que seis hojas de materiales/indicadores auxiliares no contengan animaciones infinitas. Esto no equivale a comprobar todas las animaciones de la aplicación.
 
 Sin pestañas laterales de color para categorías: el tipo se lee en glifo y etiqueta. Skills usa libro; `ShellIcons.jsx` exporta `BookIcon` y lo asocia a `phantom-skills`.
 
-Estado del presupuesto: chat 14, terminal 1 y chat lateral 1. Plugins 9, Skills 4 y Repository 11: cabeceras, segmentados, listas y pozos de lectura se separan por espacio y tono; los bordes restantes incluyen campos, estados y guías estructurales. `test/design-budget.json` conserva el recuento exigible por hoja.
+Estado del presupuesto: chat 14, terminal 1 y chat lateral 1. `src/menus.css` tiene presupuesto 1 (borde del picker de select). Plugins 9, Skills 4 y Repository 11: cabeceras, segmentados, listas y pozos de lectura se separan por espacio y tono; los bordes restantes incluyen campos, estados y guías estructurales. `test/design-budget.json` conserva el recuento exigible por hoja.
 
 `src/studio.css` tiene presupuesto de 8 bordes, incluido `.interface-scale select`, el selector nativo de escala de interfaz en Apariencia. Su borde `--hairline` delimita el área donde se elige un valor; `focus-visible` identifica el foco de teclado. Es un borde funcional de formulario, contabilizado en ese presupuesto.
 
@@ -222,16 +246,19 @@ Dirección aprobada por Carlos el 2026-11-14 («que todo se sienta fácil», ref
 
 Estados de una rama, y solo estos: Trabajando · Sin guardar · Lista · En cola · Integrando · Conflicto · En main.
 
-## Vidrio y Planos
+## Material mate y Planos
 
-- **Bases de plano.** Carbón: `--bg #141414`; trabajo `--surface #1e1e1e`; elevación `--surface-2 #292929` y `--surface-3 #303030`. Base de terminal `--terminal-bg #161616`. De estos colores sólidos se derivan las mezclas translúcidas. Los valores viven en el bloque `:root` de `src/canvas-ui.css`, cargado después de `studio.css`.
-- **Tinta.** `--ink #f2f0eb`, `--muted #bcbab4` y `--ink-3 #b0aea8` son los niveles efectivos. En chrome, `--muted` y `--ink-3` usan `--ink-on-glass #f2f0eb`. Las teclas activas usan `--on-ink #141414` sobre `--on #5b9cff`. Los colores de estado son independientes del acento.
-- **Rellenos y teclas.** Escalera blanca-alfa de 5/9/14 %. Primarias usan `--on` azul y `--on-ink` oscuro. En el rail, selección usa `--fill-2`, tinta `--ink` y glifo/acento local; el valor vigente de los menús de proyecto/espacio usa `--fill-3` con `--shadow-rim`. `--shadow-key` da relieve y `--shadow-well` marca pistas/pulsación, con excepciones sin sombra para iconos propios en `identity.css`. La primaria no lleva degradado. Estos relieves no se aplican al plano de lectura ni a la salida de terminal.
-- **Acento.** Azul `#5b9cff` (clave `blue`) por defecto para acciones, selección y foco. Naranja, Verde, Rojo y Marfil siguen disponibles por proyecto; las claves antiguas se normalizan en v4.
+- **Bases de plano.** Negro: `--bg #050505`; chrome y paneles `--surface #0d0d0d`; campos `--surface-2 #151515` y tope `--surface-3 #1d1d1d`. Base de terminal `--terminal-bg #080808`. De estos colores sólidos se derivan las mezclas translúcidas. Hairline al 10 % y pasos de tono separan los planos. Los valores viven en el bloque `:root` de `src/canvas-ui.css`, cargado después de `studio.css`.
+- **Tinta.** `--ink #f2f0eb`, `--muted #a8a6a0` y `--ink-3 #8b8983` son los tres niveles. El chrome usa tinta secundaria `--ink-on-glass #a8a6a0`; los menús mantienen etiquetas y pistas en `--ink-3`. Las teclas activas usan `--on-ink #141414` sobre `--on #f2f0eb`. Los colores de estado son independientes del acento.
+- **Rellenos y teclas.** Escalera blanca-alfa de 5/9/14 %. Primarias usan `--on` marfil y `--on-ink` oscuro. En el rail, selección de panel usa `--fill-2`, tinta `--ink` y glifo/acento local; el valor vigente de los menús de proyecto/espacio usa tinta `--ink`, peso 500 y marca, sin relleno ni borde. Solo hover/teclado usa `--fill-2` en menús. `--shadow-key` da contacto y `--shadow-well` marca pistas/pulsación, con excepciones sin sombra para iconos propios en `identity.css`. La primaria no lleva degradado. Estas sombras no se aplican al plano de lectura ni a la salida de terminal.
+- **Acento.** Marfil `#f2f0eb` (clave `ivory`) por defecto para acciones, selección y foco. Azul, Naranja, Verde y Rojo siguen disponibles por proyecto; las claves antiguas se normalizan en v4 y las elecciones guardadas se conservan.
 - **Estados.** `--working` azul, `--attention` naranja (te necesita), `--danger` rojo, `--success` verde. Los fondos se derivan con `color-mix`. El estado conserva etiqueta explícita y no depende del acento elegido. `test/design-tokens.test.mjs` exige contraste de texto AA (4,5:1) y 3:1 para el indicador `--idle` sobre los cinco planos opacos.
-- **Vidrio.** El chrome usa `--glass` al 48 % y `--glass-thick` al 68 % del tinte neutro (`#141414` al 25 % sobre `--surface-3`), blur de 40 px y saturación 190 %. Inspector, menús, popovers y bandejas usan el material más grueso; las islas, el ligero. El rail usa `--surface` opaco sin sheen. `--glass-sheen` aporta grano fino de ruido fractal (SVG en data URI, alpha 4,5 %) sobre un velo de 172° (`#ffffff12` / `#ffffff07` / `#ffffff03`), separado del color translúcido. `--shadow-chrome` combina luz superior y sombra interior inferior, contacto y caída, con el hairline como único filo, sin halo de color. No hay refracción ni animación del blur.
+- **Chrome mate.** `--glass` usa `--surface #0d0d0d` opaco y `--glass-thick` mezcla 60 % de `--surface` con 40 % de `--surface-2`; inspector y bandejas usan esta mezcla.
+  Menús, selects y popovers usan `--menu #161616`, el único plano elevado, más claro que el chrome, con borde `--menu-edge` blanco al 13 %; el rail conserva `--surface` opaco. `src/menus.css`, cargado al final, es su único dueño. No hay blur, ruido ni brillo degradado.
+  El dock es neutro, sin tinte por tipo: `--fill-2` en reposo, `--fill-3` al pasar y `--on` activo, con tinta correspondiente.
+  En el sidebar, proyecto = único título; encabezados micro sin icono; filas utilitarias en 400. `--shadow-chrome` aporta contacto sin relieve interior, filo iluminado ni halo de color.
 - **Planos translúcidos.** La losa de conversación/terminal usa `--workplane` al 80 % y `--workplane-wash` diagonal al 2 % (alpha máximo combinado 80,4 %), con cabecera y cuerpo transparentes para no apilar superficies completas. Hilo lateral: `--well` al 92 %; hilo del canvas y salida de terminal: `--well-terminal` al 90 %; escritura: `--well-raised` al 96 %. No usan backdrop-filter ni brillo de vidrio; conservan elevaciones locales sin halo. La selección no atenúa ni filtra el texto de paneles vecinos. El canvas permanece transparente y deja ver el arte entre paneles.
-- **Accesibilidad del material.** `prefers-reduced-transparency: reduce` y `prefers-contrast: more` convierten vidrio, losa y pozos en superficies opacas, eliminan filtro, sheen y lavado diagonal y restauran `--ink-on-glass #b0aea8`. Contraste aumentado eleva `--hairline` al 22 %. Transparencia reducida oculta la atmósfera `::before`; el arte independiente `::after` conserva su control de personaje.
+- **Accesibilidad del material.** `prefers-reduced-transparency: reduce` y `prefers-contrast: more` unifican el chrome en `--surface`, convierten losa y pozos en superficies opacas, eliminan filtro, sheen y lavado diagonal y restauran `--ink-on-glass #b0aea8`. Contraste aumentado eleva `--hairline` al 22 %. Transparencia reducida oculta la atmósfera `::before`; el arte independiente `::after` conserva su control de personaje.
 - **Tipografía.** `--sans` Inter → SF Pro → sistema, sin descargas remotas; `--mono` se reserva para código, rutas y medidas. Roles `font: var(--t-…)`: Display 24/30·600, Título 17/22·600, Headline 14/22·600, Lectura 14/22·400, Control 14/20·500, Apoyo 12/16·400 y Micro 12/16·500. Contenido y controles comparten tamaño; estados y metadatos usan 12 px. Pesos 400, 500 y 600. Las etiquetas van en caja natural. Las hojas fuera de esta capa conservan sus tamaños locales.
 - **Atmósfera.** Se conservan Marea, Brasa, Grafito e imagen propia; Gengar/Aurora antiguos migran a Grafito sin gradientes violetas por defecto. Los degradados opcionales se localizan arriba a la derecha (82 % × 80 %) y abajo a la izquierda (64 % × 64 %), sin repetición. La imagen propia usa `cover` centrado. Ambiente y personaje tienen intensidades independientes. «Mostrar Gengar» controla la presencia de personaje, incluidos sprites del chrome y estados vacíos, además del arte ambiental local (`assets/gengar-source.md`). En un canvas vacío se suprime la imagen de fondo del personaje para no duplicar la mascota. La atmósfera permanece inmóvil incluso con una preferencia de pulso guardada.
 
@@ -246,12 +273,12 @@ Lucide continúa en controles auxiliares: 14 px/trazo 2, 16 px/trazo 1,75 y 20 p
 ## Lienzo y chrome
 
 - El canvas va de borde a borde; el chrome son objetos apoyados sobre él con un único hueco `--gutter` de 16 px. En foco, la región se posiciona de forma absoluta: los insets del rail e inspector reducen su ancho disponible, sin desplazar un plano de ancho completo fuera del viewport. La prueba de escritorio exige que región y panel enfocado permanezcan dentro de sus límites.
-- **Rail:** 252 px, radio `--r-isle`, `--surface` opaco sin sheen, alto según contenido; contraído es una píldora de 48 px. `src/sidebar.css` es el único dueño de lo que hay dentro: filas simples de 44 px y sesiones de 56 px, radio `--r-obj` e inset común de 12 px. Las filas no tienen relleno en reposo; hover y selección usan `--fill-2`, selección con tinta `--ink` y glifo/acento local. Lo abierto usa `--fill-3` con `--shadow-rim`. Una sesión que te necesita conserva punto naranja, etiqueta explícita («Pide permiso» cuando corresponde) y título en 600, sin aro ni tinte de todos los metadatos; el resumen «Te necesitan» lleva velo naranja sin contorno. «Ver todo el mapa» es la vista de reposo y nunca se vuelve tecla. Proyecto y Espacio no son campos de formulario: el proyecto es el título del rail (disco con sus iniciales en el acento del proyecto y nombre en Título, con el caret visible solo al pasar o abrir) y el espacio es un chip en píldora bajo el nombre. ProjectMark usa el acento de cada proyecto: fondo teñido al 22 % sobre `--surface-2`, tinta al 86 % con blanco y anillo interior al 34 %, también en las filas del menú y el rail contraído; mide 36 px en el título y 28 px en filas y contraído. Las etiquetas «Proyecto» y «Espacio» quedan solo para lectores de pantalla. Sus menús son un plano sólido `--surface-3` con el mismo brillo, porque un segundo backdrop-filter anidado no oculta las filas de debajo. Las utilidades (Sitios, Plugins, Comandos, Dictado) son una fila de cuatro toggles redondos de 44 px nombrados por tooltip, no cuatro filas más: la lista conserva la altura para las sesiones.
-- **Controles del shell:** `src/shell.css` es el único dueño del aspecto de la fila superior, la navegación y el dock. Las islas de 48 px son píldoras (`--r-isle`); sus controles son círculos de 32 px sin relleno en reposo, con hover `--fill-2` y estado activo `--on`. Los grupos se separan con 8 px de aire, sin reglas verticales. Menús y bandejas flotantes comparten `--r-isle`. **Jerarquía:** (1) `--on` para la herramienta activa en navegación; el rail resuelve su selección neutra en `sidebar.css`; (2) velo `--fill-3` con borde de vidrio `--shadow-rim` para lo abierto o encendido (bandeja, Sitios, minimapa, menús, Phantom, inspector); (3) nada en reposo. Dock e iconos descansan neutros; selección y estados reciben acento. **Estado en el rail:** punto compacto y etiqueta azul si trabaja o naranja si te necesita, sin anillos de agente; el permiso conserva su color al seleccionar. El aviso pendiente de la campana es un punto naranja. `--shadow-rim` (`inset 0 1px 0 #ffffff1f, inset 0 0 0 1px #ffffff0a`) es el borde de cápsulas dentro de una isla: chip de espacio, búsqueda, teselas y estados encendidos.
+- **Rail:** 252 px, radio `--r-isle`, `--surface` opaco sin sheen, alto según contenido; contraído es una píldora de 48 px. `src/sidebar.css` es el único dueño de lo que hay dentro: filas simples de 44 px y sesiones de 56 px, radio `--r-obj` e inset común de 12 px. Las filas no tienen relleno en reposo; hover y selección usan `--fill-2`, selección con tinta `--ink` y glifo/acento local. Lo abierto usa `--fill-3` con `--shadow-rim`. Una sesión que te necesita conserva punto naranja, etiqueta explícita («Pide permiso» cuando corresponde) y título en 600, sin aro ni tinte de todos los metadatos; el resumen «Te necesitan» lleva velo naranja sin contorno. «Ver todo el mapa» es la vista de reposo y nunca se vuelve tecla. Proyecto y Espacio no son campos de formulario: el proyecto es el título del rail (disco con sus iniciales en el acento del proyecto y nombre en Título, con el caret visible solo al pasar o abrir) y el espacio es un chip de 28 px en píldora bajo el nombre, con objetivo táctil de 40 px. ProjectMark usa el acento de cada proyecto: fondo teñido al 22 % sobre `--surface-2`, tinta al 86 % con blanco y anillo interior al 34 %, también en las filas del menú y el rail contraído; mide 36 px en el título y 28 px en filas y contraído. Las etiquetas «Proyecto» y «Espacio» quedan solo para lectores de pantalla. Sus menús son un plano sólido `--menu` sin brillo, más oscuro que el rail, con hover `--fill` y selección `--fill-2`. Las utilidades (Sitios, Plugins, Comandos, Dictado) son una fila de cuatro toggles redondos de 44 px nombrados por tooltip, no cuatro filas más: la lista conserva la altura para las sesiones.
+- **Controles del shell:** `src/shell.css` es el único dueño del aspecto de la fila superior, la navegación y el dock. Las islas de 48 px son píldoras (`--r-isle`); sus controles son círculos de 32 px sin relleno en reposo, con hover `--fill-2` y estado activo `--on`. Los grupos se separan con 8 px de aire, sin reglas verticales. Menús y bandejas flotantes comparten `--r-isle`. **Jerarquía:** (1) `--on` marfil para la herramienta activa en navegación; el rail resuelve su selección neutra en `sidebar.css`; (2) velo `--fill-3` con borde fino `--shadow-rim` para lo abierto o encendido (bandeja, Sitios, minimapa, menús, Phantom, inspector); (3) nada en reposo. Dock e iconos descansan neutros; los tipos de panel comparten `--c-lilac` neutro. **Estado en el rail:** punto compacto y etiqueta azul si trabaja o naranja si te necesita, sin anillos de agente; el permiso conserva su color al seleccionar. El aviso pendiente de la campana es un punto naranja. `--shadow-rim` (`inset 0 0 0 1px #ffffff0a`) es el borde de cápsulas dentro de una isla: chip de espacio, búsqueda, teselas y estados encendidos.
 - **Fila superior:** título y controles son dos islas de 48 px (`--bar`); entre ellas hay canvas. `--top-clear` es la primera línea libre.
 - **Inspector:** contrapeso del rail, 360 px, cuelga bajo los controles.
 - **Franja inferior:** el área de paneles (`.canvas-stage`) termina 148 px antes del borde inferior en mapa y 88 px en foco. Navegación, minimapa y creación quedan fuera de su recorte: ninguna cámara puede colocar contenido interactivo bajo esas islas. La franja conserva la atmósfera, sin caja ni borde adicional.
-- **Dock:** una sola fila de `--dock-h` (56 px): lecturas de actividad a la izquierda y creación a la derecha, en el mismo objeto. Crear son discos de 36 px, solo icono (el nombre queda para lectores de pantalla y tooltip), con relleno oscuro teñido (tono del tipo al 22 % sobre `--surface-2`), icono en el tono del tipo y anillo interior del tono al 34 %; el tono es tinta, nunca relleno saturado; activo sigue siendo `--on`. En mapa comparte columna con navegación (48 px encima, separadas 12 px); el minimapa ocupa una columna independiente de 190 px. En foco el dock se centra y el panel termina 16 px antes de la franja. Con Phantom o el inspector abiertos por debajo de 1700 px, el minimapa cede su columna y las lecturas y la búsqueda se pliegan a su glifo: la fila conserva su centro en vez de desplazarse.
+- **Dock:** una sola fila de `--dock-h` (56 px): lecturas de actividad a la izquierda y creación a la derecha, en el mismo objeto. Crear son discos de 36 px, solo icono (el nombre queda para lectores de pantalla y tooltip), con relleno neutro `--fill-2`, tinta `--ink` y `--shadow-rim`; hover usa `--fill-3` y activo sigue siendo `--on` con `--on-ink`. En mapa comparte columna con navegación (48 px encima, separadas 12 px); el minimapa ocupa una columna independiente de 190 px. En foco el dock se centra y el panel termina 16 px antes de la franja. Con Phantom o el inspector abiertos por debajo de 1700 px, el minimapa cede su columna y las lecturas y la búsqueda se pliegan a su glifo: la fila conserva su centro en vez de desplazarse.
 
 `src/panels.css` es el dueño del aspecto de los paneles de herramientas (`tw-*` dentro de `.canvas-node`), Skills, barra del navegador y nota.
 - **Retícula:** puntos en espacio-mundo; duplican el paso por debajo de 14 px. El viewport no se desplaza: solo la cámara.
@@ -265,10 +292,10 @@ La card es la caja. Dentro no hay líneas:
 - **Identidad:** selector de agente y carpeta en una fila, sin fondo propio.
 - **Hilo:** a sangre, sobre pozo denso translúcido sin blur, en Lectura (14/22), sin pulsos decorativos en el contenido. Turnos separados por 28 px (32 px en foco y 20 px en Phantom), mensajes propios un paso de tono, columna de hasta 780 px. La respuesta no lleva avatar ni cabecera: modelo, hora y costo se dicen una vez al pie, en Apoyo y `--ink-3`, junto a Copiar.
 - **Acciones:** cada llamada es una línea sin caja: glifo de 14 px, etiqueta y destino en Apoyo. Conserva el estado accesible y el indicador discreto de main; solo los estados en curso, fallidos o detenidos añaden texto. Solo las escrituras suben el glifo a tinta plena. Cuatro o más acciones seguidas se pliegan en una frase de lo hecho, abierta mientras trabaja. Subagentes, código y salidas siguen siendo pozos de un tono con `--r-ctl`. Las guías de 1 px de razonamiento y pasos anidados indican anidamiento, no contienen.
-- **Segmentado** Claude · OpenCode · Codex · Terminal: pista `--fill` con pozo; indicador activo `--on`, tinta `--on-ink` y relieve `--shadow-key`. La identidad del proveedor no tiñe la tecla activa.
-- **Compositor:** continúa el plano de lectura de borde a borde (`.pc-composer::before` con `--well-terminal`): no hay una segunda banda de tono bajo el hilo. El campo es el único objeto: `--well-raised`, radio `--r-isle` y borde de vidrio `--shadow-rim`. Foco usa acento del proyecto y anillo estático de 3 px, independiente del trazo de actividad. Modelo, Effort y permisos son una familia de píldoras de 30 px sin relleno en reposo; el permiso activo lleva velo y borde de vidrio. Sus menús se abren siempre en el mismo sitio, sobre el borde izquierdo del campo y con el mismo ancho (320 px), en vidrio; el valor vigente es un velo con su marca, no una tecla clara. Debajo, sin fondo: contexto, costo y pista de teclado; metadatos y controles envuelven en ancho reducido.
+- **Segmentado** Claude · OpenCode · Codex · Terminal: pista `--fill` con pozo; indicador activo `--on`, tinta `--on-ink` y contacto `--shadow-key`. La identidad del proveedor no tiñe la tecla activa.
+- **Compositor:** continúa el plano de lectura de borde a borde (`.pc-composer::before` con `--well-terminal`): no hay una segunda banda de tono bajo el hilo. El campo es el único objeto: `--well-raised`, radio `--r-isle` y borde fino `--shadow-rim`. Foco usa acento del proyecto y anillo estático de 3 px, independiente del trazo de actividad. Modelo, Effort y permisos son una familia de píldoras de 30 px sin relleno en reposo; el permiso activo lleva velo y borde fino. Sus menús se abren siempre en el mismo sitio, sobre el borde izquierdo del campo y con el mismo ancho (320 px), en un plano mate; el valor vigente es un velo con su marca, no una tecla clara. Debajo, sin fondo: contexto, costo y pista de teclado; metadatos y controles envuelven en ancho reducido.
 - **Tamaño compartido:** `ChatCard` y `PhantomChat` usan `useComposerSize`. Altura inicial mínima de 38 px, una fila, mismo padding incluso en foco. El máximo es el menor entre el 45 % del alto del contenedor y el espacio libre tras cabeceras, avisos, controles, metadatos y reserva de hilo (hasta 96 px o 20 % del alto). Se recalcula al escribir, borrar, enviar y cambiar ancho/alto o controles; `ResizeObserver` y observación de contenido conservan el límite sin depender del zoom del canvas. Al llegar al máximo, el texto tiene scroll interno y los controles permanecen fuera de ese scroll. No se anima la altura al teclear.
-- **Chat lateral:** losa `--workplane` más lavado diagonal, hilo `--well` y campo `--well-raised`, sin backdrop-filter. Cabecera y selector no añaden costuras interiores. Los controles pueden envolver en anchos estrechos; sus menús flotantes conservan vidrio.
+- **Chat lateral:** losa `--workplane` más lavado diagonal, hilo `--well` y campo `--well-raised`, sin backdrop-filter. Cabecera y selector no añaden costuras interiores. Los controles pueden envolver en anchos estrechos; sus menús flotantes usan planos mate.
 - **Plugins, Skills y Repository:** título de herramienta 15 px/600, icono de cabecera 18 px; títulos de sección y etiquetas en caja natural, 12 px/600 y tono secundario; cuerpo 13 px; glifos Lucide con trazo 1,75. Sin contornos interiores redundantes en cabeceras, segmentados y pozos; se conservan estados, contenido, foco y rutas de navegación.
 - **Terminal:** el pozo de salida se distingue por tono. Su borde superior es transparente y solo se colorea con estado (azul trabajando, naranja te necesita).
 - **Preguntas y permisos pendientes** sí llevan borde de color: es estado. Resueltos, lo pierden.
@@ -354,7 +381,7 @@ El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el ra
 
 Los campos de texto se editan como borradores con Guardar y Descartar; los selectores e interruptores guardan al cambiar. Shell y voz usan `settings.update`; el agente predeterminado se guarda en localStorage como `phantom.cardMode`. La configuración de Phantom actualiza valores propios del proyecto con `plugins.update` cuando ya existen y usa los ajustes generales para los demás. Conexiones usa `plugins.update` y Git `merge.configure`, ambos con el proyecto explícito; Git y Conexiones piden abrir un proyecto si falta. Los fallos de carga y guardado conservan mensajes visibles. Estas rutas de persistencia son distintas de las preferencias locales de Apariencia descritas a continuación.
 
-Las opciones de fondo de Apariencia usan CSS y assets locales, con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos Azul, Naranja, Verde, Rojo y Marfil. «Intensidad ambiental» y «Presencia de Gengar» tienen salida numérica independiente; «Mostrar Gengar», «Pulso ambiental», «Concentración» y retícula son checkboxes etiquetados. Restablecer devuelve Grafito/Azul/retícula ON/ambiente 55 %/personaje OFF al 55 %/pulso OFF/concentración OFF/sin imagen.
+Las opciones de fondo de Apariencia usan CSS y assets locales, con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos Azul, Naranja, Verde, Rojo y Marfil. «Intensidad ambiental» y «Presencia de Gengar» tienen salida numérica independiente; «Mostrar Gengar», «Pulso ambiental», «Concentración» y retícula son checkboxes etiquetados. Restablecer devuelve Grafito/Marfil/retícula ON/ambiente 55 %/personaje OFF al 55 %/pulso OFF/concentración OFF/sin imagen.
 
 Las muestras seleccionadas llevan contorno sólido exterior de 2 px separado 3 px, sin halo: en acentos rodea el disco de 28 px con su propio color y deja la etiqueta en `--ink`, sin relleno de fila; en fondos usa `--accent`. Hover de acento usa `--fill-2`; el check usa `--on-ink` sobre la muestra y la etiqueta usa Micro.
 

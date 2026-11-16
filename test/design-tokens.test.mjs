@@ -101,7 +101,7 @@ test('sidebar keeps neutral selection, compact status and consistent control siz
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
   const source = readFileSync(path.join(root, 'src/components/SidebarPanels.jsx'), 'utf8');
-  for (const [name, value] of Object.entries({ bg: '#141414', surface: '#1e1e1e', 'surface-2': '#292929', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
+  for (const [name, value] of Object.entries({ bg: '#050505', surface: '#0d0d0d', 'surface-2': '#151515', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
     assert.equal(declarations(canvas, `--${name}`)[0], value);
   }
   assert.doesNotMatch(declarations(canvas, '--glass-tint')[0], /--accent/);
@@ -130,22 +130,18 @@ test('sidebar status text retains AA over its selected neutral surface', () => {
   }
 });
 
-test('light glass has inset relief, a spring and accessible opaque fallbacks only on chrome', () => {
+test('matte chrome has ivory keys, a spring and accessible opaque fallbacks only on chrome', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const tokens = canvas.match(/:root\s*\{([^}]+)\}/)?.[1];
   assert.ok(tokens);
-  for (const [token, minimum] of [['glass', 44], ['glass-thick', 60]]) {
-    const value = declarations(tokens, `--${token}`)[0];
-    const opacity = value?.match(/^color-mix\(in srgb, var\(--glass-tint\) (\d+(?:\.\d+)?)%, transparent\)$/)?.[1];
-    assert.ok(Number(opacity) >= minimum, `--${token} must be at least ${minimum}% opaque`);
-  }
-  const blur = declarations(tokens, '--glass-filter')[0]?.match(/blur\((\d+(?:\.\d+)?)px\)/)?.[1];
-  assert.ok(Number(blur) >= 34, '--glass-filter must blur at least 34px');
-  assert.match(declarations(tokens, '--glass-filter')[0], /saturate\(190%\)/);
-   assert.equal(declarations(tokens, '--on')[0], '#5b9cff');
-   assert.equal(declarations(tokens, '--on-ink')[0], '#141414');
+  assert.equal(declarations(tokens, '--glass')[0], 'var(--surface)');
+  assert.equal(declarations(tokens, '--glass-thick')[0], 'color-mix(in srgb, var(--surface) 60%, var(--surface-2))');
+  assert.equal(declarations(tokens, '--glass-filter')[0], 'none');
+  assert.equal(declarations(tokens, '--glass-sheen')[0], 'none');
+  assert.equal(declarations(tokens, '--on')[0], '#f2f0eb');
+  assert.equal(declarations(tokens, '--on-ink')[0], '#141414');
   const chrome = declarations(tokens, '--shadow-chrome')[0];
-  assert.ok(split(chrome, ',').filter(layer => layer.startsWith('inset ')).length >= 2, 'Chrome needs top and bottom inset relief');
+  assert.doesNotMatch(chrome, /\binset\b/);
   assert.match(declarations(tokens, '--ease-spring')[0], /^linear\(/);
   assert.match(canvas, /@media\s*\(prefers-contrast:\s*more\)/);
   for (const preference of ['prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
@@ -274,16 +270,27 @@ test('chrome reading inks retain AA across the existing CSS atmospheres and proj
   const over = (front, back, alpha) => front.map((v, i) => v * alpha + back[i] * (1 - alpha));
   const luminance = rgb => rgb.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
     .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+  assert.match(declarations(tokens, '--glass-tint')[0], /^#[\da-f]{6}$/i);
+  assert.ok(luminance(token('glass-tint')) <= luminance(token('surface')));
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const shell = sheets.find(sheet => sheet.name === 'src/shell.css').css;
+  const panels = sheets.find(sheet => sheet.name === 'src/panels.css').css;
+  assert.doesNotMatch(panels, /\.dock-action\[data-type\][^{}]*\{[^}]*var\(--type\b/);
+  assert.match(sidebar, /\.context-menu-panel\s*\{[^}]*background-color: var\(--menu\)/);
+  assert.match(chat, /\.pc-models\s*\{[^}]*background: var\(--menu\)/);
+  for (const [, selectors, body] of shell.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (selectors.includes('.dock-action'))
+      for (const background of declarations(body, 'background(?:-color)?')) assert.doesNotMatch(background, /var\(--type\b/);
+  }
   const backgrounds = [token('bg'), ...[...studio.matchAll(/--atmosphere:[^;}]+/g)]
     .flatMap(([value]) => [...value.matchAll(/#[\da-f]{6}\b/gi)].map(([hex]) => rgb(hex)))];
-  // Full intensity at each gradient's brightest stop and top of the sheen.
-  // Personal images are runtime content; opaque accessibility modes remain available.
+  // Opaque chrome stays independent of atmospheres and project accents.
   for (const accent of ['action', 'attention', 'success', 'danger', 'ink']) {
-    const tint = over(token('bg'), token('surface-3'), .25);
     for (const material of ['glass', 'glass-thick']) {
-      const alpha = Number(declarations(tokens, `--${material}`)[0].match(/ (\d+)%/)[1]) / 100;
       for (const background of backgrounds) {
-        const composite = over([1, 1, 1], over(tint, background, alpha), 31 / 255);
+        const plane = material === 'glass' ? token('surface') : over(token('surface'), token('surface-2'), .6);
+        const composite = over(plane, background, 1);
         for (const ink of ['ink', 'ink-on-glass']) {
           const a = luminance(token(ink)), b = luminance(composite);
           const ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
@@ -303,4 +310,21 @@ test('materials retire the old activity glint and keep auxiliary status indicato
     const css = sheets.find(sheet => sheet.name === `src/${name}.css`).css;
     assert.doesNotMatch(css, /animation\s*:[^;}]*\binfinite\b/, `${name}: no continuous material/status animation`);
   }
+});
+
+test('black planes step up in order and menus own the only raised plane', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const menus = sheets.find(sheet => sheet.name === 'src/menus.css').css;
+  const level = name => parseInt(declarations(canvas, `--${name}`)[0].slice(1, 3), 16);
+  const ladder = ['bg', 'terminal-bg', 'surface', 'surface-2', 'menu', 'surface-3'].map(level);
+  assert.deepEqual(ladder, [...ladder].sort((a, b) => a - b), 'Planes must step from the black canvas upwards.');
+  assert.ok(level('bg') <= 8, 'The canvas stays black.');
+  assert.ok(level('surface-3') <= 32, 'No plane rises into grey.');
+  assert.match(menus, /background-color: var\(--menu\)/);
+  assert.match(menus, /border-color: var\(--menu-edge\)/);
+  assert.match(menus, /select:not\(\[multiple\]\):not\(\[size\]\)\s*\{[^}]*appearance: base-select/);
+  assert.match(menus, /::picker\(select\)\s*\{[^}]*appearance: base-select/);
+  // The current value is ink, weight and a mark; the only fill is hover/keyboard.
+  assert.match(menus, /\[aria-selected="true"\]:not\(:hover, :focus-visible\)[^{]*\{[^}]*background: none/s);
+  assert.doesNotMatch(menus, /outline:\s*2px/);
 });

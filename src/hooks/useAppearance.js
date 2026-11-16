@@ -8,7 +8,7 @@ export const BACKGROUNDS = [
 export const ACCENTS = [['blue', 'Azul', '#5b9cff'], ['orange', 'Naranja', '#f3a45b'], ['green', 'Verde', '#65ba83'], ['red', 'Rojo', '#f27670'], ['ivory', 'Marfil', '#f2f0eb']];
 const VERSION = 4;
 const retiredAccents = { lilac: 'blue', iris: 'blue', mint: 'green', amber: 'orange', rose: 'red', cyan: 'blue' };
-export const defaults = { background: 'plain', accent: 'blue', grid: true, intensity: 55, image: '', gengar: false, gengarIntensity: 55, pulse: false, concentration: false };
+export const defaults = { background: 'plain', accent: 'ivory', grid: true, intensity: 55, image: '', gengar: false, gengarIntensity: 55, pulse: false, concentration: false };
 const keyFor = id => `phantom:studio:${id || 'default'}`;
 export function accentColor(key) {
   return (ACCENTS.find(([accent]) => accent === key) || ACCENTS.find(([accent]) => accent === defaults.accent))[2];

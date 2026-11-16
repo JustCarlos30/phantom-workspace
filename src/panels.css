@@ -57,11 +57,8 @@
 .app-shell .canvas-node .tw-action-editor { padding: 12px 14px; border: 0; background: var(--fill); }
 
 /* ---------- Panel kinds, Skills, browser and note ----------
-   The hue of a panel kind is ink on a dark tinted key, never a saturated fill:
+   The hue of a panel kind is ink on a dark tinted header glyph, never a saturated fill:
    the same treatment as the attention plate in the rail. */
-.app-shell .activity-dock .dock-main .dock-action[data-type]:not(.dock-hub) { background: color-mix(in srgb, var(--type, var(--ink)) 22%, var(--surface-2)); color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--type, var(--ink)) 34%, transparent); }
-.app-shell .activity-dock .dock-main .dock-action[data-type]:not(.dock-hub):hover:not(:disabled) { background: color-mix(in srgb, var(--type, var(--ink)) 32%, var(--surface-2)); color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); }
-.app-shell .activity-dock .dock-main .dock-action[data-type]:not(.dock-hub):is(.active, [aria-expanded="true"]) { background: var(--on); color: var(--on-ink); }
 .app-shell .canvas-node:is(.selected, .focused) > .node-header > .node-glyph:has(.shell-icon) { background: color-mix(in srgb, var(--type, var(--ink)) 22%, var(--surface-2)); color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--type, var(--ink)) 34%, transparent); }
 .app-shell .canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon { color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); }
 .app-shell .sk-segments { padding: 3px; border-radius: var(--r-pill); box-shadow: var(--shadow-well); }
