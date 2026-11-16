@@ -165,6 +165,13 @@ Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones est�
 2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`, con contacto negro sin relieve interior ni halo de color. Los paneles usan `--shadow-rest` y `--shadow-float`; conversaciones y terminales resuelven esas elevaciones localmente a `--shadow-workplane-rest` y `--shadow-workplane-lift`. Selección y foco conservan señales independientes. El trabajo real usa azul; atención naranja, error rojo y éxito verde. La capa SVG de actividad es independiente del material y del anillo de selección.
 3. **Lo fantasma es comportamiento y material.** El chrome usa planos carbón mate opacos sin filtro ni brillo. Los planos de trabajo transmiten color por alpha al 80 % y un lavado diagonal del acento al 2 %, sin backdrop-filter; los pozos de lectura y escritura permanecen densos al 90/96 %. Los controles usan sombra de contacto `--shadow-key` y pozos `--shadow-well`, con excepciones planas para iconos propios. La entrada CSS aparece por opacidad y un desplazamiento vertical de 4 px, sin desenfocar texto; al soltar, el control recupera escala con resorte. Gengar pixelado conserva sus assets locales según la preferencia de personaje. El reposo sin animación continua es un requisito de rendimiento; la salvedad del GIF vacío se describe en Movimiento.
 
+### Estado de terminal
+
+La fila «ahora» reúne marca cuadrada de 6 px, paso legible a 13 px y antigüedad a 12 px con fecha y fuente en el título; overview conserva su resumen sin hora.
+La píldora de trabajo usa una marca cuadrada pixelada; azul `--working` para trabajo y naranja `--attention` para atención.
+La línea actual y el borde superior del pozo usan azul trabajando y naranja al pedir permiso o ceder el turno, con un lavado superior estático tenue del 7 % / 8 %.
+No hay animación continua: solo `materialize` al cambiar de paso, desactivada con movimiento reducido.
+
 ### Tokens (`src/canvas-ui.css`, bloque `:root`)
 
 | Token | Valor | Uso |
