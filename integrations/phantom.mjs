@@ -108,12 +108,32 @@ async function list(payload, context, c) {
   return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
 }
 async function events(payload, context, c) {
+  if (payload.view !== undefined && payload.view !== 'activity') throw new Error('Invalid Phantom events view');
   // Authorize the canonical task before invoking the CLI event reader. In
   // particular, never fetch a foreign task's events and filter them afterwards.
   const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
   if (task.id !== payload.id) throw new Error('Phantom task ID mismatch');
   const result = await c.call(['events', payload.id]);
   if (!Array.isArray(result)) throw new Error('Phantom returned invalid events');
+  if (payload.view === 'activity') {
+    const runId = result.findLast(event => event.run_id)?.run_id ?? null;
+    const steps = new Map();
+    let model = null;
+    for (const event of result.filter(event => runId !== null && event.run_id === runId)) {
+      const data = event.data || {};
+      if (event.type === 'model.requested') model = data.model;
+      if (!['action.intended', 'action.observed'].includes(event.type) || !data.callID) continue;
+      const previous = steps.get(data.callID), args = data.args || {}, tool = data.tool || previous?.tool || '';
+      let target = args.pattern ? `${args.pattern}${args.path ? ` en ${args.path}` : ''}` : args.path;
+      target = args.filePath || target || args.command || args.url || args.description || previous?.target || '';
+      if (/^(apply_patch|patch)$/i.test(tool) && typeof args.patchText === 'string') target = [...args.patchText.matchAll(/^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm)].map(match => match[1]).join(', ');
+      const observed = event.type === 'action.observed';
+      const failed = data.error || data.status === 'error' || data.metadata?.error || data.metadata?.status === 'error' || data.output?.isError || data.output?.error || data.output?.status === 'error';
+      steps.set(data.callID, { id: data.callID, tool, target: String(target).slice(0, 240), status: observed ? failed ? 'error' : 'done' : previous?.status || 'running', at: previous?.at ?? event.at });
+    }
+    const items = [...steps.values()];
+    return { available: true, id: payload.id, source: 'phantom', observedAt: observedAt(), runId, model, total: items.length, items: items.slice(-40), truncated: items.length > 40 };
+  }
   return { items: result.slice(-100), events: result, id: payload.id, source: 'phantom', observedAt: observedAt(), truncated: result.length > 100 };
 }
 async function runEvidence(run, c) {

@@ -1,10 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { phantomRunIds, summarizePhantomRun } from './phantom-run-link.mjs';
+import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity } from './phantom-run-link.mjs';
 
 const id = 'task_12345678-1234-1234-1234-123456789abc';
 const card = 'card_abcdef12-1234-1234-1234-123456789abc';
 const shell = detail => ({ type: 'tool', name: 'Bash', detail });
+
+test('resume modelo y contadores nativos', () => {
+  const summary = summarizePhantomRun({ run: { requestedModel: 'openai/model', turns: 0, tools: 3 } });
+  assert.equal(summary.model, 'openai/model');
+  assert.equal(summary.turns, 0);
+  assert.equal(summary.tools, 3);
+});
+
+test('actividad relativa, etiquetas, paso actual y anteriores', () => {
+  const tools = ['read', 'grep', 'glob', 'list', 'edit', 'write', 'apply_patch', 'patch', 'bash', 'shell', 'webfetch', 'task', 'custom'];
+  const summary = summarizePhantomActivity({ available: true, total: 20, items: tools.map((tool, id) => ({ id, tool, target: '/work/src/a', status: id === 2 || id === 4 ? 'running' : 'done' })) }, '/work');
+  assert.deepEqual(summary.steps.map(step => step.label), ['Leer', 'Buscar', 'Buscar', 'Buscar', 'Editar', 'Editar', 'Editar', 'Editar', 'Ejecutar', 'Ejecutar', 'Web', 'Agente', 'custom']);
+  assert.ok(summary.steps.every(step => step.detail === 'src/a'));
+  assert.equal(summary.current.id, 4);
+  assert.equal(summary.hidden, 7);
+  assert.equal(summary.total, 20);
+  assert.deepEqual(summarizePhantomActivity(null), { steps: [], total: 0, hidden: 0, current: null });
+  assert.deepEqual(summarizePhantomActivity({ available: false, items: [{}] }).steps, []);
+});
 
 test('enlaza agent.mjs run', () => {
   assert.deepEqual(phantomRunIds(shell(`node /tmp/agent.mjs run ${id}`)), [id]);

@@ -224,6 +224,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-subagent-output { margin-top: 4px; }
 .pc-phantom-link { display: grid; gap: 6px; min-width: 0; }
 .pc-phantom-run .pc-subagent-head { flex-wrap: wrap; }
+.pc-phantom-run .pc-subagent-steps { max-height: 308px; }
 .pc-phantom-id { color: var(--muted); font-size: 11px; }
 .pc-phantom-status { margin-left: auto; color: var(--muted); }
 .pc-phantom-status.is-live { color: var(--working); }
