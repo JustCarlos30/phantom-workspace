@@ -48,6 +48,18 @@ test('external origin stays a root even when nodeId matches a local terminal', (
   assert.equal(rows[1].depth, 0);
 });
 
+test('why removes a leading what only at a space boundary before truncating', () => {
+  const { rows } = build([
+    terminal('a', { handoff: { title: 'Primero', brief: 'Primero\n\n  Revisa   los tests\nporque fallan' } }),
+    terminal('b', { handoff: { title: 'Pri', brief: 'Primero va esto' } }),
+    terminal('c', { handoff: { title: 'Largo', brief: `Largo ${'x'.repeat(500)}` } }),
+    terminal('d', { handoff: { title: 'Otro', brief: 'Nada que ver con el título' } }),
+  ]);
+  assert.deepEqual(rows.map(row => row.why), [
+    'Revisa los tests porque fallan', 'Primero va esto', `${'x'.repeat(199)}…`, 'Nada que ver con el título',
+  ]);
+});
+
 test('cycles, self-links and absent data yield each terminal exactly once', () => {
   const { rows } = build([
     terminal('a', { handoff: handoff('b') }), terminal('b', { handoff: handoff('a') }),

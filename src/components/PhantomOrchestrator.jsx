@@ -20,10 +20,13 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
   const orchestrator = status.orchestrator;
   const delegation = useMemo(() => buildDelegation(workspace), [workspace]);
   const delegates = delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden);
+  const working = delegates.filter(row => row.status === 'working').length;
+  const blocked = delegates.filter(row => row.status === 'blocked').length;
+  const unassigned = delegates.filter(row => row.purpose === 'none').length;
   const summary = [
-    delegation.counts.working && `${delegation.counts.working} trabajando`,
-    delegation.counts.blocked && `${delegation.counts.blocked} ${delegation.counts.blocked === 1 ? 'bloqueada' : 'bloqueadas'}`,
-    delegation.counts.unassigned && `${delegation.counts.unassigned} sin encargo`,
+    working && `${working} trabajando`,
+    blocked && `${blocked} ${blocked === 1 ? 'bloqueada' : 'bloqueadas'}`,
+    unassigned && `${unassigned} sin encargo`,
   ].filter(Boolean).join(' · ');
   return <div className="pd-orchestrator">
     {orchestrator && <section className="pd-session" data-tone={status.tone} aria-label="Orquestador">
@@ -44,7 +47,7 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
           <span className="pd-deleg-content">
             <strong>{row.title}</strong>
             <small>{{ working: 'Trabajando', blocked: 'Bloqueado', review: 'Lista para revisión', idle: 'En espera' }[row.status]}{row.step ? ` · ${row.step}` : ''}</small>
-            {(row.what || row.purpose === 'none') && <span className="pd-deleg-what">{row.purpose === 'none' ? 'Sin tarea ni encargo' : row.what}</span>}
+            {(row.purpose === 'none' || (row.what && !row.title.endsWith(row.what))) && <span className="pd-deleg-what">{row.purpose === 'none' ? 'Sin tarea ni encargo' : row.what}</span>}
             {row.why && <small>{row.why}</small>}
             {row.from && <small>Pedido por {row.from.title}{row.from.external ? ` · ${row.from.workspaceName}` : ''}</small>}
             {row.branch && <code>{row.branch}</code>}

@@ -4,6 +4,7 @@ export function buildDelegation(workspace) {
     const { agent = {}, handoff, worktree = {}, role, hidden } = node.data || {};
     const what = agent.cardTitle || handoff?.title || '';
     let why = (handoff?.brief || '').replace(/\s+/g, ' ').trim();
+    if (what && why.startsWith(`${what} `)) why = why.slice(what.length).trim();
     if (why === what) why = '';
     if (why.length > 200) why = `${why.slice(0, 199)}…`;
     return {
