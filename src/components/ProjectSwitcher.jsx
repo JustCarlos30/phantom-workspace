@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Folder, FolderOpen, Search } from 'lucide-react';
+import { accentColor, loadAppearance } from '../hooks/useAppearance';
 
 // Both context menus stay inside the rail, so they never cover native views.
 export function useContextSwitcher(open, onOpenChange) {
@@ -51,6 +52,10 @@ export function useContextSwitcher(open, onOpenChange) {
 
 const initials = name => name?.split(/[\s_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
 
+export function ProjectMark({ project, small = false }) {
+  return <span className="project-initials" style={small ? { '--project-mark-size': '28px' } : undefined}>{project ? initials(project.name) : <Folder size={16} />}</span>;
+}
+
 export default function ProjectSwitcher({ projects, active, open, onOpenChange, onSelect, onOpenFolder, busy }) {
   const [query, setQuery] = useState('');
   const menu = useContextSwitcher(open, onOpenChange);
@@ -60,13 +65,13 @@ export default function ProjectSwitcher({ projects, active, open, onOpenChange, 
   const visible = active ? [active, ...filtered.filter(w => w.id !== active.id)] : filtered;
   return <details ref={menu.root} className="project-switcher context-switcher" open={open} onKeyDown={menu.onKeyDown} onBlur={menu.onBlur}>
     <summary ref={menu.trigger} aria-expanded={open} aria-controls="project-context-menu" title={active?.path || 'Elegir proyecto'} onClick={e => { e.preventDefault(); onOpenChange(!open); }}>
-      <span className="project-initials">{active ? initials(active.name) : <Folder size={16} />}</span>
+      <ProjectMark project={active} />
       <span className="project-switcher-label"><small>Proyecto</small><strong>{active?.name || 'Elegir proyecto'}</strong></span><ChevronDown size={14} />
     </summary>
     {open && <div id="project-context-menu" className="context-menu-panel" style={menu.style}>
       <label className="context-search"><Search size={14} /><input ref={menu.search} aria-label="Buscar proyectos por nombre o ruta" placeholder="Nombre o ruta…" value={query} onChange={e => setQuery(e.target.value)} /></label>
       {query && !filtered.length && <p className="context-empty" role="status">Sin proyectos que coincidan.</p>}
-      <nav className="project-list" aria-label="Proyectos recientes">{visible.map(w => <button key={w.id} className={`project-item ${w.id === active?.id ? 'active' : ''}`} aria-current={w.id === active?.id ? 'true' : undefined} aria-describedby={`project-path-${w.id}`} onClick={() => { menu.close(true); onSelect(w.id); }} title={`${w.name}\nCarpeta: ${w.path}\nRuta canónica: ${w.canonicalPath || w.path}`}><Folder size={15} /><span><strong>{w.name}</strong><small id={`project-path-${w.id}`}>{w.path}</small></span></button>)}</nav>
+      <nav className="project-list" aria-label="Proyectos recientes">{visible.map(w => <button key={w.id} className={`project-item ${w.id === active?.id ? 'active' : ''}`} style={{ '--project-accent': accentColor(loadAppearance(w.id).accent) }} aria-current={w.id === active?.id ? 'true' : undefined} aria-describedby={`project-path-${w.id}`} onClick={() => { menu.close(true); onSelect(w.id); }} title={`${w.name}\nCarpeta: ${w.path}\nRuta canónica: ${w.canonicalPath || w.path}`}><ProjectMark project={w} small /><span><strong>{w.name}</strong><small id={`project-path-${w.id}`}>{w.path}</small></span></button>)}</nav>
       <button className="open-folder" onClick={() => { menu.close(true); onOpenFolder(); }} disabled={busy}><FolderOpen size={16} /> Abrir carpeta</button>
     </div>}
   </details>;
