@@ -20,7 +20,7 @@ import { useReadyBranches } from './hooks/useReadyBranches';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
 import ProjectSwitcher, { ProjectMark } from './components/ProjectSwitcher';
-import { Image as ImageIcon, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Film } from 'lucide-react';
+import { Image as ImageIcon, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Film, MoreHorizontal } from 'lucide-react';
 import { PhantomGlyph as Ghost, PhantomFace } from './components/Glyphs';
 import { ActivityIcon, PluginsIcon, CommandsIcon, SiteIcon } from './components/ShellIcons.jsx';
 import { PANEL_ICONS } from './components/PanelIcons';
@@ -36,7 +36,7 @@ import './terminal.css';
 import './chat.css';
 import { preferredCardMode } from './components/ChatCard';
 import ToolPicker from './components/ToolPicker';
-import { HUBS, HUB_ORDER, resolveHub } from './hooks/hubs.mjs';
+import { HUBS, HUB_DOCK, HUB_MORE, resolveHub } from './hooks/hubs.mjs';
 import SidebarPanels from './components/SidebarPanels';
 import './sidebar.css';
 import './shell.css';
@@ -50,7 +50,7 @@ const TYPES = [
   // [type, name, icon, description, launcher group]
   ['terminal', 'Terminal', TerminalSquare, 'Una sesión con un agente o una terminal', 'space'], ['browser', 'Navegador', Globe, 'Una página web dentro del proyecto', 'space'], ['note', 'Nota', StickyNote, 'Texto libre que se queda en el mapa', 'space'],
   ['zone', 'Zona', Frame, 'Un área con nombre para agrupar paneles', 'space'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito', 'space'],
-  ['tasks', 'Trabajo', ListChecks, HUBS.tasks.hint, 'project'], ['context', 'Contexto', FileText, HUBS.context.hint, 'project'], ['repo', 'Git', GitBranch, HUBS.repo.hint, 'project'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees', 'project'], ['branches', 'Ramas', GitBranch, 'Todas las ramas y worktrees: guardar, integrar y limpiar', 'project'], ['incorporaciones', 'Incorporaciones', GitMerge, 'Qué se incorpora, en qué orden y qué se planea', 'project'], ['services', 'Servicios', Server, HUBS.services.hint, 'project'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta', 'project'],
+  ['tasks', 'Trabajo', ListChecks, HUBS.tasks.hint, 'project'], ['context', 'Contexto', FileText, HUBS.context.hint, 'project'], ['repo', 'Git', GitBranch, HUBS.repo.hint, 'project'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees', 'project'], ['branches', 'Ramas', GitBranch, 'Todas las ramas y worktrees: guardar, integrar y limpiar', 'project'], ['incorporaciones', 'Incorporaciones', GitMerge, 'Qué se incorpora, en qué orden y qué se planea', 'project'], ['services', HUBS.services.name, Server, HUBS.services.hint, 'project'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta', 'project'],
   ['review', 'Revisión de video', Film, 'Comenta cuadros de tus renders', 'project'],
   ['workflows', 'Automatizar', Workflow, HUBS.workflows.hint, 'project'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales', 'automation'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente', 'automation'],
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales', 'phantom'],
@@ -63,7 +63,7 @@ const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find
 // Everything a hub hosts as a tab stays a valid node type (saved canvases keep
 // rendering) but is no longer offered on its own.
 const LAUNCH_TYPES = TYPES.filter(([type]) => ['terminal', 'browser', 'note', 'zone', 'review', 'video-log'].includes(type) || HUBS[type]);
-const HUB_ACTIONS = HUB_ORDER.map(id => TYPES.find(t => t[0] === id));
+const HUB_ACTIONS = HUB_DOCK.map(id => TYPES.find(t => t[0] === id));
 // The creation dock: one weight for every action, the icon names the panel and
 // a short word under it says it. Hints are the launcher's own descriptions.
 const DOCK_ACTIONS = QUICK_TYPES.map(([type, name, , hint]) => [type, name, hint]);
@@ -126,6 +126,28 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [voice, setVoice] = useState(false);
   const [tray, setTray] = useState(false);
   const [tools, setTools] = useState(false);
+  const [dockMore, setDockMore] = useState(false);
+  const dockMoreButton = useRef(null);
+  const dockMoreMenu = useRef(null);
+  useEffect(() => {
+    if (!dockMore) return;
+    const outside = event => {
+      if (!dockMoreButton.current?.contains(event.target) && !dockMoreMenu.current?.contains(event.target)) setDockMore(false);
+    };
+    const escape = event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setDockMore(false);
+      dockMoreButton.current?.focus();
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape, true);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape, true);
+    };
+  }, [dockMore]);
   const [list, setList] = useState(false);
   const [sidebar, setSidebar] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
@@ -474,7 +496,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
           {workspace && <div key="create-dock" ref={dockFit} className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} />
-            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" />{HUB_ACTIONS.map(([type, name, Icon, hint]) => <button key={type} className="dock-action dock-hub" data-hub={type} disabled={!!busy} title={hint} onClick={() => onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>)}</div>
+            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" />{HUB_ACTIONS.map(([type, name, Icon, hint]) => <button key={type} className="dock-action dock-hub" data-hub={type} disabled={!!busy} title={hint} onClick={() => onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>)}<button ref={dockMoreButton} className="dock-action dock-hub dock-more" disabled={!!busy} aria-label="Más" aria-haspopup="menu" aria-expanded={dockMore} onClick={() => setDockMore(value => !value)}><MoreHorizontal size={18} aria-hidden="true" /><span>Más</span></button></div>
+            {dockMore && <div ref={dockMoreMenu} className="dock-more-menu" role="menu" aria-label="Más hubs">{HUB_MORE.map(type => { const Icon = TYPES.find(item => item[0] === type)[2]; return <button key={type} role="menuitem" disabled={!!busy} title={HUBS[type].hint} onClick={() => { onOpenPanel(type); setDockMore(false); }}><Icon size={18} aria-hidden="true" /><span>{HUBS[type].name}</span></button>; })}</div>}
           </div>}
           {workspace && !focused && <button key="panel-index-button" className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
           {selected.length > 1 && !focused && <button key="zone-selection" className="zone-selection button" onClick={zoneFromSelection}><Frame size={15} /> Crear zona</button>}
