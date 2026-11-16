@@ -245,11 +245,17 @@ Para preparar otro perfil/equipo con Python3 y soporte venv:
 
 ```sh
 npm run setup:voice
+# Recomendado para dictado en vivo con GPU CUDA:
+npm run setup:voice -- --model large-v3-turbo --device cuda --replace
 # Alternativa de menor tamaño:
 node scripts/setup-voice.mjs --model tiny
 ```
 
-El instalador mantiene dependencias y modelos en el directorio propio de la app y respeta una configuración previa. Ajustes permite otro comando local o un proveedor compatible configurado por el host. Las API keys no viajan al renderer. La prueba de audio usó voz sintética; el micrófono personal se utiliza al pulsar Grabar y conceder acceso.
+El instalador mantiene dependencias y modelos en el directorio propio de la app y respeta una configuración previa; `--replace` guarda una copia de la configuración anterior. Admite `tiny`, `base`, `small`, `medium`, `large-v3` y `large-v3-turbo`. Las descargas solo ocurren durante la instalación explícita; el dictado local trabaja offline, sin descargas implícitas.
+
+En Ajustes → Dictado puedes elegir **Idioma del dictado** (Español, Inglés o Automático) y añadir **Vocabulario** de proyectos o términos (máximo 500 caracteres). En los detalles puedes ajustar **Pausa para cerrar frase (ms)** entre 300 y 2000 (por defecto 700) y **Sensibilidad de voz (VAD)** entre 0.2 y 0.8 (por defecto 0.5). Cambiar estos ajustes recrea el motor en el siguiente dictado.
+
+**Interpretar comandos con** permite reglas locales (por defecto) o Claude. Claude requiere `ANTHROPIC_API_KEY` en el entorno del host; si falta o falla la petición, se usan las reglas locales. El modelo puede configurarse mediante `voiceIntentModel` (por defecto `claude-haiku-5-5`). La interpretación con Claude envía el texto dictado a su API; siempre produce un borrador para revisión, sin ejecutar acciones automáticamente. Ajustes permite otro comando local o un proveedor compatible configurado por el host. Las API keys no viajan al renderer. La prueba de audio usó voz sintética; el micrófono personal se utiliza al pulsar Grabar y conceder acceso.
 
 ## Datos y configuración
 

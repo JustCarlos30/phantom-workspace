@@ -2,6 +2,7 @@
 import argparse
 import base64
 import json
+import re
 import sys
 import time
 
@@ -10,11 +11,11 @@ from faster_whisper import WhisperModel
 from faster_whisper.vad import VadOptions, get_speech_timestamps
 
 RATE = 16000
-PAUSE_MS = 800
+PAUSE_MS = 700
 SPEECH_PAD_MS = 100
-VAD_THRESHOLD = 0.4
+VAD_THRESHOLD = 0.5
 CONTEXT_CHARS = 200
-PARTIAL_BEAM_SIZE = 1
+PARTIAL_BEAM_SIZE = 2
 CONFIRMED_BEAM_SIZE = 5
 STABLE_SECONDS = 15
 MAX_SECONDS = 25
@@ -24,8 +25,12 @@ TECHNICAL_PROMPT = "Dictado técnico en español con términos en inglés: Phant
 
 
 class Dictation:
-    def __init__(self, model):
+    def __init__(self, model, language="es", vocabulary="", pause_ms=PAUSE_MS, vad_threshold=VAD_THRESHOLD):
         self.model = model
+        self.language = None if language == "auto" else language
+        self.vocabulary = vocabulary
+        self.pause_ms = pause_ms
+        self.vad_threshold = vad_threshold
         self.reset()
 
     def reset(self):
@@ -39,18 +44,18 @@ class Dictation:
         samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
         self.audio = np.concatenate((self.audio, samples))
         started = time.monotonic()
-        options = VadOptions(threshold=VAD_THRESHOLD, min_silence_duration_ms=PAUSE_MS,
+        options = VadOptions(threshold=self.vad_threshold, min_silence_duration_ms=self.pause_ms,
                              speech_pad_ms=SPEECH_PAD_MS)
         speech = get_speech_timestamps(self.audio, options) if self.audio.size else []
         if speech:
-            ended = final or self.audio.size - speech[-1]["end"] >= RATE * PAUSE_MS // 1000
+            ended = final or self.audio.size - speech[-1]["end"] >= RATE * self.pause_ms // 1000
             context = self.confirmed
             if len(context) > CONTEXT_CHARS:
                 start = context.find(" ", len(context) - CONTEXT_CHARS)
                 context = context[start + 1:] if start >= 0 else ""
-            segments = list(self.model.transcribe(self.audio, language="es", beam_size=CONFIRMED_BEAM_SIZE if ended else PARTIAL_BEAM_SIZE,
+            segments = list(self.model.transcribe(self.audio, language=self.language, beam_size=CONFIRMED_BEAM_SIZE if ended else PARTIAL_BEAM_SIZE,
                 condition_on_previous_text=False, vad_filter=True, vad_parameters=options,
-                initial_prompt=" ".join(filter(None, (TECHNICAL_PROMPT, context))))[0])
+                initial_prompt=" ".join(filter(None, (TECHNICAL_PROMPT, self.vocabulary, context))))[0])
             self.partial = " ".join(s.text.strip() for s in segments).strip()
             if ended:
                 self.confirmed = " ".join(filter(None, (self.confirmed, self.partial)))
@@ -84,12 +89,22 @@ def main():
     parser.add_argument("--model", required=True)
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--compute-type", default="int8")
+    parser.add_argument("--language", default="es")
+    parser.add_argument("--vocabulary", default="")
+    parser.add_argument("--pause-ms", type=int, default=PAUSE_MS)
+    parser.add_argument("--vad-threshold", type=float, default=VAD_THRESHOLD)
     args = parser.parse_args()
+    if not re.fullmatch(r"auto|[a-z]{2,3}", args.language):
+        parser.error("Idioma del dictado inválido")
+    if len(args.vocabulary) > 500 or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in args.vocabulary):
+        parser.error("Vocabulario inválido: máximo 500 caracteres sin controles")
+    if not 300 <= args.pause_ms <= 2000 or not 0.2 <= args.vad_threshold <= 0.8:
+        parser.error("Pausa (300-2000 ms) o sensibilidad VAD (0.2-0.8) fuera de rango")
     model = WhisperModel(args.model, device=args.device, compute_type=args.compute_type,
                          cpu_threads=4, num_workers=1, local_files_only=True)
     # Exercise CUDA kernels before declaring readiness, not on the user's first phrase.
     list(model.transcribe(np.zeros(RATE, dtype=np.float32), beam_size=1)[0])
-    state = Dictation(model)
+    state = Dictation(model, args.language, args.vocabulary, args.pause_ms, args.vad_threshold)
     print(json.dumps({"ready": True}), flush=True)
     for line in sys.stdin:
         request = json.loads(line)

@@ -2,16 +2,18 @@
 // Explicit installation only. No network or processes run when imported.
 // State path: <PHANTOM_WORKSPACE_HOME or XDG_STATE_HOME/phantom-workspace>/voice-runtime.
 import { access, chmod, copyFile, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { constants, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executableOnPath, runCommand, stateDirectory } from '../integrations/run-manager.mjs';
 
-export const HELP = `Usage: node scripts/setup-voice.mjs [--data <app-state-dir>] [--model base|tiny|small] [--device cpu|cuda] [--replace]
+export const MODEL_REPOS = Object.freeze(JSON.parse(readFileSync(new URL('./transcribe.py', import.meta.url), 'utf8').match(/^MODEL_REPOS = (.+)$/m)[1]));
+
+export const HELP = `Usage: node scripts/setup-voice.mjs [--data <app-state-dir>] [--model ${Object.keys(MODEL_REPOS).join('|')}] [--device cpu|cuda] [--replace]
 Installs Python venv + faster-whisper + multilingual model in app data.
 Default: ${stateDirectory()}/voice-runtime (outside project folders).
-Model provenance: https://huggingface.co/Systran/faster-whisper-{base,tiny}
+Model provenance: Systran/faster-whisper-<model>; large-v3-turbo: mobiuslabsgmbh/faster-whisper-large-v3-turbo (https://huggingface.co).
 Python dependency: https://pypi.org/project/faster-whisper/ (isolated venv only).
 Existing config is preserved unless --replace is supplied; replacement keeps a backup.
 An explicit settings.voiceProvider/localWhisperCommand has precedence over discovery.
@@ -23,7 +25,7 @@ export function parseArgs(argv) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') options.help = true;
     else if (arg === '--data' && argv[index + 1] && !argv[index + 1].startsWith('--')) options.dataDir = path.resolve(argv[++index]);
-    else if (arg === '--model' && ['base', 'tiny', 'small'].includes(argv[index + 1])) options.model = argv[++index];
+    else if (arg === '--model' && Object.hasOwn(MODEL_REPOS, argv[index + 1])) options.model = argv[++index];
     else if (arg === '--device' && ['cpu', 'cuda'].includes(argv[index + 1])) options.device = argv[++index];
     else if (arg === '--replace') options.replace = true;
     else throw new Error(`Argumento inválido: ${arg}\n${HELP}`);
@@ -36,7 +38,7 @@ async function exists(filename) {
 }
 
 export async function setupVoice({ dataDir = stateDirectory(), model = 'base', device = 'cpu', replace = false } = {}) {
-  if (!['base', 'tiny', 'small'].includes(model)) throw new Error('Modelo permitido: base, tiny o small');
+  if (!Object.hasOwn(MODEL_REPOS, model)) throw new Error(`Modelos permitidos: ${Object.keys(MODEL_REPOS).join(', ')}`);
   if (!['cpu', 'cuda'].includes(device)) throw new Error('Dispositivo permitido: cpu o cuda');
   const computeType = device === 'cuda' ? 'int8_float16' : 'int8';
   const root = path.resolve(dataDir);
