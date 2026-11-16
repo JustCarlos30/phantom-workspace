@@ -15,3 +15,14 @@ test('subagent card and its children shrink within the available width', () => {
   assert.ok(children, '.pc-subagent > * rule exists');
   assert.match(children, /(?:^|;)\s*min-width:\s*0\s*(?:;|$)/);
 });
+
+test('phantom link and its children shrink within the available width', () => {
+  const link = chat.match(/(?:^|\n)\.pc-phantom-link\s*\{([^}]*)\}/)?.[1];
+  assert.ok(link, '.pc-phantom-link rule exists');
+  assert.match(link, /(?:^|;)\s*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*(?:;|$)/);
+  assert.match(link, /(?:^|;)\s*min-width:\s*0\s*(?:;|$)/);
+
+  const children = chat.match(/(?:^|\n)\.pc-phantom-link\s*>\s*\*\s*\{([^}]*)\}/)?.[1];
+  assert.ok(children, '.pc-phantom-link > * rule exists');
+  assert.match(children, /(?:^|;)\s*min-width:\s*0\s*(?:;|$)/);
+});
