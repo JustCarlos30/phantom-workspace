@@ -19,7 +19,7 @@ import { HUBS, hubTab } from '../hooks/hubs.mjs';
 import { processesView } from '../hooks/processes-view.mjs';
 import '../hubs.css';
 
-export const TOOL_TITLES = { tasks: 'Trabajo', context: 'Contexto', sessions: 'Sesiones', mission: 'Misiones', git: 'Git', services: 'Servicios', docker: 'Docker', workflows: 'Automatizar', playwright: 'Navegador automático', playground: 'Código', settings: 'Configuración' };
+export const TOOL_TITLES = { tasks: 'Trabajo', context: 'Contexto', sessions: 'Sesiones', mission: 'Misiones', git: 'Git', services: 'Entorno', docker: 'Docker', workflows: 'Automatizar', playwright: 'Navegador automático', playground: 'Código', settings: 'Configuración' };
 Object.assign(TOOL_TITLES, PLUGIN_TITLES, { review: 'Revisión de video', 'command-center': 'Centro de mando', incorporaciones: 'Cola de integración', branches: 'Ramas', repo: 'Git', 'skills-catalog': 'Skills' });
 const json = value => JSON.stringify(value, null, 2);
 const textValue = (value, fallback = 'Sin datos') => typeof value === 'string' && value.trim() ? value : typeof value === 'number' && Number.isFinite(value) ? String(value) : fallback;

@@ -1107,6 +1107,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 }
 .create-dock .dock-main { overflow-x: auto; justify-content: safe center; }
 .create-dock .dock-main > * { flex-shrink: 0; }
+.dock-more-menu { position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 1; min-width: 172px; padding: 6px; background: var(--island); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); pointer-events: auto; }
+.dock-more-menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 0 10px; border-radius: var(--r-obj); color: var(--ink); text-align: left; }
+.dock-more-menu button:hover:not(:disabled) { background: var(--fill-2); }
 .app-shell .canvas-region :is(.zone-selection, .group-selection) { bottom: calc(var(--canvas-shelf) + 8px); }
 
 /* Tactile chrome: scale is independent of positioned surfaces' transforms.

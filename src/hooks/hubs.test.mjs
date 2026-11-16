@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HUBS, HUB_ALIAS, HUB_ORDER, hubTab, resolveHub } from './hubs.mjs';
+import { HUBS, HUB_ALIAS, HUB_ORDER, HUB_DOCK, HUB_MORE, hubTab, resolveHub } from './hubs.mjs';
 
 test('every alias lands on an existing hub tab', () => {
   for (const [from, [hub, tab]] of Object.entries(HUB_ALIAS)) {
@@ -10,8 +10,18 @@ test('every alias lands on an existing hub tab', () => {
   }
 });
 
-test('the dock lists every hub exactly once', () => {
+test('the command order lists every hub exactly once', () => {
   assert.deepEqual([...HUB_ORDER].sort(), Object.keys(HUBS).sort());
+});
+
+test('the dock and more menu partition every hub', () => {
+  assert.ok(HUB_DOCK.every(id => !HUB_MORE.includes(id)));
+  assert.deepEqual([...HUB_DOCK, ...HUB_MORE].sort(), Object.keys(HUBS).sort());
+});
+
+test('processes belongs only to the services hub', () => {
+  assert.deepEqual(Object.keys(HUBS).filter(id => HUBS[id].tabs.some(tab => tab[0] === 'processes' || tab[2] === 'processes')), ['services']);
+  assert.deepEqual(hubTab('services', 'processes'), ['processes', 'Procesos', 'processes']);
 });
 
 test('legacy panel types open their hub on the matching tab', () => {
