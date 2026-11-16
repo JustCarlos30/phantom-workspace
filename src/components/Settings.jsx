@@ -122,11 +122,20 @@ function GitSettings({ workspace, api, notify }) {
 
 function VoiceSettings({ settings, saveSettings, notify }) {
   const command = typeof settings.localWhisperCommand === 'string' ? settings.localWhisperCommand : settings.localWhisperCommand ? JSON.stringify(settings.localWhisperCommand) : '';
-  const form = useDraft({ voiceModel: settings.voiceModel || '', voiceBaseURL: settings.voiceBaseURL || '', localWhisperCommand: command });
+  const form = useDraft({ voiceModel: settings.voiceModel || '', voiceBaseURL: settings.voiceBaseURL || '', localWhisperCommand: command, voiceVocabulary: settings.voiceVocabulary || '', voicePauseMs: String(settings.voicePauseMs ?? 700), voiceVadThreshold: String(settings.voiceVadThreshold ?? 0.5) });
   const op = useOperation(notify), commandId = useId();
   const provider = ['auto', 'local', 'openai'].includes(settings.voiceProvider) ? settings.voiceProvider : 'auto';
   const save = () => op.run(async () => {
     const patch = Object.fromEntries(form.dirty.map(key => [key, form.draft[key].trim()]));
+    if (patch.voiceVocabulary !== undefined && (patch.voiceVocabulary.length > 500 || /\p{Cc}/u.test(patch.voiceVocabulary))) throw new Error('Vocabulario inválido: máximo 500 caracteres sin controles');
+    if (patch.voicePauseMs !== undefined) {
+      patch.voicePauseMs = Number(patch.voicePauseMs);
+      if (!Number.isInteger(patch.voicePauseMs) || patch.voicePauseMs < 300 || patch.voicePauseMs > 2000) throw new Error('La pausa debe estar entre 300 y 2000 ms');
+    }
+    if (patch.voiceVadThreshold !== undefined) {
+      patch.voiceVadThreshold = Number(patch.voiceVadThreshold);
+      if (!Number.isFinite(patch.voiceVadThreshold) || patch.voiceVadThreshold < 0.2 || patch.voiceVadThreshold > 0.8) throw new Error('La sensibilidad VAD debe estar entre 0.2 y 0.8');
+    }
     if (patch.localWhisperCommand) {
       let argv; try { argv = JSON.parse(patch.localWhisperCommand); } catch { argv = null; }
       if (!Array.isArray(argv) || !argv.length || argv.some(arg => typeof arg !== 'string' || !arg) || !argv.slice(1).some(arg => arg.includes('{input}'))) throw new Error('El comando debe ser una lista JSON de argumentos que incluya {input}.');
@@ -135,10 +144,15 @@ function VoiceSettings({ settings, saveSettings, notify }) {
   }, 'Guardado');
   return <form onSubmit={event => { event.preventDefault(); save(); }}>
     <Group title="Dictado">
+      <Row label="Idioma del dictado" htmlFor={`${commandId}-language`}><select id={`${commandId}-language`} className="st-select" value={settings.voiceLanguage ?? 'es'} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceLanguage: event.target.value }))}><option value="es">Español</option><option value="en">Inglés</option><option value="auto">Automático</option></select></Row>
+      <TextRow label="Vocabulario" value={form.draft.voiceVocabulary} onChange={form.set('voiceVocabulary')} placeholder="Nombres de proyectos y términos (máximo 500 caracteres)" />
+      <Row label="Interpretar comandos con" htmlFor={`${commandId}-intent`}><select id={`${commandId}-intent`} className="st-select" value={settings.voiceIntentProvider ?? 'rules'} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceIntentProvider: event.target.value }))}><option value="rules">Reglas locales</option><option value="claude">Claude</option></select></Row>
       <Row label="Proveedor" htmlFor={`${commandId}-provider`}><select id={`${commandId}-provider`} className="st-select" value={provider} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceProvider: event.target.value }))}><option value="auto">Automático</option><option value="local">En este equipo</option><option value="openai">API compatible con OpenAI</option></select></Row>
       <TextRow label="Modelo" value={form.draft.voiceModel} onChange={form.set('voiceModel')} placeholder="Automático" mono />
       {provider !== 'local' && <TextRow label="URL de la API" type="url" value={form.draft.voiceBaseURL} onChange={form.set('voiceBaseURL')} placeholder="https://api.openai.com/v1" mono />}
       <Details>
+        <Row label="Pausa para cerrar frase (ms)" htmlFor={`${commandId}-pause`}><input id={`${commandId}-pause`} className="st-input" type="number" min="300" max="2000" step="1" value={form.draft.voicePauseMs} onChange={event => form.set('voicePauseMs')(event.target.value)} /></Row>
+        <Row label="Sensibilidad de voz (VAD)" htmlFor={`${commandId}-vad`}><input id={`${commandId}-vad`} className="st-input" type="number" min="0.2" max="0.8" step="0.01" value={form.draft.voiceVadThreshold} onChange={event => form.set('voiceVadThreshold')(event.target.value)} /></Row>
         <Row label="Comando local" hint="Lista JSON de argumentos; usa {input} y {outputDir}" htmlFor={commandId} stack><textarea id={commandId} className="st-input is-mono" rows={3} spellCheck={false} placeholder="Automático" value={form.draft.localWhisperCommand} onChange={event => form.set('localWhisperCommand')(event.target.value)} /></Row>
         <Row label="Salida del motor"><Segmented label="Salida del motor" value={settings.localWhisperOutput === 'stdout' ? 'stdout' : 'files'} disabled={op.busy} onChange={localWhisperOutput => op.run(() => saveSettings({ localWhisperOutput }))} options={[['files', 'Archivos'], ['stdout', 'Texto']]} /></Row>
       </Details>

@@ -1,8 +1,8 @@
 """Phantom local ASR: files only, CPU/int8, no microphone or runtime downloads.
 
 Installed as a stable copy in <stateHome>/voice-runtime/engines/<id>/.
-Only --prepare (called by setup-voice.mjs) downloads an official multilingual
-Systran/faster-whisper-{base,tiny} model; normal transcription is offline.
+Only --prepare (called by setup-voice.mjs) downloads a multilingual model
+from MODEL_REPOS; normal transcription is offline.
 """
 
 import argparse
@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import sys
 
+MODEL_REPOS = {"tiny":"Systran/faster-whisper-tiny","base":"Systran/faster-whisper-base","small":"Systran/faster-whisper-small","medium":"Systran/faster-whisper-medium","large-v3":"Systran/faster-whisper-large-v3","large-v3-turbo":"mobiuslabsgmbh/faster-whisper-large-v3-turbo"}
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -29,9 +30,9 @@ def main():
     from faster_whisper import WhisperModel, download_model
 
     if args.prepare:
-        if args.model not in ("base", "tiny", "small") or not args.cache_dir:
-            parser.error("--prepare requires --model base|tiny|small and --cache-dir")
-        repo = "Systran/faster-whisper-" + args.model
+        if args.model not in MODEL_REPOS or not args.cache_dir:
+            parser.error("--prepare requiere --model " + "|".join(MODEL_REPOS) + " y --cache-dir")
+        repo = MODEL_REPOS[args.model]
         # Verify the decoder API too, not just model loading. No microphone.
         import tempfile
         import wave

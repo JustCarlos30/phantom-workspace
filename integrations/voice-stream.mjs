@@ -8,6 +8,18 @@ const engines = new Map();
 const sessions = new Map();
 const METHODS = new Set(['voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel']);
 
+export function buildStreamArgv(argv, settings = {}) {
+  const language = settings.voiceLanguage ?? 'es';
+  const vocabulary = settings.voiceVocabulary ?? '';
+  const pause = settings.voicePauseMs ?? 700;
+  const vad = settings.voiceVadThreshold ?? 0.5;
+  if (typeof language !== 'string' || !/^(auto|[a-z]{2,3})$/.test(language)) throw new Error('Idioma del dictado inválido');
+  if (typeof vocabulary !== 'string' || vocabulary.length > 500 || /\p{Cc}/u.test(vocabulary)) throw new Error('Vocabulario inválido: máximo 500 caracteres sin controles');
+  if (!Number.isInteger(pause) || pause < 300 || pause > 2000) throw new Error('Pausa inválida: debe estar entre 300 y 2000 ms');
+  if (typeof vad !== 'number' || !Number.isFinite(vad) || vad < 0.2 || vad > 0.8) throw new Error('Sensibilidad VAD inválida: debe estar entre 0.2 y 0.8');
+  return [...argv, '--language', language, '--vocabulary', vocabulary, '--pause-ms', String(pause), '--vad-threshold', String(vad)];
+}
+
 class Engine {
   constructor(config, cwd) {
     this.config = config;
@@ -94,12 +106,13 @@ export async function handleVoiceStream(method, payload, context) {
     const root = stateDirectory(context);
     const filename = path.join(root, 'voice-runtime', 'config.json');
     const stat = await lstat(filename).catch(() => null);
-    if (!stat?.isFile() || stat.isSymbolicLink() || stat.size > 32768) throw new Error('Instala dictado en vivo: npm run setup:voice -- --model small --device cuda --replace');
+    if (!stat?.isFile() || stat.isSymbolicLink() || stat.size > 32768) throw new Error('Instala dictado en vivo: npm run setup:voice -- --model large-v3-turbo --device cuda --replace');
     const config = JSON.parse(await readFile(filename, 'utf8'));
     if (config.schemaVersion !== 1 || config.engine !== 'faster-whisper' || !Array.isArray(config.streamArgv)
       || config.streamArgv.length < 2 || config.streamArgv.length > 40
       || config.streamArgv.some(arg => typeof arg !== 'string' || !arg || arg.length > 4096 || arg.includes('\0'))
-      || (config.gpuLibraryPath !== undefined && (typeof config.gpuLibraryPath !== 'string' || config.gpuLibraryPath.length > 8192))) throw new Error('Runtime sin streaming; ejecuta npm run setup:voice -- --model small --device cuda --replace');
+      || (config.gpuLibraryPath !== undefined && (typeof config.gpuLibraryPath !== 'string' || config.gpuLibraryPath.length > 8192))) throw new Error('Runtime sin streaming; ejecuta npm run setup:voice -- --model large-v3-turbo --device cuda --replace');
+    config.streamArgv = buildStreamArgv(config.streamArgv, settings);
     let engine = engines.get(root);
     if (engine?.session) throw new Error('Ya hay un dictado activo. Detén o cancela la otra captura.');
     if (!engine || engine.closed || JSON.stringify(engine.config) !== JSON.stringify(config)) {
