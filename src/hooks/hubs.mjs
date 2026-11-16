@@ -7,7 +7,7 @@ export const HUBS = {
   repo: { name: 'Git', hint: 'Ramas, historial y cola de integración', tabs: [['branches', 'Ramas', 'branches'], ['repo', 'Historial', 'repo'], ['incorporaciones', 'Cola', 'incorporaciones']] },
   services: { name: 'Servicios', hint: 'Sitios, procesos y contenedores', tabs: [['services', 'Este proyecto', 'services'], ['docker', 'Docker', 'docker'], ['sites', 'Todos los proyectos', 'sites']] },
   context: { name: 'Contexto', hint: 'Documentos, memoria y skills', tabs: [['context', 'Documentos y memoria', 'context'], ['skills-catalog', 'Skills', 'skills-catalog']] },
-  workflows: { name: 'Automatizar', hint: 'Secuencias, navegador y código', tabs: [['workflows', 'Secuencias', 'workflows'], ['playwright', 'Navegador', 'playwright'], ['playground', 'Código', 'playground']] },
+  workflows: { name: 'Automatizar', hint: 'Pasos repetibles, navegador automático y código', tabs: [['workflows', 'Secuencias', 'workflows'], ['playwright', 'Navegador', 'playwright'], ['playground', 'Código', 'playground']] },
 };
 export const HUB_ORDER = ['tasks', 'repo', 'services', 'context', 'workflows'];
 

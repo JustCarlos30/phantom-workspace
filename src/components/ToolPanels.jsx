@@ -10,6 +10,9 @@ import Branches from './Branches.jsx';
 import Repository from './Repository.jsx';
 import VideoReview from './VideoReview.jsx';
 import EmptyState from './EmptyState.jsx';
+import Markdown from './Markdown.jsx';
+import MemoryCard, { MemoryForm } from './MemoryCard.jsx';
+import { pinnedRef, readerKind, emptyMessage } from '../hooks/context-view.mjs';
 import Settings from './Settings.jsx';
 import GlobalSites from './GlobalSites.jsx';
 import { HUBS, hubTab } from '../hooks/hubs.mjs';
@@ -192,34 +195,54 @@ function PhantomItem({ item, topic, kind, workspace, api, refresh, notify, onCha
   </article>;
 }
 
-function DocumentItem({ item, workspace, api, refresh, op, onRead }) {
+function DocumentItem({ item, workspace, api, refresh, op, reader, readerId }) {
   const path = typeof item.path === 'string' && item.path ? item.path : null;
   const hash = item.hash ?? item.sha256;
   const title = textValue(item.title, path || 'Documento');
-  return <article className="tw-item"><strong>{title}</strong>{path && path !== title && <small>{path}</small>}
-    <div className="tw-row"><Button disabled={op.busy || !path} onClick={() => op.run(async () => { onRead(await api('context.read', { workspaceId: workspace.id, path })); })}>Leer</Button>
+  const pinned = pinnedRef(workspace.contextRefs, path);
+  return <article className="tw-item"><div className="tw-heading"><strong>{title}</strong>{pinned && <span className="tw-badge">Fijado</span>}</div>{path && path !== title && <small>{path}</small>}
+    <div className="tw-row">{reader.button(readerId, path)}
       <Button disabled={op.busy || !path} onClick={() => op.run(async () => {
-        const ref = { path, ...(typeof hash === 'string' && hash ? { hash } : {}), ...(item.revision != null ? { revision: item.revision } : {}) };
-        await api('context.pin', { workspaceId: workspace.id, path, title, kind: textValue(item.kind, 'document'), ...(item.source != null ? { source: item.source } : {}), ref });
+        if (pinned) await api('context.unpin', { workspaceId: workspace.id, id: pinned.id });
+        else {
+          const ref = { path, ...(typeof hash === 'string' && hash ? { hash } : {}), ...(item.revision != null ? { revision: item.revision } : {}) };
+          await api('context.pin', { workspaceId: workspace.id, path, title, kind: textValue(item.kind, 'document'), ...(item.source != null ? { source: item.source } : {}), ref });
+        }
         await refresh();
-      }, 'Documento fijado')}>Fijar</Button></div>
+      }, pinned ? 'Documento quitado' : 'Documento fijado')}>{pinned ? 'Quitar' : 'Fijar'}</Button></div>
+    {reader.content(readerId, path)}
   </article>;
 }
 
 function Context(props) {
   const { workspace, api, refresh, notify, onOpenPanel } = props;
-  const [tab, setTab] = useState('docs'), [query, setQuery] = useState(''), [search, setSearch] = useState(''), [detail, setDetail] = useState(null);
-  const topic = tab === 'skills' ? 'skills' : 'memories';
-  const resource = useResource(api, tab === 'docs' ? 'context.scan' : 'phantom.list', { workspaceId: workspace.id, query: search, ...(tab === 'docs' ? {} : { topic }) });
+  const [tab, setTab] = useState('docs'), [query, setQuery] = useState(''), [search, setSearch] = useState(''), [detail, setDetail] = useState(null), [creating, setCreating] = useState(false);
+  const debounce = useRef(null);
+  useEffect(() => {
+    debounce.current = setTimeout(() => setSearch(query), 250);
+    return () => clearTimeout(debounce.current);
+  }, [query]);
+  const resource = useResource(api, tab === 'docs' ? 'context.scan' : 'phantom.list', { workspaceId: workspace.id, query: search, ...(tab === 'docs' ? {} : { topic: 'memories' }) });
   const op = useOperation(notify);
-  return <><div className="tw-tabs" aria-label="Tipo de contexto">{[['docs', 'Documentos'], ['decisions', 'Decisiones'], ['skills', 'Skills']].map(([id, title]) => <Button key={id} aria-pressed={tab === id} onClick={() => { setTab(id); setDetail(null); }}>{title}</Button>)}</div>
-    <form className="tw-search" onSubmit={e => { e.preventDefault(); setSearch(query); if (query === search) resource.reload(); }}><Field label="Buscar"><input type="search" value={query} onChange={e => setQuery(e.target.value)} /></Field><Button type="submit" disabled={resource.loading}>Buscar</Button></form>
-    <Section title={tab === 'docs' ? 'Documentos' : tab === 'skills' ? 'Skills' : 'Decisiones'} action={<Refresh resource={resource} />}><ResourceState resource={resource} empty="Sin resultados." onOpenPanel={onOpenPanel} />{resource.data?.truncated && <p className="tw-muted">Hay más resultados; afina la búsqueda.</p>}
-      {itemsOf(resource.data).map((item, index) => tab === 'docs' ? <DocumentItem key={item.path || index} item={item} workspace={workspace} api={api} refresh={refresh} op={op} onRead={setDetail} /> : <PhantomItem key={item.id} item={item} topic={topic} kind={tab === 'skills' ? 'skill' : 'decision'} {...props} onChange={resource.reload} />)}
-      {detail && <div className="tw-item"><strong>{detail.path}</strong>{detail.truncated && <p className="tw-muted">Se muestra solo el principio.</p>}<pre className="tw-code">{detail.text}</pre></div>}
-    </Section><OperationState op={op} />
-    {tab !== 'docs' && <Section title={tab === 'skills' ? 'Nueva skill' : 'Nueva decisión'}><NativeForm key={tab} kind={tab === 'skills' ? 'skill' : 'decision'} {...props} onSaved={resource.reload} /></Section>}
-    <Section title="Fijados">{!workspace.contextRefs?.length && <EmptyState className="tw-empty" description="Fija un documento para tenerlo a mano." />}{workspace.contextRefs?.map(ref => <div className="tw-item" key={ref.id}><strong>{ref.title}</strong>{ref.path && ref.path !== ref.title && <small>{ref.path}</small>}<DataView value={ref} /><Button icon={Trash2} disabled={op.busy} onClick={() => op.run(async () => { await api('context.unpin', { workspaceId: workspace.id, id: ref.id }); await refresh(); })}>Quitar</Button></div>)}</Section></>;
+  const reader = {
+    button: (id, path) => <Button disabled={op.busy || !path} aria-expanded={detail?.id === id} onClick={() => {
+      if (detail?.id === id) setDetail(null);
+      else op.run(async () => { const value = await api('context.read', { workspaceId: workspace.id, path }); setDetail({ id, value }); });
+    }}>Leer</Button>,
+    content: (id, path) => detail?.id === id && <div className="tw-document-reader">{detail.value.truncated && <p className="tw-muted">Se muestra solo el principio.</p>}{readerKind(path) === 'markdown' ? <Markdown source={detail.value.text} /> : <pre className="tw-code">{detail.value.text}</pre>}<Button onClick={() => setDetail(null)}>Cerrar</Button></div>,
+  };
+  const searchLabel = tab === 'docs' ? 'Buscar en documentos' : 'Buscar en decisiones';
+  return <><div className="tw-tabs" aria-label="Tipo de contexto">{[['docs', 'Documentos'], ['decisions', 'Decisiones']].map(([id, title]) => <Button key={id} aria-pressed={tab === id} onClick={() => { setTab(id); setDetail(null); }}>{title}</Button>)}</div>
+    <form className="tw-search" onSubmit={e => { e.preventDefault(); clearTimeout(debounce.current); setSearch(query); if (query === search) resource.reload(); }}><Field label={searchLabel}><input type="search" value={query} onChange={e => setQuery(e.target.value)} /></Field></form>
+    {workspace.contextRefs?.length > 0 && <Section title="Fijados">{workspace.contextRefs.filter(Boolean).map(ref => {
+      const path = ref.path || ref.ref?.path, title = textValue(ref.title, path || 'Referencia'), id = `pinned:${ref.id}`;
+      return <article className="tw-item" key={ref.id}><strong>{title}</strong>{path && path !== title && <small>{path}</small>}<div className="tw-row">{path && reader.button(id, path)}<Button disabled={op.busy} onClick={() => op.run(async () => { await api('context.unpin', { workspaceId: workspace.id, id: ref.id }); await refresh(); })}>Quitar</Button></div>{reader.content(id, path)}<DataView value={ref} /></article>;
+    })}</Section>}
+    <Section title={tab === 'docs' ? `Documentos · ${itemsOf(resource.data).length}` : 'Decisiones'} action={tab === 'docs' ? <Refresh resource={resource} /> : <Button aria-expanded={creating} onClick={() => setCreating(!creating)}>Nueva decisión</Button>}>
+      {tab === 'decisions' && creating && <MemoryForm workspace={workspace} api={api} refresh={refresh} notify={notify} onSaved={() => { resource.reload(); setCreating(false); }} />}
+      <ResourceState resource={resource} empty={emptyMessage(tab, search)} onOpenPanel={onOpenPanel} />{resource.data?.truncated && <p className="tw-muted">Hay más resultados; afina la búsqueda.</p>}
+      {itemsOf(resource.data).map((item, index) => tab === 'docs' ? <DocumentItem key={item.path || index} readerId={`doc:${item.path || index}`} item={item} workspace={workspace} api={api} refresh={refresh} op={op} reader={reader} /> : <MemoryCard key={item.id} item={item} workspace={workspace} api={api} refresh={refresh} notify={notify} onChange={resource.reload} />)}
+    </Section><OperationState op={op} onOpenPanel={onOpenPanel} /></>;
 }
 
 const REF_KINDS = { node: 'Panel', task: 'Tarea', run: 'Ejecución', context: 'Documento' };
@@ -294,7 +317,7 @@ function Workflows(props) {
   return <><Section title={edit ? 'Editar secuencia' : 'Nueva secuencia'}><form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => { if (!title.trim()) throw new Error('Escribe un título.'); const steps = parseSteps(); const previous = workspace.workflows?.find(w => w.id === edit); await api('workflow.save', { workspaceId: workspace.id, ...(edit ? { id: edit } : {}), title: title.trim(), description, steps, version: previous ? previous.version + 1 : 1 }); await refresh(); reset(); }, 'Secuencia guardada'); }}><Field label="Título"><input required value={title} onChange={e => setTitle(e.target.value)} /></Field><Field label="Pasos" hint={format === 'json' ? undefined : 'Uno por línea'}><textarea rows={6} className={format === 'json' ? 'tw-code-input' : undefined} spellCheck={format !== 'json'} value={stepsText} onChange={e => setStepsText(e.target.value)} required /></Field>
       <details className="tw-details" open={format === 'json' || undefined}><summary>Detalles</summary><Field label="Descripción"><textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} /></Field><label className="tw-check"><input type="checkbox" checked={format === 'json'} onChange={e => setFormat(e.target.checked ? 'json' : 'text')} />Escribir los pasos en JSON</label>{format === 'json' && <pre className="tw-code">{'[{ "type": "task", "title": "…" },\n { "type": "playground", "runtime": "node | python | shell", "code": "…" }]'}</pre>}</details>
       <div className="tw-row"><Button type="submit" tone="primary" disabled={op.busy}>Guardar</Button>{edit && <Button onClick={reset}>Cancelar</Button>}</div></form><OperationState op={op} /></Section>
-    <Section title="Secuencias">{!workspace.workflows?.length && <EmptyState className="tw-empty" description="Aún no hay secuencias." />}{workspace.workflows?.map(workflow => <article className="tw-item" key={workflow.id}><div className="tw-heading"><strong>{workflow.title}</strong><span className="tw-badge">v{workflow.version}</span></div>{workflow.description && <p>{workflow.description}</p>}<div className="tw-row"><Button onClick={() => load(workflow)}>Editar</Button><Button disabled={op.busy} onClick={() => op.run(async () => { await api('workflow.remove', { workspaceId: workspace.id, id: workflow.id }); await refresh(); })}>Eliminar</Button></div>{workflow.steps?.map((step, index) => { const value = typeof step === 'string' ? { type: 'task', title: step } : step; const executable = value.type === 'playground' && ['node', 'python', 'shell'].includes(value.runtime) && typeof value.code === 'string'; return <div className="tw-step tw-row" key={index}><strong>{index + 1}. {value.title || (executable ? 'Ejecutar código' : 'Paso')}</strong>{!simpleStep(step) && <DataView value={value} />}<Button disabled={op.busy} icon={executable ? Play : Check} onClick={() => op.run(async () => { if (executable) { const run = await api('playground.run', { workspaceId: workspace.id, runtime: value.runtime, code: value.code }); onOpenPanel?.('playground', { runId: run.id }, workflow.title); } else { await api('task.create', { workspaceId: workspace.id, kind: 'draft', title: value.title || `${workflow.title}: paso ${index + 1}`, description: typeof value.description === 'string' ? value.description : simpleStep(step) ? '' : json(value), refs: [{ kind: 'workflow', id: workflow.id, version: workflow.version, step: index }] }); await refresh(); } }, executable ? 'En marcha' : 'Borrador creado')}>{executable ? 'Ejecutar' : 'Crear borrador'}</Button></div>; })}</article>)}</Section></>;
+    <Section title="Secuencias">{!workspace.workflows?.length && <EmptyState className="tw-empty" title="Aún no hay secuencias" description="Una secuencia es una lista de pasos que repites: cada paso crea un borrador en Trabajo o ejecuta código." />}{workspace.workflows?.map(workflow => <article className="tw-item" key={workflow.id}><div className="tw-heading"><strong>{workflow.title}</strong><span className="tw-badge">v{workflow.version}</span></div>{workflow.description && <p>{workflow.description}</p>}<div className="tw-row"><Button onClick={() => load(workflow)}>Editar</Button><Button disabled={op.busy} onClick={() => op.run(async () => { await api('workflow.remove', { workspaceId: workspace.id, id: workflow.id }); await refresh(); })}>Eliminar</Button></div>{workflow.steps?.map((step, index) => { const value = typeof step === 'string' ? { type: 'task', title: step } : step; const executable = value.type === 'playground' && ['node', 'python', 'shell'].includes(value.runtime) && typeof value.code === 'string'; return <div className="tw-step tw-row" key={index}><strong>{index + 1}. {value.title || (executable ? 'Ejecutar código' : 'Paso')}</strong>{!simpleStep(step) && <DataView value={value} />}<Button disabled={op.busy} icon={executable ? Play : Check} onClick={() => op.run(async () => { if (executable) { const run = await api('playground.run', { workspaceId: workspace.id, runtime: value.runtime, code: value.code }); onOpenPanel?.('playground', { runId: run.id }, workflow.title); } else { await api('task.create', { workspaceId: workspace.id, kind: 'draft', title: value.title || `${workflow.title}: paso ${index + 1}`, description: typeof value.description === 'string' ? value.description : simpleStep(step) ? '' : json(value), refs: [{ kind: 'workflow', id: workflow.id, version: workflow.version, step: index }] }); await refresh(); } }, executable ? 'En marcha' : 'Borrador creado')}>{executable ? 'Ejecutar' : 'Crear borrador'}</Button></div>; })}</article>)}</Section></>;
 }
 
 function useToolEvents(workspaceId, onStatus) {
