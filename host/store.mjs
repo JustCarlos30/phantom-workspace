@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { validateAgent } from './agents.mjs';
 import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '../shared/plugins.mjs';
 import { validateReference, validateComments } from './references.mjs';
+import { prunePhantomControllers } from '../integrations/phantom.mjs';
 
 export const MAX_HISTORY = 256 * 1024;
 export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','video-log','convencions-base','convencions-project','command-center','zone','incorporaciones','skills-catalog','branches','repo','reference'];
@@ -106,6 +107,7 @@ export class Store {
     // A restart cannot establish whether an in-flight delivery reached the chat.
     // Keep the brief and expose uncertainty rather than silently delivering again.
     let interrupted = false;
+    for (const w of this.state.workspaces) interrupted = prunePhantomControllers(w) || interrupted;
     for (const w of this.state.workspaces) for (const c of w.comments || []) if (c.handoff?.status === 'sending') {
       c.handoff = { ...c.handoff, status: 'uncertain', error: 'Host reiniciado durante el envío. Revisa el chat de Phantom antes de volver a pedirlo.', updatedAt: new Date().toISOString() }; interrupted = true;
     }
