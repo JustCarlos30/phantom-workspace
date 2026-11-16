@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import '../mobile-settings.css';
+import { Group, Row, TextRow } from './PluginPrimitives.jsx';
 
 export default function MobileSettings({ workspace, api }) {
   const [status, setStatus] = useState(null), [address, setAddress] = useState(''), [port, setPort] = useState('0');
@@ -25,34 +25,29 @@ export default function MobileSettings({ workspace, api }) {
   };
   const copy = async value => { if (!navigator.clipboard) throw new Error('Copia el texto seleccionándolo.'); await navigator.clipboard.writeText(value); };
   const expiresAt = pairing?.expiresAt === status?.pairingExpiresAt ? pairing?.expiresAt : null;
-  return <section className="tw-section mobile-settings">
-    <header className="mobile-header"><div className="mobile-title"><h3>Navegador del teléfono</h3><span className="mobile-badge" data-state={error ? 'error' : status?.enabled ? 'active' : 'idle'}>{error ? 'Error' : !status ? 'Consultando' : status.enabled ? 'Activo' : 'Apagado'}</span></div>
-      <p className="tw-muted">Abre el proyecto desde el navegador del teléfono, en la misma Wi-Fi.</p>
-    {error && <p className="tw-error" role="alert">{error}</p>}
-    </header>
+  return <>
+    <Group title="Navegador del teléfono">
+    <Row label="Estado" hint="Abre el proyecto desde el navegador del teléfono, en la misma Wi-Fi."><span className="st-status" data-tone={error ? 'warn' : status?.enabled ? 'ok' : undefined}>{error ? 'Error' : !status ? 'Consultando' : status.enabled ? 'Activo' : 'Apagado'}</span></Row>
+    {error && <p className="st-error" role="alert">{error}</p>}
     {!status ? <p role="status">Consultando…</p> : status.enabled ? <>
-      <p className="tw-muted">Proyecto: <strong>{status.workspaceId === workspace?.id ? workspace.name : 'otro proyecto'}</strong></p>
-      <ol className="mobile-steps">
-      <li><h4>Abrir dirección</h4><div className="mobile-value"><label className="tw-field">Dirección móvil<input readOnly value={status.url || ''} /></label><button className="tw-button" disabled={busy} onClick={() => run(() => copy(status.url))}>Copiar dirección</button></div></li>
-      <li><h4>Comparar huella</h4><div className="mobile-value"><label className="tw-field">Huella del certificado<input readOnly value={status.tls?.fingerprint || ''} /></label><button className="tw-button" disabled={busy} onClick={() => run(() => copy(status.tls?.fingerprint || ''))}>Copiar huella</button></div><p className="tw-muted">Debe coincidir con la que muestra el navegador.</p></li>
-      <li><h4>Introducir código</h4>
-      {expiresAt && expiresAt > time ? <><div className="mobile-value"><label className="tw-field">Código para vincular<input readOnly value={pairing.code} /></label><button className="tw-button" disabled={busy} onClick={() => run(() => copy(pairing.code))}>Copiar código</button></div><p className="mobile-countdown" role="status">Caduca en {Math.ceil((expiresAt - time) / 1000)} s</p></> : <p className="tw-muted">Genera un código para vincular el teléfono.</p>}
-      <button className="tw-button" disabled={busy} onClick={() => run(async () => setPairing(await api('mobile.pairing', {})))}>Generar código</button>
-      </li></ol>
-      <div className="mobile-devices">
-      <h4>Dispositivos vinculados</h4>
-      {!status.devices.length && <p className="tw-muted">Ningún dispositivo vinculado.</p>}
-      {status.devices.map(device => <div className="mobile-device mobile-device-row" key={device.id}><div><strong>{device.name || 'Móvil'}</strong><small>Última conexión: {new Date(device.lastSeenAt).toLocaleTimeString()} · Caduca: {new Date(device.expiresAt).toLocaleString()}</small></div><button className="tw-button tw-danger" disabled={busy} onClick={() => run(() => api('mobile.revoke', { id: device.id }))}>Revocar</button></div>)}
-      </div>
-      <footer className="mobile-stop"><button className="tw-button tw-danger" disabled={busy} onClick={() => run(async () => { await api('mobile.stop', {}); setPairing(null); })}>Desactivar</button></footer>
+      <Row label="Proyecto" >{status.workspaceId === workspace?.id ? workspace.name : 'otro proyecto'}</Row>
+      <TextRow label="Dirección móvil" readOnly mono value={status.url || ''}><button className="st-btn" disabled={busy} onClick={() => run(() => copy(status.url))}>Copiar dirección</button></TextRow>
+      <TextRow label="Huella del certificado" hint="Debe coincidir con la que muestra el navegador." readOnly mono value={status.tls?.fingerprint || ''}><button className="st-btn" disabled={busy} onClick={() => run(() => copy(status.tls?.fingerprint || ''))}>Copiar huella</button></TextRow>
+      {expiresAt && expiresAt > time ? <TextRow label="Código para vincular" hint={<span role="status">Caduca en {Math.ceil((expiresAt - time) / 1000)} s</span>} readOnly mono value={pairing.code}><button className="st-btn" disabled={busy} onClick={() => run(() => copy(pairing.code))}>Copiar código</button></TextRow> : <Row label="Introducir código" hint="Genera un código para vincular el teléfono." />}
+      <Row label="Generar código"><button className="st-btn" disabled={busy} onClick={() => run(async () => setPairing(await api('mobile.pairing', {})))}>Generar código</button></Row>
     </> : <>
-      <div className="mobile-network">
-      <label className="tw-field">Red<select value={address} onChange={e => setAddress(e.target.value)}><option value="">Elige una red</option>{status.interfaces.map(item => <option key={item.address} value={item.address}>{item.name} · {item.address}</option>)}</select></label>
-      <label className="tw-field">Puerto (0 = automático)<input type="number" min="0" max="65535" value={port} onChange={e => setPort(e.target.value)} /></label>
-      </div>
-      {!status.interfaces.length && <p>No se detecta una red local. Conecta el equipo a la Wi-Fi.</p>}
-      <button className="tw-button tw-primary" disabled={busy || !workspace || !address} onClick={() => run(async () => { const result = await api('mobile.start', { workspaceId: workspace.id, address, port: Number(port) }); setPairing(result.pairing); })}>Activar para {workspace?.name || 'el proyecto actual'}</button>
+      <Row label="Red" hint={!status.interfaces.length && 'No se detecta una red local. Conecta el equipo a la Wi-Fi.'}><select className="st-select" aria-label="Red" value={address} onChange={e => setAddress(e.target.value)}><option value="">Elige una red</option>{status.interfaces.map(item => <option key={item.address} value={item.address}>{item.name} · {item.address}</option>)}</select></Row>
+      <Row label="Puerto (0 = automático)"><input className="st-input" aria-label="Puerto (0 = automático)" type="number" min="0" max="65535" value={port} onChange={e => setPort(e.target.value)} /></Row>
+      <Row label="Activar"><button className="st-btn is-primary" disabled={busy || !workspace || !address} onClick={() => run(async () => { const result = await api('mobile.start', { workspaceId: workspace.id, address, port: Number(port) }); setPairing(result.pairing); })}>Activar para {workspace?.name || 'el proyecto actual'}</button></Row>
     </>}
-    <details className="mobile-help"><summary>Cómo funciona</summary><p>Conecta el teléfono a la misma Wi-Fi, abre la dirección, compara la huella e introduce el código. El acceso se apaga al cerrar Phantom.</p></details>
-  </section>;
+    </Group>
+    {status?.enabled && <>
+      <Group title="Dispositivos vinculados">
+        {!status.devices.length && <Row label="Ningún dispositivo vinculado." />}
+        {status.devices.map(device => <Row key={device.id} label={device.name || 'Móvil'} hint={`Última conexión: ${new Date(device.lastSeenAt).toLocaleTimeString()} · Caduca: ${new Date(device.expiresAt).toLocaleString()}`}><button className="st-btn is-danger" disabled={busy} onClick={() => run(() => api('mobile.revoke', { id: device.id }))}>Revocar</button></Row>)}
+      </Group>
+      <Group><Row label="Desactivar"><button className="st-btn is-danger" disabled={busy} onClick={() => run(async () => { await api('mobile.stop', {}); setPairing(null); })}>Desactivar</button></Row></Group>
+    </>}
+    <details className="st-details"><summary>Cómo funciona</summary><Row label="Conecta el teléfono a la misma Wi-Fi, abre la dirección, compara la huella e introduce el código. El acceso se apaga al cerrar Phantom." /></details>
+  </>;
 }
