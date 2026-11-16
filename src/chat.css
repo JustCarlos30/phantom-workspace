@@ -448,7 +448,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-ask.is-denied .pc-ask-state { color: var(--pc-del); }
 @container (max-width: 460px) { .pc-ask { flex-wrap: wrap; } .pc-ask-actions { width: 100%; justify-content: flex-end; } }
 /* Effort / Variant: the same pill as the model; a button that opens its menu. */
-.pc-reasoning { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 0; padding: 0 9px; border-radius: var(--r-pill); background: none; color: var(--muted); font-size: 11px; flex-shrink: 0; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
+.pc-reasoning { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 30px; min-width: 0; padding: 0 9px; border-radius: var(--r-pill); background: none; color: var(--muted); font: var(--t-support); flex-shrink: 0; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-reasoning:hover:not([data-disabled]) { background: var(--fill-2); }
 .pc-reasoning:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
 .pc-reasoning > svg { flex-shrink: 0; pointer-events: none; }
