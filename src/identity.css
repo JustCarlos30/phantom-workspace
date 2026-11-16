@@ -20,11 +20,12 @@
 .studio-concentration .gengar-icon { animation: none !important; transform: none; }
 
 /* Both exact silhouettes ship together so chrome can reflect native ARIA state. */
+.app-shell [data-type] { --type: var(--muted); }
 .shell-icon { flex-shrink: 0; color: var(--muted); }
 .shell-icon__solid { display: none; }
 .shell-icon[data-variant="solid"] .shell-icon__line { display: none; }
 .shell-icon[data-variant="solid"] .shell-icon__solid { display: initial; }
-.shell-icon[data-variant="solid"] { color: var(--on-ink); }
+.shell-icon[data-variant="solid"] { color: inherit; }
 :is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__line { display: none; }
 :is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__solid { display: initial; }
 :is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon { color: inherit; }

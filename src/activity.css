@@ -6,7 +6,7 @@
 .activity-notch.needs-you > strong, .terminal-activity-status.warning { color: var(--attention); }
 .activity-notch > strong { min-width: 0; overflow-wrap: anywhere; }
 .activity-notch svg { flex-shrink: 0; }
-.activity-notch > .notch-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); font: var(--t-micro); font-weight: 650; line-height: 18px; text-align: center; }
+.activity-notch > .notch-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; }
 .activity-notch > .notch-dot { display: block; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--muted); opacity: .7; }
 .terminal-activity-status.working { color: var(--working); }
 .terminal-activity-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); min-width: 0; line-height: 1.4; }
@@ -31,7 +31,7 @@
 .activity-tray.needs-tray .activity-filters button[data-tab="needs"] b { background: var(--attention); color: var(--on-ink); }
 .activity-body { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) 208px; min-height: 0; }
 .activity-tray-scroll { overflow: auto; min-width: 0; min-height: 0; padding: 0 12px 20px 20px; overscroll-behavior: contain; overflow-wrap: anywhere; }
-.activity-tray h2 { margin: 16px 6px 8px; font: var(--t-support); font-weight: 500; color: var(--muted); }
+.activity-tray h2 { margin: 16px 6px 8px; font: var(--t-title); color: var(--ink); }
 .activity-tray button:not(.icon-button) { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-pill); color: var(--ink); background: var(--fill-2); font: var(--t-control); }
 .activity-tray.needs-tray .activity-actions button:not(.icon-button) { padding: 0 14px; white-space: nowrap; }
 .activity-tray button:not(:disabled):hover { background: var(--fill-3); }

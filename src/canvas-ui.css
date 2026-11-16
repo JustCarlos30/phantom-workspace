@@ -17,30 +17,30 @@
   --hairline: color-mix(in srgb, #fff 8%, transparent);
    /* One edge (the border hairline), light above and inner shadow below,
       without a second ring; shadows never animate their blur. */
-  --shadow-chrome: inset 0 1px 0 #ffffff26, inset 0 -1px 0 #05030a59, 0 1px 2px #05030a66, 0 18px 40px -20px #05030acc;
+  --shadow-chrome: inset 0 1px 0 #ffffff26, inset 0 -1px 0 #00000059, 0 1px 2px #00000066, 0 18px 40px -20px #000000cc;
   /* The glass rim: a lit top edge and a faint ring. It is the edge of every
      capsule that sits inside an island; it never adds a second fill. */
   --shadow-rim: inset 0 1px 0 #ffffff1f, inset 0 0 0 1px #ffffff0a;
-  --shadow-key: inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #05030a66, 0 1px 3px #05030a8c;
-  --shadow-well: inset 0 1px 2px #05030a8c, inset 0 0 0 1px #05030a33;
-  --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9;
-  --shadow-float: 0 2px 6px #05030a73, 0 30px 68px -24px #05030af2;
+  --shadow-key: inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #00000066, 0 1px 3px #0000008c;
+  --shadow-well: inset 0 1px 2px #0000008c, inset 0 0 0 1px #00000033;
+  --shadow-rest: 0 1px 2px #00000080, 0 14px 30px -16px #000000d9;
+  --shadow-float: 0 2px 6px #00000073, 0 30px 68px -24px #000000f2;
   /* Matte workplanes: offset contact depth, without a coloured halo. */
-  --shadow-workplane-rest: 0 2px 4px #05030a66, 0 10px 20px -12px #05030a99;
-  --shadow-workplane-lift: 0 3px 6px #05030a73, 0 16px 28px -14px #05030ab3;
+  --shadow-workplane-rest: 0 2px 4px #00000066, 0 10px 20px -12px #00000099;
+  --shadow-workplane-lift: 0 3px 6px #00000073, 0 16px 28px -14px #000000b3;
   /* Glass filters belong only to chrome. Workplanes and wells use real alpha. */
-  --glass-tint: color-mix(in srgb, var(--accent) 10%, color-mix(in srgb, #05030a 25%, var(--surface-3)));
+  --glass-tint: color-mix(in srgb, #141414 25%, var(--surface-3));
   --glass: color-mix(in srgb, var(--glass-tint) 48%, transparent);
   --glass-thick: color-mix(in srgb, var(--glass-tint) 68%, transparent);
   --glass-filter: blur(40px) saturate(190%);
-  --ink-on-glass: #ece9f2;
+  --ink-on-glass: #f2f0eb;
   --glass-sheen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"), linear-gradient(172deg, #ffffff12 0%, #ffffff07 26%, #ffffff03 100%);
-  --on: #f1ecf8;
-  --on-ink: #1a1226;
+  --on: #5b9cff;
+  --on-ink: #141414;
   --workplane: color-mix(in srgb, var(--surface) 80%, transparent);
-  --workplane-wash: linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent);
-  --well: color-mix(in srgb, var(--surface) 90%, transparent);
-  --well-raised: color-mix(in srgb, var(--surface-2) 94%, transparent);
+  --workplane-wash: linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent);
+  --well: color-mix(in srgb, var(--surface) 92%, transparent);
+  --well-raised: color-mix(in srgb, var(--surface-2) 96%, transparent);
   --well-terminal: color-mix(in srgb, var(--terminal-bg) 90%, transparent);
   /* One slight overshoot, then a monotonic settle. */
   --ease-spring: linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1);
@@ -57,36 +57,36 @@
   --s-4: 16px;
   --s-5: 24px;
   --s-6: 32px;
+  --glyph-primary: 20px;
+  --glyph-secondary: 16px;
+  --target: 40px;
+  --row-simple: 44px;
+  --row-detail: 56px;
   --gutter: var(--s-3);
   --rail-width: 252px;
   --dock-h: 56px;
   --inspector-width: 360px;
   --dot: color-mix(in srgb, var(--ink) 16%, transparent);
   --dot-major: color-mix(in srgb, var(--ink) 26%, transparent);
-  /* Ink: one neutral ink in three levels. Primary is what you read,
-     --muted what accompanies it, --ink-3 metadata and icons at rest. The
-      planes retain the current plum material; violet also identifies real
-      working state independently of the project accent. */
-  --bg: #0b0910;
-  --surface: #131019;
-  --surface-2: #1c1725;
-  --surface-3: #292133;
-  --ink: #f4f3f7;
-  --muted: #aaa8b3;
-  --ink-3: #8d8b96;
-  --terminal-bg: #0e0b13;
-  --terminal-ink: #ddd5e9;
+  /* Neutral planes keep identity and state accents local. */
+  --bg: #141414;
+  --surface: #1e1e1e;
+  --surface-2: #292929;
+  --surface-3: #303030;
+  --ink: #f2f0eb;
+  --muted: #bcbab4;
+  --ink-3: #b0aea8;
+  --terminal-bg: #161616;
+  --terminal-ink: #e1dfda;
   --scroll-thumb: color-mix(in srgb, #fff 16%, transparent);
-  /* Type: seven roles, three weights (400, 500, 600; 650 for display only).
-     What is read (body) is larger than what is pressed (control). Use as
-     `font: var(--t-body)`. */
-  --t-display: 650 24px/30px var(--sans);
+  /* Type: seven roles, three weights (400, 500, 600). */
+  --t-display: 600 24px/30px var(--sans);
   --t-title: 600 17px/22px var(--sans);
-  --t-headline: 600 15px/22px var(--sans);
+  --t-headline: 600 14px/22px var(--sans);
   --t-body: 400 14px/22px var(--sans);
-  --t-control: 500 13px/18px var(--sans);
+  --t-control: 500 14px/20px var(--sans);
   --t-support: 400 12px/16px var(--sans);
-  --t-micro: 500 11px/14px var(--sans);
+  --t-micro: 500 12px/16px var(--sans);
 }
 
 
@@ -309,8 +309,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .dock-main button { height: 40px; padding: 0 12px; gap: 7px; border-radius: var(--r-obj); font-size: 12px; color: var(--muted); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .dock-main button:hover:not(:disabled) { background: var(--island-hover); color: var(--ink); }
 .dock-main button:active:not(:disabled) { background: var(--accent-soft); }
-.dock-main button:first-of-type { background: var(--accent); color: color-mix(in srgb, var(--accent) 12%, #140f1f); }
-.dock-main button:first-of-type:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); color: color-mix(in srgb, var(--accent) 12%, #140f1f); }
+.dock-main button:first-of-type { background: var(--accent); color: var(--primary-ink); }
+.dock-main button:first-of-type:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); color: var(--primary-ink); }
 .dock-main button.active { background: var(--accent-soft); color: var(--accent); }
 .dock-main > i { height: 22px; background: var(--hairline); margin: 0 4px; }
 .dock-label { display: none !important; }
@@ -444,13 +444,13 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 
 /* ---------- Zones: named areas on the canvas ---------- */
 .canvas-zone {
-  --zone: var(--c-iris);
+  --zone: var(--muted);
   position: absolute; pointer-events: none; border-radius: var(--r-obj);
   background: color-mix(in srgb, var(--zone) 6%, transparent);
   border: 1px solid color-mix(in srgb, var(--zone) 26%, transparent);
   transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.zone-mint { --zone: var(--c-mint); } .zone-amber { --zone: var(--c-sand); } .zone-rose { --zone: var(--c-rose); } .zone-slate { --zone: var(--c-slate); }
+.zone-mint, .zone-amber, .zone-rose, .zone-slate { --zone: var(--muted); }
 .canvas-zone.selected { border-color: var(--zone); outline: 2px solid color-mix(in srgb, var(--zone) 60%, transparent); outline-offset: 3px; }
 .canvas-zone.is-dragging { background: color-mix(in srgb, var(--zone) 10%, transparent); }
 .zone-label {
@@ -636,7 +636,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .canvas-popover dt, .canvas-popover dd { font-size: 12px; }
 
 /* ---------- Command palette: spotlight ---------- */
-.app-modal-backdrop, .tw-overlay { background: #07061099; }
+.app-modal-backdrop, .tw-overlay { background: #10101099; }
 .tw-palette, .tw-voice, .app-dialog { background-color: var(--glass-thick); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); }
 .tw-palette { width: min(640px, 100%); }
 .tw-palette-search { gap: 12px; padding: 8px 12px 8px 20px; min-height: 60px; border-bottom-color: var(--hairline); }
@@ -699,7 +699,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .terminal-activity-status i { width: 6px; height: 6px; }
 
 /* ---------- Appearance ---------- */
-.appearance-panel h2 { font-weight: 600; }
+.appearance-panel h2 { font: var(--t-title); }
 .background-option { border-color: var(--hairline); border-radius: var(--r-obj); padding: 5px 5px 9px; }
 .background-option:hover { border-color: var(--hairline); background: var(--fill); }
 .background-option[aria-pressed=true] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
@@ -717,10 +717,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .agent-editor { background: var(--surface-2); border: 1px solid var(--hairline); }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #8d8b96; --glass-sheen: none; }
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: none; }
 }
 @media (prefers-contrast: more) {
-  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #8d8b96; --glass-sheen: none; --hairline: color-mix(in srgb, #fff 22%, transparent); }
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: none; --hairline: color-mix(in srgb, #fff 22%, transparent); }
 }
 
 /* Focus bar and activity pill never wrap or clip their leading icon. */
@@ -925,7 +925,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .activity-dock .activity-strip .activity-notch.needs-you:hover, .activity-dock .activity-strip .activity-notch.needs-you[aria-expanded=true] {
   background: color-mix(in srgb, var(--attention) 22%, transparent); color: var(--attention);
 }
-.activity-dock .activity-strip:has(.needs-you) .activity-summary-action { color: color-mix(in srgb, var(--muted) 80%, transparent); }
+.activity-dock .activity-strip:has(.needs-you) .activity-summary-action { color: var(--muted); }
 /* The ghost in the notch: the brand mark with a mood. Its eyes and grin are
    the only things that change, and only with real state (Glyphs.jsx). */
 .phantom-face { flex-shrink: 0; overflow: visible; }
@@ -1076,13 +1076,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .phantom-launcher[data-tone="working"] .phantom-launcher-dot { background: var(--working); }
 .phantom-launcher[data-tone="waiting"] .phantom-launcher-dot { background: var(--warning); }
 .phantom-launcher[data-tone="attention"] .phantom-launcher-dot { background: var(--danger); }
-.phantom-launcher-count { position: absolute; top: -3px; right: -3px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: var(--r-pill); background: var(--accent); color: #140f1f; font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; font-variant-numeric: tabular-nums; }
+.phantom-launcher-count { position: absolute; top: -3px; right: -3px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: var(--r-pill); background: var(--accent); color: var(--primary-ink); font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; font-variant-numeric: tabular-nums; }
 .phantom-launcher[data-tone="waiting"] .phantom-launcher-count { background: var(--warning); color: #1d1204; }
 @keyframes phantom-pulse { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .phantom-launcher-dot { animation: none !important; } }
 
 /* The orchestrator's card names its role beside the title. */
-.node-role { flex-shrink: 0; margin-left: 6px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 650; letter-spacing: .02em; line-height: 16px; white-space: nowrap; }
+.node-role { flex-shrink: 0; margin-left: 6px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font: var(--t-micro); letter-spacing: .02em; white-space: nowrap; }
 .canvas-node[data-role="orchestrator"]:not(.selected) { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .canvas-node[data-role="orchestrator"] .node-title { display: flex; align-items: center; }
 .canvas-node[data-role="orchestrator"] .title-button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1213,6 +1213,29 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
   :root { --workplane: var(--surface); --workplane-wash: none; --well: var(--surface); --well-raised: var(--surface-2); --well-terminal: var(--terminal-bg); }
   .connection-error { background-color: var(--error-bg); }
 }
+
+.app-shell { font: var(--t-body); }
+.button, .tw-button, .search-command, .focus-return button,
+.tool-search input, .index-search input, .inspector-switcher select,
+.canvas-popover > button, .canvas-zoom-presets button,
+.appearance-footer .button { font: var(--t-control); }
+.note-editor { font: var(--t-body); }
+.tw-inspector-header h2, .tw-section h3, .tw-voice h2 { font: var(--t-title); }
+.workspace-path, .save-state, .mission-chip, .index-type, .index-footer,
+.tool-group h3, .context-title, kbd, .background-option,
+.background-upload small, .grid-toggle small, .appearance-footer p,
+.appearance-panel .interface-scale p, .accent-options button { font: var(--t-support); }
+.breadcrumb > button, .project-name-editor > button, .tool-item strong,
+.index-item strong, .tw-field > label { font: var(--t-control); }
+.app-shell .activity-dock .dock-main button.dock-action { font: var(--t-control); background: var(--fill-2); color: var(--ink); }
+.app-shell .activity-dock .dock-main button.dock-action:hover:not(:disabled) { background: var(--fill-3); color: var(--ink); }
+.app-shell .activity-dock .dock-main button.dock-action:is(.active, [aria-expanded="true"]),
+.app-shell .activity-dock .dock-main button.dock-action:is(.active, [aria-expanded="true"]):hover:not(:disabled) { background: var(--fill-3); color: var(--accent); }
+.app-shell button.search-command { font: var(--t-control); }
+.activity-dock .activity-notch { font: var(--t-support); }
+.dock-main button:first-of-type { background: transparent; color: var(--muted); }
+.dock-main button:first-of-type:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.dock-main button.active { background: var(--fill-3); color: var(--accent); }
 
 @keyframes materialize-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {

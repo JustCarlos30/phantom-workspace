@@ -87,6 +87,49 @@ test('drawn edges stay within budget', () => {
 });
 export { drawnEdges, sheets };
 
+test('approved type roles use local families and three weights', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  for (const [role, value] of Object.entries({ display: '600 24px/30px', title: '600 17px/22px', headline: '600 14px/22px', body: '400 14px/22px', control: '500 14px/20px', support: '400 12px/16px', micro: '500 12px/16px' })) {
+    assert.equal(declarations(canvas, `--t-${role}`)[0], `${value} var(--sans)`);
+  }
+  for (const { name, css } of sheets) assert.doesNotMatch(css, /@import\s+url\([^)]*https?:|@font-face[^}]*https?:/i, name);
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  assert.match(sidebar, /\.rail-session-status\s*\{[^}]*flex-shrink: 0;[^}]*white-space: nowrap/);
+});
+
+test('sidebar keeps neutral selection, compact status and consistent control sizes', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  const source = readFileSync(path.join(root, 'src/components/SidebarPanels.jsx'), 'utf8');
+  for (const [name, value] of Object.entries({ bg: '#141414', surface: '#1e1e1e', 'surface-2': '#292929', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
+    assert.equal(declarations(canvas, `--${name}`)[0], value);
+  }
+  assert.doesNotMatch(declarations(canvas, '--glass-tint')[0], /--accent/);
+  assert.match(sidebar, /\.rail-panel-row\.selected\s*\{[^}]*background: var\(--fill-2\);[^}]*color: var\(--ink\)/);
+  assert.match(sidebar, /\.rail-session-row:has\(\.rail-session-dot\.warning\) \.rail-session-status\s*\{\s*color: var\(--attention\)/);
+  assert.doesNotMatch(sidebar, /box-shadow: 0 0 0 2px var\(--(?:attention|working)\)/);
+  assert.match(sidebar, /@media \(pointer: coarse\)[\s\S]*--target: 44px/);
+  assert.match(source, /className="rail-session-status">\{row.statusLabel\}/);
+  assert.match(source, /aria-current=\{active \? 'true' : undefined\}/);
+});
+
+test('sidebar status text retains AA over its selected neutral surface', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
+  const rgb = name => (declarations(canvas, `--${name}`)[0] || declarations(studio, `--${name}`)[0])
+    .slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
+  const luminance = values => values.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
+    .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  assert.match(sidebar, /background-color: var\(--surface\)/);
+  assert.match(sidebar, /background-image: none/);
+  const background = rgb('surface').map(v => v * .91 + .09);
+  for (const ink of ['ink', 'ink-on-glass', 'working', 'attention']) {
+    const a = luminance(rgb(ink)), b = luminance(background);
+    assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${ink} on selected sidebar`);
+  }
+});
+
 test('light glass has inset relief, a spring and accessible opaque fallbacks only on chrome', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const tokens = canvas.match(/:root\s*\{([^}]+)\}/)?.[1];
@@ -99,8 +142,8 @@ test('light glass has inset relief, a spring and accessible opaque fallbacks onl
   const blur = declarations(tokens, '--glass-filter')[0]?.match(/blur\((\d+(?:\.\d+)?)px\)/)?.[1];
   assert.ok(Number(blur) >= 34, '--glass-filter must blur at least 34px');
   assert.match(declarations(tokens, '--glass-filter')[0], /saturate\(190%\)/);
-  assert.equal(declarations(tokens, '--on')[0], '#f1ecf8');
-  assert.equal(declarations(tokens, '--on-ink')[0], '#1a1226');
+   assert.equal(declarations(tokens, '--on')[0], '#5b9cff');
+   assert.equal(declarations(tokens, '--on-ink')[0], '#141414');
   const chrome = declarations(tokens, '--shadow-chrome')[0];
   assert.ok(split(chrome, ',').filter(layer => layer.startsWith('inset ')).length >= 2, 'Chrome needs top and bottom inset relief');
   assert.match(declarations(tokens, '--ease-spring')[0], /^linear\(/);
@@ -141,7 +184,7 @@ test('workplane elevation aliases stay local and the canvas exposes environmenta
   assert.match(studio, /\.canvas-region \.canvas\s*\{[^}]*z-index:\s*1;[^}]*background-color:\s*transparent/);
 });
 
-test('spectral reading and state inks retain AA contrast on opaque planes', () => {
+test('neutral reading and state inks retain AA contrast on opaque planes', () => {
   const css = readFileSync(path.join(root, 'src/studio.css'), 'utf8');
   const color = name => {
     const value = css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6});`, 'i'))?.[1];
@@ -150,9 +193,10 @@ test('spectral reading and state inks retain AA contrast on opaque planes', () =
     return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
   };
   for (const plane of ['bg', 'surface', 'surface-2', 'surface-3', 'terminal-bg']) {
-    for (const ink of ['ink', 'muted', 'working', 'attention']) {
+    for (const ink of ['ink', 'muted', 'working', 'attention', 'action', 'success', 'danger', 'idle']) {
       const a = color(plane), b = color(ink), ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
-      assert.ok(ratio >= 4.5, `--${ink} on --${plane}: ${ratio.toFixed(2)} < 4.5`);
+      const minimum = ink === 'idle' ? 3 : 4.5;
+      assert.ok(ratio >= minimum, `--${ink} on --${plane}: ${ratio.toFixed(2)} < ${minimum}`);
     }
   }
 });
@@ -212,7 +256,7 @@ test('reading and state inks retain AA on translucent wells, including a white i
     const alpha = Number(percent) / 100;
     for (const background of [[0, 0, 0], [1, 1, 1], rgb('surface-3')]) {
       const composite = rgb(base).map((v, i) => v * alpha + background[i] * (1 - alpha));
-      for (const ink of ['ink', 'muted', 'working', 'attention']) {
+      for (const ink of ['ink', 'muted', 'working', 'attention', 'action', 'success', 'danger']) {
         const ratio = contrast(rgb(ink), composite);
         assert.ok(ratio >= 4.5, `--${ink} on --${token}: ${ratio.toFixed(2)} < 4.5`);
       }
@@ -234,8 +278,8 @@ test('chrome reading inks retain AA across the existing CSS atmospheres and proj
     .flatMap(([value]) => [...value.matchAll(/#[\da-f]{6}\b/gi)].map(([hex]) => rgb(hex)))];
   // Full intensity at each gradient's brightest stop and top of the sheen.
   // Personal images are runtime content; opaque accessibility modes remain available.
-  for (const accent of ['c-lilac', 'c-iris', 'c-mint', 'c-sand', 'c-rose', 'c-sky']) {
-    const tint = over(token(accent), token('surface-3'), .13);
+  for (const accent of ['action', 'attention', 'success', 'danger', 'ink']) {
+    const tint = over(token('bg'), token('surface-3'), .25);
     for (const material of ['glass', 'glass-thick']) {
       const alpha = Number(declarations(tokens, `--${material}`)[0].match(/ (\d+)%/)[1]) / 100;
       for (const background of backgrounds) {

@@ -1,62 +1,59 @@
 ---
 name: Phantom Workspace
-description: Vidrio ligero, teclas activas claras y planos ciruela translúcidos sin blur; trazo de actividad local e identidad Gengar pixelada sobre un lienzo espacial.
+description: Grafito neutro, vidrio ligero y selección discreta con acento local; estados explícitos e identidad Gengar pixelada sobre un lienzo espacial.
 colors:
-  accent: "#a78bda"
+  accent: "#5b9cff"
   accent-soft: "color-mix(in srgb, var(--accent) 17%, transparent)"
-  accent-mint: "#7cc9a0"
-  accent-amber: "#e3bf86"
-  accent-rose: "#f29ac4"
-  accent-cyan: "#7cc4ff"
-  bg: "#0b0910"
-  surface: "#131019"
-  surface-2: "#1c1725"
-  surface-3: "#292133"
-  ink: "#f4f3f7"
-  muted: "#aaa8b3"
-  ink-3: "#8d8b96"
+  action: "#5b9cff"
+  bg: "#141414"
+  surface: "#1e1e1e"
+  surface-2: "#292929"
+  surface-3: "#303030"
+  ink: "#f2f0eb"
+  muted: "#bcbab4"
+  ink-3: "#b0aea8"
   hairline: "color-mix(in srgb, #fff 8%, transparent)"
   fill: "color-mix(in srgb, #fff 5%, transparent)"
   fill-2: "color-mix(in srgb, #fff 9%, transparent)"
   fill-3: "color-mix(in srgb, #fff 14%, transparent)"
-  glass-tint: "color-mix(in srgb, var(--accent) 10%, color-mix(in srgb, #05030a 25%, var(--surface-3)))"
+  glass-tint: "color-mix(in srgb, #141414 25%, var(--surface-3))"
   glass: "color-mix(in srgb, var(--glass-tint) 48%, transparent)"
   glass-thick: "color-mix(in srgb, var(--glass-tint) 68%, transparent)"
-  ink-on-glass: "#ece9f2"
-  on: "#f1ecf8"
-  on-ink: "#1a1226"
+  ink-on-glass: "#f2f0eb"
+  on: "#5b9cff"
+  on-ink: "#141414"
   workplane: "color-mix(in srgb, var(--surface) 80%, transparent)"
-  workplane-wash: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent)"
-  well: "color-mix(in srgb, var(--surface) 90%, transparent)"
-  well-raised: "color-mix(in srgb, var(--surface-2) 94%, transparent)"
+  workplane-wash: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent)"
+  well: "color-mix(in srgb, var(--surface) 92%, transparent)"
+  well-raised: "color-mix(in srgb, var(--surface-2) 96%, transparent)"
   well-terminal: "color-mix(in srgb, var(--terminal-bg) 90%, transparent)"
   rail: "var(--surface)"
-  terminal-bg: "#0e0b13"
-  terminal-ink: "#ddd5e9"
-  primary-ink: "#130d1e"
-  note: "#211d2c"
-  danger: "#ee788a"
-  success: "#7cc9a0"
+  terminal-bg: "#161616"
+  terminal-ink: "#e1dfda"
+  primary-ink: "#141414"
+  note: "var(--surface-2)"
+  danger: "#f27670"
+  success: "#65ba83"
   warning: "var(--attention)"
-  working: "#bb9af7"
-  attention: "#e9b46a"
+  working: "#5b9cff"
+  attention: "#f3a45b"
   error-bg: "color-mix(in srgb, var(--danger) 15%, var(--surface))"
   mission-bg: "color-mix(in srgb, var(--success) 14%, transparent)"
   mission-ink: "var(--success)"
 typography:
   sans: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
-  display: "650 24px/30px var(--sans)"
+  display: "600 24px/30px var(--sans)"
   title: "600 17px/22px var(--sans)"
-  headline: "600 15px/22px var(--sans)"
+  headline: "600 14px/22px var(--sans)"
   body: "400 14px/22px var(--sans)"
-  control: "500 13px/18px var(--sans)"
+  control: "500 14px/20px var(--sans)"
   support: "400 12px/16px var(--sans)"
-  micro: "500 11px/14px var(--sans)"
+  micro: "500 12px/16px var(--sans)"
 rounded:
   mark: "4px"
   ctl: "8px"
   obj: "14px"
-  isle: "22px"
+  isle: "26px"
   pill: "999px"
 spacing:
   compact: "4px"
@@ -104,8 +101,8 @@ components:
     padding: "6px 8px"
     width: "100%"
   panel-row-selected:
-    backgroundColor: "{colors.on}"
-    textColor: "{colors.on-ink}"
+    backgroundColor: "{colors.fill-2}"
+    textColor: "{colors.ink}"
     rounded: "{rounded.ctl}"
   tool-badge:
     backgroundColor: "{colors.fill-2}"
@@ -128,11 +125,23 @@ Este documento describe la implementación integrada en una sola capa. Los mater
 
 ## Reglas
 
+### Refinamiento aprobado el 2026-11-15
+
+Esta revisión sustituye las referencias históricas de color y tipografía de las secciones inferiores: carbón `#141414`, `#1e1e1e`, `#292929`, elevación `#303030` y terminal `#161616`; marfil `#f2f0eb`. Azul `#5b9cff` para acciones/trabajo, naranja `#f3a45b` para atención, verde `#65ba83` para éxito y rojo `#f27670` para peligro. El dock y los iconos descansan neutros; selección y estados reciben acento. Las marcas y sprites originales conservan sus colores. El tinte de vidrio es neutro, el lavado del plano es 2 % y el pozo elevado 96 %.
+
+Tipografía vigente: contenido/sidebar/botones 14 px, estados/metadatos 12 px, títulos de sección 17 px y encabezados 24 px; pesos 400/500/600, familia Inter/SF/system existente sin fuentes remotas. El sidebar usa tinta secundaria sin la opacidad adicional .72. El estado no encoge: los metadatos contiguos se truncan antes que «Pide permiso». Targets 40/44 px y filas 44/56 px permanecen tokenizados.
+
+En el sidebar, el plano base es `--surface` opaco sin sheen para estabilizar el contraste; selección es `--fill-2` con texto `--ink` e icono sólido/acento. Los agentes seleccionados conservan su silueta y reciben acento local. «Te necesitan» es el resumen; «Pide permiso» conserva el significado específico entregado por el modelo. El estado ocupa el inicio de la segunda línea, con texto explícito y punto compacto; se retiran los aros de agente y el ámbar de toda la línea de metadatos. El estado ámbar y su etiqueta permanecen al seleccionar. No se derivan nuevos estados ni autorizaciones.
+
+Tokens del sidebar: glifo principal 20 px, secundario 16 px; target de escritorio 40 px y táctil 44 px; fila simple 44 px y de dos líneas 56 px. Ritmo 4/8/12/16 px. Las ventanas bajas conservan estos targets y permiten scroll. Los logos SVG mantienen proporciones y se centran en su disco; los sprites pixelados conservan sus dimensiones enteras. ARIA, foco, teclado y callbacks permanecen en los controles existentes.
+
+Estas reglas y el frontmatter prevalecen sobre las descripciones históricas de materiales, colores, tipografía, teclas claras y rail que aparecen más abajo. Los checks del contrato (diseño, modelos de actividad/sidebar, build y captura `design-capture charcoal-type`) corresponden al controlador. La captura usa el markup actual `rail-session-status` y `rail-session-details`, con estados sintéticos de trabajo, permiso y permiso seleccionado; comprueba tamaño y ausencia de clipping del estado. Las imágenes `design-charcoal-type-*.png` son evidencia únicamente después de ejecutarse el check.
+
 Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones estáticas de las dos primeras y del material.
 
 1. **Una caja por objeto.** Solo dibuja contorno lo que se puede mover o lo que flota: panel, zona, rail, islas, dock, menús. Dentro de un objeto se separa con espacio, tipografía y un paso de tono; nunca con líneas. Filas, botones de icono y controles de barra descansan sobre nada: la isla es su caja. Un relleno en reposo sobre cada control convierte la isla en una cuadrícula de cajas y está retirado. Como mucho un nivel de relleno interior: el control donde se escribe o se elige (campo del compositor, pista del segmentado, pozo de código o de terminal).
-2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`, con relieve interior y contacto ciruela, sin halo de color. Los paneles usan `--shadow-rest` y `--shadow-float`, sin halo coloreado; conversaciones y terminales resuelven esas elevaciones localmente a `--shadow-workplane-rest` y `--shadow-workplane-lift`. Selección: contorno sólido exterior de 2 px separado 3 px; foco: hairline sin contorno de selección. Los controles activos usan tecla clara `--on` y tinta `--on-ink`; el acento conserva selección de panel y foco de teclado. El trabajo real tiene un trazo interior violeta con cabeza blanca y cola segmentada; atención usa ámbar, error rojo y éxito menta. Es una capa SVG independiente del material y del anillo de selección.
-3. **Lo fantasma es comportamiento y material.** El chrome usa vidrio ahumado violeta oscuro al 48/68 % con blur de 40 px. Los planos de trabajo transmiten color por alpha al 80 % y un lavado diagonal del acento al 6 %, sin backdrop-filter; los pozos de lectura y escritura permanecen densos al 90/94 %. El relieve de controles usa `--shadow-key` y `--shadow-well`, con excepciones planas para las teclas de iconos propios. La entrada CSS aparece por opacidad y un desplazamiento vertical de 4 px, sin desenfocar texto; al soltar, el control recupera escala con resorte. Gengar pixelado identifica rail, notch y entradas vacías según la preferencia de personaje. El reposo sin animación continua es un requisito de rendimiento; la salvedad del GIF vacío se describe en Movimiento. Se conservan los fondos existentes, sin añadir manchas multicolor, barras de ecualizador ni onda en el dock.
+2. **El peso lo da el estado.** El chrome usa `--shadow-chrome`, con relieve interior y contacto negro, sin halo de color. Los paneles usan `--shadow-rest` y `--shadow-float`; conversaciones y terminales resuelven esas elevaciones localmente a `--shadow-workplane-rest` y `--shadow-workplane-lift`. Selección y foco conservan señales independientes. El trabajo real usa azul; atención naranja, error rojo y éxito verde. La capa SVG de actividad es independiente del material y del anillo de selección.
+3. **Lo fantasma es comportamiento y material.** El chrome usa vidrio carbón al 48/68 % con blur de 40 px. Los planos de trabajo transmiten color por alpha al 80 % y un lavado diagonal del acento al 2 %, sin backdrop-filter; los pozos de lectura y escritura permanecen densos al 90/96 %. El relieve de controles usa `--shadow-key` y `--shadow-well`, con excepciones planas para iconos propios. La entrada CSS aparece por opacidad y un desplazamiento vertical de 4 px, sin desenfocar texto; al soltar, el control recupera escala con resorte. Gengar pixelado conserva sus assets locales según la preferencia de personaje. El reposo sin animación continua es un requisito de rendimiento; la salvedad del GIF vacío se describe en Movimiento.
 
 ### Tokens (`src/canvas-ui.css`, bloque `:root`)
 
@@ -147,17 +156,17 @@ Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones est�
 | `--shadow-chrome` | `inset 0 1px 0 #ffffff26, inset 0 -1px 0 #05030a59, 0 1px 2px #05030a66, 0 18px 40px -20px #05030acc` | Filo de luz superior, sombra interior inferior, contacto y caída ciruela. Un solo filo: el anillo interior se retiró para no duplicar el hairline. Sin halo del acento |
 | `--shadow-key` | `inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #05030a66, 0 1px 3px #05030a8c` | Acción primaria, indicador segmentado y botón activo del dock/navegación |
 | `--shadow-well` | `inset 0 1px 2px #05030a8c, inset 0 0 0 1px #05030a33` | Pistas segmentadas y pulsación de los controles elevados |
-| `--glass-tint` | `color-mix(in srgb, var(--accent) 10%, color-mix(in srgb, #05030a 25%, var(--surface-3)))` | Acento al 10 % sobre `--surface-3` oscurecido 25 % hacia `#05030a` |
+| `--glass-tint` | `color-mix(in srgb, #141414 25%, var(--surface-3))` | Tinte neutro independiente del acento |
 | `--glass` / `--glass-thick` | tinte al 48 % / 68 % sobre transparente | Islas / chrome de lectura, con alpha real |
 | `--glass-filter` | `blur(40px) saturate(190%)` | Elimina el detalle detrás del chrome |
 | `--glass-sheen` | Grano fino de ruido fractal (SVG en data URI, alpha 4,5 %) sobre `linear-gradient(172deg, #ffffff12 0%, #ffffff07 26%, #ffffff03 100%)` | Velo de 172° (`#ffffff12` / `#ffffff07` / `#ffffff03`) concentrado arriba que nunca llega a cero, conservando el ahumado violeta oscuro |
-| `--ink-3` / `--muted` | `#8d8b96` / `#aaa8b3`; en chrome ambos usan `var(--ink-on-glass)` | Metadatos, texto secundario e iconos en reposo |
-| `--ink-on-glass` | `#ece9f2`; `#8d8b96` con transparencia reducida o contraste aumentado | Tinta secundaria local del chrome |
-| `--on` / `--on-ink` | `#f1ecf8` / `#1a1226` | Tecla activa sólida y su tinta oscura |
+| `--ink-3` / `--muted` | `#b0aea8` / `#bcbab4`; en chrome ambos usan `var(--ink-on-glass)` | Metadatos, texto secundario e iconos en reposo |
+| `--ink-on-glass` | `#f2f0eb`; `#b0aea8` con transparencia reducida o contraste aumentado | Tinta secundaria local del chrome |
+| `--on` / `--on-ink` | `#5b9cff` / `#141414` | Tecla activa sólida y su tinta oscura |
 | `--workplane` | `color-mix(in srgb, var(--surface) 80%, transparent)` | Losa translúcida de conversación/terminal |
-| `--workplane-wash` | `linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent)` | Lavado diagonal estático; alpha combinado máximo 81,2 % |
-| `--well` | `color-mix(in srgb, var(--surface) 90%, transparent)` | Pozo de lectura del chat lateral |
-| `--well-raised` | `color-mix(in srgb, var(--surface-2) 94%, transparent)` | Campo de escritura |
+| `--workplane-wash` | `linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent)` | Lavado diagonal estático; alpha combinado máximo 80,4 % |
+| `--well` | `color-mix(in srgb, var(--surface) 92%, transparent)` | Pozo de lectura del chat lateral; densidad para conservar AA con imágenes claras detrás |
+| `--well-raised` | `color-mix(in srgb, var(--surface-2) 96%, transparent)` | Campo de escritura |
 | `--well-terminal` | `color-mix(in srgb, var(--terminal-bg) 90%, transparent)` | Hilo de chat del canvas y salida de terminal |
 | `--ease-spring` | `linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1)` | Un solo rebote de 5 % y asentamiento |
 | `--dur-spring` | 420 ms | Recuperación de controles, segmentado y entrada CSS del chrome |
@@ -165,8 +174,8 @@ Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones est�
 | `--shadow-float` | `0 2px 6px #05030a73, 0 30px 68px -24px #05030af2` | Panel seleccionado, arrastrado o en foco, sin halo coloreado |
 | `--shadow-workplane-rest` | `0 2px 4px #05030a66, 0 10px 20px -12px #05030a99` | Conversaciones y terminales en reposo |
 | `--shadow-workplane-lift` | `0 3px 6px #05030a73, 0 16px 28px -14px #05030ab3` | Conversaciones y terminales seleccionadas, enfocadas o arrastradas |
-| `--working` | `#bb9af7` | Trazo de trabajo interior de 2 px, órbita de 5,6 s |
-| `--attention` | `#e9b46a` | Permiso/pregunta pendientes, turno que necesita al usuario |
+| `--working` | `#5b9cff` | Trabajo en curso |
+| `--attention` | `#f3a45b` | Permiso/pregunta pendientes, turno que necesita al usuario |
 
 `test/design-tokens.test.mjs` restringe radios, sombras, tokens retirados y presupuesto de bordes por hoja (`test/design-budget.json`, sin exceso ni holgura). Admite radios tokenizados, `0`, `50%`, `inherit`, medidas en `em`, ajustes concéntricos y escala de overview. Las sombras usan los tokens de la tabla o anillos de estado sin desplazamiento ni blur. `--shadow-float` pertenece a paneles `.canvas-node`, también en responsive. El test exige vidrio ≥44/60 %, blur ≥34 px y saturación 190 %, dos capas inset, resorte `linear()` y chrome opaco en las dos preferencias de accesibilidad. Exige workplane al 76–82 %, lavado ≤10 % y alpha combinado ≤82 %, pozos ≥86 %, contraste AA de tintas de lectura/estado y ausencia de backdrop-filter en los planos. Comprueba que el compositor no anime su altura, que no vuelva el antiguo filo de actividad y que seis hojas de materiales/indicadores auxiliares no contengan animaciones infinitas. Esto no equivale a comprobar todas las animaciones de la aplicación.
 
@@ -213,15 +222,15 @@ Estados de una rama, y solo estos: Trabajando · Sin guardar · Lista · En cola
 
 ## Vidrio y Planos
 
-- **Bases de plano.** Ciruela/violeta: `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Base de terminal `--terminal-bg #0e0b13`. Son colores sólidos de los que se derivan las mezclas translúcidas; nunca negro puro. Los valores viven en el bloque `:root` de `src/canvas-ui.css`, que manda sobre `studio.css`.
-- **Tinta.** `--ink #f4f3f7`, `--muted #aaa8b3` y `--ink-3 #8d8b96` son los niveles efectivos de `canvas-ui.css`, cargado después de `studio.css`. En chrome, tanto `--muted` como `--ink-3` se reasignan localmente a `--ink-on-glass #ece9f2`. Las teclas activas usan `--on-ink #1a1226` sobre `--on #f1ecf8`, incluidos sus metadatos. Los colores de estado son independientes del acento.
+- **Bases de plano.** Carbón: `--bg #141414`; trabajo `--surface #1e1e1e`; elevación `--surface-2 #292929` y `--surface-3 #303030`. Base de terminal `--terminal-bg #161616`. De estos colores sólidos se derivan las mezclas translúcidas. Los valores viven en el bloque `:root` de `src/canvas-ui.css`, cargado después de `studio.css`.
+- **Tinta.** `--ink #f2f0eb`, `--muted #bcbab4` y `--ink-3 #b0aea8` son los niveles efectivos. En chrome, `--muted` y `--ink-3` usan `--ink-on-glass #f2f0eb`. Las teclas activas usan `--on-ink #141414` sobre `--on #5b9cff`. Los colores de estado son independientes del acento.
 - **Rellenos y teclas.** Escalera blanca-alfa de 5/9/14 %. Reposo usa `--fill` y hover `--fill-3` en los controles normalizados. Primarias, proyecto/espacio seleccionado, filas activas, navegación, dock, filtros y resultados seleccionados usan la tecla clara sólida. `--shadow-key` da relieve y `--shadow-well` marca pistas/pulsación; las teclas de iconos propios del rail, navegación y dock tienen excepciones sin sombra en `identity.css`. La primaria no lleva degradado. Estos relieves no se aplican al plano de lectura ni a la salida de terminal.
-- **Acento.** Violeta `#a78bda` (clave `lilac`) para selección de panel, foco de teclado e identidad de proyecto; los controles activos normalizados usan tecla clara. Iris, Menta, Arena, Rosa y Cian siguen disponibles por proyecto.
-- **Estados.** `--working` violeta espectral, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado: selección y teclado son contornos sólidos; actividad es perímetro interior y etiqueta. `test/design-tokens.test.mjs` exige contraste de texto AA (4,5:1) para texto principal, secundario, trabajo y atención sobre los cinco planos opacos.
+- **Acento.** Azul `#5b9cff` (clave `blue`) por defecto para acciones, selección y foco. Naranja, Verde, Rojo y Marfil siguen disponibles por proyecto; las claves antiguas se normalizan en v4.
+- **Estados.** `--working` azul, `--attention` naranja (te necesita), `--danger` rojo, `--success` verde. Los fondos se derivan con `color-mix`. El estado conserva etiqueta explícita y no depende del acento elegido. `test/design-tokens.test.mjs` exige contraste de texto AA (4,5:1) y 3:1 para el indicador `--idle` sobre los cinco planos opacos.
 - **Vidrio.** Solo el chrome usa `--glass` al 48 % y `--glass-thick` al 68 % del tinte compartido (acento al 10 % sobre `--surface-3` oscurecido 25 % hacia `#05030a`), blur de 40 px y saturación 190 %. Inspector, menús, popovers y bandejas usan el material más grueso; el rail y las islas, el ligero. `--glass-sheen` aporta grano fino de ruido fractal (SVG en data URI, alpha 4,5 %) sobre un velo de 172° (`#ffffff12` / `#ffffff07` / `#ffffff03`) concentrado arriba que nunca llega a cero, separado del color translúcido, para conservar el ahumado violeta oscuro. `--shadow-chrome` combina luz superior y sombra interior inferior, contacto y caída, con el hairline como único filo, sin halo de color. No hay refracción ni animación del blur.
 - **Planos translúcidos.** La losa de conversación/terminal usa `--workplane` al 80 % y `--workplane-wash` diagonal al 6 % (alpha máximo combinado 81,2 %), con cabecera y cuerpo transparentes para no apilar superficies completas. Hilo lateral: `--well` al 90 %; hilo del canvas y salida de terminal: `--well-terminal` al 90 %; escritura: `--well-raised` al 94 %. No usan backdrop-filter ni brillo de vidrio; conservan elevaciones locales sin halo. La selección no atenúa ni filtra el texto de paneles vecinos. El canvas permanece transparente y deja ver el arte entre paneles.
 - **Accesibilidad del material.** `prefers-reduced-transparency: reduce` y `prefers-contrast: more` convierten vidrio, losa y pozos en superficies opacas, eliminan filtro, sheen y lavado diagonal y restauran `--ink-on-glass #8d8b96`. Contraste aumentado eleva `--hairline` al 22 %. Transparencia reducida oculta la atmósfera `::before`; el arte independiente `::after` conserva su control de personaje.
-- **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Siete roles, cada uno con un trabajo, declarados como `font: var(--t-…)`: Display 24/30·650 (pregunta o título de una vista vacía), Título 17/22·600 (nombre de un panel o isla), Encabezado 15/22·600 (encabezado dentro de contenido), Lectura 14/22·400 (lo que se lee: respuestas, notas), Control 13/18·500 (lo que se pulsa: filas, botones, menús), Apoyo 12/16·400 (lo que acompaña: modelo, hora, ruta, acciones) y Micro 11/14·500 (atajos y contadores; es el mínimo). Tres pesos: 400, 500 y 600; 650 solo en Display. Lo que se lee es más grande que lo que se pulsa. Las etiquetas van en caja natural; nunca en mayúsculas con tracking. Las hojas aún no migradas conservan sus tamaños sueltos y se pasan a roles al tocarlas.
+- **Tipografía.** `--sans` Inter → SF Pro → sistema, sin descargas remotas; `--mono` se reserva para código, rutas y medidas. Roles `font: var(--t-…)`: Display 24/30·600, Título 17/22·600, Headline 14/22·600, Lectura 14/22·400, Control 14/20·500, Apoyo 12/16·400 y Micro 12/16·500. Contenido y controles comparten tamaño; estados y metadatos usan 12 px. Pesos 400, 500 y 600. Las etiquetas van en caja natural. Las hojas fuera de esta capa conservan sus tamaños locales.
 - **Atmósfera.** Se conservan Gengar, Aurora, Marea, Brasa, Grafito e imagen propia, sin nuevos presets ni manchas multicolor añadidas. Los degradados existentes se localizan arriba a la derecha (82 % × 80 %) y abajo a la izquierda (64 % × 64 %), sin repetición. La imagen propia usa `cover` centrado. Ambiente y personaje tienen intensidades independientes. «Mostrar Gengar» controla la presencia de personaje, incluidos sprites del chrome y estados vacíos, además del arte ambiental local (`assets/gengar-source.md`). En un canvas vacío se suprime la imagen de fondo del personaje para no duplicar la mascota. La atmósfera permanece inmóvil incluso con una preferencia de pulso guardada.
 
 ## Iconos
@@ -343,9 +352,9 @@ El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el ra
 
 Los campos de texto se editan como borradores con Guardar y Descartar; los selectores e interruptores guardan al cambiar. Shell y voz usan `settings.update`; el agente predeterminado se guarda en localStorage como `phantom.cardMode`. La configuración de Phantom actualiza valores propios del proyecto con `plugins.update` cuando ya existen y usa los ajustes generales para los demás. Conexiones usa `plugins.update` y Git `merge.configure`, ambos con el proyecto explícito; Git y Conexiones piden abrir un proyecto si falta. Los fallos de carga y guardado conservan mensajes visibles. Estas rutas de persistencia son distintas de las preferencias locales de Apariencia descritas a continuación.
 
-Las opciones de fondo de Apariencia usan CSS y assets locales, con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos existentes Violeta, Iris, Menta, Arena, Rosa y Cian. «Intensidad ambiental» y «Presencia de Gengar» tienen salida numérica independiente; «Mostrar Gengar», «Pulso ambiental», «Concentración» y retícula son checkboxes etiquetados. Restablecer devuelve Gengar/Violeta/retícula ON/ambiente 55 %/personaje ON al 55 %/pulso OFF/concentración OFF/sin imagen.
+Las opciones de fondo de Apariencia usan CSS y assets locales, con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos Azul, Naranja, Verde, Rojo y Marfil. «Intensidad ambiental» y «Presencia de Gengar» tienen salida numérica independiente; «Mostrar Gengar», «Pulso ambiental», «Concentración» y retícula son checkboxes etiquetados. Restablecer devuelve Grafito/Azul/retícula ON/ambiente 55 %/personaje OFF al 55 %/pulso OFF/concentración OFF/sin imagen.
 
-Las preferencias se guardan sincrónicamente en localStorage bajo `phantom:studio:${workspaceId || 'default'}`, por proyecto y perfil local. Cambiar proyecto carga sus preferencias sin copiarlas del anterior. La versión 3 conserva fondo, acento v2 (incluido Iris explícito), retícula, imagen, intensidad y campos desconocidos; migra la presencia antigua según fondo Gengar/sin imagen y copia su intensidad anterior al nuevo deslizador del personaje. Solo Iris anterior a v2 conserva la migración histórica a Violeta. Pulso y concentración nuevos nacen OFF. La lectura normaliza sin sobrescribir el original; el siguiente cambio guarda v3. JSON inválido recupera defaults; claves, booleanos, intensidades finitas 0–100 e imagen se validan. Un fallo al escribir notifica y no aplica el cambio. Es almacenamiento local, no sincronización cloud.
+Las preferencias se guardan sincrónicamente en localStorage bajo `phantom:studio:${workspaceId || 'default'}`, por proyecto y perfil local. Cambiar proyecto carga sus preferencias sin copiarlas del anterior. La versión 4 migra Lilac/Iris/Cyan a Azul, Mint a Verde, Amber a Naranja y Rose a Rojo; fondos retirados Gengar/Aurora pasan a Grafito. Conserva imágenes válidas, booleanos explícitos del personaje, intensidades y campos desconocidos. Sin elección explícita, el personaje queda OFF. La normalización es idempotente; la lectura no sobrescribe el original y el siguiente cambio guarda v4. JSON inválido recupera defaults; claves, booleanos, intensidades finitas 0–100 e imagen se validan. Un fallo al escribir notifica y no aplica el cambio. Es almacenamiento local, no sincronización cloud.
 
 La imagen propia admite PNG/JPEG/WebP de hasta 2×1024×1024 bytes, decodificados con `createImageBitmap` antes de producir la data URL. La recarga solo acepta data URLs base64 del tipo permitido menores de 2.800.000 caracteres. Los fallos de tipo, tamaño, lectura, decodificación y guardado tienen mensajes visibles; el campo se desactiva durante la carga. Desmontar o restablecer invalida solicitudes pendientes. Elegir fondo elimina la imagen; quitar imagen conserva el fondo elegido. La imagen local se superpone a la atmósfera, centrada y con `cover`, bajo la atenuación ambiental; Gengar sigue en una capa independiente. Los sprites de identidad son assets locales; las capturas de revisión son evidencia de ejecución, no assets de marca.
 

@@ -1,14 +1,16 @@
 /* Rail: the single owner of everything inside the left island.
    The island is the only box. Inside it there is one list: rows rest on
-   nothing, hover is a veil, and the one thing you are on is a solid light key.
+   nothing, hover is a veil, and selection is a quiet neutral step.
    The two context selectors are the only wells, because they are where a
    value is chosen. Position and size of the island live in canvas-ui.css. */
 .project-rail {
-  --row: 40px;            /* one row height for every action */
-  --row-pad: 10px;        /* text and glyphs share this left edge */
+  --row: var(--row-simple);
+  --row-pad: 12px;
   --row-gap: 12px;
   display: flex; flex-direction: column; flex-shrink: 0; z-index: 30;
   color: var(--ink); min-height: 0;
+  background-color: var(--surface);
+  background-image: none;
 }
 .project-rail button:focus-visible, .project-rail summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
@@ -123,11 +125,9 @@
 .rail-attention.needs-you { color: var(--attention); background: color-mix(in srgb, var(--attention) 12%, transparent); }
 .rail-attention.needs-you b { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); line-height: 20px; text-align: center; }
 
-/* Three levels, never more than one light key in the island.
-   1. Where you are: the selected panel is the only solid light key.
-   2. What is open (a tray, a view): a lit veil with a glass rim.
-   3. Everything else rests on nothing. */
-.project-rail .rail-panel-row.selected { background: var(--on); color: var(--on-ink); --muted: var(--on-ink); }
+/* Selection and attention retain independent, readable signals. */
+.project-rail .rail-panel-row.selected { background: var(--fill-2); color: var(--ink); }
+.project-rail .rail-panel-row.selected .shell-icon { color: var(--accent); }
 .project-rail .rail-attention[aria-expanded=true] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 
 /* ---------- Sessions and resources ---------- */
@@ -146,29 +146,26 @@
 .rail-panel-row { display: flex; align-items: center; }
 .rail-panel-row > button:first-child { flex: 1; border-radius: inherit; }
 .rail-panel-row > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-session-row > button:first-child { min-height: 52px; }
-.rail-session-row > button > .rail-agent-mark { position: relative; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-left: -5px; flex-shrink: 0; overflow: visible; border-radius: 50%; background: var(--fill-2); box-shadow: var(--shadow-rim); }
-.rail-session-row.selected > button > .rail-agent-mark { background: color-mix(in srgb, var(--on-ink) 10%, transparent); box-shadow: none; }
-/* A session that needs you is not a box: amber disc ring, amber status line
-   and title at 600; the only amber fill is “Necesitan de ti”, without a rim. */
-.rail-session-row:has(.rail-session-dot.working) .rail-agent-mark { box-shadow: 0 0 0 2px var(--working); }
-.rail-session-row:has(.rail-session-dot.warning) .rail-agent-mark { box-shadow: 0 0 0 2px var(--attention); }
-.rail-session-row:not(.selected):has(.rail-session-dot.working) .rail-session-meta { color: var(--working); opacity: 1; }
-.rail-session-row:not(.selected):has(.rail-session-dot.warning) .rail-session-meta { color: var(--attention); opacity: 1; }
+.rail-session-row > button:first-child { min-height: var(--row-detail); }
+.rail-session-row > button > .rail-agent-mark { position: relative; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; overflow: visible; border-radius: 50%; background: var(--fill-2); box-shadow: var(--shadow-rim); }
+.rail-session-row.selected > button > .rail-agent-mark { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+.rail-session-row:has(.rail-session-dot.working) .rail-session-status { color: var(--working); }
+.rail-session-row:has(.rail-session-dot.warning) .rail-session-status { color: var(--attention); }
 .rail-session-row > button > .rail-panel-label { display: flex; flex: 1; flex-direction: column; align-items: stretch; gap: 1px; white-space: normal; }
 .rail-panel-label > span:first-child { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .rail-panel-row.selected .rail-panel-label > span:first-child { color: inherit; }
-.rail-session-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-micro); font-weight: 400; opacity: .72; }
-.rail-session-row.needs-you:not(.selected) { }
-.rail-session-row.needs-you:not(.selected) .rail-panel-label > span:first-child { font-weight: 600; }
-.rail-session-row.needs-you:not(.selected) .rail-session-meta { color: var(--attention); opacity: 1; }
+.rail-session-meta { display: flex; align-items: baseline; min-width: 0; font: var(--t-support); color: var(--muted); }
+.rail-session-status { flex-shrink: 0; white-space: nowrap; }
+.rail-session-details { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-session-row.needs-you .rail-panel-label > span:first-child { font-weight: 600; }
+.rail-session-row.needs-you .rail-session-status { color: var(--attention); }
 .rail-session-dot { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; }
 .rail-session-dot.working { background: var(--working); }
 .rail-session-dot.warning { background: var(--attention); }
 .rail-session-dot.neutral { background: var(--muted); }
 .rail-session-dot.unknown { background: color-mix(in srgb, var(--muted) 45%, transparent); }
 .rail-session-resources { padding-left: 37px; }
-.rail-resource-row > button:first-child { min-height: 32px; font: var(--t-support); }
+.rail-resource-row > button:first-child { min-height: var(--row-simple); font: var(--t-support); }
 .rail-panel-focus { display: grid; place-items: center; width: 28px; height: 28px; margin-right: 6px; flex-shrink: 0; border-radius: 50%; color: inherit; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
 .rail-panel-row:is(:hover, :focus-within) .rail-panel-focus, .rail-panel-focus[aria-pressed=true] { opacity: .72; }
 .rail-panel-focus:hover { opacity: 1; background: var(--fill-3); }
@@ -204,16 +201,30 @@
 
 /* ---------- Short windows: the list yields before the selectors do ---------- */
 @media (max-height: 700px) {
-  .project-rail { --row: 34px; }
   .project-switcher > summary { min-height: 42px; }
   .project-switcher > summary > .project-initials { width: 30px; height: 30px; }
   .project-rail .rail-spaces { padding-left: 48px; margin-bottom: var(--s-2); }
-  .rail-session-row > button:first-child { min-height: 42px; }
   .project-rail .rail-heading { height: 30px; }
   .project-rail .rail-bottom { padding-top: var(--s-2); }
 }
 @media (max-height: 600px) {
-  .project-rail { --row: 30px; }
+  .project-rail { overflow-y: auto; }
   .app-shell:not(.rail-collapsed) .project-rail .brand { height: 36px; margin-bottom: 4px; }
   .project-switcher > summary { min-height: 38px; }
+}
+
+.project-rail :is(.brand .icon-button, .rail-heading button, .rail-panel-focus, .space-rename, .space-remove, .rail-system > button) { width: var(--target); height: var(--target); min-width: var(--target); flex-shrink: 0; }
+.project-rail .rail-heading { min-height: var(--target); }
+.project-rail :is(.space-switcher-trigger, .space-select, .open-folder) { min-height: var(--target); height: auto; }
+.project-rail .project-item { min-height: var(--row-detail); }
+.project-rail .rail-collapsed-project { min-height: var(--target); }
+.project-rail :is(.rail-heading button, .rail-panel-focus, .rail-system > button, .space-switcher-trigger) > svg { width: var(--glyph-secondary); height: var(--glyph-secondary); }
+.project-rail :is(.rail-attention, .rail-map-action) > svg:first-child { width: var(--glyph-primary); height: var(--glyph-primary); }
+.project-rail .rail-attention.needs-you[aria-expanded=true] { color: var(--attention); }
+.project-rail .rail-bottom > button[aria-pressed=true] { background: var(--fill-3); color: var(--accent); }
+.project-rail :is(.brand > span:last-of-type > span, .brand .icon-button, .project-item small, .space-select small, kbd, .rail-heading > span, .rail-heading button, .rail-empty, .host-indicator) { opacity: 1; }
+.project-rail .rail-resource-row > button:first-child { font: var(--t-control); }
+@media (pointer: coarse) {
+  .project-rail { --target: 44px; }
+  .project-rail :is(.space-rename, .space-remove) { opacity: 1; }
 }

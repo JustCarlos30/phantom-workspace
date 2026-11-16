@@ -154,26 +154,51 @@ try {
   // waiting for an agent to work, ask or fail.
   await page.evaluate(() => {
     const row = document.querySelector('.rail-session');
-    const variant = (title, meta, tone, needs) => {
+    const variant = (title, status, tone, needs, selected = false) => {
       const copy = row.cloneNode(true), inner = copy.querySelector('.rail-session-row');
-      inner.classList.remove('selected'); inner.classList.toggle('needs-you', needs);
-      copy.querySelector('.rail-panel-label > span').textContent = title;
-      copy.querySelector('.rail-session-meta').textContent = meta;
+      inner.classList.toggle('selected', selected); inner.classList.toggle('needs-you', needs);
+      const button = inner.querySelector('button');
+      if (selected) button.setAttribute('aria-current', 'true');
+      else button.removeAttribute('aria-current');
+      button.setAttribute('aria-label', `Estado sintético: ${title}`);
+      const heading = copy.querySelector('.rail-panel-label > span');
+      heading.textContent = `Sintético: ${title}`;
+      heading.title = heading.textContent;
+      const meta = copy.querySelector('.rail-session-meta');
+      const statusLabel = meta.querySelector('.rail-session-status');
+      if (!statusLabel) throw new Error('Missing current rail-session-status markup');
+      statusLabel.textContent = status;
+      const details = meta.querySelector('.rail-session-details');
+      if (!details) throw new Error('Missing current rail-session-details markup');
+      details.textContent = ' · Terminal · fixture de metadatos largos';
       copy.querySelector('.rail-session-dot').className = `rail-session-dot ${tone}`;
+      copy.querySelector('.rail-session-resources')?.remove();
       row.parentNode.append(copy);
     };
-    variant('Rediseño de materiales', 'Trabajando · 2 min', 'working', false);
-    variant('Phantom Mobile', 'Te necesita · permiso', 'warning', true);
+    variant('Trabajo', 'Trabajando', 'working', false);
+    variant('Permiso', 'Pide permiso', 'warning', true);
+    variant('Permiso seleccionado', 'Pide permiso', 'warning', true, true);
     const attention = document.querySelector('.rail-attention');
     attention.classList.add('needs-you');
-    attention.querySelector('span').textContent = 'Necesitan de ti';
-    attention.querySelector('svg:last-child').outerHTML = '<b>1</b>';
+    attention.querySelector('span').textContent = 'Te necesitan';
+    const count = attention.querySelector('b');
+    if (count) count.textContent = '2';
+    else attention.insertAdjacentHTML('beforeend', '<b>2</b>');
+    attention.title = 'Estado sintético: dos permisos pendientes';
     const notch = document.querySelector('.activity-notch');
     notch.classList.add('needs-you');
-    notch.querySelector('strong').textContent = '1 te necesita';
+    notch.querySelector('strong').textContent = 'Sintético: 2 te necesitan';
     document.querySelector('.attention-button').insertAdjacentHTML('beforeend', '<i></i>');
   });
-  await shot('states');
+  await page.locator('.rail-session-status').evaluateAll(elements => {
+    for (const el of elements) {
+      if (getComputedStyle(el).fontSize !== '12px') throw new Error('Status must use 12px type');
+      const rect = el.getBoundingClientRect();
+      const parent = el.closest('.rail-panel-label').getBoundingClientRect();
+      if (el.scrollWidth > el.clientWidth || rect.right > parent.right + 1 || rect.bottom > parent.bottom + 1) throw new Error(`Clipped status: ${el.textContent}`);
+    }
+  });
+  await shot('synthetic-states');
   await page.reload();
   await page.locator('.canvas-node').first().waitFor();
   const notch = page.locator('.activity-notch').first();
