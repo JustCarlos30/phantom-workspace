@@ -11,6 +11,7 @@ import { writeOwnedTerminalInput } from '../hooks/inputOwnership';
 import AgentIdentity from './AgentIdentity';
 import { AgentState, ProviderBadge, effectiveStatus, locationOf, providerOf, sessionLabel } from './TerminalCard';
 import { useTerminalTail } from '../hooks/useTerminalTail';
+import { formatSince, useNow } from '../hooks/terminalPulse.mjs';
 import { ModeSwitch } from './ChatCard';
 
 // Phantom engine theme: the well matches the card plane and the caret and
@@ -196,6 +197,9 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
   const statusLabel = sessionLabel(status, preparing);
   const changeFontSize = value => onChange(node.id, { data: { ...node.data, fontSize: value } });
   const agent = node.data?.agent || {};
+  const updatedAt = agent.updatedAt != null && agent.updatedAt !== '' ? new Date(agent.updatedAt) : null;
+  const hasTime = !!updatedAt && Number.isFinite(updatedAt.getTime());
+  const now = useNow(!overview && !!agent.step && hasTime);
   const { tail } = useTerminalTail({ sessionId, api, lines: 1, enabled: status === 'running', connected });
   const provider = providerOf(node, tail?.foreground);
   const { branch, where } = locationOf(node, workspace);
@@ -206,6 +210,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
         {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
         {effectiveStatus(agent, tail?.screenState) && <AgentState agent={agent} status={effectiveStatus(agent, tail?.screenState)} />}
         {agent.step && <span className="pt-bar-step" title={agent.step}>{agent.step}</span>}
+        {!overview && agent.step && hasTime && <time className="pt-bar-since" dateTime={updatedAt.toISOString()} title={`${updatedAt.toLocaleString()} · ${agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}`}>{formatSince(now - updatedAt.getTime())}</time>}
       </div>
       <div className="pt-bar-tools">
         <button type="button" title="Dictar en esta terminal · Ctrl/Cmd + Shift + M" aria-label="Dictar en esta terminal" disabled={!connected || status !== 'running'} onClick={() => openDictation(destination.current)}><Mic size={15} strokeWidth={1.75} /></button>
