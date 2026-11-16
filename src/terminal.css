@@ -112,6 +112,9 @@
 .pt-focus .terminal-host { flex: 1; min-height: 0; border: 0; border-radius: 0; background: var(--terminal-bg); }
 .pt-focus .terminal-host > .xterm { padding: 16px 16px 12px 22px; background: var(--terminal-bg); }
 .pt-focus .terminal-host .xterm-viewport { background-color: var(--terminal-bg); scrollbar-color: var(--scroll-thumb) var(--terminal-bg); }
+/* A terminal wraps; it never scrolls sideways. */
+.terminal-host .xterm-viewport { overflow-x: hidden; }
+.terminal-host .xterm-scrollable-element > .scrollbar.horizontal { display: none; }
 .pt-focus .terminal-setup { background: var(--surface-2); color: var(--ink); }
 .pt-focus .terminal-setup small { color: var(--muted); }
 .pt-focus .terminal-setup button { border: 0; border-radius: var(--r-pill); padding: 4px 11px; background: var(--fill-2); }

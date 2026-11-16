@@ -123,8 +123,9 @@
 .rail-attention > span { flex: 1; min-width: 0; }
 .rail-attention > svg:last-child { opacity: .5; }
 .rail-attention b { font: var(--t-micro); font-weight: 600; font-variant-numeric: tabular-nums; }
-.rail-attention.needs-you { color: var(--attention); background: color-mix(in srgb, var(--attention) 12%, transparent); font-weight: 500; }
-.rail-attention.needs-you b { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); line-height: 20px; text-align: center; }
+.rail-attention.needs-you { color: var(--ink); font-weight: 500; }
+.rail-attention.needs-you > svg:first-child { color: var(--attention); }
+.rail-attention.needs-you b { color: var(--attention); }
 
 /* Selection and attention retain independent, readable signals. */
 .project-rail .rail-panel-row.selected { background: var(--fill-2); color: var(--ink); }
@@ -221,7 +222,7 @@
 .project-rail .rail-collapsed-project { min-height: var(--target); }
 .project-rail :is(.rail-heading button, .rail-panel-focus, .rail-system > button, .space-switcher-trigger) > svg { width: var(--glyph-secondary); height: var(--glyph-secondary); }
 .project-rail :is(.rail-attention, .rail-map-action) > svg:first-child { width: var(--glyph-primary); height: var(--glyph-primary); }
-.project-rail .rail-attention.needs-you[aria-expanded=true] { color: var(--attention); }
+.project-rail .rail-attention.needs-you[aria-expanded=true] { color: var(--ink); }
 .project-rail .rail-bottom > button[aria-pressed=true] { background: var(--fill-3); color: var(--accent); }
 .project-rail :is(.brand > span:last-of-type > span, .brand .icon-button, .project-item small, .space-select small, kbd, .rail-heading > span, .rail-heading button, .rail-empty, .host-indicator) { opacity: 1; }
 @media (pointer: coarse) {
