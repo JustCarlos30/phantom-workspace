@@ -7,9 +7,8 @@ import { mergeAgentConfig, terminalPolicy } from './agent-policy.mjs';
 import { git, guardState, installGuard, removeGuard, mergeToken, roleEnv, roleOf, integrationPolicy } from './merge-guard.mjs';
 import { checksFor, runChecks, validateChecks } from './checks.mjs';
 
-// Incorporaciones: workers request integration of their terminal branch and the
-// orchestrator session decides order and merges, one request at a time. The
-// queue lives in workspace.integration; Git facts are read on demand.
+// Incorporaciones: requests integrate one at a time, automatically or by the
+// orchestrator. The queue lives in workspace.integration; Git facts are read on demand.
 const OPEN = ['queued', 'merging', 'conflict', 'failed'];
 const AGENT_CLI = fileURLToPath(new URL('../scripts/agent.mjs', import.meta.url));
 const now = () => new Date().toISOString();
@@ -19,7 +18,7 @@ const count = value => value ? value.split('\n').length : 0;
 export class Merges {
   constructor({ store, terminals, mutate, emit }) {
     Object.assign(this, { store, terminals, mutate, emit });
-    this.running = new Set(); this.bases = new Map();
+    this.running = new Set(); this.bases = new Map(); this.draining = new Set();
     // A merge cannot outlive the host: Git either finished it or left it for the next attempt.
     let interrupted = false;
     for (const w of store.state.workspaces) for (const item of w.integration?.queue ?? []) if (item.status === 'merging') { item.status = 'queued'; interrupted = true; }
@@ -72,8 +71,14 @@ export class Merges {
 
   async status(w, requestId) {
     const integration = this.of(w), orchestratorNode = w.nodes.find(n => n.type === 'terminal' && n.data?.role === 'orchestrator');
+    const merged = integration.queue.filter(item => item.status === 'merged'), recent = [...merged].sort((a, b) => (Date.parse(a.finishedAt) || 0) - (Date.parse(b.finishedAt) || 0)).slice(-30);
+    const median = values => { values = values.filter(Number.isFinite).sort((a, b) => a - b); const n = values.length; return n ? (values[Math.floor((n - 1) / 2)] + values[Math.floor(n / 2)]) / 2 : null; };
+    const waits = integration.queue.filter(item => item.status === 'queued').map(item => Date.now() - Date.parse(item.requestedAt)).filter(Number.isFinite);
+    const today = merged.filter(item => new Date(item.finishedAt).toDateString() === new Date().toDateString());
     const live = id => this.terminals.sessions.some(s => s.nodeId === id && s.status === 'running');
     const result = {
+      auto: integration.auto ?? false, ...(integration.autoBlocked ? { autoBlocked: integration.autoBlocked } : {}),
+      stats: { queued: integration.queue.filter(item => item.status === 'queued').length, returned: integration.queue.filter(item => ['conflict', 'failed'].includes(item.status)).length, oldestWaitMs: waits.length ? Math.max(0, ...waits) : null, mergedToday: today.length, filesToday: today.reduce((sum, item) => sum + (item.fileCount ?? 0), 0), mergedTotal: merged.length, medianWaitMs: median(recent.map(item => Date.parse(item.startedAt) - Date.parse(item.requestedAt))), medianChecksMs: median(recent.map(item => item.checks?.durationMs)), autoMerged: recent.filter(item => item.by === 'auto').length },
       available: false, enabled: integration.enabled, plan: integration.plan ?? '', planUpdatedAt: integration.planUpdatedAt ?? null,
       guard: { installed: false }, orchestrator: orchestratorNode ? { nodeId: orchestratorNode.id, title: orchestratorNode.title, running: live(orchestratorNode.id) } : null,
       active: [], queue: [], history: [], observedAt: now(),
@@ -176,12 +181,13 @@ export class Merges {
     if (method === 'merge.status') return this.status(this.store.getWorkspace(p.workspaceId), p.requestId);
     if (method === 'merge.configure') {
       const w = this.store.getWorkspace(p.workspaceId);
-      assert(p.enabled === undefined || typeof p.enabled === 'boolean', 'Invalid enabled'); assert(p.enabled !== undefined || p.checks !== undefined, 'Nada que configurar');
+      assert(p.enabled === undefined || typeof p.enabled === 'boolean', 'Invalid enabled'); assert(p.auto === undefined || typeof p.auto === 'boolean', 'Invalid auto'); assert(p.enabled !== undefined || p.checks !== undefined || p.auto !== undefined, 'Nada que configurar');
       // checks: a command, '' for none, or null to detect it from the project.
       const checks = p.checks === undefined ? undefined : validateChecks(p.checks);
       const { source } = await this.base(w);
       if (p.enabled === true) await installGuard(source, this.store.dir, w.id); else if (p.enabled === false) await removeGuard(source);
-      this.change(w.id, integration => { if (p.enabled !== undefined) integration.enabled = p.enabled; if (checks === null) delete integration.checks; else if (checks !== undefined) integration.checks = checks; });
+      this.change(w.id, integration => { delete integration.autoBlocked; if (p.auto !== undefined) integration.auto = p.auto; if (p.enabled !== undefined) integration.enabled = p.enabled; if (checks === null) delete integration.checks; else if (checks !== undefined) integration.checks = checks; });
+      void this.drain(w.id);
       return this.status(this.store.getWorkspace(w.id));
     }
     if (method === 'merge.queue') {
@@ -201,7 +207,7 @@ export class Merges {
       // A request must already contain the current base: the worker pulls it in and resolves here, never the orchestrator.
       const upToDate = await git(base.source, ['merge-base', '--is-ancestor', base.oid, headOid]).then(() => true, () => false);
       assert(upToDate, `Esta rama no incluye lo último de ${base.branch}. Ejecuta \`git merge ${base.branch}\` en este worktree, resuelve, vuelve a pasar las comprobaciones y solicita de nuevo.`);
-      return this.change(w.id, (integration, current) => {
+      const submitted = this.change(w.id, (integration, current) => {
         let item = integration.queue.find(item => item.nodeId === node.id && OPEN.includes(item.status));
         assert(item?.status !== 'merging', 'Esta solicitud se está incorporando ahora mismo.');
         const cardId = node.data.agent?.cardId || '';
@@ -212,6 +218,8 @@ export class Merges {
         target.data.agent = { ...target.data.agent, step: (summary || 'Listo para incorporar').slice(0, 1000), status: 'review', source: 'agent', updatedAt: now() };
         return { ...item, position: integration.queue.filter(item => OPEN.includes(item.status)).indexOf(item) + 1 };
       });
+      void this.drain(w.id);
+      return submitted;
     }
     if (method === 'merge.withdraw') {
       const { w, node } = this.session(p.sessionId);
@@ -252,15 +260,37 @@ export class Merges {
 
   async run(p) {
     const { w } = this.orchestrator(p);
+    return this.execute(w, p.id, { checks: p.checks, by: 'orchestrator' });
+  }
+
+  resume() { for (const w of this.store.state.workspaces) void this.drain(w.id); }
+
+  async drain(workspaceId) {
+    if (this.draining.has(workspaceId) || this.running.has(workspaceId)) return;
+    this.draining.add(workspaceId);
+    try {
+      while (true) {
+        const w = this.store.getWorkspace(workspaceId), integration = this.of(w);
+        if (!integration.enabled || !integration.auto || integration.autoBlocked || this.running.has(workspaceId)) break;
+        const item = integration.queue.find(item => item.status === 'queued');
+        if (!item) break;
+        await this.execute(w, item.id, { by: 'auto' });
+      }
+    } catch (error) {
+      try { this.change(workspaceId, integration => { integration.autoBlocked = { reason: error.message, at: now() }; }); } catch { /* Workspace may have been removed. */ }
+    } finally { this.draining.delete(workspaceId); }
+  }
+
+  async execute(w, requestId, { checks, by }) {
     assert(!this.running.has(w.id), 'Ya hay una incorporación en curso en este proyecto.');
     this.running.add(w.id);
     try {
       const base = await this.base(w), { source } = base;
-      const id = this.item(this.of(this.store.getWorkspace(w.id)), p.id, ['queued']).id;
+      const id = this.item(this.of(this.store.getWorkspace(w.id)), requestId, ['queued']).id;
       assert(!await git(source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de incorporar.');
-      const command = p.checks === false ? '' : checksFor(this.store.getWorkspace(w.id), source);
+      const command = checks === false ? '' : checksFor(this.store.getWorkspace(w.id), source);
       if (command) assert(!await git(source, ['status', '--porcelain', '--untracked-files=no']), `El checkout de ${base.branch} tiene cambios sin commitear; los checks no serían fiables.`);
-      const queued = this.change(w.id, integration => Object.assign(this.item(integration, id, ['queued']), { status: 'merging', base: base.branch, updatedAt: now() }));
+      const queued = this.change(w.id, integration => Object.assign(this.item(integration, id, ['queued']), { status: 'merging', startedAt: now(), by, base: base.branch, updatedAt: now() }));
       const env = { PHANTOM_MERGE_TOKEN: mergeToken(this.store.dir, w.id) };
       try {
         await git(source, ['cat-file', '-e', `${queued.headOid}^{commit}`]);
@@ -282,25 +312,34 @@ export class Merges {
       let checkEvidence = null;
       if (command) {
         const checks = await runChecks(source, command);
-        checkEvidence = { command, ok: checks.ok, code: checks.code, headOid: queued.headOid, baseOid: base.oid };
+        checkEvidence = { command, ok: checks.ok, code: checks.code, durationMs: checks.durationMs, headOid: queued.headOid, baseOid: base.oid };
         if (!checks.ok) {
           // The merge does not stay; the worker gets the failing output.
           await git(source, ['reset', '--keep', base.oid], { env });
           return this.change(w.id, (integration, current) => {
-            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', checks: { command, ok: checks.ok, code: checks.code, headOid: queued.headOid, baseOid: base.oid }, note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
+            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', checks: checkEvidence, note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
             this.returnToWorker(current, item, `Los checks fallaron tras incorporar en ${base.branch} (${command}). Corrígelo en tu rama y vuelve a enviar.`);
             return { ...item, checks };
           });
         }
       }
       const mergedOid = await git(source, ['rev-parse', 'HEAD']);
+      const fileCount = (await git(source, ['diff', '--name-only', '-z', `${base.oid}..${mergedOid}`])).split('\0').filter(Boolean).length;
       return this.change(w.id, (integration, current) => {
-        const item = Object.assign(this.item(integration, id, ['merging']), { status: 'merged', mergedOid, checks: checkEvidence, finishedAt: now(), updatedAt: now() });
+        delete integration.autoBlocked;
+        const item = Object.assign(this.item(integration, id, ['merging']), { status: 'merged', mergedOid, fileCount, checks: checkEvidence, finishedAt: now(), updatedAt: now() });
         // The request is settled: its terminal no longer waits for review.
         const node = current.nodes.find(n => n.id === item.nodeId);
         if (node) node.data.agent = { ...node.data.agent, step: `Incorporada en ${base.branch}`, status: 'idle', source: 'agent', updatedAt: now() };
         return item;
       });
-    } finally { this.running.delete(w.id); }
+    } catch (error) {
+      this.change(w.id, integration => {
+        const item = integration.queue.find(item => item.id === requestId && item.status === 'merging');
+        if (item) Object.assign(item, { status: 'queued', updatedAt: now() });
+        if (integration.auto) integration.autoBlocked = { reason: error.message, at: now() };
+      });
+      throw error;
+    } finally { this.running.delete(w.id); if (!this.draining.has(w.id)) void this.drain(w.id); }
   }
 }

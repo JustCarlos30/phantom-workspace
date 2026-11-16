@@ -4,13 +4,9 @@ import { ErrorNotice, OperationState, useOperation, useResource } from './Plugin
 import { preferredCardMode } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 import { IntegrationChanges } from './IntegrationReview.jsx';
-import { buildCola, mergePath } from '../hooks/incorporaciones-model.mjs';
+import { buildCola, buildResumen, mergePath } from '../hooks/incorporaciones-model.mjs';
 import '../incorporaciones.css';
 
-// Cola: automatic integration. The orchestrator tests every branch that is
-// sent to it and puts it in main; this shows what it is integrating now, what
-// follows in order and what came back to its session. The panel observes;
-// ordering and integrating belong to the orchestrator.
 const files = count => `${count} ${count === 1 ? 'archivo' : 'archivos'}`;
 
 function Row({ row, open, onToggle, onSession, children }) {
@@ -40,23 +36,23 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     return () => clearInterval(timer);
   }, [active, reload]);
   const focus = nodeId => onOpenPanel?.('terminal', { focusNodeId: nodeId });
-  const configure = enabled => op.run(async () => { await api('merge.configure', { workspaceId: workspace.id, enabled }); await reload(); }, enabled ? 'Integración automática activada' : 'Integración automática desactivada');
+  const configure = (settings, message) => op.run(async () => { await api('merge.configure', { workspaceId: workspace.id, ...settings }); await reload(); }, message);
   const openOrchestrator = () => data?.orchestrator ? focus(data.orchestrator.nodeId) : onOpenPanel?.('terminal', { role: 'orchestrator', chat: { provider: preferredCardMode() } }, 'Orquestador');
 
   if (!data) return resource.error ? <ErrorNotice error={resource.error} retry={reload} /> : <p className="tw-muted" role="status">Leyendo la cola…</p>;
   if (!data.available) return <div className="inc"><p className="tw-warning" role="status">{data.reason || 'La cola no está disponible en esta carpeta.'}</p><button type="button" className="inc-button" onClick={reload}><RefreshCw size={14} aria-hidden="true" />Reintentar</button></div>;
   const base = data.base.branch;
   if (!data.enabled) return <div className="inc inc-off">
-    <h3 className="inc-off-title">Integración automática</h3>
-    <p className="inc-off-copy">El orquestador prueba cada rama lista y la sube a {base} por ti.</p>
-    <button type="button" className="inc-button is-primary" disabled={op.busy} onClick={() => configure(true)}>Activar</button>
+    <h3 className="inc-off-title">Incorporaciones</h3>
+    <p className="inc-off-copy">Reúne las ramas listas para probarlas e integrarlas en {base}.</p>
+    <button type="button" className="inc-button is-primary" disabled={op.busy} onClick={() => configure({ enabled: true }, 'Incorporaciones activado')}>Activar</button>
     <details className="inc-fold"><summary>Detalles</summary><p className="inc-hint">Cada sesión trabaja en su propia rama y el orquestador las integra en {base} una a una. Al activar se instalan protecciones de Git en el repositorio (<code>reference-transaction</code> y <code>pre-push</code> en <code>.git/hooks</code>); solo afectan a las sesiones de Phantom y se quitan al desactivar.</p></details>
     <OperationState op={op} />
     {resource.error && <ErrorNotice error={resource.error} retry={reload} />}
   </div>;
 
   const cola = buildCola(data);
-  const options = { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator) };
+  const options = { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator), auto: data.auto };
   const hasSession = item => item.nodeId && onOpenPanel && workspace.nodes?.some(node => node.id === item.nodeId && node.type === 'terminal');
   const rows = (list, { session = false, path = true } = {}) => <ul className="inc-group">{list.map(row => <Row key={row.key} row={row}
     open={openId === row.key} onToggle={() => setOpenId(openId === row.key ? null : row.key)} onSession={session && hasSession(row.item) ? () => focus(row.item.nodeId) : undefined}>
@@ -66,10 +62,12 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
   const closed = cola.today.length + cola.earlier.length;
 
   return <div className="inc">
+    <dl className="inc-resumen" aria-label="Resumen de Incorporaciones">{buildResumen(data, Date.now()).map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
+    {data.autoBlocked && <p className="tw-warning" role="status">Integración automática detenida: {data.autoBlocked.reason} <button type="button" className="inc-button" disabled={op.busy} onClick={() => configure({ auto: true }, 'Integración automática reanudada')}>Reintentar</button></p>}
     <ul className="inc-group">
       <li className="inc-item"><div className="inc-line is-setting">
-        <div className="inc-main"><span className="inc-title">Integrar sola al terminar</span><span className="inc-sub">El orquestador prueba cada rama lista y la sube a {base}</span></div>
-        <button type="button" role="switch" aria-checked="true" aria-label="Integrar sola al terminar" className="inc-switch" disabled={op.busy} onClick={() => configure(false)}><i aria-hidden="true" /></button>
+        <div className="inc-main"><span className="inc-title">Integrar sola al terminar</span><span className="inc-sub">{data.auto ? `Phantom prueba cada rama lista y la sube a ${base} sin esperar al orquestador` : 'Las ramas esperan a que el orquestador las integre'}</span></div>
+        <button type="button" role="switch" aria-checked={Boolean(data.auto)} aria-label="Integrar sola al terminar" className="inc-switch" disabled={op.busy} onClick={() => configure({ auto: !data.auto }, data.auto ? 'Integración automática desactivada' : 'Integración automática activada')}><i aria-hidden="true" /></button>
       </div></li>
       <li className="inc-item"><div className="inc-line is-setting">
         <div className="inc-main"><span className="inc-title" role="status">{cola.orchestrator}</span></div>
@@ -95,6 +93,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     </details>}
     <details className="inc-fold">
       <summary>Detalles</summary>
+      <button type="button" className="inc-button" disabled={op.busy} onClick={() => configure({ enabled: false }, 'Incorporaciones desactivado')}>Desactivar Incorporaciones</button>
       <p className="inc-hint">{data.checks?.command ? <>Tests antes de integrar: <code>{data.checks.command}</code>. </> : 'Sin tests configurados. '}{data.guard.installed ? 'Las protecciones de Git están instaladas en el repositorio; se quitan al desactivar.' : data.guard.reason || ''}</p>
     </details>
   </div>;

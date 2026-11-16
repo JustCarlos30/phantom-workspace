@@ -9,6 +9,21 @@ import { relativeTime } from './repo-graph.mjs';
 //   history   — requests already closed
 const RETURNED = ['conflict', 'failed'];
 
+const duration = ms => !Number.isFinite(ms) || ms < 0 ? '—' : ms < 60000 ? `${Math.floor(ms / 1000)} s` : ms < 3600000 ? `${Math.floor(ms / 60000)} min` : `${Math.round(ms / 360000) / 10} h`;
+
+export function buildResumen(data, now = Date.now()) {
+  const stats = data?.stats ?? {}, queued = (data?.queue ?? []).filter(item => item.status === 'queued');
+  const waits = queued.map(item => now - Date.parse(item.requestedAt)).filter(Number.isFinite);
+  return [
+    { label: 'En cola', value: String(stats.queued ?? queued.length) },
+    { label: 'Espera más antigua', value: duration(stats.oldestWaitMs ?? (waits.length ? Math.max(...waits) : null)) },
+    { label: 'Integradas hoy', value: stats.mergedToday == null ? '—' : `${stats.mergedToday} · ${stats.filesToday ?? 0} archivos` },
+    { label: 'Devueltas', value: String(stats.returned ?? (data?.queue ?? []).filter(item => RETURNED.includes(item.status)).length) },
+    { label: 'Tests típicos', value: duration(stats.medianChecksMs) },
+    { label: 'Espera típica', value: duration(stats.medianWaitMs) },
+  ];
+}
+
 // Commits saved, nothing uncommitted, branch readable and no agent mid-edit.
 export function isReadyBranch(item) {
   return Boolean(item && !item.missing && item.ahead > 0 && item.uncommitted === 0 && item.status !== 'working' && item.status !== 'blocked');
@@ -48,7 +63,7 @@ export function buildIncorporaciones(data) {
 const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
 const fileName = file => String(file).split('/').pop();
 
-export function mergePath(item, { base = 'main', checks = '', orchestrator = true } = {}) {
+export function mergePath(item, { base = 'main', checks = '', orchestrator = true, auto = false } = {}) {
   const submitted = Boolean(item?.id), status = item?.status;
   const ids = ['saved', 'current', ...(checks ? ['tests'] : []), 'landed'];
   const labels = { saved: 'Guardada', current: 'Al día', tests: 'Tests', landed: `En ${base}` };
@@ -66,12 +81,12 @@ export function mergePath(item, { base = 'main', checks = '', orchestrator = tru
       for (const id of ids) done.add(id);
       owner = 'none';
     } else if (status === 'merging') {
-      done.add('current'); owner = 'orchestrator';
+      done.add('current'); owner = auto ? 'phantom' : 'orchestrator';
       missing.push(checks ? `Pasar los tests y entrar en ${base}` : `Entrar en ${base}`);
     } else if (status === 'queued') {
-      done.add('current'); owner = orchestrator ? 'orchestrator' : 'you';
-      if (!orchestrator) missing.push('Abrir el orquestador');
-      missing.push(`Que el orquestador la integre${item.position ? ` · turno ${item.position}` : ''}`);
+      done.add('current'); owner = auto ? 'phantom' : orchestrator ? 'orchestrator' : 'you';
+      if (!auto && !orchestrator) missing.push('Abrir el orquestador');
+      missing.push(`Que ${auto ? 'Phantom' : 'el orquestador'} la integre${item.position ? ` · turno ${item.position}` : ''}`);
       if (item.stale) notes.push('La rama avanzó después de enviarla: se integrará lo enviado');
     } else {
       owner = 'none';
@@ -101,7 +116,7 @@ export function mergePath(item, { base = 'main', checks = '', orchestrator = tru
   return { steps, missing, notes, owner, done: steps.filter(step => step.state === 'done').length, total: steps.length };
 }
 
-const OWNER = { session: 'Depende de su sesión', terminal: 'Depende de su sesión', orchestrator: 'Depende del orquestador', you: 'Depende de ti', none: '' };
+const OWNER = { phantom: 'Depende de Phantom', session: 'Depende de su sesión', terminal: 'Depende de su sesión', orchestrator: 'Depende del orquestador', you: 'Depende de ti', none: '' };
 export const ownerLabel = owner => OWNER[owner] ?? '';
 
 // Board labels use the same seven branch states as Ramas; `blocked` is the
@@ -117,7 +132,7 @@ const BRANCH_STATE = {
 export function buildBranchBoard(data) {
   if (data?.available !== true) return { base: '', rows: [], counts: { total: 0, attention: 0, queued: 0, ready: 0, working: 0 } };
   const model = buildIncorporaciones(data), base = data.base?.branch || 'main';
-  const options = { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator) };
+  const options = { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator), auto: data.auto };
   const row = (item, state) => {
     const [label, tone] = BRANCH_STATE[state] ?? [state, 'muted'];
     return { key: item.id || item.nodeId, item, state, label, tone, path: mergePath(item, options) };
@@ -146,19 +161,21 @@ export function buildCola(data, now = Date.now()) {
     const [label, tone] = COLA[item.status] ?? ['Sin datos', 'neutral'];
     return { key: item.id, item, state: item.status, label: item.status === 'merged' ? `En ${base}` : label, tone, detail };
   };
-  const size = item => item.fileCount ? plural(item.fileCount, 'archivo', 'archivos') : '';
+  const size = item => item.fileCount != null ? plural(item.fileCount, 'archivo', 'archivos') : '';
   const returned = item => item.status === 'failed' ? 'Los tests fallaron'
     : item.conflicts?.length ? `${fileName(item.conflicts[0])}${item.conflicts.length > 1 ? ` y ${item.conflicts.length - 1} más chocan` : ' choca'} con ${base}` : `Choca con ${base}`;
   const closedAt = item => item.finishedAt || item.updatedAt || item.requestedAt;
   const day = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toDateString(); };
-  const closed = model.history.map(item => ({ ...row(item, [item.status === 'rejected' && item.note, relativeTime(closedAt(item), now)].filter(Boolean).join(' · ')), today: day(closedAt(item)) === day(now) }));
-  const title = model.merging ? `El orquestador está integrando «${model.merging.title}»`
+  const closed = model.history.map(item => ({ ...row(item, [item.status === 'rejected' && item.note, size(item), Number.isFinite(item.checks?.durationMs) && `Tests ${duration(item.checks.durationMs)}`, item.by === 'auto' ? 'Automática' : item.by === 'orchestrator' ? 'Orquestador' : '', relativeTime(closedAt(item), now)].filter(Boolean).join(' · ')), today: day(closedAt(item)) === day(now) }));
+  const who = data?.auto ? 'Phantom' : 'El orquestador';
+  const title = model.merging ? `${who} está integrando «${model.merging.title}»`
+    : data?.auto ? model.queued.length ? `${plural(model.queued.length, 'rama', 'ramas')} en cola; se integran solas` : 'Phantom está en espera'
     : !data?.orchestrator ? 'Sin orquestador abierto'
     : model.queued.length ? `El orquestador tiene ${plural(model.queued.length, 'rama', 'ramas')} en cola` : 'El orquestador está en espera';
   return {
     base, orchestrator: title,
-    now: model.merging ? [row(model.merging, 'El orquestador la está integrando')] : [],
-    next: model.queued.map((item, index) => row(item, [`Turno ${index + 1}`, size(item)].filter(Boolean).join(' · '))),
+    now: model.merging ? [row(model.merging, `${who} la está integrando`)] : [],
+    next: model.queued.map((item, index) => row(item, [`Turno ${index + 1}`, size(item), Number.isFinite(Date.parse(item.requestedAt)) && `Espera ${duration(Math.max(0, now - Date.parse(item.requestedAt)))}`].filter(Boolean).join(' · '))),
     returned: model.attention.map(item => row(item, returned(item))),
     today: closed.filter(item => item.today), earlier: closed.filter(item => !item.today),
     counts: { now: model.merging ? 1 : 0, next: model.queued.length, returned: model.attention.length, open: (model.merging ? 1 : 0) + model.queued.length + model.attention.length },

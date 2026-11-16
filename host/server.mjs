@@ -305,7 +305,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
+    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
     android=new AndroidGateway({hostDataDir:dataDir});
     server=net.createServer(socket=>{
