@@ -845,7 +845,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 }
 .activity-dock .activity-notch { flex: 1; min-width: 0; }
 .activity-dock .activity-notch strong { overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
-.activity-dock .activity-notch.needs-you strong { color: var(--attention); }
+.activity-dock .activity-notch.needs-you strong { color: var(--ink); }
 .activity-dock .activity-strip button:hover, .activity-dock .activity-strip button[aria-expanded=true] { background: var(--fill-2); color: var(--ink); }
 .activity-dock .activity-summary-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .activity-dock .dock-main { justify-content: center; background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
@@ -906,12 +906,13 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* Activity strip: what needs you is the only loud thing in the dock. The
    other readings stay quiet counts until there is something to act on. */
 .activity-dock .activity-strip .activity-notch.needs-you {
-  flex: 0 1 auto; padding-inline: 10px 8px; color: var(--attention);
-  background: color-mix(in srgb, var(--attention) 14%, transparent);
+  flex: 0 1 auto; padding-inline: 10px 8px; color: var(--ink);
 }
+.activity-dock .activity-strip .activity-notch.needs-you > svg { color: var(--attention); }
+.activity-dock .activity-strip .activity-notch.needs-you > .notch-dot { background: var(--attention); opacity: 1; }
 .activity-dock .activity-strip .activity-notch.needs-you strong { font-weight: 600; }
 .activity-dock .activity-strip .activity-notch.needs-you:hover, .activity-dock .activity-strip .activity-notch.needs-you[aria-expanded=true] {
-  background: color-mix(in srgb, var(--attention) 22%, transparent); color: var(--attention);
+  background: var(--fill-2); color: var(--ink);
 }
 .activity-dock .activity-strip:has(.needs-you) .activity-summary-action { color: var(--muted); }
 /* The ghost in the notch: the brand mark with a mood. Its eyes and grin are

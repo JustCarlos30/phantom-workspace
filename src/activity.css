@@ -3,7 +3,7 @@
 .activity-strip { flex-shrink: 0; display: flex; justify-content: center; min-width: 0; padding: 5px 12px; background: var(--rail); z-index: 20; }
 .activity-notch { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; max-width: 100%; min-height: 30px; padding: 5px 12px; border: 1px solid var(--hairline); border-radius: 0 0 var(--r-ctl) var(--r-ctl); background: var(--surface); font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .activity-notch:hover, .activity-notch[aria-expanded=true] { background: var(--surface-2); border-color: var(--accent); }
-.activity-notch.needs-you > strong, .terminal-activity-status.warning { color: var(--attention); }
+.terminal-activity-status.warning { color: var(--attention); }
 .activity-notch > strong { min-width: 0; overflow-wrap: anywhere; }
 .activity-notch svg { flex-shrink: 0; }
 .activity-notch > .notch-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; }
@@ -28,7 +28,7 @@
 .activity-tray.needs-tray .activity-filters { align-self: flex-start; flex-wrap: nowrap; gap: 2px; margin: 0 20px 6px; padding: 3px; border-radius: var(--r-pill); background: var(--fill); box-shadow: var(--shadow-well); }
 .activity-tray.needs-tray .activity-filters button { min-height: 30px; padding: 0 14px; gap: 7px; border-radius: var(--r-pill); font: var(--t-control); white-space: nowrap; }
 .activity-tray.needs-tray .activity-filters button b { min-width: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--fill-3); font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
-.activity-tray.needs-tray .activity-filters button[data-tab="needs"] b { background: var(--attention); color: var(--on-ink); }
+.activity-tray.needs-tray .activity-filters button[data-tab="needs"] b { color: var(--attention); }
 .activity-body { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) 208px; min-height: 0; }
 .activity-tray-scroll { overflow: auto; min-width: 0; min-height: 0; padding: 0 12px 20px 20px; overscroll-behavior: contain; overflow-wrap: anywhere; }
 .activity-tray h2 { margin: 16px 6px 8px; font: var(--t-title); color: var(--ink); }
@@ -51,7 +51,7 @@
 .activity-tray [data-ink="success"] { --tone: var(--success); }
 .activity-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; border-radius: var(--r-obj); overflow: hidden; }
 .activity-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 4px 14px; min-width: 0; min-height: 60px; padding: 10px 14px; background: var(--fill); }
-.activity-item-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-pill); color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
+.activity-item-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-pill); color: var(--tone); background: var(--fill-2); }
 .activity-item-main { display: grid; gap: 2px; min-width: 0; }
 .activity-item-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font: var(--t-headline); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
 .activity-item-title code { padding: 1px 6px; border-radius: var(--r-mark); background: var(--fill-3); font: var(--t-support); font-family: var(--mono); overflow-wrap: anywhere; }

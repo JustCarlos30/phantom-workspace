@@ -71,7 +71,7 @@
 .pc-agent-menu button > svg:last-child { color: var(--ink); }
 
 /* ---------- Thread ---------- */
-.pc-thread { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; user-select: text; cursor: auto; background: var(--terminal-bg); font: var(--t-body); }
+.pc-thread { flex: 1; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; user-select: text; cursor: auto; background: var(--terminal-bg); font: var(--t-body); }
 .pc, .pc-thread, .pc-composer { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .pc-thread ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
 .pc-column { display: flex; flex-direction: column; gap: 28px; min-height: 100%; max-width: 780px; margin: 0 auto; padding: 24px 24px 20px; }
