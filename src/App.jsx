@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Bell, Blocks, Braces, ChevronDown, ChevronRight, Command, ExternalLink, Folder, FolderOpen, GitBranch, Globe, Layers, List, LoaderCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings2, Square, StickyNote, TerminalSquare, Trash2, Workflow, X, Check, AlertCircle, Box, FileText, Play, Target, EyeOff, Pencil, RotateCcw } from 'lucide-react';
 import Canvas from './components/Canvas';
+import AsciiField from './components/AsciiField.jsx';
 import { PresenceGroup } from './components/Presence';
 import { Inspector } from './components/Inspector';
 import { CommandPalette } from './components/CommandPalette';
@@ -492,7 +493,9 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       {error && <div className="connection-error" role="status"><AlertCircle size={14} /><span>{error}</span><button onClick={() => operation(async () => { await flush(); await refresh(); })}>Reintentar</button></div>}
       {closeRequest?.status === 'failed' && <div className="connection-error" role="alert"><AlertCircle size={14} /><span>No se cerró la ventana: {closeRequest.error}. Puedes reintentar o descartar explícitamente desde el diálogo del escritorio.</span><button onClick={retryClose}>Guardar y cerrar</button></div>}
       <div className="workspace-body"><PresenceGroup>
-        <div key="canvas-region" className="canvas-region"><PresenceGroup>
+        <div key="canvas-region" className="canvas-region">
+          {appearance.background === 'ascii' && !appearance.image && <AsciiField paused={!!focused || appearance.concentration} />}
+          <PresenceGroup>
           <div key="canvas-content" className="sites-canvas-content" inert={sitesOpen}>
           {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked || sitesOpen} navigationBlocked={overlayNavigationBlocked || railOwnsFocus || (chatOpen && chatOwnsFocus) || sitesOpen} obscured={sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <GengarMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
