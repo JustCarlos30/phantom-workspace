@@ -1,5 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { createCreatures, stepCreatures, renderFrame, RAMP, creatureColor, OCEAN_COLORS, createBubbles, stepBubbles, createPlants, renderPlants } from '../hooks/asciiField.mjs';
+import { createCreatures, stepCreatures, renderFrame, RAMP, SHADES, creatureGradient, OCEAN_COLORS, createBubbles, stepBubbles, createPlants, renderPlants } from '../hooks/asciiField.mjs';
+
+const FONT_SIZE = 8;
+const ROW_HEIGHT = 8;
+const DENSITIES = Object.fromEntries([...RAMP].map((char, index) => [char, index]));
 
 export default function AsciiField({ paused = false }) {
   const canvasRef = useRef(null);
@@ -12,41 +16,39 @@ export default function AsciiField({ paused = false }) {
     if (!context) return;
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let raf = 0, last = 0, time = 0, cols = 0, rows = 0, width = 0, height = 0, cellWidth = 0;
-    let creatures = [], bubbles = [], plants = [], colors = [], ocean, rays = [], font = '';
+    let creatures = [], bubbles = [], plants = [], colors = [], ocean, font = '';
     const draw = () => {
       const frame = renderFrame(creatures, time, { cols, rows });
       context.globalAlpha = 1;
       context.shadowBlur = 0;
       context.fillStyle = ocean;
       context.fillRect(0, 0, width, height);
-      for (const ray of rays) {
-        context.fillStyle = ray;
-        context.fillRect(0, 0, width, height);
-      }
-      context.fillStyle = '#83deff';
-      context.globalAlpha = .65;
-      for (const bubble of bubbles) context.fillText(bubble.char, bubble.x * cellWidth, bubble.y * 13);
-      context.globalAlpha = .8;
+      context.fillStyle = '#52666a';
+      context.globalAlpha = .22;
+      for (const bubble of bubbles) context.fillText(bubble.char, bubble.x * cellWidth, bubble.y * ROW_HEIGHT);
+      context.globalAlpha = .25;
       for (const plant of renderPlants(plants, time, { cols, rows })) {
         context.fillStyle = plant.color;
-        context.fillText(plant.char, plant.x * cellWidth, plant.y * 13);
+        context.fillText(plant.char, plant.x * cellWidth, plant.y * ROW_HEIGHT);
       }
       const batches = new Map();
       for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
+        const cell = row * cols + col;
+        if (!frame.tint[cell]) continue;
         const char = frame.chars[row][col];
-        if (char === ' ') continue;
-        const index = frame.tint[row * cols + col] - 1;
-        const density = RAMP.indexOf(char);
-        const key = index * RAMP.length + density;
+        const index = frame.tint[cell] - 1;
+        const density = DENSITIES[char];
+        const key = (index * SHADES + frame.shade[cell]) * RAMP.length + density;
         if (!batches.has(key)) batches.set(key, []);
-        batches.get(key).push([char, col * cellWidth, row * 13]);
+        batches.get(key).push([char, col * cellWidth, row * ROW_HEIGHT]);
       }
-      context.shadowBlur = 3;
+      context.shadowBlur = 5;
       for (const [key, cells] of batches) {
-        const index = Math.floor(key / RAMP.length), density = key % RAMP.length;
-        context.fillStyle = colors[index][density];
-        context.shadowColor = colors[index][0];
-        context.globalAlpha = .78 + .22 * density / (RAMP.length - 1);
+        const zone = Math.floor(key / RAMP.length), density = key % RAMP.length;
+        const index = Math.floor(zone / SHADES), shade = zone % SHADES;
+        context.fillStyle = colors[index][shade][density];
+        context.shadowColor = colors[index][shade][0];
+        context.globalAlpha = .85 + .15 * density / (RAMP.length - 1);
         for (const [char, x, y] of cells) context.fillText(char, x, y);
       }
       context.shadowBlur = 0;
@@ -75,7 +77,7 @@ export default function AsciiField({ paused = false }) {
     const resize = () => {
       const rect = canvas.parentElement.getBoundingClientRect();
       const style = getComputedStyle(canvas);
-      font = `13px ${style.getPropertyValue('--font-mono').trim() || 'ui-monospace, monospace'}`;
+      font = `${FONT_SIZE}px ${style.getPropertyValue('--font-mono').trim() || 'ui-monospace, monospace'}`;
       width = rect.width; height = rect.height;
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
@@ -83,18 +85,15 @@ export default function AsciiField({ paused = false }) {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.font = font; context.textBaseline = 'top';
       cellWidth = context.measureText('M').width;
-      cols = Math.floor(width / cellWidth); rows = Math.floor(height / 13);
+      cols = Math.floor(width / cellWidth); rows = Math.floor(height / ROW_HEIGHT);
       ocean = context.createLinearGradient(0, 0, 0, Math.max(1, height));
       OCEAN_COLORS.forEach((color, index) => ocean.addColorStop(index / (OCEAN_COLORS.length - 1), color));
-      rays = [.18, .53, .82].map(position => {
-        const ray = context.createLinearGradient(width * position - width * .12, 0, width * position + width * .2, height * .35);
-        ray.addColorStop(0, '#68e5ff00');
-        ray.addColorStop(.5, '#68e5ff0d');
-        ray.addColorStop(1, '#68e5ff00');
-        return ray;
-      });
       creatures = createCreatures({ cols, rows, seed: 1701 });
-      colors = creatures.map(creature => [...RAMP].map((_, index) => creatureColor(creature.hue, index / (RAMP.length - 1))));
+      colors = creatures.map(creature => creatureGradient(creature).map(hex => [...RAMP].map((_, index) =>
+        `#${[1, 3, 5].map(offset => {
+          const channel = parseInt(hex.slice(offset, offset + 2), 16);
+          return Math.round(channel + (255 - channel) * .3 * index / (RAMP.length - 1)).toString(16).padStart(2, '0');
+        }).join('')}`)));
       bubbles = createBubbles({ cols, rows, seed: 1702 });
       plants = createPlants({ cols, rows, seed: 1703 });
       draw();
