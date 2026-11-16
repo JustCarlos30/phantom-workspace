@@ -81,9 +81,9 @@ Pruebas declaradas: `node --test test/references.test.mjs test/canvas-cli.test.m
 
 ### Conexión móvil en la misma Wi-Fi
 
-En el escritorio, abre **Ajustes → Conexión móvil local**, elige una interfaz LAN IPv4 privada y pulsa **Activar para el proyecto actual**. El puerto `0` elige uno disponible; también puedes indicar un puerto entre 1024 y 65535. Copia la dirección `/mobile`, ábrela en el navegador del teléfono conectado a la misma Wi-Fi e introduce el código temporal por separado. No se configura ningún túnel ni firewall. Si la Wi-Fi aísla dispositivos, la conexión entre ellos no estará disponible.
+En el escritorio, abre **Configuración → Teléfono → Opciones avanzadas → Sin app: navegador del teléfono** y pulsa **Mostrar QR**. Escanéalo con la cámara del teléfono en la misma Wi-Fi. El navegador avisará del certificado: comprueba el final de la huella que muestra Phantom. La red y el puerto se eligen automáticamente; si hay varias interfaces puedes cambiarlos en el desplegable. No se configura ningún túnel ni firewall. Si la Wi-Fi aísla dispositivos, la conexión entre ellos no estará disponible.
 
-HTTP local requiere una **red de confianza**: el tráfico no está cifrado. El código aleatorio caduca a los dos minutos y sirve una sola vez. **Generar nuevo código** invalida el anterior. Cada dispositivo obtiene acceso por ocho horas, revocable en Ajustes; allí se muestra la última conexión observada. Desactivar o cerrar el host corta las conexiones y olvida códigos y dispositivos. Reiniciar el host deja este acceso apagado; cerrar solo la ventana del escritorio conserva el host y su acceso activo.
+La conexión usa **HTTPS con certificado autofirmado**. El código aleatorio caduca a los dos minutos y sirve una sola vez; el QR se renueva automáticamente y el código viaja en el fragmento de la URL. Cada dispositivo obtiene acceso por ocho horas, revocable en Configuración → Teléfono. Desactivar o cerrar el host corta las conexiones y olvida códigos y dispositivos. Reiniciar el host deja este acceso apagado; cerrar solo la ventana del escritorio conserva el host y su acceso activo.
 
 La vista móvil es independiente del canvas: lista únicamente sesiones del proyecto autorizado, permite leer y enviar mensajes, parar un turno y responder permisos/preguntas explícitamente. La cola existente se ve pero se gestiona desde el escritorio. Conserva la posición de lectura y ofrece **Volver al final**. El texto y los detalles de herramientas se muestran como texto, sin vistas previas de archivos locales. El hilo está acotado a los últimos 200 mensajes y 100 partes por mensaje; respuestas de más de 2 MiB requieren consultar el escritorio.
 
@@ -95,9 +95,11 @@ Pruebas declaradas: `test/mobile.test.mjs` usa hosts y builds sintéticos aislad
 
 #### App Android
 
-Abre **Ajustes → App Android (gateway HTTPS)** para administrar el gateway del repo independiente `phantom-mobile`, sin usar la terminal. El panel permite guardar su ruta, comprueba que contiene el CLI y muestra la versión de Node detectada (requiere **Node >= 26**). La ruta guardada tiene prioridad sobre `PHANTOM_MOBILE_REPO` y el repo hermano `../phantom-mobile`; `PHANTOM_MOBILE_NODE` permite seleccionar el binario Node del host.
+Abre **Configuración → Teléfono** para vincular la app con el gateway del repo independiente `phantom-mobile`, sin usar la terminal. En **Opciones avanzadas** puedes guardar su ruta y consultar la versión de Node detectada (requiere **Node >= 26**). La ruta guardada tiene prioridad sobre `PHANTOM_MOBILE_REPO` y el repo hermano `../phantom-mobile`; `PHANTOM_MOBILE_NODE` permite seleccionar el binario Node del host.
 
-Selecciona una interfaz LAN privada, deja el puerto en `0` (automático) o indica uno entre 1024 y 65535 e inicia el gateway para el proyecto. El teléfono debe poder alcanzar al equipo: las Wi-Fi con aislamiento de clientes no sirven; puedes usar el hotspot del teléfono. Copia el bootstrap público al teléfono, importa su JSON en la app, compara la huella SHA256 y genera un código de vinculación de un uso, válido durante 120 segundos. Aprueba el dispositivo desde el panel y desbloquea la acción en el teléfono.
+1. Pulsa **Vincular teléfono** en Phantom.
+2. Escanea el único QR con la app Phantom en Android: incluye la identidad del host y el código temporal, sin copiar datos. El teléfono debe estar en la misma red; puedes usar su hotspot si la Wi-Fi aísla clientes.
+3. Pulsa **Permitir** en el escritorio tras leer los permisos. El clic reconoce explícitamente la autoridad del agente.
 
 Puedes conceder lectura del chat principal, envío de mensajes, parada de turnos y lectura de herramientas del proyecto. El acceso al chat principal exige reconocer que el teléfono actuará con la autoridad del agente. **Actualizar permisos reemplaza los anteriores** por la selección del formulario; también puedes revocar dispositivos o detener el gateway. Los datos privados del gateway se guardan separados de los del escritorio. Al detener el host se detiene su gateway; al reiniciarlo se pierden las vinculaciones, pero se conserva la identidad TLS.
 

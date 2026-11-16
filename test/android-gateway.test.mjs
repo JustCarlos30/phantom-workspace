@@ -64,6 +64,39 @@ function fixture(t, overrides = {}) {
 const lanTest = (name, fn) => test(name, fn);
 const start = gateway => gateway.start({ workspaceId: WORKSPACE, address, port: 0 });
 
+test('link arranca con la primera interfaz y devuelve bootstrap, pairing y status', async t => {
+  const f = fixture(t);
+  const result = await f.gateway.link({ workspaceId: WORKSPACE });
+  assert.equal(result.bootstrap.certificate, 'PUBLICO');
+  assert.deepEqual(result.pairing, { code: 'codigo-sintetico', expiresAt: 123456 });
+  assert.equal(result.status.enabled, true);
+  assert.equal(f.argv()[0][2], address);
+  assert.equal(f.spawns.length, 1);
+  await f.gateway.link({ workspaceId: WORKSPACE });
+  assert.equal(f.spawns.length, 1);
+  assert.equal(f.argv().filter(args => args[0] === 'pairing').length, 2);
+});
+
+test('link rechaza otro proyecto vivo y UUID inválido sin reiniciar', async t => {
+  const f = fixture(t);
+  await assert.rejects(f.gateway.link({ workspaceId: 'inválido' }), /UUID/);
+  assert.equal(f.calls.length, 0);
+  await f.gateway.link({ workspaceId: WORKSPACE });
+  const calls = f.calls.length;
+  await assert.rejects(f.gateway.link({ workspaceId: SESSION }), /otro proyecto/);
+  await assert.rejects(f.gateway.link({ workspaceId: '--workspace' }), /UUID/);
+  assert.equal(f.calls.length, calls);
+  assert.equal(f.spawns.length, 1);
+  assert.equal(f.gateway.alive(), true);
+});
+
+test('link explica la falta de red LAN antes de arrancar', async t => {
+  const f = fixture(t);
+  t.mock.method(os, 'networkInterfaces', () => ({}));
+  await assert.rejects(f.gateway.link({ workspaceId: WORKSPACE }), /No se detecta una red LAN/);
+  assert.equal(f.spawns.length, 0);
+});
+
 test('status explica repositorios ausentes y package.json con otro nombre', async t => {
   const f = fixture(t);
   fs.writeFileSync(path.join(f.repoPath, 'package.json'), '{"name":"otro"}');

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import '../mobile.css';
+import { readBrowserPairingCode } from '../phone-pairing.mjs';
 
 const TOKEN_KEY = 'phantom:mobile:bearer';
 const readToken = () => { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } };
@@ -105,18 +106,28 @@ export default function MobileApp() {
     catch (e) { if (mounted.current) disconnect(`${e.status ? e.message : 'Respuesta no confirmada.'} No se reenvió la acción. Reconecta y consulta la sesión antes de volver a enviarla.`, e.status === 401); return false; }
     finally { writeLock.current = false; if (mounted.current) setBusy(false); }
   };
-  const pair = async e => {
+  const pair = async (e, pairingCode = code) => {
     e.preventDefault(); if (writeLock.current) return; writeLock.current = true; setBusy(true); setError('');
-    try { const result = await request('/api/pair', { code: code.trim(), name }); saveToken(result.token); setCode(''); setCatalog(null); setSelected(null); setConnected(true); }
+    try { const result = await request('/api/pair', { code: pairingCode.trim(), name }); saveToken(result.token); setCode(''); setCatalog(null); setSelected(null); setConnected(true); }
     catch (e) { setError(e.message || 'No se pudo conectar. Comprueba el acceso en Ajustes.'); }
     finally { writeLock.current = false; setBusy(false); }
   };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const value = readBrowserPairingCode(location.hash);
+      if (!value) return;
+      setCode(value);
+      history.replaceState(history.state, '', location.pathname + location.search);
+      pair({ preventDefault() {} }, value);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const item = catalog?.sessions.find(s => s.nodeId === selected?.nodeId), terminal = item?.terminals.find(t => t.id === selected?.sessionId);
   const open = (session, terminalId) => { setSelected({ nodeId: session.nodeId, sessionId: terminalId || null }); setView(null); };
   return <main className="mobile-app">
     <header className="mobile-heading"><div><h1>Phantom</h1><p>{catalog?.workspace.name || 'Conexión móvil local'}</p></div><span role="status">{connected ? 'Conectado' : 'Desconectado'}</span></header>
     {error && <div className="mobile-error" role="alert">{error}</div>}
-    {!token ? <form className="mobile-pair" onSubmit={pair}><h2>Emparejar con tu escritorio</h2><p>En la misma Wi-Fi, activa Conexión móvil local en Ajustes de Phantom y copia el código temporal.</p><label>Nombre del dispositivo<input maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label><label>Código de emparejamiento<input autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={128} value={code} onChange={e => setCode(e.target.value)} /></label><button className="mobile-primary" disabled={busy} type="submit">Emparejar</button></form> : <>
+    {!token ? <form className="mobile-pair" onSubmit={pair}><h2>Emparejar con tu escritorio</h2><p>Escanea el QR en Configuración &gt; Teléfono de Phantom o pega el código</p><label>Nombre del dispositivo<input maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label><label>Código de emparejamiento<input autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={128} value={code} onChange={e => setCode(e.target.value)} /></label><button className="mobile-primary" disabled={busy} type="submit">Emparejar</button></form> : <>
       {!connected && <div className="mobile-actions"><button disabled={busy} onClick={() => { setError(''); setConnected(true); setRevision(n => n + 1); }}>Reconectar</button><button onClick={() => disconnect('Introduce un código nuevo generado en Ajustes.', true)}>Emparejar de nuevo</button></div>}
       {item ? <Session key={`${item.nodeId}:${selected.sessionId}`} item={item} terminal={terminal} view={view} connected={connected} busy={busy} action={action} onBack={() => { setSelected(null); setView(null); }} /> : <section className="mobile-list"><h2>Sesiones</h2>{!catalog ? <p>Consultando sesiones…</p> : !catalog.sessions.length ? <p>No hay sesiones en este proyecto.</p> : catalog.sessions.map(session => <article key={session.nodeId}><h3>{session.title}</h3>{session.kind === 'chat' && <button disabled={!connected} onClick={() => open(session)}>Abrir conversación · {session.provider}</button>}{session.terminals.map(t => <button key={t.id} disabled={!connected} onClick={() => open(session, t.id)}>Abrir terminal · {t.status} · {t.createdAt ? new Date(t.createdAt).toLocaleString() : ''}</button>)}{session.kind !== 'chat' && !session.terminals.length && <p className="mobile-muted">Sin proceso existente. Inícialo desde el escritorio.</p>}</article>)}</section>}
     </>}

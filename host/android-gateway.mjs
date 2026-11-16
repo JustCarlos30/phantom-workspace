@@ -109,6 +109,20 @@ export class AndroidGateway {
     finally { this.starting = null; }
   }
 
+  async link({ workspaceId, address, port = 0 } = {}) {
+    check(text(workspaceId) && UUID.test(workspaceId), 'UUID de proyecto no válido');
+    if (!this.alive()) {
+      address ??= mobileInterfaces()[0]?.address;
+      check(address, 'No se detecta una red LAN. Conecta el equipo a una red local.');
+      await this.start({ workspaceId, address, port });
+    }
+    this.requireActive();
+    check(this.ready.workspaceId === workspaceId, 'El gateway está activo para otro proyecto. Desactívalo antes de vincular este proyecto.');
+    const pairing = await this.pairing();
+    const bootstrap = await this.bootstrap();
+    return { bootstrap, pairing, status: await this.status() };
+  }
+
   async launch({ workspaceId, address, port }) {
     const config = this.config();
     check(config.repoValid, config.repoError);
