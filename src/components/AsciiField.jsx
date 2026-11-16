@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createCreatures, stepCreatures, renderFrame, RAMP } from '../hooks/asciiField.mjs';
 
 export default function AsciiField({ paused = false }) {
