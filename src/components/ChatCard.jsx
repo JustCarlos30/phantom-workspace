@@ -167,7 +167,8 @@ const TOOL_VERBS = { read: ['Leyendo', 'Leyó'], edit: ['Editando', 'Editó'], s
 const TOOL_STATES = { error: 'Falló', stopped: 'Detenida' };
 
 // One action, one quiet line: a dot, what was done, and on what. The dot and the verb's tense say whether it is still running.
-function ToolRow({ part }) {
+const ToolRow = React.memo(function ToolRow({ part }) {
+  const [open, setOpen] = useState(false);
   const [, , kind] = toolKind(part.name);
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
   const [doing, did] = TOOL_VERBS[kind] || ['Usando', 'Usó'];
@@ -186,11 +187,11 @@ function ToolRow({ part }) {
   </>;
   const className = `pc-tool is-${part.status}`;
   if (!expandable) return <li className={className} data-kind={kind}><div className="pc-tool-row">{summary}</div></li>;
-  return <li className={className} data-kind={kind}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
+  return <li className={className} data-kind={kind}><details onToggle={e => { if (e.target === e.currentTarget) setOpen(e.currentTarget.open); }}><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
     <p className="pc-tool-context"><span>{part.name}</span>{part.detail && (kind !== 'shell' || part.status === 'error') && <span className={codeDetail ? 'is-code' : undefined}>{part.detail}</span>}</p>
-    <ToolOutput part={part} kind={kind} />
+    {open && <ToolOutput part={part} kind={kind} />}
   </div></details></li>;
-}
+});
 
 export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
   const [state, setState] = useState(null);
@@ -249,7 +250,7 @@ const KIND_PHRASE = {
 };
 // A run of actions. Up to three stay in view; a longer run folds into one
 // sentence of what was done (open while it is still working).
-function ToolGroup({ items }) {
+const ToolGroup = React.memo(function ToolGroup({ items }) {
   const live = items.some(part => part.status === 'running'), failed = items.some(part => part.status === 'error');
   const [chosen, setChosen] = useState(null);
   const list = <ul className="pc-tools" aria-label="Herramientas usadas">{items.map(part => <ToolRow key={part.id} part={part} />)}</ul>;
@@ -266,7 +267,7 @@ function ToolGroup({ items }) {
     </summary>
     {list}
   </details>;
-}
+}, (previous, next) => previous.items.length === next.items.length && previous.items.every((part, i) => part === next.items[i]));
 
 // A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
 // OpenCode's task, Codex's spawn_agent). Drawn as its own card in the turn so
@@ -278,7 +279,8 @@ function StepState({ status }) {
   if (status === 'stopped') return <span className="pc-tool-state">detenido</span>;
   return <Check className="pc-tool-state is-done" size={14} aria-label="Completado" />;
 }
-export function SubagentCard({ part }) {
+export const SubagentCard = React.memo(function SubagentCard({ part }) {
+  const [open, setOpen] = useState(false);
   const agent = part.agent || { steps: [] }, steps = agent.steps || [], total = Math.max(agent.total || 0, steps.length);
   const running = part.status === 'running', current = running ? steps.findLast(step => step.status === 'running') || steps.at(-1) : null;
   const hidden = total - steps.length;
@@ -305,12 +307,12 @@ export function SubagentCard({ part }) {
       <summary><ChevronRight size={14} aria-hidden="true" />Encargo</summary>
       <pre className="pc-subagent-prompt">{agent.prompt}</pre>
     </details>}
-    {part.output && <details className="pc-subagent-more">
+    {part.output && <details className="pc-subagent-more" onToggle={e => { if (e.target === e.currentTarget) setOpen(e.currentTarget.open); }}>
       <summary><ChevronRight size={14} aria-hidden="true" />Resultado</summary>
-      <div className="pc-subagent-output"><ToolOutput part={part} kind="agent" /></div>
+      <div className="pc-subagent-output">{open && <ToolOutput part={part} kind="agent" />}</div>
     </details>}
   </section>;
-}
+});
 const isSubagent = part => part.type === 'tool' && Boolean(part.agent);
 // Sub-agents still at work in a reply, for the "Trabajando" line.
 export const activeSubagents = parts => parts.filter(part => isSubagent(part) && part.status === 'running').length;
