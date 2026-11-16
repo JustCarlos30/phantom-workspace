@@ -83,7 +83,7 @@ const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, an
       {node.type === 'terminal' && <TerminalActivityStatus session={activity} />}
       <button className="icon-button" aria-label={isFocused ? 'Volver al mapa' : 'Enfocar panel'} title={isFocused ? 'Volver al mapa' : 'Enfocar panel'} onClick={() => handlers.focus(isFocused ? null : node.id)}>{isFocused ? <ArrowLeft size={14} /> : <Maximize2 size={14} />}</button>
       <button className="icon-button" aria-label="Opciones del panel" title="Opciones del panel" onClick={e => handlers.menu(node.id, e.clientX, e.clientY)}><MoreHorizontal size={16} /></button>
-      {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" onClick={() => handlers.closeTerminal(node)}><X size={14} /></button>}
+      {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" data-panel-close onPointerDown={e => e.preventDefault()} onClick={() => handlers.closeTerminal(node)}><X size={14} /></button>}
     </header>
     <div className="node-body">
       {node.type === 'terminal' && node.data?.chat?.provider ? <ChatCard node={node} workspace={workspace} api={api} notify={notify} overview={small} focused={isFocused} connected={connected} seen={selected || isFocused} onPulse={handlers.chatPulse} /> : node.type === 'terminal' && !isFocused ? <TerminalCard node={node} workspace={workspace} api={api} notify={notify} onFocus={handlers.focus} onRelaunch={onRelaunch} overview={small} connected={connected} /> : node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onEnlarge={enlarge} onFocus={handlers.focus} connected={connected} active={active} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} compact={compact} magnified={magnified} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || anyEditing} commenting={commenting} commentCount={commentCount} onComment={handlers.toggleComment} onFocus={handlers.focus} onChange={onChange} /> : node.type === 'reference' ? <ReferencePanel node={node} workspace={workspace} comments={comments} onChange={onChange} onOpenPanel={onOpenPanel} onOpenComment={handlers.openComment} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
@@ -515,6 +515,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   // A plain click brings a clipped or poorly scaled card into working view;
   // a drag or an action button never does.
   const press = (e, id) => {
+    if (e.target.closest('[data-panel-close]')) return;
     if (e.button !== 0 || inputBlocked) return;
     lastPress.current = { id, x: e.clientX, y: e.clientY, t: performance.now() };
     if (focused) return;
@@ -545,7 +546,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     select: ids => latest.current.onSelect(ids),
     press: (...args) => latest.current.press(...args),
     click: (...args) => latest.current.click(...args),
-    closeTerminal: node => latest.current.onCloseTerminal(node),
+    closeTerminal: node => { root.current?.focus({ preventScroll: true }); latest.current.onCloseTerminal(node); },
     openComment: id => { setDraft(null); setOpenComment(id); },
     toggleComment: () => { setDraft(null); setOpenComment(null); setTool(current => current === 'comment' ? 'select' : 'comment'); root.current?.focus({ preventScroll: true }); },
     titleButton: (id, element) => { if (element) titleButtons.current.set(id, element); else titleButtons.current.delete(id); },
