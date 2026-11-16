@@ -59,6 +59,7 @@ async function family(client, context) {
   const roots = new Map([[client.root, { path: client.root, branch: null, main: true }]]);
   try {
     const { stdout } = await command(context, 'git', ['--no-optional-locks', 'worktree', 'list', '--porcelain', '-z'], { cwd: client.root });
+    roots.git = true;
     let current = null;
     for (const entry of stdout.split('\0')) {
       if (entry.startsWith('worktree ')) {
@@ -81,10 +82,11 @@ async function list(payload, context, c) {
   if (!['tasks', 'memories', 'skills'].includes(topic)) throw new Error('topic must be tasks, memories, or skills');
   if (payload.query !== undefined && (typeof payload.query !== 'string' || payload.query.length > 500)) throw new Error('Invalid Phantom query');
   const locations = new Map();
-  let raw = await c.call(topic === 'tasks' ? ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
+  const roots = topic === 'tasks' ? await family(c, context) : undefined;
+  let raw = await c.call(topic === 'tasks' ? roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
   if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
   if (topic === 'tasks') {
-    const roots = await family(c, context), filtered = [];
+    const filtered = [];
     for (const item of raw) { try { const home = roots.get(await realpath(item.contract?.workspace)); if (home) { filtered.push(item); locations.set(item, home); } } catch { /* Not this workspace. */ } }
     raw = filtered;
   }

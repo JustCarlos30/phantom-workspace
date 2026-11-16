@@ -218,6 +218,23 @@ test('Phantom task catalog uses a large buffer and explains output-limit failure
   assert.doesNotMatch(unavailable.reason, /maxBuffer/);
 });
 
+test('Phantom task catalog reads once with project scope only for Git workspaces and retains family filtering', async t => {
+  for (const git of [true, false]) {
+    const f = await fixture(t, git), calls = [];
+    f.context.state.settings.phantomPath = process.execPath;
+    const raw = [f.root, f.home].map((workspace, i) => ({ id: `task_${i}`, kind: 'task', status: 'ready', contract: { goal: `Task ${i}`, workspace } }));
+    f.context.execFile = async (file, args, options) => {
+      if (file === 'git') return exec(file, args, options);
+      calls.push(args.slice(1));
+      return { stdout: JSON.stringify(raw), stderr: '' };
+    };
+    const result = await f.call('phantom.list', { topic: 'tasks' });
+    assert.equal(result.available, true, result.reason);
+    assert.deepEqual(calls, [git ? ['list', '--workspace', f.root, '--scope', 'project', '--json'] : ['list', '--json']]);
+    assert.deepEqual(result.items.map(item => item.id), ['task_0']);
+  }
+});
+
 test('Phantom task catalog excludes unrelated projects but includes known worktree family', async t => {
   const f = await fixture(t, true);
   // The mocked transport only needs an existing CLI file, independent of any installation.
