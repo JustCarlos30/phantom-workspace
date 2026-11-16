@@ -161,31 +161,32 @@ export function useElapsed(since, active) {
 
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
-const TOOL_LABELS = { read: 'Leer', edit: 'Editar', shell: 'Ejecutar', search: 'Buscar', web: 'Web', agent: 'Agente', todo: 'Tareas' };
-const TOOL_STATES = { running: 'En curso', error: 'Falló', stopped: 'Detenida', done: 'Completada' };
+// Codex-style: each action is a sentence. The verb's tense carries the state
+// (gerund while it runs, past once done); only failures and stops add a word.
+const TOOL_VERBS = { read: ['Leyendo', 'Leyó'], edit: ['Editando', 'Editó'], shell: ['Ejecutando', 'Ejecutó'], search: ['Buscando', 'Buscó'], web: ['Consultando', 'Consultó'], agent: ['Delegando', 'Delegó'], todo: ['Actualizando el plan', 'Actualizó el plan'] };
+const TOOL_STATES = { error: 'Falló', stopped: 'Detenida' };
 
-// One action, one quiet line: its glyph, what it was, and on what. A finished
-// step states nothing more; only running, failed and stopped ones speak up.
+// One action, one quiet line: a dot, what was done, and on what. The dot and the verb's tense say whether it is still running.
 function ToolRow({ part }) {
-  const [, Icon, kind] = toolKind(part.name);
+  const [, , kind] = toolKind(part.name);
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
-  const label = part.detail ? TOOL_LABELS[kind] || part.name : part.name;
+  const [doing, did] = TOOL_VERBS[kind] || ['Usando', 'Usó'];
   const codeDetail = ['read', 'edit', 'shell', 'search', 'web'].includes(kind);
   const summary = <>
-    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={14} /></span>
-    <span className="pc-tool-label" title={part.name}>{label}</span>
-    {part.detail && <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail}>{part.detail}</span>}
+    <span className="pc-tool-mark" aria-hidden="true" />
+    <span className="pc-tool-label" title={part.name}>{part.status === 'running' ? doing : did}</span>
+    {!TOOL_VERBS[kind] && <span className="pc-tool-name">{part.name}</span>}
+    <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail || undefined}>{part.detail}</span>
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
-    {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`} role="img" aria-label={TOOL_STATES[part.status]} title={TOOL_STATES[part.status]}>
-      {part.status === 'running' ? <LoaderCircle className="pc-tool-spinner" size={14} aria-hidden="true" />
-        : part.status === 'error' ? <X size={14} aria-hidden="true" />
-          : part.status === 'stopped' ? <Square size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
-      {part.status !== 'done' && <span aria-hidden="true">{TOOL_STATES[part.status]}</span>}
+    {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`}>
+      {part.status === 'error' && <X size={14} aria-hidden="true" />}
+      <span>{TOOL_STATES[part.status]}</span>
     </span>}
     {expandable ? <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
   </>;
-  if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
-  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
+  const className = `pc-tool is-${part.status}`;
+  if (!expandable) return <li className={className} data-kind={kind}><div className="pc-tool-row">{summary}</div></li>;
+  return <li className={className} data-kind={kind}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
     <p className="pc-tool-context"><span>{part.name}</span>{part.detail && (kind !== 'shell' || part.status === 'error') && <span className={codeDetail ? 'is-code' : undefined}>{part.detail}</span>}</p>
     <ToolOutput part={part} kind={kind} />
   </div></details></li>;
@@ -254,14 +255,13 @@ function ToolGroup({ items }) {
   const list = <ul className="pc-tools" aria-label="Herramientas usadas">{items.map(part => <ToolRow key={part.id} part={part} />)}</ul>;
   if (items.length < 4) return list;
   const open = chosen ?? live, kinds = new Map();
-  for (const part of items) { const [, Icon, kind] = toolKind(part.name), key = KIND_PHRASE[kind] ? kind : 'other'; if (!kinds.has(key)) kinds.set(key, { Icon: key === 'other' ? Wrench : Icon, items: [] }); kinds.get(key).items.push(part); }
-  const text = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group.items)).join(' · ');
-  return <details className="pc-steps" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
+  for (const part of items) { const [, , kind] = toolKind(part.name), key = KIND_PHRASE[kind] ? kind : 'other'; if (!kinds.has(key)) kinds.set(key, []); kinds.get(key).push(part); }
+  const text = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group)).join(' · ');
+  return <details className={`pc-steps${live ? ' is-live' : ''}${failed ? ' is-error' : ''}`} open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
     <summary>
-      <span className="pc-steps-kinds" aria-hidden="true">{[...kinds].slice(0, 4).map(([kind, group]) => <group.Icon key={kind} size={14} />)}</span>
+      <span className="pc-tool-mark" aria-hidden="true" />
       <span className="pc-steps-text">{text.charAt(0).toUpperCase() + text.slice(1)}</span>
       {failed && <span className="pc-tool-state is-error">con fallos</span>}
-      {live && <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />}
       <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" />
     </summary>
     {list}
@@ -416,7 +416,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {streaming && !waiting && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
+    {streaming && !waiting && <p className="pc-working"><span className="pc-tool-mark" aria-hidden="true" />{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
     {!streaming && (stamp || text) && <footer className="pc-turn-foot">{text && <CopyButton text={text} label="Copiar respuesta" />}<time className="pc-num" dateTime={message.createdAt}>{stamp}</time></footer>}
