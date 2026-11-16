@@ -7,6 +7,7 @@ import { execFile, spawn } from 'node:child_process';
 import { EventEmitter, once } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { AndroidGateway } from '../host/android-gateway.mjs';
+import { buildAppPairingPayload, parseAppPairingPayload } from '../src/phone-pairing.mjs';
 
 const WORKSPACE = '11111111-1111-4111-8111-111111111111';
 const DEVICE = '22222222-2222-4222-8222-222222222222';
@@ -30,8 +31,8 @@ if (command === 'start') {
     setInterval(() => {}, 1000);
   }
 } else if (command === 'status') console.log(JSON.stringify({ ...result, enabled: true, devices: settings.devices, pairingExpiresAt: 123456 }));
-else if (command === 'pairing') console.log(JSON.stringify({ code: 'codigo-sintetico', expiresAt: 123456 }));
-else if (command === 'export-bootstrap') console.log(JSON.stringify({ ...result, version: 1, certificate: 'PUBLICO', address: '192.168.1.10', expiresAt: 999999 }));
+else if (command === 'pairing') console.log(JSON.stringify(settings.pairing || { code: 'codigo-sintetico', expiresAt: 123456 }));
+else if (command === 'export-bootstrap') console.log(JSON.stringify({ ...result, version: 1, certificate: 'PUBLICO', address: '192.168.1.10', expiresAt: 999999, ...settings.bootstrap }));
 else console.log(JSON.stringify({ ok: true }));
 `;
 
@@ -88,6 +89,20 @@ test('link rechaza otro proyecto vivo y UUID inválido sin reiniciar', async t =
   assert.equal(f.calls.length, calls);
   assert.equal(f.spawns.length, 1);
   assert.equal(f.gateway.alive(), true);
+});
+
+test('link conserva caducidad real de pairing al construir QR compacto y renovar', async t => {
+  const f = fixture(t), now = 1700000000000;
+  const code = 'A'.repeat(43);
+  f.save({ pairing: { code, expiresAt: now + 120000 }, bootstrap: { fingerprint: Array(32).fill('AB').join(':') } });
+  const first = await f.gateway.link({ workspaceId: WORKSPACE });
+  const text = buildAppPairingPayload({ ...first, ...first.pairing, now });
+  assert.equal(parseAppPairingPayload(text, { now }).expiresAt, now + 120000);
+  assert.equal(text.includes('PUBLICO'), false);
+  f.save({ pairing: { code, expiresAt: new Date(now + 180000).toISOString() } });
+  const renewed = await f.gateway.link({ workspaceId: WORKSPACE });
+  assert.equal(renewed.pairing.expiresAt, new Date(now + 180000).toISOString());
+  assert.equal(f.spawns.length, 1);
 });
 
 test('link explica la falta de red LAN antes de arrancar', async t => {

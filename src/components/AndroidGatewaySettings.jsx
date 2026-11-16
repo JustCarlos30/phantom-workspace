@@ -81,7 +81,13 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     if (mounted.current) { acceptStatus(result.status); setBootstrap(result.bootstrap); setPairing(result.pairing); setLinking(!result.status.devices.some(device => device.state === 'pending')); }
   });
   const changing = busy || status?.starting || status?.stopping;
-  const expiresAt = pairing && status?.enabled && pairing.expiresAt === status.pairingExpiresAt ? new Date(pairing.expiresAt).getTime() : 0;
+  const expiry = value => typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? (/^\d+$/.test(value) ? Number(value) : Date.parse(value)) : NaN;
+  const expiresAt = pairing && status?.enabled && expiry(pairing.expiresAt) === expiry(status.pairingExpiresAt) ? expiry(pairing.expiresAt) : 0;
+  let qrText = '', payloadError = '';
+  if (linking && pairing) {
+    try { qrText = buildAppPairingPayload({ bootstrap, code: pairing.code, expiresAt, now: Math.max(time, Date.now()) }); }
+    catch (e) { payloadError = e.message; }
+  }
   const validPort = port.trim() !== '' && Number.isInteger(Number(port)) && (Number(port) === 0 || (Number(port) >= 1024 && Number(port) <= 65535));
   useEffect(() => {
     if (linking && pairing && !document.hidden && !changing && (expiresAt - time <= 10000)) link();
@@ -93,7 +99,7 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     {error && <p className="st-error" role="alert">{error}</p>}
     {status?.lastError && status.lastError !== error && <p className="st-error" role="alert">{status.lastError}</p>}
     {status && !linking && status.repoValid && status.node.compatible && !status.devices.some(device => device.state === 'pending') && <Row label=""><button className="st-btn is-primary" disabled={changing || !workspace || !validPort} onClick={link}>{status.devices.some(device => device.state === 'approved') ? 'Vincular otro teléfono' : 'Vincular teléfono'}</button></Row>}
-    {linking && pairing && <><PhoneQr text={buildAppPairingPayload({ bootstrap, code: pairing.code })} /><p role="status">Caduca en {Math.max(0, Math.ceil((expiresAt - time) / 1000))} s · {workspace?.name}</p><button className="st-btn" disabled={changing} onClick={() => { setLinking(false); setPairing(null); }}>Cancelar</button></>}
+    {linking && pairing && <>{qrText && <><PhoneQr text={qrText} /><p role="status">Caduca en {Math.max(0, Math.ceil((expiresAt - time) / 1000))} s · {workspace?.name}</p></>}{payloadError && <><p className="st-error" role="alert">{payloadError}</p><button className="st-btn" disabled={changing} onClick={link}>Reintentar</button></>}<button className="st-btn" disabled={changing} onClick={() => { setLinking(false); setPairing(null); }}>Cancelar</button></>}
     </Group>
     {status?.devices.filter(device => device.state === 'pending' || device.state === 'approved').map(device => <Group key={device.id} title={device.state === 'pending' ? `${device.name || 'Teléfono Android'} quiere conectarse` : `${device.name || 'Teléfono Android'} · ${device.connected ? 'Conectado' : 'Aprobado'}`}>
       {device.state === 'pending' && <><p title={device.keyFingerprint}>{device.keyFingerprint?.slice(0, 8)}…{device.keyFingerprint?.slice(-8)}</p><p>Podrá leer el chat, enviar mensajes y parar turnos con la autoridad del agente, y ver las herramientas del proyecto.</p><button className="st-btn is-primary" disabled={changing} onClick={() => run(() => api('android.approve', { id: device.id, nodes: [`phantom:${status.workspaceId}`], allow: [`phantom:${status.workspaceId}=chat.send`, `phantom:${status.workspaceId}=chat.stop`], workspaceRead: true, workspaceAllow: [], acknowledgeAgentAuthority: true }))}>Permitir</button></>}
