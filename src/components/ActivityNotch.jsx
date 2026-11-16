@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Ban, Bell, Check, CheckCircle2, CircleDot, Clock, GitBranch, GitMerge, Hand, LoaderCircle, MessageCircleQuestion, OctagonAlert, Save, ShieldAlert, TriangleAlert, X, XCircle } from 'lucide-react';
 import { PhantomFace } from './Glyphs.jsx';
 import EmptyState from './EmptyState.jsx';
-import { ago, freshness } from '../hooks/activityModel.mjs';
+import { ago, excerptLines, freshness, leadNeed, waiting } from '../hooks/activityModel.mjs';
+import { useTerminalTail } from '../hooks/useTerminalTail';
 
 export function TerminalActivityStatus({ session, compact = false }) {
   const label = session?.label || 'Sin datos';
@@ -29,11 +30,13 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
   const count = activity.needs.length, working = workingCount(activity);
   const status = fresh.state === 'offline' ? 'Sin conexión' : fresh.state === 'loading' && !count ? 'Cargando…' : count ? 'Te necesitan' : working ? `${working} en curso` : 'Todo en orden';
   const shown = count > 0 && fresh.state !== 'offline';
+  const lead = leadNeed(activity), leadText = lead ? `${lead.where && lead.where !== lead.headline ? `${lead.where}: ` : ''}${lead.headline}${lead.at ? ` · ${ago(lead.at, activity.now)}` : ''}` : '';
   return <div className="activity-strip" role="group" aria-label="Te necesitan">
-    <button ref={buttonRef} className={`activity-notch ${shown ? 'needs-you' : ''}`} aria-label={shown ? `Te necesitan, ${count} ${count === 1 ? 'pendiente' : 'pendientes'}` : status} aria-expanded={!!open} aria-controls="activity-tray" onClick={() => onToggle('needs')}>
+    <button ref={buttonRef} className={`activity-notch ${shown ? 'needs-you' : ''}`} aria-label={shown ? `Te necesitan, ${count} ${count === 1 ? 'pendiente' : 'pendientes'}, ${leadText}` : status} aria-expanded={!!open} aria-controls="activity-tray" onClick={() => onToggle('needs')}>
       <PhantomFace mood={activityMood(activity)} /><CircleDot className="notch-state-fallback" size={14} aria-hidden="true" />
       <strong>{status}</strong>
       {shown && <b className="notch-count">{count}</b>}
+      {shown && <span className="notch-lead">{leadText}</span>}
       {fresh.failing.length > 0 && <i className="notch-dot" role="img" aria-label={STALE} title={STALE} />}
     </button>
   </div>;
@@ -47,13 +50,14 @@ const NEED = {
   ready: [GitBranch, 'muted'], unsaved: [Save, 'muted'], queue: [GitMerge, 'muted'],
   working: [CircleDot, 'working'], waiting: [Clock, 'muted'], done: [CheckCircle2, 'success'], cancelled: [Ban, 'muted'], unread: [Bell, 'attention'], read: [Bell, 'muted'],
 };
-function Row({ kind, title, code, meta = [], children }) {
+function Row({ kind, title, code, meta = [], expanded, onOpen, detail, children }) {
   const [Icon, ink] = NEED[kind] || NEED.blocked;
   return <li className="activity-item" data-ink={ink}>
     <span className="activity-item-icon" aria-hidden="true"><Icon size={16} /></span>
     <div className="activity-item-main">
-      <strong className="activity-item-title" title={title}>{title}{code && <> <code title={code}>{code}</code></>}</strong>
+      {onOpen ? <button type="button" className="activity-item-title activity-need-title" aria-expanded={expanded} onClick={onOpen}>{title}</button> : <strong className="activity-item-title" title={title}>{title}{code && <> <code title={code}>{code}</code></>}</strong>}
       {meta.some(Boolean) && <p className="activity-item-meta">{meta.filter(Boolean).map((part, index) => <span key={index}>{part}</span>)}</p>}
+      {detail}
     </div>
     {children && <div className="activity-actions">{children}</div>}
   </li>;
@@ -62,26 +66,31 @@ function Group({ id, title, children }) {
   return <section aria-labelledby={id}><h2 id={id}>{title}</h2><ul className="activity-list">{children}</ul></section>;
 }
 
-const limitLevel = percent => percent >= 90 ? 'full' : percent >= 70 ? 'high' : 'ok';
 const clock = at => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-function Plan({ limits }) {
-  const providers = (limits?.providers || []).filter(provider => provider.available !== false && provider.windows?.length);
-  return <aside className="activity-plan" aria-labelledby="activity-plan-title">
-    <h2 id="activity-plan-title">Tu plan</h2>
-    {!providers.length && <p className="activity-copy">Sin datos</p>}
-    {providers.flatMap(provider => provider.windows.map(window => <div key={`${provider.id}:${window.id}`} className={`activity-limit-row limit-${limitLevel(window.percent)}`}>
-      <div className="activity-limit-line"><span>{provider.label} <small>{window.label}</small></span><b>{Math.round(window.percent)} %</b></div>
-      <div className="activity-limit-bar" role="meter" aria-label={`${provider.label} · ${window.label}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(window.percent)}><i style={{ width: `${Math.max(1, Math.min(100, window.percent))}%` }} /></div>
-    </div>))}
-  </aside>;
+function TerminalExcerpt({ item, api, activity }) {
+  const { tail, error } = useTerminalTail({ sessionId: item.sessionId, api, lines: 24, connected: activity.connected });
+  const lines = excerptLines(tail?.lines);
+  return error ? <p className="activity-copy">No se pudo leer la pantalla.</p> : lines.length ? <pre className="activity-excerpt" aria-label="Lo último que dijo">{lines.join('\n')}</pre> : null;
+}
+function TerminalReply({ item, disabled, send }) {
+  const [text, setText] = useState('');
+  const submit = e => { e.preventDefault(); if (!disabled && text.trim()) send(text, () => setText('')); };
+  return <form className="activity-reply" onSubmit={submit}>
+    <textarea rows={Math.min(4, text.split('\n').length)} aria-label={`Responder a ${item.title}…`} placeholder={`Responder a ${item.title}…`} value={text} disabled={disabled} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) submit(e); }} />
+    <button type="submit" className="is-primary" disabled={disabled || !text.trim()}>Enviar</button>
+  </form>;
 }
 
 const VIEWS = ['needs', 'progress', 'today'];
 export function ActivityTray({ activity, workspace, api, notify, filter = 'needs', onFilter, onClose, onTerminal, onInspector, onPanel, onCard, onRead, onOrchestrator, onPhantom }) {
   const root = useRef(null), restore = useRef(true);
   const [busy, setBusy] = useState('');
+  const [openKey, setOpenKey] = useState(''), [sent, setSent] = useState([]);
   const view = VIEWS.includes(filter) ? filter : 'needs';
   const { now, later } = activity.pending, count = now.length;
+  const opened = now.some(item => item.key === openKey) ? openKey : now[0]?.key;
+  const oldest = Math.min(...now.map(item => item.at).filter(Boolean));
+  useEffect(() => { setSent(keys => keys.filter(key => now.some(item => item.key === key))); }, [now]);
   const failing = Object.values(activity.sources).some(source => source?.error);
   useEffect(() => {
     const previous = document.activeElement;
@@ -105,7 +114,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
     if (item.need === 'question') return <>{item.options.map(option => <button type="button" key={option} disabled={waiting} onClick={() => reply(item, option)}>{option}</button>)}{item.target === 'phantom' ? <button type="button" className="is-primary" onClick={leave(() => onPhantom?.())}>Responder</button> : toSession(item, 'Responder')}</>;
     if (item.target === 'tasks') return toCard(item) || toSession(item);
     if (item.target === 'integration') return toSession(item) || <button type="button" className="is-primary" onClick={leave(() => onPanel('incorporaciones'))}>Ver la cola</button>;
-    if (item.target === 'terminal') return toSession(item) || <button type="button" className="is-primary" onClick={leave(() => onInspector('sessions'))}>Ver sesiones</button>;
+    if (item.target === 'terminal') return toSession(item, undefined, item.reply !== 'terminal') || <button type="button" className="is-primary" onClick={leave(() => onInspector('sessions'))}>Ver sesiones</button>;
     return toSession(item) || toCard(item);
   };
   const tidy = item => item.need === 'ready' ? <button type="button" onClick={leave(() => onPanel('branches'))}>Revisar</button>
@@ -117,7 +126,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
   const keydown = e => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
     if (e.key !== 'Tab') return;
-    const controls = [...root.current.querySelectorAll('button:not(:disabled)')].filter(control => control.checkVisibility());
+    const controls = [...root.current.querySelectorAll('button:not(:disabled), textarea:not(:disabled)')].filter(control => control.checkVisibility());
     const first = controls[0], last = controls.at(-1);
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
     if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
@@ -126,7 +135,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
     <header className="activity-head">
       <div>
         <h1 className={count ? 'needs-you' : undefined}>{count ? <>Te necesitan <b>{count}</b></> : 'Todo en orden'}</h1>
-        <p>{count ? 'Al resolverlas, los agentes siguen solos.' : 'Nada espera una decisión tuya.'}</p>
+        <p>{count ? Number.isFinite(oldest) ? ago(oldest, activity.now) === 'ahora' ? 'Acaba de llegar.' : `La más antigua espera ${ago(oldest, activity.now)}.` : 'Al resolverlas, los agentes siguen solos.' : 'Nada espera una decisión tuya.'}</p>
       </div>
       <button className="icon-button" aria-label="Cerrar" title="Cerrar" onClick={onClose}><X size={16} /></button>
     </header>
@@ -136,7 +145,16 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
         {!activity.connected && <p className="activity-note" role="status">Sin conexión.</p>}
         {activity.connected && failing && <p className="activity-note" role="status">{STALE}. <button type="button" className="activity-link" onClick={activity.retry}>Reintentar</button></p>}
         {view === 'needs' && <>
-          {count > 0 && <Group id="activity-now" title="Decide ahora">{now.map(item => <Row key={item.key} kind={item.need} title={item.headline} code={item.code} meta={[item.context, item.at ? ago(item.at, activity.now) : '']}>{decide(item)}</Row>)}</Group>}
+          {count > 0 && <Group id="activity-now" title="Decide ahora">{now.map(item => <Row key={item.key} kind={item.need} title={item.headline} meta={[item.context, waiting(item.at, activity.now)]} expanded={opened === item.key} onOpen={() => setOpenKey(item.key)} detail={opened === item.key && <>
+            {item.excerpt && <TerminalExcerpt item={item} api={api} activity={activity} />}
+            {item.need === 'permission' && item.code && <pre className="activity-excerpt activity-command" aria-label="Comando">{item.code}</pre>}
+            {item.reply === 'terminal' && <TerminalReply key={item.key} item={item} disabled={!!busy || !activity.connected} send={(text, clear) => run(item.key, async () => {
+              await api('terminal.write', { sessionId: item.sessionId, data: text });
+              await new Promise(resolve => setTimeout(resolve, 80));
+              await api('terminal.write', { sessionId: item.sessionId, data: '\r' });
+              clear(); setSent(keys => keys.includes(item.key) ? keys : [...keys, item.key]);
+            })} />}
+          </>}>{sent.includes(item.key) && <span role="status">Enviado</span>}{opened === item.key && decide(item)}</Row>)}</Group>}
           {later.length > 0 && <Group id="activity-later" title="Cuando puedas">{later.map(item => <Row key={item.key} kind={item.need} title={item.headline} meta={[item.context]}>{tidy(item)}</Row>)}</Group>}
           {!count && !later.length && <EmptyState className="activity-empty" size="compact" icon={CheckCircle2} description="Aquí aparecerá lo que necesite una decisión tuya." />}
         </>}
@@ -147,7 +165,6 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
           ? <Group id="activity-today" title="Hoy">{activity.today.map(item => <Row key={item.key} kind={item.tone} title={item.headline} meta={[item.state, item.at ? clock(item.at) : '']}>{open(item)}{item.target === 'notice' && seen(item)}</Row>)}</Group>
           : <EmptyState className="activity-empty" size="compact" description="Hoy todavía no ha terminado nada." />)}
       </div>
-      <Plan limits={activity.sources.limits?.data} />
     </div>
   </section></>;
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ago, buildActivity, branchState, classifyNotice, classifyTask, freshness, integrationState, pendingChat, rowKind, sessionState, taskLinks, timeOf } from './activityModel.mjs';
+import { ago, buildActivity, branchState, classifyNotice, classifyTask, excerptLines, freshness, integrationState, leadNeed, pendingChat, rowKind, sessionState, taskLinks, timeOf, waiting } from './activityModel.mjs';
 
 test('Un shell abierto no acredita actividad del agente y salir no acredita éxito', () => {
   assert.equal(sessionState({ status: 'running' }).label, 'En espera');
@@ -150,7 +150,7 @@ test('Permisos y preguntas de chat encabezan «Decide ahora» con lo necesario p
   assert.equal(model.needs, model.pending.now);
   assert.deepEqual(model.sessions.filter(s => s.nodeId !== 't1').map(s => [s.nodeId, s.label, s.needsYou]), [['c1', 'Pide permiso', true], ['c2', 'Te hizo una pregunta', true]]);
   const long = buildActivity({ workspace: { id: 'w', nodes: chatNodes }, chats: [{ nodeId: 'c2', running: true, pending: [{ ...question, questions: [{ question: '¿Cuál?', options: [{ label: 'Una opción bastante larga' }, { label: 'No' }] }] }] }] });
-  assert.deepEqual(long.pending.now[0].options, []);
+  assert.deepEqual(long.pending.now[0].options, ['Una opción bastante larga', 'No']);
   assert.equal(buildActivity({ workspace: { id: 'w', nodes: chatNodes }, chats: [{ nodeId: 'c1', running: true, pending: [permission] }], connected: false }).count, 0);
 });
 
@@ -163,7 +163,7 @@ test('Una sesión aparece una sola vez: el permiso del chat calla a su rama y a 
   });
   assert.deepEqual(model.pending.now.map(row => [row.key, row.need]), [['chat:c1', 'permission'], ['session:s1', 'approval'], ['merge:r3', 'checks']]);
   assert.deepEqual(model.pending.now.map(row => row.nodeId), ['c1', 't1', 'c2']);
-  assert.deepEqual([model.pending.now[1].headline, model.pending.now[1].context], ['Pide permiso para continuar', 'Navegación · Terminal']);
+  assert.deepEqual([model.pending.now[1].headline, model.pending.now[1].context], ['Pide permiso para continuar', 'Navegación']);
   assert.equal(model.pending.now[2].headline, 'Tests de cámara: tests fallidos');
   const alone = buildActivity({ workspace: { id: 'w', nodes: chatNodes }, merges });
   assert.deepEqual(alone.pending.now.map(row => [row.headline, row.context]), [['Phantom Mobile choca con main', 'Conflicto en Canvas.jsx'], ['Navegación choca con main', 'Conflicto en Canvas.jsx, App.jsx'], ['Tests de cámara: tests fallidos', 'Hay que corregirlos y volver a enviarla']]);
@@ -204,4 +204,62 @@ test('Etiquetas en lenguaje llano', () => {
   assert.deepEqual(['queued', 'merging', 'conflict', 'failed', 'merged'].map(status => integrationState({ status })), ['En cola', 'Integrando', 'Conflicto', 'Tests fallidos', 'En main']);
   assert.deepEqual(['blocked', 'awaiting_approval', 'awaiting_input', 'running', 'completed'].map(status => classifyTask({ status }).label), ['Bloqueada', 'Pide permiso', 'Te hizo una pregunta', 'Trabajando', 'Terminada']);
   assert.equal(sessionState({ status: 'running', screenState: 'awaiting_input' }).label, 'Terminó · tu turno');
+});
+
+test('Las pantallas conservan la espera y solo las sesiones vivas admiten texto y extracto', () => {
+  const row = session => buildActivity({ workspace: { nodes }, sessions: [{ id: 's', ...session }] }).needs[0];
+  const turn = row({ status: 'running', screenState: 'awaiting_input', screenStateAt: 123 });
+  assert.deepEqual([turn.at, turn.sessionId, turn.live, turn.reply, turn.excerpt, turn.context], [123, 's', true, 'terminal', true, 'Oculta']);
+  const approval = row({ status: 'running', screenState: 'awaiting_approval' });
+  assert.deepEqual([approval.at, approval.reply, approval.excerpt], [0, null, true]);
+  const input = row({ status: 'running', agentState: 'awaiting_input' });
+  assert.deepEqual([input.need, input.reply, input.excerpt], ['input', 'terminal', true]);
+  const lost = row({ status: 'lost' });
+  assert.deepEqual([lost.sessionId, lost.live, lost.reply, lost.excerpt], ['s', false, null, false]);
+  const historical = row({ status: 'exited', agentState: 'awaiting_input' });
+  assert.equal(historical, undefined);
+  const synthetic = buildActivity({ workspace: { nodes: chatNodes }, chats: [{ nodeId: 'c1', running: true, pending: [permission] }] });
+  assert.equal(synthetic.needs.some(item => item.sessionId?.startsWith('node:')), false);
+});
+
+test('La prioridad conserva rangos y pone primero la espera más antigua, desconocidas al final', () => {
+  const model = buildActivity({ workspace: { id: 'w', nodes: chatNodes },
+    chats: [{ nodeId: 'c1', pending: [{ ...permission, requestedAt: 300 }] }, { nodeId: 'phantom:w', pending: [{ ...permission, requestedAt: 100 }] }, { nodeId: 'c2', pending: [{ ...question, createdAt: 50 }] }],
+    tasks: [{ id: 'new', status: 'blocked', updatedAt: 500 }, { id: 'unknown', status: 'blocked' }, { id: 'old', status: 'blocked', updatedAt: 200 }, { id: 'approval', status: 'awaiting_approval', updatedAt: 600 }],
+  });
+  assert.deepEqual(model.needs.map(item => item.key), ['chat:phantom:w', 'chat:c1', 'chat:c2', 'task:approval', 'task:old', 'task:new', 'task:unknown']);
+  assert.deepEqual(model.needs.slice(0, 3).map(item => item.at), [100, 300, 50]);
+  assert.equal(buildActivity({ workspace: { nodes: chatNodes }, chats: [{ nodeId: 'c1', pending: [permission] }] }).needs[0].at, 0);
+});
+
+test('Opciones rápidas: entre dos y cuatro, hasta 28 caracteres y una sola selección', () => {
+  const options = (labels, extra = {}, questions) => buildActivity({ workspace: { nodes: chatNodes }, chats: [{ nodeId: 'c2', pending: [{ ...question, questions: questions || [{ question: '¿Cuál?', options: labels.map(label => ({ label })), ...extra }] }] }] }).needs[0].options;
+  assert.deepEqual(options(['a'.repeat(28), 'B', 'C', 'D']), ['a'.repeat(28), 'B', 'C', 'D']);
+  for (const labels of [['A'], ['A', 'B', 'C', 'D', 'E'], ['a'.repeat(29), 'B']]) assert.deepEqual(options(labels), []);
+  assert.deepEqual(options(['A', 'B'], { multiSelect: true }), []);
+  assert.deepEqual(options([], {}, [...question.questions, ...question.questions]), []);
+});
+
+test('La espera distingue recién, minutos, horas y fechas ausentes', () => {
+  const now = 10_000_000;
+  assert.equal(waiting(0, now), '');
+  assert.equal(waiting(undefined, now), '');
+  assert.equal(waiting(now - 59999, now), 'Recién');
+  assert.equal(waiting(now - 60000, now), 'Espera hace 1 min');
+  assert.equal(waiting(now - 14 * 60000, now), 'Espera hace 14 min');
+  assert.equal(waiting(now - 3600000, now), 'Espera hace 1 h');
+});
+
+test('El extracto elimina cromo y dibujo, recorta espacios y conserva las últimas líneas útiles', () => {
+  assert.deepEqual(excerptLines([' ', '╭────╮', '│    │', '-----', 'esc to interrupt', '? for shortcuts', 'ctrl+c to quit', '>', '❯', '  ¿Qué entorno uso?  ', '  1. Desarrollo', '2. Producción']), ['¿Qué entorno uso?', '1. Desarrollo', '2. Producción']);
+  assert.deepEqual(excerptLines(['1', '2', '3', '4', '5', '6', '7']), ['2', '3', '4', '5', '6', '7']);
+  assert.deepEqual(excerptLines(['uno', 'dos', 'tres'], 2), ['dos', 'tres']);
+  assert.deepEqual(excerptLines(undefined), []);
+  assert.deepEqual(excerptLines(['> npm test', 'Resultado: listo']), ['> npm test', 'Resultado: listo']);
+});
+
+test('El dock toma la primera necesidad del modelo', () => {
+  assert.equal(leadNeed({ needs: [] }), null);
+  const first = { headline: 'Pide permiso', title: 'Sesión', at: 123 };
+  assert.deepEqual(leadNeed({ needs: [first, { headline: 'Otra' }] }), { headline: 'Pide permiso', where: 'Sesión', at: 123 });
 });

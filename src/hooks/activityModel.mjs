@@ -84,6 +84,16 @@ export function ago(at, now = Date.now()) {
   const hours = Math.floor(minutes / 60);
   return hours < 24 ? `hace ${hours} h` : `hace ${Math.floor(hours / 24)} d`;
 }
+export function waiting(at, now = Date.now()) {
+  return !at ? '' : now - at < 60000 ? 'Recién' : `Espera ${ago(at, now)}`;
+}
+export function excerptLines(lines, max = 6) {
+  return itemsOf(lines).map(line => text(line).trim()).filter(line => line && !/^[\s\u2500-\u257f\u2580-\u259f─━═|+_=*\-]+$/u.test(line) && !/^(?:[>❯›$#]\s*)$/u.test(line) && !/\besc(?:ape)?\s+(?:to\s+)?(?:interrupt|cancel)\b|\?\s+(?:for\s+)?shortcuts\b|\bctrl\s*[+＋]/i.test(line)).slice(-max);
+}
+export function leadNeed(activity) {
+  const row = activity?.needs?.[0];
+  return row ? { headline: row.headline, where: row.title, at: row.at } : null;
+}
 const byRecent = rows => rows.map((row, index) => [row, index]).sort((a, b) => (b[0].at || 0) - (a[0].at || 0) || a[1] - b[1]).map(([row]) => row);
 const RUNNING = ['running', 'working', 'doing', 'verifying', 'recovering'], WAITING = ['queued', 'pending', 'todo', 'ready'];
 const CLOSED = { completed: 'done', done: 'done', cancelled: 'cancelled', stopped: 'cancelled' };
@@ -125,11 +135,11 @@ const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
 // few short options; anything richer is answered in the session.
 function quickOptions(part) {
   const questions = itemsOf(part.questions), options = itemsOf(questions[0]?.options).map(option => text(option?.label)).filter(Boolean);
-  return questions.length === 1 && !questions[0].multiSelect && options.length >= 2 && options.length <= 3 && options.every(label => label.length <= 14) ? options : [];
+  return questions.length === 1 && !questions[0].multiSelect && options.length >= 2 && options.length <= 4 && options.every(label => label.length <= 28) ? options : [];
 }
 function chatNeed(entry, title, provider, main) {
   const part = entry.pending[0], agent = PROVIDERS[provider] || 'El agente', more = entry.pending.length > 1 ? ` · ${entry.pending.length - 1} más` : '';
-  const row = { key: `chat:${entry.nodeId}`, group: 'now', target: main ? 'phantom' : 'chat', nodeId: main ? null : entry.nodeId, chatId: entry.nodeId, requestId: part.id, title, needsYou: true, at: 0 };
+  const row = { key: `chat:${entry.nodeId}`, group: 'now', target: main ? 'phantom' : 'chat', nodeId: main ? null : entry.nodeId, chatId: entry.nodeId, requestId: part.id, title, needsYou: true, at: timeOf(part) };
   if (part.type === 'question') {
     const question = text(itemsOf(part.questions)[0]?.question);
     return { ...row, need: 'question', label: 'Te hizo una pregunta', headline: question || 'Te hizo una pregunta', question, options: quickOptions(part), context: `${title} · ${agent} espera tu respuesta${more}` };
@@ -194,8 +204,9 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
   }
   for (const s of sessionRows.filter(s => s.needsYou && !s.linkedTasks.some(t => classifyTask(t).needsYou))) {
     if (s.nodeId && claimed.has(s.nodeId)) continue;
-    const need = s.screen === 'awaiting_approval' ? 'approval' : s.screen === 'awaiting_input' ? 'turn' : s.status === 'lost' ? 'lost' : rowKind(s);
-    needs.push({ ...s, key: `session:${s.id}`, target: 'terminal', source: 'Host · terminal.list', group: 'now', need, headline: SESSION_NEED[need] || s.label, context: `${s.title} · Terminal` });
+    const need = s.screen === 'awaiting_approval' ? 'approval' : s.screen === 'awaiting_input' ? 'turn' : s.status === 'lost' ? 'lost' : rowKind({ ...s, status: text(s.agentState) || text(s.agent?.status) || s.status });
+    const sessionId = s.descriptor && s.id && !s.id.startsWith('node:') ? s.id : null, live = s.status === 'running';
+    needs.push({ ...s, key: `session:${s.id}`, target: 'terminal', source: 'Host · terminal.list', group: 'now', need, sessionId, live, reply: ['turn', 'input'].includes(need) && live && sessionId ? 'terminal' : null, excerpt: !!(live && sessionId), at: s.screen ? s.screenStateAt || 0 : 0, headline: SESSION_NEED[need] || s.label, context: s.title });
     claim(s.nodeId);
   }
   for (const n of notices.filter(n => n.needsYou)) {
@@ -212,7 +223,7 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
     needs.push({ ...item, key: `merge:${item.id || item.nodeId}`, target: 'integration', label: item.status === 'blocked' ? 'Bloqueada' : integrationState(item), source: 'Host · merge.status', group: 'now', need, headline, context });
     claim(item.nodeId);
   }
-  needs.sort((a, b) => (RANK[a.need] ?? 3) - (RANK[b.need] ?? 3) || (b.at || 0) - (a.at || 0));
+  needs.sort((a, b) => (RANK[a.need] ?? 3) - (RANK[b.need] ?? 3) || (a.at || Infinity) - (b.at || Infinity));
 
   // «Cuando puedas»: nothing is stuck on these, they are the project's housekeeping.
   const later = [];

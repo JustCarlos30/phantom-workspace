@@ -102,7 +102,7 @@ export class Terminals {
       }
     },1000);this.timer.unref();
   }
-  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
+  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,screenStateAt:this.live.get(s.id)?.screenStateAt??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
   foreground(id) { const entry=this.live.get(id);return entry&&!entry.exited?foregroundOf(entry.child.pid):null; }
   async create(w, node, options) {
@@ -254,7 +254,8 @@ export class Terminals {
   setScreenState(s,e,state) {
     if((e.screenState??null)===state) return;
     e.screenState=state;
-    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state});
+    e.screenStateAt=state===null?null:Date.now();
+    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state,screenStateAt:e.screenStateAt});
   }
   async resize(id,cols,rows) {dimensions(cols,rows);const e=this.live.get(id);assert(e&&!e.exited,'Terminal is not running');e.chain=e.chain.then(()=>{if(e.exited)return;const s=this.get(id);e.child.resize(cols,rows);e.terminal.resize(cols,rows);Object.assign(s,{cols,rows});e.snapshotDirty=true;this.capture(s,e);this.save();});await e.chain;return {ok:true};}
   stop(id) {
