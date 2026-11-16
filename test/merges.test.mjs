@@ -7,12 +7,61 @@ import { execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
 import { GUARD_MARKER, mergeToken, integrationPolicy } from '../host/merge-guard.mjs';
 import { main as agent } from '../scripts/agent.mjs';
-import { Merges } from '../host/merges.mjs';
+import { Merges, GitPolling } from '../host/merges.mjs';
 
 const until = async (fn, ms = 8000) => { const end = Date.now() + ms; while (Date.now() < end) { const value = await fn(); if (value) return value; await new Promise(r => setTimeout(r, 30)); } throw new Error('Timed out'); };
 // Git as a process of a given terminal would run it: only the environment tells the guard who is asking.
 const clean = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PHANTOM_')));
 const gitAs = (env, cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env: { ...clean(), ...env }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+test('merge polling shares concurrent rounds and queue writes invalidate cached Git results', async t => {
+  const f = autoFixture(t);
+  let rounds = 0;
+  const original = f.merges.readStatus.bind(f.merges);
+  f.merges.readStatus = async (...args) => { rounds++; return original(...args); };
+  const [first, second] = await Promise.all([f.merges.status(f.workspace), f.merges.status(f.workspace)]);
+  assert.strictEqual(first, second); assert.equal(rounds, 1);
+  let calls = 0;
+  const polling = f.merges.polling = new GitPolling(async () => { calls++; return 'file.txt'; });
+  const args = ['diff', '--name-only', `${'a'.repeat(40)}...${'b'.repeat(40)}`];
+  await Promise.all([polling.git('/repo', args), polling.git('/repo', args)]);
+  await polling.git('/repo', args); assert.equal(calls, 1);
+  f.merges.change(f.workspace.id, integration => { integration.plan = 'updated'; });
+  await polling.git('/repo', args); assert.equal(calls, 2);
+});
+
+test('polling limits Git processes, retries errors and does not revive invalidated work', async () => {
+  let active = 0, peak = 0;
+  const polling = new GitPolling(async () => {
+    active++; peak = Math.max(peak, active);
+    await new Promise(resolve => setImmediate(resolve));
+    active--; return '';
+  });
+  await Promise.all(Array.from({ length: 30 }, (_, index) => polling.git('/repo', ['rev-parse', String(index)])));
+  assert.equal(peak, 8); assert.equal(active, 0);
+  let attempts = 0;
+  const failing = new GitPolling(async () => { if (++attempts === 1) throw new Error('retry'); return 'ok'; });
+  const args = ['diff', 'a'.repeat(40)];
+  await assert.rejects(failing.git('/repo', args), /retry/);
+  assert.equal(await failing.git('/repo', args), 'ok'); assert.equal(attempts, 2);
+  let finish;
+  const pending = polling.read('pending', () => new Promise(resolve => { finish = resolve; }));
+  await new Promise(resolve => setImmediate(resolve));
+  polling.invalidate(); finish('old'); await pending;
+  assert.equal(await polling.read('pending', () => 'new'), 'new');
+});
+
+test('immutable polling results expire after two seconds', async t => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  let calls = 0;
+  const polling = new GitPolling(async () => String(++calls));
+  const args = ['rev-list', '--count', 'a'.repeat(40)];
+  assert.equal(await polling.git('/repo', args), '1');
+  t.mock.timers.tick(1999);
+  assert.equal(await polling.git('/repo', args), '1');
+  t.mock.timers.tick(1);
+  assert.equal(await polling.git('/repo', args), '2');
+});
 
 function autoFixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-auto-'));

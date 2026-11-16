@@ -88,7 +88,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
   const mainEnv=w=>({...roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null}),PHANTOM_WORKSPACE_ID:w.id});
   const persist=workspaceId=>{store.persist();emit({type:'state.changed',...(workspaceId?{workspaceId}:{})});};
-  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
+  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;
   const inFlightIntegrations=new Set();
   const routeIntegration=async(method,payload)=>{
@@ -261,6 +261,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     }
     if(method.startsWith('merge.')) return merges.handle(method,p);
     if(method.startsWith('branch.')) return branches.handle(method,p);
+    if(method==='repo.file.write') { merges.polling.invalidate(); try { return await repo.handle(method,p); } finally { merges.polling.invalidate(); } }
     if(method.startsWith('repo.')) return repo.handle(method,p);
     if(method==='storage.export') { const data=structuredClone(store.state); // Runtime settings may contain credentials: export only portable presentation settings.
       data.settings=Object.fromEntries(Object.entries(data.settings).filter(([k])=>['theme','fontSize','terminalFontSize','language'].includes(k)));
