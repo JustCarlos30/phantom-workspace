@@ -1,5 +1,65 @@
 export const RAMP = ' .:-=+*#%@';
 
+export const AQUARIUM_PALETTE = ['#26e6ff', '#20efbb', '#ff50d8', '#a777ff', '#ffc34d', '#ff786b', '#b5f54c'];
+export const OCEAN_COLORS = ['#030c25', '#062440', '#03343c'];
+
+export function creatureColor(hue, density) {
+  const hex = AQUARIUM_PALETTE[Math.floor(hue * AQUARIUM_PALETTE.length) % AQUARIUM_PALETTE.length];
+  const amount = Math.max(0, Math.min(1, density));
+  return `#${[1, 3, 5].map(offset => {
+    const channel = parseInt(hex.slice(offset, offset + 2), 16);
+    return Math.round(channel + (255 - channel) * amount * .5).toString(16).padStart(2, '0');
+  }).join('')}`;
+}
+
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    let n = state += 0x6d2b79f5;
+    n = Math.imul(n ^ n >>> 15, n | 1);
+    n ^= n + Math.imul(n ^ n >>> 7, n | 61);
+    return ((n ^ n >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+export function createBubbles({ cols, rows, seed }) {
+  if (cols <= 0 || rows <= 0) return [];
+  const random = seededRandom(seed);
+  return Array.from({ length: Math.min(48, Math.max(6, Math.round(cols * rows / 180))) }, () => ({
+    x: random() * cols, y: random() * rows,
+    speed: .8 + random() * 1.8, phase: random() * Math.PI * 2,
+    char: ['o', 'O', '.', '°'][Math.floor(random() * 4)],
+  }));
+}
+
+export function stepBubbles(bubbles, dt, { cols, rows }) {
+  if (cols <= 0 || rows <= 0) return [];
+  return bubbles.map(bubble => {
+    const phase = bubble.phase + dt;
+    return { ...bubble, phase,
+      x: wrap(bubble.x + (Math.sin(phase) - Math.sin(bubble.phase)) * .3, cols, 0),
+      y: wrap(bubble.y - dt * bubble.speed, rows, 0),
+    };
+  });
+}
+
+export function createPlants({ cols, rows, seed }) {
+  if (cols <= 0 || rows <= 0) return [];
+  const random = seededRandom(seed);
+  return Array.from({ length: Math.min(36, Math.max(2, Math.round(cols / 5))) }, () => ({
+    x: random() * cols, height: Math.min(rows, 3 + Math.floor(random() * 7)),
+    phase: random() * Math.PI * 2, color: random() < .5 ? '#31dd94' : '#b5f54c',
+  }));
+}
+
+export function renderPlants(plants, time, { cols, rows }) {
+  if (cols <= 0 || rows <= 0) return [];
+  return plants.flatMap(plant => Array.from({ length: Math.min(rows, plant.height) }, (_, i) => ({
+    x: Math.max(0, Math.min(cols - 1, Math.floor(plant.x + Math.sin(time * .7 + plant.phase + i * .45) * i * .2))),
+    y: rows - 1 - i, char: i % 3 === 0 ? 'Y' : i % 2 ? '/' : '|', color: plant.color,
+  })));
+}
+
 export function createCreatures({ cols, rows, seed }) {
   let state = seed >>> 0;
   const random = () => {

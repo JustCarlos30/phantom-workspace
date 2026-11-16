@@ -94,8 +94,9 @@
 .studio-ember .canvas-region, .background-option.ember { --atmosphere: radial-gradient(ellipse at 72% 28%, #3b3028 0%, transparent 65%), radial-gradient(ellipse at 12% 86%, #302b26 0%, transparent 58%); }
 .studio-plain .canvas-region, .background-option.plain { --atmosphere: none; }
 .studio-ascii .canvas-region { --atmosphere: radial-gradient(ellipse at 70% 30%, #1b2230 0%, transparent 65%); }
-.ascii-field { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: var(--background-intensity, .55); transition: opacity 220ms cubic-bezier(.16,1,.3,1); --ascii-cyan: #86bfc9; --ascii-violet: #9995c4; --ascii-amber: #c8ab79; --ascii-rose: #c18eaa; --ascii-lilac: #b4a0cf; }
-.studio-focused .ascii-field, .app-shell.studio-concentration .ascii-field { opacity: calc(var(--background-intensity, .55) * .15); }
+.app-shell.studio-ascii .canvas { background-image: radial-gradient(ellipse at center, transparent 35%, #02061766 100%); }
+.ascii-field { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: max(.35, var(--background-intensity, .55)); transition: opacity 220ms cubic-bezier(.16,1,.3,1); }
+.studio-focused .ascii-field, .app-shell.studio-concentration .ascii-field { opacity: calc(max(.35, var(--background-intensity, .55)) * .15); }
 .studio-gengar .canvas-region, .background-option.gengar { --atmosphere: none; }
 /* Local atmosphere leaves dark breathing room; a personal image still covers the canvas. */
 .canvas-region::before { content: ''; position: absolute; inset: 0; background-image: var(--personal-background), var(--atmosphere); background-size: cover, 82% 80%, 64% 64%; background-position: center, right top, left bottom; background-repeat: no-repeat; opacity: var(--background-intensity, .55); pointer-events: none; transition: opacity 220ms cubic-bezier(.16,1,.3,1); }
@@ -213,8 +214,8 @@
 .background-option[aria-pressed=true] > svg { color: var(--accent); }
 .background-preview { display: block; height: 58px; background-color: var(--bg); background-image: var(--atmosphere); border-radius: var(--r-mark); margin-bottom: 9px; }
 .background-option.gengar .background-preview { position: relative; overflow: hidden; }
-.background-option.ascii .background-preview { position: relative; overflow: hidden; background: #1b2230; }
-.background-option.ascii .background-preview::before { content: ' .:*   .:.   *:.\A :*#:   :*:   .:*\A  :.:   .:*   :.'; white-space: pre; position: absolute; inset: 5px; font: 13px/15px var(--font-mono, ui-monospace, monospace); color: #b4a0cf; opacity: .45; }
+.background-option.ascii .background-preview { position: relative; overflow: hidden; background: linear-gradient(#030c25, #03343c); }
+.background-option.ascii .background-preview::before { content: ' .:*   .:.   ° o\A :*#:   :*:   .:*\A  Y|Y   .:*   Y|'; white-space: pre; position: absolute; inset: 5px; font: 13px/15px var(--font-mono, ui-monospace, monospace); background: linear-gradient(110deg, #26e6ff, #ff50d8, #ffc34d, #b5f54c); background-clip: text; -webkit-background-clip: text; color: transparent; opacity: .95; }
 .background-preview img { position: absolute; height: 88px; width: 88px; object-fit: contain; right: 3px; top: -12px; pointer-events: none; }
 .background-option>span:nth-child(2) { margin-left: 4px; }
 .background-option>svg { position: absolute; bottom: 9px; right: 8px; }

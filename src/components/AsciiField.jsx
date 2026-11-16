@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { createCreatures, stepCreatures, renderFrame, RAMP } from '../hooks/asciiField.mjs';
+import { createCreatures, stepCreatures, renderFrame, RAMP, creatureColor, OCEAN_COLORS, createBubbles, stepBubbles, createPlants, renderPlants } from '../hooks/asciiField.mjs';
 
 export default function AsciiField({ paused = false }) {
   const canvasRef = useRef(null);
@@ -12,18 +12,44 @@ export default function AsciiField({ paused = false }) {
     if (!context) return;
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let raf = 0, last = 0, time = 0, cols = 0, rows = 0, width = 0, height = 0, cellWidth = 0;
-    let creatures = [], colors = {}, font = '';
+    let creatures = [], bubbles = [], plants = [], colors = [], ocean, rays = [], font = '';
     const draw = () => {
       const frame = renderFrame(creatures, time, { cols, rows });
-      context.clearRect(0, 0, width, height);
+      context.globalAlpha = 1;
+      context.shadowBlur = 0;
+      context.fillStyle = ocean;
+      context.fillRect(0, 0, width, height);
+      for (const ray of rays) {
+        context.fillStyle = ray;
+        context.fillRect(0, 0, width, height);
+      }
+      context.fillStyle = '#83deff';
+      context.globalAlpha = .65;
+      for (const bubble of bubbles) context.fillText(bubble.char, bubble.x * cellWidth, bubble.y * 13);
+      context.globalAlpha = .8;
+      for (const plant of renderPlants(plants, time, { cols, rows })) {
+        context.fillStyle = plant.color;
+        context.fillText(plant.char, plant.x * cellWidth, plant.y * 13);
+      }
+      const batches = new Map();
       for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
         const char = frame.chars[row][col];
         if (char === ' ') continue;
-        const creature = creatures[frame.tint[row * cols + col] - 1];
-        context.fillStyle = colors[creature.kind][creature.hue < .5 ? 0 : 1];
-        context.globalAlpha = .35 + .2 * RAMP.indexOf(char) / (RAMP.length - 1);
-        context.fillText(char, col * cellWidth, row * 13);
+        const index = frame.tint[row * cols + col] - 1;
+        const density = RAMP.indexOf(char);
+        const key = index * RAMP.length + density;
+        if (!batches.has(key)) batches.set(key, []);
+        batches.get(key).push([char, col * cellWidth, row * 13]);
       }
+      context.shadowBlur = 3;
+      for (const [key, cells] of batches) {
+        const index = Math.floor(key / RAMP.length), density = key % RAMP.length;
+        context.fillStyle = colors[index][density];
+        context.shadowColor = colors[index][0];
+        context.globalAlpha = .78 + .22 * density / (RAMP.length - 1);
+        for (const [char, x, y] of cells) context.fillText(char, x, y);
+      }
+      context.shadowBlur = 0;
       context.globalAlpha = 1;
     };
     const tick = now => {
@@ -34,6 +60,7 @@ export default function AsciiField({ paused = false }) {
         const dt = Math.min((now - last) / 1000, .1);
         time += dt;
         creatures = stepCreatures(creatures, dt, { cols, rows });
+        bubbles = stepBubbles(bubbles, dt, { cols, rows });
         draw();
         last = now;
       }
@@ -57,12 +84,19 @@ export default function AsciiField({ paused = false }) {
       context.font = font; context.textBaseline = 'top';
       cellWidth = context.measureText('M').width;
       cols = Math.floor(width / cellWidth); rows = Math.floor(height / 13);
-      colors = {
-        jelly: [style.getPropertyValue('--ascii-cyan').trim(), style.getPropertyValue('--ascii-violet').trim()],
-        butterfly: [style.getPropertyValue('--ascii-amber').trim(), style.getPropertyValue('--ascii-rose').trim()],
-        ghost: [style.getPropertyValue('--ascii-lilac').trim(), style.getPropertyValue('--ascii-lilac').trim()],
-      };
+      ocean = context.createLinearGradient(0, 0, 0, Math.max(1, height));
+      OCEAN_COLORS.forEach((color, index) => ocean.addColorStop(index / (OCEAN_COLORS.length - 1), color));
+      rays = [.18, .53, .82].map(position => {
+        const ray = context.createLinearGradient(width * position - width * .12, 0, width * position + width * .2, height * .35);
+        ray.addColorStop(0, '#68e5ff00');
+        ray.addColorStop(.5, '#68e5ff0d');
+        ray.addColorStop(1, '#68e5ff00');
+        return ray;
+      });
       creatures = createCreatures({ cols, rows, seed: 1701 });
+      colors = creatures.map(creature => [...RAMP].map((_, index) => creatureColor(creature.hue, index / (RAMP.length - 1))));
+      bubbles = createBubbles({ cols, rows, seed: 1702 });
+      plants = createPlants({ cols, rows, seed: 1703 });
       draw();
     };
     const changeMotion = () => { if (motion.matches) draw(); resume(); };
