@@ -29,7 +29,7 @@
   --shadow-workplane-rest: 0 2px 4px #05030a66, 0 10px 20px -12px #05030a99;
   --shadow-workplane-lift: 0 3px 6px #05030a73, 0 16px 28px -14px #05030ab3;
   /* Glass filters belong only to chrome. Workplanes and wells use real alpha. */
-  --glass-tint: color-mix(in srgb, var(--accent) 6%, color-mix(in srgb, #05030a 60%, var(--surface-3)));
+  --glass-tint: color-mix(in srgb, var(--accent) 10%, color-mix(in srgb, #05030a 25%, var(--surface-3)));
   --glass: color-mix(in srgb, var(--glass-tint) 48%, transparent);
   --glass-thick: color-mix(in srgb, var(--glass-tint) 68%, transparent);
   --glass-filter: blur(40px) saturate(190%);
