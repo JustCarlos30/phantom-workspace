@@ -3,6 +3,7 @@ import { useComposerSize } from '../hooks/useComposerSize';
 import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, FoldVertical, Folder, GitBranch, Globe, Lightbulb, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
@@ -659,10 +660,22 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const armedRef = useRef(false), draftRef = useRef(draft), submitRef = useRef(null);
+  draftRef.current = draft;
+  const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
-  const voice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
-    onText: text => setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text) });
+  const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
+    onText: text => {
+      const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
+      arm(false); draftRef.current = merged; setDraft(merged);
+      if (pendingSend) submitRef.current(merged, true);
+    } });
+  const voice = { ...recorderVoice, cancel: () => { arm(false); recorderVoice.cancel(); } };
   const listening = voice.status === 'recording';
+  const dictating = listening || voice.status === 'transcribing';
+  useLayoutEffect(() => { if (voice.status === 'idle' || !connected || overview) arm(false); }, [voice.status, connected, overview]);
+  useLayoutEffect(() => { arm(false); }, [workspace.id, node.id, provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
   const chosen = node.data.chat.permissionMode ?? (typeof node.data.chat.autoApprove === 'boolean' ? (node.data.chat.autoApprove ? 'auto' : 'ask') : null);
@@ -690,14 +703,21 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   useEffect(() => { pinned.current = true; }, [provider]);
   useEffect(() => { if (focused) input.current?.focus({ preventScroll: true }); }, [focused, provider]);
   useComposerSize(input, draft, !overview);
-  const submit = async () => {
-    const text = draft.trim();
-    if (!text || sending || !connected) return;
-    if (voice.status !== 'idle') voice.cancel();
+  const submit = async (value = draftRef.current, fromVoice = false) => {
+    if (sending || !connected) return;
+    if (!fromVoice) {
+      const action = sendAction({ status: voice.status, draft: value, armed: armedRef.current });
+      if (action === 'none') return;
+      if (action === 'stop-and-send' || action === 'await-voice') { arm(true); if (action === 'stop-and-send') voice.stop(); return; }
+      if (voice.status !== 'idle') voice.cancel();
+    }
+    const text = value.trim();
+    if (!text) return;
     setSending(true); pinned.current = true;
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
   };
+  submitRef.current = submit;
   const model = meta.model, cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
@@ -752,7 +772,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           </div>
           <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : listening ? 'Detener y transcribir' : `Dictar a ${label}`} aria-label={listening ? 'Detener y transcribir' : `Dictar a ${label}`} onClick={listening ? voice.stop : voice.start}>{listening ? <Square size={14} /> : <Mic size={16} />}</button>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={16} /></button>}
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Detener dictado y enviar · Enter' : running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Detener dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{armed ? <LoaderCircle size={16} className="spinning" /> : <ArrowUp size={16} />}</button>}
         </div>
       </div>
       <div className="pc-meta">
