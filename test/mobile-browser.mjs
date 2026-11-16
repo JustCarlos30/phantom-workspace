@@ -12,11 +12,18 @@ import { createHost } from '../host/server.mjs';
 const evidence = '/tmp/phantom-mobile-evidence';
 await fs.mkdir(evidence, { recursive: true });
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'phantom-mobile-browser-'));
-let host, browser, clock = Date.now();
+let host, browser, clock = 0;
 const results = [], errors = [], actions = [], terminalInputs = [];
+const until = async (fn, ms = 5000) => {
+  const end = Date.now() + ms;
+  while (!fn()) {
+    if (Date.now() > end) throw new Error('timeout');
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+};
 try {
   await fs.mkdir(path.join(root, 'project')); await fs.mkdir(path.join(root, 'other'));
-  host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }), mobileOptions: { now: () => clock } });
+  host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }), mobileOptions: { now: () => Date.now() + clock } });
   const w = await host.invoke('workspace.open', { path: path.join(root, 'project') });
   await host.invoke('workspace.update', { id: w.id, patch: { name: 'Proyecto móvil · fixture aislado' } });
   const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', title: 'Conversación de prueba', data: { chat: { provider: 'claude' } } });
@@ -66,16 +73,32 @@ try {
     const metrics = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
     assert.ok(metrics.scroll <= metrics.width && metrics.body <= metrics.width, JSON.stringify(metrics));
   };
+  const approve = async () => {
+    await page.getByRole('heading', { name: 'Esperando aprobación' }).waitFor();
+    const pending = (await host.invoke('mobile.status')).pending[0]; assert.ok(pending);
+    assert.equal((await page.locator('.mobile-sas').textContent()).replace(/\s/g, ''), pending.sas);
+    await noOverflow(); await screenshot('01-approval');
+    await host.invoke('mobile.approve', { id: pending.id });
+    await page.getByRole('heading', { name: 'Sesiones', exact: true }).waitFor();
+  };
   const pair = async code => {
     await page.getByLabel('Código de emparejamiento').fill(code);
     await page.getByRole('button', { name: 'Emparejar', exact: true }).click();
-    await page.getByRole('heading', { name: 'Sesiones', exact: true }).waitFor();
+    await approve();
   };
-  await page.goto(access.url);
-  await page.getByRole('heading', { name: 'Emparejar con tu escritorio' }).waitFor();
+  await page.goto(access.pairing.link);
+  await page.getByRole('heading', { name: 'Esperando aprobación' }).waitFor();
+  assert.equal(new URL(page.url()).hash, '');
   assert.equal(await page.evaluate(() => typeof window.phantom), 'undefined');
   await noOverflow(); await screenshot('01-pairing');
-  await pair(access.pairing.code);
+  await approve();
+  const storedKey = await page.evaluate(() => new Promise((resolve, reject) => {
+    const open = indexedDB.open('phantom-mobile', 1); open.onerror = () => reject(open.error);
+    open.onsuccess = () => { const db = open.result, request = db.transaction('keys').objectStore('keys').get('device'); request.onerror = () => reject(request.error); request.onsuccess = () => { resolve({ extractable: request.result.keys.privateKey.extractable, type: request.result.keys.privateKey.type, token: request.result.token }); db.close(); }; };
+  }));
+  assert.equal(storedKey.extractable, false); assert.equal(storedKey.type, 'private');
+  assert.equal(storedKey.token, await page.evaluate(() => sessionStorage.getItem('phantom:mobile:bearer')));
+  await page.reload();
   await page.getByRole('heading', { name: node.title, exact: true }).waitFor();
   assert.equal(await page.getByText('PROYECTO AJENO').count(), 0);
   assert.equal(host.terminals.live.size, 0); assert.equal(actions.length, 0);
@@ -84,8 +107,10 @@ try {
   await page.getByText('Fin del historial inicial.', { exact: true }).waitFor();
   assert.equal(permissionAnswers, 0); assert.equal(questionAnswers, 0);
   await page.getByRole('button', { name: 'Permitir una vez' }).click();
+  await until(() => permissionAnswers === 1);
   await page.getByLabel('¿Qué opción prefieres?').fill('Primera');
   await page.getByRole('button', { name: 'Responder', exact: true }).click();
+  await until(() => questionAnswers === 1);
   assert.equal(permissionAnswers, 1); assert.equal(questionAnswers, 1);
   await page.getByLabel('Mensaje', { exact: true }).fill('Hola desde el teléfono');
   await page.getByRole('button', { name: 'Enviar', exact: true }).click();
@@ -151,13 +176,15 @@ try {
   await page.getByLabel('Código de emparejamiento').fill(expired.code);
   await page.getByRole('button', { name: 'Emparejar', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: 'Código caducado' }).waitFor();
-  const fresh = await host.invoke('mobile.pairing'); await pair(fresh.code);
+  const fresh = await host.invoke('mobile.pairing');
+  await page.evaluate(offset => { const OriginalDate = Date; globalThis.Date = class extends OriginalDate { constructor(...args) { super(...(args.length ? args : [OriginalDate.now() + offset])); } static now() { return OriginalDate.now() + offset; } }; }, clock);
+  await pair(fresh.code);
   await page.setViewportSize({ width: 360, height: 800 }); await noOverflow(); await screenshot('07-narrow-repaired');
   await host.invoke('mobile.stop');
   await page.getByRole('button', { name: 'Reconectar', exact: true }).waitFor();
   await screenshot('08-disconnected');
   assert.deepEqual(errors, []);
-  results.push('sessionStorage-only bearer, revocation, expiry, re-pair, stop/disconnect, 390px and 360px without overflow');
+  results.push('fragment removed, local SAS matches desktop approval, device key in IndexedDB, revocation, expiry, manual re-pair, stop/disconnect, 390px and 360px without overflow');
   await fs.writeFile(path.join(evidence, 'results.json'), JSON.stringify({ results, actions, terminalInputs, errors }, null, 2));
   console.log(JSON.stringify({ results, evidence }, null, 2));
 } finally {
