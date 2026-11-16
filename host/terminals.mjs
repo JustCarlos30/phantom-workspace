@@ -222,18 +222,18 @@ export class Terminals {
     const result=()=>({session:this.descriptor(s),data:s.snapshot,seq:s.snapshotSeq??s.seq,truncated:!!s.historyTruncated||(fromSeq!==undefined&&fromSeq!==s.seq)}),e=this.live.get(id);
     if(!e)return result();const attached=e.chain.then(()=>{this.capture(s,e);return result();});e.chain=attached.then(()=>{});return attached;
   }
-  tail(id,count=12) {
-    assert(Number.isInteger(count)&&count>=1&&count<=40,'Invalid tail line count');
+  tail(id,count=12,maxCount=40) {
+    assert(Number.isInteger(count)&&count>=1&&count<=maxCount,'Invalid tail line count');
     const s=this.get(id),e=this.live.get(id),base={status:e?s.status:s.status==='running'?'lost':s.status,seq:s.seq,cols:s.cols,rows:s.rows};
     if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:foregroundOf(e.child.pid),screenState:e.screenState??null};
     // Closed sessions: parse the persisted snapshot once per sequence.
     const key=s.snapshotSeq??s.seq,cached=this.tails?.get(id);
-    if(cached?.key===key) return {...base,...cached.value,foreground:null};
+    if(cached?.key===key&&cached.count===count) return {...base,...cached.value,foreground:null};
     const { Terminal } = require('@xterm/headless');
     const terminal=new Terminal({cols:s.cols||80,rows:s.rows||24,scrollback:1000,allowProposedApi:true});
     return new Promise(resolve=>terminal.write(s.snapshot||'',()=>{
       const value=tailLines(terminal,count);terminal.dispose();
-      (this.tails??=new Map()).set(id,{key,value});
+      (this.tails??=new Map()).set(id,{key,count,value});
       resolve({...base,...value,foreground:null});
     }));
   }

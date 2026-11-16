@@ -4,6 +4,7 @@ import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from 
 import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions } from '../hooks/plugin-model.mjs';
 import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf, checkResult, eventLabel, eventDetails, phaseOf } from '../hooks/phantom-desk.mjs';
 import { cardLocations } from '../hooks/branches-model.mjs';
+const unavailableReason = reason => reason?.replace(/^Phantom unavailable: /, '') || 'sin motivo informado';
 
 const POLL_MS = 4000;
 
@@ -118,7 +119,7 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
     </header>
     {detail.loading && !value && <div className="pc-skeleton" role="status" aria-label="Leyendo contrato"><i /><i /><i /></div>}
     {detail.error && <ErrorNotice error={detail.error} retry={detail.reload} />}
-    {value?.available === false && <p className="pc-notice">Phantom no está disponible: {value.reason || 'sin motivo informado'}.</p>}
+    {value?.available === false && <p className="pc-notice">Phantom no está disponible: {unavailableReason(value.reason)}.</p>}
     {ready && <>
       <details className="pc-full-goal"><summary>Objetivo completo</summary><p>{goalOf(native)}</p></details>
       <p className="pc-quiet">{phaseOf(native)}</p>
@@ -289,7 +290,7 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
       {showDesk && <div className="pc-desk" aria-label="Mesa de Cards">
         {source.error && <ErrorNotice error={`No se pudo leer Phantom: ${source.error.message}. Se conserva la última lectura válida.`} retry={source.reload} />}
         <ErrorNotice error={runOp.error} clear={runOp.clear} />
-        {unavailable && <p className="pc-notice">Phantom no está disponible: {source.data.reason || 'sin motivo informado'}.</p>}
+        {unavailable && <p className="pc-notice">Phantom no está disponible: {unavailableReason(source.data.reason)}.</p>}
         {source.loading && !source.data && <div className="pc-skeleton is-desk" role="status" aria-label="Leyendo Cards"><i /><i /><i /></div>}
         {source.data && !source.loading && !source.error && !unavailable && !items.length && <EmptyState className="pc-empty" icon={Layers} title="No hay tareas ni Cards nativas para este proyecto." description="Una Card es un contrato con objetivo, rutas y checks. Crea la primera para que Phantom la ejecute y la verifique." actions={<Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Crear la primera Card</Button>} />}
         {items.length > 0 && !desk.total && <EmptyState className="pc-empty" icon={Search} title={query ? `Sin resultados para «${query}»` : 'Sin Cards en esta rama'} actions={<Button onClick={() => { setQuery(''); setPlace(''); }}>Limpiar filtros</Button>} />}

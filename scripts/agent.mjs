@@ -16,6 +16,7 @@ export function invokeAgent(method, payload, socketPath, timeout=10000) {
 }
 const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review] | run ID [MODELO] | runs\n'
   +'Encargos: projects | handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)\n'
+  +'Procesos: launch [--title TÍTULO] "COMANDO" | processes | output ID [LÍNEAS] | stop ID\n'
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
   +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"';
 // Incorporaciones: [payload from arguments, argument check]. Orchestrator actions carry its token.
@@ -47,6 +48,24 @@ function handoffArguments(args) {
   return {...payload,brief:source.stdin?fs.readFileSync(0,'utf8'):source.file?fs.readFileSync(source.file,'utf8'):source.brief};
 }
 export async function main(args=process.argv.slice(2), env=process.env) {
+  if(['launch','processes','output','stop'].includes(args[0])) {
+    const [action,...rest]=args;
+    let payload={},method=`terminal.agent.${action}`;
+    const line=(value,max)=>typeof value==='string'&&value.trim()&&value.trim().length<=max&&!/[\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(value);
+    if(action==='launch') {
+      const titled=rest.length===3&&rest[0]==='--title';
+      if(!(rest.length===1||titled)||!line(rest.at(-1),2000)||rest.at(-1).startsWith('-')||(titled&&(!line(rest[1],120)||rest[1].length>120)))throw new Error(USAGE);
+      payload={command:rest.at(-1),...(titled?{title:rest[1]}:{})};
+    } else if(action==='processes') {
+      if(rest.length)throw new Error(USAGE);
+    } else {
+      if(rest.length<1||rest.length>(action==='output'?2:1)||!line(rest[0],512)||rest[0].startsWith('-')||(rest.length===2&&(!/^\d+$/.test(rest[1])||Number(rest[1])<1||Number(rest[1])>400)))throw new Error(USAGE);
+      method=`terminal.agent.process.${action}`;
+      payload={id:rest[0],...(rest.length===2?{lines:Number(rest[1])}:{})};
+    }
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    return invokeAgent(method,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...payload},env.PHANTOM_WORKSPACE_SOCKET,action==='launch'?60000:10000);
+  }
   const [action,...rest]=args,merge=Object.hasOwn(MERGE,action??'')?MERGE[action]:null;
   if ((!merge && !['context','report','bind','projects','handoff','run','runs'].includes(action)) || (action==='projects'&&rest.length) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512)) || (action==='run' && (rest.length<1 || rest.length>2 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512 || (rest.length===2 && (!rest[1].trim() || /[\x00-\x1f\x7f]/.test(rest[1]) || rest[1].length>200)))) || (action==='runs' && rest.length)) throw new Error(USAGE);
   const handoff=action==='handoff'?handoffArguments(rest):null;

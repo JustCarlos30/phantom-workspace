@@ -3,6 +3,7 @@ import { useComposerSize } from '../hooks/useComposerSize';
 import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, FoldVertical, Folder, GitBranch, Globe, Lightbulb, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
@@ -10,7 +11,9 @@ import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, conte
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
-import { ProviderGlyph, ProviderTile } from './Glyphs';
+import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
+import { phantomRunIds, summarizePhantomRun } from '../hooks/phantom-run-link.mjs';
+import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 
@@ -188,6 +191,51 @@ function ToolRow({ part }) {
   </div></details></li>;
 }
 
+export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    let disposed = false, timer;
+    setState(null);
+    if (typeof api !== 'function' || !workspaceId) {
+      setState({ error: true });
+      return;
+    }
+    const refresh = async () => {
+      try {
+        const [detail, controllers] = await Promise.all([
+          api('phantom.detail', { workspaceId, topic: 'tasks', id }),
+          api('phantom.controllers', { workspaceId }),
+        ]);
+        if (disposed) return;
+        if (!detail || detail.available === false || detail.task?.available === false || controllers?.available === false || !Array.isArray(controllers?.items)) throw new Error('No disponible');
+        const summary = summarizePhantomRun(detail, itemsOf(controllers), id);
+        setState(summary);
+        if (summary.live) timer = setTimeout(refresh, 3000);
+      } catch {
+        if (!disposed) setState({ error: true });
+      }
+    };
+    refresh();
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [api, workspaceId, id]);
+  if (!state) return null;
+  if (state.error) return <p className="pc-phantom-warning" role="status">Seguimiento Phantom no disponible.</p>;
+  return <section className="pc-subagent pc-phantom-run" aria-label={`Encargo Phantom ${id}`}>
+    <header className="pc-subagent-head">
+      <span className="pc-subagent-mark" aria-hidden="true"><PhantomGlyph size={16} /></span>
+      <span className="pc-subagent-label">Encargo Phantom</span>
+      <code className="pc-phantom-id" title={id}>{id.slice(0, 13)}</code>
+      <span className={`pc-phantom-status is-${state.tone}`} role="status">{state.label}</span>
+    </header>
+    <p className="pc-subagent-goal" title={state.goal}>{state.goal}</p>
+    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>{state.duration}</span>}</p>
+    {state.line && <p className="pc-subagent-said">{state.line}</p>}
+    {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}
+    {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Checks · {state.passed}/{state.total} pasados</summary><ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
+    {onOpenPanel && <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, state.goal)}>Abrir en Phantom</button>}
+  </section>;
+}
+
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const KIND_PHRASE = {
   read: items => `leyó ${plural(new Set(items.map(part => part.detail || part.id)).size, 'archivo', 'archivos')}`,
@@ -331,6 +379,8 @@ function groupParts(parts) {
   for (const part of parts) {
     if (part.type === 'tool' && asked.has(part.id)) continue;
     if (isSubagent(part)) { groups.push({ type: 'subagent', part }); continue; }
+    const ids = phantomRunIds(part);
+    if (ids.length) { groups.push({ type: 'phantom', part, ids }); continue; }
     const last = groups.at(-1);
     if (part.type === 'tool' && last?.type === 'tools') last.items.push(part);
     else groups.push(part.type === 'tool' ? { type: 'tools', items: [part] } : part);
@@ -339,12 +389,12 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
   if (message.role === 'user') return <div className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></div>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} />;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
@@ -355,6 +405,8 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
     {groups.map((group, i) => group.type === 'tools'
       ? <ToolGroup key={i} items={group.items} />
+      : group.type === 'phantom'
+        ? <div key={group.part.id} className="pc-phantom-link">{group.ids.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}<ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -521,7 +573,7 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [open]);
-  if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
+  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">Contexto no disponible</span>;
   const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
@@ -653,16 +705,28 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
   return '';
 }
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const armedRef = useRef(false), draftRef = useRef(draft), submitRef = useRef(null);
+  draftRef.current = draft;
+  const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
-  const voice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
-    onText: text => setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text) });
+  const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
+    onText: text => {
+      const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
+      arm(false); draftRef.current = merged; setDraft(merged);
+      if (pendingSend) submitRef.current(merged, true);
+    } });
+  const voice = { ...recorderVoice, cancel: () => { arm(false); recorderVoice.cancel(); } };
   const listening = voice.status === 'recording';
+  const dictating = listening || voice.status === 'transcribing';
+  useLayoutEffect(() => { if (voice.status === 'idle' || !connected || overview) arm(false); }, [voice.status, connected, overview]);
+  useLayoutEffect(() => { arm(false); }, [workspace.id, node.id, provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
   const chosen = node.data.chat.permissionMode ?? (typeof node.data.chat.autoApprove === 'boolean' ? (node.data.chat.autoApprove ? 'auto' : 'ask') : null);
@@ -690,14 +754,21 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   useEffect(() => { pinned.current = true; }, [provider]);
   useEffect(() => { if (focused) input.current?.focus({ preventScroll: true }); }, [focused, provider]);
   useComposerSize(input, draft, !overview);
-  const submit = async () => {
-    const text = draft.trim();
-    if (!text || sending || !connected) return;
-    if (voice.status !== 'idle') voice.cancel();
+  const submit = async (value = draftRef.current, fromVoice = false) => {
+    if (sending || !connected) return;
+    if (!fromVoice) {
+      const action = sendAction({ status: voice.status, draft: value, armed: armedRef.current });
+      if (action === 'none') return;
+      if (action === 'stop-and-send' || action === 'await-voice') { arm(true); if (action === 'stop-and-send') voice.stop(); return; }
+      if (voice.status !== 'idle') voice.cancel();
+    }
+    const text = value.trim();
+    if (!text) return;
     setSending(true); pinned.current = true;
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
   };
+  submitRef.current = submit;
   const model = meta.model, cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
@@ -732,7 +803,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
             <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
           </dl>}
         </EmptyState>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
@@ -740,7 +811,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
       <ContextNudge key={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
-      <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
+      <div className={`pc-field ${listening ? 'is-listening' : ''}`} style={{ '--voice-level': voice.level }} onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         <VoiceActivity voice={voice} />
         {voice.error && <p className="voice-inline-error" role="alert">{voice.error}</p>}
         <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
@@ -752,7 +823,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           </div>
           <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : listening ? 'Detener y transcribir' : `Dictar a ${label}`} aria-label={listening ? 'Detener y transcribir' : `Dictar a ${label}`} onClick={listening ? voice.stop : voice.start}>{listening ? <Square size={14} /> : <Mic size={16} />}</button>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={16} /></button>}
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Detener dictado y enviar · Enter' : running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Detener dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{armed ? <LoaderCircle size={16} className="spinning" /> : <ArrowUp size={16} />}</button>}
         </div>
       </div>
       <div className="pc-meta">

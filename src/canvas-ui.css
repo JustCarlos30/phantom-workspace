@@ -117,9 +117,6 @@
 .button,
 .icon-button,
 .rail-heading button,
-.project-item,
-.project-initials,
-.open-folder,
 .rail-bottom>button,
 .search-command,
 .canvas-navigation button,
@@ -144,7 +141,6 @@
 .canvas-popover>button,
 .canvas-zoom-presets button,
 .background-upload,
-.accent-options button,
 .activity-tray button:not(.icon-button),
 .activity-base input,
 .plugin-surface .tw-section,
@@ -168,8 +164,7 @@
 .panel-index,
 .context-menu,
 .toast,
-.canvas-popover,
-.background-option { border-radius: var(--r-obj); }
+.canvas-popover { border-radius: var(--r-obj); }
 .tw-palette,
 .app-dialog,
 .attention-tray,
@@ -230,10 +225,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 }
 .rail-collapse, .rail-collapsed-project { display: none; }
 @media (min-width: 851px) {
-  .rail-collapsed .rail-collapsed-project { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 4px; border-radius: var(--r-ctl); font-size: 12px; font-weight: 600; color: var(--ink); min-width: 0; }
-  .rail-collapsed-project:hover { background: var(--island-hover); }
-  .rail-collapsed-project > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rail-collapsed-project .project-initials { width: 24px; height: 24px; border-radius: var(--r-ctl); background: var(--accent-soft); color: var(--accent); }
+  .rail-collapsed .rail-collapsed-project { display: flex; }
 }
 @media (max-width: 850px) { .project-rail { border-radius: 0 var(--r-obj) var(--r-obj) 0; } }
 
@@ -700,14 +692,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 
 /* ---------- Appearance ---------- */
 .appearance-panel h2 { font: var(--t-title); }
-.background-option { border-color: var(--hairline); border-radius: var(--r-obj); padding: 5px 5px 9px; }
-.background-option:hover { border-color: var(--hairline); background: var(--fill); }
-.background-option[aria-pressed=true] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.background-option[aria-pressed=true] > svg { color: var(--accent); }
 .background-preview { border-radius: var(--r-ctl); }
 .background-upload { border: 1px dashed var(--hairline); border-radius: var(--r-obj); }
-.accent-options button { border-radius: var(--r-ctl); }
-.accent-options button:hover, .accent-options button[aria-pressed=true] { background: var(--fill-2); }
 .grid-toggle, .appearance-footer { border-top-color: var(--hairline); }
 
 /* ---------- First run ---------- */
@@ -1251,3 +1237,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
     animation-duration: 60ms !important;
   }
 }
+
+/* Native selects share one chevron and one quiet transition. A data URI cannot
+   read tokens: the stroke is --muted. !important keeps the chevron when a
+   panel sets the `background`/`padding` shorthands on its own select. */
+select:not([multiple]):not([size]) {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-inline-end: 28px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23a69bb7' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 9px center !important; background-size: 12px 12px !important;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+select:disabled { cursor: not-allowed; }

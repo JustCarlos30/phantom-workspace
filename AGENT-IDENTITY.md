@@ -52,6 +52,23 @@ El texto no puede quedar vacío tras trim y tiene máximo 32000 caracteres. El t
 
 El arranque escribe una sola línea constante: `claude "<FIJO>"`, `codex "<FIJO>"` u `opencode --prompt "<FIJO>"`, seguida de `\r`. `none` deja la PTY viva sin escribir. La constante pide leer `context`, campo `handoff`; nunca interpola texto, títulos ni nombres en el comando. El encargo viene de otro agente, no del usuario, y no amplía mandato ni permisos. Atención del destino recibe un aviso `Encargo recibido: <título>` con clave única `handoff:<id>`, referencia a la sesión nueva y eventos `attention.new`/`state.changed` (tope 1000). Si falla crear la sesión, el panel conserva `launchState: failed`, se propaga el error y no se añade aviso.
 
+## Enviar procesos largos a Automatizar
+
+Para servidores, watchers y tareas largas que ocuparían la sesión, usa `launch`; no los dejes en primer plano ni en segundo plano de tu propio turno.
+
+```sh
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" launch --title "Servidor de desarrollo" "npm run dev"
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" processes
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" output ID 80
+"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" stop ID
+```
+
+`launch [--title TÍTULO] "COMANDO"` crea un panel `Proceso: <título>` en el mismo workspace, con una sesión nueva en la carpeta de la sesión emisora, sin worktree propio. Escribe el comando seguido de `\r`; el título por defecto son sus primeros 60 caracteres. El comando debe tener 1..2000 caracteres tras trim y ser una línea sin controles; el título admite hasta 120. Solo la sesión viva actual del panel puede lanzar procesos. Un proceso no puede lanzar otros. Límite en memoria: diez lanzamientos por sesión emisora por hora, reservados incluso si falla el arranque. Timeout de lanzamiento: 60000 ms.
+
+`processes` lista los procesos del workspace con estado de sesión y `mine` según el panel emisor. `output ID [LÍNEAS]` lee las últimas líneas (80 por defecto, entre 1 y 400); `stop ID` detiene la sesión del proceso. ID es el `processId`, y ambos comandos solo aceptan procesos del mismo workspace. Los argumentos inválidos dan error de uso.
+
+En **Automatizar → Procesos** aparecen los más recientes primero, con **Ver sesión**, **Detener** y **Abrir** para las URL de servicios gestionados atribuidos a su sesión. **Actualizar** y los eventos de salida de terminal refrescan el estado. Cerrar el panel del proceso no elimina ni modifica el worktree emisor. `data.process = {id,command,title,cwd,from:{nodeId,title},createdAt}` es inmutable ante `node.update`.
+
 ## Persistencia y fuentes
 
 La asignación se almacena en `node.data.agent`:
@@ -79,6 +96,12 @@ Un panel creado por encargo guarda `data.handoff = {id,from:{workspaceId,workspa
 - `terminal.agent.report {sessionId,patch:{step?,status?}}` → contexto actualizado. Solo la sesión viva actual del panel puede reportar.
 - `terminal.agent.projects {sessionId}` → `[{id,name,path,current}]`. Exige una sesión existente; socket privado, no renderer.
 - `terminal.agent.handoff {sessionId,brief,title?,project?,agent?}` → `{handoffId,workspaceId,workspaceName,nodeId,sessionId,title,agent,launched}`. Solo la sesión viva actual del panel; rechaza claves desconocidas. `launched` indica que se escribió la línea fija de arranque, no que el agente terminó su trabajo. Socket privado, no renderer.
+- `terminal.agent.launch {sessionId,command,title?}` → `{processId,nodeId,sessionId,title,command,cwd}`.
+- `terminal.agent.processes {sessionId}` → `[{processId,nodeId,sessionId,title,command,cwd,status,createdAt,mine}]`, con `status: "running" | "stopped"`.
+- `terminal.agent.process.output {sessionId,id,lines?}` → resultado de `terminals.tail` (incluye `lines`).
+- `terminal.agent.process.stop {sessionId,id}` → `{ok:true}` de `terminals.stop`.
+
+Los métodos de procesos requieren una sesión existente y su panel emisor; `launch` exige además que sea la sesión viva actual. Rechazan claves desconocidas. Usan el socket privado, no el renderer; la interfaz consulta `terminal.list` y `services.list`, y detiene mediante `terminal.stop`.
 
 Los encargos abren terminales con contexto y arranque del CLI elegido; conservan el registro, alcance y permisos normales de cada agente.
 

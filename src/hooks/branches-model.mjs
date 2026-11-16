@@ -119,7 +119,7 @@ export function describeBranch(row, base) {
   };
 }
 
-export function buildBranches(data, { query = '', content, cards = [] } = {}) {
+export function buildBranches(data, { query = '', filter = '', content, cards = [] } = {}) {
   const base = data?.base?.branch || '';
   const text = query.trim().toLowerCase();
   const all = (data?.branches || []).map(row => describeBranch(row, base || 'main'));
@@ -127,13 +127,16 @@ export function buildBranches(data, { query = '', content, cards = [] } = {}) {
   const time = row => Date.parse(row.last?.at) || 0;
   const rows = all.filter(row => !row.isBase).sort((a, b) => a.order - b.order || (b.pendingCount + b.ahead) - (a.pendingCount + a.ahead) || time(b) - time(a));
   const visible = rows.filter(row => !text || `${row.title}\n${row.name || ''}\n${row.stateLabel}\n${cardsOf(row, content?.get(row.name || row.worktree?.path), cards).map(card => `${card.id} ${card.title}`).join('\n')}\n${row.worktree?.path || ''}\n${row.changes.map(change => change.path).join('\n')}\n${row.committed.join('\n')}`.toLowerCase().includes(text));
+  const filtered = visible.filter(row => !filter || row.state === filter);
+  const filters = Object.keys(BRANCH_STATES).map(id => ({ id, label: stateLabel(id, base), count: visible.filter(row => row.state === id).length })).filter(item => item.count);
   const sessions = rows.every(row => row.owned || /^phantom\/terminal-/.test(row.name || ''));
   const counts = Object.fromEntries(Object.keys(BRANCH_STATES).map(state => [state, rows.filter(row => row.state === state).length]));
   return {
-    base, baseRow, rows: visible, counts, total: rows.length, visible: visible.length,
+    base, baseRow, rows: filtered, counts, total: rows.length, visible: filtered.length,
+    filters, matched: visible.length, active: filtered.filter(row => row.state !== 'merged'), landed: filtered.filter(row => row.state === 'merged'),
     title: `${plural(rows.length, 'rama', 'ramas')}${sessions ? ' de tus sesiones' : ''}`,
     // One ordered list; `groups` stays for the callers that flatten it.
-    groups: [{ id: 'sessions', title: `${plural(rows.length, 'rama', 'ramas')}${sessions ? ' de tus sesiones' : ''}`, rows: visible }],
+    groups: [{ id: 'sessions', title: `${plural(rows.length, 'rama', 'ramas')}${sessions ? ' de tus sesiones' : ''}`, rows: filtered }],
     unsaved: rows.reduce((sum, row) => sum + row.changeCount, 0), unsavedInBase: rows.reduce((sum, row) => sum + row.inBase, 0), pending: rows.reduce((sum, row) => sum + row.ahead, 0),
     removable: rows.filter(row => row.can.remove), updatable: rows.filter(row => row.can.update && row.work === 'none'),
   };
