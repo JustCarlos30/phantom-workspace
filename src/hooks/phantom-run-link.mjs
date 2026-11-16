@@ -23,10 +23,24 @@ export function summarizePhantomRun(value, controllers = [], id, now = Date.now(
   const checks = (results.length ? results : declared).map(check => ({ ...check, result: results.length ? checkResult(check) : 'Sin resultado' }));
   return {
     goal: goalOf(native), status, label: statusLabel(status), tone: statusTone(status),
+    model: run?.requestedModel,
+    ...(typeof run?.turns === 'number' ? { turns: run.turns } : {}),
+    ...(typeof run?.tools === 'number' ? { tools: run.tools } : {}),
     phase: phaseOf({ ...native, run: run || native.run }),
     live: ['ready', 'running', 'verifying', 'recovering'].includes(status) || controller?.status === 'running',
     duration: duration(run?.startedAt || controller?.startedAt || controller?.createdAt, run?.endedAt || controller?.endedAt, now),
     line: lastLine(controller?.output), output: typeof controller?.output === 'string' ? controller.output.slice(-4000) : '',
     checks, passed: results.filter(check => check.passed === true && check.executed !== false).length, total: checks.length,
   };
+}
+
+export function summarizePhantomActivity(activity, workspace) {
+  const labels = { read: 'Leer', grep: 'Buscar', glob: 'Buscar', list: 'Buscar', edit: 'Editar', write: 'Editar', apply_patch: 'Editar', patch: 'Editar', bash: 'Ejecutar', shell: 'Ejecutar', webfetch: 'Web', task: 'Agente' };
+  const prefix = typeof workspace === 'string' && workspace ? `${workspace.replace(/\/$/, '')}/` : '';
+  const steps = activity?.available && Array.isArray(activity.items) ? activity.items.map(item => {
+    const kind = String(item.tool || '').toLowerCase();
+    return { id: item.id, kind, label: labels[kind] || item.tool, detail: prefix ? String(item.target || '').split(prefix).join('') : String(item.target || ''), status: item.status };
+  }) : [];
+  const total = activity?.available ? Math.max(activity.total || 0, steps.length) : 0;
+  return { steps, total, hidden: total - steps.length, current: steps.findLast(step => step.status === 'running') || null };
 }

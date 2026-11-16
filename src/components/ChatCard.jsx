@@ -12,7 +12,7 @@ import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
 import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
-import { phantomRunIds, summarizePhantomRun } from '../hooks/phantom-run-link.mjs';
+import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
 import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
@@ -193,23 +193,31 @@ function ToolRow({ part }) {
 
 export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
   const [state, setState] = useState(null);
+  const [chosen, setChosen] = useState(null);
+  const stepsRef = useRef(null);
+  const open = chosen ?? state?.live ?? false;
+  useEffect(() => {
+    if (open && stepsRef.current) stepsRef.current.scrollTop = stepsRef.current.scrollHeight;
+  }, [state, open]);
   useEffect(() => {
     let disposed = false, timer;
     setState(null);
+    setChosen(null);
     if (typeof api !== 'function' || !workspaceId) {
       setState({ error: true });
       return;
     }
     const refresh = async () => {
       try {
-        const [detail, controllers] = await Promise.all([
+        const [detail, controllers, activity] = await Promise.all([
           api('phantom.detail', { workspaceId, topic: 'tasks', id }),
           api('phantom.controllers', { workspaceId }),
+          Promise.resolve().then(() => api('phantom.events', { workspaceId, id, view: 'activity' })).catch(() => null),
         ]);
         if (disposed) return;
         if (!detail || detail.available === false || detail.task?.available === false || controllers?.available === false || !Array.isArray(controllers?.items)) throw new Error('No disponible');
         const summary = summarizePhantomRun(detail, itemsOf(controllers), id);
-        setState(summary);
+        setState({ ...summary, activity: summarizePhantomActivity(activity, detail.contract?.workspace || detail.task?.contract?.workspace), model: summary.model || activity?.model });
         if (summary.live) timer = setTimeout(refresh, 3000);
       } catch {
         if (!disposed) setState({ error: true });
@@ -226,9 +234,18 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
       <span className="pc-subagent-label">Encargo Phantom</span>
       <code className="pc-phantom-id" title={id}>{id.slice(0, 13)}</code>
       <span className={`pc-phantom-status is-${state.tone}`} role="status">{state.label}</span>
+      {state.model && <span className="pc-subagent-type" title={state.model}>{state.model.split('/').at(-1)}</span>}
     </header>
     <p className="pc-subagent-goal" title={state.goal}>{state.goal}</p>
-    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>{state.duration}</span>}</p>
+    {state.live && state.activity.current && <p className="pc-subagent-now" role="status" aria-label="Actividad actual"><LoaderCircle className="spinning" size={14} aria-hidden="true" /><span className="pc-tool-name">{state.activity.current.label}</span><span className="pc-tool-detail" title={state.activity.current.detail}>{state.activity.current.detail}</span></p>}
+    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>· {state.duration}</span>}{state.turns !== undefined && <span>· {state.turns} turnos</span>}{state.tools !== undefined && <span>· {state.tools} herramientas</span>}</p>
+    {state.activity.total > 0 && <details className="pc-subagent-more" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
+      <summary><ChevronRight size={14} aria-hidden="true" />Pasos del ejecutor · {state.activity.total}</summary>
+      <ol className="pc-subagent-steps" ref={stepsRef} aria-label="Pasos del ejecutor">
+        {state.activity.hidden > 0 && <li className="pc-subagent-hidden">{state.activity.hidden} pasos anteriores</li>}
+        {state.activity.steps.map(step => { const [, Icon] = toolKind(step.kind); return <li key={step.id} className={`is-${step.status}`}><Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.label}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} /></li>; })}
+      </ol>
+    </details>}
     {state.line && <p className="pc-subagent-said">{state.line}</p>}
     {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}
     {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Checks · {state.passed}/{state.total} pasados</summary><ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
