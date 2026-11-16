@@ -98,6 +98,21 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
     catch (error) { if (error instanceof SyntaxError) error.transient = false; throw error; }
   });
   const seen = new Map(), requests = new Set(), sessions = new Set(sessionId ? [sessionId] : []);
+  const models = new Map();
+  const emitModel = info => {
+    if (info?.sessionID !== sessionId || info.role !== 'assistant' || !info.providerID || !info.modelID) return;
+    const model = `${info.providerID}/${info.modelID}`;
+    if (models.has(model)) return;
+    models.set(model, (async () => {
+      let contextWindow;
+      try {
+        const config = await getJSON('/config/providers');
+        const value = config.providers?.find(provider => provider.id === info.providerID)?.models?.[info.modelID]?.limit?.context;
+        if (Number.isFinite(value) && value > 0) contextWindow = value;
+      } catch { /* Model limits are optional. */ }
+      if (!signal.aborted) onEvent({ type: 'model', sessionID: sessionId, model, ...(contextWindow ? { contextWindow } : {}) });
+    })());
+  };
   const errorMessage = error => String(error?.data?.message || error?.message || error?.name || 'OpenCode terminó con error');
   const emitPart = part => {
     if (!part?.id || !sessions.has(part.sessionID)) return;
@@ -115,6 +130,7 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
   };
   const handle = event => {
     const p = event.properties || {};
+    if (event.type === 'message.updated') emitModel(p.info);
     if (event.type === 'session.created' && sessions.has(p.info?.parentID)) sessions.add(p.info.id);
     if (event.type === 'message.part.updated') emitPart(p.part);
     // Child failures belong to the parent's task tool. Even main errors can
@@ -204,6 +220,8 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
     // The HTTP result also contains final parts: fill gaps if the last SSE
     // packet and the prompt response arrive in different event-loop turns.
     for (const part of result.parts || []) emitPart(part);
+    emitModel(result.info);
+    await Promise.all(models.values());
     if (result.info?.error) onEvent({ type: 'error', error: { message: [...new Set([errorMessage(result.info.error), ...(mainError ? [errorMessage(mainError)] : [])])].join('\n') } });
     if (failure) throw failure;
     completed = true;

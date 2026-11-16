@@ -35,7 +35,7 @@ export function formatCost(usd) {
   return usd < .01 ? '<$0.01' : `$${usd.toFixed(2)}`;
 }
 export function contextUse(meta) {
-  if (!['claude:request-v1', 'opencode:request-v1'].includes(meta?.contextSource) || !Number.isFinite(meta?.contextTokens) || meta.contextTokens <= 0) return null;
+  if (!['claude:request-v1', 'opencode:request-v1', 'codex:request-v1'].includes(meta?.contextSource) || !Number.isFinite(meta?.contextTokens) || meta.contextTokens <= 0) return null;
   const window = Number.isFinite(meta.contextWindow) && meta.contextWindow > 0 ? meta.contextWindow : null;
   return { tokens: meta.contextTokens, window, ratio: window ? meta.contextTokens / window : null };
 }
@@ -73,6 +73,9 @@ export function contextAdvice(use) {
 // `dismissed` is the highest band rank the user already waved off: the nudge
 // only returns when the context climbs past it. Figures are the provider's.
 export const BAND_RANK = { ok: 0, watch: 1, compact: 2 };
+export function nudgeDismissal(previous, rank) {
+  return rank == null ? previous : Math.min(previous, rank);
+}
 export function contextNudge(use, dismissed = 0) {
   const advice = contextAdvice(use);
   if (!advice || BAND_RANK[advice.band] <= dismissed) return null;

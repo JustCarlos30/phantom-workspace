@@ -182,7 +182,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
       </div>
       <div className="pc-meta">
         <PermissionSwitch mode={permissionMode} provider={active} descriptions={PERMISSIONS} disabled={!chat} onChange={next => configure({ permissionMode: next })} />
-        <ContextMeter meta={meta} />
+        <ContextMeter meta={meta} running={running} />
         {cost && <span className="pc-cost" title={`Costo acumulado · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
         <span className="pc-bar-space" />
         <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>

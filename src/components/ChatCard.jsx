@@ -7,7 +7,7 @@ import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
-import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
+import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, nudgeDismissal, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
@@ -573,7 +573,7 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [open]);
-  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">Contexto no disponible</span>;
+  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">{running ? 'Midiendo contexto…' : 'Contexto no disponible'}</span>;
   const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
@@ -639,11 +639,15 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
 // A friendly, dismissible heads-up when the context crosses into a costlier band.
 // Dismissing silences the current band only; dropping back (after compacting or
 // a new conversation) re-arms it.
-export function ContextNudge({ meta, onReveal }) {
+export function ContextNudge({ meta, nodeId, firstMessageId, onReveal }) {
   const use = contextUse(meta);
-  const [dismissed, setDismissed] = useState(0);
-  const rank = BAND_RANK[contextAdvice(use)?.band ?? 'ok'];
-  useEffect(() => { if (rank < dismissed) setDismissed(rank); }, [rank, dismissed]);
+  const key = `phantom.chatNudge.${nodeId}.${firstMessageId}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try { const value = Number(localStorage.getItem(key)); return [0, 1, 2].includes(value) ? value : 0; } catch { return 0; }
+  });
+  const rank = use ? BAND_RANK[contextAdvice(use).band] : null;
+  useEffect(() => { setDismissed(previous => nudgeDismissal(previous, rank)); }, [rank]);
+  useEffect(() => { try { localStorage.setItem(key, String(dismissed)); } catch { /* Memory only. */ } }, [key, dismissed]);
   const nudge = contextNudge(use, dismissed);
   if (!nudge) return null;
   return <section className={`pc-nudge is-${nudge.band}`} role="status" aria-label="Aviso de contexto">
@@ -809,7 +813,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
-      <ContextNudge key={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
+      <ContextNudge key={`${node.id}.${chat?.messages?.[0]?.id || 'empty'}`} nodeId={node.id} firstMessageId={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
       <div className={`pc-field ${listening ? 'is-listening' : ''}`} style={{ '--voice-level': voice.level }} onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         <VoiceActivity voice={voice} />

@@ -13,7 +13,7 @@ test('Codex aggregate usage never becomes occupied context', () => {
   const t = turn();
   t.contextTokens = 164000;
   applyCodexEvent(t, { type: 'turn.completed', usage: { input_tokens: 160000, cached_input_tokens: 100000, output_tokens: 4000 } });
-  assert.equal(t.contextTokens, undefined);
+  assert.equal(t.contextTokens, 164000);
   assert.equal(t.contextSource, undefined);
   assert.equal(t.usage.outputTokens, 4000);
 });
@@ -29,9 +29,14 @@ test('Claude keeps only complete latest root request readings', () => {
   assert.equal(t.contextTokens, 20151);
   for (const invalid of [undefined, {}, { input_tokens: 1, output_tokens: 2 }, ...[NaN, Infinity, -1, null].map(output_tokens => ({ ...usage, output_tokens }))]) {
     apply(usage); apply(invalid);
-    assert.equal(t.contextTokens, undefined);
-    assert.equal(t.contextSource, undefined);
+    assert.equal(t.contextTokens, 100150);
+    assert.equal(t.contextSource, 'claude:request-v1');
   }
+  applyClaudeEvent(t, { type: 'stream_event', event: { type: 'message_start', message: { usage: { ...usage, input_tokens: 4 } } } });
+  assert.equal(t.contextTokens, 20154);
+  t.model = 'claude-x';
+  applyClaudeEvent(t, { type: 'result', modelUsage: { 'claude-x[1m]': { contextWindow: 1000000 } } });
+  assert.equal(t.contextWindow, 1000000);
 });
 
 test('Reload invalidates legacy metadata and clear removes measured context', t => {
@@ -51,6 +56,10 @@ test('Reload invalidates legacy metadata and clear removes measured context', t 
   assert.deepEqual(chats.get(node).meta, {});
   node.data.chat.provider = 'codex';
   assert.deepEqual(chats.get(node).meta, { costUsd: 1 });
+  chats.thread(node.id, 'codex').meta = { contextSource: 'codex:request-v1', contextTokens: 144871, contextWindow: 258400 };
+  chats.save(); clearInterval(chats.timer);
+  chats = new Chats({ dir: root }, () => {});
+  assert.equal(chats.get(node).meta.contextTokens, 144871);
 });
 test('Codex folds lifecycle events without duplicating updates and reports failures', () => {
   const t = turn();
@@ -116,6 +125,28 @@ test('chat turns get the canvas browser bridge: stable per card, live only while
 });
 
 // Stand-in agent CLIs: executables that print a recorded event stream.
+test('Codex persiste la medición real del rollout antes de cerrar el turno', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-context-'));
+  const home = path.join(root, 'codex-home'), dir = path.join(home, 'sessions', '2025', '02', '03');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'rollout-date-session-12345678.jsonl');
+  const bin = fixture(root, 'codex', `const fs=require('fs');process.stdin.resume();process.stdin.on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'session-12345678'});fs.writeFileSync(${JSON.stringify(file)},JSON.stringify({type:'event_msg',payload:{type:'token_count',info:{last_token_usage:{total_tokens:144871},model_context_window:258400}}})+'\\n');out({type:'turn.completed',usage:{input_tokens:999999,output_tokens:9}});});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  host.chats.codexHome = home;
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
+  const ref = { workspaceId: workspace.id, nodeId: node.id };
+  await host.invoke('chat.send', { ...ref, text: 'hola' });
+  await until(async () => !(await host.invoke('chat.get', ref)).running);
+  const { meta } = await host.invoke('chat.get', ref);
+  assert.equal(meta.contextSource, 'codex:request-v1');
+  assert.equal(meta.contextTokens, 144871);
+  assert.equal(meta.contextWindow, 258400);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'state', 'chats.json')))[node.id].threads.codex.meta.contextTokens, 144871);
+});
+
 function fixture(dir, name, body) {
   const file = path.join(dir, name);
   fs.writeFileSync(file, `#!${process.execPath}\n${body}`, { mode: 0o755 });
@@ -257,7 +288,9 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   // Layout saves must not drop the chat selection; permission is per card.
   await host.invoke('node.update', { workspaceId: w.id, id: node.id, patch: { data: { fontSize: 14 } } });
   await host.invoke('chat.configure', { ...ref, autoApprove: true });
-  await host.invoke('chat.send', { ...ref, text: 'sigue' }); await idle();
+   const secondStart = events.length;
+   await host.invoke('chat.send', { ...ref, text: 'sigue' }); await idle();
+   assert.ok(events.slice(secondStart).filter(e => e.type === 'chat.update').every(e => e.meta.contextTokens === 5009 && e.meta.contextWindow === 200000));
   chat = await host.invoke('chat.get', ref);
   assert.match(chat.messages[3].parts[0].text, /^eco:sigue resume:sid-1 modo:editar/);
   assert.deepEqual(chat.meta, { model: 'claude-x', contextSource: 'claude:request-v1', contextTokens: 5009, contextWindow: 200000, costUsd: .5, turns: 2 });
@@ -267,7 +300,9 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   await assert.rejects(host.invoke('chat.configure', { ...ref, model: '-x' }), /Modelo/);
   await host.invoke('chat.configure', { ...ref, model: 'opus' });
   assert.equal((await host.invoke('chat.get', ref)).model, 'opus'); assert.deepEqual((await host.invoke('chat.models', ref)).items.map(m => m.id), ['fable', 'opus', 'sonnet', 'haiku']);
-  await host.invoke('chat.send', { ...ref, text: 'con modelo' }); await idle();
+   const changedStart = events.length;
+   await host.invoke('chat.send', { ...ref, text: 'con modelo' }); await idle();
+   assert.equal(events.slice(changedStart).find(e => e.type === 'chat.update').meta.contextWindow, undefined);
   assert.match((await host.invoke('chat.get', ref)).messages.at(-1).parts[0].text, /resume:sid-1 modelo:opus modo:editar/);
   await host.invoke('chat.configure', { ...ref, model: null }); assert.equal((await host.invoke('chat.get', ref)).model, null);
   await host.invoke('chat.send', { ...ref, text: 'cuelga' });
