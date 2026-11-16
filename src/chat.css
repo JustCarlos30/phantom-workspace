@@ -255,11 +255,11 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 @keyframes pc-spin { to { transform: rotate(360deg); } }
 
 /* Empty: the facts of the session about to start, not a greeting. */
-.pc-conversation-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 16px; margin: 0; font-size: 12px; line-height: 1.5; text-align: left; }
+.pc-conversation-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 16px; width: min(100%, 52ch); margin: 0; font-size: 12px; line-height: 1.5; text-align: left; }
 .pc-conversation-facts > div { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; padding: 5px 0; }
 .pc-conversation-facts dt { color: var(--muted); }
 .pc-conversation-facts dd { margin: 0; min-width: 0; color: var(--ink); font: 12px/1.6 var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.pc-conversation-facts dd.is-prose { font: inherit; white-space: normal; max-width: 44ch; }
+.pc-conversation-facts dd.is-prose { font: inherit; white-space: normal; }
 
 /* ---------- Composer: one field, its status line inside ---------- */
 .pc-error { display: flex; align-items: flex-start; gap: 6px; margin: 0; padding: 8px 16px; background: var(--error-bg); color: var(--ink); font-size: 12px; line-height: 1.45; flex-shrink: 0; }
