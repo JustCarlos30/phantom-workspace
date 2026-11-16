@@ -106,6 +106,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='mobile.stop') return mobile.stop();
     if(method==='mobile.pairing') return mobile.pairing();
     if(method==='mobile.revoke') return mobile.revoke(p);
+    if(method==='mobile.approve') return mobile.approve(p);
+    if(method==='mobile.reject') return mobile.reject(p);
     if(method==='android.status') return android.status();
     if(method==='android.configure') return android.configure(p);
     if(method==='android.start') {store.getWorkspace(p.workspaceId);return android.start(p);}

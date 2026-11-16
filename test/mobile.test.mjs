@@ -7,7 +7,7 @@ import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
 import tls from 'node:tls';
-import { randomUUID, X509Certificate, createPublicKey } from 'node:crypto';
+import { randomUUID, X509Certificate, createPublicKey, generateKeyPairSync, createHash, sign } from 'node:crypto';
 import { createHost } from '../host/server.mjs';
 import { HOST_METHODS } from '../desktop/security.mjs';
 import { mobileTLS } from '../host/mobile-tls.mjs';
@@ -15,6 +15,12 @@ import { MobileAudit } from '../host/mobile-audit.mjs';
 
 // Trust only the certificate generated for each fixture, never disable TLS verification.
 const certificates = new Map();
+const gateways = new Map(), deviceKeys = new Map();
+const phone = () => { const keys = generateKeyPairSync('ec', { namedCurve: 'P-256' }); return { ...keys, jwk: keys.publicKey.export({ format: 'jwk' }) }; };
+function signed(origin, route, body, key, time = gateways.get(origin).now()) {
+  const timestamp = String(time), raw = typeof body === 'string' ? body : JSON.stringify(body);
+  return { 'X-Phantom-Time': timestamp, 'X-Phantom-Signature': sign('sha256', Buffer.from(`${timestamp}\n${route}\n${createHash('sha256').update(raw).digest('hex')}`), { key, dsaEncoding: 'ieee-p1363' }).toString('base64url') };
+}
 function fetch(url, options = {}) {
   return new Promise((resolve, reject) => {
     const request = https.request(url, { ...options, ca: certificates.get(new URL(url).origin), agent: false }, response => {
@@ -49,14 +55,26 @@ async function fixture(t, options = {}) {
     const status = await host.invoke('mobile.start', { workspaceId: w.id, address: '127.0.0.1', port: 0 });
     const origin = new URL(status.url).origin;
     certificates.set(origin, fs.readFileSync(path.join(root, 'state', 'mobile-tls', 'cert.pem')));
-    t.after(() => certificates.delete(origin));
+    gateways.set(origin, { host, now: () => clock });
+    t.after(() => { certificates.delete(origin); gateways.delete(origin); });
     return status;
   };
   return { root, distDir, host, w, foreign, node, other, start, advance: ms => { clock += ms; }, writes: () => writes };
 }
-async function post(origin, route, body, token, headers = {}) {
+async function rawPost(origin, route, body, token, headers = {}) {
   const response = await fetch(origin + route, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) });
   return { status: response.status, data: await response.json() };
+}
+async function post(origin, route, body, token, headers = {}) {
+  if (route === '/api/pair' && body && typeof body === 'object' && !Object.hasOwn(body, 'publicKey')) {
+    const keys = phone(), requested = await rawPost(origin, route, { ...body, publicKey: keys.jwk }, token, headers);
+    if (requested.status !== 200) return requested;
+    await gateways.get(origin).host.invoke('mobile.approve', { id: requested.data.requestId });
+    const approved = await rawPost(origin, '/api/pair/status', { requestId: requested.data.requestId, poll: requested.data.poll });
+    if (approved.status === 200) deviceKeys.set(approved.data.token, keys.privateKey);
+    return approved;
+  }
+  return rawPost(origin, route, body, token, { ...(route === '/api/rpc' && deviceKeys.has(token) ? signed(origin, route, body, deviceKeys.get(token)) : {}), ...headers });
 }
 async function authorized(f) {
   const status = await f.start(), origin = new URL(status.url).origin;
@@ -77,7 +95,7 @@ function raw(origin, url, headers = {}) {
 test('mobile is opt-in, desktop-only management, start/stop and restart forget access', async t => {
   const f = await fixture(t);
   assert.equal((await f.host.invoke('mobile.status')).enabled, false);
-  for (const method of ['status', 'start', 'stop', 'pairing', 'revoke']) assert.ok(HOST_METHODS.has(`mobile.${method}`));
+  for (const method of ['status', 'start', 'stop', 'pairing', 'revoke', 'approve', 'reject']) assert.ok(HOST_METHODS.has(`mobile.${method}`));
   const started = await f.start(); assert.match(started.url, /^https:\/\/127\.0\.0\.1:\d+\/mobile$/);
   await assert.rejects(f.start(), /activo/);
   await f.host.invoke('mobile.stop'); assert.equal((await f.host.invoke('mobile.status')).enabled, false);
@@ -94,6 +112,55 @@ test('mobile rejects public, wildcard, hostname and invalid port bindings', asyn
   for (const port of [-1, 1, 65536, 1.5, '8080']) await assert.rejects(f.host.invoke('mobile.start', { workspaceId: f.w.id, address: '127.0.0.1', port }), /Puerto/);
   await assert.rejects(f.host.invoke('mobile.start', { workspaceId: 'foreign-missing', address: '127.0.0.1' }));
   assert.equal((await f.host.invoke('mobile.status')).enabled, false);
+});
+
+test('QR request requires desktop approval, binds SAS and key, and delivers token once', async t => {
+  const f = await fixture(t), started = await f.start(), origin = new URL(started.url).origin, keys = phone();
+  assert.equal(started.pairing.link, `${origin}/mobile#pair=${started.pairing.code}`);
+  for (const publicKey of [null, {}, { ...keys.jwk, d: 'private' }, { ...keys.jwk, crv: 'P-384' }, { ...keys.jwk, x: 'bad' }]) assert.equal((await rawPost(origin, '/api/pair', { code: started.pairing.code, publicKey })).status, 400);
+  const request = await rawPost(origin, '/api/pair', { code: started.pairing.code, name: 'My phone', publicKey: keys.jwk }); assert.equal(request.status, 200);
+  const statusBody = { requestId: request.data.requestId, poll: request.data.poll };
+  assert.equal((await rawPost(origin, '/api/pair/status', statusBody)).data.state, 'pending');
+  assert.equal((await rawPost(origin, '/api/pair/status', { ...statusBody, poll: 'wrong' })).status, 401);
+  assert.equal((await rawPost(origin, '/api/pair', { code: started.pairing.code, publicKey: keys.jwk })).status, 401);
+  const status = await f.host.invoke('mobile.status'); assert.equal(status.devices.length, 0); assert.equal(status.pending.length, 1);
+  assert.equal(status.pending[0].sas, String(createHash('sha256').update(`${started.pairing.code}\n${keys.jwk.x}.${keys.jwk.y}`).digest().readUInt32BE(0) % 1000000).padStart(6, '0'));
+  for (const value of [started.pairing.code, request.data.poll]) assert.ok(!JSON.stringify(status).includes(value));
+  assert.equal(status.pairingLink, undefined);
+  await f.host.invoke('mobile.approve', { id: request.data.requestId });
+  const approved = await rawPost(origin, '/api/pair/status', statusBody); assert.equal(approved.data.state, 'approved');
+  assert.equal((await rawPost(origin, '/api/pair/status', statusBody)).status, 401);
+  assert.ok(!JSON.stringify(await f.host.invoke('mobile.status')).includes(approved.data.token));
+  const body = { method: 'sessions.list' }, token = approved.data.token;
+  assert.equal((await rawPost(origin, '/api/rpc', body, token)).status, 401);
+  assert.equal((await rawPost(origin, '/api/rpc', body, token, signed(origin, '/api/rpc', body, phone().privateKey))).status, 401);
+  assert.equal((await rawPost(origin, '/api/rpc', body, token, signed(origin, '/api/rpc', body, keys.privateKey, 1))).status, 401);
+  const signature = signed(origin, '/api/rpc', body, keys.privateKey);
+  assert.equal((await rawPost(origin, '/api/rpc', body, token, signature)).status, 200);
+  assert.equal((await rawPost(origin, '/api/rpc', body, token, signature)).status, 401);
+  assert.equal((await rawPost(origin, '/api/rpc', { method: 'chat.send', payload: { nodeId: f.node.id, text: 'Tampered' }, requestId: 'tampered' }, token, signed(origin, '/api/rpc', body, keys.privateKey))).status, 401);
+  assert.equal(f.writes(), 0);
+});
+
+test('pending requests reject, expire, have bounded polling, and stop forgets them', async t => {
+  const f = await fixture(t), started = await f.start(), origin = new URL(started.url).origin;
+  const ask = async code => { const response = await rawPost(origin, '/api/pair', { code, publicKey: phone().jwk }); assert.equal(response.status, 200); return { requestId: response.data.requestId, poll: response.data.poll }; };
+  const rejected = await ask(started.pairing.code);
+  await assert.rejects(f.host.invoke('mobile.approve', { id: 4 }), /Solicitud/);
+  await assert.rejects(f.host.invoke('mobile.reject', { id: 'missing' }), /encontrada/);
+  await f.host.invoke('mobile.reject', { id: rejected.requestId });
+  assert.equal((await rawPost(origin, '/api/pair/status', rejected)).data.state, 'rejected');
+  const expired = await ask((await f.host.invoke('mobile.pairing')).code); f.advance(60001);
+  assert.equal((await rawPost(origin, '/api/pair/status', expired)).data.state, 'expired');
+  await assert.rejects(f.host.invoke('mobile.approve', { id: expired.requestId }), /caducada/);
+  const pending = await ask((await f.host.invoke('mobile.pairing')).code);
+  for (let i = 0; i < 60; i++) assert.equal((await rawPost(origin, '/api/pair/status', pending)).status, 200);
+  assert.equal((await rawPost(origin, '/api/pair/status', pending)).status, 429);
+  for (let i = 0; i < 3; i++) await ask((await f.host.invoke('mobile.pairing')).code);
+  assert.equal((await rawPost(origin, '/api/pair', { code: (await f.host.invoke('mobile.pairing')).code, publicKey: phone().jwk })).status, 429);
+  await f.host.invoke('mobile.stop'); assert.deepEqual((await f.host.invoke('mobile.status')).pending, []);
+  const events = fs.readFileSync(path.join(f.root, 'state', 'mobile-audit.jsonl'), 'utf8');
+  for (const method of ['pairing.request', 'pairing.reject', 'pairing.request.expire']) assert.ok(events.includes(`"method":"${method}"`));
 });
 
 test('pairing expires, regeneration invalidates, and concurrent reuse grants only once', async t => {

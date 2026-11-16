@@ -254,3 +254,7 @@
 .host-indicator.connecting i, .host-indicator.reconnecting i { background: var(--warning); }
 .status-dot.running, .host-indicator i { background: var(--success); }
 .status-dot.connecting, .status-dot.disconnected, .host-indicator.connecting i, .host-indicator.reconnecting i { background: var(--attention); }
+.st-mobile-qr { text-align: center; padding: 16px; }
+.st-mobile-qr svg { display: block; width: 280px; max-width: 100%; height: auto; margin: auto; shape-rendering: crispEdges; }
+.st-mobile-request { padding: 16px; background: var(--fill); border-radius: var(--r-obj); }
+.st-mobile-sas { font: 700 36px/1.5 ui-monospace, monospace; letter-spacing: .08em; }
