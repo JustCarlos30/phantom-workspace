@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Group, Row, TextRow, Switch } from './PluginPrimitives.jsx';
+import PhoneQr from './PhoneQr.jsx';
+import MobileSettings from './MobileSettings.jsx';
+import { buildAppPairingPayload } from '../phone-pairing.mjs';
 
 function DevicePermissions({ device, workspaceId, busy, run, api }) {
   const mainId = `phantom:${workspaceId}`;
@@ -35,14 +38,18 @@ function DevicePermissions({ device, workspaceId, busy, run, api }) {
 export default function AndroidGatewaySettings({ workspace, api }) {
   const [status, setStatus] = useState(null), [repoPath, setRepoPath] = useState('');
   const [address, setAddress] = useState(''), [port, setPort] = useState('0');
-  const [bootstrap, setBootstrap] = useState(''), [pairing, setPairing] = useState(null);
+  const [bootstrap, setBootstrap] = useState(null), [pairing, setPairing] = useState(null);
+  const [linking, setLinking] = useState(false), [advanced, setAdvanced] = useState(false);
+  const networkEdited = useRef(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [time, setTime] = useState(Date.now());
   const lock = useRef(false), mounted = useRef(true), repoEdited = useRef(false), generation = useRef(0);
   const acceptStatus = result => {
     setStatus(result);
+    if (!result.repoValid || !result.node.compatible) setAdvanced(true);
+    if (result.devices.some(device => device.state === 'pending')) { setLinking(false); setPairing(null); }
     setAddress(previous => result.interfaces.some(item => item.address === previous) ? previous : result.interfaces[0]?.address || '');
     if (!repoEdited.current) setRepoPath(result.repoPath || '');
-    if (!result.enabled) { setBootstrap(''); setPairing(null); }
+    if (!result.enabled) { setBootstrap(null); setPairing(null); setLinking(false); }
   };
   useEffect(() => {
     mounted.current = true; let cancelled = false, timer;
@@ -54,8 +61,10 @@ export default function AndroidGatewaySettings({ workspace, api }) {
       }
       if (!cancelled) timer = setTimeout(read, 3000);
     };
-    read(); const clock = setInterval(() => setTime(Date.now()), 1000);
-    return () => { mounted.current = false; cancelled = true; clearTimeout(timer); clearInterval(clock); };
+    const tick = () => setTime(Date.now());
+    read(); const clock = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { mounted.current = false; cancelled = true; clearTimeout(timer); clearInterval(clock); document.removeEventListener('visibilitychange', tick); };
   }, [api]);
   const run = async action => {
     if (lock.current) return;
@@ -67,19 +76,31 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     } catch (e) { if (mounted.current) setError(e.message); }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   };
-  const copy = async value => {
-    if (!navigator.clipboard) throw new Error('Copia el texto seleccionándolo en el campo.');
-    await navigator.clipboard.writeText(value);
-  };
+  const link = () => run(async () => {
+    const result = await api('android.link', { workspaceId: workspace.id, ...(networkEdited.current ? { address, port: Number(port) } : {}) });
+    if (mounted.current) { acceptStatus(result.status); setBootstrap(result.bootstrap); setPairing(result.pairing); setLinking(!result.status.devices.some(device => device.state === 'pending')); }
+  });
   const changing = busy || status?.starting || status?.stopping;
   const expiresAt = pairing && status?.enabled && pairing.expiresAt === status.pairingExpiresAt ? new Date(pairing.expiresAt).getTime() : 0;
   const validPort = port.trim() !== '' && Number.isInteger(Number(port)) && (Number(port) === 0 || (Number(port) >= 1024 && Number(port) <= 65535));
+  useEffect(() => {
+    if (linking && pairing && !document.hidden && !changing && (expiresAt - time <= 10000)) link();
+  }, [time]);
   return <>
-    <Group title="App Android">
+    <Group title="Vincular teléfono">
+    <p>Escanea el código con la app Phantom en tu Android. El teléfono debe estar en la misma red.</p>
     <Row label="Estado" hint="Vincula la app de Android con este proyecto por la red local."><span className="st-status" data-tone={error || status?.lastError ? 'warn' : status?.enabled ? 'ok' : undefined}>{error || status?.lastError ? 'Error' : !status ? 'Consultando' : status.enabled ? 'Activo' : 'Apagado'}</span></Row>
     {error && <p className="st-error" role="alert">{error}</p>}
     {status?.lastError && status.lastError !== error && <p className="st-error" role="alert">{status.lastError}</p>}
+    {status && !linking && status.repoValid && status.node.compatible && !status.devices.some(device => device.state === 'pending') && <Row label=""><button className="st-btn is-primary" disabled={changing || !workspace || !validPort} onClick={link}>{status.devices.some(device => device.state === 'approved') ? 'Vincular otro teléfono' : 'Vincular teléfono'}</button></Row>}
+    {linking && pairing && <><PhoneQr text={buildAppPairingPayload({ bootstrap, code: pairing.code })} /><p role="status">Caduca en {Math.max(0, Math.ceil((expiresAt - time) / 1000))} s · {workspace?.name}</p><button className="st-btn" disabled={changing} onClick={() => { setLinking(false); setPairing(null); }}>Cancelar</button></>}
     </Group>
+    {status?.devices.filter(device => device.state === 'pending' || device.state === 'approved').map(device => <Group key={device.id} title={device.state === 'pending' ? `${device.name || 'Teléfono Android'} quiere conectarse` : `${device.name || 'Teléfono Android'} · ${device.connected ? 'Conectado' : 'Aprobado'}`}>
+      {device.state === 'pending' && <><p title={device.keyFingerprint}>{device.keyFingerprint?.slice(0, 8)}…{device.keyFingerprint?.slice(-8)}</p><p>Podrá leer el chat, enviar mensajes y parar turnos con la autoridad del agente, y ver las herramientas del proyecto.</p><button className="st-btn is-primary" disabled={changing} onClick={() => run(() => api('android.approve', { id: device.id, nodes: [`phantom:${status.workspaceId}`], allow: [`phantom:${status.workspaceId}=chat.send`, `phantom:${status.workspaceId}=chat.stop`], workspaceRead: true, workspaceAllow: [], acknowledgeAgentAuthority: true }))}>Permitir</button></>}
+      <button className="st-btn is-danger" disabled={changing} onClick={() => run(() => api('android.revoke', { id: device.id }))}>{device.state === 'pending' ? 'Rechazar' : 'Quitar'}</button>
+      <details className="st-details"><summary>{device.state === 'pending' ? 'Personalizar permisos' : 'Permisos'}</summary><DevicePermissions key={`${device.id}:${device.state}:${device.permissionVersion}`} device={device} workspaceId={status.workspaceId} busy={changing} run={run} api={api} /></details>
+    </Group>)}
+    <details className="st-details" open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}><summary>Opciones avanzadas</summary>
     <form onSubmit={e => { e.preventDefault(); run(async () => {
       const result = await api('android.configure', { repoPath });
       if (mounted.current) { repoEdited.current = false; acceptStatus(result); }
@@ -91,51 +112,15 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     </form>
     {!status ? <p role="status">Consultando…</p> : <>
       {status.node.error && <p className="st-error" role="alert">{status.node.error}</p>}
-      {status.enabled ? <>
         <Group>
-        <Row label="Proyecto">{status.workspaceId === workspace?.id ? workspace.name : 'otro proyecto'}</Row>
-        <TextRow label="Dirección" readOnly mono value={status.url || ''}><button className="st-btn" disabled={changing} onClick={() => run(() => copy(status.url || ''))}>Copiar dirección</button></TextRow>
-        <Row label="Datos de conexión" hint="Importa estos datos de conexión en la app." stack>
-        <textarea className="st-input is-mono" aria-label="Datos de conexión" readOnly rows={6} value={bootstrap} placeholder="Pulsa Copiar datos de conexión" />
-        <button className="st-btn" disabled={changing} onClick={() => run(async () => {
-          const value = JSON.stringify(await api('android.bootstrap', {}), null, 2);
-          if (mounted.current) setBootstrap(value);
-          await copy(value);
-        })}>Copiar datos de conexión</button>
-        </Row>
-        <TextRow label="Huella (compárala en el teléfono)" readOnly mono value={status.fingerprint || ''}><button className="st-btn" disabled={changing} onClick={() => run(() => copy(status.fingerprint || ''))}>Copiar huella</button></TextRow>
-        <Row label="Generar código"><button className="st-btn" disabled={changing} onClick={() => run(async () => {
-          const value = await api('android.pairing', {});
-          if (mounted.current) setPairing(value);
-        })}>Generar código</button></Row>
-        {expiresAt > time ? <TextRow label="Código para vincular" readOnly mono value={pairing.code} hint={<span role="status">Caduca en {Math.max(0, Math.ceil((expiresAt - time) / 1000))} s · Un solo uso.</span>}>
-          <button className="st-btn" disabled={changing} onClick={() => run(() => copy(pairing.code))}>Copiar código</button>
-        </TextRow> : <Row label="Introducir código" hint="Cada código dura 120 segundos." />}
-        <Row label="Dispositivos" hint="Después, aprueba aquí el dispositivo." />
-        </Group>
-        {!status.devices.length && <Group title="Dispositivos vinculados"><Row label="Ningún dispositivo vinculado." /></Group>}
-        {status.devices.map(device => <DevicePermissions key={`${status.workspaceId}:${device.id}:${device.state}:${device.permissionVersion}`} device={device} workspaceId={status.workspaceId} busy={changing} run={run} api={api} />)}
-        <Group><Row label="Desactivar"><button className="st-btn is-danger" disabled={changing} onClick={() => run(() => api('android.stop', {}))}>Desactivar</button></Row></Group>
-      </> : <>
-        <Group>
-        <Row label="Red" hint={!status.interfaces.length && 'No se detecta una red local.'}><select className="st-select" aria-label="Red" value={address} disabled={changing} onChange={e => setAddress(e.target.value)}><option value="">Elige una red</option>{status.interfaces.map(item => <option key={`${item.name}:${item.address}`} value={item.address}>{item.name} · {item.address}</option>)}</select></Row>
-        <Row label="Puerto (0 = automático)"><input className="st-input" aria-label="Puerto (0 = automático)" type="number" min="0" max="65535" step="1" value={port} disabled={changing} onChange={e => setPort(e.target.value)} /></Row>
+        <Row label="Red" hint={!status.interfaces.length && 'No se detecta una red local.'}><select className="st-select" aria-label="Red" value={address} disabled={changing || status.processAlive} onChange={e => { networkEdited.current = true; setAddress(e.target.value); }}><option value="">Elige una red</option>{status.interfaces.map(item => <option key={`${item.name}:${item.address}`} value={item.address}>{item.name} · {item.address}</option>)}</select></Row>
+        <Row label="Puerto (0 = automático)"><input className="st-input" aria-label="Puerto (0 = automático)" type="number" min="0" max="65535" step="1" value={port} disabled={changing || status.processAlive} onChange={e => { networkEdited.current = true; setPort(e.target.value); }} /></Row>
         {!validPort && <p className="st-error" role="alert">El puerto debe ser 0 (automático) o un entero entre 1024 y 65535.</p>}
-        <Row label="Activar"><button className="st-btn is-primary" disabled={changing || status.processAlive || !workspace || !address || !validPort || !status.repoValid || !status.node.compatible} onClick={() => run(() => api('android.start', { workspaceId: workspace.id, address, port: Number(port) }))}>Activar para {workspace?.name || 'el proyecto actual'}</button></Row>
+        {status.processAlive && <Row label="Desactivar gateway"><button className="st-btn is-danger" disabled={changing} onClick={() => run(() => api('android.stop', {}))}>Desactivar gateway</button></Row>}
         </Group>
-      </>}
     </>}
-    <details className="st-details"><summary>Cómo funciona</summary>
-    <div className="st-block">
-    <p>El teléfono debe poder ver al equipo en la red: las Wi-Fi que aíslan clientes no sirven; el hotspot del teléfono sí.</p>
-    <ol className="st-note">
-      <li>En la app, importa los datos de conexión copiados aquí.</li>
-      <li>Compara la huella del teléfono con la de aquí.</li>
-      <li>Introduce el código en el teléfono y aprueba aquí el dispositivo.</li>
-      <li>Desbloquea en el teléfono con tu huella o rostro.</li>
-    </ol>
-    <p className="st-note">Al desactivar hay que vincular de nuevo. Se apaga al cerrar Phantom.</p>
-    </div>
+    <MobileSettings workspace={workspace} api={api} embedded />
     </details>
+    <p className="st-note">Al desactivar o cerrar Phantom habrá que escanear de nuevo.</p>
   </>;
 }

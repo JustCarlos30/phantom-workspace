@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import '../mobile.css';
+import { readBrowserPairingCode } from '../phone-pairing.mjs';
 
-const initialPairCode = new URLSearchParams(location.hash.slice(1)).get('pair') || '';
+const initialPairCode = readBrowserPairingCode(location.hash);
 if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 const TOKEN_KEY = 'phantom:mobile:bearer';
 const readToken = () => { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } };
