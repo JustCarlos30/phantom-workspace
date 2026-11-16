@@ -58,7 +58,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 17%, transparent);
   /* State remains independent of the workspace accent. */
   --working: #5b9cff;
-  --attention: #f3a45b;
+  --attention: #c6f135;
   --danger: #f27670;
   --success: #65ba83;
   --warning: var(--attention);
