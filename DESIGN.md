@@ -324,7 +324,7 @@ Las filas de proyectos y paneles truncan nombres largos conservando etiquetas y 
 
 El drawer retiene Tab/Shift+Tab, empieza en cerrar, cierra con Escape o scrim y restaura el foco de apertura salvo navegación explícita. Cerrado es inert; abierto vuelve inert el workspace y bloquea entrada PTY/oculta navegador nativo mediante la política de overlays existente. El rail de escritorio reserva ancho e insets. Mientras un control del rail tiene foco, el canvas bloquea la apropiación automática de entrada por la terminal; al salir del rail libera esa propiedad y un clic en terminal puede recuperarla.
 
-El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el rail el offset es −2 px para no recortarlo. La nota usa el caret sin segundo contorno interior. xterm conserva la propiedad del cursor y de la entrada, sin contorno genérico en su textarea auxiliar.
+El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el rail el offset es −2 px para no recortarlo. La nota usa el caret sin segundo contorno interior. xterm conserva la propiedad del cursor y de la entrada, sin contorno genérico en su textarea auxiliar. El campo del compositor enfoca con borde de acento al 58 % y halo de 3 px al 13 % sobre `--shadow-rim`. Al dictar pasa a `--working` y su halo crece de 2 a 5 px con `--voice-level`, mientras el aura de la superficie es un filo de 1.5 px que gira cada 6 s. Los selects nativos comparten un chevron `--muted` y transición `--dur-fast`.
 
 ### Configuración, Apariencia y persistencia local
 

@@ -261,7 +261,8 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc, .phantom-chat { overflow-x: clip; }
 .pc-field { position: relative; display: flex; flex-direction: column; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-isle); background: var(--surface-2); box-shadow: var(--shadow-rim); cursor: text; transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
 .pc-field:hover { background: color-mix(in srgb, var(--surface-2) 94%, var(--ink)); }
-.pc-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent); }
+.pc-field:focus-within { border-color: color-mix(in srgb, var(--accent) 58%, transparent); box-shadow: var(--shadow-rim), 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent); }
+.pc-field.is-listening { border-color: color-mix(in srgb, var(--working) 62%, transparent); box-shadow: var(--shadow-rim), 0 0 0 calc(2px + var(--voice-level, 0) * 3px) color-mix(in srgb, var(--working) 16%, transparent); }
 .pc-field textarea { display: block; width: 100%; min-height: 38px; flex: none; resize: none; padding: 12px 18px 4px; border: 0; background: none; color: var(--ink); font: var(--t-body); overflow-y: auto; overscroll-behavior: contain; transition: none; }
 .pc-field textarea::placeholder { color: var(--ink-3); }
 .pc-field textarea:focus-visible { outline: none; }
