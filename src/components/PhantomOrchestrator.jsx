@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowUp, ArrowUpRight, Mic, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
@@ -8,6 +8,7 @@ import Incorporaciones from './Incorporaciones';
 import { preferredCardMode } from './ChatCard';
 import { ErrorNotice, useResource } from './PluginPrimitives';
 import { buildCola } from '../hooks/incorporaciones-model.mjs';
+import { buildDelegation } from '../hooks/delegation-model.mjs';
 import '../incorporaciones.css';
 
 const AGENT = { working: 'Trabajando', blocked: 'Bloqueado', review: 'En espera', idle: 'En espera' };
@@ -17,6 +18,13 @@ const AGENT = { working: 'Trabajando', blocked: 'Bloqueado', review: 'En espera'
 // The full queue lives in Git › Cola; without a way to open it, it is shown here.
 export default function PhantomOrchestrator({ workspace, api, notify, connected, status, onOpenPanel }) {
   const orchestrator = status.orchestrator;
+  const delegation = useMemo(() => buildDelegation(workspace), [workspace]);
+  const delegates = delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden);
+  const summary = [
+    delegation.counts.working && `${delegation.counts.working} trabajando`,
+    delegation.counts.blocked && `${delegation.counts.blocked} ${delegation.counts.blocked === 1 ? 'bloqueada' : 'bloqueadas'}`,
+    delegation.counts.unassigned && `${delegation.counts.unassigned} sin encargo`,
+  ].filter(Boolean).join(' · ');
   return <div className="pd-orchestrator">
     {orchestrator && <section className="pd-session" data-tone={status.tone} aria-label="Orquestador">
       <div className="pd-session-head">
@@ -27,6 +35,27 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
       {orchestrator.chat
         ? <OrchestratorComposer key={orchestrator.id} workspace={workspace} api={api} connected={connected} nodeId={orchestrator.id} title={orchestrator.title} />
         : null}
+    </section>}
+    {delegates.length > 0 && <section className="pd-deleg" aria-label="Delegación">
+      <div className="pd-deleg-head"><strong>Quién tiene qué</strong>{summary && <small>{summary}</small>}</div>
+      <ul className="pd-deleg-list">{delegates.map(row => {
+        const content = <>
+          <span className="pd-deleg-dot" aria-hidden="true" />
+          <span className="pd-deleg-content">
+            <strong>{row.title}</strong>
+            <small>{{ working: 'Trabajando', blocked: 'Bloqueado', review: 'Lista para revisión', idle: 'En espera' }[row.status]}{row.step ? ` · ${row.step}` : ''}</small>
+            {(row.what || row.purpose === 'none') && <span className="pd-deleg-what">{row.purpose === 'none' ? 'Sin tarea ni encargo' : row.what}</span>}
+            {row.why && <small>{row.why}</small>}
+            {row.from && <small>Pedido por {row.from.title}{row.from.external ? ` · ${row.from.workspaceName}` : ''}</small>}
+            {row.branch && <code>{row.branch}</code>}
+          </span>
+        </>;
+        return <li key={row.id} className="pd-deleg-row" data-purpose={row.purpose} data-status={row.status} style={{ '--deleg-depth': row.depth }}>
+          {onOpenPanel
+            ? <button type="button" className="pd-deleg-item" aria-label={`Ir a ${row.title}`} onClick={() => onOpenPanel('terminal', { focusNodeId: row.id })}>{content}</button>
+            : <div className="pd-deleg-item">{content}</div>}
+        </li>;
+      })}</ul>
     </section>}
     {onOpenPanel
       ? <QueueSummary workspace={workspace} api={api} onOpenPanel={onOpenPanel} hasOrchestrator={Boolean(orchestrator)} />
