@@ -73,6 +73,12 @@ for (const output of outputs) {
   for (const dependency of ['zod', 'jsonc-parser', 'smol-toml']) {
     await cp(path.join(source, 'node_modules', dependency), path.join(bundled, 'node_modules', dependency), { recursive: true });
   }
+  const mobileSource = path.resolve(root, '../phantom-mobile');
+  const mobileBundled = path.join(resources, 'phantom-mobile');
+  await mkdir(mobileBundled, { recursive: true });
+  for (const item of ['host', 'package.json']) {
+    await cp(path.join(mobileSource, item), path.join(mobileBundled, item), { recursive: true });
+  }
   const executablePath = path.join(output, 'phantom-workspace');
   const entry = `[Desktop Entry]\nType=Application\nName=Phantom Workspace\nComment=Sesiones, herramientas y contexto por proyecto\nExec="${executablePath}"\nIcon=${path.join(resources, 'app', 'assets', 'phantom.svg')}\nTerminal=false\nCategories=Development;IDE;\nStartupNotify=true\n`;
   await writeFile(path.join(root, 'Phantom Workspace.desktop'), entry, { mode: 0o755 });
