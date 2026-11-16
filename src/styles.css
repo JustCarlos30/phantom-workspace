@@ -60,7 +60,7 @@
 .canvas-navigation button{height:27px;min-width:26px;border-radius:var(--r-mark);display:grid;place-items:center}
 .canvas-navigation button:hover{background:var(--accent-soft);color:var(--accent)}
 .canvas-navigation .zoom-value{font-size:10px;min-width:37px}
-.canvas-navigation i,.dock-main>i{display:block;width:1px;height:16px;background:var(--hairline);margin:0 4px}
+.canvas-navigation>i,.dock-main>i{display:block;width:1px;height:16px;background:var(--hairline);margin:0 4px}
 .create-dock{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:12}
 .dock-main{display:flex;align-items:center;height:45px;border-radius:var(--r-ctl);padding:4px 6px;gap:3px;white-space:nowrap}
 .dock-label{color:var(--muted);font-size:10px;margin:0 9px;display:none}
