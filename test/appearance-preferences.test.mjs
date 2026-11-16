@@ -37,7 +37,7 @@ test('appearance v4 retires purple defaults while preserving independent prefere
   }
   for (const [accent] of ACCENTS) assert.equal(normalizeAppearance({ v: 4, accent }).accent, accent);
   assert.equal(defaults.background, 'plain');
-  assert.equal(defaults.accent, 'blue');
+  assert.equal(defaults.accent, 'ivory');
   assert.equal(normalizeAppearance().gengar, false);
 });
 

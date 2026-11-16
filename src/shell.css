@@ -1,21 +1,20 @@
 /* Shell controls: the single owner of how the top bar, the canvas navigation
-   and the dock look. Each island is one pill of glass; the controls inside
+   and the dock look. Each island is one matte plane; the controls inside
    rest on nothing. Island position and size live in canvas-ui.css.
 
    Hierarchy, the same in every island:
    1. Solid light (--on): the one current choice — the active tool, the
       selected panel. Never more than one per island.
-   2. Lit veil with a glass rim: something that is open or switched on.
+   2. Neutral fill with a thin rim: something that is open or switched on.
    3. Nothing: everything at rest.
-   Colour sits outside that ladder and means one of two things: what kind of
-   panel this is (--type, on the dock tiles and a selected panel's glyph), or
-   state (violet working, amber needs you, red failed, mint done). */
+   Panel kinds share a neutral --type. Colour means state:
+   blue working, orange needs you, red failed, green done. */
 
 /* ---------- Panel kinds ---------- */
 .app-shell [data-type="terminal"] { --type: var(--c-lilac); }
-.app-shell [data-type="browser"] { --type: var(--c-sky); }
-.app-shell [data-type="note"] { --type: var(--c-sand); }
-.app-shell [data-type="zone"] { --type: var(--c-mint); }
+.app-shell [data-type="browser"] { --type: var(--c-lilac); }
+.app-shell [data-type="note"] { --type: var(--c-lilac); }
+.app-shell [data-type="zone"] { --type: var(--c-lilac); }
 
 /* ---------- Top bar: two pills ---------- */
 .app-shell :is(.workspace-identity, .header-controls, .focus-return, .workspace-header > .rail-toggle) { border-radius: var(--r-isle); }
@@ -27,7 +26,7 @@
 .app-shell .search-command { height: 32px; margin: 0 4px 0 8px; padding: 0 6px 0 12px; gap: 8px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); box-shadow: var(--shadow-rim); color: var(--muted); font: var(--t-support); }
 .app-shell .search-command:hover { background: var(--fill-3); color: var(--ink); }
 .app-shell .search-command kbd { height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--fill-2); color: inherit; font: var(--t-micro); }
-/* A pending notice is state: amber, with a ring that lifts it off the glass. */
+/* A pending notice is state: orange, with a ring against the matte plane. */
 .app-shell .attention-button i { top: 3px; right: 3px; width: 8px; height: 8px; background: var(--attention); box-shadow: 0 0 0 2px var(--surface-2); }
 
 /* ---------- Canvas navigation: one pill of round controls ---------- */
@@ -49,19 +48,16 @@
 .app-shell .activity-dock .activity-strip button[aria-expanded="true"] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 .app-shell .activity-dock .activity-strip .activity-notch.needs-you { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 34%, transparent); }
 .app-shell .activity-dock .dock-main { height: auto; padding: 0; gap: 6px; overflow: visible; }
-/* Creation discs are dark tinted keys with the panel kind's hue as ink and a
-   ring of the same hue, defined in panels.css. They are round like every other
-   control in a pill, and stand apart from the readings as their own group. */
+/* Creation discs are neutral keys, round like every other control in a pill,
+   and stand apart from the readings as their own group. */
 .app-shell .activity-dock .dock-main { margin-left: 4px; gap: 8px; }
 .app-shell .activity-dock .dock-main .dock-action {
   width: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 50%;
-  background: var(--type, var(--fill-3)); color: var(--on-ink); box-shadow: var(--shadow-rim);
+  background: var(--fill-2); color: var(--ink); box-shadow: var(--shadow-rim);
 }
-.app-shell .activity-dock .dock-main .dock-action:not([data-type]) { color: var(--ink); }
 .app-shell .activity-dock .dock-main .dock-action svg { width: 18px; height: 18px; color: inherit; }
 .app-shell .activity-dock .dock-main .dock-action > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.app-shell .activity-dock .dock-main .dock-action:hover:not(:disabled) { background: color-mix(in srgb, var(--type, var(--fill-3)), #fff 16%); color: var(--on-ink); }
-.app-shell .activity-dock .dock-main .dock-action:not([data-type]):hover:not(:disabled) { color: var(--ink); }
+.app-shell .activity-dock .dock-main .dock-action:hover:not(:disabled) { background: var(--fill-3); color: var(--ink); }
 .app-shell .activity-dock .dock-main .dock-action:hover:not(:disabled) svg { color: inherit; }
 .app-shell .activity-dock .dock-main .dock-action:disabled { opacity: .45; }
 .app-shell .activity-dock .dock-main .dock-action:is(.active, [aria-expanded="true"]),

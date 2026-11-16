@@ -1,5 +1,5 @@
 /* Canvas UI: the canvas is the whole window and every piece of chrome floats
-    over it as a light glass island. Loaded after studio.css,
+    over it as a matte charcoal island. Loaded after studio.css,
    so this file is also the system layer: one radius scale, one elevation
      ladder and shared motion tokens. Workplanes transmit colour without blur. */
 :root {
@@ -15,27 +15,27 @@
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
   --hairline: color-mix(in srgb, #fff 8%, transparent);
-   /* One edge (the border hairline), light above and inner shadow below,
-      without a second ring; shadows never animate their blur. */
-  --shadow-chrome: inset 0 1px 0 #ffffff26, inset 0 -1px 0 #00000059, 0 1px 2px #00000066, 0 18px 40px -20px #000000cc;
-  /* The glass rim: a lit top edge and a faint ring. It is the edge of every
+   /* One edge (the border hairline) and a contact shadow;
+      shadows never animate their blur. */
+  --shadow-chrome: 0 1px 2px #00000066, 0 18px 40px -20px #000000cc;
+  /* The matte rim: a faint ring. It is the edge of every
      capsule that sits inside an island; it never adds a second fill. */
-  --shadow-rim: inset 0 1px 0 #ffffff1f, inset 0 0 0 1px #ffffff0a;
-  --shadow-key: inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #00000066, 0 1px 3px #0000008c;
+  --shadow-rim: inset 0 0 0 1px #ffffff0a;
+  --shadow-key: 0 1px 2px #00000073;
   --shadow-well: inset 0 1px 2px #0000008c, inset 0 0 0 1px #00000033;
   --shadow-rest: 0 1px 2px #00000080, 0 14px 30px -16px #000000d9;
   --shadow-float: 0 2px 6px #00000073, 0 30px 68px -24px #000000f2;
   /* Matte workplanes: offset contact depth, without a coloured halo. */
   --shadow-workplane-rest: 0 2px 4px #00000066, 0 10px 20px -12px #00000099;
   --shadow-workplane-lift: 0 3px 6px #00000073, 0 16px 28px -14px #000000b3;
-  /* Glass filters belong only to chrome. Workplanes and wells use real alpha. */
-  --glass-tint: color-mix(in srgb, #141414 25%, var(--surface-3));
-  --glass: color-mix(in srgb, var(--glass-tint) 48%, transparent);
-  --glass-thick: color-mix(in srgb, var(--glass-tint) 68%, transparent);
-  --glass-filter: blur(40px) saturate(190%);
+  /* Matte chrome planes. Workplanes and wells use real alpha. */
+  --glass-tint: #1e1e1e;
+  --glass: var(--surface);
+  --glass-thick: color-mix(in srgb, var(--surface) 60%, var(--surface-2));
+  --glass-filter: none;
   --ink-on-glass: #f2f0eb;
-  --glass-sheen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"), linear-gradient(172deg, #ffffff12 0%, #ffffff07 26%, #ffffff03 100%);
-  --on: #5b9cff;
+  --glass-sheen: none;
+  --on: #f2f0eb;
   --on-ink: #141414;
   --workplane: color-mix(in srgb, var(--surface) 80%, transparent);
   --workplane-wash: linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent);
@@ -73,6 +73,7 @@
   --surface: #1e1e1e;
   --surface-2: #292929;
   --surface-3: #303030;
+  --menu: #171717; /* Plano de los menús anidados, más oscuro que su contenedor. */
   --ink: #f2f0eb;
   --muted: #bcbab4;
   --ink-3: #b0aea8;
@@ -477,10 +478,10 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas-node:not(.focused):not(.is-dragging) { box-shadow: var(--shadow-rest); }
 
 /* =====================================================================
-   Night glass (2026-11-11)
-   The chrome is frosted glass over the canvas, as on the desktop it runs
-   on: dense tinted glass, a white hairline, inset relief and contact shadow.
-   Working planes (terminal, thread, tool bodies) stay opaque. Quiet controls
+   Matte charcoal chrome (2026-11-16)
+   The chrome uses opaque planes over the canvas:
+   a thin hairline and contact shadow, without blur or sheen.
+   Working planes keep their own material. Quiet controls
    share one white-alpha ladder (--fill…); radii are concentric: an island's radius
    is its inner control radius plus its padding.
    ===================================================================== */
@@ -501,7 +502,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--muted); font-size: 11px; }
 .tw-inspector, .tw-tool-panel, .tw-palette, .tw-voice, .tw-button, .plugin-surface { font-family: inherit; }
 
-/* ---------- Glass islands ---------- */
+/* ---------- Matte islands ---------- */
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation, .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index, .context-menu, .toast, .activity-tray, .attention-tray, .activity-dock, .tw-palette, .tw-voice, .app-dialog { --ink-3: var(--ink-on-glass); --muted: var(--ink-on-glass); }
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
@@ -512,7 +513,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-chrome);
 }
-/* Reading planes are thicker glass: what is behind tints them, never shows through. */
+/* Reading chrome uses a slightly raised opaque charcoal plane. */
 .inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background-color: var(--glass-thick); }
 .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-chrome); }
 .connection-error { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); background-color: color-mix(in srgb, var(--error-bg) 86%, transparent); background-image: var(--glass-sheen); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
@@ -1006,7 +1007,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 
 /* =====================================================================
    Acabado (2026-11-12)
-   Same night glass, finished edges. Three rules: what is chosen is
+   Same matte charcoal, finished edges. Three rules: what is chosen is
    unmistakable, every border closes cleanly on its own radius, and every
    state change eases on the one curve instead of snapping.
    ===================================================================== */
@@ -1170,6 +1171,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
   box-shadow: var(--shadow-chrome);
   animation: materialize var(--dur-spring) var(--ease-spring);
 }
+
+.pc .pc-models, .phantom-chat .pc-models { background: var(--menu); }
 
 /* Selection is a solid light key; real buttons rest on a quiet veil. Rows,
    icon buttons and toolbar controls rest on nothing: the island is their box.

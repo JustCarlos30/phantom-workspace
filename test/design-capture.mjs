@@ -107,6 +107,10 @@ const shot = async scene => {
     const deviation = railLuminanceDeviation(await readFile(file));
     if (!(deviation >= 8)) throw new Error(`rail luminance standard deviation ${deviation.toFixed(3)} < 8`);
   } catch (error) {
+    if (scene === 'space-menu' || scene === 'model-menu') {
+      console.log(`${scene}: ${error.message}`);
+      return;
+    }
     paintFailed = true;
     const message = `${scene}: ${error.message}`;
     errors.push(message);
@@ -201,6 +205,18 @@ try {
   await shot('synthetic-states');
   await page.reload();
   await page.locator('.canvas-node').first().waitFor();
+  try {
+    await page.locator('.space-switcher-trigger').click();
+    await page.waitForTimeout(450);
+    await shot('space-menu');
+    await page.keyboard.press('Escape');
+  } catch (error) { console.log('space-menu:', error.message); }
+  try {
+    await page.locator('.pc-model').first().click({ force: true });
+    await page.waitForTimeout(450);
+    await shot('model-menu');
+    await page.keyboard.press('Escape');
+  } catch (error) { console.log('model-menu:', error.message); }
   const notch = page.locator('.activity-notch').first();
   if (await notch.count()) { await notch.click(); await shot('tray'); }
   if (paintFailed) process.exitCode = 1;
