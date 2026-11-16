@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { AlertTriangle, ArrowLeft, Check, GitBranch, Clock, Columns3, ExternalLink, FileText, Layers, LayoutDashboard, Pause, Play, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Square, X, XCircle } from 'lucide-react';
 import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from './PluginPrimitives';
 import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions } from '../hooks/plugin-model.mjs';
-import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf } from '../hooks/phantom-desk.mjs';
+import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf, checkResult, eventLabel, eventDetails, phaseOf } from '../hooks/phantom-desk.mjs';
 import { cardLocations } from '../hooks/branches-model.mjs';
 
 const POLL_MS = 4000;
@@ -68,6 +68,15 @@ const ACTIONS = [
   ['run', 'Ejecutar', Play], ['verify', 'Verificar', ShieldCheck], ['recover', 'Recuperar', RotateCcw], ['stop', 'Detener', Square], ['cancel', 'Cancelar', XCircle],
 ];
 
+function CheckEvidence({ title, evidence }) {
+  return <section className="pc-check-evidence"><h4>{title}</h4>{evidence?.available ? evidence.checks.length ? evidence.checks.map((check, index) => <div key={index} className="pc-check-result">
+    <strong>{check.name || `Prueba ${index + 1}`} · {checkResult(check)}</strong><span> · {Number.isFinite(check.durationMs) ? `${check.durationMs} ms` : 'Duración desconocida'}</span>
+    {check.reason && <p>{check.reason}</p>}
+    <details><summary>Comando completo y contexto</summary><pre>{argvText(check.executedArgv || check.argv) || 'Comando no disponible'}</pre>{check.executedArgv && check.argv && <><p>Comando declarado</p><pre>{argvText(check.argv)}</pre></>}<p>Directorio: {check.cwd || 'No informado'} · Salida: {check.exitCode ?? 'No informada'} · Señal: {check.signal || 'Ninguna informada'}</p></details>
+    {['stdout', 'stderr', 'error', 'tests'].map(key => check[key] != null && check[key] !== '' && <details key={key}><summary>{({ stdout: 'Salida estándar', stderr: 'Salida de errores', error: 'Error', tests: 'Detalle de pruebas' })[key]}</summary><pre>{typeof check[key] === 'string' ? check[key] : JSON.stringify(check[key], null, 2)}</pre></details>)}
+  </div>) : <p className="pc-quiet">Sin resultados registrados; no acredita aprobación.</p> : <p className="pc-quiet">Evidencia no disponible · {evidence?.reason || 'Sin artefacto observado'}. No acredita aprobación ni que la prueba no se ejecutara.</p>}</section>;
+}
+
 function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOpenPanel, onChanged, onClose }) {
   const payload = { workspaceId: workspace.id, pluginId: 'phantom' };
   const detail = useResource(api, 'phantom.detail', { workspaceId: workspace.id, topic: 'tasks', id });
@@ -95,7 +104,7 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
   const status = native ? stateOf(native) : catalog?.status || 'unknown';
   const available = ACTIONS.filter(([action]) => actions[action]);
   const runs = runsOf(value);
-  const eventItems = itemsOf(events.data).slice(-12).reverse();
+  const eventItems = itemsOf(events.data).slice().reverse();
   const depStatus = dep => catalog?.lookup?.get(dep);
   return <article className="pc-sheet pc-contract" aria-label={`Detalle ${id}`}>
     <header className="pc-contract-head">
@@ -112,7 +121,8 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
     {value?.available === false && <p className="pc-notice">Phantom no está disponible: {value.reason || 'sin motivo informado'}.</p>}
     {ready && <>
       <details className="pc-full-goal"><summary>Objetivo completo</summary><p>{goalOf(native)}</p></details>
-      {catalog?.reason && status === 'blocked' && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />{catalog.reason}</p>}
+      <p className="pc-quiet">{phaseOf(native)}</p>
+      {(native.reason || catalog?.reason) && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />Motivo de tarea: {native.reason || catalog.reason}</p>}
       <section className="pc-next" aria-label="Siguiente paso">
         <div className="pc-next-copy"><strong>Siguiente paso</strong><span>{available.length ? 'Solo se muestran las acciones que Phantom admite ahora para esta Card.' : 'Phantom no admite acciones sobre esta Card en su estado actual.'}</span></div>
         {actions.run && <div className="pc-model"><Field label="Modelo para ejecutar" hint={plugin?.config?.model ? `Vacío: configuración guardada (${plugin.config.model}).` : 'Indica un modelo o configúralo en el Centro de Plugins.'}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="proveedor/modelo" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>Consultar catálogo real</Button></div>}
@@ -127,8 +137,8 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
         {budgetText(contract.budget) && <div><dt>Presupuesto</dt><dd>{budgetText(contract.budget)}</dd></div>}
       </dl>
       <div className="pc-columns">
-        <section><h3 className="pc-label">Checks de aceptación · {contract.checks?.length || 0}</h3>
-          {contract.checks?.length ? <ul className="pc-list">{contract.checks.map((check, index) => <li key={`${check.name}:${index}`}><Check size={13} aria-hidden="true" className="pc-list-icon" /><div><strong>{check.name || `Check ${index + 1}`}</strong><code>{argvText(check.argv)}</code></div></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="No declarados." />}
+        <section><h3 className="pc-label">Checks declarados · {contract.checks?.length || 0}</h3>
+          {contract.checks?.length ? <ul className="pc-list">{contract.checks.map((check, index) => <li key={`${check.name}:${index}`}><FileText size={13} aria-hidden="true" className="pc-list-icon" /><div><strong>{check.name || `Check ${index + 1}`}</strong><details className="pc-check-evidence"><summary>Comando declarado completo</summary><pre>{argvText(check.argv)}</pre></details></div></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="No declarados." />}
           <p className="pc-quiet">El resultado de cada check lo registra Phantom en las ejecuciones; aquí se muestra el contrato.</p></section>
         <section><h3 className="pc-label">Alcance · {contract.scope?.length || 0} rutas</h3>
           {contract.scope?.length ? <ul className="pc-list">{contract.scope.map(path => <li key={path}><FileText size={13} aria-hidden="true" className="pc-list-icon" /><code>{path}</code></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="No declarado." />}
@@ -137,11 +147,13 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
         </section>
       </div>
       <section><h3 className="pc-label">Ejecuciones</h3>
-        {runs.length ? <ul className="pc-runs">{runs.slice(0, 6).map((run, index) => <li key={run.id || index}><StatusPill status={run.status === 'failed' ? 'blocked' : run.status} /><span>{run.mode === 'verification' ? 'Verificación' : 'Ejecución'}</span><span className="pc-quiet">{relative(run.startedAt)}</span><span className="pc-num">{duration(run.startedAt, run.endedAt)}</span>{Number.isFinite(run.turns) && <span className="pc-quiet">{run.turns} turnos · {run.tools ?? 0} herramientas</span>}</li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="Sin ejecuciones registradas." />}
+        <p className="pc-quiet">Se muestran las ejecuciones devueltas por Phantom; show puede informar solo la última. Actualiza para observar cambios reales.</p>
+        {runs.length ? <ul className="pc-runs">{runs.map((run, index) => <li key={run.id || index}><StatusPill status={run.status} /><code>{run.id}</code><span>{run.mode === 'verification' ? 'Verificación' : 'Ejecución'}</span><span className="pc-quiet">{relative(run.startedAt)}</span><span className="pc-num">{duration(run.startedAt, run.endedAt)}</span>{Number.isFinite(run.turns) && <span className="pc-quiet">{run.turns} turnos · {run.tools ?? 0} herramientas</span>}<div className="pc-run-evidence"><p>Motivo de ejecución: {run.reason || 'No informado'}</p><CheckEvidence title="Pruebas iniciales · baseline del worktree" evidence={run.evidence?.baseline} />{run.evidence?.verification?.map(round => <CheckEvidence key={round.round} title={`Pruebas posteriores · ronda ${round.round}`} evidence={round} />) || <CheckEvidence title="Pruebas posteriores" />}</div></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="Sin ejecuciones registradas." />}
       </section>
       {related.length > 0 && <section><h3 className="pc-label">Procesos del controlador</h3>{related.map(item => <div key={item.id} className="pc-controller"><div className="pc-controller-head"><StatusPill status={item.status === 'running' ? 'running' : item.status === 'failed' ? 'blocked' : item.status} /><span>{item.action}</span><span className="pc-quiet">{relative(item.createdAt)}</span></div>{item.output && <pre className="pc-output">{item.output.slice(-4000)}</pre>}</div>)}<p className="pc-quiet">El fin del controlador no completa la Card; el estado lo decide Phantom.</p></section>}
       <section><h3 className="pc-label">Eventos recientes</h3>
-        {events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.id || index}><span className="pc-num">{event.at ? new Date(event.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '··:··'}</span><code>{event.type || 'evento'}</code></li>)}</ol> : events.loading ? <p className="pc-quiet" role="status">Leyendo eventos…</p> : events.data?.available === false ? <p className="pc-notice">{events.data.reason}</p> : <EmptyState className="pc-quiet" size="compact" description="Sin eventos observados." />}
+        {events.data?.truncated && <p className="pc-quiet">Se muestran los últimos 100 eventos; historial completo en la fuente nativa.</p>}
+        {events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.seq ?? event.id ?? index}><span className="pc-num">{event.at ? new Date(event.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '··:··'}</span><div><strong>{eventLabel(event.type)}</strong> <code>{event.type}</code>{typeof event.data?.reason === 'string' && <p>{event.data.reason}</p>}<details className="pc-check-evidence"><summary>Detalles del evento</summary><p>{event.at} · Tarea: {event.task_id} · Ejecución: {event.run_id || 'No informada'}</p><pre>{eventDetails(event)}</pre></details></div></li>)}</ol> : events.loading ? <p className="pc-quiet" role="status">Leyendo eventos…</p> : events.data?.available === false ? <p className="pc-notice">{events.data.reason}</p> : <EmptyState className="pc-quiet" size="compact" description="Sin eventos observados." />}
       </section>
       <div className="pc-sheet-actions">
         <Button disabled={op.busy} aria-expanded={Boolean(editing)} onClick={() => setEditing(old => old ? null : { ...native, id })}>{editing ? 'Ocultar reemplazo' : 'Preparar reemplazo'}</Button>

@@ -11,6 +11,7 @@ export const STATUS = {
   ready: { label: 'Lista', tone: 'idle' },
   completed: { label: 'Completada', tone: 'done' },
   cancelled: { label: 'Cancelada', tone: 'muted' },
+  failed: { label: 'Falló', tone: 'blocked' },
 };
 export const statusLabel = status => STATUS[status]?.label || (status === 'unknown' ? 'Estado no informado' : status);
 export const statusTone = status => STATUS[status]?.tone || 'idle';
@@ -91,13 +92,27 @@ export function budgetText(budget) {
   return Object.entries(budget).filter(([, value]) => Number.isFinite(value)).map(([key, value]) => BUDGET[key] ? BUDGET[key](value) : `${key}: ${value}`).join(' · ');
 }
 
-export const argvText = argv => Array.isArray(argv) ? argv.map(arg => /[\s"']/.test(arg) ? JSON.stringify(arg) : arg).join(' ') : '';
+export const argvText = argv => Array.isArray(argv) ? argv.map(arg => !arg || /[\s"'\\]/.test(arg) ? JSON.stringify(arg) : arg).join(' ') : '';
 
 // Native run records arrive as `runs` (detail) or `run` (latest, from show).
 export function runsOf(value) {
   const native = value?.task || value || {};
-  const runs = Array.isArray(value?.runs) ? value.runs : Array.isArray(native.runs) ? native.runs : value?.run ? [value.run] : [];
+  const runs = Array.isArray(value?.runs) ? value.runs : Array.isArray(native.runs) ? native.runs : native.run ? [native.run] : [];
   return runs.filter(run => run && typeof run === 'object').slice().reverse();
+}
+
+export const checkResult = check => check.executed === false ? 'No ejecutada' : check.passed === true ? 'Pasó' : check.passed === false ? 'Falló' : 'Desconocido';
+export const eventLabel = type => ({ 'task.created': 'Tarea creada', 'run.started': 'Ejecución iniciada', 'run.finished': 'Ejecución finalizada', 'task.cancelled': 'Tarea cancelada' })[type] || type || 'Evento';
+export function eventDetails(event) {
+  const value = JSON.stringify(event.data ?? {}, null, 2);
+  return value.length > 65536 ? `${value.slice(0, 65536)}\n[Detalles recortados explícitamente a 65536 caracteres]` : value;
+}
+export function phaseOf(native) {
+  if (native.phase || native.run?.phase) return `Fase nativa: ${native.phase || native.run.phase}`;
+  const evidence = native.run?.evidence;
+  if (evidence?.verification?.some(round => round.available)) return 'Fase observada: verificación posterior del worktree';
+  if (evidence?.baseline?.available) return 'Fase observada: pruebas iniciales del worktree';
+  return 'Fase no informada; evidencia no disponible';
 }
 
 // Command line ⇄ argv without a shell: quotes group words, nothing expands.
