@@ -46,7 +46,6 @@
 .app-shell .activity-dock .activity-strip { min-height: 0; padding: 0; gap: 2px; }
 .app-shell .activity-dock .activity-strip button { height: 36px; min-height: 36px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-support); }
 .app-shell .activity-dock .activity-strip button[aria-expanded="true"] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
-.app-shell .activity-dock .activity-strip .activity-notch.needs-you { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 34%, transparent); }
 .app-shell .activity-dock .dock-main { height: auto; padding: 0; gap: 6px; overflow: visible; }
 /* Creation discs are neutral keys, round like every other control in a pill,
    and stand apart from the readings as their own group. */
