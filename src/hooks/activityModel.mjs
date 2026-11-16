@@ -19,9 +19,10 @@ export function classifyTask(task) {
   return { status: status || 'unknown', label: known?.[0] || 'Sin datos', needsYou: known?.[1] === true };
 }
 export const isRead = item => !!(item.acknowledgedAt || item.ackedAt || item.acknowledged || item.acked);
-// Acknowledgement has deliberately no bearing on intervention classification.
+// Acknowledgement only clears process-end notices; Phantom tasks remain authoritative.
 export function classifyNotice(item) {
-  return { read: isRead(item), approved: item.approved === true || !!item.approvedAt, needsYou: classifyTask(item).needsYou };
+  const read = isRead(item), processEnd = text(item.eventKey).startsWith('tool:') || text(item.eventKey).startsWith('terminal:');
+  return { read, approved: item.approved === true || !!item.approvedAt, needsYou: classifyTask(item).needsYou && (!processEnd || (item.source !== 'phantom' && !read)) };
 }
 export function taskLinks(task, sessions, nodes) {
   const raw = task.raw || task;
