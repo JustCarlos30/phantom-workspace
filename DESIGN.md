@@ -182,6 +182,8 @@ Dirección aprobada por Carlos el 2026-11-14 («que todo se sienta fácil», ref
 
 **Una línea por estado, una acción por fila.** Cada fila lleva un título humano (el nombre de la sesión, nunca un UUID), una palabra de estado, una línea de detalle y como mucho una acción principal. Lo técnico (rutas, identificadores, JSON, salida cruda) vive detrás de un `<details>` llamado «Detalles». La interfaz no explica lo que no hace.
 
+**Ramas.** Filtro por estado con contadores y grupo «Ya en main» plegable con su limpieza. Las acciones en lote viven en la cabecera de su grupo; los avisos ok son efímeros (6 s). En estrecho, el chip baja bajo el texto y la acción permanece a la derecha.
+
 **Cinco destinos, no veinticinco paneles.** El dock separa crear (Terminal, Navegador, Nota, Zona) de ir (Trabajo, Git, Servicios, Contexto, Automatizar). Cada destino es un panel con pestañas (`src/hooks/hubs.mjs`); los tipos de panel anteriores siguen siendo válidos para lienzos guardados y abren su destino en la pestaña correspondiente.
 
 | Destino | Pestañas |
