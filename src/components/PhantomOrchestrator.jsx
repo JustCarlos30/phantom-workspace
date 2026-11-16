@@ -8,17 +8,26 @@ import Incorporaciones from './Incorporaciones';
 import { preferredCardMode } from './ChatCard';
 import { ErrorNotice, useResource } from './PluginPrimitives';
 import { buildCola } from '../hooks/incorporaciones-model.mjs';
-import { buildDelegation } from '../hooks/delegation-model.mjs';
+import { buildDelegation, withCardPlans } from '../hooks/delegation-model.mjs';
+import { statusLabel } from '../hooks/phantom-desk.mjs';
 import '../incorporaciones.css';
 
 const AGENT = { working: 'Trabajando', blocked: 'Bloqueado', review: 'En espera', idle: 'En espera' };
+
+function CardPlan({ plan }) {
+  return <div className="pd-deleg-plan-block">
+    <small>Plan · {plan.done} de {plan.total} completadas</small>
+    <ul className="pd-deleg-plan" aria-label="Plan de la card">{plan.children.map(child => <li key={child.key} className="pd-deleg-child" data-status={child.status}><small>{statusLabel(child.status)}</small><span>{child.goal}</span></li>)}</ul>
+  </div>;
+}
 
 // The dock's Orquestador tab: the orchestrator at a glance, a line to talk to
 // it (typed or dictated) when it runs as a chat, and where the queue stands.
 // The full queue lives in Git › Cola; without a way to open it, it is shown here.
 export default function PhantomOrchestrator({ workspace, api, notify, connected, status, onOpenPanel }) {
   const orchestrator = status.orchestrator;
-  const delegation = useMemo(() => buildDelegation(workspace), [workspace]);
+  const tasks = useResource(api, 'phantom.list', { workspaceId: workspace.id, topic: 'tasks' });
+  const delegation = useMemo(() => withCardPlans(buildDelegation(workspace), tasks.error ? null : tasks.data), [workspace, tasks.data, tasks.error]);
   const delegates = delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden);
   const working = delegates.filter(row => row.status === 'working').length;
   const blocked = delegates.filter(row => row.status === 'blocked').length;
@@ -39,7 +48,7 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
         ? <OrchestratorComposer key={orchestrator.id} workspace={workspace} api={api} connected={connected} nodeId={orchestrator.id} title={orchestrator.title} />
         : null}
     </section>}
-    {delegates.length > 0 && <section className="pd-deleg" aria-label="Delegación">
+    {(delegates.length > 0 || delegation.cards.length > 0) && <section className="pd-deleg" aria-label="Delegación">
       <div className="pd-deleg-head"><strong>Quién tiene qué</strong>{summary && <small>{summary}</small>}</div>
       <ul className="pd-deleg-list">{delegates.map(row => {
         const content = <>
@@ -56,9 +65,14 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
         return <li key={row.id} className="pd-deleg-row" data-purpose={row.purpose} data-status={row.status} style={{ '--deleg-depth': row.depth }}>
           {onOpenPanel
             ? <button type="button" className="pd-deleg-item" aria-label={`Ir a ${row.title}`} onClick={() => onOpenPanel('terminal', { focusNodeId: row.id })}>{content}</button>
-            : <div className="pd-deleg-item">{content}</div>}
+             : <div className="pd-deleg-item">{content}</div>}
+          {row.plan && <CardPlan plan={row.plan} />}
         </li>;
       })}</ul>
+      {delegation.cards.length > 0 && <div className="pd-deleg-cards">
+        <strong>Cards sin terminal</strong>
+        {delegation.cards.map(card => <div key={card.id}><strong>{card.goal}</strong><small>{statusLabel(card.status)}</small><CardPlan plan={card.plan} /></div>)}
+      </div>}
     </section>}
     {onOpenPanel
       ? <QueueSummary workspace={workspace} api={api} onOpenPanel={onOpenPanel} hasOrchestrator={Boolean(orchestrator)} />

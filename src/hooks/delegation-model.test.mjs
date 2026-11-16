@@ -1,10 +1,65 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDelegation } from './delegation-model.mjs';
+import { buildDelegation, withCardPlans } from './delegation-model.mjs';
 
 const terminal = (id, data, title) => ({ id, type: 'terminal', data, title });
 const handoff = (nodeId, createdAt = '', extra = {}) => ({ from: { workspaceId: 'w', nodeId, title: nodeId }, createdAt, ...extra });
 const build = nodes => buildDelegation({ id: 'w', nodes });
+
+const card = (id, status = 'ready', children = [{ key: 'one', goal: 'Primero' }], goal = ' Meta  de\n la card ') => ({
+  id, kind: 'card', status, raw: { id, contract: { goal, coordination: { children } } },
+});
+
+test('card plans resolve registered children, dependencies and completion for both list shapes', () => {
+  const delegation = build([terminal('a', { agent: { cardId: 'c' } })]);
+  const items = [card('c', 'running', [{ key: 'one', goal: 'Primero' }, { key: 'two', goal: 'Segundo', dependencies: ['one'] }]),
+    { id: 't', kind: 'task', status: 'completed', raw: { id: 't', parentId: 'c', key: 'one', status: 'completed' } }];
+  for (const tasks of [items, { items }]) {
+    assert.deepEqual(withCardPlans(delegation, tasks).rows[0].plan, {
+      cardId: 'c', total: 2, done: 1, children: [
+        { key: 'one', goal: 'Primero', status: 'completed', dependencies: [], taskId: 't' },
+        { key: 'two', goal: 'Segundo', status: 'sin registrar', dependencies: ['one'], taskId: '' },
+      ],
+    });
+  }
+});
+
+test('unassigned plans include only open items in catalog order and normalize goals', () => {
+  const items = [card('assigned'), card('closed', 'completed'), card('cancelled', 'cancelled'), card('empty', 'ready', []), card('open'), card('long', 'blocked', undefined, 'x'.repeat(201))];
+  const result = withCardPlans(build([terminal('a', { hidden: true, agent: { cardId: 'assigned' } })]), items);
+  assert.deepEqual(result.cards.map(item => item.id), ['open', 'long']);
+  assert.equal(result.cards[0].goal, 'Meta de la card');
+  assert.equal(result.cards[0].status, 'ready');
+  assert.equal(result.cards[1].goal, `${'x'.repeat(199)}…`);
+});
+
+test('enrichment preserves order and counts without mutating delegation or its rows', () => {
+  const delegation = build([terminal('a', { agent: { cardId: 'c' } }), terminal('b'), terminal('c', { agent: { cardId: 'empty' } })]);
+  const snapshot = structuredClone(delegation);
+  delegation.rows.forEach(Object.freeze);
+  Object.freeze(delegation.rows);
+  Object.freeze(delegation);
+  const result = withCardPlans(delegation, [card('c'), card('empty', 'ready', [])]);
+  assert.deepEqual(result.rows.map(row => row.id), ['a', 'b', 'c']);
+  assert.equal(result.counts, delegation.counts);
+  assert.equal(result.rows[1].plan, null);
+  assert.equal(result.rows[2].plan, null);
+  assert.notEqual(result.rows[0], delegation.rows[0]);
+  assert.deepEqual(delegation, snapshot);
+});
+
+test('missing catalogs yield no plans and items without raw use their own detail', () => {
+  const delegation = build([terminal('a', { agent: { cardId: 'c' } })]);
+  for (const tasks of [null, undefined, {}, 'x', { items: {} }]) {
+    const result = withCardPlans(delegation, tasks);
+    assert.equal(result.rows[0].plan, null);
+    assert.deepEqual(result.cards, []);
+  }
+  const counts = { total: 0 };
+  assert.deepEqual(withCardPlans({ rows: [], counts }, null), { rows: [], counts, cards: [] });
+  const item = card('c');
+  assert.equal(withCardPlans(delegation, [{ ...item.raw, status: 'ready' }]).rows[0].plan.total, 1);
+});
 
 test('purpose prioritizes tasks, handoffs and orchestrators and excludes processes', () => {
   const { rows } = build([

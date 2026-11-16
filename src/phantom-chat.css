@@ -133,6 +133,10 @@ button.pd-deleg-item:focus-visible { outline: 2px solid var(--accent); outline-o
 .pd-deleg-what { font-size: 12px; line-height: 1.45; }
 .pd-deleg-row[data-purpose="none"] .pd-deleg-what { color: var(--warning); }
 .pd-deleg code { font-family: monospace; }
+.pd-deleg-plan-block { min-width: 0; margin: 6px 0 8px 22px; overflow-wrap: anywhere; }
+.pd-deleg-plan { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pd-deleg-child { display: flex; flex-direction: column; min-width: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; color: var(--ink); }
+.pd-deleg-cards, .pd-deleg-cards > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .pd-session { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--r-obj); background: var(--fill); }
 .pd-session-head { display: flex; align-items: center; gap: 10px; }
 .pd-open-session { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; max-width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }

@@ -1,3 +1,24 @@
+import { childrenOf } from './card-view.mjs';
+
+export function withCardPlans(delegation, tasks) {
+  const items = Array.isArray(tasks) ? tasks : Array.isArray(tasks?.items) ? tasks.items : [];
+  const plans = new Map();
+  for (const item of items) {
+    const children = childrenOf(item.raw ?? item, items).nodes.map(({ key, goal, status, dependencies, taskId = '' }) => ({ key, goal, status, dependencies, taskId }));
+    if (children.length) plans.set(item.id, { cardId: item.id, total: children.length, done: children.filter(child => child.status === 'completed').length, children });
+  }
+  const assigned = new Set(delegation.rows.map(row => row.cardId).filter(Boolean));
+  return {
+    rows: delegation.rows.map(row => ({ ...row, plan: row.cardId ? plans.get(row.cardId) || null : null })),
+    counts: delegation.counts,
+    cards: items.filter(item => item.status !== 'completed' && item.status !== 'cancelled' && plans.has(item.id) && !assigned.has(item.id)).map(item => {
+      let goal = ((item.raw ?? item).contract?.goal || '').replace(/\s+/g, ' ').trim();
+      if (goal.length > 200) goal = `${goal.slice(0, 199)}…`;
+      return { id: item.id, goal, status: item.status, plan: plans.get(item.id) };
+    }),
+  };
+}
+
 export function buildDelegation(workspace) {
   const nodes = (workspace?.nodes || []).filter(node => node.type === 'terminal' && !node.data?.process);
   const rows = nodes.map(node => {
