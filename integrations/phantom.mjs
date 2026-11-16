@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 
+const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 const controllers = new Map(), writes = new Map(), starts = new Map();
@@ -34,8 +35,12 @@ async function client(payload, context) {
     // Native Phantom owns this database. Never copy or open it through Store.
     flags.push('--data', nativeHome);
   }
-  const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root });
+  const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root, maxBuffer: PHANTOM_MAX_BUFFER, timeout: 30000 });
   return { root, workspace, cli, flags, call, config, nativeHome, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+}
+function unavailableReason(error) {
+  const reason = error.message.includes('maxBuffer') ? 'el catálogo de Phantom supera el límite de lectura de 64 MiB; archiva o cancela tareas antiguas' : error.killed === true || error.code === 'ETIMEDOUT' ? 'la CLI de Phantom no respondió a tiempo' : error.message;
+  return `Phantom unavailable: ${reason}`;
 }
 export async function phantomStatus(payload, context) {
   await workspaceRoot(context, payload);
@@ -47,13 +52,14 @@ export async function phantomStatus(payload, context) {
     let version;
     try { const pkg = JSON.parse(await readFile(path.resolve(path.dirname(c.cli), '../package.json'), 'utf8')); if (typeof pkg.version === 'string') version = pkg.version; } catch { /* Optional package metadata. */ }
     return { available: true, source: 'phantom', cli: c.cli, ...(version ? { version } : {}), observedAt: observedAt() };
-  } catch (error) { return { available: false, source: 'phantom', reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
+  } catch (error) { return { available: false, source: 'phantom', reason: unavailableReason(error), observedAt: observedAt() }; }
 }
 // Every checkout of this repository, keyed by canonical path, with the branch it holds.
 async function family(client, context) {
   const roots = new Map([[client.root, { path: client.root, branch: null, main: true }]]);
   try {
     const { stdout } = await command(context, 'git', ['--no-optional-locks', 'worktree', 'list', '--porcelain', '-z'], { cwd: client.root });
+    roots.git = true;
     let current = null;
     for (const entry of stdout.split('\0')) {
       if (entry.startsWith('worktree ')) {
@@ -76,10 +82,11 @@ async function list(payload, context, c) {
   if (!['tasks', 'memories', 'skills'].includes(topic)) throw new Error('topic must be tasks, memories, or skills');
   if (payload.query !== undefined && (typeof payload.query !== 'string' || payload.query.length > 500)) throw new Error('Invalid Phantom query');
   const locations = new Map();
-  let raw = await c.call(topic === 'tasks' ? ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
+  const roots = topic === 'tasks' ? await family(c, context) : undefined;
+  let raw = await c.call(topic === 'tasks' ? roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
   if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
   if (topic === 'tasks') {
-    const roots = await family(c, context), filtered = [];
+    const filtered = [];
     for (const item of raw) { try { const home = roots.get(await realpath(item.contract?.workspace)); if (home) { filtered.push(item); locations.set(item, home); } } catch { /* Not this workspace. */ } }
     raw = filtered;
   }
@@ -292,7 +299,7 @@ export async function phantom(method, payload, context) {
   if (method === 'phantom.list') {
     await workspaceRoot(context, payload);
     try { return await list(payload, context, await client(payload, context)); }
-    catch (error) { return { available: false, items: [], reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
+    catch (error) { return { available: false, items: [], reason: unavailableReason(error), observedAt: observedAt() }; }
   }
   const c = await client(payload, context);
   if (method === 'phantom.events') return events(payload, context, c);
