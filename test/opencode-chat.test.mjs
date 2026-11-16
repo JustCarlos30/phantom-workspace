@@ -4,9 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { createHost } from '../host/server.mjs';
-import { loopbackRequest } from '../host/opencode-chat.mjs';
+import { driveOpenCode, loopbackRequest } from '../host/opencode-chat.mjs';
 import { applyOpenCodeEvent } from '../host/chats.mjs';
 
 test('OpenCode context is the latest root step total, never a sum or incomplete fallback', () => {
@@ -19,11 +21,16 @@ test('OpenCode context is the latest root step total, never a sum or incomplete 
   apply({ total: 60000 });
   assert.equal(turn.contextTokens, 60000);
   assert.equal(turn.contextSource, 'opencode:request-v1');
-  for (const tokens of [undefined, {}, { input: 100, output: 5, reasoning: 1, cache: { read: 10, write: 0 } }, ...[NaN, Infinity, -1, null].map(total => ({ total })), { total: 100, output: -1 }, { total: 100, cache: { read: NaN } }]) {
+  apply({ input: 100, output: 5, reasoning: 1, cache: { read: 10, write: 0 } });
+  assert.equal(turn.contextTokens, 116);
+  for (const tokens of [undefined, {}, ...[NaN, Infinity, -1, null].map(total => ({ total }))]) {
     apply({ total: 80000 }); apply(tokens);
-    assert.equal(turn.contextTokens, undefined);
-    assert.equal(turn.contextSource, undefined);
+    assert.equal(turn.contextTokens, 80000);
+    assert.equal(turn.contextSource, 'opencode:request-v1');
   }
+  applyOpenCodeEvent(turn, { type: 'model', sessionID: 'root', model: 'openai/test', contextWindow: 258400 });
+  assert.equal(turn.model, 'openai/test');
+  assert.equal(turn.contextWindow, 258400);
 });
 
 const until = async fn => {
@@ -124,6 +131,43 @@ async function localServer(t, handler) {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return `http://127.0.0.1:${server.address().port}`;
 }
+
+test('driveOpenCode informa el modelo principal y consulta su ventana una sola vez', async t => {
+  let stream, queries = 0;
+  const info = { role: 'assistant', sessionID: 'root', providerID: 'openai', modelID: 'test' };
+  const base = await localServer(t, async (req, res) => {
+    const route = new URL(req.url, 'http://localhost').pathname;
+    if (route === '/session') return res.end(JSON.stringify({ id: 'root' }));
+    if (route === '/event') {
+      stream = res;
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write('data: {"type":"server.connected"}\n\n');
+      return;
+    }
+    if (route === '/config/providers') {
+      queries++;
+      return res.end(JSON.stringify({ providers: [{ id: 'openai', models: { test: { limit: { context: 258400, output: 1000 } } } }] }));
+    }
+    if (route === '/session/root/message') {
+      for await (const chunk of req) { /* Consume the prompt. */ }
+      const send = info => stream.write(`data: ${JSON.stringify({ type: 'message.updated', properties: { info } })}\n\n`);
+      send({ ...info, sessionID: 'child', modelID: 'child' });
+      send(info); send(info);
+      return res.end(JSON.stringify({ info, parts: [] }));
+    }
+    res.writeHead(404); res.end();
+  });
+  const child = new EventEmitter();
+  child.stdout = new PassThrough();
+  let closed = false;
+  child.kill = () => { if (!closed) { closed = true; child.emit('close', 0); } };
+  const events = [];
+  const driving = driveOpenCode(child, { cwd: '/tmp', message: 'hola', password: 'secret', onEvent: event => events.push(event) });
+  child.stdout.write(`opencode server listening on ${base}\n`);
+  await driving;
+  assert.equal(queries, 1);
+  assert.deepEqual(events.filter(event => event.type === 'model'), [{ type: 'model', sessionID: 'root', model: 'openai/test', contextWindow: 258400 }]);
+});
 
 test('loopback message and live SSE requests work when global fetch throws', { timeout: 5000 }, async t => {
   t.mock.method(globalThis, 'fetch', () => { throw new Error('fetch must not handle long requests'); });
