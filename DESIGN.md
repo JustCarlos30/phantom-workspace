@@ -192,7 +192,7 @@ Dirección aprobada por Carlos el 2026-11-14 («que todo se sienta fácil», ref
 | Git | Ramas · Historial · Cola |
 | Servicios | Este proyecto · Docker · Todos los proyectos |
 | Contexto | Documentos y memoria · Skills |
-| Automatizar | Secuencias · Navegador · Código |
+| Automatizar | Procesos · Secuencias · Navegador · Código |
 
 `App.jsx` reutiliza el panel existente de cada destino al abrirlo. `ToolPanels.jsx` recuerda la pestaña elegida en localStorage (`phantom.hub.${type}`, por tipo de destino); una petición explícita de pestaña prevalece sobre ese recuerdo. Las aperturas dirigidas a una tarea (`cardId`), referencia (`ref`) o panel (`focusNodeId`) conservan su destino dedicado en lugar de convertirse en un panel unificado.
 

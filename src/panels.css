@@ -82,3 +82,4 @@
 .app-shell .browser-toolbar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app-shell .browser-preview-label { background: var(--well-raised); }
 .app-shell .note-editor { padding: 18px 20px; font: var(--t-body); }
+.app-shell .canvas-node .tw-content small.tw-process-command { font-family: var(--mono); overflow-wrap: anywhere; }
