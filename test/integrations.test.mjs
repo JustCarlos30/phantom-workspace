@@ -194,6 +194,30 @@ test('native Phantom isolated data: cards, decisions/revisions, immutable skills
   await assert.rejects(f.call('phantom.create', { kind: 'card', input: { ...input, scope: ['outside/x.md'] } }), /Symlink/);
 });
 
+test('Phantom task catalog uses a large buffer and explains output-limit failures', async t => {
+  const f = await fixture(t);
+  f.context.state.settings.phantomPath = process.execPath;
+  let seen, fail = false;
+  f.context.execFile = async (file, args, options) => {
+    if (file === 'git') throw new Error('No Git transport');
+    assert.deepEqual(args.slice(1), ['list', '--json']);
+    seen = options;
+    if (fail) throw new Error('node: stdout maxBuffer length exceeded');
+    return { stdout: '[]', stderr: '' };
+  };
+  const result = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(result.available, true, result.reason);
+  assert.ok(seen.maxBuffer >= 32 * 1024 * 1024);
+  assert.equal(seen.timeout, 30000);
+  assert.equal(seen.cwd, f.root);
+  fail = true;
+  const unavailable = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(unavailable.available, false);
+  assert.match(unavailable.reason, /^Phantom unavailable: /);
+  assert.match(unavailable.reason, /catálogo/);
+  assert.doesNotMatch(unavailable.reason, /maxBuffer/);
+});
+
 test('Phantom task catalog excludes unrelated projects but includes known worktree family', async t => {
   const f = await fixture(t, true);
   // The mocked transport only needs an existing CLI file, independent of any installation.
