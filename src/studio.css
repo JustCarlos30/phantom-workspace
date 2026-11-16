@@ -215,7 +215,7 @@
 .background-preview { display: block; height: 58px; background-color: var(--bg); background-image: var(--atmosphere); border-radius: var(--r-mark); margin-bottom: 9px; }
 .background-option.gengar .background-preview { position: relative; overflow: hidden; }
 .background-option.ascii .background-preview { position: relative; overflow: hidden; background: linear-gradient(#090c12, #10171a); }
-.background-option.ascii .background-preview::before { content: ' .:*   .:.   ° o\A :*#:   :*:   .:*\A  Y|Y   .:*   Y|'; white-space: pre; position: absolute; inset: 5px; font: 13px/15px var(--font-mono, ui-monospace, monospace); background: linear-gradient(110deg, #26e6ff, #ff50d8, #ffc34d, #b5f54c); background-clip: text; -webkit-background-clip: text; color: transparent; opacity: .95; }
+.background-option.ascii .background-preview::before { content: '  .--.    .--.\A (o  o)  (o  o)\A  uvvu    uvvu\A  |}{|    |}{|\A  :||:    :||:'; white-space: pre; position: absolute; inset: 5px; font: 9px/10px var(--font-mono, ui-monospace, monospace); background: linear-gradient(110deg, #26e6ff, #ff50d8, #ffc34d, #b5f54c); background-clip: text; -webkit-background-clip: text; color: transparent; opacity: .95; }
 .background-preview img { position: absolute; height: 88px; width: 88px; object-fit: contain; right: 3px; top: -12px; pointer-events: none; }
 .background-option>span:nth-child(2) { margin-left: 4px; }
 .background-option>svg { position: absolute; bottom: 9px; right: 8px; }
