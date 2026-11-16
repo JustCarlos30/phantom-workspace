@@ -29,6 +29,28 @@ test('Leer un aviso no lo aprueba ni resuelve una intervención', () => {
   assert.equal(after.unread, 0);
 });
 
+test('Los avisos de fin de proceso Phantom no requieren intervención', () => {
+  for (const eventKey of ['tool:r1:failed', 'terminal:r1:failed']) {
+    const notice = { id: 'n', eventKey, source: 'phantom', status: 'failed' };
+    for (const acknowledgedAt of [undefined, '2026-11-11']) {
+      assert.deepEqual(buildActivity({ workspace: { attention: [{ ...notice, acknowledgedAt }] } }).needs, []);
+    }
+  }
+});
+
+test('Leer un aviso de proceso de otra fuente lo retira de necesidades', () => {
+  for (const eventKey of ['tool:r2:failed', 'terminal:r2:failed']) {
+    const notice = { id: 'n', eventKey, source: 'tool', status: 'failed' };
+    assert.deepEqual(buildActivity({ workspace: { attention: [notice] } }).needs.map(item => item.id), ['n']);
+    assert.deepEqual(buildActivity({ workspace: { attention: [{ ...notice, acknowledgedAt: '2026-11-11' }] } }).needs, []);
+  }
+});
+
+test('Un aviso bloqueado sin eventKey sigue requiriendo intervención aunque esté leído', () => {
+  const notice = { id: 'n', status: 'blocked', acknowledgedAt: '2026-11-11' };
+  assert.deepEqual(buildActivity({ workspace: { attention: [notice] } }).needs.map(item => item.id), ['n']);
+});
+
 const nodes = [{ id: 'n', type: 'terminal', title: 'Oculta', data: { sessionId: 's', hidden: true, worktree: { branch: 'feature' } } }];
 const sessions = [{ id: 's', nodeId: 'n', status: 'running' }];
 
