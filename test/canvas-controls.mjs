@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await mkdtemp('/tmp/opencode/phantom-canvas-');
@@ -34,6 +35,10 @@ try {
   await page.locator('.canvas-node').first().waitFor();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const canvas = page.locator('.canvas');
+  // Mount/ResizeObserver can still reframe the initial camera after the first
+  // card appears. Start input checks from a settled, fully visible fixture.
+  await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();
+  await page.waitForTimeout(850);
   let bounds = await canvas.boundingBox();
 
   // Bursts must accumulate from the latest input, not from the last React render.
@@ -58,8 +63,11 @@ try {
   await page.waitForTimeout(100);
   const zoomed = await matrix();
   assert.ok(zoomed.zoom > old.zoom);
-  assert.ok(Math.abs((px - bounds.x - old.x) / old.zoom - (px - bounds.x - zoomed.x) / zoomed.zoom) < .01);
-  assert.ok(Math.abs((py - bounds.y - old.y) / old.zoom - (py - bounds.y - zoomed.y) / zoomed.zoom) < .01);
+  // The painted translate is snapped to device pixels; allow one screen pixel of drift.
+  assert.ok(Math.abs((px - bounds.x - old.x) / old.zoom - (px - bounds.x - zoomed.x) / zoomed.zoom) * zoomed.zoom <= 1);
+  assert.ok(Math.abs((py - bounds.y - old.y) / old.zoom - (py - bounds.y - zoomed.y) / zoomed.zoom) * zoomed.zoom <= 1);
+  await page.waitForTimeout(400);
+  assert.deepEqual(await matrix(), zoomed, 'Mount reframe must not override deliberate zoom');
   checks.push('Cursor-anchored zoom works over panel content');
 
   await page.getByRole('button', { name: 'Herramienta de mano', exact: true }).click();
@@ -78,7 +86,8 @@ try {
   await note.fill('h v 0 + -');
   assert.equal(await transform(), fitted);
   await canvas.focus(); await page.keyboard.down('Space');
-  await page.mouse.move(bounds.x + 80, bounds.y + 100); await page.mouse.down(); await page.mouse.move(bounds.x + 120, bounds.y + 125); await page.mouse.up(); await page.keyboard.up('Space');
+  // Empty stage below the fitted cards; the top-left corner belongs to the project rail.
+  await page.mouse.move(bounds.x + 760, bounds.y + 650); await page.mouse.down(); await page.mouse.move(bounds.x + 800, bounds.y + 675); await page.mouse.up(); await page.keyboard.up('Space');
   assert.notEqual(await transform(), fitted);
   assert.ok(!(await canvas.getAttribute('class')).includes('hand-tool'));
   checks.push('Space temporarily pans; editor keystrokes retain ownership');
@@ -107,6 +116,80 @@ try {
   assert.equal((await matrix()).zoom, 1);
   checks.push('Zoom presets animate to exact scale; reduced motion is supported');
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click(); await page.waitForTimeout(250);
+  const fitDestination = await matrix();
+
+  // Exercise real momentum with normal motion. Observe multiple post-release
+  // frames before issuing navigation in the same renderer turn, so these cannot
+  // accidentally pass by waiting for the glide to finish first.
+  const navigateDuringGlide = async action => {
+    await page.getByRole('button', { name: 'Herramienta de mano', exact: true }).click();
+    const r = await canvas.boundingBox();
+    await page.mouse.move(r.x + r.width - 120, r.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(r.x + r.width - 720, r.y + 200, { steps: 6 });
+    await page.mouse.up();
+    return page.evaluate(async action => {
+      const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+      const read = () => {
+        const m = new DOMMatrix(getComputedStyle(document.querySelector('.canvas-world')).transform);
+        return { x: m.e, y: m.f, zoom: m.a };
+      };
+      await frame(); await frame();
+      const before = read();
+      await frame(); await frame();
+      const moving = read();
+      if (Math.abs(moving.x - before.x) < 1) throw new Error('Fixture must still be gliding at navigation');
+      let expected;
+      if (action === 'zoom') {
+        const stage = document.querySelector('.canvas-stage').getBoundingClientRect();
+        const zoom = Math.min(1.8, moving.zoom * 1.2);
+        expected = { x: stage.width / 2 - (stage.width / 2 - moving.x) * zoom / moving.zoom, y: stage.height / 2 - (stage.height / 2 - moving.y) * zoom / moving.zoom, zoom };
+        document.querySelector('button[aria-label="Acercar"]').click();
+      } else if (action === 'fit') {
+        document.querySelector('button[aria-label="Ajustar todos los paneles"]').click();
+      } else {
+        const editor = document.querySelector('.note-editor');
+        const panel = editor.closest('.canvas-node').getBoundingClientRect();
+        const stage = document.querySelector('.canvas-stage').getBoundingClientRect();
+        if (panel.left >= stage.left && panel.right <= stage.right && panel.top >= stage.top + 72 && panel.bottom <= stage.bottom - 16) throw new Error('Frame fixture must be outside the safe area');
+        editor.focus({ preventScroll: true });
+      }
+      return expected;
+    }, action);
+  };
+  const assertDestination = async expected => {
+    await page.waitForTimeout(850);
+    const actual = await matrix();
+    assert.ok(Math.abs(actual.x - expected.x) <= 1, `x: ${actual.x} vs ${expected.x}`);
+    assert.ok(Math.abs(actual.y - expected.y) <= 1, `y: ${actual.y} vs ${expected.y}`);
+    assert.ok(Math.abs(actual.zoom - expected.zoom) < .00001);
+    const saved = (await invoke('state.get')).workspaces.find(w => w.id === workspace.id).camera;
+    assert.ok(Math.abs(saved.x - actual.x) <= 1 && Math.abs(saved.y - actual.y) <= 1);
+    assert.ok(Math.abs(saved.zoom - expected.zoom) < .000000001);
+    await page.waitForTimeout(120);
+    assert.deepEqual(await matrix(), actual, 'Navigation must remain settled after the former glide');
+    assert.deepEqual((await invoke('state.get')).workspaces.find(w => w.id === workspace.id).camera, saved);
+    return actual;
+  };
+  await assertDestination(await navigateDuringGlide('zoom'));
+  await navigateDuringGlide('fit'); await assertDestination(fitDestination);
+
+  // Establish the single-card framing destination independently of momentum.
+  await canvas.evaluate(el => el.dispatchEvent(new WheelEvent('wheel', { deltaX: 2000, bubbles: true, cancelable: true })));
+  await page.waitForTimeout(30);
+  await note.evaluate(el => el.focus({ preventScroll: true }));
+  await page.waitForTimeout(250);
+  const frameDestination = await matrix();
+  await navigateDuringGlide('frame');
+  const framed = await assertDestination(frameDestination);
+  await page.reload(); await page.locator('.canvas-node').first().waitFor();
+  assert.deepEqual(await matrix(), framed);
+  checks.push('Normal-motion zoom, fit and card framing interrupt active inertia, settle exactly and persist through reload');
+  await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click(); await page.waitForTimeout(250);
+  bounds = await canvas.boundingBox();
+  await page.mouse.move(bounds.x + 15, bounds.y + 80); await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width - 15, bounds.y + bounds.height - 100, { steps: 10 }); await page.mouse.up();
+  assert.equal(await page.locator('.canvas-node.selected').count(), 2);
   await page.getByRole('button', { name: 'Gestos y atajos del canvas', exact: true }).click();
   await page.screenshot({ path: path.join(temp, 'canvas-desktop.png') });
   await page.getByRole('button', { name: 'Cerrar controles del canvas', exact: true }).click();
@@ -136,5 +219,7 @@ try {
   // app.exit() can leave Playwright's close dispatcher waiting indefinitely.
   // Bound graceful shutdown, then terminate only the cached fixture process.
   await Promise.race([app.close().catch(() => {}), delay(2500)]);
-  if (appProcess.exitCode === null && appProcess.signalCode === null) appProcess.kill('SIGKILL');
+  killElectronGroup(appProcess);
 }
+// Playwright can keep handles open after the fixture is torn down; finish once the result is reported.
+process.exit(0);

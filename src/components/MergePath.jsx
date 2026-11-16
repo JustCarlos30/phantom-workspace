@@ -5,10 +5,10 @@ import '../incorporaciones.css';
 
 const STATE = { done: 'hecho', now: 'siguiente', todo: 'pendiente', fail: 'falló' };
 
-// The road from a branch to the base, drawn the same way for every branch:
+// The road from a branch to main, drawn the same way for every branch:
 // what is done, where it stands, and what failed.
 export function MergeSteps({ path }) {
-  return <ol className="mp-steps" aria-label={`Camino al merge: ${path.done} de ${path.total} pasos`}>
+  return <ol className="mp-steps" aria-label={`Camino a main: ${path.done} de ${path.total} pasos`}>
     {path.steps.map(step => <li key={step.id} className="mp-step" data-state={step.state}>
       <span className="mp-dot" aria-hidden="true">{step.state === 'done' ? <Check size={9} strokeWidth={3} /> : step.state === 'fail' ? <X size={9} strokeWidth={3} /> : null}</span>
       <span className="mp-label">{step.label}<span className="sr-only"> · {STATE[step.state]}</span></span>

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { killElectronGroup } from './support/electron-process.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -37,7 +38,7 @@ test('failed phantom:invoke restores connection without further renderer request
       const child = app.process();
       const exited = child.exitCode !== null || child.signalCode !== null ? Promise.resolve()
         : new Promise(resolve => child.once('exit', resolve));
-      child.kill('SIGKILL'); await exited;
+      killElectronGroup(child); await exited;
     }
     for (const socket of sockets) socket.destroy();
     await Promise.all([new Promise(resolve => host.close(resolve)), new Promise(resolve => ui.close(resolve))]);

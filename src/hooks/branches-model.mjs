@@ -1,62 +1,142 @@
 // Pure model for the Ramas panel (shared by renderer and node tests).
-// Git facts come from the host; this only names, groups and orders them.
-export const shortBranch = name => name ? name.replace(/^phantom\/terminal-([0-9a-f]{8})[0-9a-f-]*$/, 'terminal $1') : 'HEAD separado';
+// Git facts come from the host; this names each branch, gives it ONE state,
+// one line of detail and at most one action, and orders the list.
+export const branchTitle = name => {
+  if (!name) return 'Sin rama';
+  const session = /^phantom\/terminal-([0-9a-f]{8})[0-9a-f-]*$/.exec(name);
+  return session ? `Sesión cerrada · ${session[1]}` : name;
+};
+// Kept under its old name for the modules that already import it.
+export const shortBranch = branchTitle;
 export const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
 export const filesText = count => plural(count, 'archivo', 'archivos');
 export const commitsText = count => plural(count, 'commit', 'commits');
 
-export const GROUPS = [
-  { id: 'dirty', title: 'Con cambios sin guardar', hint: 'Archivos editados en su worktree que no están en ningún commit. Solo existen en esa carpeta.' },
-  { id: 'ready', title: 'Con commits por integrar', hint: 'Trabajo guardado en la rama que todavía no está en la rama de integración.' },
-  { id: 'clean', title: 'Sin trabajo pendiente', hint: 'Todo lo que tenían ya está en la rama de integración.' },
-];
+// The seven states a branch can be in, in the order the list shows them.
+export const BRANCH_STATES = {
+  conflict: { label: 'Conflicto', tone: 'danger', order: 0 },
+  ready: { label: 'Lista', tone: 'success', order: 1 },
+  merging: { label: 'Integrando', tone: 'working', order: 2 },
+  queued: { label: 'En cola', tone: 'neutral', order: 3 },
+  unsaved: { label: 'Sin guardar', tone: 'attention', order: 4 },
+  working: { label: 'Trabajando', tone: 'working', order: 5 },
+  merged: { label: 'En main', tone: 'neutral', order: 6 },
+};
+export const stateLabel = (state, base = 'main') => state === 'merged' ? `En ${base || 'main'}` : BRANCH_STATES[state]?.label || '';
+// One group now; the name stays exported for older importers.
+export const GROUPS = [{ id: 'sessions', title: 'Ramas de tus sesiones' }];
 
 const CHANGE = { M: 'Modificado', A: 'Añadido', D: 'Borrado', R: 'Renombrado', C: 'Copiado', T: 'Tipo cambiado', U: 'En conflicto', '?': 'Nuevo' };
 export const changeCode = status => /U/.test(status || '') || ['AA', 'DD'].includes(status) ? 'U' : (status || '').replace(/ /g, '')[0] || '?';
 export const changeLabel = status => CHANGE[changeCode(status)] || 'Cambiado';
 export const changeTone = status => { const code = changeCode(status); return code === 'D' ? 'removed' : code === '?' || code === 'A' ? 'added' : code === 'U' ? 'conflict' : 'modified'; };
 
-// Where a row sits on the rail: commits it lacks to the left, its own work to the right.
-// Logarithmic so 1 and 40 commits are both readable.
+// Width of a count on a rail, logarithmic so 1 and 40 are both readable.
 export const span = count => count > 0 ? Math.round(Math.min(96, 16 + 18 * Math.log2(1 + count))) : 0;
 
+const baseName = file => String(file).split('/').pop();
+const clash = (files, base) => `${baseName(files[0])}${files.length > 1 ? ` y ${files.length - 1} más` : ''} ${files.length > 1 ? 'chocan' : 'choca'} con ${base}`;
+
+// The single state of a branch, with its line of detail and its one action.
+// Pure: the same host row always reads the same way.
+export function branchState(row, base = 'main') {
+  const changeCount = row.changeCount || 0, ahead = row.ahead || 0;
+  const conflicts = row.conflicts?.length ? row.conflicts : [];
+  const owned = Boolean(row.terminal), agentWorking = row.terminal?.status === 'working';
+  const fileCount = row.committedCount ?? row.committed?.length ?? 0;
+  const work = [ahead && commitsText(ahead), fileCount && filesText(fileCount)].filter(Boolean).join(' · ');
+  let state, detail, action = null;
+  if (row.isBase) {
+    state = changeCount ? 'unsaved' : 'merged';
+    detail = changeCount ? `${filesText(changeCount)} sin guardar${changeCount === 1 && row.changes?.[0]?.path ? ` · ${baseName(row.changes[0].path)}` : ''}` : 'Al día';
+    action = changeCount ? 'save' : null;
+  } else if (row.request === 'merging') { state = 'merging'; detail = 'El orquestador la está integrando'; }
+  else if (row.request === 'conflict' || row.request === 'failed' || conflicts.length) {
+    state = 'conflict'; action = owned ? 'session' : null;
+    detail = conflicts.length ? clash(conflicts, base) : row.request === 'failed' ? 'Los tests fallaron al integrar' : `Choca con ${base}`;
+  } else if (row.request === 'queued') { state = 'queued'; detail = 'Espera su turno en la cola'; }
+  else if (changeCount) {
+    state = agentWorking ? 'working' : 'unsaved'; action = agentWorking ? null : 'save';
+    detail = `${filesText(changeCount)} sin guardar`;
+  } else if (ahead) {
+    state = agentWorking ? 'working' : 'ready'; action = agentWorking ? null : 'integrate';
+    detail = work;
+  } else if (agentWorking) { state = 'working'; detail = row.terminal.step || 'Sin cambios todavía'; }
+  else {
+    state = 'merged'; action = owned ? null : 'remove';
+    detail = owned ? 'Sin cambios propios' : `Ya está en ${base} · sesión cerrada`;
+  }
+  if (row.error) detail = 'Git no pudo leer esta rama';
+  else if (row.worktree && !row.worktree.exists && !row.isBase) detail = `${detail} · su carpeta ya no existe`;
+  const meta = BRANCH_STATES[state];
+  return { state, stateLabel: stateLabel(state, base), tone: meta.tone, order: meta.order, detail, action };
+}
+
+// The road to the base in a few steps, drawn the same way for every branch:
+// Guardada → Al día → Tests → En main. Tests only appears when the project has them.
+export function branchPath(row, { base = 'main', checks = '' } = {}) {
+  const state = row.state || branchState(row, base).state;
+  const landed = state === 'merged' && !row.isBase, conflicts = row.conflicts?.length > 0 || row.request === 'conflict';
+  const ids = ['saved', 'current', ...(checks ? ['tests'] : []), 'landed'];
+  const labels = { saved: 'Guardada', current: 'Al día', tests: 'Tests', landed: `En ${base}` };
+  const done = new Set();
+  if (landed) ids.forEach(id => done.add(id));
+  else {
+    if (!row.changeCount && row.ahead > 0) done.add('saved');
+    if (done.has('saved') && !row.behind && !conflicts) done.add('current');
+  }
+  const failed = landed ? null : conflicts ? 'current' : row.request === 'failed' ? (checks ? 'tests' : 'landed') : null;
+  if (failed === 'tests' || failed === 'landed') { done.add('saved'); done.add('current'); }
+  let current = false;
+  const steps = ids.map(id => {
+    const step = failed === id ? 'fail' : done.has(id) ? 'done' : !failed && !current ? 'now' : 'todo';
+    if (step === 'now') current = true;
+    return { id, label: labels[id], state: step };
+  });
+  return { steps, missing: [], notes: [], owner: 'none', done: steps.filter(step => step.state === 'done').length, total: steps.length };
+}
+
 export function describeBranch(row, base) {
-  const title = row.terminal?.title || shortBranch(row.name);
-  const group = row.isBase ? 'base' : row.work === 'dirty' ? 'dirty' : row.work === 'ready' ? 'ready' : 'clean';
+  const title = row.terminal?.title || branchTitle(row.name);
   const exists = Boolean(row.worktree?.exists), owned = Boolean(row.terminal), running = Boolean(row.terminal?.running);
   const conflicts = row.conflicts?.length ? row.conflicts : [];
-  const parts = [];
-  const inBase = row.inBase || 0;
-  if (row.changeCount) parts.push(`${filesText(row.changeCount)} sin guardar${inBase ? inBase === row.changeCount ? ` (todos ya idénticos en ${base})` : ` (${inBase} ya idénticos en ${base})` : ''}`);
-  if (row.ahead) parts.push(`${commitsText(row.ahead)} por integrar`);
-  if (row.behind) parts.push(`${commitsText(row.behind)} detrás de ${base}`);
-  if (!parts.length && !row.isBase) parts.push(`Al día con ${base}`);
-  const where = !row.worktree ? 'Sin worktree' : !exists ? 'Worktree borrado del disco' : row.worktree.main ? 'Checkout del proyecto' : owned ? (running ? 'Terminal con sesión activa' : 'Terminal del canvas') : 'Sin terminal en el canvas';
+  const inBase = row.inBase || 0, changeCount = row.changeCount || 0;
+  const changes = [...(row.changes || [])].sort((a, b) => Number(Boolean(a.inBase)) - Number(Boolean(b.inBase)));
+  const committed = row.committed || [];
+  const status = branchState({ ...row, changeCount, changes }, base);
+  // Each action is offered only when the host would accept it.
+  const can = {
+    commit: exists && changeCount > 0 && !row.detached,
+    integrate: !row.isBase && !row.detached && row.ahead > 0 && !conflicts.length,
+    update: !row.isBase && !row.detached && exists && row.behind > 0 && !(row.ahead && changeCount) && !conflicts.length,
+    remove: !row.isBase && !row.detached && !row.worktree?.main && !owned && row.work === 'none' && !row.worktree?.locked,
+  };
+  const allowed = { save: can.commit, integrate: can.integrate, session: owned, remove: can.remove };
   return {
-    ...row, inBase, pendingCount: row.changeCount - inBase, changes: [...row.changes].sort((a, b) => Number(Boolean(a.inBase)) - Number(Boolean(b.inBase))),
-    id: row.name || `detached:${row.worktree?.path}`, title, group, exists, owned, running, conflicts, summary: parts.join(' · '), where,
-    // Each action is offered only when the host would accept it.
-    can: {
-      commit: exists && row.changeCount > 0 && !row.detached,
-      integrate: !row.isBase && !row.detached && row.ahead > 0 && !conflicts.length,
-      update: !row.isBase && !row.detached && exists && row.behind > 0 && !(row.ahead && row.changeCount) && !conflicts.length,
-      remove: !row.isBase && !row.detached && !row.worktree?.main && !owned && row.work === 'none' && !row.worktree?.locked,
-    },
+    ...row, changeCount, inBase, pendingCount: changeCount - inBase, changes, committed, committedCount: row.committedCount ?? committed.length,
+    id: row.name || `detached:${row.worktree?.path}`, title, group: row.isBase ? 'base' : 'sessions', exists, owned, running, conflicts,
+    ...status, action: allowed[status.action] ? status.action : null, summary: status.detail, can,
   };
 }
 
-export function buildBranches(data, { query = '', content, cards = [] } = {}) {
+export function buildBranches(data, { query = '', filter = '', content, cards = [] } = {}) {
   const base = data?.base?.branch || '';
   const text = query.trim().toLowerCase();
-  const all = (data?.branches || []).map(row => describeBranch(row, base));
+  const all = (data?.branches || []).map(row => describeBranch(row, base || 'main'));
   const baseRow = all.find(row => row.isBase) || null;
-  const rows = all.filter(row => !row.isBase);
-  const visible = rows.filter(row => !text || `${row.title}\n${row.name || ''}\n${cardsOf(row, content?.get(row.name || row.worktree?.path), cards).map(card => `${card.id} ${card.title}`).join('\n')}\n${row.worktree?.path || ''}\n${row.changes.map(change => change.path).join('\n')}\n${row.committed.join('\n')}`.toLowerCase().includes(text));
   const time = row => Date.parse(row.last?.at) || 0;
-  const groups = GROUPS.map(group => ({ ...group, rows: visible.filter(row => row.group === group.id).sort((a, b) => (b.pendingCount + b.ahead) - (a.pendingCount + a.ahead) || time(b) - time(a)) }));
-  const counts = Object.fromEntries(GROUPS.map(group => [group.id, rows.filter(row => row.group === group.id).length]));
+  const rows = all.filter(row => !row.isBase).sort((a, b) => a.order - b.order || (b.pendingCount + b.ahead) - (a.pendingCount + a.ahead) || time(b) - time(a));
+  const visible = rows.filter(row => !text || `${row.title}\n${row.name || ''}\n${row.stateLabel}\n${cardsOf(row, content?.get(row.name || row.worktree?.path), cards).map(card => `${card.id} ${card.title}`).join('\n')}\n${row.worktree?.path || ''}\n${row.changes.map(change => change.path).join('\n')}\n${row.committed.join('\n')}`.toLowerCase().includes(text));
+  const filtered = visible.filter(row => !filter || row.state === filter);
+  const filters = Object.keys(BRANCH_STATES).map(id => ({ id, label: stateLabel(id, base), count: visible.filter(row => row.state === id).length })).filter(item => item.count);
+  const sessions = rows.every(row => row.owned || /^phantom\/terminal-/.test(row.name || ''));
+  const counts = Object.fromEntries(Object.keys(BRANCH_STATES).map(state => [state, rows.filter(row => row.state === state).length]));
   return {
-    base, baseRow, groups, counts, total: rows.length, visible: visible.length,
+    base, baseRow, rows: filtered, counts, total: rows.length, visible: filtered.length,
+    filters, matched: visible.length, active: filtered.filter(row => row.state !== 'merged'), landed: filtered.filter(row => row.state === 'merged'),
+    title: `${plural(rows.length, 'rama', 'ramas')}${sessions ? ' de tus sesiones' : ''}`,
+    // One ordered list; `groups` stays for the callers that flatten it.
+    groups: [{ id: 'sessions', title: `${plural(rows.length, 'rama', 'ramas')}${sessions ? ' de tus sesiones' : ''}`, rows: filtered }],
     unsaved: rows.reduce((sum, row) => sum + row.changeCount, 0), unsavedInBase: rows.reduce((sum, row) => sum + row.inBase, 0), pending: rows.reduce((sum, row) => sum + row.ahead, 0),
     removable: rows.filter(row => row.can.remove), updatable: rows.filter(row => row.can.update && row.work === 'none'),
   };

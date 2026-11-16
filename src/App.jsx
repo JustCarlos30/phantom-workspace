@@ -1,28 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Bell, Blocks, Braces, ChevronDown, ChevronRight, Command, ExternalLink, Folder, FolderOpen, GitBranch, Globe, Layers, List, LoaderCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings2, Square, StickyNote, TerminalSquare, Trash2, Workflow, X, Check, AlertCircle, Box, FileText, Play, Target, EyeOff, Pencil, RotateCcw } from 'lucide-react';
 import Canvas from './components/Canvas';
+import AsciiField from './components/AsciiField.jsx';
 import { PresenceGroup } from './components/Presence';
 import { Inspector } from './components/Inspector';
 import { CommandPalette } from './components/CommandPalette';
 import { VoiceCapture } from './components/VoiceCapture';
+import { VoiceProvider, VoiceLauncher, useVoiceWorkspace } from './components/VoiceProvider';
+import { cancelVoiceRecording } from './hooks/useVoiceRecorder';
 import { api, subscribe, useWorkspace } from './hooks/useWorkspace';
 import { findPanelPlacement } from './hooks/panelPlacement';
 import { useInlineName } from './hooks/useInlineName';
 import { overlayPolicy } from './hooks/inputOwnership';
 import { useAppearance } from './hooks/useAppearance';
 import { useInterfaceScale } from './hooks/useInterfaceScale';
-import { Appearance } from './components/Appearance';
-import ActivityNotch, { ActivityTray } from './components/ActivityNotch';
+import { useFitDensity } from './hooks/useFitDensity';
+import ActivityNotch, { ActivityTray, activityMood } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
 import { useReadyBranches } from './hooks/useReadyBranches';
 import { useSpaces } from './hooks/useSpaces';
 import Spaces from './components/Spaces';
-import ProjectSwitcher from './components/ProjectSwitcher';
-import { Image as ImageIcon, Palette, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Film } from 'lucide-react';
-import { PhantomGlyph as Ghost } from './components/Glyphs';
+import ProjectSwitcher, { ProjectMark } from './components/ProjectSwitcher';
+import { Image as ImageIcon, Maximize2, Frame, GitMerge, LayoutGrid, ListChecks, Server, Film, MoreHorizontal } from 'lucide-react';
+import { PhantomGlyph as Ghost, PhantomFace } from './components/Glyphs';
+import { ActivityIcon, PluginsIcon, CommandsIcon, SiteIcon } from './components/ShellIcons.jsx';
 import { PANEL_ICONS } from './components/PanelIcons';
 import { structuralShare } from './hooks/structuralShare';
 import gengarArtwork from '../assets/gengar.png';
+import GengarMascot from './components/GengarMascot.jsx';
 import './styles.css';
 import './studio.css';
 import { PLUGIN_PANELS } from './components/PluginPanels';
@@ -32,29 +37,39 @@ import './terminal.css';
 import './chat.css';
 import { preferredCardMode } from './components/ChatCard';
 import ToolPicker from './components/ToolPicker';
+import { HUBS, HUB_DOCK, HUB_MORE, resolveHub } from './hooks/hubs.mjs';
 import SidebarPanels from './components/SidebarPanels';
 import './sidebar.css';
+import './shell.css';
 import PhantomChat from './components/PhantomChat';
 import { DOCK_TABS, dockStatus } from './hooks/phantom-dock.mjs';
 import './phantom-chat.css';
+import './panels.css';
+import './menus.css';
+import GlobalSites from './components/GlobalSites';
 
 const TYPES = [
   // [type, name, icon, description, launcher group]
-  ['terminal', 'Terminal', TerminalSquare, 'Una sesión real en esta carpeta', 'space'], ['browser', 'Navegador', Globe, 'Una página junto al trabajo', 'space'], ['note', 'Nota', StickyNote, 'Contexto que permanece', 'space'],
-  ['zone', 'Zona', Frame, 'Área con nombre que agrupa paneles', 'space'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito', 'space'],
-  ['tasks', 'Tareas', ListChecks, 'Borradores, checklists y Phantom', 'project'], ['context', 'Contexto', FileText, 'Archivos, memorias y skills', 'project'], ['repo', 'Repositorio', GitBranch, 'Grafo, worktrees, cambios, editor e integraciones en una vista', 'project'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees', 'project'], ['branches', 'Ramas', GitBranch, 'Todas las ramas y worktrees: guardar, integrar y limpiar', 'project'], ['incorporaciones', 'Incorporaciones', GitMerge, 'Qué se incorpora, en qué orden y qué se planea', 'project'], ['services', 'Servicios', Server, 'Sitios y procesos del proyecto', 'project'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta', 'project'],
-  ['review', 'Revisión de video', Film, 'Frames, zonas y comentarios del taller de videos', 'project'],
-  ['workflows', 'Workflows', Workflow, 'Secuencias de trabajo reutilizables', 'automation'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales', 'automation'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente', 'automation'],
+  ['terminal', 'Terminal', TerminalSquare, 'Una sesión con un agente o una terminal', 'space'], ['browser', 'Navegador', Globe, 'Una página web dentro del proyecto', 'space'], ['note', 'Nota', StickyNote, 'Texto libre que se queda en el mapa', 'space'],
+  ['zone', 'Zona', Frame, 'Un área con nombre para agrupar paneles', 'space'], ['mission', 'Misión', Target, 'Agrupa trabajo con un propósito', 'space'],
+  ['tasks', 'Trabajo', ListChecks, HUBS.tasks.hint, 'project'], ['context', 'Contexto', FileText, HUBS.context.hint, 'project'], ['repo', 'Git', GitBranch, HUBS.repo.hint, 'project'], ['git', 'Git', GitBranch, 'Cambios, ramas y worktrees', 'project'], ['branches', 'Ramas', GitBranch, 'Todas las ramas y worktrees: guardar, integrar y limpiar', 'project'], ['incorporaciones', 'Incorporaciones', GitMerge, 'Qué se incorpora, en qué orden y qué se planea', 'project'], ['services', HUBS.services.name, Server, HUBS.services.hint, 'project'], ['docker', 'Docker', Box, 'Contenedores de esta carpeta', 'project'],
+  ['review', 'Revisión de video', Film, 'Comenta cuadros de tus renders', 'project'],
+  ['workflows', 'Automatizar', Workflow, HUBS.workflows.hint, 'project'], ['playwright', 'Playwright', Play, 'Automatización y trazas reales', 'automation'], ['playground', 'Playground', Braces, 'Ejecuta un fragmento explícitamente', 'automation'],
   ['command-center', 'Centro de mando', Activity, 'Plugin Phantom · tareas y controladores reales', 'phantom'],
   ['skills-catalog', 'Skills', PANEL_ICONS['phantom-skills'], 'Todas las Skills: carpeta, Phantom e instalaciones', 'phantom'],
-  ['plugins', 'Centro de Plugins', Blocks, 'Activación y preferencias por proyecto', 'phantom'],
-  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, PANEL_ICONS[panel.nodeType] || Layers, panel.pluginId === 'convencions' ? 'Base versionada e integración explícita · lectura MCP pendiente' : panel.pluginId === 'video-log' ? 'Aprendizajes, evidencia y contexto de tu bitácora local' : `Panel nativo de ${panel.pluginId}`, 'plugins']),
+  ['plugins', 'Configuración', Blocks, 'Ajustes del proyecto y de la app', 'phantom'],
+  ...PLUGIN_PANELS.map(panel => [panel.nodeType, panel.name, PANEL_ICONS[panel.nodeType] || Layers, panel.pluginId === 'convencions' ? 'Convenciones del proyecto' : panel.pluginId === 'video-log' ? 'Lo aprendido en tus videos' : panel.name, 'plugins']),
 ].map(([type, name, icon, description, group]) => [type, name, PANEL_ICONS[type] || icon, description, group]);
 const QUICK_TYPES = ['terminal', 'browser', 'note', 'zone'].map(id => TYPES.find(t => t[0] === id));
+// What the launchers offer: things you place on the map and the five hubs.
+// Everything a hub hosts as a tab stays a valid node type (saved canvases keep
+// rendering) but is no longer offered on its own.
+const LAUNCH_TYPES = TYPES.filter(([type]) => ['terminal', 'browser', 'note', 'zone', 'review', 'video-log'].includes(type) || HUBS[type]);
+const HUB_ACTIONS = HUB_DOCK.map(id => TYPES.find(t => t[0] === id));
 // The creation dock: one weight for every action, the icon names the panel and
 // a short word under it says it. Hints are the launcher's own descriptions.
 const DOCK_ACTIONS = QUICK_TYPES.map(([type, name, , hint]) => [type, name, hint]);
-const initials = name => name?.split(/[\s_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
+const DOCK_FIT = ['full', 'compact', 'tight'];
 const label = type => TYPES.find(t => t[0] === type)?.[1] || (type === 'reference' ? 'Referencia' : type);
 
 // Move within a continuous navigation list without activating another project
@@ -98,18 +113,44 @@ export default function App() {
   // Keep the model and durable queue above the boundary. Retrying the UI never
   // discards local edits or restarts a PTY, even if a panel threw during render.
   const model = useWorkspace(notify);
-  return <WorkspaceErrorBoundary onRetry={model.refresh}><WorkspaceUI model={model} toasts={toasts} setToasts={setToasts} notify={notify} /></WorkspaceErrorBoundary>;
+  return <VoiceProvider workspaceId={model.state?.activeWorkspaceId} api={api} connected={model.connection.status === 'connected'}><WorkspaceErrorBoundary onRetry={model.refresh}><WorkspaceUI model={model} toasts={toasts} setToasts={setToasts} notify={notify} /></WorkspaceErrorBoundary></VoiceProvider>;
 }
 
 function WorkspaceUI({ model, toasts, setToasts, notify }) {
+  const dockFit = useFitDensity(DOCK_FIT);
+  const dictation = useVoiceWorkspace();
   const { state, error, saveError, connection, saving, refresh, patch, flush, registerBeforeFlush, closeRequest, retryClose } = model;
   const [focused, setFocused] = useState(null);
   const [selected, setSelected] = useState([]);
   const [inspector, setInspector] = useState(null);
+  const settingsOpen = ['settings', 'appearance', 'plugins'].includes(inspector);
   const [palette, setPalette] = useState(false);
+  const [sitesOpen, setSitesOpen] = useState(false);
   const [voice, setVoice] = useState(false);
   const [tray, setTray] = useState(false);
   const [tools, setTools] = useState(false);
+  const [dockMore, setDockMore] = useState(false);
+  const dockMoreButton = useRef(null);
+  const dockMoreMenu = useRef(null);
+  useEffect(() => {
+    if (!dockMore) return;
+    const outside = event => {
+      if (!dockMoreButton.current?.contains(event.target) && !dockMoreMenu.current?.contains(event.target)) setDockMore(false);
+    };
+    const escape = event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setDockMore(false);
+      dockMoreButton.current?.focus();
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape, true);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape, true);
+    };
+  }, [dockMore]);
   const [list, setList] = useState(false);
   const [sidebar, setSidebar] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
@@ -121,15 +162,25 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [chatOwnsFocus, setChatOwnsFocus] = useState(false);
   const [chatFocus, setChatFocus] = useState(0);
   const [dockTab, setDockTab] = useState(() => { try { const saved = localStorage.getItem('phantom.dock.tab'); return DOCK_TABS.includes(saved) ? saved : 'chat'; } catch { return 'chat'; } });
+  const activeWorkspaceId = state?.activeWorkspaceId;
   const chooseDockTab = useCallback(tab => { setDockTab(tab); try { localStorage.setItem('phantom.dock.tab', tab); } catch { /* per-viewer preference only */ } }, []);
   const openPhantomChat = useCallback((value = true, tab) => {
+    if (!value) cancelVoiceRecording(`phantom:${activeWorkspaceId}:`);
     setPhantomChat(value); if (value) setChatFocus(n => n + 1); else setChatOwnsFocus(false);
     if (value && tab) chooseDockTab(tab);
     try { localStorage.setItem('phantom.chat', value ? 'open' : 'closed'); } catch { /* per-viewer preference only */ }
-  }, [chooseDockTab]);
+  }, [chooseDockTab, activeWorkspaceId]);
   // A dictation turned into a task opens the voice capture with that text.
   const [voiceText, setVoiceText] = useState('');
   const [compactRail, setCompactRail] = useState(() => window.matchMedia('(max-width: 850px)').matches);
+  const closeSites = useCallback(() => {
+    const restore = !!document.activeElement?.closest('.global-sites');
+    setSitesOpen(false);
+    if (restore) requestAnimationFrame(() => {
+      const target = document.querySelector(compactRail ? '.rail-toggle' : '.rail-bottom button[aria-pressed]');
+      target?.focus({ preventScroll: true });
+    });
+  }, [compactRail]);
   const [menu, setMenu] = useState(null);
   const [busy, setBusy] = useState('');
   const [fitRequest, setFitRequest] = useState(0);
@@ -142,6 +193,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const projectRename = useInlineName({ stage: (id, name) => patch(id, null, { name }), flush, registerBeforeFlush });
   const workspace = state?.workspaces?.find(w => w.id === state.activeWorkspaceId);
   useEffect(() => { setContextMenu(null); }, [workspace?.id, railCollapsed, sidebar]);
+  useEffect(() => { setVoice(false); setVoiceText(''); }, [workspace?.id]);
   useReadyBranches(api, workspace, connection, notify);
   const activity = useActivity(workspace, connection, model.stateReadAt);
   const activityButton = useRef(null);
@@ -189,18 +241,21 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const onOpenPanel = useCallback(async (type, data = {}, title) => {
     const w = current.current; if (!w) { notify('Abre una carpeta para crear un panel.'); return null; }
     if (!TYPES.some(t => t[0] === type)) { notify(`Tipo de panel desconocido: ${type}`, 'error'); return null; }
+    const hub = resolveHub(type, data);
+    if (hub.tab) { data = { ...data, hubTab: hub.tab }; window.dispatchEvent(new CustomEvent('phantom:hub-tab', { detail: hub })); }
+    type = hub.type;
     setTools(false); setMenu(null); setList(false); setTray(false); setInspector(null);
     const panel = PLUGIN_PANELS.find(item => item.nodeType === type);
     if (panel) data = { ...data, pluginId: panel.pluginId, panelId: panel.id };
-    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (type === 'plugins' || type === 'command-center' || type === 'incorporaciones' || type === 'branches' || type === 'repo' || type === 'skills-catalog' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
+    const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (HUBS[type] && !data.cardId || type === 'plugins' || type === 'command-center' || type === 'incorporaciones' || type === 'branches' || type === 'repo' || type === 'skills-catalog' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
     if (existing) { focusPanel(existing.id); return existing; }
     setBusy(type);
     let reservationId, created = false;
     try {
       const region = document.querySelector('.canvas')?.getBoundingClientRect();
       const camera = spacesRef.current.view?.camera || w.camera || { x: 64, y: 64, zoom: 1 };
-      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : 640;
-      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 640 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : 400;
+      const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : type === 'terminal' ? 960 : HUBS[type] ? 920 : 640;
+      const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 720 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : HUBS[type] ? 640 : 400;
       // Reserve before the RPC so rapid/concurrent creations cannot reuse the
       // same slot while state.get or PTY creation is still in flight.
       for (const [key, item] of placements.current) if (item.workspaceId === w.id && w.nodes?.some(n => n.id === item.nodeId)) placements.current.delete(key);
@@ -286,9 +341,11 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const commandAction = useCallback((action, data) => {
     setPalette(false);
     const key = typeof action === 'string' ? action : action?.action || action?.type || action?.id;
+    if (key === 'sites') { setSitesOpen(true); setInspector(null); return; }
     if (key === 'open-folder' || key === 'openFolder' || key === 'workspace.open') return openFolder();
     if (key === 'fit' || key === 'fit-all') { setFocused(null); setFitRequest(n => n + 1); return; }
     if (key === 'voice') { setVoiceText(''); setVoice(true); return; }
+    if (key === 'dictation') { requestAnimationFrame(() => dictation.openDictation()); return; }
     if (key === 'phantom-chat') { openPhantomChat(true); return; }
     if (key === 'settings') { setInspector('settings'); return; }
     if (key === 'appearance') { setInspector('appearance'); return; }
@@ -301,7 +358,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     const type = key?.replace(/^(create:|new:|panel:|create-|new-)/, '');
     if (TYPES.some(t => t[0] === type)) return onOpenPanel(type, action?.data || data || {});
     notify('Esta acción no está disponible en el proyecto actual.');
-  }, [openFolder, onOpenPanel, notify, focusPanel, openPhantomChat]);
+  }, [openFolder, onOpenPanel, notify, focusPanel, openPhantomChat, dictation.openDictation]);
   useEffect(() => {
     const handler = e => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette(v => !v); return; }
@@ -312,6 +369,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
         if (edit) { e.preventDefault(); setEdit(null); }
         else if (palette) setPalette(false);
         else if (voice) setVoice(false);
+        else if (sitesOpen && !contextMenu) { e.preventDefault(); e.stopPropagation(); closeSites(); }
         else if (menu) setMenu(null);
         else if (tools) setTools(false);
         else if (tray) setTray(false);
@@ -320,7 +378,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       }
     };
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
-  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat]);
+  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat, sitesOpen, contextMenu, closeSites]);
   useEffect(() => { if (workspace && focused && !workspace.nodes?.some(n => n.id === focused)) setFocused(null); }, [workspace, focused]);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 850px)');
@@ -372,7 +430,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const phantomStatus = useMemo(() => dockStatus(workspace), [workspace?.nodes, workspace?.integration]);
   const togglePhantom = useCallback(() => openPhantomChat(!chatOpen), [openPhantomChat, chatOpen]);
   const phantomLauncher = useMemo(() => ({ open: chatOpen, status: phantomStatus, onToggle: togglePhantom }), [chatOpen, phantomStatus, togglePhantom]);
-  const { inputBlocked: overlayInputBlocked, browserObscured } = overlayPolicy({ inspector, palette, voice, tray, list, menu, tools, edit, sidebar, phantomDrawer: chatOpen && compactRail, folder: busy === 'folder', closing: closeRequest?.status === 'saving', disconnected: connection.status !== 'connected' });
+   const { inputBlocked: overlayInputBlocked, navigationBlocked: overlayNavigationBlocked, browserObscured } = overlayPolicy({ inspector, palette, voice: voice || dictation.open, tray, list, menu, tools, edit, sidebar, phantomDrawer: chatOpen && compactRail, folder: busy === 'folder', closing: closeRequest?.status === 'saving', disconnected: connection.status !== 'connected' });
   // Selecting a terminal from navigation must not let its activation effect
   // steal focus before Tab can reach the row's secondary action. Clicking back
   // into the working region releases this ownership through the rail's blur.
@@ -414,51 +472,55 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
 
   if (!window.phantom?.invoke) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div><h1>Abre la aplicación de escritorio</h1><p>Phantom Workspace necesita su host local para abrir carpetas,<br />recuperar terminales y navegar dentro del proyecto.</p><div className="desktop-required-note"><TerminalSquare size={16} /> Esta vista web no está conectada al escritorio.</div></div>;
   if (!state) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div>{error ? <><h1>No pudimos conectar con el host</h1><p>{error}</p><button className="button primary" onClick={() => refresh().catch(() => {})}>Reintentar conexión</button></> : <><LoaderCircle className="spinning" size={23} /><h1>Recuperando tu espacio…</h1><p>Conectando con el host local.</p></>}</div>;
-  return <div className={`app-shell studio-${appearance.background} ${appearance.image ? 'studio-personal' : ''} ${appearance.gengar ? 'studio-character' : ''} ${appearance.pulse ? 'studio-pulse' : ''} ${appearance.concentration ? 'studio-concentration' : ''} ${focused ? 'studio-focused' : ''} ${inspector ? 'studio-inspector-open' : ''} ${appearance.grid ? '' : 'studio-no-grid'} ${railCollapsed ? 'rail-collapsed' : ''} ${chatOpen ? 'phantom-chat-open' : ''}`} style={{ '--gengar-art': `url("${gengarArtwork}")`, '--gengar-intensity': appearance.gengarIntensity / 100, '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
+  return <div className={`app-shell studio-${appearance.background} ${appearance.image ? 'studio-personal' : ''} ${appearance.gengar ? 'studio-character' : ''} ${appearance.pulse ? 'studio-pulse' : ''} ${appearance.concentration ? 'studio-concentration' : ''} ${focused ? 'studio-focused' : ''} ${inspector && !settingsOpen ? 'studio-inspector-open' : ''} ${settingsOpen ? 'studio-settings-open' : ''} ${appearance.grid ? '' : 'studio-no-grid'} ${railCollapsed ? 'rail-collapsed' : ''} ${chatOpen ? 'phantom-chat-open' : ''}`} style={{ '--gengar-art': `url("${gengarArtwork}")`, '--gengar-intensity': appearance.gengarIntensity / 100, '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
     <PresenceGroup>
     {sidebar && <button key="rail-scrim" className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
     <aside key="project-rail" id="project-rail" ref={railRef} aria-label="Navegación del espacio" role={compactRail && sidebar ? 'dialog' : undefined} aria-modal={compactRail && sidebar ? true : undefined} inert={compactRail && !sidebar} onKeyDown={navigateRailList} onFocusCapture={() => setRailOwnsFocus(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setRailOwnsFocus(false); }} className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
-      <div className="brand"><span className="brand-mark"><Ghost size={17} /></span><span>Phantom<span>Workspace</span></span><button className="rail-collapse icon-button" aria-label={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} title={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} aria-expanded={!railCollapsed} onClick={toggleRail}>{railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button><button className="rail-close icon-button" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)}><X size={17} /></button></div>{railCollapsed && workspace && <button className="rail-collapsed-project" onClick={toggleRail} title={workspace.path}><span className="project-initials">{initials(workspace.name)}</span><span>{workspace.name}{spaces.activeSpace && <em> / {spaces.activeSpace.name}</em>}</span></button>}
+      <div className="brand"><span className="brand-mark"><PhantomFace mood={activityMood(activity)} /><Ghost className="brand-state-fallback" size={17} /></span><span>Phantom<span>Workspace</span></span><button className="rail-collapse icon-button" aria-label={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} title={railCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'} aria-expanded={!railCollapsed} onClick={toggleRail}>{railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button><button className="rail-close icon-button" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)}><X size={17} /></button></div>{railCollapsed && workspace && <button className="rail-collapsed-project" onClick={toggleRail} title={workspace.path}><ProjectMark project={workspace} small /><span>{workspace.name}{spaces.activeSpace && <em> / {spaces.activeSpace.name}</em>}</span></button>}
       <ProjectSwitcher projects={state.workspaces} active={workspace} open={contextMenu === 'project'} onOpenChange={value => setContextMenu(value ? 'project' : null)} onSelect={id => { setSidebar(false); selectWorkspace(id); }} onOpenFolder={openFolder} busy={busy === 'folder'} />
       {workspace && <Spaces key={workspace.id} spaces={spaces.spaces} active={spaces.active} nodes={workspace.nodes || []} open={contextMenu === 'space'} onOpenChange={value => setContextMenu(value ? 'space' : null)} onSelect={id => { setFocused(null); setSelected([]); spaces.select(id); }} onCreate={spaces.create} onRename={spaces.rename} onRemove={spaces.remove} />}
-      {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><Bell size={15} /><span>{activity.needs.length ? 'Necesitan de ti' : 'Actividad del proyecto'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
-      {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={jump} onFocus={id => { setSidebar(false); focusPanel(id); }} onSearch={() => { setSidebar(false); setList(v => !v); }} onMap={() => { setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
+      {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={!!tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><ActivityIcon size={20} /><span>{activity.needs.length ? 'Te necesitan' : 'Todo en orden'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
+      {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={id => { setSitesOpen(false); jump(id); }} onFocus={id => { setSitesOpen(false); setSidebar(false); focusPanel(id); }} onSearch={() => { setSitesOpen(false); setSidebar(false); setList(v => !v); }} onMap={() => { setSitesOpen(false); setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
       <div className="rail-bottom">
-        {workspace && <button onClick={() => { setSidebar(false); onOpenPanel('plugins'); }}><Blocks size={15} /> Centro de Plugins</button>}
-        <button onClick={() => { setSidebar(false); setPalette(true); }}><Command size={15} /> Comandos <kbd>Ctrl K</kbd></button>
-        <div className="rail-system"><span className={`host-indicator ${connection.status}`} title={connection.message || connectionLabel} role="status"><i />{connectionLabel}</span><button className={`icon-button ${inspector === 'appearance' ? 'active' : ''}`} title="Personalizar espacio" aria-label="Personalizar espacio" onClick={() => { setSidebar(false); setInspector(inspector === 'appearance' ? null : 'appearance'); }}><Palette size={15} /></button><button className={`icon-button ${inspector === 'settings' ? 'active' : ''}`} title="Configuración" aria-label="Configuración" onClick={() => { setSidebar(false); setInspector(inspector === 'settings' ? null : 'settings'); }}><Settings2 size={15} /></button></div>
+        <div className="rail-system"><span className={`host-indicator ${connection.status}`} title={connection.message || connectionLabel} role="status"><i />{connectionLabel}</span><VoiceLauncher disabled={!workspace || connection.status !== 'connected'} /><button className={`icon-button ${['settings', 'appearance'].includes(inspector) ? 'active' : ''}`} title="Configuración" aria-label="Configuración" onClick={() => { setSidebar(false); setInspector(['settings', 'appearance'].includes(inspector) ? null : 'settings'); }}><Settings2 size={15} /></button></div>
       </div>
     </aside>
     <main key="main-workspace" className="main-workspace" inert={compactRail && sidebar}>
       <header className="workspace-header"><button className="icon-button rail-toggle" title="Ver proyectos" aria-label="Ver proyectos" aria-expanded={sidebar} aria-controls="project-rail" onClick={() => setSidebar(true)}><PanelLeftOpen size={18} /></button>
         <div className="workspace-identity"><div className="breadcrumb"><Folder size={15} /><span>Proyectos</span><ChevronRight size={13} /><div className="project-name-editor">{projectRename.editing ? <><input ref={projectRename.inputRef} className="inline-name-input" aria-label="Nombre del proyecto" aria-invalid={!!projectRename.editing.error} aria-describedby={projectRename.editing.error ? 'project-name-error' : undefined} value={projectRename.editing.value} readOnly={projectRename.editing.saving} onChange={e => projectRename.change(e.target.value)} onBlur={() => projectRename.commit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); projectRename.commit(true); } if (e.key === 'Escape') { e.preventDefault(); projectRename.cancel(); } }} />{projectRename.editing.error && <span className="inline-name-error" id="project-name-error" role="alert">{projectRename.editing.error}</span>}</> : <button ref={projectNameButton} disabled={!workspace} title="Renombrar proyecto · no mueve la carpeta" onClick={() => workspace && projectRename.start(workspace.id, workspace.name, () => projectNameButton.current)}>{workspace?.name || 'Tu espacio'}{workspace && <Pencil size={11} />}</button>}</div></div><div className="workspace-path" title={workspace ? `Carpeta elegida: ${workspace.path}\nRuta canónica: ${workspace.canonicalPath || workspace.path}\nEl nombre visible no mueve la carpeta.` : ''}>{workspace ? workspace.canonicalPath || workspace.path : 'Abre una carpeta para comenzar'}{workspace && workspace.path !== workspace.canonicalPath && workspace.canonicalPath && <span className="path-badge">Ruta canónica</span>}</div></div>
-        <div className="header-controls"><span className={`save-state ${error || connection.status !== 'connected' ? 'has-error' : ''}`} title={error || (saving ? 'Guardando cambios de disposición' : connectionLabel)}>{saving ? <LoaderCircle size={12} className="spinning" /> : error || connection.status !== 'connected' ? <AlertCircle size={12} /> : <Check size={12} />}{saveLabel}</span><button className="search-command" onClick={() => setPalette(true)}><Search size={15} /><span>Buscar o ejecutar</span><kbd>Ctrl K</kbd></button><button className={`icon-button phantom-chat-toggle ${chatOpen ? 'active' : ''}`} data-tone={phantomStatus.tone} title={`Phantom: chat y orquestador (Ctrl ⇧ Espacio) · ${phantomStatus.label}`} aria-label={chatOpen ? 'Cerrar Phantom' : 'Abrir Phantom'} aria-pressed={chatOpen} disabled={!workspace} onClick={togglePhantom}><Ghost size={17} /></button><button className={`icon-button attention-button ${tray ? 'active' : ''}`} title="Bandeja de actividad" aria-label={`Abrir bandeja de actividad, ${activity.unread} avisos sin leer`} aria-expanded={tray} aria-controls="activity-tray" disabled={!workspace} onClick={() => { setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><Bell size={17} />{(activity.unread > 0 || activity.needs.length > 0) && <i />}</button><button className={`icon-button ${inspector ? 'active' : ''}`} title="Herramientas del proyecto" aria-label="Herramientas del proyecto" disabled={!workspace} onClick={() => setInspector(inspector ? null : 'context')}><PanelLeftClose size={18} /></button></div>
+        <div className="header-controls"><span className={`save-state ${error || connection.status !== 'connected' ? 'has-error' : ''}`} title={error || (saving ? 'Guardando cambios de disposición' : connectionLabel)}>{saving ? <LoaderCircle size={12} className="spinning" /> : error || connection.status !== 'connected' ? <AlertCircle size={12} /> : <Check size={12} />}{saveLabel}</span><button className="search-command" onClick={() => setPalette(true)}><Search size={15} /><span>Buscar o ejecutar</span><kbd>Ctrl K</kbd></button><button className={`icon-button phantom-chat-toggle ${chatOpen ? 'active' : ''}`} data-tone={phantomStatus.tone} title={`Phantom: chat y orquestador (Ctrl ⇧ Espacio) · ${phantomStatus.label}`} aria-label={chatOpen ? 'Cerrar Phantom' : 'Abrir Phantom'} aria-pressed={chatOpen} disabled={!workspace} onClick={togglePhantom}><Ghost size={17} /></button><button className={`icon-button attention-button ${tray ? 'active' : ''}`} title={activity.needs.length ? 'Te necesitan' : 'Todo en orden'} aria-label={activity.needs.length ? `Te necesitan, ${activity.needs.length} ${activity.needs.length === 1 ? 'pendiente' : 'pendientes'}` : 'Todo en orden'} aria-expanded={tray} aria-controls="activity-tray" disabled={!workspace} onClick={() => { setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><Bell size={17} />{activity.needs.length > 0 && <i />}</button><button className={`icon-button ${inspector ? 'active' : ''}`} title="Herramientas del proyecto" aria-label="Herramientas del proyecto" disabled={!workspace} onClick={() => setInspector(inspector ? null : 'context')}><PanelLeftClose size={18} /></button></div>
       </header>
       {error && <div className="connection-error" role="status"><AlertCircle size={14} /><span>{error}</span><button onClick={() => operation(async () => { await flush(); await refresh(); })}>Reintentar</button></div>}
       {closeRequest?.status === 'failed' && <div className="connection-error" role="alert"><AlertCircle size={14} /><span>No se cerró la ventana: {closeRequest.error}. Puedes reintentar o descartar explícitamente desde el diálogo del escritorio.</span><button onClick={retryClose}>Guardar y cerrar</button></div>}
       <div className="workspace-body"><PresenceGroup>
-        <div key="canvas-region" className="canvas-region"><PresenceGroup>
-          {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked} obscured={browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
+        <div key="canvas-region" className="canvas-region">
+          {appearance.background === 'ascii' && !appearance.image && <AsciiField paused={!!focused || appearance.concentration} />}
+          <PresenceGroup>
+          <div key="canvas-content" className="sites-canvas-content" inert={sitesOpen}>
+          {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked || sitesOpen} navigationBlocked={overlayNavigationBlocked || railOwnsFocus || (chatOpen && chatOwnsFocus) || sitesOpen} obscured={sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <GengarMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
-          {workspace && <div key="create-dock" className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
+          {workspace && <div key="create-dock" ref={dockFit} className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} />
-            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" /><button className={`dock-action dock-more ${tools ? 'active' : ''}`} title="Tareas, Git, servicios, Docker y más" onClick={() => { setTools(v => !v); setTray(false); }} aria-expanded={tools} aria-haspopup="dialog"><LayoutGrid size={18} aria-hidden="true" /><span>Herramientas</span></button></div>
+            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" />{HUB_ACTIONS.map(([type, name, Icon, hint]) => <button key={type} className="dock-action dock-hub" data-hub={type} disabled={!!busy} title={hint} onClick={() => onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>)}<button ref={dockMoreButton} className="dock-action dock-hub dock-more" disabled={!!busy} aria-label="Más" aria-haspopup="menu" aria-expanded={dockMore} onClick={() => setDockMore(value => !value)}><MoreHorizontal size={18} aria-hidden="true" /><span>Más</span></button></div>
+            {dockMore && <div ref={dockMoreMenu} className="dock-more-menu" role="menu" aria-label="Más hubs">{HUB_MORE.map(type => { const Icon = TYPES.find(item => item[0] === type)[2]; return <button key={type} role="menuitem" disabled={!!busy} title={HUBS[type].hint} onClick={() => { onOpenPanel(type); setDockMore(false); }}><Icon size={18} aria-hidden="true" /><span>{HUBS[type].name}</span></button>; })}</div>}
           </div>}
           {workspace && !focused && <button key="panel-index-button" className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
           {selected.length > 1 && !focused && <button key="zone-selection" className="zone-selection button" onClick={zoneFromSelection}><Frame size={15} /> Crear zona</button>}
           {selected.length > 1 && !focused && <button key="group-selection" className="group-selection button" onClick={groupSelection}><Target size={15} /> Agrupar en misión</button>}
-          {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker types={TYPES} disabled={!!busy} onPick={onOpenPanel} onClose={() => setTools(false)} /></>}
+          {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker types={LAUNCH_TYPES} disabled={!!busy} onPick={onOpenPanel} onClose={() => setTools(false)} /></>}
           {list && <div className="panel-index"><div className="popover-heading"><strong>Paneles del proyecto</strong><button className="icon-button" aria-label="Cerrar lista" onClick={() => setList(false)}><X size={15} /></button></div><label className="index-search"><Search size={15} /><input autoFocus aria-label="Buscar panel por nombre, tipo o misión" placeholder="Buscar nombre, tipo o misión…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="panel-index-items">{filteredNodes.map(n => <div className="index-item" key={n.id}><button onClick={() => jump(n.id)}><span className="index-type">{label(n.type)}{n.data?.hidden ? ' · Vista oculta · clic para recuperar' : ''}</span><strong>{n.title}</strong>{n.groupId && <small>{workspace.missions?.find(m => m.id === n.groupId)?.title}</small>}</button><button className="icon-button" title="Enfocar" aria-label={`Enfocar ${n.title}`} onClick={() => { focusPanel(n.id); setList(false); }}><ExternalLink size={14} /></button></div>)}{!filteredNodes.length && <EmptyState className="small-empty" size="compact" description={query ? 'No hay paneles con ese nombre, tipo o misión.' : 'Aún no hay paneles. Crea uno desde la barra inferior.'} />}</div><div className="index-footer"><button onClick={() => { setFocused(null); setFitRequest(n => n + 1); setList(false); }}>Ver todo el mapa</button><kbd>Ctrl ⇧ F</kbd></div></div>}
+          </div>
+          {sitesOpen && <GlobalSites key="global-sites" api={api} onClose={closeSites} />}
         </PresenceGroup></div>
-        {inspector && <div key="inspector-host" className="inspector-host"><div className="inspector-switcher"><select aria-label="Herramienta contextual" value={inspector} onChange={e => setInspector(e.target.value)}>{TYPES.filter(t => !['terminal', 'browser', 'note', 'mission', 'zone'].includes(t[0])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="sessions">Sesiones</option><option value="settings">Configuración</option><option value="appearance">Apariencia</option></select><button className="icon-button" aria-label="Cerrar inspector" onClick={() => setInspector(null)}><X size={16} /></button></div>{inspector === 'appearance' ? <Appearance key={workspace?.id || 'default'} appearance={appearance} update={updateAppearance} reset={resetAppearance} workspace={workspace} interfaceScale={interfaceScale} /> : <Inspector tab={inspector} workspace={workspace} state={state} api={api} refresh={refresh} onClose={() => setInspector(null)} onOpenPanel={onOpenPanel} notify={notify} />}</div>}
+        {inspector && <div key="inspector-host" className={`inspector-host${settingsOpen ? ' settings-sheet' : ''}`}><Inspector tab={inspector} workspace={workspace} state={state} api={api} refresh={refresh} onClose={() => setInspector(null)} onOpenPanel={onOpenPanel} notify={notify} appearance={{ appearance, update: updateAppearance, reset: resetAppearance, interfaceScale }} /></div>}
       </PresenceGroup></div>
     </main>
     {chatOpen && <PhantomChat key={`phantom-chat:${workspace.id}`} workspace={workspace} api={api} notify={notify} connected={connection.status === 'connected'} focusRequest={chatFocus} onFocusOwnership={setChatOwnsFocus} onClose={() => openPhantomChat(false)} tab={dockTab} onTab={chooseDockTab} status={phantomStatus} onOpenPanel={onOpenPanel} onTask={text => { closeTransient(); setVoiceText(text); setVoice(true); }} />}
-    {tray && workspace && <ActivityTray key={workspace.id} activity={activity} workspace={workspace} api={api} notify={notify} filter={typeof tray === 'string' ? tray : 'needs'} onFilter={setTray} onClose={() => setTray(false)} onTerminal={id => { focusPanel(id); requestAnimationFrame(() => document.querySelector('.canvas-node.focused .xterm-helper-textarea')?.focus()); }} onCard={id => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, 'Card')} onPanel={(type, data) => onOpenPanel(type, data)} onInspector={tab => { setInspector(tab); requestAnimationFrame(() => document.querySelector('.inspector-switcher select')?.focus()); }} onRead={async id => { await api('attention.ack', { workspaceId: workspace.id, id }); await refresh(); }} />}
+    {tray && workspace && <ActivityTray key={workspace.id} activity={activity} workspace={workspace} api={api} notify={notify} filter={typeof tray === 'string' ? tray : 'needs'} onFilter={setTray} onClose={() => setTray(false)} onTerminal={id => { focusPanel(id); requestAnimationFrame(() => document.querySelector('.canvas-node.focused .xterm-helper-textarea')?.focus()); }} onCard={id => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, 'Card')} onPanel={(type, data) => onOpenPanel(type, data)} onInspector={setInspector} onRead={async id => { await api('attention.ack', { workspaceId: workspace.id, id }); await refresh(); }} onOrchestrator={() => openPhantomChat(true, 'orchestrator')} onPhantom={() => openPhantomChat(true, 'chat')} />}
     {menu && <><button className="popover-dismiss top-dismiss" aria-label="Cerrar opciones" onClick={() => setMenu(null)} /><div className="context-menu" role="menu" style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 252)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 330)) }}>{menuNode ? <><div className="context-title">{menuNode.title}</div><button role="menuitem" onClick={() => { focusPanel(menuNode.id); setMenu(null); }}><ExternalLink size={15} /> Enfocar panel</button><button role="menuitem" onClick={() => { setRenameRequest({ id: menuNode.id, nonce: crypto.randomUUID() }); setMenu(null); }}><Pencil size={15} /> Renombrar</button><button role="menuitem" onClick={groupSelection}><Target size={15} /> Agrupar selección en misión</button>{selected.length > 1 && <button role="menuitem" onClick={zoneFromSelection}><Frame size={15} /> Crear zona con la selección</button>}{[{ id: null, name: 'Principal' }, ...spaces.spaces].filter(sp => sp.id !== spaces.active).map(sp => <button key={sp.id || 'main'} role="menuitem" onClick={() => { const ids = selected.includes(menuNode.id) ? selected : [menuNode.id]; spaces.moveNodes(ids, sp.id); setSelected([]); setMenu(null); notify(`${ids.length === 1 ? 'Panel movido' : `${ids.length} paneles movidos`} a ${sp.name}.`); }}><Layers size={15} /> Mover a {sp.name}</button>)}{menuNode.groupId && <button role="menuitem" onClick={() => { onChange(menuNode.id, { groupId: null }); setMenu(null); }}><Layers size={15} /> Quitar de la misión</button>}<hr /><button role="menuitem" onClick={() => operation(() => removeView(menuNode))}>{menuNode.type === 'terminal' ? <EyeOff size={15} /> : <Trash2 size={15} />}{menuNode.type === 'terminal' ? 'Ocultar vista · conservar sesión' : 'Eliminar panel'}</button>{menuNode.type === 'terminal' && menuNode.data?.sessionId && <button className="danger" role="menuitem" onClick={() => operation(async () => { await api('terminal.stop', { sessionId: menuNode.data.sessionId }); setMenu(null); await refresh(); notify('Proceso terminado. El historial se conserva.'); })}><Square size={14} /> Terminar proceso</button>}</> : <>{QUICK_TYPES.map(([type, name, Icon]) => <button key={type} role="menuitem" onClick={() => onOpenPanel(type)}><Icon size={15} /> Crear {name.toLowerCase()}</button>)}<button role="menuitem" onClick={addReferenceFile}><ImageIcon size={15} /> Añadir imagen o video…</button><hr /><button onClick={() => { setTools(true); setMenu(null); }}> <Plus size={15} /> Todas las herramientas</button><button onClick={() => { setFitRequest(n => n + 1); setMenu(null); }}>Ajustar mapa</button></>}</div></>}
     <CommandPalette key="command-palette" open={palette} onClose={() => setPalette(false)} workspace={workspace} onAction={commandAction} />
     {closeRequest?.status === 'saving' && <div className="app-modal-backdrop close-progress"><div className="app-dialog close-status" role="status" aria-live="polite"><LoaderCircle size={21} className="spinning" /><h2>Guardando antes de cerrar…</h2><p>Esperando a que se guarden todos los cambios pendientes.</p></div></div>}
-    <VoiceCapture key="voice-capture" open={voice} initialText={voiceText} workspace={workspace} api={api} refresh={refresh} notify={notify} onClose={() => setVoice(false)} />
+    <VoiceCapture key="voice-capture" open={voice} initialText={voiceText} workspace={workspace} connected={connection.status === 'connected'} api={api} refresh={refresh} notify={notify} onClose={() => setVoice(false)} />
     {edit && <div className="app-modal-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setEdit(null); }}><form className="app-dialog" onSubmit={saveEdit} role="dialog" aria-modal="true" aria-label={edit.title}><div className="popover-heading"><h2>{edit.title}</h2><button type="button" className="icon-button" aria-label="Cancelar" onClick={() => setEdit(null)}><X size={17} /></button></div><label>Nombre<input autoFocus value={edit.value} onChange={e => setEdit({ ...edit, value: e.target.value })} placeholder="¿Qué quieres conseguir?" /></label><div className="dialog-actions"><button type="button" className="button" onClick={() => setEdit(null)}>Cancelar</button><button className="button primary" disabled={!edit.value.trim()}>Crear misión</button></div></form></div>}
     <div key="toast-stack" className="toast-stack" aria-live="polite"><PresenceGroup>{toasts.map(t => <div className={`toast ${t.kind}`} key={t.id}>{t.kind === 'error' ? <AlertCircle size={17} /> : <Check size={17} />}<span>{t.message}</span><button className="icon-button" aria-label="Cerrar aviso" onClick={() => setToasts(v => v.filter(item => item.id !== t.id))}><X size={14} /></button></div>)}</PresenceGroup></div>
     </PresenceGroup>

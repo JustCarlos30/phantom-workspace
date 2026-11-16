@@ -5,10 +5,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
+import { Branches } from '../host/branches.mjs';
+import { GitPolling } from '../host/merges.mjs';
 import { buildBranches, cardsOf, changeLabel, changeMix, changeTone, contentByBranch, groupByDir } from '../src/hooks/branches-model.mjs';
 
 const clean = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PHANTOM_')));
 const run = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env: clean(), stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+test('branch polling shares concurrent work and host mutations invalidate object queries', async () => {
+  let rounds = 0, calls = 0;
+  const polling = new GitPolling(async () => { calls++; return '0\t0'; });
+  const base = { source: '/repo', branch: 'main', oid: 'a'.repeat(40) };
+  const w = { id: 'polling', nodes: [] };
+  const branches = new Branches({ store: { getWorkspace: () => w }, terminals: { sessions: [] }, merges: { polling } });
+  branches.repository = async () => { rounds++; return { base, trees: [], branches: [{ name: 'worker', oid: 'b'.repeat(40) }] }; };
+  const [first, second] = await Promise.all([branches.overview(w), branches.overview(w)]);
+  assert.strictEqual(first, second);
+  assert.equal(rounds, 1); assert.equal(calls, 1);
+  await branches.overview(w);
+  assert.equal(calls, 1, 'immutable Git results survive the next poll');
+  branches.act = async () => ({ status: 'removed' });
+  await branches.handle('branch.remove', { workspaceId: w.id });
+  await branches.overview(w);
+  assert.equal(calls, 2, 'a host mutation forces new Git work');
+});
 
 test('Ramas: every branch and worktree is visible, and integration never loses work', async t => {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-branches-'))), repository = path.join(root, 'repository'), dataDir = path.join(root, 'state');

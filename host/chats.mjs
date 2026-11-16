@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import { codexRolloutPath, codexContextReading } from './codex-context.mjs';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -181,6 +183,13 @@ const describeTool = (part, name, input, cwd) => {
   const change = toolChange(name, input); if (change) part.change = change;
 };
 const sum = (...values) => values.reduce((total, value) => total + (Number.isFinite(value) ? value : 0), 0);
+const validTokens = value => Number.isFinite(value) && value >= 0;
+function contextReading(turn, source, values) {
+  const total = values.every(validTokens) ? sum(...values) : undefined;
+  if (!Number.isFinite(total) || total <= 0) return;
+  turn.contextTokens = total;
+  turn.contextSource = source;
+}
 const toolPart = (message, id, name) => {
   let part = message.parts.find(p => p.type === 'tool' && p.id === id);
   if (!part) { part = { type: 'tool', id, name: String(name || 'tool').slice(0, 120), detail: '', status: 'running' }; message.parts.push(part); }
@@ -247,7 +256,12 @@ export function applyClaudeEvent(turn, event) {
   if (event.parent_tool_use_id) return applyClaudeSubagent(turn, event);
   if (event.type === 'stream_event') {
     const e = event.event || {};
-    if (e.type === 'message_start' && e.message?.id) turn.streamed.add(e.message.id);
+    if (e.type === 'message_start') {
+      if (e.message?.id) turn.streamed.add(e.message.id);
+      const usage = e.message?.usage;
+      contextReading(turn, 'claude:request-v1', [usage?.input_tokens, usage?.cache_read_input_tokens, usage?.cache_creation_input_tokens, usage?.output_tokens]);
+      return true;
+    }
     if (e.type === 'content_block_start' && ['text', 'thinking'].includes(e.content_block?.type)) { turn.freshText = true; return false; }
     if (e.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) { appendText(message, e.delta.thinking, turn.freshText, 'thinking'); turn.freshText = false; return true; }
     if (e.type === 'content_block_start' && e.content_block?.type === 'tool_use') { toolPart(message, e.content_block.id, e.content_block.name); return true; }
@@ -258,7 +272,7 @@ export function applyClaudeEvent(turn, event) {
     const streamed = turn.streamed.has(event.message?.id), usage = event.message?.usage;
     if (typeof event.message?.model === 'string') turn.model = event.message.model;
     // The prompt of the latest request is what the conversation occupies now.
-    if (usage) turn.contextTokens = sum(usage.input_tokens, usage.cache_read_input_tokens, usage.cache_creation_input_tokens, usage.output_tokens);
+    contextReading(turn, 'claude:request-v1', [usage?.input_tokens, usage?.cache_read_input_tokens, usage?.cache_creation_input_tokens, usage?.output_tokens]);
     for (const block of event.message?.content || []) {
       if (block.type === 'text' && !streamed && block.text) appendText(message, block.text, true);
       if (block.type === 'thinking' && !streamed && block.thinking) appendText(message, block.thinking, true, 'thinking');
@@ -276,8 +290,9 @@ export function applyClaudeEvent(turn, event) {
   }
   if (event.type === 'result') {
     turn.usage = { durationMs: event.duration_ms, costUsd: event.total_cost_usd, outputTokens: event.usage?.output_tokens, steps: event.num_turns };
-    const windows = Object.entries(event.modelUsage || {}).map(([model, value]) => [model, value?.contextWindow]).filter(([, value]) => Number.isFinite(value));
-    if (windows.length) turn.contextWindow = (windows.find(([model]) => model === turn.model) || windows[0])[1];
+    const key = Object.keys(event.modelUsage || {}).find(key => key.startsWith(`${turn.model}[`) && key.endsWith(']'));
+    const window = (event.modelUsage?.[turn.model] ?? event.modelUsage?.[key])?.contextWindow;
+    if (Number.isFinite(window) && window > 0) turn.contextWindow = window;
     if (event.is_error) turn.error = String(event.result || (event.errors || []).join(' ') || event.subtype || 'El agente terminó con error').slice(0, 2000);
     else if (!message.parts.some(p => p.type === 'text') && typeof event.result === 'string' && event.result) appendText(message, event.result, true);
     return true;
@@ -310,6 +325,12 @@ export function applyOpenCodeEvent(turn, event) {
   const { message } = turn, part = event.part || {};
   if (typeof event.sessionID === 'string') turn.sessionId = event.sessionID;
   if (typeof part.sessionID === 'string' && typeof event.sessionID === 'string' && part.sessionID !== event.sessionID) return applyOpenCodeChild(turn, event, part);
+  if (event.type === 'model') {
+    if (turn.model !== event.model) delete turn.contextWindow;
+    turn.model = event.model;
+    if (Number.isFinite(event.contextWindow) && event.contextWindow > 0) turn.contextWindow = event.contextWindow;
+    return true;
+  }
   if (event.type === 'text' && part.text) { appendText(message, part.text, true); return true; }
   if (event.type === 'tool_use') {
     const tool = toolPart(message, part.callID || part.id, part.tool), state = part.state || {};
@@ -331,7 +352,9 @@ export function applyOpenCodeEvent(turn, event) {
   }
   if (event.type === 'step_finish') {
     const tokens = part.tokens || {};
-    if (Number.isFinite(tokens.total)) turn.contextTokens = tokens.total;
+    if (typeof event.sessionID === 'string' && part.sessionID === event.sessionID) {
+      contextReading(turn, 'opencode:request-v1', Number.isFinite(tokens.total) && tokens.total > 0 ? [tokens.total] : tokens.total === undefined ? [tokens.input, tokens.output, tokens.reasoning, tokens.cache?.read, tokens.cache?.write] : [undefined]);
+    } else contextReading(turn, null, [undefined]);
     turn.usage = { costUsd: sum(turn.usage?.costUsd, part.cost), outputTokens: sum(turn.usage?.outputTokens, tokens.output, tokens.reasoning), steps: sum(turn.usage?.steps, 1) };
     return true;
   }
@@ -347,7 +370,6 @@ export function applyCodexEvent(turn, event) {
   if (event.type === 'error' || event.type === 'turn.failed') { turn.error = String(event.error?.message || event.message || 'Codex terminó con error').slice(0, 2000); return true; }
   if (event.type === 'turn.completed') {
     const usage = event.usage || {};
-    turn.contextTokens = sum(usage.input_tokens, usage.output_tokens);
     turn.usage = { outputTokens: usage.output_tokens }; return true;
   }
   const item = event.item;
@@ -396,7 +418,8 @@ export function normalizeQuestions(questions) {
 
 export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
-  constructor(store, emit, role = () => ({ env: {}, instructions: '' })) {
+  constructor(store, emit, role = () => ({ env: {}, instructions: '' }), { codexHome } = {}) {
+    this.codexHome = codexHome;
     this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.dirty = false; this.closed = false;
     this.filename = path.join(store.dir, 'chats.json');
     this.nodes = {};
@@ -417,7 +440,11 @@ export class Chats {
   save() { this.dirty = false; atomicJSON(this.filename, this.nodes); }
   thread(nodeId, provider) {
     const entry = this.nodes[nodeId] ??= { threads: {} };
-    return entry.threads[provider] ??= { sessionId: null, messages: [] };
+    const thread = entry.threads[provider] ??= { sessionId: null, messages: [] };
+    if (thread.meta && (thread.meta.contextSource !== `${provider}:request-v1` || !validTokens(thread.meta.contextTokens) || thread.meta.contextTokens <= 0)) {
+      delete thread.meta.contextTokens; delete thread.meta.contextSource; delete thread.meta.contextWindow;
+    }
+    return thread;
   }
   running(nodeId) { return this.turns.has(nodeId); }
   // The canvas browser bridge, for chat cards as for PTYs. One stable identity
@@ -433,7 +460,7 @@ export class Chats {
     return { active: Boolean(turn && !turn.finished && turn.workspaceId === workspaceId && turn.browserSession && turn.browserSession === sessionId) };
   }
   get(node) {
-    const provider = node.data.chat?.provider ?? null, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
+    const provider = node.data.chat?.provider ?? null, thread = provider ? this.thread(node.id, provider) : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
     return { provider, autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), permissionMode: explicitMode(node.data.chat), mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
   }
@@ -497,8 +524,13 @@ export class Chats {
     if (thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
     const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
     const started = Date.now();
+    turn.model = node.data.chat.models?.[provider] || thread.meta?.model;
     // Session facts as known right now: the turn's own readings over the thread's.
-    const meta = () => ({ ...thread.meta, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextTokens ? { contextTokens: turn.contextTokens } : {}), ...(turn.contextWindow ? { contextWindow: turn.contextWindow } : {}) });
+    const meta = () => {
+      const value = { ...thread.meta };
+      if (turn.model !== thread.meta?.model) delete value.contextWindow;
+      return { ...value, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextSource ? { contextTokens: turn.contextTokens, contextSource: turn.contextSource } : {}), ...(turn.contextWindow > 0 ? { contextWindow: turn.contextWindow } : {}) };
+    };
     const publish = extra => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: this.turns.has(node.id), meta: meta(), messages: [structuredClone(reply)], ...extra });
     const schedule = () => { this.dirty = true; turn.timer ??= setTimeout(() => { turn.timer = null; publish(); }, 40); };
     turn.schedule = schedule;
@@ -557,7 +589,27 @@ export class Chats {
     // Claude reads the prompt from stdin, so any text is safe from flag parsing.
     child.stdin.end(provider === 'claude' || provider === 'codex' ? message : '');
     let buffer = '';
-    const line = raw => { if (!raw.trim()) return; let event; try { event = JSON.parse(raw); } catch { return; } if (event && typeof event === 'object' && apply(turn, event)) schedule(); };
+    let contextRead = Promise.resolve(), lastContextRead = -Infinity;
+    const readContext = () => {
+      lastContextRead = Date.now();
+      contextRead = contextRead.then(async () => {
+        this.codexPaths ??= new Map();
+        const id = turn.sessionId;
+        const file = this.codexPaths.get(id) || await codexRolloutPath(id, this.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
+        if (file) this.codexPaths.set(id, file);
+        const reading = await codexContextReading(file);
+        if (!reading || turn.finished || this.turns.get(node.id) !== turn) return;
+        turn.contextTokens = reading.tokens; turn.contextSource = 'codex:request-v1'; turn.contextWindow = reading.window;
+        schedule();
+      }).catch(() => {});
+    };
+    const line = raw => {
+      if (!raw.trim()) return;
+      let event; try { event = JSON.parse(raw); } catch { return; }
+      if (!event || typeof event !== 'object') return;
+      if (apply(turn, event)) schedule();
+      if (provider === 'codex' && (event.type === 'turn.completed' || event.type === 'item.completed' && Date.now() - lastContextRead >= 2000)) readContext();
+    };
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
     if (provider !== 'opencode') child.stdout.on('data', chunk => {
       buffer += chunk; let index;
@@ -579,7 +631,15 @@ export class Chats {
         return { ...decision, answers: decision.behavior === 'allow' ? decision.updatedInput.questions.map(q => [decision.updatedInput.answers[q.question.slice(0, 1000)]]) : undefined };
       },
     }).then(() => finish(0), error => finish(1, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : [error.message, turn.stderr.trim().slice(-1500)].filter(Boolean).join('\n')));
-    else child.on('close', code => { line(buffer); buffer = ''; finish(code); });
+    else child.on('close', async code => {
+      line(buffer); buffer = '';
+      if (provider === 'codex') {
+        let timer;
+        await Promise.race([contextRead, new Promise(resolve => { timer = setTimeout(resolve, 1500); })]);
+        clearTimeout(timer);
+      }
+      finish(code);
+    });
     this.dirty = true;
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: true, meta: meta(), messages: [structuredClone(user), structuredClone(reply)], queue: structuredClone(thread.queue ?? []) });
     return { ok: true, messageId: reply.id };

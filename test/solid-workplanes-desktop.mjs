@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Controller-owned execution. Built renderer, isolated real host and PTYs;
 // only conversation responses are synthetic, with no provider invocation.
@@ -151,15 +152,21 @@ const materials = async () => {
     };
     for (const panel of document.querySelectorAll('.canvas-node[data-type="terminal"]')) {
       const s = getComputedStyle(panel);
-      if (alpha(s.backgroundColor) !== 255) bad.push('translucent panel');
+      const planeAlpha = alpha(s.backgroundColor) / 255;
+      if (planeAlpha < .76 || planeAlpha > .82) bad.push(`panel alpha outside 76–82%: ${planeAlpha}`);
+      if (!s.backgroundImage.startsWith('linear-gradient(135deg')) bad.push('missing diagonal accent wash');
       const token = panel.matches('.selected,.focused,.is-dragging') ? '--shadow-workplane-lift' : '--shadow-workplane-rest';
       const probe = document.createElement('div'); panel.append(probe);
       probe.style.boxShadow = `var(${token})`;
       if (s.boxShadow !== getComputedStyle(probe).boxShadow) bad.push(`incorrect elevation ${panel.dataset.nodeId}`);
       probe.remove();
-      for (const el of [panel, ...panel.querySelectorAll('.node-body,.pc,.pc-thread,.pt-output,.terminal-wrap')]) {
+      for (const el of [panel, ...panel.querySelectorAll('.node-body,.pc,.pc-thread,.pc-composer,.pc-field,.pt-card,.pt-card-screen,.pt-output,.terminal-wrap,.terminal-host')]) {
         const style = getComputedStyle(el);
         if (style.backdropFilter !== 'none') bad.push(`blur ${el.className}`);
+      }
+      for (const well of panel.querySelectorAll('.pc-thread,.pc-field,.pt-card-screen,.terminal-host')) {
+        const style = getComputedStyle(well);
+        if (alpha(style.backgroundColor) / 255 < .86) bad.push(`reading/writing well below 86%: ${well.className}`);
       }
       const text = panel.querySelector('.pc-message.is-agent,.pt-output,.terminal-wrap') || panel.querySelector('.node-body');
       const chain = [];
@@ -176,7 +183,24 @@ const materials = async () => {
     if (art.backgroundImage === 'none' || Number(art.opacity) <= 0 || Number(getComputedStyle(canvas).zIndex) <= Number(art.zIndex)) bad.push('art missing or above workplanes');
     for (const el of document.querySelectorAll('.project-rail,.canvas-navigation,.activity-dock')) {
       const s = getComputedStyle(el);
-      if (!s.backdropFilter.includes('blur(') || alpha(s.backgroundColor) === 255) bad.push(`chrome lost glass ${el.className}`);
+      const opacity = alpha(s.backgroundColor) / 255;
+      const minimum = el.matches('.project-rail') ? .60 : .44;
+      const blur = Number(s.backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]);
+      if (blur < 34 || !blur || opacity < minimum || opacity >= 1) bad.push(`chrome lost light glass ${el.className}`);
+    }
+    for (const el of document.querySelectorAll('.rail-panel-row.selected,.project-item.active,.space-row.active,.dock-action.active,.canvas-navigation button[aria-pressed="true"],.pc-send:not(:disabled):not(.is-stop),.pd-tabs button[aria-selected="true"]')) {
+      if (!el.getClientRects().length) continue;
+      const style = getComputedStyle(el);
+      const probe = document.createElement('span'); el.append(probe);
+      probe.style.backgroundColor = 'var(--on)'; probe.style.color = 'var(--on-ink)';
+      const expected = getComputedStyle(probe);
+      if (style.backgroundColor !== expected.backgroundColor || style.color !== expected.color) bad.push(`active key lost solid light fill/dark ink: ${el.className}`);
+      probe.remove();
+    }
+    for (const el of document.querySelectorAll('.pc-modes')) {
+      const probe = document.createElement('span'); el.append(probe); probe.style.backgroundColor = 'var(--on)';
+      if (getComputedStyle(el, '::before').backgroundColor !== getComputedStyle(probe).backgroundColor) bad.push('provider segment lost solid light fill');
+      probe.remove();
     }
     return { bad, reading, focusGeometry };
   });
@@ -209,7 +233,7 @@ try {
     if (!original) throw new Error('Electron IPC fixture seam unavailable');
     const chats = Object.fromEntries(ids.map(id => [id, { provider: 'claude', running: false, queue: [], meta: {}, messages: [
       { id: 'question', role: 'user', status: 'done', parts: [{ type: 'text', text: 'SYNTHETIC · Revisa la legibilidad del plano de trabajo.' }] },
-      { id: 'reply', role: 'assistant', status: 'done', parts: [{ type: 'text', text: '## Lectura estable\n\nConversaciones opacas, texto ciruela claro y controles accesibles. Seleccionar un vecino conserva esta lectura.' }] },
+      { id: 'reply', role: 'assistant', status: 'done', parts: [{ type: 'text', text: '## Lectura estable\n\nPlanos translúcidos, pozos de lectura densos y controles claros. Seleccionar un vecino conserva esta lectura.' }] },
     ] }]));
     globalThis.solidFixture = { calls: [] };
     ipcMain.removeHandler('phantom:invoke');
@@ -292,7 +316,7 @@ try {
   const calls = await app.evaluate(() => globalThis.solidFixture.calls);
   assert.deepEqual(calls.map(call => call.method), ['chat.send', 'chat.stop', 'chat.send', 'chat.stop']);
   assert.deepEqual(errors, [], 'No renderer errors');
-  console.log(JSON.stringify({ captures, errors, fixture: 'Two synthetic conversations and two isolated real terminals', checks: ['opacity and no backdrop blur', 'stable neighbour reading', 'local matte elevations', 'environmental art below transparent canvas', 'chrome glass', 'send/stop pointer and keyboard', 'real PTY input', 'two sizes, map/selection/chat focus/terminal focus'] }, null, 2));
+  console.log(JSON.stringify({ captures, errors, fixture: 'Two synthetic conversations and two isolated real terminals', checks: ['76–82% workplanes with diagonal wash and no backdrop blur', 'reading/writing wells at least 86% opaque', 'stable neighbour reading', 'local contact elevations', 'environmental art below transparent canvas', 'light chrome glass with blur at least 34px', 'send/stop pointer and keyboard', 'real PTY input', 'two sizes, map/selection/chat focus/terminal focus'] }, null, 2));
 } catch (error) {
   const failure = path.join(evidence, 'failure.png');
   await page?.screenshot({ path: failure }).then(() => captures.push(failure)).catch(() => {});
@@ -306,7 +330,7 @@ try {
     }
   } finally {
     if (app) await Promise.race([app.close().catch(() => {}), delay(1000)]);
-    if (child?.exitCode === null && child?.signalCode === null) child.kill('SIGKILL');
+    killElectronGroup(child);
     await rm(temp, { recursive: true, force: true });
   }
 }

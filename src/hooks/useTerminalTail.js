@@ -1,5 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { subscribe } from './useWorkspace';
+import { structuralShare } from './structuralShare.js';
+
+export function shareTerminalTail(previous, next) {
+  return structuralShare(previous, next);
+}
+
+export function shouldResetTerminalTail(previousSessionId, sessionId) {
+  return previousSessionId !== sessionId;
+}
 
 // Phantom's map card never mounts xterm. It reads a plain-text tail parsed by
 // the host's headless terminal, refreshed on output (throttled) and on a slow
@@ -9,8 +18,12 @@ const THROTTLE_MS = 350, HEARTBEAT_MS = 5000;
 export function useTerminalTail({ sessionId, api, lines = 12, enabled = true, connected = true }) {
   const [tail, setTail] = useState(null);
   const [error, setError] = useState('');
+  const previousSessionId = useRef(sessionId);
   useEffect(() => {
-    setTail(null); setError('');
+    if (shouldResetTerminalTail(previousSessionId.current, sessionId)) {
+      setTail(null); setError('');
+    }
+    previousSessionId.current = sessionId;
     if (!sessionId || !enabled || !connected) return;
     let disposed = false, inflight = false, again = false, timer = null, last = 0;
     const load = async () => {
@@ -18,7 +31,7 @@ export function useTerminalTail({ sessionId, api, lines = 12, enabled = true, co
       inflight = true; last = Date.now();
       try {
         const value = await api('terminal.tail', { sessionId, lines });
-        if (!disposed) { setTail(value); setError(''); }
+        if (!disposed) { setTail(previous => shareTerminalTail(previous, value)); setError(''); }
       } catch (e) { if (!disposed) setError(e.message); }
       finally {
         inflight = false;

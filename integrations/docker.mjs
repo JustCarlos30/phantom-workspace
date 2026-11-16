@@ -2,7 +2,7 @@ import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { command, jsonCommand, workspaceRoot, inside, text } from './common.mjs';
 
-async function dockerTarget(context, root) {
+export async function dockerTarget(context, root) {
   const configured = context.state?.settings?.dockerContext;
   if (configured !== undefined) text(configured, 'dockerContext', 256);
   const name = configured ?? (await command(context, 'docker', ['context', 'show'], { cwd: root })).stdout.trim();
@@ -12,7 +12,7 @@ async function dockerTarget(context, root) {
   if (!endpoint?.startsWith('unix://') || (!configured && (process.env.DOCKER_HOST || process.env.DOCKER_CONTEXT && process.env.DOCKER_CONTEXT !== name))) throw new Error('Docker project ownership requires an unambiguous local Unix daemon/context');
   return { prefix: ['--context', name], daemon: endpoint, context: name };
 }
-async function owned(container, root) {
+export async function owned(container, root) {
   const labels = container.Config?.Labels ?? {}, working = labels['com.docker.compose.project.working_dir'], files = labels['com.docker.compose.project.config_files'];
   if (!working || !files) return false;
   try {

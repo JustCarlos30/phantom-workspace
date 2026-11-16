@@ -5,6 +5,7 @@ import { constants } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Run against the controller's production build, with an isolated host/profile.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -224,7 +225,7 @@ try {
     }
   }
   if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
-  if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+  killElectronGroup(appProcess);
   await rm(profile, { recursive: true, force: true });
   await rm(fixtures, { recursive: true, force: true });
 }

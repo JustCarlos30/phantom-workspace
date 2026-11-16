@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Built Electron, real isolated host/layout, synthetic chat responses only.
 // No provider process or production fixture hook. Controller runs after build.
@@ -178,23 +179,30 @@ try {
       if (state === 'attention') await unobscured(card.getByRole('button', { name: 'Aprobar', exact: true }), `${size}-${mode} permission`);
       await shot(`${size}-${mode}-${state}`);
       if (state === 'working') {
-        const glint = await card.evaluate(async el => {
-          const animation = el.getAnimations({ subtree: true }).find(a => a.animationName === 'filo-bar' && a.effect?.pseudoElement === '::after');
+        const trace = await card.evaluate(async el => {
+          const head = el.querySelector('.activity-trace__head');
+          const animation = head?.getAnimations().find(a => a.animationName === 'trace-orbit');
           if (!animation) return null;
           animation.pause();
           const sample = async time => {
             animation.currentTime = time;
             await new Promise(requestAnimationFrame);
-            return Number(getComputedStyle(el, '::after').opacity);
+            return parseFloat(getComputedStyle(head).strokeDashoffset);
           };
-          const lit = await sample(90), rest = await sample(1200);
+          const start = await sample(0), quarter = await sample(1400);
           animation.play();
-          return { lit, rest };
+          return { start, quarter, duration: animation.effect.getTiming().duration, easing: getComputedStyle(head).animationTimingFunction,
+            dash: getComputedStyle(head).strokeDasharray, width: getComputedStyle(head).strokeWidth,
+            tails: el.querySelector('.activity-trace__tail').getAttribute('pathLength'), pointer: getComputedStyle(head).pointerEvents };
         });
-        assert.ok(glint?.lit > 0, 'Working bottom glint lights up');
-        assert.equal(glint.rest, 0, 'Working bottom edge is unlit between glints');
+        assert.ok(trace, 'Working mounts the perimeter trace');
+        assert.equal(trace.start, 0); assert.equal(trace.quarter, -50, 'Clockwise quarter turn');
+        assert.equal(trace.duration, 5600); assert.equal(trace.easing, 'steps(100)');
+        assert.deepEqual(trace.dash.match(/[\d.]+/g).map(Number), [8, 192]); assert.equal(trace.width, '2px');
+        assert.equal(trace.tails, '200'); assert.equal(trace.pointer, 'none');
         assert.equal(await card.locator('.pc-column').evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.effect?.getComputedTiming().iterations === Infinity).length), 0, 'Thread remains still');
       }
+      if (state === 'rest') assert.equal(await card.locator('.activity-trace').count(), 0, 'Rest has no activity layer');
       if (state === 'attention') assert.equal(await card.locator('.pc').getAttribute('data-agent'), 'approval');
       await exerciseActions(state, `${size}-${mode}-${state}`, mode === 'focus');
       if (mode !== 'focus') {
@@ -227,9 +235,45 @@ try {
   await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('pulse-working'), node.id);
   await card.locator('.node-glyph').click();
   await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('selected'), node.id);
-  const selection = await card.evaluate(el => ({ offset: getComputedStyle(el).outlineOffset, animation: getComputedStyle(el, '::after').animationName }));
+  const selection = await card.evaluate(el => ({ offset: getComputedStyle(el).outlineOffset, animation: getComputedStyle(el.querySelector('.activity-trace__head')).animationName }));
   assert.ok(Math.abs(parseFloat(selection.offset) - 3 / zoom) < .01, `Selection outline offset: ${selection.offset}, zoom: ${zoom}`);
-  assert.equal(selection.animation, 'filo-bar');
+  assert.equal(selection.animation, 'trace-orbit');
+  const pauses = await card.evaluate(async el => {
+    const trace = el.querySelector('.activity-trace'), head = trace.querySelector('.activity-trace__head');
+    const shell = el.closest('.app-shell');
+    const frame = () => new Promise(requestAnimationFrame);
+    const sample = () => ({ state: getComputedStyle(head).animationPlayState, offset: getComputedStyle(head).strokeDashoffset });
+    const check = async () => {
+      const before = sample();
+      await new Promise(resolve => setTimeout(resolve, 160));
+      return { before, after: sample() };
+    };
+    let concentration, hidden;
+    try {
+      shell.classList.add('studio-concentration'); await frame();
+      concentration = await check();
+      shell.classList.remove('studio-concentration');
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange')); await frame();
+      hidden = await check();
+    } finally {
+      shell.classList.remove('studio-concentration');
+      delete document.hidden;
+      document.dispatchEvent(new Event('visibilitychange'));
+    }
+    return { concentration, hidden };
+  });
+  for (const [reason, samples] of Object.entries(pauses)) {
+    assert.equal(samples.before.state, 'paused', `${reason} pauses the timeline`);
+    assert.deepEqual(samples.before, samples.after, `${reason} holds the exact perimeter position`);
+  }
+  const previousTransform = await card.evaluate(el => { const previous = el.style.transform; el.style.transform = 'translateX(-100000px)'; return previous; });
+  try {
+    await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"] .activity-trace`)?.dataset.visible === 'false', node.id);
+    assert.equal(await card.locator('.activity-trace__head').evaluate(el => getComputedStyle(el).animationPlayState), 'paused', 'Offscreen panels pause');
+  } finally { await card.evaluate((el, previous) => { el.style.transform = previous; }, previousTransform); }
+  await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"] .activity-trace`)?.dataset.visible === 'true', node.id);
+  assert.equal(await card.locator('.activity-trace__head').evaluate(el => getComputedStyle(el).animationPlayState), 'running', 'Visible panels resume');
   await shot('selected-working');
   await card.locator('.node-glyph').dblclick();
   await page.locator('.canvas-node.focused').waitFor();
@@ -241,19 +285,21 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const state of ['working', 'attention']) {
     await setState(state);
-    const opacity = '0.2';
-    // A chat reset, the parent pulse and its computed pseudo-element style
+    const opacity = '1';
+    // A chat reset, the parent pulse and its computed SVG style
     // settle separately. Observe the requested state, not the preceding edge.
     await page.waitForFunction(({ id, state, opacity }) => {
       const panel = document.querySelector(`.canvas-node[data-node-id="${id}"]`);
       if (!panel?.classList.contains(`pulse-${state}`)) return false;
-      const edge = getComputedStyle(panel, '::after');
+      const contour = panel.querySelector('.activity-trace__contour');
+      if (!contour) return false;
+      const edge = getComputedStyle(contour);
       return panel.querySelector('.pc')?.dataset.agent === (state === 'attention' ? 'approval' : 'working') && edge.animationName === 'none' && edge.opacity === opacity;
     }, { id: node.id, state, opacity });
     const unstable = await card.evaluate((el, { state, opacity }) => new Promise(resolve => {
       const start = performance.now(), failures = [];
       const sample = now => {
-        const edge = getComputedStyle(el, '::after');
+        const edge = getComputedStyle(el.querySelector('.activity-trace__contour'));
         if (!el.classList.contains(`pulse-${state}`) || edge.animationName !== 'none' || edge.opacity !== opacity) failures.push({ state: el.className, animation: edge.animationName, opacity: edge.opacity });
         if (now - start >= 350) resolve(failures);
         else requestAnimationFrame(sample);
@@ -300,7 +346,7 @@ try {
     }
   } finally {
     if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
-    if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+    killElectronGroup(appProcess);
     await rm(temp, { recursive: true, force: true });
   }
 }

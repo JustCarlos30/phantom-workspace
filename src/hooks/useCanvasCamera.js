@@ -7,12 +7,14 @@ export const cameraTier = zoom => zoom > 1 ? -1 : zoom < .25 ? 2 : zoom < .45 ? 
 
 // Input can arrive faster than the display. Paint once per frame through
 // `onFrame` (imperative DOM writes, no React render), re-render React only
-// when the zoom tier changes or navigation settles, and persist after settle.
+// once navigation settles (tier changes included: switching every terminal's
+// renderer mid-pinch is what made zoom stutter), and persist after settle.
 export function useCanvasCamera(value, onCommit, onFrame) {
   const [camera, setCamera] = useState(value);
   const current = useRef(value);
   const rendered = useRef(value);
   const frame = useRef(null), timer = useRef(null), animation = useRef(null);
+  const destination = useRef(null);
   const pending = useRef(false), commit = useRef(onCommit), paint = useRef(onFrame);
   const external = useRef(value);
   commit.current = onCommit;
@@ -20,34 +22,58 @@ export function useCanvasCamera(value, onCommit, onFrame) {
   const render = useCallback(next => { rendered.current = next; setCamera(next); }, []);
   const flush = useCallback(() => {
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    cancelAnimationFrame(frame.current);
+    frame.current = null;
     clearTimeout(timer.current);
+    timer.current = null;
+    // Blur/save can arrive before the first navigation frame. Persist the
+    // requested destination, never an arbitrary intermediate animation frame.
+    if (destination.current) current.current = destination.current;
+    destination.current = null;
+    if (pending.current) paint.current?.(current.current);
     if (rendered.current !== current.current) render(current.current);
     if (pending.current) { pending.current = false; commit.current(current.current); }
   }, [render]);
   const update = useCallback(next => {
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    destination.current = null;
     current.current = next;
     pending.current = true;
     if (frame.current === null) frame.current = requestAnimationFrame(() => {
       frame.current = null;
-      const latest = current.current;
-      paint.current?.(latest);
-      if (cameraTier(latest.zoom) !== cameraTier(rendered.current.zoom)) render(latest);
+      paint.current?.(current.current);
     });
     clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   }, [flush, render]);
   const navigate = useCallback(next => {
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    clearTimeout(timer.current);
+    timer.current = null;
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { update(next); return; }
+    destination.current = next;
+    pending.current = true;
     const start = { ...current.current }, time = performance.now();
+    const duration = Math.min(360, 180 + 90 * Math.abs(Math.log2(next.zoom / start.zoom)));
     const tick = now => {
-      const progress = Math.min(1, (now - time) / 180), ease = 1 - (1 - progress) ** 3;
-      update(Object.fromEntries(['x', 'y', 'zoom'].map(key => [key, start[key] + (next[key] - start[key]) * ease])));
-      if (progress < 1) animation.current = requestAnimationFrame(tick);
+      animation.current = null;
+      const progress = Math.min(1, (now - time) / duration), ease = 1 - (1 - progress) ** 3;
+      // Animation owns its RAF; deliberate input still interrupts via update.
+      if (progress < 1) {
+        current.current = Object.fromEntries(['x', 'y', 'zoom'].map(key => [key, start[key] + (next[key] - start[key]) * ease]));
+        paint.current?.(current.current);
+        if (cameraTier(current.current.zoom) !== cameraTier(rendered.current.zoom)) render(current.current);
+        animation.current = requestAnimationFrame(tick);
+      } else {
+        current.current = next;
+        flush();
+      }
     };
     animation.current = requestAnimationFrame(tick);
-  }, [update]);
+  }, [update, flush, render]);
   useEffect(() => {
     const previous = external.current;
     external.current = value;
@@ -55,7 +81,12 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     // A delayed acknowledgement of our own commit must not interrupt a newer gesture.
     if (pending.current) return;
     cancelAnimationFrame(animation.current);
+    animation.current = null;
+    cancelAnimationFrame(frame.current);
+    frame.current = null;
     clearTimeout(timer.current);
+    timer.current = null;
+    destination.current = null;
     pending.current = false;
     current.current = value;
     paint.current?.(value);
@@ -65,8 +96,6 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     window.addEventListener('blur', flush);
     return () => {
       window.removeEventListener('blur', flush);
-      cancelAnimationFrame(frame.current);
-      cancelAnimationFrame(animation.current);
       flush();
     };
   }, [flush]);

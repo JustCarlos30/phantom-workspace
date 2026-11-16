@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Real Electron + current renderer sources + isolated host for routes and layout. Only
 // future read responses are synthetic IPC fixtures. No agents/models are run.
@@ -275,7 +276,7 @@ try {
 } finally {
   if (page && hostPid) { try { await invoke('host.shutdown'); } catch {} }
   try { await app?.close(); } catch {}
-  if (appProcess && appProcess.exitCode === null) appProcess.kill('SIGTERM');
+  killElectronGroup(appProcess, 'SIGTERM');
   if (hostPid) { try { process.kill(hostPid, 'SIGTERM'); } catch {} }
   await renderer?.close();
   await rm(temp, { recursive: true, force: true });

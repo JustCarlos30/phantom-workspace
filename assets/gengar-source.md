@@ -7,10 +7,23 @@
 - Destino local: `assets/gengar.png`.
 - Utilidad de descarga: `scripts/download-gengar.mjs`.
 
-La utilidad comprueba una respuesta HTTP satisfactoria, la firma PNG y un tamaño
-superior a 1000 bytes antes de escribir. Reutiliza el archivo local si ya cumple
-esas comprobaciones. La URL sigue la rama `master`, por lo que su contenido puede
-cambiar en origen.
+## Sprites de identidad
+
+| Ruta local | Origen | Formato y dimensiones | Tamaño mínimo |
+|---|---|---|---|
+| `assets/gengar-icon.png` | https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-vii/icons/94.png | PNG, 40×30 | Más de 100 bytes |
+| `assets/gengar-idle.gif` | https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/94.gif | GIF89a, 74×63 | Más de 1000 bytes |
+
+Ambos sprites ya están incluidos desde `ecaffd2`. La utilidad lee y reutiliza los
+archivos válidos sin descargarlos ni reescribirlos. Para archivos ausentes o no
+válidos exige HTTP satisfactorio, firma de formato, tamaño mínimo y las dimensiones
+indicadas antes de escribir. La ilustración `gengar.png` conserva su validación
+PNG de más de 1000 bytes. Las URLs siguen `master` y pueden cambiar en origen.
+
+El icono se muestra a 40×30 en marca y actividad; el GIF a 148×126 en vacíos
+(74×63 por debajo de 700 px de alto), siempre pixelado. Movimiento reducido,
+Concentración, documento oculto o sprite fuera de vista sustituyen el GIF por el
+icono estático a 80×60. «Mostrar Gengar» y «Presencia de Gengar» conservan su efecto.
 
 PokeAPI distribuye el recurso; la ilustración y los personajes Pokémon pertenecen
 a sus respectivos titulares. Esta referencia de procedencia no concede una licencia.

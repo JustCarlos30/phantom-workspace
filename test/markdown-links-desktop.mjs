@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const temp = await mkdtemp('/tmp/opencode/phantom-markdown-');
@@ -54,4 +55,5 @@ try {
 } finally {
   await invoke('host.shutdown').catch(()=>{});
   await app.evaluate(({app})=>app.exit(0)).catch(()=>{});
+  killElectronGroup(app.process());
 }

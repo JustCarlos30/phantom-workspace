@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
 import { readLocalImage } from './local-image.mjs';
-import { createInterfaceScaleModel } from '../src/hooks/interfaceScale.js';
+import { createInterfaceScaleModel } from '../shared/interface-scale.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds,
@@ -145,7 +145,8 @@ async function hostInvoke(method, payload = {}) {
     // Validation failures and request timeouts preserve the channel. Never replay mutations:
     // after a timeout or disconnect their outcome may still be unknown.
     if (connected && transportLost) {
-      connected.reconnect();
+      // null ensures reconnection without forcing replacement of a live socket.
+      connected.reconnect(error.transport ?? null);
     }
     throw Object.assign(new Error(`Host: ${error.message}`), { code: error.code });
   }
@@ -233,7 +234,7 @@ function openMainWindow() {
   }
   const win = new BrowserWindow({
     title: 'Phantom Workspace', width: 1520, height: 980, minWidth: 1000, minHeight: 700,
-    backgroundColor: '#14121b', show: false,
+    backgroundColor: '#14121b', show: false, autoHideMenuBar: true,
     webPreferences: {
       session: uiSession, preload: fileURLToPath(new URL('./preload.cjs', import.meta.url)),
       contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInSubFrames: false,
@@ -243,6 +244,7 @@ function openMainWindow() {
     },
   });
   mainWindow = win;
+  win.setMenuBarVisibility(false);
   win.webContents.on('did-finish-load', () => {
     win.webContents.setZoomFactor(interfaceScale.snapshot().scale / 100);
   });

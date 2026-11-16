@@ -16,6 +16,9 @@ import { validatePluginPanel } from '../shared/plugins.mjs';
 import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 import { MobileAccess } from './mobile.mjs';
+import { agentProjects, resolveHandoffProject, validateHandoff, handoffCommand, handoffPosition, createHandoffLimit } from './handoffs.mjs';
+import { validateLaunch, createProcessLimit, processList } from './processes.mjs';
+import { AndroidGateway } from './android-gateway.mjs';
 
 function publicSettings(settings) {
   return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
@@ -31,6 +34,8 @@ export function phantomInstructions(w) {
 You are Phantom, the main assistant of the Phantom Workspace project "${w.name}" (folder ${w.canonicalPath}). The user talks to you from the chat docked beside their canvas, by typing or by voice dictation (dictated text may contain transcription errors; interpret it sensibly). Reply in the user's language, concisely.
 
 You work in the project folder itself, not in a worktree. Help the user understand the project, plan work, answer questions and give instructions. Prefer reading and explaining; make changes only when asked. When Phantom tools (MCP server "phantom" or the phantom CLI) are available, use them for cards, decisions, skills and tasks instead of guessing.
+
+Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: both die when the turn ends. Register the task with \`phantom create\` (or \`phantom card\`), including its scope and checks, then use \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" run ID [MODEL]\`, which hands it to the host and survives your turn. Check its status with \`phantom show ID\` or \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" runs\`; do not relaunch a task already shown as running.
 
 This product's procedures are published as Phantom skills. Before integrating branches, verifying before publishing, preparing a release, organizing the canvas, or doing research, resolve the appropriate skill with the Phantom MCP \`skills_resolve\` tool and follow it: \`branch.integrate\`, \`verify.prepublish\`, \`release.build\`, \`canvas.organize\`, or \`research.collect\`. If the MCP or skill is unavailable, say so and use the CLI help instead. Each research belongs in its own space created with the canvas CLI \`research\` command, which the user reviews in the Reader panel.
 
@@ -49,7 +54,7 @@ export function probeSocket(socketPath) { return new Promise(resolve => { const 
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
 }
-export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions}={}) {
+export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions}={}) {
   assert(!process.versions.electron,'Run the host with system Node, never Electron');
   dataDir=path.resolve(dataDir); fs.mkdirSync(dataDir,{recursive:true,mode:0o700}); fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock'), lockPath=path.join(dataDir,'host.lock');
@@ -58,9 +63,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,chats,merges,branches,repo,server,mobile,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,branches,repo,server,mobile,android,closingPromise,ownsSocket=false;
   const clients=new Set();
   const limits=createLimits();
+  const reserveHandoff=createHandoffLimit(handoffOptions);
+  const reserveProcess=createProcessLimit(processOptions);
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
@@ -81,7 +88,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
   const mainEnv=w=>({...roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null}),PHANTOM_WORKSPACE_ID:w.id});
   const persist=workspaceId=>{store.persist();emit({type:'state.changed',...(workspaceId?{workspaceId}:{})});};
-  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
+  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;
   const inFlightIntegrations=new Set();
   const routeIntegration=async(method,payload)=>{
@@ -99,6 +106,16 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='mobile.stop') return mobile.stop();
     if(method==='mobile.pairing') return mobile.pairing();
     if(method==='mobile.revoke') return mobile.revoke(p);
+    if(method==='mobile.approve') return mobile.approve(p);
+    if(method==='mobile.reject') return mobile.reject(p);
+    if(method==='android.status') return android.status();
+    if(method==='android.configure') return android.configure(p);
+    if(method==='android.start') {store.getWorkspace(p.workspaceId);return android.start(p);}
+    if(method==='android.stop') return android.stop();
+    if(method==='android.pairing') return android.pairing();
+    if(method==='android.bootstrap') return android.bootstrap();
+    if(method==='android.approve') return android.approve(p);
+    if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
     if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
     if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
@@ -113,11 +130,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
        const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);}
-       // One orchestrator session per project: the only terminal without its own worktree branch.
+       // One orchestrator session per project.
        if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
        w.nodes.push(node);return node;
     });
-     if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='reference'&&patch.data){for(const key of ['file','hash','kind','mime','previousVersion']) assert(patch.data[key]===undefined||patch.data[key]===n.data[key],'La identidad de la referencia es inmutable; importa una nueva versión');patch.data={...patch.data};for(const key of ['file','hash','kind','mime','previousVersion']) if(n.data[key]!==undefined)patch.data[key]=n.data[key];}if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
+     if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='reference'&&patch.data){for(const key of ['file','hash','kind','mime','previousVersion']) assert(patch.data[key]===undefined||patch.data[key]===n.data[key],'La identidad de la referencia es inmutable; importa una nueva versión');patch.data={...patch.data};for(const key of ['file','hash','kind','mime','previousVersion']) if(n.data[key]!==undefined)patch.data[key]=n.data[key];}if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.handoff;if(n.data.handoff)patch.data.handoff=n.data.handoff;delete patch.data.process;if(n.data.process)patch.data.process=n.data.process;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
     if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);return mutate(w.id,()=>{const current=store.getWorkspace(w.id),node=current.nodes.find(n=>n.id===p.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
     if(method.startsWith('reference.')||method.startsWith('comment.')) return handleReference(method,p,{store,mutate,dataDir,brief:(w,comment)=>mentionBrief(w,comment,dataDir,CANVAS_CLI),mention:(w,comment,brief)=>chats.send(w,chats.mainNode(w),brief)});
     if(method==='terminal.create') {
@@ -130,6 +147,48 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id,launchState:'ready',launchError:''};return current;}); return {session,node};
     }
     if(method==='terminal.list') {store.getWorkspace(p.workspaceId);return terminals.sessions.filter(s=>s.workspaceId===p.workspaceId).map(s=>terminals.descriptor(s));}
+    if(['terminal.agent.launch','terminal.agent.processes','terminal.agent.process.output','terminal.agent.process.stop'].includes(method)) {
+      const sender=terminals.get(p.sessionId),w=store.getWorkspace(sender.workspaceId),from=w.nodes.find(n=>n.id===sender.nodeId);
+      assert(from?.type==='terminal','No se encuentra el panel emisor del proceso');
+      if(method==='terminal.agent.launch') {
+        assert(sender.status==='running'&&from.data.sessionId===sender.id,'El lanzamiento requiere la sesión viva actual del panel');
+        const fields=validateLaunch(p,from),createdAt=reserveProcess(sender.id),process={id:randomUUID(),...fields,cwd:sender.cwd,from:{nodeId:from.id,title:from.title},createdAt};
+        const node=await invoke('node.create',{workspaceId:w.id,type:'terminal',title:`Proceso: ${fields.title}`,...handoffPosition(w.nodes),data:{process}});
+        const {session}=await invoke('terminal.create',{workspaceId:w.id,nodeId:node.id,cols:120,rows:32});
+        terminals.write(session.id,fields.command+'\r');
+        return {processId:process.id,nodeId:node.id,sessionId:session.id,...fields,cwd:process.cwd};
+      }
+      const keys=method==='terminal.agent.processes'?['sessionId']:method==='terminal.agent.process.output'?['sessionId','id','lines']:['sessionId','id'];
+      for(const key of Object.keys(p))assert(keys.includes(key),`Clave de proceso desconocida: ${key}`);
+      if(method==='terminal.agent.processes')return processList(w.nodes,terminals.sessions,from.id);
+      text(p.id,'identificador del proceso',512);
+      const node=w.nodes.find(n=>n.type==='terminal'&&n.data.process?.id===p.id);
+      assert(node,'Proceso inexistente en este workspace');
+      assert(node.data.sessionId&&terminals.sessions.some(s=>s.id===node.data.sessionId&&s.nodeId===node.id&&s.workspaceId===w.id),'El proceso no tiene una sesión disponible');
+      if(method==='terminal.agent.process.stop')return terminals.stop(node.data.sessionId);
+      const lines=p.lines===undefined?80:p.lines;
+      assert(Number.isInteger(lines)&&lines>=1&&lines<=400,'Las líneas deben ser un entero entre 1 y 400');
+      return terminals.tail(node.data.sessionId,lines,400);
+    }
+    if(method==='terminal.agent.projects') {
+      const session=terminals.get(p.sessionId);
+      return agentProjects(store.state.workspaces,session.workspaceId);
+    }
+    if(method==='terminal.agent.handoff') {
+      const sender=terminals.get(p.sessionId),source=store.getWorkspace(sender.workspaceId),fromNode=source.nodes.find(n=>n.id===sender.nodeId);
+      assert(fromNode?.type==='terminal','No se encuentra el panel emisor del encargo');
+      assert(sender.status==='running'&&fromNode.data.sessionId===sender.id,'El encargo requiere la sesión viva actual del panel');
+      const fields=validateHandoff(p,fromNode,terminals.foreground(sender.id)?.agent),target=resolveHandoffProject(store.state.workspaces,p.project,source.id);
+      const createdAt=reserveHandoff(sender.id),handoff={id:randomUUID(),from:{workspaceId:source.id,workspaceName:source.name,nodeId:fromNode.id,title:fromNode.title},...fields,createdAt};
+      const node=await invoke('node.create',{workspaceId:target.id,type:'terminal',title:`Encargo: ${fields.title}`,...handoffPosition(target.nodes),data:{handoff}});
+      const {session}=await invoke('terminal.create',{workspaceId:target.id,nodeId:node.id,cols:120,rows:32});
+      const command=handoffCommand(fields.agent);
+      if(command)terminals.write(session.id,command);
+      const item={id:randomUUID(),eventKey:`handoff:${handoff.id}`,title:`Encargo recibido: ${fields.title}`,source:'terminal',ref:session.id,sessionId:session.id,workspaceId:target.id,createdAt,observedAt:createdAt};
+      mutate(target.id,()=>{const w=store.getWorkspace(target.id);w.attention.push(item);if(w.attention.length>1000)w.attention.shift();});
+      emit({type:'attention.new',workspaceId:target.id,item});
+      return {handoffId:handoff.id,workspaceId:target.id,workspaceName:target.name,nodeId:node.id,sessionId:session.id,title:fields.title,agent:fields.agent,launched:!!command};
+    }
     // Browser bridge: is this chat card's capability backed by a live turn? Desktop-only, not renderer IPC.
     if(method==='chat.browser.active') {store.getWorkspace(p.workspaceId);return chats.browserActive(p);}
     if(method==='terminal.agent.context' || method==='terminal.agent.report') {
@@ -204,6 +263,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     }
     if(method.startsWith('merge.')) return merges.handle(method,p);
     if(method.startsWith('branch.')) return branches.handle(method,p);
+    if(method==='repo.file.write') { merges.polling.invalidate(); try { return await repo.handle(method,p); } finally { merges.polling.invalidate(); } }
     if(method.startsWith('repo.')) return repo.handle(method,p);
     if(method==='storage.export') { const data=structuredClone(store.state); // Runtime settings may contain credentials: export only portable presentation settings.
       data.settings=Object.fromEntries(Object.entries(data.settings).filter(([k])=>['theme','fontSize','terminalFontSize','language'].includes(k)));
@@ -255,13 +315,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(closingPromise)return closingPromise;
     closingPromise=(async()=>{
       try {
-        await mobile?.stop();
-        // Let short RPCs finish, then stop integration-owned work; never import
-        // production adapters solely to close a host using injected fixtures.
-        await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
-        try {if(shutdownIntegration)await bounded(Promise.resolve().then(()=>shutdownIntegration()),5000,'Integration shutdown');}
-        finally {await chats?.close();await terminals?.close();}
-        await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Final integration drain').catch(()=>{});
+        try { await Promise.all([mobile?.stop(),android?.stop()]); } finally {
+          // Let short RPCs finish, then stop integration-owned work; never import
+          // production adapters solely to close a host using injected fixtures.
+          await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
+          try {if(shutdownIntegration)await bounded(Promise.resolve().then(()=>shutdownIntegration()),5000,'Integration shutdown');}
+          finally {await chats?.close();await terminals?.close();}
+          await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Final integration drain').catch(()=>{});
+        }
       }finally {
         for(const c of clients)c.destroy();
         if(server?.listening)await new Promise(resolve=>server.close(resolve));
@@ -272,8 +333,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
-    mobile=new MobileAccess({...mobileOptions,store,terminals,chats});
+    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
+    mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
+    android=new AndroidGateway({hostDataDir:dataDir});
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};

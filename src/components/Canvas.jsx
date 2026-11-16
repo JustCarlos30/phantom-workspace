@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Maximize2, MoreHorizontal, Plus, TerminalSquare, Globe, StickyNote, Layers, Minus, LocateFixed, MousePointer2, Hand, HelpCircle, ChevronDown, X, Map as MapIcon, Frame, MessageCircle, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, Maximize2, MoreHorizontal, X, LoaderCircle } from 'lucide-react';
+import { TerminalIcon as TerminalSquare, NoteIcon as StickyNote, LayersIcon as Layers, FitIcon as LocateFixed, SelectIcon as MousePointer2, HandIcon as Hand, MinimapIcon as MapIcon, CommentIcon as MessageCircle } from './ShellIcons.jsx';
+import ActivityTrace from './ActivityTrace.jsx';
 import Minimap from './Minimap';
 import TerminalPanelContent from './TerminalPanel';
 import TerminalCardContent from './TerminalCard';
@@ -7,15 +9,18 @@ import ChatCardContent from './ChatCard';
 import BrowserPanelContent from './BrowserPanel';
 import { ToolPanel as ToolPanelContent } from './ToolPanels';
 import { useInlineName } from '../hooks/useInlineName';
+import { useFitDensity } from '../hooks/useFitDensity';
 import { isEditingTarget } from '../hooks/inputOwnership';
-import { canScroll, createWheelGesture } from '../hooks/wheelGesture';
+import { canScroll, hasScrollable, createWheelGesture, isDiscreteWheel, wheelZoomFactor } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
+import { frameFor, needsFraming } from '../hooks/panelFraming';
 import { TerminalActivityStatus } from './ActivityNotch';
 import { PANEL_ICONS } from './PanelIcons';
 import PixelField from './PixelField';
 import { pulseState, PIXEL_KIND } from '../hooks/terminalBorderState.mjs';
 import { PhantomGlyph } from './Glyphs';
+import GengarMascot from './GengarMascot.jsx';
 import ReferencePanelContent, { CommentLayer } from './References';
 import { INLINE_LIMIT, readTransfer, toBase64, visibleComments } from '../hooks/references.mjs';
 import { fitCapture } from '../hooks/pageCapture';
@@ -26,6 +31,7 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const editable = isEditingTarget;
 const defaultCamera = { x: 300, y: 84, zoom: 1 };
 const GRID = 24;
+const NAV_FIT = ['full', 'compact', 'tight'];
 // Text only stays sharp when the world lands on whole device pixels.
 const snap = value => { const ratio = window.devicePixelRatio || 1; return Math.round(value * ratio) / ratio; };
 export const ZONE_COLORS = ['iris', 'mint', 'amber', 'rose', 'slate'];
@@ -68,23 +74,26 @@ const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, an
   const geometry = isFocused ? { x: 12, y: 72, width: Math.max(320, focusSize.width - 24), height: Math.max(240, focusSize.height - 88) } : preview ? { ...node, ...preview } : node;
   const titleRef = useCallback(element => handlers.titleButton(node.id, element), [handlers, node.id]);
   const enlarge = useCallback(() => handlers.focus(node.id), [handlers, node.id]);
-  return <article data-node-id={node.id} data-type={node.type} data-role={node.data?.role || undefined} className={`canvas-node ${selected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${small ? 'overview' : ''} ${compact ? 'compact' : ''} ${preview ? 'is-dragging' : ''} ${pulseState(node, activity, chatPulse)}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height, display: anyFocused && !isFocused ? 'none' : undefined }} onPointerDown={() => { if (!selected) handlers.select([node.id]); }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); handlers.menu(node.id, e.clientX, e.clientY); }}>
+  const pulse = pulseState(node, activity, chatPulse);
+  return <article data-node-id={node.id} data-type={node.type} data-role={node.data?.role || undefined} className={`canvas-node ${selected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${small ? 'overview' : ''} ${compact ? 'compact' : ''} ${preview ? 'is-dragging' : ''} ${pulseState(node, activity, chatPulse)}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height, display: anyFocused && !isFocused ? 'none' : undefined }} onPointerDownCapture={e => handlers.press(e, node.id)} onClick={e => handlers.click(e, node.id)} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); handlers.menu(node.id, e.clientX, e.clientY); }}>
+    {pulse && <ActivityTrace key={pulse} state={pulse} />}
     <header className="node-header" onPointerDown={e => { if (!e.target.closest('button,input') && !anyFocused) handlers.begin(e, 'move', node); }} onDoubleClick={e => { if (!e.target.closest('button,input')) handlers.focus(isFocused ? null : node.id); }}>
       <span className="node-glyph" data-type={node.type} aria-hidden="true"><Icon size={14} /></span><div className="node-title">{editing ? <><input ref={handlers.renameInput} className="inline-name-input" aria-label="Nombre del panel" aria-invalid={!!editing.error} aria-describedby={editing.error ? `name-error-${node.id}` : undefined} value={editing.value} readOnly={editing.saving} onChange={e => handlers.renameChange(e.target.value)} onPointerDown={e => e.stopPropagation()} onBlur={() => handlers.renameCommit(false)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); handlers.renameCommit(true); } if (e.key === 'Escape') { e.preventDefault(); handlers.renameCancel(); } }} />{editing.error && <span className="inline-name-error" id={`name-error-${node.id}`} role="alert">{editing.error}</span>}</> : <button ref={titleRef} className="title-button" title="Renombrar panel" onClick={() => handlers.renameStart(node)}>{node.title}</button>}{node.data?.role === 'orchestrator' && !editing && <span className="node-role" title="Sesión orquestadora: ordena e incorpora el trabajo de las terminales">Orquestador</span>}</div>
       {node.groupId && <span className="mission-chip" title={missionTitle}>{missionTitle || 'Misión'}</span>}
       {node.type === 'terminal' && <TerminalActivityStatus session={activity} />}
       <button className="icon-button" aria-label={isFocused ? 'Volver al mapa' : 'Enfocar panel'} title={isFocused ? 'Volver al mapa' : 'Enfocar panel'} onClick={() => handlers.focus(isFocused ? null : node.id)}>{isFocused ? <ArrowLeft size={14} /> : <Maximize2 size={14} />}</button>
       <button className="icon-button" aria-label="Opciones del panel" title="Opciones del panel" onClick={e => handlers.menu(node.id, e.clientX, e.clientY)}><MoreHorizontal size={16} /></button>
-      {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" onClick={() => handlers.closeTerminal(node)}><X size={14} /></button>}
+      {node.type === 'terminal' && <button className="icon-button" aria-label="Cerrar terminal" title="Cerrar terminal y terminar sesión" data-panel-close onPointerDown={e => e.preventDefault()} onClick={() => handlers.closeTerminal(node)}><X size={14} /></button>}
     </header>
     <div className="node-body">
-      {node.type === 'terminal' && node.data?.chat?.provider ? <ChatCard node={node} workspace={workspace} api={api} notify={notify} overview={small} focused={isFocused} connected={connected} seen={selected || isFocused} onPulse={handlers.chatPulse} /> : node.type === 'terminal' && !isFocused ? <TerminalCard node={node} workspace={workspace} api={api} notify={notify} onFocus={handlers.focus} onRelaunch={onRelaunch} overview={small} connected={connected} /> : node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onEnlarge={enlarge} onFocus={handlers.focus} connected={connected} active={active} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} compact={compact} magnified={magnified} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || anyEditing} commenting={commenting} commentCount={commentCount} onComment={handlers.toggleComment} onFocus={handlers.focus} onChange={onChange} /> : node.type === 'reference' ? <ReferencePanel node={node} workspace={workspace} comments={comments} onChange={onChange} onOpenPanel={onOpenPanel} onOpenComment={handlers.openComment} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
+      {node.type === 'terminal' && node.data?.chat?.provider ? <ChatCard node={node} workspace={workspace} api={api} notify={notify} overview={small} focused={isFocused} connected={connected} seen={selected || isFocused} onPulse={handlers.chatPulse} /> : node.type === 'terminal' && !isFocused ? <TerminalCard node={node} workspace={workspace} api={api} notify={notify} onFocus={handlers.focus} onRelaunch={onRelaunch} overview={small} connected={connected} enabled={!anyFocused} /> : node.type === 'terminal' ? <TerminalPanel node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} onEnlarge={enlarge} onFocus={handlers.focus} connected={connected} active={active} inputBlocked={inputBlocked} focusRequested={isFocused} overview={small} compact={compact} magnified={magnified} onRelaunch={onRelaunch} onChange={onChange} notify={notify} /> : node.type === 'browser' ? <BrowserPanel node={node} workspace={workspace} api={api} active={isFocused} obscured={obscured || anyEditing} commenting={commenting} commentCount={commentCount} onComment={handlers.toggleComment} onFocus={handlers.focus} onChange={onChange} /> : node.type === 'reference' ? <ReferencePanel node={node} workspace={workspace} comments={comments} onChange={onChange} onOpenPanel={onOpenPanel} onOpenComment={handlers.openComment} /> : node.type === 'note' ? <textarea className="note-editor" aria-label={`Nota: ${node.title}`} value={node.data?.text || ''} placeholder="Escribe el contexto que quieres recuperar…" onChange={e => onChange(node.id, { data: { ...node.data, text: e.target.value } })} spellCheck /> : <ToolPanel node={node} workspace={workspace} api={api} refresh={refresh} onOpenPanel={onOpenPanel} notify={notify} />}
     </div>
     {!anyFocused && <button className="resize-handle" aria-label="Cambiar tamaño del panel" title="Arrastra para cambiar tamaño" onPointerDown={e => handlers.begin(e, 'resize', node)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) { e.preventDefault(); onChange(node.id, { width: Math.max(400, node.width + (e.key === 'ArrowRight' ? 24 : e.key === 'ArrowLeft' ? -24 : 0)), height: Math.max(240, node.height + (e.key === 'ArrowDown' ? 24 : e.key === 'ArrowUp' ? -24 : 0)) }); } }} />}
   </article>;
 });
 
-export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null }) {
+export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null }) {
+  const navFit = useFitDensity(NAV_FIT);
   const root = useRef(null);
   const stage = useRef(null);
   const world = useRef(null);
@@ -94,7 +103,11 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   if (!wheelGesture.current) wheelGesture.current = createWheelGesture();
   const gestureFrame = useRef(null);
   const finishRef = useRef(null);
-  const handledJump = useRef(null);
+  const handledJump = useRef(new WeakSet());
+  // The panel most recently framed: a stage resize right after a jump (the
+  // sidebar or list closing) re-frames it instead of drifting off target.
+  const framed = useRef(null);
+  const lastPress = useRef(null);
   const [frameRequest, setFrameRequest] = useState(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [preview, setPreview] = useState({});
@@ -123,7 +136,10 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const [minimap, setMinimap] = useState(readMinimap);
   const toggleMinimap = () => setMinimap(on => { try { localStorage.setItem('phantom.minimap', on ? 'off' : 'on'); } catch { /* per-viewer preference only */ } return !on; });
   const stopInertia = useCallback(() => { cancelAnimationFrame(inertia.current); inertia.current = null; }, []);
-  useEffect(() => stopInertia, [stopInertia]);
+  useEffect(() => {
+    window.addEventListener('blur', stopInertia);
+    return () => { window.removeEventListener('blur', stopInertia); stopInertia(); };
+  }, [stopInertia]);
   const nodes = useMemo(() => (workspace.nodes || []).filter(n => !n.data?.hidden).sort((a, b) => Number(b.type === 'zone') - Number(a.type === 'zone')), [workspace.nodes]);
   // Terminals and browsers only read these fields; a stable object keeps
   // edits to other panels from re-rendering every terminal.
@@ -150,7 +166,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     }
   }, []);
   const commitCamera = useCallback(next => onCamera(next, workspace.id), [onCamera, workspace.id]);
-  const { camera, cameraRef, updateCamera, navigate, flushCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera, paintCamera);
+  const { camera, cameraRef, updateCamera, navigate: navigateCamera, flushCamera: settleCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera, paintCamera);
+  const navigate = useCallback(next => { stopInertia(); navigateCamera(next); }, [stopInertia, navigateCamera]);
+  const flushCamera = useCallback(() => { stopInertia(); settleCamera(); }, [stopInertia, settleCamera]);
   useLayoutEffect(() => { paintCamera(cameraRef.current); });
   useEffect(() => registerBeforeFlush?.(flushCamera), [registerBeforeFlush, flushCamera]);
   useEffect(() => { wheelGesture.current.reset(); }, [focused]);
@@ -188,6 +206,11 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     if (inspector) area.right = clamp(canvas.right - inspector.left, 0, canvas.width / 2);
     return area;
   }, []);
+  // Camera that centers one panel inside the visible (unobstructed) stage.
+  const frameCamera = useCallback((id, view = size) => {
+    const found = live.current.nodes.find(n => n.id === id); if (!found) return null;
+    return frameFor(found, safeArea(), view);
+  }, [size, safeArea]);
   const fit = useCallback((selectionOnly = false) => {
     const targets = selectionOnly === true ? nodes.filter(n => selected.includes(n.id)) : nodes;
     if (!targets.length) { if (!selectionOnly) navigate(defaultCamera); return; }
@@ -203,6 +226,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     if (focused || !size.width || !size.height) return;
     // Rail/focus transitions produce intermediate widths. Only reframe the
     // settled stage, so a round trip through focus keeps the map camera.
+    const scheduled = cameraRef.current;
     const timer = setTimeout(() => {
       const measured = stage.current?.getBoundingClientRect();
       // Native UI zoom can round the DOM rect and ResizeObserver's content
@@ -212,6 +236,12 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const previous = mapSize.current;
       if (previous?.width === size.width && previous?.height === size.height) return;
       mapSize.current = size;
+      // Deliberate input or navigation during the settle window owns the camera.
+      if (cameraRef.current !== scheduled) return;
+      if (framed.current && performance.now() - framed.current.at < 1500) {
+        const next = frameCamera(framed.current.id, size);
+        if (next) { navigate(next); return; }
+      }
       const c = cameraRef.current, a = safeArea();
       // Resize only the view, never persisted panel geometry. Leave deliberate
       // offscreen panels alone; bring previously visible work clear of the shelf.
@@ -225,19 +255,26 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       updateCamera({ x: a.left + 12 + (w - (right - left) * zoom) / 2 - left * zoom, y: a.top + (h - (bottom - top) * zoom) / 2 - top * zoom, zoom });
     }, 260);
     return () => clearTimeout(timer);
-  }, [size, focused, nodes, cameraRef, safeArea, updateCamera]);
+  }, [size, focused, nodes, cameraRef, safeArea, updateCamera, frameCamera, navigate]);
+  const clipped = panel => {
+    const r = panel.getBoundingClientRect(), view = stage.current.getBoundingClientRect(), a = safeArea();
+    return r.left < view.left + a.left || r.right > view.right - a.right || r.top < view.top + a.top || r.bottom > view.bottom - a.bottom;
+  };
   useEffect(() => { if (fitRequest) fitRef.current(); }, [fitRequest]);
-  const frameTo = useCallback(request => {
-    if (!request?.id || handledJump.current === request) return;
-    const found = live.current.nodes.find(n => n.id === request.id); if (!found) return;
-    const n = found.type === 'zone' ? { ...found, y: found.y - 44, height: found.height + 44 } : found;
-    handledJump.current = request;
-    const a = safeArea(), w = Math.max(160, size.width - a.left - a.right), h = Math.max(80, size.height - a.top - a.bottom);
-    const zoom = Math.min(1, (w - 64) / n.width, (h - 24) / n.height);
-    navigate({ x: a.left + (w - n.width * zoom) / 2 - n.x * zoom, y: a.top + (h - n.height * zoom) / 2 - n.y * zoom, zoom });
-  }, [size.width, size.height, navigate, safeArea]);
-  useEffect(() => frameTo(jumpRequest), [jumpRequest, frameTo]);
-  useEffect(() => frameTo(frameRequest), [frameRequest, frameTo]);
+  // A jump can arrive before the stage is measured, before a hidden panel is
+  // revealed, or while focus mode is closing. Keep it pending until it can
+  // land, instead of framing against a zero-sized stage and dropping it.
+  useEffect(() => {
+    if (focused) return;
+    for (const request of [jumpRequest, frameRequest]) {
+      if (!request?.id || handledJump.current.has(request)) continue;
+      const next = frameCamera(request.id); if (!next) continue;
+      handledJump.current.add(request);
+      framed.current = { id: request.id, at: performance.now() };
+      stopInertia();
+      navigate(next);
+    }
+  }, [jumpRequest, frameRequest, frameCamera, focused, nodes, navigate, stopInertia]);
   const zoomAt = useCallback((zoom, x = size.width / 2, y = size.height / 2, smooth = true) => {
     const old = cameraRef.current, next = clamp(zoom, .15, 1.8);
     (smooth ? navigate : updateCamera)({ x: x - (x - old.x) * next / old.zoom, y: y - (y - old.y) * next / old.zoom, zoom: next });
@@ -245,29 +282,37 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   useEffect(() => {
     const el = root.current;
     const wheel = e => {
-      if (inputBlocked || live.current.focused) return;
+      if (navigationBlocked || live.current.focused) return;
       const zooming = e.ctrlKey || e.metaKey || e.altKey;
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? size.height : 1;
       const dx = e.deltaX * unit, dy = e.deltaY * unit;
       const nodeBody = e.target.closest('.node-body');
+      const bodyId = nodeBody?.closest('[data-node-id]')?.dataset.nodeId;
+      const terminal = e.target.closest('.terminal-host');
+      const terminalId = terminal?.closest('[data-node-id]')?.dataset.nodeId;
+      const bodyCanScroll = !!nodeBody && canScroll(e.target, dx, dy, nodeBody);
       const route = wheelGesture.current.route({
         zooming,
         overCanvasChrome: !!e.target.closest('.canvas-navigation,.canvas-popover,.agent-editor'),
-        overTerminal: !!e.target.closest('.terminal-host'),
+        overTerminal: !!terminal,
+        terminalActive: !!terminalId && live.current.selected.includes(terminalId),
         overMinimap: !!e.target.closest('.canvas-minimap'),
         overBody: !!nodeBody,
-        bodyCanScroll: !!nodeBody && canScroll(e.target, dx, dy, nodeBody),
+        bodyActive: !!bodyId && live.current.selected.includes(bodyId),
+        bodyCanScroll,
+        bodyScrollable: !!nodeBody && hasScrollable(e.target, dx, dy, nodeBody),
       });
+      if (route === 'element' && nodeBody && !bodyCanScroll) e.preventDefault();
       if (route !== 'canvas') return;
       stopInertia();
       e.preventDefault();
       if (zooming) e.stopPropagation();
       const r = el.getBoundingClientRect();
-      if (zooming) zoomAt(cameraRef.current.zoom * Math.exp(-clamp(dy, -120, 120) * (e.ctrlKey ? .008 : .003)), e.clientX - r.left, e.clientY - r.top, false);
+      if (zooming) zoomAt(cameraRef.current.zoom * wheelZoomFactor(dy, { discrete: isDiscreteWheel(e), pinch: e.ctrlKey }), e.clientX - r.left, e.clientY - r.top, false);
       else updateCamera({ ...cameraRef.current, x: cameraRef.current.x - (e.shiftKey && !dx ? dy : dx), y: cameraRef.current.y - (e.shiftKey && !dx ? 0 : dy) });
     };
     el?.addEventListener('wheel', wheel, { passive: false, capture: true }); return () => el?.removeEventListener('wheel', wheel, true);
-  }, [updateCamera, zoomAt, inputBlocked, size.height, stopInertia]);
+  }, [updateCamera, zoomAt, navigationBlocked, size.height, stopInertia]);
   useEffect(() => {
     const key = e => {
       if (inputBlocked || !root.current?.contains(e.target)) return;
@@ -434,8 +479,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const step = Math.min(32, now - previous); previous = now;
       const decay = Math.pow(.9935, step);
       vx *= decay; vy *= decay;
-      const c = cameraRef.current;
-      updateCamera({ ...c, x: c.x + vx * step, y: c.y + vy * step });
+      const c = cameraRef.current, next = { ...c, x: c.x + vx * step, y: c.y + vy * step };
+      // Already inside a frame: paint now instead of one frame behind the camera.
+      updateCamera(next); paintCamera(next);
       inertia.current = Math.hypot(vx, vy) > .02 ? requestAnimationFrame(tick) : null;
     };
     inertia.current = requestAnimationFrame(tick);
@@ -456,14 +502,37 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const finish = e => {
     if (!gesture.current) return;
     if (gestureFrame.current !== null) { cancelAnimationFrame(gestureFrame.current); step(); }
-    if (gesture.current.kind === 'pan' && e?.type === 'pointerup') glide(gesture.current);
+    const released = gesture.current;
     Object.entries(previewRef.current).forEach(([id, patch]) => onChange(id, patch)); previewRef.current = {}; setPreview({}); gesture.current = null; setPanning(false); setMarquee(null); flushCamera();
+    if (released.kind === 'pan' && e?.type === 'pointerup') glide(released);
     if (e?.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
   finishRef.current = finish;
-  useEffect(() => () => cancelAnimationFrame(gestureFrame.current), []);
+  useEffect(() => () => { cancelAnimationFrame(gestureFrame.current); gestureFrame.current = null; }, []);
   // Stable callbacks for memoized nodes; they always call the latest closure.
-  const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename };
+  // Selecting a card happens in the capture phase, so content that stops
+  // propagation (menus, pickers, the composer) can no longer swallow it.
+  // A plain click brings a clipped or poorly scaled card into working view;
+  // a drag or an action button never does.
+  const press = (e, id) => {
+    if (e.target.closest('[data-panel-close]')) return;
+    if (e.button !== 0 || inputBlocked) return;
+    lastPress.current = { id, x: e.clientX, y: e.clientY, t: performance.now() };
+    if (focused) return;
+    if (e.shiftKey) { if (!selected.includes(id)) onSelect([...selected, id]); return; }
+    // A header drag of a multi-selection moves the whole group.
+    if (selected.includes(id) && e.target.closest('.node-header')) return;
+    if (!(selected.length === 1 && selected[0] === id)) onSelect([id]);
+  };
+  const click = (e, id) => {
+    const p = lastPress.current;
+    if (focused || e.button !== 0 || e.shiftKey || !p || p.id !== id || Math.hypot(e.clientX - p.x, e.clientY - p.y) > 5) return;
+    if (e.target.closest('button,a,[role="menuitem"],[role="option"],[role="radio"]')) return;
+    const panel = root.current?.querySelector(`[data-node-id="${CSS.escape(id)}"]`);
+    const node = live.current.nodes.find(n => n.id === id), target = frameCamera(id)?.zoom;
+    if (panel && node && needsFraming({ clipped: clipped(panel), zoom: cameraRef.current.zoom, target, type: node.type })) frameNode(id);
+  };
+  const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename, press, click };
   // Closing a thread or a draft hands the keyboard back to the canvas, so Esc, C and V keep working.
   const openThread = useCallback(id => { setDraft(null); setOpenComment(id); if (!id) root.current?.focus({ preventScroll: true }); }, []);
   const writeDraft = useCallback(next => { setDraft(next); if (!next) root.current?.focus({ preventScroll: true }); }, []);
@@ -475,7 +544,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     focus: id => latest.current.onFocus(id),
     chatPulse: (id, kind) => setChatPulses(current => (current[id] || '') === (kind || '') ? current : { ...current, [id]: kind || undefined }),
     select: ids => latest.current.onSelect(ids),
-    closeTerminal: node => latest.current.onCloseTerminal(node),
+    press: (...args) => latest.current.press(...args),
+    click: (...args) => latest.current.click(...args),
+    closeTerminal: node => { root.current?.focus({ preventScroll: true }); latest.current.onCloseTerminal(node); },
     openComment: id => { setDraft(null); setOpenComment(id); },
     toggleComment: () => { setDraft(null); setOpenComment(null); setTool(current => current === 'comment' ? 'select' : 'comment'); root.current?.focus({ preventScroll: true }); },
     titleButton: (id, element) => { if (element) titleButtons.current.set(id, element); else titleButtons.current.delete(id); },
@@ -497,12 +568,15 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''} ${tool === 'comment' ? 'comment-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={e => { pointer.current = { x: e.clientX, y: e.clientY }; move(e); }} onDragOver={e => { if (droppable(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }} onDrop={drop} onMouseDown={blockMiddle} onMouseUp={blockMiddle} onAuxClick={blockMiddle} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (tool === 'comment' && e.button === 0 && !inputBlocked && !e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor,.node-header,.zone-label,.browser-toolbar')) { placeComment(e); return; } if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
     <Presence>{focusedNode && <div className="focus-return"><button onClick={() => onFocus(null)}><ArrowLeft size={15} /> Volver al mapa</button><span>{focusedNode.title}</span><kbd>Ctrl ⇧ ↵</kbd></div>}</Presence>
     <div ref={stage} className="canvas-stage" onPointerDown={e => { if (e.target === e.currentTarget && tool === 'select' && !space.current && e.button === 0) begin(e, 'select'); }} onFocusCapture={e => {
-      if (focused) return;
-      const panel = e.target.closest('.canvas-node'); if (!panel) return;
-      const r = panel.getBoundingClientRect(), view = stage.current.getBoundingClientRect(), a = safeArea();
-      if (r.left < view.left + a.left || r.right > view.right - a.right || r.top < view.top + a.top || r.bottom > view.bottom - a.bottom) frameNode(panel.dataset.nodeId);
+      // Keyboard focus (Tab) reveals the panel. Pointer focus is handled on
+      // click, so the map never slides away while a button is still held.
+      if (focused || performance.now() - (lastPress.current?.t || -Infinity) < 800) return;
+      const panel = e.target.closest('.canvas-node');
+      if (!panel) return;
+      const id = panel.dataset.nodeId, node = live.current.nodes.find(n => n.id === id), target = frameCamera(id)?.zoom;
+      if (node && needsFraming({ clipped: clipped(panel), zoom: cameraRef.current.zoom, target, type: node.type })) frameNode(id);
     }}>
-    {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={Layers} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
+    {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={<><GengarMascot /><Layers className="gengar-mascot-fallback" /></>} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
     <PixelField targets={pixelTargets} cameraRef={cameraRef} paintRef={fieldPaint} hidden={!!focused} />
     <div ref={world} className="canvas-world">
       <ReviewContext.Provider value={reviewContext}><PresenceGroup>{nodes.map(node => {
@@ -531,16 +605,16 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     </div>
     <div className="canvas-view-controls">
     {!focused && minimap && <Minimap nodes={nodes} camera={camera} cameraRef={cameraRef} frameRef={minimapFrame} size={size} selected={selected} onUpdate={next => { stopInertia(); updateCamera(next); }} />}
-    {!focused && <><div className="canvas-navigation" role="toolbar" aria-label="Navegación del canvas">
+    {!focused && <><div ref={navFit} className="canvas-navigation" role="toolbar" aria-label="Navegación del canvas">
       <button aria-label="Herramienta de selección" title="Seleccionar · V" aria-pressed={tool === 'select'} onClick={() => { setTool('select'); root.current.focus(); }}><MousePointer2 size={16} /></button>
       <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /></button>
       <button aria-label="Herramienta de comentarios" title="Comentar · C" aria-pressed={tool === 'comment'} onClick={() => { setTool(current => current === 'comment' ? 'select' : 'comment'); root.current.focus(); }}><MessageCircle size={16} />{comments.some(c => !c.resolved) && <b className="comment-count">{comments.filter(c => !c.resolved).length}</b>}</button><i />
-      <button title="Alejar (−)" aria-label="Alejar" disabled={camera.zoom <= .15} onClick={() => zoomAt(cameraRef.current.zoom / 1.2)}><Minus size={15} /></button>
-      <button className="zoom-value" aria-label={`Zoom ${Math.round(camera.zoom * 100)}%. Opciones de zoom`} aria-expanded={navigationMenu === 'zoom'} aria-controls="canvas-zoom-options" onClick={() => setNavigationMenu(menu => menu === 'zoom' ? null : 'zoom')}><span ref={zoomLabel}>{Math.round(camera.zoom * 100)}</span>%<ChevronDown size={12} /></button>
-      <button title="Acercar (+)" aria-label="Acercar" disabled={camera.zoom >= 1.8} onClick={() => zoomAt(cameraRef.current.zoom * 1.2)}><Plus size={15} /></button><i />
+      <button title="Alejar (−)" aria-label="Alejar" disabled={camera.zoom <= .15} onClick={() => zoomAt(cameraRef.current.zoom / 1.2)}><span aria-hidden="true">−</span></button>
+      <button className="zoom-value" aria-label={`Zoom ${Math.round(camera.zoom * 100)}%. Opciones de zoom`} aria-expanded={navigationMenu === 'zoom'} aria-controls="canvas-zoom-options" onClick={() => setNavigationMenu(menu => menu === 'zoom' ? null : 'zoom')}><span ref={zoomLabel}>{Math.round(camera.zoom * 100)}</span>%<span aria-hidden="true">▾</span></button>
+      <button title="Acercar (+)" aria-label="Acercar" disabled={camera.zoom >= 1.8} onClick={() => zoomAt(cameraRef.current.zoom * 1.2)}><span aria-hidden="true">+</span></button><i />
       <button title="Ajustar todos los paneles · 0" aria-label="Ajustar todos los paneles" onClick={() => fit()}><LocateFixed size={17} /></button>
-      <button title="Minimapa" aria-label="Mostrar minimapa" aria-pressed={minimap} onClick={toggleMinimap}><MapIcon size={16} /></button>
-      <button title="Gestos y atajos · ?" aria-label="Gestos y atajos del canvas" aria-expanded={navigationMenu === 'help'} aria-controls="canvas-gesture-help" onClick={() => setNavigationMenu(menu => menu === 'help' ? null : 'help')}><HelpCircle size={16} /></button>
+      <button className="view-toggle" title="Minimapa" aria-label="Mostrar minimapa" aria-pressed={minimap} onClick={toggleMinimap}><MapIcon size={16} /></button>
+      <button title="Gestos y atajos · ?" aria-label="Gestos y atajos del canvas" aria-expanded={navigationMenu === 'help'} aria-controls="canvas-gesture-help" onClick={() => setNavigationMenu(menu => menu === 'help' ? null : 'help')}><span aria-hidden="true">?</span></button>
       {phantomLauncher && <><i /><button className="phantom-launcher" data-tone={phantomLauncher.status.tone} title={`Phantom: chat y orquestador · Ctrl ⇧ Espacio\n${phantomLauncher.status.label}`} aria-label={`${phantomLauncher.open ? 'Cerrar' : 'Abrir'} Phantom. ${phantomLauncher.status.label}`} aria-pressed={phantomLauncher.open} onClick={phantomLauncher.onToggle}><PhantomGlyph size={17} />{phantomLauncher.status.integration && phantomLauncher.status.queued > 0 ? <b className="phantom-launcher-count">{phantomLauncher.status.queued}</b> : phantomLauncher.status.tone !== 'off' && <i className="phantom-launcher-dot" aria-hidden="true" />}</button></>}
     </div>
     {navigationMenu && <div className="canvas-popover" id={navigationMenu === 'zoom' ? 'canvas-zoom-options' : 'canvas-gesture-help'} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setNavigationMenu(null); root.current.querySelector(`[aria-controls="${e.currentTarget.id}"]`)?.focus(); } }}>

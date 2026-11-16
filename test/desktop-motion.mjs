@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await fs.mkdtemp('/tmp/opencode/phantom-motion-');
@@ -117,5 +118,6 @@ try {
 } finally {
   // Fixture-only shutdown, without opening the real application's close/save UI.
   await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
+  killElectronGroup(app.process());
   if (ownedHost) { try { process.kill(ownedHost, 'SIGTERM'); } catch {} }
 }

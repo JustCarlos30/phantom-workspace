@@ -3,12 +3,27 @@ import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { workspaceRoot, safePath, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
+import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 
+const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 const controllers = new Map(), writes = new Map(), starts = new Map();
+export function prunePhantomControllers(workspace, live = controllers) {
+  const items = workspace.phantomControllers;
+  if (!Array.isArray(items)) return false;
+  const active = item => item.status === 'running' || live.has(item.id);
+  const recent = new Set(items.filter(item => !active(item)).sort((a, b) =>
+    (Date.parse(b.endedAt ?? b.createdAt) || 0) - (Date.parse(a.endedAt ?? a.createdAt) || 0)).slice(0, 20));
+  let changed = false;
+  const retained = items.filter(item => active(item) || recent.has(item));
+  for (const item of retained) if (!active(item) && typeof item.output === 'string' && item.output.length > 16384) {
+    item.output = item.output.slice(-16384); item.truncated = true; changed = true;
+  }
+  if (retained.length !== items.length) { workspace.phantomControllers = retained; changed = true; }
+  return changed;
+}
 const stable = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
 const identifier = value => { text(value, 'Phantom ID', 200); if (value.startsWith('-')) throw new Error('Invalid Phantom ID'); return value; };
 export async function discoverPhantomCLI(explicit) {
@@ -32,11 +47,14 @@ async function client(payload, context) {
   if (data !== undefined) {
     text(data, 'phantomData', 4096);
     // Native Phantom owns this database. Never copy or open it through Store.
-    const home = await stateHome({ ...context, dataDir: data }, root);
-    flags.push('--data', home);
+    flags.push('--data', nativeHome);
   }
-  const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root });
-  return { root, workspace, cli, flags, call, config, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+  const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root, maxBuffer: PHANTOM_MAX_BUFFER, timeout: 30000 });
+  return { root, workspace, cli, flags, call, config, nativeHome, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+}
+function unavailableReason(error) {
+  const reason = error.message.includes('maxBuffer') ? 'el catálogo de Phantom supera el límite de lectura de 64 MiB; archiva o cancela tareas antiguas' : error.killed === true || error.code === 'ETIMEDOUT' ? 'la CLI de Phantom no respondió a tiempo' : error.message;
+  return `Phantom unavailable: ${reason}`;
 }
 export async function phantomStatus(payload, context) {
   await workspaceRoot(context, payload);
@@ -48,13 +66,14 @@ export async function phantomStatus(payload, context) {
     let version;
     try { const pkg = JSON.parse(await readFile(path.resolve(path.dirname(c.cli), '../package.json'), 'utf8')); if (typeof pkg.version === 'string') version = pkg.version; } catch { /* Optional package metadata. */ }
     return { available: true, source: 'phantom', cli: c.cli, ...(version ? { version } : {}), observedAt: observedAt() };
-  } catch (error) { return { available: false, source: 'phantom', reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
+  } catch (error) { return { available: false, source: 'phantom', reason: unavailableReason(error), observedAt: observedAt() }; }
 }
 // Every checkout of this repository, keyed by canonical path, with the branch it holds.
 async function family(client, context) {
   const roots = new Map([[client.root, { path: client.root, branch: null, main: true }]]);
   try {
     const { stdout } = await command(context, 'git', ['--no-optional-locks', 'worktree', 'list', '--porcelain', '-z'], { cwd: client.root });
+    roots.git = true;
     let current = null;
     for (const entry of stdout.split('\0')) {
       if (entry.startsWith('worktree ')) {
@@ -77,10 +96,11 @@ async function list(payload, context, c) {
   if (!['tasks', 'memories', 'skills'].includes(topic)) throw new Error('topic must be tasks, memories, or skills');
   if (payload.query !== undefined && (typeof payload.query !== 'string' || payload.query.length > 500)) throw new Error('Invalid Phantom query');
   const locations = new Map();
-  let raw = await c.call(topic === 'tasks' ? ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
+  const roots = topic === 'tasks' ? await family(c, context) : undefined;
+  let raw = await c.call(topic === 'tasks' ? roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
   if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
   if (topic === 'tasks') {
-    const roots = await family(c, context), filtered = [];
+    const filtered = [];
     for (const item of raw) { try { const home = roots.get(await realpath(item.contract?.workspace)); if (home) { filtered.push(item); locations.set(item, home); } } catch { /* Not this workspace. */ } }
     raw = filtered;
   }
@@ -88,20 +108,59 @@ async function list(payload, context, c) {
   return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
 }
 async function events(payload, context, c) {
+  if (payload.view !== undefined && payload.view !== 'activity') throw new Error('Invalid Phantom events view');
   // Authorize the canonical task before invoking the CLI event reader. In
   // particular, never fetch a foreign task's events and filter them afterwards.
   const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
   if (task.id !== payload.id) throw new Error('Phantom task ID mismatch');
   const result = await c.call(['events', payload.id]);
   if (!Array.isArray(result)) throw new Error('Phantom returned invalid events');
+  if (payload.view === 'activity') {
+    const runId = result.findLast(event => event.run_id)?.run_id ?? null;
+    const steps = new Map();
+    let model = null;
+    for (const event of result.filter(event => runId !== null && event.run_id === runId)) {
+      const data = event.data || {};
+      if (event.type === 'model.requested') model = data.model;
+      if (!['action.intended', 'action.observed'].includes(event.type) || !data.callID) continue;
+      const previous = steps.get(data.callID), args = data.args || {}, tool = data.tool || previous?.tool || '';
+      let target = args.pattern ? `${args.pattern}${args.path ? ` en ${args.path}` : ''}` : args.path;
+      target = args.filePath || target || args.command || args.url || args.description || previous?.target || '';
+      if (/^(apply_patch|patch)$/i.test(tool) && typeof args.patchText === 'string') target = [...args.patchText.matchAll(/^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm)].map(match => match[1]).join(', ');
+      const observed = event.type === 'action.observed';
+      const failed = data.error || data.status === 'error' || data.metadata?.error || data.metadata?.status === 'error' || data.output?.isError || data.output?.error || data.output?.status === 'error';
+      steps.set(data.callID, { id: data.callID, tool, target: String(target).slice(0, 240), status: observed ? failed ? 'error' : 'done' : previous?.status || 'running', at: previous?.at ?? event.at });
+    }
+    const items = [...steps.values()];
+    return { available: true, id: payload.id, source: 'phantom', observedAt: observedAt(), runId, model, total: items.length, items: items.slice(-40), truncated: items.length > 40 };
+  }
   return { items: result.slice(-100), events: result, id: payload.id, source: 'phantom', observedAt: observedAt(), truncated: result.length > 100 };
+}
+async function runEvidence(run, c) {
+  const unavailable = reason => ({ available: false, reason });
+  if (!/^run_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(run.id ?? '')) return unavailable('ID de ejecución no válido para leer evidencia');
+  async function read(name, verification = false) {
+    try {
+      const file = await safePath(c.nativeHome, `artifacts/${run.id}/${name}`);
+      const result = await readBounded(file, 2 * 1024 * 1024);
+      if (result.truncated) return unavailable('Artefacto supera el límite de 2 MiB; no se muestra parcialmente');
+      const value = JSON.parse(result.text), checks = verification ? value?.checks : value;
+      if (!Array.isArray(checks) || checks.some(check => !check || typeof check !== 'object' || Array.isArray(check)
+        || ['name', 'cwd', 'stdout', 'stderr', 'error', 'reason', 'signal'].some(key => check[key] != null && typeof check[key] !== 'string')
+        || ['argv', 'executedArgv'].some(key => check[key] != null && (!Array.isArray(check[key]) || check[key].some(arg => typeof arg !== 'string')))
+        || ['passed', 'executed'].some(key => check[key] != null && typeof check[key] !== 'boolean'))) return unavailable('Formato de evidencia desconocido');
+      return { available: true, checks: checks.map(check => Object.fromEntries(['name', 'argv', 'executedArgv', 'cwd', 'passed', 'exitCode', 'signal', 'error', 'tests', 'stdout', 'stderr', 'durationMs', 'executed', 'reason'].filter(key => Object.hasOwn(check, key)).map(key => [key, check[key]]))) };
+    } catch (error) { return unavailable(error.code === 'ENOENT' ? 'Artefacto no disponible' : `Evidencia no disponible: ${error.message}`); }
+  }
+  return { baseline: await read('baseline-checks.json'), verification: await Promise.all([0, 1, 2, 3].map(async round => ({ round, ...await read(`verification-${round}.json`, true) }))) };
 }
 async function detail(payload, context, c) {
   identifier(payload.id);
   if (payload.topic === 'tasks') {
     const raw = await c.call(['show', payload.id]);
+    if (raw.id !== payload.id) throw new Error('Phantom task ID mismatch');
     if (!await scopedTask(raw, c, context)) throw new Error('Phantom task belongs to another workspace');
-    return raw;
+    return raw.run ? { ...raw, run: { ...raw.run, evidence: await runEvidence(raw.run, c) } } : raw;
   }
   if (payload.topic === 'memories') return c.call(['memory-history', payload.id, '--workspace', c.root]);
   if (payload.topic !== 'skills') throw new Error('Unknown Phantom topic');
@@ -209,6 +268,11 @@ async function control(payload, context, c) {
   starts.set(key, work);
   try { return await work; } finally { starts.delete(key); }
 }
+export function runTimeoutMs(settings) {
+  const minutes = settings?.phantomRunTimeoutMinutes;
+  return Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440 ? minutes * 60000 : 6 * 3600000;
+}
+
 async function controlOwned(payload, context, c) {
   if (payload.action === 'stop') {
     const owned = [...controllers.values()].find(p => p.descriptor.workspaceId === c.workspace.id && p.descriptor.backend === c.backend && (p.descriptor.id === payload.id || p.descriptor.taskId === payload.id) && p.descriptor.status === 'running');
@@ -226,10 +290,11 @@ async function controlOwned(payload, context, c) {
   c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';
+  prunePhantomControllers(c.workspace);
   await context.persist();
   let child;
   try { child = spawnCommand(context, process.execPath, ['--import', controllerPreload, c.cli, payload.action, task.id, ...(payload.action === 'run' ? ['--model', payload.model] : []), ...c.flags], { cwd: c.root, stdio: ['ignore', 'pipe', 'pipe'] }); }
-  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; await context.persist(); throw error; }
+  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; prunePhantomControllers(c.workspace); await context.persist(); throw error; }
   descriptor.pid = child.pid;
   controllers.set(descriptor.id, { descriptor, child });
   let bytes = 0, finished = false;
@@ -238,7 +303,7 @@ async function controlOwned(payload, context, c) {
   const timer = setTimeout(() => {
     descriptor.timeout = true; child.kill('SIGINT');
     hardTimer = setTimeout(() => child.kill('SIGKILL'), 10000); hardTimer.unref?.();
-  }, 3600000); timer.unref?.();
+  }, runTimeoutMs(context.state?.settings)); timer.unref?.();
   const output = data => {
     const chunk = Buffer.from(data), remaining = Math.max(0, 1024 * 1024 - bytes); bytes += chunk.length;
     if (remaining) { const text = chunk.subarray(0, remaining).toString(); descriptor.output = (descriptor.output + text).slice(-65536); emit({ type: 'tool.output', data: text }); }
@@ -248,6 +313,7 @@ async function controlOwned(payload, context, c) {
     if (finished) return; finished = true; clearTimeout(timer); clearTimeout(hardTimer);
     Object.assign(descriptor, { status: error || code !== 0 ? 'failed' : 'completed', exitCode: code, signal, endedAt: observedAt(), ...(error ? { error: error.message } : {}) });
     controllers.delete(descriptor.id);
+    prunePhantomControllers(c.workspace);
     emit({ type: 'tool.status', status: descriptor.status, result: { ...descriptor } });
     Promise.resolve(context.persist()).catch(() => {});
   };
@@ -269,15 +335,17 @@ export async function phantom(method, payload, context) {
   if (method === 'phantom.list') {
     await workspaceRoot(context, payload);
     try { return await list(payload, context, await client(payload, context)); }
-    catch (error) { return { available: false, items: [], reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
+    catch (error) { return { available: false, items: [], reason: unavailableReason(error), observedAt: observedAt() }; }
   }
   const c = await client(payload, context);
   if (method === 'phantom.events') return events(payload, context, c);
   if (method === 'phantom.detail') return detail(payload, context, c);
   if (method === 'phantom.controllers') {
     let changed = false;
-    const items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
+    let items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
     for (const item of items) if (item.status === 'running' && !controllers.has(item.id)) { item.status = 'lost'; changed = true; }
+    changed = prunePhantomControllers(c.workspace) || changed;
+    items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
     if (changed) await context.persist();
     return { items: structuredClone(items), observedAt: observedAt() };
   }

@@ -102,8 +102,9 @@ export class Terminals {
       }
     },1000);this.timer.unref();
   }
-  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
+  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,screenStateAt:this.live.get(s.id)?.screenStateAt??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
+  foreground(id) { const entry=this.live.get(id);return entry&&!entry.exited?foregroundOf(entry.child.pid):null; }
   async create(w, node, options) {
     assert(!this.closed, 'Terminal host is closing');
     assert(!this.setupJobs.has(node.id), 'Las dependencias de esta terminal todavía se están deteniendo');
@@ -221,18 +222,18 @@ export class Terminals {
     const result=()=>({session:this.descriptor(s),data:s.snapshot,seq:s.snapshotSeq??s.seq,truncated:!!s.historyTruncated||(fromSeq!==undefined&&fromSeq!==s.seq)}),e=this.live.get(id);
     if(!e)return result();const attached=e.chain.then(()=>{this.capture(s,e);return result();});e.chain=attached.then(()=>{});return attached;
   }
-  tail(id,count=12) {
-    assert(Number.isInteger(count)&&count>=1&&count<=40,'Invalid tail line count');
+  tail(id,count=12,maxCount=40) {
+    assert(Number.isInteger(count)&&count>=1&&count<=maxCount,'Invalid tail line count');
     const s=this.get(id),e=this.live.get(id),base={status:e?s.status:s.status==='running'?'lost':s.status,seq:s.seq,cols:s.cols,rows:s.rows};
     if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:foregroundOf(e.child.pid),screenState:e.screenState??null};
     // Closed sessions: parse the persisted snapshot once per sequence.
     const key=s.snapshotSeq??s.seq,cached=this.tails?.get(id);
-    if(cached?.key===key) return {...base,...cached.value,foreground:null};
+    if(cached?.key===key&&cached.count===count) return {...base,...cached.value,foreground:null};
     const { Terminal } = require('@xterm/headless');
     const terminal=new Terminal({cols:s.cols||80,rows:s.rows||24,scrollback:1000,allowProposedApi:true});
     return new Promise(resolve=>terminal.write(s.snapshot||'',()=>{
       const value=tailLines(terminal,count);terminal.dispose();
-      (this.tails??=new Map()).set(id,{key,value});
+      (this.tails??=new Map()).set(id,{key,count,value});
       resolve({...base,...value,foreground:null});
     }));
   }
@@ -253,7 +254,8 @@ export class Terminals {
   setScreenState(s,e,state) {
     if((e.screenState??null)===state) return;
     e.screenState=state;
-    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state});
+    e.screenStateAt=state===null?null:Date.now();
+    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state,screenStateAt:e.screenStateAt});
   }
   async resize(id,cols,rows) {dimensions(cols,rows);const e=this.live.get(id);assert(e&&!e.exited,'Terminal is not running');e.chain=e.chain.then(()=>{if(e.exited)return;const s=this.get(id);e.child.resize(cols,rows);e.terminal.resize(cols,rows);Object.assign(s,{cols,rows});e.snapshotDirty=true;this.capture(s,e);this.save();});await e.chain;return {ok:true};}
   stop(id) {

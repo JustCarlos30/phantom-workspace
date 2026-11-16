@@ -40,6 +40,24 @@ test('formatters stay honest about missing data', () => {
 });
 
 import { parseCommand, commandOf, budgetFieldsOf, budgetJsonOf } from '../src/hooks/phantom-desk.mjs';
+import { checkResult, eventLabel, eventDetails, phaseOf } from '../src/hooks/phantom-desk.mjs';
+test('execution evidence never turns declarations or missing artifacts into success', () => {
+  assert.equal(checkResult({}), 'Desconocido');
+  assert.equal(checkResult({ passed: true }), 'Pasó');
+  assert.equal(checkResult({ passed: false }), 'Falló');
+  assert.equal(checkResult({ executed: false, passed: true }), 'No ejecutada');
+  const native = { status: 'cancelled', reason: 'Cancelación explícita', run: { id: 'r', status: 'failed', reason: 'Baseline voice-desktop falló', evidence: { baseline: { available: true, checks: [{ name: 'voice-desktop', passed: false }] } } } };
+  assert.equal(runsOf(native)[0].reason, 'Baseline voice-desktop falló');
+  assert.equal(native.reason, 'Cancelación explícita');
+  assert.match(phaseOf(native), /iniciales del worktree/);
+  assert.match(phaseOf({ contract: { checks: [{ name: 'build' }] } }), /no disponible/);
+  assert.equal(eventLabel('task.cancelled'), 'Tarea cancelada');
+  assert.equal(eventLabel('native.unknown'), 'native.unknown');
+  assert.match(eventDetails({ data: { reason: 'Fallo real' } }), /Fallo real/);
+  assert.match(eventDetails({ data: { base: 'x'.repeat(70000) } }), /recortados explícitamente/);
+  const argv = ['node', '-e', 'console.log("a");'.repeat(1000), ''];
+  assert.deepEqual(parseCommand(argvText(argv)), argv);
+});
 test('command lines become argv without a shell', () => {
   assert.deepEqual(parseCommand('node --test "test/con espacios.test.mjs" \'$HOME; echo literal\''), ['node', '--test', 'test/con espacios.test.mjs', '$HOME; echo literal']);
   assert.deepEqual(parseCommand('["npm","test"]'), ['npm', 'test']);

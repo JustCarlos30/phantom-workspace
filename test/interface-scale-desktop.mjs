@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { killElectronGroup } from './support/electron-process.mjs';
 import assert from 'node:assert/strict';
 import { _electron } from 'playwright';
 import { mkdtemp, mkdir, readFile, realpath, rm } from 'node:fs/promises';
@@ -43,6 +44,7 @@ test('Electron laptop scale: 115/125%, controls, terminal, native browser and re
       child.kill('SIGKILL');
       await exited;
     }
+    killElectronGroup(child);
     app = null;
   }
   t.after(async () => {

@@ -62,7 +62,7 @@ export default function AgentIdentity({ node, workspace, api, refresh, flush, on
       <p className="agent-hint">Vincula una sesión de esta carpeta. El vínculo no indica que esté ejecutándose en esta terminal.</p>
       {loading&&<p role="status" className="agent-hint">Consultando cards y sesiones…</p>}{catalog&&['cards','sessions'].map(key=>catalog[key].available===false&&<p key={key} className="agent-catalog-error">{catalog[key].reason}</p>)}
       <div className="agent-field"><label htmlFor={`${id}-step`}>Paso actual</label><input id={`${id}-step`} maxLength={1000} value={form.step} onChange={change('step')} placeholder="Ej. Validando tokens"/></div><div className="agent-field"><label htmlFor={`${id}-status`}>Avance declarado</label><select id={`${id}-status`} value={form.status} onChange={change('status')}>{Object.entries(AGENT_LABELS).map(([key,value])=><option key={key} value={key}>{value}</option>)}</select></div>
-      <p className="agent-hint">Este avance es manual. Los reportes del agente muestran su origen; el resultado de la card lo verifica Phantom.</p>
+      
       <div className="agent-actions"><button type="submit" className="tw-button tw-primary" disabled={busy||loading}>{busy?'Procesando…':'Guardar identidad'}</button><button type="button" className="tw-button" disabled={busy||loading} onClick={load} aria-label="Actualizar cards y sesiones"><RefreshCw size={14}/></button><button type="button" className="tw-button" disabled={busy} onClick={copy}><Copy size={14}/>Copiar contexto guardado</button></div>
       {error&&<p className="agent-error" role="alert">{error}</p>}{feedback&&<p className="agent-hint" role="status">{feedback}</p>}
     </form></section>}

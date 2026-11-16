@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
+import { runTimeoutMs } from '../integrations/phantom.mjs';
 
 const exec = promisify(execFile);
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
@@ -193,6 +194,47 @@ test('native Phantom isolated data: cards, decisions/revisions, immutable skills
   await assert.rejects(f.call('phantom.create', { kind: 'card', input: { ...input, scope: ['outside/x.md'] } }), /Symlink/);
 });
 
+test('Phantom task catalog uses a large buffer and explains output-limit failures', async t => {
+  const f = await fixture(t);
+  f.context.state.settings.phantomPath = process.execPath;
+  let seen, fail = false;
+  f.context.execFile = async (file, args, options) => {
+    if (file === 'git') throw new Error('No Git transport');
+    assert.deepEqual(args.slice(1), ['list', '--json']);
+    seen = options;
+    if (fail) throw new Error('node: stdout maxBuffer length exceeded');
+    return { stdout: '[]', stderr: '' };
+  };
+  const result = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(result.available, true, result.reason);
+  assert.ok(seen.maxBuffer >= 32 * 1024 * 1024);
+  assert.equal(seen.timeout, 30000);
+  assert.equal(seen.cwd, f.root);
+  fail = true;
+  const unavailable = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(unavailable.available, false);
+  assert.match(unavailable.reason, /^Phantom unavailable: /);
+  assert.match(unavailable.reason, /catálogo/);
+  assert.doesNotMatch(unavailable.reason, /maxBuffer/);
+});
+
+test('Phantom task catalog reads once with project scope only for Git workspaces and retains family filtering', async t => {
+  for (const git of [true, false]) {
+    const f = await fixture(t, git), calls = [];
+    f.context.state.settings.phantomPath = process.execPath;
+    const raw = [f.root, f.home].map((workspace, i) => ({ id: `task_${i}`, kind: 'task', status: 'ready', contract: { goal: `Task ${i}`, workspace } }));
+    f.context.execFile = async (file, args, options) => {
+      if (file === 'git') return exec(file, args, options);
+      calls.push(args.slice(1));
+      return { stdout: JSON.stringify(raw), stderr: '' };
+    };
+    const result = await f.call('phantom.list', { topic: 'tasks' });
+    assert.equal(result.available, true, result.reason);
+    assert.deepEqual(calls, [git ? ['list', '--workspace', f.root, '--scope', 'project', '--json'] : ['list', '--json']]);
+    assert.deepEqual(result.items.map(item => item.id), ['task_0']);
+  }
+});
+
 test('Phantom task catalog excludes unrelated projects but includes known worktree family', async t => {
   const f = await fixture(t, true);
   // The mocked transport only needs an existing CLI file, independent of any installation.
@@ -213,6 +255,58 @@ test('Phantom task catalog excludes unrelated projects but includes known worktr
   await assert.rejects(f.call('phantom.detail', { topic: 'tasks', id: 'task_2' }), /another workspace/);
 });
 
+test('Phantom detail reads only bounded authorized run artifacts and preserves both reasons', async t => {
+  const f = await fixture(t);
+  const cli = path.join(f.home, 'cli.mjs'), nativeHome = path.join(f.home, 'native');
+  await writeFile(cli, '// Inert fixture');
+  f.context.state.settings.phantomPath = cli;
+  f.context.state.settings.phantomData = nativeHome;
+  const runId = 'run_3c2a8df1-58a5-4045-94b4-6bf1e19e585b';
+  const dir = path.join(nativeHome, 'artifacts', runId);
+  await mkdir(dir, { recursive: true });
+  const task = { id: 'task_owned', status: 'cancelled', reason: 'Cancelada por Carlos', contract: { workspace: f.root, checks: [{ name: 'build' }] }, run: { id: runId, status: 'failed', reason: 'Baseline falló', turns: 0, result: { artifacts: f.home } } };
+  f.context.execFile = async (file, args) => {
+    if (file === 'git') throw new Error('No worktree family in fixture');
+    assert.ok(args.includes('show'));
+    return { stdout: JSON.stringify(task), stderr: '' };
+  };
+  const read = () => f.call('phantom.detail', { topic: 'tasks', id: task.id });
+  assert.equal((await read()).run.evidence.baseline.available, false);
+  const checks = [{ name: 'build', passed: true, argv: ['npm', 'run', 'build'], durationMs: 120 }, { name: 'voice-desktop', passed: false, argv: ['node', 'test/voice-desktop.mjs'], executedArgv: ['node', 'test/voice-desktop.mjs'], stderr: 'AssertionError captureBoth línea 57: Cancelar audio cubierto por textarea', durationMs: 99 }];
+  const baseline = path.join(dir, 'baseline-checks.json');
+  await writeFile(baseline, JSON.stringify(checks));
+  let result = await read();
+  assert.equal(result.status, 'cancelled'); assert.equal(result.reason, task.reason);
+  assert.equal(result.run.reason, 'Baseline falló'); assert.equal(result.run.turns, 0);
+  assert.deepEqual(result.run.evidence.baseline.checks, checks);
+  assert.ok(result.run.evidence.verification.every(round => !round.available));
+  await writeFile(path.join(dir, 'verification-0.json'), JSON.stringify({ round: 0, passed: true, checks: [checks[0]], snapshot: 'PRIVATE', patch: 'PRIVATE' }));
+  result = await read();
+  assert.equal(result.run.evidence.verification[0].available, true);
+  assert.ok(!JSON.stringify(result.run.evidence).includes('PRIVATE'));
+  for (const value of ['{invalid', '{}', '[null]', 'x'.repeat(2 * 1024 * 1024 + 1)]) {
+    await writeFile(baseline, value);
+    assert.equal((await read()).run.evidence.baseline.available, false);
+  }
+  const external = path.join(f.home, 'external.json'); await writeFile(external, JSON.stringify(checks));
+  await rm(baseline); await symlink(external, baseline);
+  assert.match((await read()).run.evidence.baseline.reason, /Symlink/);
+  await rm(dir, { recursive: true });
+  const outside = path.join(f.home, 'outside-run'); await mkdir(outside);
+  await writeFile(path.join(outside, 'baseline-checks.json'), JSON.stringify(checks));
+  await symlink(outside, dir);
+  assert.match((await read()).run.evidence.baseline.reason, /Symlink/);
+  await rm(dir); await rm(path.dirname(dir), { recursive: true });
+  await symlink(f.home, path.dirname(dir));
+  assert.match((await read()).run.evidence.baseline.reason, /Symlink/);
+  task.run.id = '../external';
+  assert.equal((await read()).run.evidence.available, false);
+  task.contract.workspace = f.home;
+  await assert.rejects(read(), /another workspace/);
+  task.contract.workspace = f.root; task.id = 'task_other';
+  await assert.rejects(f.call('phantom.detail', { topic: 'tasks', id: 'task_owned' }), /ID mismatch/);
+});
+
 test('Phantom failures never report success and ambiguous writes cannot be blindly retried', async t => {
   const f = await fixture(t, true);
   let writes = 0;
@@ -226,6 +320,17 @@ test('Phantom failures never report success and ambiguous writes cannot be blind
   await assert.rejects(f.call('phantom.create', payload), /transport failed/);
   await assert.rejects(f.call('phantom.create', payload), /uncertain outcome/); assert.equal(writes, 1);
   await assert.rejects(f.call('phantom.control', { id: 'task_x', action: 'stop' }), /owned by this host/);
+});
+
+test('Phantom run timeout defaults to six hours and accepts only integer minutes from 1 to 1440', () => {
+  assert.equal(runTimeoutMs(), 6 * 3600000);
+  assert.equal(runTimeoutMs({}), 6 * 3600000);
+  for (const phantomRunTimeoutMinutes of [undefined, 0, 1441, 2.5, '30']) {
+    assert.equal(runTimeoutMs({ phantomRunTimeoutMinutes }), 6 * 3600000);
+  }
+  for (const phantomRunTimeoutMinutes of [1, 30, 1440]) {
+    assert.equal(runTimeoutMs({ phantomRunTimeoutMinutes }), phantomRunTimeoutMinutes * 60000);
+  }
 });
 
 test('Phantom controllers use host Node argv, owned SIGINT, bounded output and retained events', async t => {

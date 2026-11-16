@@ -1,0 +1,37 @@
+/* Pixel sprites keep integer dimensions, independently of typography. */
+.app-shell img.gengar-icon { width: 40px; height: 30px; max-width: none; flex-shrink: 0; image-rendering: pixelated; object-fit: contain; opacity: 1; animation: none; }
+.app-shell .gengar-icon.is-asleep { filter: grayscale(1); opacity: .5; }
+.app-shell .gengar-icon.is-unsure { opacity: .7; }
+.app-shell .gengar-icon.is-grin { filter: drop-shadow(1px 0 0 var(--attention)) drop-shadow(-1px 0 0 var(--attention)) drop-shadow(0 1px 0 var(--attention)) drop-shadow(0 -1px 0 var(--attention)); }
+.app-shell .gengar-icon.is-working[data-motion="running"] { animation: gengar-hop 1.2s steps(2, end) infinite; }
+.app-shell .gengar-icon.is-grin[data-motion="running"] { animation: gengar-attention 2.4s ease-in-out infinite; }
+@keyframes gengar-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes gengar-attention { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+.app-shell .brand-mark:has(.gengar-icon) { width: 40px; height: 30px; padding: 0; background: none; box-shadow: none; }
+.app-shell:not(.studio-character) .brand-mark .gengar-icon,
+.studio-character .brand-state-fallback { display: none; }
+.app-shell .gengar-mascot { display: inline-flex; width: auto; height: auto; flex-shrink: 0; }
+.gengar-mascot > img { display: block; max-width: none; object-fit: contain; image-rendering: pixelated; }
+.gengar-mascot > .gengar-idle { width: 148px; height: 126px; }
+.gengar-mascot > .gengar-static { width: 80px; height: 60px; }
+.app-shell .canvas-empty .empty-state__icon:has(.gengar-mascot) { width: auto; height: auto; }
+@media (max-height: 699px) { .gengar-mascot > .gengar-idle { width: 74px; height: 63px; } }
+@media (prefers-reduced-motion: reduce) { .app-shell .gengar-icon { animation: none !important; transform: none; } }
+.studio-concentration .gengar-icon { animation: none !important; transform: none; }
+
+/* Both exact silhouettes ship together so chrome can reflect native ARIA state. */
+.app-shell [data-type] { --type: var(--muted); }
+.shell-icon { flex-shrink: 0; color: var(--muted); }
+.shell-icon__solid { display: none; }
+.shell-icon[data-variant="solid"] .shell-icon__line { display: none; }
+.shell-icon[data-variant="solid"] .shell-icon__solid { display: initial; }
+.shell-icon[data-variant="solid"] { color: inherit; }
+:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__line { display: none; }
+:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__solid { display: initial; }
+:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon { color: inherit; }
+.shell-icon[data-variant="line"] > .shell-icon__line { display: initial; }
+.shell-icon[data-variant="line"] > .shell-icon__solid { display: none; }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph:has(.shell-icon) { background: var(--type, var(--on)); color: var(--on-ink); border-radius: var(--r-ctl); box-shadow: var(--shadow-rim); }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon { color: var(--on-ink); }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon__line { display: none; }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon__solid { display: initial; }

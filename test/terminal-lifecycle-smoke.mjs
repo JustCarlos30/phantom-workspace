@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const temp = await fs.mkdtemp('/tmp/opencode/phantom-terminal-lifecycle-');
@@ -77,7 +78,7 @@ try {
   await Promise.race([invoke('host.shutdown').catch(() => {}), delay(4000)]);
   // This fixture deliberately stops its host first; bypass the save dialog for
   // the isolated test window after that shutdown, including assertion failures.
-  app.process().kill('SIGKILL');
+  killElectronGroup(app.process());
   if (hostPid) { try { process.kill(hostPid, 'SIGTERM'); } catch {} }
   await fs.rm(temp, { recursive: true, force: true });
 }

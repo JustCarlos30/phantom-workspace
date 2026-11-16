@@ -14,6 +14,49 @@ import { discoverPhantomCLI, shutdownPhantom } from '../integrations/phantom.mjs
 import { validateInvocation } from '../desktop/security.mjs';
 
 const exec = promisify(execFile);
+
+test('Phantom activity pairs actions and exposes only compact latest-run targets', async t => {
+  const f = await fixture(t);
+  const cli = path.join(f.home, 'inert.mjs');
+  await writeFile(cli, '// Not executed');
+  await f.call('plugins.update', { id: 'phantom', patch: { config: { phantomPath: cli } } });
+  let foreign = false;
+  const event = (type, callID, data = {}, run_id = 'new') => ({ type, run_id, at: '2026-11-16T00:00:00Z', data: { ...(callID ? { callID } : {}), ...data } });
+  const events = [
+    event('action.intended', 'old', { tool: 'read', args: { path: 'old' } }, 'old'),
+    event('model.requested', undefined, { model: 'provider/model' }),
+    event('action.intended', 'read', { tool: 'read', args: { filePath: '/work/a' } }),
+    event('action.observed', 'read', { output: 'SECRET' }),
+    event('action.intended', 'patch', { tool: 'apply_patch', args: { patchText: '*** Begin Patch\n*** Update File: a\n+SECRET\n*** Add File: b\n*** Delete File: c\n*** End Patch' } }),
+    event('action.observed', 'patch', { status: 'error', output: 'SECRET' }),
+    event('action.intended', 'search', { tool: 'grep', args: { pattern: 'needle', path: 'src' } }),
+    event('action.observed', 'failure', { tool: 'bash', error: 'SECRET', args: { command: 'false' } }),
+  ];
+  f.context.execFile = async (_file, args) => {
+    if (args.includes('show')) return { stdout: JSON.stringify({ id: 'task_activity', contract: { workspace: f.roots[foreign ? 1 : 0] } }) };
+    if (args.includes('events')) return { stdout: JSON.stringify(events) };
+    throw new Error('Not a Git workspace');
+  };
+  assert.doesNotThrow(() => validateInvocation('phantom.events', { view: 'activity' }));
+  const result = await f.call('phantom.events', { id: 'task_activity', view: 'activity' });
+  assert.equal(result.total, 4);
+  assert.equal(result.model, 'provider/model');
+  assert.equal(result.runId, 'new');
+  assert.deepEqual(result.items.map(item => item.status), ['done', 'error', 'running', 'error']);
+  assert.deepEqual(result.items.map(item => item.target), ['/work/a', 'a, b, c', 'needle en src', 'false']);
+  assert.doesNotMatch(JSON.stringify(result), /SECRET|patchText|output|args/);
+  assert.deepEqual((await f.call('phantom.events', { id: 'task_activity' })).events, events);
+  for (let index = 0; index < 45; index++) events.push(event('action.intended', `extra-${index}`, { tool: 'read', args: { path: 'x'.repeat(300) } }));
+  const capped = await f.call('phantom.events', { id: 'task_activity', view: 'activity' });
+  assert.equal(capped.total, 49);
+  assert.equal(capped.items.length, 40);
+  assert.equal(capped.truncated, true);
+  assert.equal(capped.items[0].id, 'extra-5');
+  assert.equal(capped.items.at(-1).target.length, 240);
+  await assert.rejects(f.call('phantom.events', { id: 'task_activity', view: 'invalid' }), /Invalid Phantom events view/);
+  foreign = true;
+  await assert.rejects(f.call('phantom.events', { id: 'task_activity', view: 'activity' }), /another workspace/);
+});
 async function fixture(t, cleanup = true) {
   const home = await mkdtemp(path.join(tmpdir(), 'workspace-plugins-'));
   if (cleanup) t.after(() => rm(home, { recursive: true, force: true }));

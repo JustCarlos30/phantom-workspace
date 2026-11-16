@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { chromium, _electron } from 'playwright';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Test-only bridge injected before the real React application. No production
 // fixture switches, user profile, host daemon, shell or Git mutations.
@@ -78,8 +79,8 @@ function installFixture() {
   };
 }
 const fixture = fn => page.evaluate(fn);
-const tray = () => page.getByRole('dialog', { name: 'Actividad del proyecto' });
-const notch = () => page.getByRole('button', { name: 'Actividad del proyecto', exact: true });
+const tray = () => page.getByRole('dialog', { name: 'Te necesitan' });
+const notch = () => page.locator('.activity-notch');
 async function open() { await notch().click(); await tray().waitFor(); await tray().getByText('Más actividad y diagnósticos', { exact: true }).click(); await tray().getByRole('button', { name: 'Todo y diagnósticos', exact: true }).click(); await tray().locator('.activity-integration-details > summary').click(); }
 async function close() { await tray().getByLabel('Cerrar bandeja de actividad').click(); await tray().waitFor({ state: 'hidden' }); await page.waitForFunction(() => !document.querySelector('#activity-tray')); }
 async function settled() { await poll(() => fixture(() => { const text = document.querySelector('.activity-notch')?.textContent || ''; return !!text && !/Recuperando|desconectado|desactualizado/.test(text); }), 'fuentes recuperadas'); }
@@ -116,25 +117,25 @@ try {
   await viewport(1520, 980);
   await settled();
   await check('Notch persistente con necesidades reales, sesiones ocultas y estados desconocidos', async () => {
-    assert.match(await notch().innerText(), /2 necesitan de ti/);
+    assert.match(await notch().innerText(), /Te necesitan\s*2/);
      assert.equal(await page.locator('.create-dock .activity-notch').count(), 1);
-    assert.match(await page.locator('.rail-panel-label').filter({ hasText: 'Shell abierta' }).innerText(), /agente sin señal/);
+    assert.match(await page.locator('.rail-panel-label').filter({ hasText: 'Shell abierta' }).innerText(), /En espera/);
     await open();
      assert.match(await tray().innerText(), /Vista oculta/);
      assert.match(await tray().getByRole('heading', { name: /^Sesiones/ }).innerText(), /2/);
     assert.match(await tray().innerText(), /Integración desconocida/);
-    assert.equal(await tray().getByRole('heading', { name: /Necesitan de ti/ }).count(), 1);
+    assert.equal(await tray().getByRole('heading', { name: /Te necesitan/ }).count(), 1);
     await close();
    });
    await check('Dock: filtros directos, límites honestos y cierre sin resolver pendientes', async () => {
      await notch().click();
       assert.equal(await tray().locator('[data-tab="needs"]').getAttribute('aria-pressed'), 'true');
-      assert.match(await tray().locator('[data-tab="needs"]').innerText(), /Necesitan de ti\s*2/);
+      assert.match(await tray().locator('[data-tab="needs"]').innerText(), /Pendientes\s*2/);
       assert.equal(await tray().locator('.activity-item').count(), 2);
       assert.equal(await tray().getByRole('heading', { name: /^Ramas activas/ }).count(), 0);
-      await tray().getByRole('button', { name: 'Ir a terminal', exact: true }).click();
+      await tray().getByRole('button', { name: 'Ir a la sesión', exact: true }).click();
      await page.locator('.canvas-node.focused').filter({ hasText: 'Terminal oculta' }).waitFor();
-     assert.match(await notch().innerText(), /2 necesitan de ti/);
+     assert.match(await notch().innerText(), /Te necesitan\s*2/);
      await page.locator('.activity-strip').getByRole('button', { name: 'Integraciones', exact: true }).click();
       await tray().getByRole('heading', { name: /^Ramas activas/ }).waitFor();
      assert.equal(await tray().getByRole('button', { name: 'Revisar incorporaciones', exact: true }).count(), 1);
@@ -147,7 +148,7 @@ try {
      await tray().waitFor({ state: 'hidden' });
      await notch().click(); await page.getByRole('button', { name: 'Cerrar actividad', exact: true }).click({ position: { x: 5, y: 5 } });
      await tray().waitFor({ state: 'hidden' });
-     assert.match(await notch().innerText(), /2 necesitan de ti/);
+     assert.match(await notch().innerText(), /Te necesitan\s*2/);
    });
   await check('Base explícita, comparación real del bridge y asociaciones verificables', async () => {
     await open(); await tray().getByLabel('Base de integración').fill('main'); await tray().getByRole('button', { name: 'Comparar', exact: true }).click();
@@ -160,9 +161,9 @@ try {
     await close();
   });
   await check('Marcar leído no aprueba ni resuelve una intervención', async () => {
-    await open(); await tray().getByRole('button', { name: 'Marcar leído', exact: true }).click();
+    await open(); await tray().getByRole('button', { name: 'Marcar como visto', exact: true }).click();
     await poll(async () => (await tray().innerText()).includes('0 sin leer'), 'aviso leído');
-    assert.match(await notch().innerText(), /2 necesitan de ti/);
+    assert.match(await notch().innerText(), /Te necesitan\s*2/);
     assert.equal(await fixture(() => window.__activityFixture.calls.some(c => /approve|merge\.(run|submit|reject)/.test(c.method))), false);
     await close();
   });
@@ -170,7 +171,7 @@ try {
      await fixture(() => { const f = window.__activityFixture; f.state.workspaces[0].nodes.find(n => n.id === 'hidden').data.hidden = true; f.emit({ type: 'state.changed', workspaceId: 'a' }); });
      await poll(async () => (await page.locator('.rail-panel-label').filter({ hasText: 'Terminal oculta' }).count()) === 0, 'vista oculta de nuevo');
     await open();
-    await tray().locator('.activity-row').filter({ hasText: 'Terminal oculta' }).filter({ hasText: 'Vista oculta' }).getByRole('button', { name: 'Ir a terminal', exact: true }).click();
+    await tray().locator('.activity-row').filter({ hasText: 'Terminal oculta' }).filter({ hasText: 'Vista oculta' }).getByRole('button', { name: 'Ir a la sesión', exact: true }).click();
     await page.locator('.canvas-node.focused').filter({ hasText: 'Terminal oculta' }).waitFor();
     await poll(() => fixture(() => window.__activityFixture.state.workspaces[0].nodes.find(n => n.id === 'hidden').data.hidden === false), 'vista recuperada guardada');
     assert.equal(await notch().isVisible(), true);
@@ -191,7 +192,7 @@ try {
     await page.waitForTimeout(400);
     assert.equal(await fixture(() => window.__activityFixture.calls.filter(c => c.method === 'terminal.list').length), before);
     await fixture(() => { const f = window.__activityFixture; f.tasks.a[0].status = 'completed'; for (let i = 0; i < 30; i++) f.emit({ type: 'tool.status', workspaceId: 'a' }); });
-    await poll(async () => (await notch().innerText()).includes('1 necesita de ti'), 'actualización por evento');
+    await poll(async () => /Te necesitan\s*1/.test(await notch().innerText()), 'actualización por evento');
     assert.equal(await fixture(() => window.__activityFixture.calls.filter(c => c.method === 'terminal.list').length), before + 1);
   });
   await check('Errores de fuente visibles y retry recupera datos sin falsa confianza', async () => {
@@ -199,7 +200,7 @@ try {
     await open(); await tray().getByText('Fuentes de atención', { exact: true }).click(); await tray().getByText('Fallo de tareas de prueba', { exact: true }).first().waitFor();
     assert.match(await tray().innerText(), /lectura fallida/);
     // A failed source marks the count as old; it never replaces it.
-    assert.match(await notch().innerText(), /1 necesita de ti/);
+    assert.match(await notch().innerText(), /Te necesitan\s*1/);
     assert.match(await notch().innerText(), /desactualizado/);
     assert.match(await tray().innerText(), /no se pudo leer tareas de Phantom/);
     await fixture(() => { window.__activityFixture.failTasks = false; });
@@ -209,7 +210,7 @@ try {
     await close();
   });
    await check('Acciones abren la Card exacta y el inspector Git', async () => {
-    await open(); await tray().getByRole('button', { name: 'Ver Card', exact: true }).first().click();
+    await open(); await tray().getByRole('button', { name: 'Ver tarea', exact: true }).first().click();
     await page.getByRole('article', { name: 'Detalle task', exact: true }).waitFor();
     assert.equal(await fixture(() => window.__activityFixture.calls.some(c => c.method === 'node.create' && c.p.type === 'phantom-cards' && c.p.data.cardId === 'task')), true);
     await page.locator('.pc-full-goal > summary').click();
@@ -266,15 +267,15 @@ try {
      await unknown.getByText('Card asociada desconocida', { exact: false }).waitFor();
      assert.match(await unknown.innerText(), /Card asociada desconocida/);
      assert.match(await unknown.innerText(), /Archivos desconocidos: Commit no disponible/);
-     assert.equal(await card('unknown-request').getByRole('button', { name: 'Ver Card', exact: true }).count(), 0);
+     assert.equal(await card('unknown-request').getByRole('button', { name: 'Ver tarea', exact: true }).count(), 0);
      const screenshot = path.join(evidence, 'integration-review.png'); await page.screenshot({ path: screenshot }); report.screenshots.push(screenshot);
      // What already closed is one tab away, most recent first.
-     await tray().locator('[data-tab="done"]').click();
-     await tray().locator('.activity-item').filter({ hasText: 'Rama ya incorporada' }).filter({ hasText: 'Integrada' }).waitFor();
-     await tray().locator('.activity-item').filter({ hasText: 'Tarea bloqueada' }).filter({ hasText: 'Completada en fuente' }).waitFor();
+     await tray().locator('[data-tab="today"]').click();
+     await tray().locator('.activity-item').filter({ hasText: 'Rama ya incorporada' }).filter({ hasText: 'En main' }).waitFor();
+     await tray().locator('.activity-item').filter({ hasText: 'Tarea bloqueada' }).filter({ hasText: 'Terminada' }).waitFor();
      const done = path.join(evidence, 'done.png'); await page.screenshot({ path: done }); report.screenshots.push(done);
      await tray().locator('[data-tab="integration"]').click();
-     await card('sent-request').getByRole('button', { name: 'Ver Card', exact: true }).click();
+     await card('sent-request').getByRole('button', { name: 'Ver tarea', exact: true }).click();
      await page.getByRole('article', { name: 'Detalle integration-card', exact: true }).waitFor();
      assert.equal(await fixture(() => window.__activityFixture.calls.some(c => c.method === 'node.create' && c.p.type === 'phantom-cards' && c.p.data.cardId === 'integration-card')), true);
      assert.equal(await fixture(() => window.__activityFixture.calls.some(c => /merge\.(run|submit|reject|order)|approve/.test(c.method))), false);
@@ -322,6 +323,7 @@ try {
   process.exitCode = 1;
 } finally {
   await desktop?.close().catch(() => {});
+  killElectronGroup(desktop?.process());
   await browser?.close().catch(() => {});
   await server?.close();
   report.summary = { passed: report.checks.filter(c => c.status === 'passed').length, failed: report.checks.filter(c => c.status === 'failed').length, status: process.exitCode ? 'failed' : 'passed' };

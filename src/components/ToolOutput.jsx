@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FileText } from 'lucide-react';
 import { CopyButton } from './CopyButton';
 import { asJson, basename, clean, diffLines, numberedLines, plural, searchResults } from './tool-output.mjs';
@@ -29,7 +29,7 @@ function Frame({ variant, label, meta, copy, children }) {
 }
 
 function DiffView({ part }) {
-  const rows = diffLines(part.change.before, part.change.after);
+  const rows = useMemo(() => diffLines(part.change.before, part.change.after), [part.change.before, part.change.after]);
   let old = 0, now = 0;
   return <Frame variant="diff" label={<><FileText size={14} aria-hidden="true" /><span className="tv-path" title={part.detail}>{basename(part.detail || 'archivo')}</span></>} meta={<><b>+{part.diff?.added ?? rows.filter(r => r.op === '+').length}</b><i>−{part.diff?.removed ?? rows.filter(r => r.op === '-').length}</i></>} copy={part.change.after}>
     <table className="tv-lines" role="presentation"><tbody>

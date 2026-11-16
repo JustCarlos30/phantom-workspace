@@ -10,24 +10,17 @@
 .phantom-chat {
   position: absolute; z-index: 31; top: var(--gutter); right: var(--gutter); bottom: var(--gutter); width: var(--phantom-chat-width);
   display: flex; flex-direction: column; min-width: 0; font-size: 13px; overflow: hidden;
-  background: var(--surface);
+  background-color: var(--workplane); background-image: var(--workplane-wash);
   -webkit-backdrop-filter: none; backdrop-filter: none;
   border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-workplane-rest); container-type: inline-size;
   animation: materialize var(--dur) var(--ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
-  .phantom-chat, .phantom-chat-live::before, .pc-field:not(.is-listening) .phantom-chat-wave i { animation: none !important; }
-  .phantom-chat-wave i { transition: none; }
+  .phantom-chat, .phantom-chat-live::before { animation: none !important; }
 }
 
 @media (min-width: 851px) {
   .phantom-chat-open .main-workspace { right: calc(var(--phantom-chat-width) + var(--gutter)); }
-}
-/* The narrower canvas keeps its bottom row clear of the view controls: the
-   dock centers between the rail and the zoom island instead of the full width. */
-@media (min-width: 851px) and (max-width: 1800px) {
-  .phantom-chat-open:not(.studio-inspector-open) { --dock-x: calc((100% - 300px) / 2); }
-  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - 300px) / 2); }
 }
 /* Compact: a drawer over the workspace, like the rail. */
 @media (max-width: 850px) {
@@ -43,15 +36,15 @@
 .phantom-chat-where, .phantom-chat-live { min-width: 0; margin: 3px 0 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: var(--t-support); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .phantom-chat-live { color: var(--muted); font-weight: 500; }
 .phantom-chat-live.is-waiting { color: var(--attention); }
-.phantom-chat-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--r-pill); background: currentColor; vertical-align: 1px; animation: phantom-pulse 1.4s ease-in-out infinite; }
+.phantom-chat-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--r-pill); background: currentColor; vertical-align: 1px; }
 @keyframes phantom-pulse { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .phantom-chat-live::before { animation: none; } }
 .phantom-chat .pc-icon { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 
-.phantom-chat .pc-thread { background: var(--surface); }
+.phantom-chat .pc-thread { background: var(--well); }
 .phantom-chat .pc-column { padding: 12px 20px 20px; gap: 20px; }
 .phantom-chat .pc-tool-row { gap: 6px; }
-.phantom-chat .pc-tool-output { margin-left: 24px; }
+.phantom-chat .pc-tool-output { margin-left: 26px; }
 .phantom-chat .pc-message.is-user { max-width: 90%; }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
@@ -66,13 +59,13 @@
 .phantom-chat-suggestions button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* Composer: who answers and with which model read as one phrase. */
-.phantom-chat .pc-agent-trigger { height: 28px; padding: 0 4px 0 6px; background: none; font: var(--t-support); font-weight: 500; }
+.phantom-chat .pc-agent-trigger { height: 28px; padding: 0 6px; background: none; box-shadow: none; font: var(--t-support); font-weight: 500; }
 .phantom-chat .pc-agent-trigger:hover:not(:disabled), .phantom-chat .pc-agent-trigger[aria-expanded="true"] { background: var(--fill-2); }
 .phantom-chat .pc-agent-trigger > svg:first-child { color: var(--pc-hue); }
 .phantom-chat .pc-model > svg:first-child { display: none; }
 .phantom-chat .pc-model { padding: 0 6px; border-radius: var(--r-ctl); color: var(--muted); }
-.phantom-chat .pc-send:not(:disabled):not(.is-stop) { background: var(--accent); color: var(--primary-ink); }
-.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); }
+.phantom-chat .pc-send:not(:disabled):not(.is-stop) { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
+.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) { background: var(--on); }
 .phantom-chat .pc-meta { padding: 4px 4px 0; }
 .phantom-chat .pc-meta .pc-permission { height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-ctl); font: var(--t-micro); }
 .phantom-chat .pc-meta .pc-permission > span { display: inline; }
@@ -84,29 +77,13 @@
 /* Voice: the field itself shows that the microphone is live. */
 .phantom-chat-mic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-pill); color: var(--muted); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .phantom-chat-mic:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
-.phantom-chat-mic.is-live { background: var(--danger); color: var(--ink); box-shadow: 0 0 0 calc(2px + var(--voice-level, 0) * 6px) color-mix(in srgb, var(--danger) 30%, transparent); }
+.phantom-chat-mic.is-live { background: color-mix(in srgb, var(--working) 18%, var(--surface)); color: var(--working); }
 .phantom-chat-mic:disabled { opacity: .4; cursor: not-allowed; }
 .phantom-chat-mic:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pc-field.is-listening { border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
-.phantom-chat-voice { display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 14px 0; color: var(--muted); font-size: 11px; }
-.phantom-chat-voice button { margin-left: auto; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
-.phantom-chat-voice button:hover { color: var(--ink); }
-.phantom-chat-wave { display: inline-flex; align-items: center; gap: 2px; height: 12px; }
-.phantom-chat-wave i { display: block; width: 2px; height: 100%; border-radius: var(--r-mark); background: var(--danger); transform: scaleY(calc(.25 + var(--voice-level, 0) * .75)); transition: transform 80ms linear; }
-.phantom-chat-wave i:nth-child(2), .phantom-chat-wave i:nth-child(4) { transform: scaleY(calc(.2 + var(--voice-level, 0) * .5)); }
-.pc-field:not(.is-listening) .phantom-chat-wave i { background: var(--muted); animation: phantom-pulse 1.2s ease-in-out infinite; }
 
 /* Header toggle reflects the open chat. */
-.phantom-chat-toggle.active { background: var(--accent-soft); color: var(--accent); }
+.phantom-chat-toggle.active { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
 
-/* Centre the dock between the rail and the zoom island (overrides the
-   full-width centring of the docked layout). */
-@media (min-width: 851px) and (max-width: 1800px) {
-  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .create-dock,
-  .phantom-chat-open:not(.studio-inspector-open):not(.rail-collapsed) .tool-picker { left: calc((var(--rail-width) + 100% - 300px) / 2); }
-  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .create-dock,
-  .phantom-chat-open.rail-collapsed:not(.studio-inspector-open) .tool-picker { left: calc((100% - 300px) / 2); }
-}
 
 /* With the chat open, narrow canvases stack view controls above the dock. */
 @media (min-width: 851px) and (max-width: 1800px) {
@@ -121,15 +98,16 @@
 
 /* Tabs: Chat and Orquestador share the dock. */
 .pd-tabs { display: flex; gap: 2px; margin: 8px 12px 0; padding: 3px; border-radius: var(--r-obj); background: var(--fill); flex-shrink: 0; }
-.pd-tabs button { position: relative; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--muted); font-size: 12px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.pd-tabs button:hover { color: var(--ink); }
-.pd-tabs button[aria-selected="true"] { background: var(--segment, var(--fill-2)); color: var(--ink); }
-.pd-tabs button[aria-selected="true"] > svg { color: var(--pc-hue, var(--accent)); }
+.pd-tabs button { position: relative; flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--muted); font-size: 12px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.pd-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-tabs button:hover { background: var(--fill-3); color: var(--ink); }
+.pd-tabs button[aria-selected="true"] { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
+.pd-tabs button[aria-selected="true"] > svg { color: inherit; }
 .pd-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pd-tabs b { min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
+.pd-tabs b { display: inline-grid; place-items: center; flex-shrink: 0; box-sizing: border-box; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .pd-tabs [data-tone="waiting"] b, .pd-tabs [data-tone="attention"] b { background: var(--warning-soft); color: var(--warning); }
 .pd-tab-live, .pd-tab-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--pc-hue, var(--accent)); }
-.pd-tab-live { animation: phantom-pulse 1.4s ease-in-out infinite; }
+.pd-tab-live { animation: none; }
 .pd-tabs [data-tone="working"] .pd-tab-dot { background: var(--success); }
 .pd-tabs [data-tone="waiting"] .pd-tab-dot { background: var(--warning); }
 .pd-tabs [data-tone="attention"] .pd-tab-dot { background: var(--danger); }
@@ -148,7 +126,7 @@
 .pd-session-title strong { overflow-wrap: anywhere; }
 .pd-orchestrator, .pd-session, .pd-composer, .pd-field { min-width: 0; }
 .pd-dot { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--muted); flex-shrink: 0; }
-.pd-session[data-tone="working"] .pd-dot { background: var(--success); animation: phantom-pulse 1.4s ease-in-out infinite; }
+.pd-session[data-tone="working"] .pd-dot { background: var(--working); }
 .pd-session[data-tone="attention"] .pd-dot { background: var(--danger); }
 .pd-session[data-tone="idle"] .pd-dot { background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .pd-session .pd-dot { animation: none; } }
@@ -157,12 +135,16 @@
 .pd-session-title small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pd-muted { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .pd-composer { display: flex; flex-direction: column; gap: 6px; margin: 0; }
-.pd-composer .phantom-chat-voice { padding: 0 2px; }
+.pd-composer .voice-activity { padding: 4px 2px; }
 .pd-composer .pc-error { display: flex; align-items: center; gap: 8px; margin: 0; }
 .pd-composer .pc-error > span { flex: 1; min-width: 0; }
-.pd-field { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 10px; border-radius: var(--r-ctl); background: var(--fill-2); transition: box-shadow var(--dur-fast) var(--ease-out); }
-.pd-field:focus-within { box-shadow: 0 0 0 1px var(--pc-hue-line, var(--accent)); }
-.pd-field.is-listening { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 60%, transparent); }
+.pd-field { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 10px; border-radius: var(--r-ctl); background: var(--well-raised); transition: box-shadow var(--dur-fast) var(--ease-out); }
+.pd-field:focus-within { box-shadow: 0 0 0 1px color-mix(in srgb, var(--pc-hue-line, var(--accent)) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--pc-hue-line, var(--accent)) 13%, transparent); }
+.pd-field.is-listening { box-shadow: 0 0 0 1px color-mix(in srgb, var(--working) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--working) 16%, transparent); }
 .pd-field textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 140px; resize: none; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.45; outline: none; field-sizing: content; }
 .pd-field textarea::placeholder { color: var(--muted); }
 .phantom-chat-task:disabled { opacity: .4; cursor: not-allowed; }
+/* The side composer is narrow: its controls sit closer so agent, model, effort
+   and actions fit in two rows instead of three. */
+.phantom-chat .pc-controls { gap: 2px; }
+.phantom-chat .pc-model, .phantom-chat .pc-reasoning-value { font: var(--t-micro); font-weight: 400; }

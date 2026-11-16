@@ -58,7 +58,7 @@ export function RefBadges({ refs = [], trees = [], base, onHover }) {
   return <span className="rp-refs">
     {items.slice(0, 3).map(ref => {
       const tree = owned.get(ref.name), label = tree?.terminal?.title || (ref.kind === 'tag' ? ref.name : shortBranch(ref.name));
-      return <span key={`${ref.kind}:${ref.name}`} style={{ '--ref-color': branchColor(ref.name) }} onMouseEnter={() => onHover?.(ref.name)} onMouseLeave={() => onHover?.(null)} className={`rp-ref is-${ref.kind}${ref.name === base ? ' is-base' : ''}${tree?.changeCount ? ' is-dirty' : ''}`} title={`${ref.kind === 'tag' ? 'Tag' : ref.kind === 'remote' ? 'Rama remota' : 'Rama'} ${ref.name}${tree?.worktree?.path ? `\nWorktree: ${tree.worktree.path}` : ''}`}>
+      return <span key={`${ref.kind}:${ref.name}`} style={{ '--ref-color': branchColor(ref.name) }} onMouseEnter={() => onHover?.(ref.name)} onMouseLeave={() => onHover?.(null)} className={`rp-ref is-${ref.kind}${ref.name === base ? ' is-base' : ''}${tree?.changeCount ? ' is-dirty' : ''}`} title={`${ref.kind === 'tag' ? 'Tag' : ref.kind === 'remote' ? 'Rama remota' : 'Rama'} ${label}`}>
         {ref.kind === 'tag' ? <Tag size={10} aria-hidden="true" /> : tree?.terminal ? <SquareTerminal size={10} aria-hidden="true" /> : ref.kind === 'head' ? <Check size={10} aria-hidden="true" /> : <GitBranch size={10} aria-hidden="true" />}<span className="rp-ref-label">{label}</span>
       </span>;
     })}
@@ -80,13 +80,13 @@ export default function RepoGraph({ graph, trees = [], base, query = '', selecte
     return path;
   }, [hovered, commits]);
   useEffect(() => { if (selected?.kind === 'commit') list.current?.querySelector(`[data-oid="${selected.oid}"]`)?.scrollIntoView({ block: 'nearest' }); }, [selected]);
-  if (!graph) return <p className="rp-quiet rp-pad" role="status">Leyendo historia…</p>;
-  if (!graph.available) return <p className="rp-warning rp-pad">{graph.reason || 'Sin historia disponible.'}</p>;
-  return <div className={`rp-graph${compact ? ' is-compact' : ''}`} style={{ '--graph-width': `${width * LANE + 6}px` }} role="grid" aria-label="Historia de commits" ref={list} onMouseLeave={() => setHovered(null)}>
+  if (!graph) return <p className="rp-quiet rp-pad" role="status">Leyendo historial…</p>;
+  if (!graph.available) return <p className="rp-warning rp-pad">{graph.reason || 'Sin historial disponible.'}</p>;
+  return <div className={`rp-graph${compact ? ' is-compact' : ''}`} style={{ '--graph-width': `${width * LANE + 6}px` }} role="grid" aria-label="Historial de commits" ref={list} onMouseLeave={() => setHovered(null)}>
     <div className="rp-graph-head" role="row"><span role="columnheader">Grafo</span><span role="columnheader">Ramas</span><span role="columnheader">Mensaje</span>{!compact && <span role="columnheader">Autor</span>}<span role="columnheader">Fecha</span>{!compact && <span role="columnheader">SHA</span>}</div>
     {trees.filter(tree => tree.changeCount > 0 && tree.exists).map(tree => <button type="button" role="row" key={`wip:${tree.id}`} className={`rp-graph-row is-wip${selected?.kind === 'tree' && selected.id === tree.id ? ' is-selected' : ''}`} onClick={() => onSelectTree?.(tree.id)}>
       <span className="rp-graph-lanes"><svg width={LANE + 6} height={ROW} aria-hidden="true"><circle cx={LANE / 2 + 3} cy={ROW / 2} r={5} fill="none" stroke="var(--warning)" strokeWidth={2} strokeDasharray="2 2" /></svg></span>
-      <span className="rp-refs"><span className="rp-ref is-wip" title={tree.title}>{tree.terminal ? <SquareTerminal size={10} /> : <FolderOpen size={10} />}<span className="rp-ref-label">{tree.title}</span></span></span><span className="rp-msg"><b>// WIP</b> · {filesText(tree.changeCount)} sin guardar</span>{!compact && <span className="rp-author">{tree.running ? 'Sesión activa' : ''}</span>}<span className="rp-date" />{!compact && <span className="rp-sha" />}
+      <span className="rp-refs"><span className="rp-ref is-wip" title={tree.title}>{tree.terminal ? <SquareTerminal size={10} /> : <FolderOpen size={10} />}<span className="rp-ref-label">{tree.title}</span></span></span><span className="rp-msg"><b>Sin guardar</b> · {filesText(tree.changeCount)}</span>{!compact && <span className="rp-author">{tree.running ? 'Sesión activa' : ''}</span>}<span className="rp-date" />{!compact && <span className="rp-sha" />}
     </button>)}
     {commits.map((commit, index) => {
       const row = layout[index], match = !text || `${commit.subject}\n${commit.author}\n${commit.oid}\n${commit.refs.join('\n')}`.toLowerCase().includes(text);
@@ -99,6 +99,6 @@ export default function RepoGraph({ graph, trees = [], base, query = '', selecte
       </button>;
     })}
     {!commits.length && <p className="rp-quiet rp-pad">Sin commits en esta lectura.</p>}
-    {graph.more && onMore && <div className="rp-graph-more"><button type="button" className="rp-button" onClick={onMore}>Cargar más historia</button></div>}
+    {graph.more && onMore && <div className="rp-graph-more"><button type="button" className="rp-button" onClick={onMore}>Cargar más</button></div>}
   </div>;
 }

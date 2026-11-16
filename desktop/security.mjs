@@ -5,13 +5,14 @@ import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { verifyReviewRender } from '../integrations/video-review.mjs';
 import { safePath } from '../integrations/common.mjs';
-import { validateInterfaceScale } from '../src/hooks/interfaceScale.js';
+import { validateInterfaceScale } from '../shared/interface-scale.mjs';
 
 export const INVOKE_CHANNEL = 'phantom:invoke';
 export const EVENT_CHANNEL = 'phantom:event';
 export const HOST_METHODS = new Set([
   'system.info', 'state.get', 'settings.update', 'limits.read',
-  'mobile.status', 'mobile.start', 'mobile.stop', 'mobile.pairing', 'mobile.revoke',
+  'mobile.status', 'mobile.start', 'mobile.stop', 'mobile.pairing', 'mobile.revoke', 'mobile.approve', 'mobile.reject',
+  'android.status', 'android.configure', 'android.start', 'android.stop', 'android.pairing', 'android.bootstrap', 'android.approve', 'android.revoke',
   'workspace.open', 'workspace.select', 'workspace.update', 'workspace.relocate',
   'node.create', 'node.update', 'node.remove',
   'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.resize', 'terminal.stop', 'terminal.close',

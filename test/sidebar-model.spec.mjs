@@ -69,7 +69,7 @@ test('las que necesitan de ti suben, luego las que trabajan, sin romper el orden
   const { providerOf, sessionTitle, buildSessionRows } = await model();
   const sessions = {
     b: { id: 'sb', tone: 'working', label: 'Trabajando', needsYou: false },
-    c: { id: 'sc', tone: 'warning', label: 'Pide tu aprobación', needsYou: true },
+    c: { id: 'sc', tone: 'warning', label: 'Pide permiso', needsYou: true },
     e: { id: 'se', tone: 'warning', label: 'Terminó · tu turno', needsYou: true },
   };
   const rows = buildSessionRows(['a', 'b', 'c', 'd', 'e'].map(id => term(id, `S ${id}`)), sessions).rows;
