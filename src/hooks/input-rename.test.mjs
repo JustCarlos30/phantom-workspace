@@ -10,8 +10,8 @@ const deferred = () => { let resolve; const promise = new Promise(yes => { resol
 const turn = () => new Promise(resolve => setImmediate(resolve));
 
 test('inspector occludes browser but does not block terminal input; modal surfaces block both', () => {
-  assert.deepEqual(overlayPolicy({ inspector: 'tasks' }), { inputBlocked: false, browserObscured: true });
-  assert.deepEqual(overlayPolicy({ inspector: 'context', palette: true }), { inputBlocked: true, browserObscured: true });
+  assert.deepEqual(overlayPolicy({ inspector: 'tasks' }), { inputBlocked: false, browserObscured: true, navigationBlocked: false });
+  assert.deepEqual(overlayPolicy({ inspector: 'context', palette: true }), { inputBlocked: true, browserObscured: true, navigationBlocked: true });
   for (const field of ['voice', 'edit', 'menu', 'sidebar', 'closing']) assert.equal(overlayPolicy({ [field]: true }).inputBlocked, true);
 });
 

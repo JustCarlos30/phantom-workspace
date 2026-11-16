@@ -92,7 +92,7 @@ const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, an
   </article>;
 });
 
-export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null }) {
+export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null }) {
   const navFit = useFitDensity(NAV_FIT);
   const root = useRef(null);
   const stage = useRef(null);
@@ -282,7 +282,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   useEffect(() => {
     const el = root.current;
     const wheel = e => {
-      if (inputBlocked || live.current.focused) return;
+      if (navigationBlocked || live.current.focused) return;
       const zooming = e.ctrlKey || e.metaKey || e.altKey;
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? size.height : 1;
       const dx = e.deltaX * unit, dy = e.deltaY * unit;
@@ -312,7 +312,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       else updateCamera({ ...cameraRef.current, x: cameraRef.current.x - (e.shiftKey && !dx ? dy : dx), y: cameraRef.current.y - (e.shiftKey && !dx ? 0 : dy) });
     };
     el?.addEventListener('wheel', wheel, { passive: false, capture: true }); return () => el?.removeEventListener('wheel', wheel, true);
-  }, [updateCamera, zoomAt, inputBlocked, size.height, stopInertia]);
+  }, [updateCamera, zoomAt, navigationBlocked, size.height, stopInertia]);
   useEffect(() => {
     const key = e => {
       if (inputBlocked || !root.current?.contains(e.target)) return;
