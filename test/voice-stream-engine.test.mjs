@@ -48,12 +48,21 @@ elif case == "beam":
     state.audio = np.zeros(rate, dtype=np.float32)
     speech = [{"start": 0, "end": rate // 2}]
     state.push()
-    assert model.calls[-1]["beam_size"] == 1
+    assert model.calls[-1]["beam_size"] == 2
     state.audio = np.zeros(rate * 2, dtype=np.float32)
     state.push()
     assert model.calls[-1]["beam_size"] == 5
     options = model.calls[-1]["vad_parameters"]
-    assert options.threshold == 0.4 and options.min_silence_duration_ms == 800
+    assert options.threshold == 0.5 and options.min_silence_duration_ms == 700
+elif case == "auto":
+    state = engine.Dictation(model, language="auto", vocabulary="Proyecto Orion", pause_ms=1000, vad_threshold=0.6)
+    state.audio = np.zeros(rate, dtype=np.float32)
+    speech = [{"start": 0, "end": rate}]
+    state.push()
+    assert model.calls[-1]["language"] is None
+    assert "Proyecto Orion" in model.calls[-1]["initial_prompt"]
+    assert model.calls[-1]["vad_parameters"].threshold == 0.6
+    assert model.calls[-1]["vad_parameters"].min_silence_duration_ms == 1000
 elif case == "context":
     state.confirmed = "principio " * 40 + "continuidad técnica final"
     state.audio = np.zeros(rate, dtype=np.float32)
@@ -82,7 +91,8 @@ elif case == "final":
 
 for (const [name, scenario] of [
   ['Confirmar por pausa conserva la cola; sin voz conserva un segundo', 'tail'],
-  ['Decodificación usa beam 1 parcial y 5 confirmado con VAD sensible', 'beam'],
+  ['Decodificación usa beam 2 parcial y 5 confirmado con VAD sensible', 'beam'],
+  ['Idioma automático y ajustes de vocabulario y VAD llegan al modelo', 'auto'],
   ['El prompt conserva contexto confirmado en límite de palabra', 'context'],
   ['Final devuelve el texto y vacía el audio', 'final'],
 ]) test(name, t => {

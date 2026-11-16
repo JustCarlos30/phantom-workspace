@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createCreatures, stepCreatures, renderFrame, RAMP, creatureColor, OCEAN_COLORS, createBubbles, stepBubbles, createPlants, renderPlants } from '../hooks/asciiField.mjs';
 
 export default function AsciiField({ paused = false }) {
