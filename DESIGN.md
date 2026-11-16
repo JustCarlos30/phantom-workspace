@@ -339,7 +339,7 @@ El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el ra
 
 ### Configuración, Apariencia y persistencia local
 
-`Settings.jsx` reúne la configuración en una hoja del inspector no modal. El botón del rail y la acción `settings` de la paleta abren Configuración; la ruta `appearance` abre su categoría Apariencia y la ruta anterior `plugins` abre Conexiones (`Inspector.jsx`). En ancho reducido se muestra primero la lista de categorías y luego su contenido, con regreso a Configuración. `ToolPanels.jsx` también admite el tipo de panel `settings`: carga los ajustes con `state.get` si no recibe el estado; Apariencia solo aparece cuando recibe sus controles, disponibles en el inspector de `App.jsx`.
+`Settings.jsx` reúne la configuración en una hoja flotante centrada no modal, sin desplazar el canvas, el dock ni el minimapa. Se cierra con su botón X o con Escape. El botón del rail y la acción `settings` de la paleta abren Configuración; la ruta `appearance` abre su categoría Apariencia y la ruta anterior `plugins` abre Conexiones (`Inspector.jsx`). En ancho reducido se muestra primero la lista de categorías y luego su contenido, con regreso a Configuración. `ToolPanels.jsx` también admite el tipo de panel `settings`: carga los ajustes con `state.get` si no recibe el estado; Apariencia solo aparece cuando recibe sus controles, disponibles en el inspector de `App.jsx`.
 
 | Categoría | Contenido implementado |
 |---|---|
@@ -347,7 +347,7 @@ El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el ra
 | Git e integración | Integración automática y comando de pruebas antes de integrar, por proyecto |
 | Apariencia | Fondo, acento, escala de interfaz, ambiente, personaje, concentración y retícula |
 | Voz | Proveedor, modelo, URL de API, comando local y salida del motor; comando para instalar o actualizar el motor local |
-| Teléfono | Controles existentes de `MobileSettings` y `AndroidGatewaySettings` |
+| Teléfono | `MobileSettings` y `AndroidGatewaySettings` usan grupos y filas como el resto de Configuración, con estado, conexión, vinculación y permisos por dispositivo |
 | Conexiones | Bitácora de videos desde Markdown y su apertura; Convenciones cuando su fuente está lista, por proyecto |
 | Datos y respaldo | Exportación con historial opcional, selección y confirmación de importación JSON, carpeta de datos |
 | Avanzado | Cerrar solo la ventana o detener todo y salir, con confirmación si hay actividad; versión y detalles del equipo |
