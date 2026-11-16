@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { contextAdvice, contextNudge, contextUse } from './chatState.js';
+import { contextAdvice, contextNudge, nudgeDismissal, contextUse as measuredContextUse, mergeChat } from './chatState.js';
+const contextUse = meta => measuredContextUse({ contextSource: 'claude:request-v1', ...meta });
+
+test('Legacy, invalid and cleared state cannot retain context warnings', () => {
+  for (const meta of [{ contextTokens: 164000 }, {}, ...[NaN, Infinity, -1, null].map(contextTokens => ({ contextTokens, contextSource: 'claude:request-v1' }))]) {
+    assert.equal(measuredContextUse(meta), null);
+    assert.equal(contextNudge(measuredContextUse(meta)), null);
+  }
+  const chat = { provider: 'claude', messages: [], meta: { contextSource: 'claude:request-v1', contextTokens: 150000 } };
+  const cleared = mergeChat(chat, { provider: 'claude', running: false, meta: {}, messages: [] });
+  assert.equal(measuredContextUse(JSON.parse(JSON.stringify(cleared)).meta), null);
+});
+
+test('El descarte sobrevive a lecturas ausentes y solo baja con una banda inferior', () => {
+  assert.equal(nudgeDismissal(2, null), 2);
+  assert.equal(nudgeDismissal(1, 2), 1);
+  assert.equal(nudgeDismissal(2, 1), 1);
+  assert.equal(nudgeDismissal(1, 0), 0);
+  assert.deepEqual(measuredContextUse({ contextSource: 'codex:request-v1', contextTokens: 144871, contextWindow: 258400 }), { tokens: 144871, window: 258400, ratio: 144871 / 258400 });
+});
 
 test('El aviso aparece al entrar en zona cara y usa el porcentaje real', () => {
   assert.equal(contextNudge(contextUse({ contextTokens: 50_000, contextWindow: 200_000 })), null);

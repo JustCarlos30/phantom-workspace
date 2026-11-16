@@ -5,8 +5,13 @@
 .st-body { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100%; min-height: 0; }
 .tw-content:has(> .st) { padding: 0; overflow: hidden; }
 
-/* The side inspector grows to hold both columns. */
-.app-shell:has(.tw-inspector.is-settings) { --inspector-width: clamp(360px, 52vw, 760px); }
+.app-shell .inspector-host.settings-sheet {
+  position: absolute; inset: var(--top-clear, 72px) var(--gutter) var(--gutter); margin: auto;
+  width: min(960px, calc(100% - var(--gutter) * 2)); min-width: 0;
+  height: min(720px, calc(100% - var(--top-clear, 72px) - var(--gutter)));
+  z-index: 32; border-radius: var(--r-isle);
+  box-shadow: var(--shadow-chrome); background: var(--surface);
+}
 .tw-inspector.is-settings { width: 100%; }
 .inspector-host > .tw-inspector > .tw-inspector-header { display: flex; background: transparent; }
 
@@ -100,12 +105,6 @@ textarea.st-input { width: 100%; text-align: left; resize: vertical; line-height
 .st :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Apariencia inside a group. */
-.st-appearance .background-options { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
-.st-appearance .accent-options { flex-wrap: wrap; }
-
-/* Teléfono: the two connection panels keep their own layout, one after the other. */
-.st-embed .tw-section { margin: 0; }
-.st-embed .tw-section + .tw-section { margin-top: 36px; padding-top: 0; border-top: 0; }
 
 @container st (min-width: 620px) {
   .st-nav li button[aria-current="page"] { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }

@@ -6,9 +6,24 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 
+const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 const controllers = new Map(), writes = new Map(), starts = new Map();
+export function prunePhantomControllers(workspace, live = controllers) {
+  const items = workspace.phantomControllers;
+  if (!Array.isArray(items)) return false;
+  const active = item => item.status === 'running' || live.has(item.id);
+  const recent = new Set(items.filter(item => !active(item)).sort((a, b) =>
+    (Date.parse(b.endedAt ?? b.createdAt) || 0) - (Date.parse(a.endedAt ?? a.createdAt) || 0)).slice(0, 20));
+  let changed = false;
+  const retained = items.filter(item => active(item) || recent.has(item));
+  for (const item of retained) if (!active(item) && typeof item.output === 'string' && item.output.length > 16384) {
+    item.output = item.output.slice(-16384); item.truncated = true; changed = true;
+  }
+  if (retained.length !== items.length) { workspace.phantomControllers = retained; changed = true; }
+  return changed;
+}
 const stable = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
 const identifier = value => { text(value, 'Phantom ID', 200); if (value.startsWith('-')) throw new Error('Invalid Phantom ID'); return value; };
 export async function discoverPhantomCLI(explicit) {
@@ -34,8 +49,12 @@ async function client(payload, context) {
     // Native Phantom owns this database. Never copy or open it through Store.
     flags.push('--data', nativeHome);
   }
-  const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root });
+  const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root, maxBuffer: PHANTOM_MAX_BUFFER, timeout: 30000 });
   return { root, workspace, cli, flags, call, config, nativeHome, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+}
+function unavailableReason(error) {
+  const reason = error.message.includes('maxBuffer') ? 'el catálogo de Phantom supera el límite de lectura de 64 MiB; archiva o cancela tareas antiguas' : error.killed === true || error.code === 'ETIMEDOUT' ? 'la CLI de Phantom no respondió a tiempo' : error.message;
+  return `Phantom unavailable: ${reason}`;
 }
 export async function phantomStatus(payload, context) {
   await workspaceRoot(context, payload);
@@ -47,13 +66,14 @@ export async function phantomStatus(payload, context) {
     let version;
     try { const pkg = JSON.parse(await readFile(path.resolve(path.dirname(c.cli), '../package.json'), 'utf8')); if (typeof pkg.version === 'string') version = pkg.version; } catch { /* Optional package metadata. */ }
     return { available: true, source: 'phantom', cli: c.cli, ...(version ? { version } : {}), observedAt: observedAt() };
-  } catch (error) { return { available: false, source: 'phantom', reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
+  } catch (error) { return { available: false, source: 'phantom', reason: unavailableReason(error), observedAt: observedAt() }; }
 }
 // Every checkout of this repository, keyed by canonical path, with the branch it holds.
 async function family(client, context) {
   const roots = new Map([[client.root, { path: client.root, branch: null, main: true }]]);
   try {
     const { stdout } = await command(context, 'git', ['--no-optional-locks', 'worktree', 'list', '--porcelain', '-z'], { cwd: client.root });
+    roots.git = true;
     let current = null;
     for (const entry of stdout.split('\0')) {
       if (entry.startsWith('worktree ')) {
@@ -76,10 +96,11 @@ async function list(payload, context, c) {
   if (!['tasks', 'memories', 'skills'].includes(topic)) throw new Error('topic must be tasks, memories, or skills');
   if (payload.query !== undefined && (typeof payload.query !== 'string' || payload.query.length > 500)) throw new Error('Invalid Phantom query');
   const locations = new Map();
-  let raw = await c.call(topic === 'tasks' ? ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
+  const roots = topic === 'tasks' ? await family(c, context) : undefined;
+  let raw = await c.call(topic === 'tasks' ? roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
   if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
   if (topic === 'tasks') {
-    const roots = await family(c, context), filtered = [];
+    const filtered = [];
     for (const item of raw) { try { const home = roots.get(await realpath(item.contract?.workspace)); if (home) { filtered.push(item); locations.set(item, home); } } catch { /* Not this workspace. */ } }
     raw = filtered;
   }
@@ -249,10 +270,11 @@ async function controlOwned(payload, context, c) {
   c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';
+  prunePhantomControllers(c.workspace);
   await context.persist();
   let child;
   try { child = spawnCommand(context, process.execPath, ['--import', controllerPreload, c.cli, payload.action, task.id, ...(payload.action === 'run' ? ['--model', payload.model] : []), ...c.flags], { cwd: c.root, stdio: ['ignore', 'pipe', 'pipe'] }); }
-  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; await context.persist(); throw error; }
+  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; prunePhantomControllers(c.workspace); await context.persist(); throw error; }
   descriptor.pid = child.pid;
   controllers.set(descriptor.id, { descriptor, child });
   let bytes = 0, finished = false;
@@ -271,6 +293,7 @@ async function controlOwned(payload, context, c) {
     if (finished) return; finished = true; clearTimeout(timer); clearTimeout(hardTimer);
     Object.assign(descriptor, { status: error || code !== 0 ? 'failed' : 'completed', exitCode: code, signal, endedAt: observedAt(), ...(error ? { error: error.message } : {}) });
     controllers.delete(descriptor.id);
+    prunePhantomControllers(c.workspace);
     emit({ type: 'tool.status', status: descriptor.status, result: { ...descriptor } });
     Promise.resolve(context.persist()).catch(() => {});
   };
@@ -292,15 +315,17 @@ export async function phantom(method, payload, context) {
   if (method === 'phantom.list') {
     await workspaceRoot(context, payload);
     try { return await list(payload, context, await client(payload, context)); }
-    catch (error) { return { available: false, items: [], reason: `Phantom unavailable: ${error.message}`, observedAt: observedAt() }; }
+    catch (error) { return { available: false, items: [], reason: unavailableReason(error), observedAt: observedAt() }; }
   }
   const c = await client(payload, context);
   if (method === 'phantom.events') return events(payload, context, c);
   if (method === 'phantom.detail') return detail(payload, context, c);
   if (method === 'phantom.controllers') {
     let changed = false;
-    const items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
+    let items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
     for (const item of items) if (item.status === 'running' && !controllers.has(item.id)) { item.status = 'lost'; changed = true; }
+    changed = prunePhantomControllers(c.workspace) || changed;
+    items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
     if (changed) await context.persist();
     return { items: structuredClone(items), observedAt: observedAt() };
   }

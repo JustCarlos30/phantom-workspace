@@ -27,7 +27,7 @@ export async function connectHost({dataDir=dataHome(),nodePath='/usr/bin/node',h
     s.once('connect',()=>{connected=true;s.setTimeout(0);socket=s;resolve();});
     s.on('data',chunk=>{buffer+=chunk;if(Buffer.byteLength(buffer)>32*1024*1024){s.destroy(new Error('Host message too large'));return;}let i;while((i=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,i);buffer=buffer.slice(i+1);let message;try{message=JSON.parse(line);}catch{continue;}if(message.event) notify(message.event);else {const p=pending.get(message.id);if(p){pending.delete(message.id);clearTimeout(p.timer);message.error?p.reject(Object.assign(new Error(message.error.message),{code:message.error.code})):p.resolve(message.result);}}}});
     s.on('error',error=>{if(!connected)reject(error);});
-    s.on('close',()=>{for(const [id,p] of pending){if(p.transport===s){clearTimeout(p.timer);p.reject(new Error('Host disconnected; request outcome unknown'));pending.delete(id);}}if(socket!==s)return;socket=undefined;if(!closed){notify({type:'connection',status:'disconnected'});reconnect();}});
+    s.on('close',()=>{for(const [id,p] of pending){if(p.transport===s){clearTimeout(p.timer);p.reject(Object.assign(new Error('Host disconnected; request outcome unknown'),{transport:s}));pending.delete(id);}}if(socket!==s)return;socket=undefined;if(!closed){notify({type:'connection',status:'disconnected'});reconnect();}});
   });}
   function launch() {
     const log=path.join(dataDir,'host.log');if(fs.existsSync(log)&&fs.statSync(log).size>1024*1024)fs.renameSync(log,`${log}.1`);
@@ -43,8 +43,8 @@ export async function connectHost({dataDir=dataHome(),nodePath='/usr/bin/node',h
   }
   await ensure();
   return {
-    async invoke(method,payload={}) {const id=randomUUID(),line=JSON.stringify({id,method,payload})+'\n';if(Buffer.byteLength(line)>32*1024*1024)throw new Error('Host request too large');await ensure();if(!socket||socket.destroyed)throw new Error('Host unavailable');const transport=socket;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(Object.assign(new Error('Host request timed out; outcome unknown'),{code:'HOST_REQUEST_TIMEOUT'}));},requestTimeout(method));pending.set(id,{resolve,reject,timer,transport});transport.write(line,error=>{if(error){const p=pending.get(id);if(p){pending.delete(id);clearTimeout(timer);reject(error);}}});});},
-    reconnect() {if(closed)return;if(socket&&!socket.destroyed)socket.destroy();else reconnect();},
+    async invoke(method,payload={}) {const id=randomUUID(),line=JSON.stringify({id,method,payload})+'\n';if(Buffer.byteLength(line)>32*1024*1024)throw new Error('Host request too large');await ensure();if(!socket||socket.destroyed)throw new Error('Host unavailable');const transport=socket;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(Object.assign(new Error('Host request timed out; outcome unknown'),{code:'HOST_REQUEST_TIMEOUT'}));},requestTimeout(method));pending.set(id,{resolve,reject,timer,transport});transport.write(line,error=>{if(error){const p=pending.get(id);if(p){pending.delete(id);clearTimeout(timer);reject(Object.assign(error,{transport}));}}});});},
+    reconnect(transport) {if(closed)return;if(socket&&!socket.destroyed){if(transport===undefined||socket===transport)socket.destroy();}else reconnect();},
     close() {closed=true;clearTimeout(reconnectTimer);socket?.destroy();for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('Host client closed'));}pending.clear();}
   };
 }

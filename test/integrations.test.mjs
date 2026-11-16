@@ -194,6 +194,47 @@ test('native Phantom isolated data: cards, decisions/revisions, immutable skills
   await assert.rejects(f.call('phantom.create', { kind: 'card', input: { ...input, scope: ['outside/x.md'] } }), /Symlink/);
 });
 
+test('Phantom task catalog uses a large buffer and explains output-limit failures', async t => {
+  const f = await fixture(t);
+  f.context.state.settings.phantomPath = process.execPath;
+  let seen, fail = false;
+  f.context.execFile = async (file, args, options) => {
+    if (file === 'git') throw new Error('No Git transport');
+    assert.deepEqual(args.slice(1), ['list', '--json']);
+    seen = options;
+    if (fail) throw new Error('node: stdout maxBuffer length exceeded');
+    return { stdout: '[]', stderr: '' };
+  };
+  const result = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(result.available, true, result.reason);
+  assert.ok(seen.maxBuffer >= 32 * 1024 * 1024);
+  assert.equal(seen.timeout, 30000);
+  assert.equal(seen.cwd, f.root);
+  fail = true;
+  const unavailable = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(unavailable.available, false);
+  assert.match(unavailable.reason, /^Phantom unavailable: /);
+  assert.match(unavailable.reason, /catálogo/);
+  assert.doesNotMatch(unavailable.reason, /maxBuffer/);
+});
+
+test('Phantom task catalog reads once with project scope only for Git workspaces and retains family filtering', async t => {
+  for (const git of [true, false]) {
+    const f = await fixture(t, git), calls = [];
+    f.context.state.settings.phantomPath = process.execPath;
+    const raw = [f.root, f.home].map((workspace, i) => ({ id: `task_${i}`, kind: 'task', status: 'ready', contract: { goal: `Task ${i}`, workspace } }));
+    f.context.execFile = async (file, args, options) => {
+      if (file === 'git') return exec(file, args, options);
+      calls.push(args.slice(1));
+      return { stdout: JSON.stringify(raw), stderr: '' };
+    };
+    const result = await f.call('phantom.list', { topic: 'tasks' });
+    assert.equal(result.available, true, result.reason);
+    assert.deepEqual(calls, [git ? ['list', '--workspace', f.root, '--scope', 'project', '--json'] : ['list', '--json']]);
+    assert.deepEqual(result.items.map(item => item.id), ['task_0']);
+  }
+});
+
 test('Phantom task catalog excludes unrelated projects but includes known worktree family', async t => {
   const f = await fixture(t, true);
   // The mocked transport only needs an existing CLI file, independent of any installation.

@@ -44,7 +44,7 @@
 .phantom-chat .pc-thread { background: var(--well); }
 .phantom-chat .pc-column { padding: 12px 20px 20px; gap: 20px; }
 .phantom-chat .pc-tool-row { gap: 6px; }
-.phantom-chat .pc-tool-output { margin-left: 24px; }
+.phantom-chat .pc-tool-output { margin-left: 26px; }
 .phantom-chat .pc-message.is-user { max-width: 90%; }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
@@ -98,12 +98,13 @@
 
 /* Tabs: Chat and Orquestador share the dock. */
 .pd-tabs { display: flex; gap: 2px; margin: 8px 12px 0; padding: 3px; border-radius: var(--r-obj); background: var(--fill); flex-shrink: 0; }
-.pd-tabs button { position: relative; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--muted); font-size: 12px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.pd-tabs button { position: relative; flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--muted); font-size: 12px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.pd-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pd-tabs button:hover { background: var(--fill-3); color: var(--ink); }
 .pd-tabs button[aria-selected="true"] { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
 .pd-tabs button[aria-selected="true"] > svg { color: inherit; }
 .pd-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pd-tabs b { min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
+.pd-tabs b { display: inline-grid; place-items: center; flex-shrink: 0; box-sizing: border-box; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .pd-tabs [data-tone="waiting"] b, .pd-tabs [data-tone="attention"] b { background: var(--warning-soft); color: var(--warning); }
 .pd-tab-live, .pd-tab-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--pc-hue, var(--accent)); }
 .pd-tab-live { animation: none; }
@@ -138,8 +139,8 @@
 .pd-composer .pc-error { display: flex; align-items: center; gap: 8px; margin: 0; }
 .pd-composer .pc-error > span { flex: 1; min-width: 0; }
 .pd-field { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 10px; border-radius: var(--r-ctl); background: var(--well-raised); transition: box-shadow var(--dur-fast) var(--ease-out); }
-.pd-field:focus-within { box-shadow: 0 0 0 1px var(--pc-hue-line, var(--accent)); }
-.pd-field.is-listening { box-shadow: 0 0 0 1px var(--working); }
+.pd-field:focus-within { box-shadow: 0 0 0 1px color-mix(in srgb, var(--pc-hue-line, var(--accent)) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--pc-hue-line, var(--accent)) 13%, transparent); }
+.pd-field.is-listening { box-shadow: 0 0 0 1px color-mix(in srgb, var(--working) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--working) 16%, transparent); }
 .pd-field textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 140px; resize: none; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.45; outline: none; field-sizing: content; }
 .pd-field textarea::placeholder { color: var(--muted); }
 .phantom-chat-task:disabled { opacity: .4; cursor: not-allowed; }

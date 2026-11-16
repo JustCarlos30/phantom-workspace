@@ -74,6 +74,23 @@ try {
     assert.equal(await page.locator('.br-group-title').textContent(), '5 ramas de tus sesiones');
     assert.deepEqual(await page.locator('.br-row .br-chip').allTextContents(), ['Sin guardar', 'Conflicto', 'Lista', 'Trabajando', 'En main', 'En main']);
     assert.equal(await page.getByText('Sin Card de Phantom asociada').count(), 0);
+    const filters = page.getByRole('group', { name: 'Filtrar por estado' });
+    assert.equal(await filters.getByRole('button', { name: /^Todas/ }).getAttribute('aria-pressed'), 'true');
+    const readyFilter = filters.getByRole('button', { name: /^Lista/ });
+    await readyFilter.click();
+    assert.equal(await page.locator('.br-row').count(), 2);
+    assert.equal(await page.locator('.br-row[data-state="ready"]').count(), 1);
+    await page.screenshot({ path: path.join(evidence, 'filter.png') });
+    await readyFilter.click();
+    assert.equal(await page.locator('.br-row').count(), 6);
+    const fold = page.locator('.br-fold');
+    assert.equal(await fold.getAttribute('aria-expanded'), 'true');
+    await fold.click();
+    assert.equal(await fold.getAttribute('aria-expanded'), 'false');
+    assert.equal(await page.locator('.br-row[data-state="merged"]').count(), 0);
+    await fold.click();
+    assert.equal(await fold.getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('.br-row').count(), 6);
     const rowOf = title => page.locator('.br-row', { has: page.locator('.br-title', { hasText: title }) });
     // Saving asks for a message; integrating on save is opt-in.
     const mainRow = rowOf('main');

@@ -7,7 +7,7 @@ import { ProviderGlyph } from './Glyphs';
 
 export default function SidebarPanels({ nodes = [], types, selected, focused, sessions, onJump, onFocus, onSearch, onMap }) {
   const { rows, resources } = buildSessionRows(nodes, sessions);
-  const focusButton = node => <button className="rail-panel-focus" title={`Enfocar ${node.title}`} aria-label={`Enfocar ${node.title}`} aria-pressed={focused === node.id} onClick={() => onFocus(node.id)}><Maximize2 size={12} /></button>;
+  const focusButton = node => <button className="rail-panel-focus" title={`Enfocar ${node.title}`} aria-label={`Enfocar ${node.title}`} aria-pressed={focused === node.id} onClick={() => onFocus(node.id)}><Maximize2 size={16} /></button>;
   const resourceRow = node => {
     const Icon = types.find(t => t[0] === node.type)?.[2] || Layers;
     const active = selected.includes(node.id);
@@ -25,8 +25,8 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
           return <div key={row.id} className="rail-session">
             <div className={`rail-panel-row rail-session-row ${active ? 'selected' : ''} ${row.needsYou ? 'needs-you' : ''}`}>
               <button onClick={() => onJump(row.id)} aria-label={`Ver ${row.fullTitle} en el mapa`} aria-current={active ? 'true' : undefined}>
-                <span className="rail-agent-mark" aria-hidden="true"><ProviderGlyph provider={row.provider === 'terminal' ? 'shell' : row.provider} size={18} /><span className={`rail-session-dot ${row.tone}`} /></span>
-                <span className="rail-panel-label"><span title={row.fullTitle}>{row.title}</span><span className="rail-session-meta">{[row.statusLabel, row.providerLabel, row.model].filter(Boolean).join(' · ')}</span></span>
+                <span className="rail-agent-mark" aria-hidden="true"><ProviderGlyph provider={row.provider === 'terminal' ? 'shell' : row.provider} size={20} /><span className={`rail-session-dot ${row.tone}`} /></span>
+                <span className="rail-panel-label"><span title={row.fullTitle}>{row.title}</span><span className="rail-session-meta"><span className="rail-session-status">{row.statusLabel}</span><span className="rail-session-details">{[row.providerLabel, row.model].filter(Boolean).map((detail, index) => <React.Fragment key={index}> · {detail}</React.Fragment>)}</span></span></span>
               </button>
               {focusButton(row.node)}
             </div>

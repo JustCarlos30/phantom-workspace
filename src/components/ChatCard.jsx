@@ -3,14 +3,17 @@ import { useComposerSize } from '../hooks/useComposerSize';
 import { AlertCircle, ArrowUp, Brain, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, FoldVertical, Folder, GitBranch, Globe, Lightbulb, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
-import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
+import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, nudgeDismissal, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
-import { ProviderGlyph, ProviderTile } from './Glyphs';
+import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
+import { phantomRunIds, summarizePhantomRun } from '../hooks/phantom-run-link.mjs';
+import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 
@@ -158,34 +161,80 @@ export function useElapsed(since, active) {
 
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
-const TOOL_LABELS = { read: 'Leer', edit: 'Editar', shell: 'Ejecutar', search: 'Buscar', web: 'Web', agent: 'Agente', todo: 'Tareas' };
-const TOOL_STATES = { running: 'En curso', error: 'Falló', stopped: 'Detenida', done: 'Completada' };
+// Codex-style: each action is a sentence. The verb's tense carries the state
+// (gerund while it runs, past once done); only failures and stops add a word.
+const TOOL_VERBS = { read: ['Leyendo', 'Leyó'], edit: ['Editando', 'Editó'], shell: ['Ejecutando', 'Ejecutó'], search: ['Buscando', 'Buscó'], web: ['Consultando', 'Consultó'], agent: ['Delegando', 'Delegó'], todo: ['Actualizando el plan', 'Actualizó el plan'] };
+const TOOL_STATES = { error: 'Falló', stopped: 'Detenida' };
 
-// One action, one quiet line: its glyph, what it was, and on what. A finished
-// step states nothing more; only running, failed and stopped ones speak up.
+// One action, one quiet line: a dot, what was done, and on what. The dot and the verb's tense say whether it is still running.
 function ToolRow({ part }) {
-  const [, Icon, kind] = toolKind(part.name);
+  const [, , kind] = toolKind(part.name);
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
-  const label = part.detail ? TOOL_LABELS[kind] || part.name : part.name;
+  const [doing, did] = TOOL_VERBS[kind] || ['Usando', 'Usó'];
   const codeDetail = ['read', 'edit', 'shell', 'search', 'web'].includes(kind);
   const summary = <>
-    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={14} /></span>
-    <span className="pc-tool-label" title={part.name}>{label}</span>
-    {part.detail && <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail}>{part.detail}</span>}
+    <span className="pc-tool-mark" aria-hidden="true" />
+    <span className="pc-tool-label" title={part.name}>{part.status === 'running' ? doing : did}</span>
+    {!TOOL_VERBS[kind] && <span className="pc-tool-name">{part.name}</span>}
+    <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail || undefined}>{part.detail}</span>
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
-    {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`} role="img" aria-label={TOOL_STATES[part.status]} title={TOOL_STATES[part.status]}>
-      {part.status === 'running' ? <LoaderCircle className="pc-tool-spinner" size={14} aria-hidden="true" />
-        : part.status === 'error' ? <X size={14} aria-hidden="true" />
-          : part.status === 'stopped' ? <Square size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
-      {part.status !== 'done' && <span aria-hidden="true">{TOOL_STATES[part.status]}</span>}
+    {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`}>
+      {part.status === 'error' && <X size={14} aria-hidden="true" />}
+      <span>{TOOL_STATES[part.status]}</span>
     </span>}
     {expandable ? <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
   </>;
-  if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
-  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
+  const className = `pc-tool is-${part.status}`;
+  if (!expandable) return <li className={className} data-kind={kind}><div className="pc-tool-row">{summary}</div></li>;
+  return <li className={className} data-kind={kind}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
     <p className="pc-tool-context"><span>{part.name}</span>{part.detail && (kind !== 'shell' || part.status === 'error') && <span className={codeDetail ? 'is-code' : undefined}>{part.detail}</span>}</p>
     <ToolOutput part={part} kind={kind} />
   </div></details></li>;
+}
+
+export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    let disposed = false, timer;
+    setState(null);
+    if (typeof api !== 'function' || !workspaceId) {
+      setState({ error: true });
+      return;
+    }
+    const refresh = async () => {
+      try {
+        const [detail, controllers] = await Promise.all([
+          api('phantom.detail', { workspaceId, topic: 'tasks', id }),
+          api('phantom.controllers', { workspaceId }),
+        ]);
+        if (disposed) return;
+        if (!detail || detail.available === false || detail.task?.available === false || controllers?.available === false || !Array.isArray(controllers?.items)) throw new Error('No disponible');
+        const summary = summarizePhantomRun(detail, itemsOf(controllers), id);
+        setState(summary);
+        if (summary.live) timer = setTimeout(refresh, 3000);
+      } catch {
+        if (!disposed) setState({ error: true });
+      }
+    };
+    refresh();
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [api, workspaceId, id]);
+  if (!state) return null;
+  if (state.error) return <p className="pc-phantom-warning" role="status">Seguimiento Phantom no disponible.</p>;
+  return <section className="pc-subagent pc-phantom-run" aria-label={`Encargo Phantom ${id}`}>
+    <header className="pc-subagent-head">
+      <span className="pc-subagent-mark" aria-hidden="true"><PhantomGlyph size={16} /></span>
+      <span className="pc-subagent-label">Encargo Phantom</span>
+      <code className="pc-phantom-id" title={id}>{id.slice(0, 13)}</code>
+      <span className={`pc-phantom-status is-${state.tone}`} role="status">{state.label}</span>
+    </header>
+    <p className="pc-subagent-goal" title={state.goal}>{state.goal}</p>
+    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>{state.duration}</span>}</p>
+    {state.line && <p className="pc-subagent-said">{state.line}</p>}
+    {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}
+    {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Checks · {state.passed}/{state.total} pasados</summary><ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
+    {onOpenPanel && <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, state.goal)}>Abrir en Phantom</button>}
+  </section>;
 }
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -206,14 +255,13 @@ function ToolGroup({ items }) {
   const list = <ul className="pc-tools" aria-label="Herramientas usadas">{items.map(part => <ToolRow key={part.id} part={part} />)}</ul>;
   if (items.length < 4) return list;
   const open = chosen ?? live, kinds = new Map();
-  for (const part of items) { const [, Icon, kind] = toolKind(part.name), key = KIND_PHRASE[kind] ? kind : 'other'; if (!kinds.has(key)) kinds.set(key, { Icon: key === 'other' ? Wrench : Icon, items: [] }); kinds.get(key).items.push(part); }
-  const text = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group.items)).join(' · ');
-  return <details className="pc-steps" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
+  for (const part of items) { const [, , kind] = toolKind(part.name), key = KIND_PHRASE[kind] ? kind : 'other'; if (!kinds.has(key)) kinds.set(key, []); kinds.get(key).push(part); }
+  const text = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group)).join(' · ');
+  return <details className={`pc-steps${live ? ' is-live' : ''}${failed ? ' is-error' : ''}`} open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
     <summary>
-      <span className="pc-steps-kinds" aria-hidden="true">{[...kinds].slice(0, 4).map(([kind, group]) => <group.Icon key={kind} size={14} />)}</span>
+      <span className="pc-tool-mark" aria-hidden="true" />
       <span className="pc-steps-text">{text.charAt(0).toUpperCase() + text.slice(1)}</span>
       {failed && <span className="pc-tool-state is-error">con fallos</span>}
-      {live && <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />}
       <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" />
     </summary>
     {list}
@@ -331,6 +379,8 @@ function groupParts(parts) {
   for (const part of parts) {
     if (part.type === 'tool' && asked.has(part.id)) continue;
     if (isSubagent(part)) { groups.push({ type: 'subagent', part }); continue; }
+    const ids = phantomRunIds(part);
+    if (ids.length) { groups.push({ type: 'phantom', part, ids }); continue; }
     const last = groups.at(-1);
     if (part.type === 'tool' && last?.type === 'tools') last.items.push(part);
     else groups.push(part.type === 'tool' ? { type: 'tools', items: [part] } : part);
@@ -339,12 +389,12 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
   if (message.role === 'user') return <div className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></div>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} />;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
@@ -355,6 +405,8 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
     {groups.map((group, i) => group.type === 'tools'
       ? <ToolGroup key={i} items={group.items} />
+      : group.type === 'phantom'
+        ? <div key={group.part.id} className="pc-phantom-link">{group.ids.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}<ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -364,7 +416,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {streaming && !waiting && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
+    {streaming && !waiting && <p className="pc-working"><span className="pc-tool-mark" aria-hidden="true" />{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
     {!streaming && (stamp || text) && <footer className="pc-turn-foot">{text && <CopyButton text={text} label="Copiar respuesta" />}<time className="pc-num" dateTime={message.createdAt}>{stamp}</time></footer>}
@@ -521,7 +573,7 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [open]);
-  if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
+  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">{running ? 'Midiendo contexto…' : 'Contexto no disponible'}</span>;
   const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
@@ -587,11 +639,15 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
 // A friendly, dismissible heads-up when the context crosses into a costlier band.
 // Dismissing silences the current band only; dropping back (after compacting or
 // a new conversation) re-arms it.
-export function ContextNudge({ meta, onReveal }) {
+export function ContextNudge({ meta, nodeId, firstMessageId, onReveal }) {
   const use = contextUse(meta);
-  const [dismissed, setDismissed] = useState(0);
-  const rank = BAND_RANK[contextAdvice(use)?.band ?? 'ok'];
-  useEffect(() => { if (rank < dismissed) setDismissed(rank); }, [rank, dismissed]);
+  const key = `phantom.chatNudge.${nodeId}.${firstMessageId}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try { const value = Number(localStorage.getItem(key)); return [0, 1, 2].includes(value) ? value : 0; } catch { return 0; }
+  });
+  const rank = use ? BAND_RANK[contextAdvice(use).band] : null;
+  useEffect(() => { setDismissed(previous => nudgeDismissal(previous, rank)); }, [rank]);
+  useEffect(() => { try { localStorage.setItem(key, String(dismissed)); } catch { /* Memory only. */ } }, [key, dismissed]);
   const nudge = contextNudge(use, dismissed);
   if (!nudge) return null;
   return <section className={`pc-nudge is-${nudge.band}`} role="status" aria-label="Aviso de contexto">
@@ -653,16 +709,28 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
   return '';
 }
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const armedRef = useRef(false), draftRef = useRef(draft), submitRef = useRef(null);
+  draftRef.current = draft;
+  const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
-  const voice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
-    onText: text => setDraft(value => value.trim() ? `${value.trimEnd()} ${text}` : text) });
+  const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
+    onText: text => {
+      const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
+      arm(false); draftRef.current = merged; setDraft(merged);
+      if (pendingSend) submitRef.current(merged, true);
+    } });
+  const voice = { ...recorderVoice, cancel: () => { arm(false); recorderVoice.cancel(); } };
   const listening = voice.status === 'recording';
+  const dictating = listening || voice.status === 'transcribing';
+  useLayoutEffect(() => { if (voice.status === 'idle' || !connected || overview) arm(false); }, [voice.status, connected, overview]);
+  useLayoutEffect(() => { arm(false); }, [workspace.id, node.id, provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
   const chosen = node.data.chat.permissionMode ?? (typeof node.data.chat.autoApprove === 'boolean' ? (node.data.chat.autoApprove ? 'auto' : 'ask') : null);
@@ -690,14 +758,21 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   useEffect(() => { pinned.current = true; }, [provider]);
   useEffect(() => { if (focused) input.current?.focus({ preventScroll: true }); }, [focused, provider]);
   useComposerSize(input, draft, !overview);
-  const submit = async () => {
-    const text = draft.trim();
-    if (!text || sending || !connected) return;
-    if (voice.status !== 'idle') voice.cancel();
+  const submit = async (value = draftRef.current, fromVoice = false) => {
+    if (sending || !connected) return;
+    if (!fromVoice) {
+      const action = sendAction({ status: voice.status, draft: value, armed: armedRef.current });
+      if (action === 'none') return;
+      if (action === 'stop-and-send' || action === 'await-voice') { arm(true); if (action === 'stop-and-send') voice.stop(); return; }
+      if (voice.status !== 'idle') voice.cancel();
+    }
+    const text = value.trim();
+    if (!text) return;
     setSending(true); pinned.current = true;
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
   };
+  submitRef.current = submit;
   const model = meta.model, cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
@@ -732,15 +807,15 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
             <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
           </dl>}
         </EmptyState>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
-      <ContextNudge key={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
+      <ContextNudge key={`${node.id}.${chat?.messages?.[0]?.id || 'empty'}`} nodeId={node.id} firstMessageId={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
-      <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
+      <div className={`pc-field ${listening ? 'is-listening' : ''}`} style={{ '--voice-level': voice.level }} onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         <VoiceActivity voice={voice} />
         {voice.error && <p className="voice-inline-error" role="alert">{voice.error}</p>}
         <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
@@ -752,7 +827,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           </div>
           <button type="button" className={`phantom-chat-mic ${listening ? 'is-live' : ''}`} aria-pressed={listening} disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : listening ? 'Detener y transcribir' : `Dictar a ${label}`} aria-label={listening ? 'Detener y transcribir' : `Dictar a ${label}`} onClick={listening ? voice.stop : voice.start}>{listening ? <Square size={14} /> : <Mic size={16} />}</button>
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={16} /></button>}
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Detener dictado y enviar · Enter' : running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Detener dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{armed ? <LoaderCircle size={16} className="spinning" /> : <ArrowUp size={16} />}</button>}
         </div>
       </div>
       <div className="pc-meta">

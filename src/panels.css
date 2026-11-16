@@ -48,6 +48,8 @@
 .app-shell .canvas-node .tw-details > summary { font: var(--t-support); font-weight: 500; color: var(--muted); }
 .app-shell .canvas-node .tw-details > summary:hover { color: var(--ink); }
 .app-shell .canvas-node .tw-code { border-radius: var(--r-ctl); background: var(--well-terminal); box-shadow: var(--shadow-well); }
+.app-shell .canvas-node .tw-document-reader { max-height: 480px; overflow: auto; margin-top: 12px; padding: 12px; border-radius: var(--r-ctl); background: var(--well-terminal); }
+.app-shell .canvas-node .tw-content .mem-card { background: var(--fill); border: 0; border-radius: var(--r-ctl); }
 .app-shell .canvas-node :is(.tw-error, .tw-warning) { max-width: 560px; padding: 12px 14px; border-radius: var(--r-ctl); font: var(--t-support); }
 .app-shell .canvas-node .tw-table th, .app-shell .canvas-node .tw-table td { border-bottom: 0; }
 .app-shell .canvas-node .tw-table tbody tr:nth-child(odd) td { background: var(--fill); }
@@ -55,14 +57,10 @@
 .app-shell .canvas-node .tw-action-editor { padding: 12px 14px; border: 0; background: var(--fill); }
 
 /* ---------- Panel kinds, Skills, browser and note ----------
-   The hue of a panel kind is ink on a dark tinted key, never a saturated fill:
+   The hue of a panel kind is ink on a dark tinted header glyph, never a saturated fill:
    the same treatment as the attention plate in the rail. */
-.app-shell .activity-dock .dock-main .dock-action[data-type]:not(.dock-hub) { background: color-mix(in srgb, var(--type, var(--ink)) 22%, var(--surface-2)); color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--type, var(--ink)) 34%, transparent); }
-.app-shell .activity-dock .dock-main .dock-action[data-type]:not(.dock-hub):hover:not(:disabled) { background: color-mix(in srgb, var(--type, var(--ink)) 32%, var(--surface-2)); color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); }
-.app-shell .activity-dock .dock-main .dock-action[data-type]:not(.dock-hub):is(.active, [aria-expanded="true"]) { background: var(--on); color: var(--on-ink); }
 .app-shell .canvas-node:is(.selected, .focused) > .node-header > .node-glyph:has(.shell-icon) { background: color-mix(in srgb, var(--type, var(--ink)) 22%, var(--surface-2)); color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--type, var(--ink)) 34%, transparent); }
 .app-shell .canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon { color: color-mix(in srgb, var(--type, var(--ink)) 86%, #fff); }
-.app-shell .project-switcher > summary > .project-initials { background: color-mix(in srgb, var(--accent) 24%, var(--surface-2)); color: color-mix(in srgb, var(--accent) 80%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent); }
 .app-shell .sk-segments { padding: 3px; border-radius: var(--r-pill); box-shadow: var(--shadow-well); }
 .app-shell .sk-segment { border-radius: var(--r-pill); padding: 0 11px; }
 .app-shell .sk-segment[aria-selected="true"] { background: var(--fill-3); }
@@ -80,3 +78,4 @@
 .app-shell .browser-toolbar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app-shell .browser-preview-label { background: var(--well-raised); }
 .app-shell .note-editor { padding: 18px 20px; font: var(--t-body); }
+.app-shell .canvas-node .tw-content small.tw-process-command { font-family: var(--mono); overflow-wrap: anywhere; }

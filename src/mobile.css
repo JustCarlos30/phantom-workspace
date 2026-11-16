@@ -52,3 +52,4 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-
 .mobile-composer textarea { max-height: 160px; }
 .mobile-prompt { display: grid; gap: 12px; padding: 12px 0; color: var(--warning); }
 .mobile-bottom { align-self: center; }
+.mobile-sas { display: block; font: 700 40px/1.5 ui-monospace, monospace; letter-spacing: .08em; }

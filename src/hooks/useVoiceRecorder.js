@@ -15,6 +15,7 @@ const publish = () => listeners.forEach(listener => listener());
 // Leave room for Base64 and RPC framing beneath the host's 2 MiB message cap.
 const MAX_AUDIO = 1024 * 1024;
 const MAX_MS = 120000;
+const DRAIN_MS = 350;
 // Send audio to the live engine at least every PUMP_MS once 100 ms is queued.
 const PUMP_MS = 250;
 const MIN_PUSH = STREAM_RATE * 2 / 10;
@@ -61,7 +62,7 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
   const closeLive = () => {
     const session = liveRef.current; liveRef.current = null;
     if (!session) return;
-    clearInterval(session.timer); session.closed = true; session.queue.clear();
+    clearInterval(session.timer); clearTimeout(session.drainTimer); session.draining = false; session.closed = true; session.queue.clear();
     if (session.id && !session.finished) session.api('voice.stream.cancel', { workspaceId: session.workspaceId, sessionId: session.id }).catch(() => {});
   };
   const dispose = useCallback(() => {
@@ -76,10 +77,14 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
     if (phase.current !== 'recording') return;
     cancelled.current = false; transition('transcribing');
     const current = recorder.current;
-    clearInterval(liveRef.current?.timer);
-    liveRef.current?.flushCapture();
-    stopTracks();
-    if (current?.state === 'recording') current.stop(); else liveRef.current?.finalize(null);
+    const session = liveRef.current, token = generation.current;
+    if (!session || session.closed) return;
+    clearInterval(session.timer); clearTimeout(timer.current); session.draining = true;
+    session.drainTimer = setTimeout(() => {
+      if (token !== generation.current || session.closed || liveRef.current !== session) return;
+      session.draining = false; session.flushCapture(); stopTracks();
+      if (current?.state === 'recording') current.stop(); else session.finalize(null);
+    }, DRAIN_MS);
   }, []);
   const cancel = useCallback(() => { cancelled.current = true; dispose(); transition('idle'); setError(''); setLive(EMPTY); setMode(null); }, [dispose]);
   const start = useCallback(async () => {
@@ -137,7 +142,7 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
       };
       tap.onaudioprocess = event => {
         event.outputBuffer.getChannelData(0).fill(0);
-        if (!current() || session.failed || session.closed || phase.current !== 'recording') return;
+        if (!current() || session.failed || session.closed || (phase.current !== 'recording' && !session.draining)) return;
         session.queue.push(floatToPCM16(resample(event.inputBuffer.getChannelData(0))));
       };
       setMode('preparing');
@@ -213,7 +218,7 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
       };
 
       recording?.start(1000); transition('recording');
-      timer.current = setTimeout(stop, MAX_MS);
+      timer.current = setTimeout(stop, MAX_MS - DRAIN_MS);
     } catch (e) {
       if (current()) { dispose(); transition('idle'); setMode(null); setError(e.name === 'NotAllowedError' ? 'Permiso de micrófono denegado. Habilítalo en los permisos del sistema y vuelve a grabar.' : e.message); }
     }

@@ -5,11 +5,13 @@
 export const HUBS = {
   tasks: { name: 'Trabajo', hint: 'Tareas de Phantom, borradores y misiones', tabs: [['cards', 'Tareas', 'phantom-cards'], ['tasks', 'Borradores', 'tasks'], ['mission', 'Misiones', 'mission']] },
   repo: { name: 'Git', hint: 'Ramas, historial y cola de integración', tabs: [['branches', 'Ramas', 'branches'], ['repo', 'Historial', 'repo'], ['incorporaciones', 'Cola', 'incorporaciones']] },
-  services: { name: 'Servicios', hint: 'Sitios, procesos y contenedores', tabs: [['services', 'Este proyecto', 'services'], ['docker', 'Docker', 'docker'], ['sites', 'Todos los proyectos', 'sites']] },
+  services: { name: 'Entorno', hint: 'Este proyecto, procesos y contenedores', tabs: [['services', 'Este proyecto', 'services'], ['processes', 'Procesos', 'processes'], ['docker', 'Docker', 'docker'], ['sites', 'Todos los proyectos', 'sites']] },
   context: { name: 'Contexto', hint: 'Documentos, memoria y skills', tabs: [['context', 'Documentos y memoria', 'context'], ['skills-catalog', 'Skills', 'skills-catalog']] },
-  workflows: { name: 'Automatizar', hint: 'Secuencias, navegador y código', tabs: [['workflows', 'Secuencias', 'workflows'], ['playwright', 'Navegador', 'playwright'], ['playground', 'Código', 'playground']] },
+  workflows: { name: 'Automatizar', hint: 'Pasos repetibles, navegador y código', tabs: [['workflows', 'Secuencias', 'workflows'], ['playwright', 'Navegador', 'playwright'], ['playground', 'Código', 'playground']] },
 };
 export const HUB_ORDER = ['tasks', 'repo', 'services', 'context', 'workflows'];
+export const HUB_DOCK = ['tasks', 'repo', 'services'];
+export const HUB_MORE = ['context', 'workflows'];
 
 // Panel types that used to stand alone now open their hub on the right tab.
 export const HUB_ALIAS = {

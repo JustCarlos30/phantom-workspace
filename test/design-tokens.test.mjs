@@ -87,22 +87,61 @@ test('drawn edges stay within budget', () => {
 });
 export { drawnEdges, sheets };
 
-test('light glass has inset relief, a spring and accessible opaque fallbacks only on chrome', () => {
+test('approved type roles use local families and three weights', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  for (const [role, value] of Object.entries({ display: '600 24px/30px', title: '600 17px/22px', headline: '600 14px/22px', body: '400 14px/22px', control: '500 14px/20px', support: '400 12px/16px', micro: '500 12px/16px' })) {
+    assert.equal(declarations(canvas, `--t-${role}`)[0], `${value} var(--sans)`);
+  }
+  for (const { name, css } of sheets) assert.doesNotMatch(css, /@import\s+url\([^)]*https?:|@font-face[^}]*https?:/i, name);
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  assert.match(sidebar, /\.rail-session-status\s*\{[^}]*flex-shrink: 0;[^}]*white-space: nowrap/);
+});
+
+test('sidebar keeps neutral selection, compact status and consistent control sizes', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  const source = readFileSync(path.join(root, 'src/components/SidebarPanels.jsx'), 'utf8');
+  for (const [name, value] of Object.entries({ bg: '#050505', surface: '#0d0d0d', 'surface-2': '#151515', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
+    assert.equal(declarations(canvas, `--${name}`)[0], value);
+  }
+  assert.doesNotMatch(declarations(canvas, '--glass-tint')[0], /--accent/);
+  assert.match(sidebar, /\.rail-panel-row\.selected\s*\{[^}]*background: var\(--fill-2\);[^}]*color: var\(--ink\)/);
+  assert.match(sidebar, /\.rail-session-row:has\(\.rail-session-dot\.warning\) \.rail-session-status\s*\{\s*color: var\(--attention\)/);
+  assert.doesNotMatch(sidebar, /box-shadow: 0 0 0 2px var\(--(?:attention|working)\)/);
+  assert.match(sidebar, /@media \(pointer: coarse\)[\s\S]*--target: 44px/);
+  assert.match(source, /className="rail-session-status">\{row.statusLabel\}/);
+  assert.match(source, /aria-current=\{active \? 'true' : undefined\}/);
+});
+
+test('sidebar status text retains AA over its selected neutral surface', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
+  const rgb = name => (declarations(canvas, `--${name}`)[0] || declarations(studio, `--${name}`)[0])
+    .slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
+  const luminance = values => values.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
+    .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  assert.match(sidebar, /background-color: var\(--surface\)/);
+  assert.match(sidebar, /background-image: none/);
+  const background = rgb('surface').map(v => v * .91 + .09);
+  for (const ink of ['ink', 'ink-on-glass', 'working', 'attention']) {
+    const a = luminance(rgb(ink)), b = luminance(background);
+    assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${ink} on selected sidebar`);
+  }
+});
+
+test('matte chrome has ivory keys, a spring and accessible opaque fallbacks only on chrome', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const tokens = canvas.match(/:root\s*\{([^}]+)\}/)?.[1];
   assert.ok(tokens);
-  for (const [token, minimum] of [['glass', 44], ['glass-thick', 60]]) {
-    const value = declarations(tokens, `--${token}`)[0];
-    const opacity = value?.match(/^color-mix\(in srgb, var\(--glass-tint\) (\d+(?:\.\d+)?)%, transparent\)$/)?.[1];
-    assert.ok(Number(opacity) >= minimum, `--${token} must be at least ${minimum}% opaque`);
-  }
-  const blur = declarations(tokens, '--glass-filter')[0]?.match(/blur\((\d+(?:\.\d+)?)px\)/)?.[1];
-  assert.ok(Number(blur) >= 34, '--glass-filter must blur at least 34px');
-  assert.match(declarations(tokens, '--glass-filter')[0], /saturate\(190%\)/);
-  assert.equal(declarations(tokens, '--on')[0], '#f1ecf8');
-  assert.equal(declarations(tokens, '--on-ink')[0], '#1a1226');
+  assert.equal(declarations(tokens, '--glass')[0], 'var(--surface)');
+  assert.equal(declarations(tokens, '--glass-thick')[0], 'color-mix(in srgb, var(--surface) 60%, var(--surface-2))');
+  assert.equal(declarations(tokens, '--glass-filter')[0], 'none');
+  assert.equal(declarations(tokens, '--glass-sheen')[0], 'none');
+  assert.equal(declarations(tokens, '--on')[0], '#f2f0eb');
+  assert.equal(declarations(tokens, '--on-ink')[0], '#141414');
   const chrome = declarations(tokens, '--shadow-chrome')[0];
-  assert.ok(split(chrome, ',').filter(layer => layer.startsWith('inset ')).length >= 2, 'Chrome needs top and bottom inset relief');
+  assert.doesNotMatch(chrome, /\binset\b/);
   assert.match(declarations(tokens, '--ease-spring')[0], /^linear\(/);
   assert.match(canvas, /@media\s*\(prefers-contrast:\s*more\)/);
   for (const preference of ['prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
@@ -141,7 +180,7 @@ test('workplane elevation aliases stay local and the canvas exposes environmenta
   assert.match(studio, /\.canvas-region \.canvas\s*\{[^}]*z-index:\s*1;[^}]*background-color:\s*transparent/);
 });
 
-test('spectral reading and state inks retain AA contrast on opaque planes', () => {
+test('neutral reading and state inks retain AA contrast on opaque planes', () => {
   const css = readFileSync(path.join(root, 'src/studio.css'), 'utf8');
   const color = name => {
     const value = css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6});`, 'i'))?.[1];
@@ -150,9 +189,10 @@ test('spectral reading and state inks retain AA contrast on opaque planes', () =
     return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
   };
   for (const plane of ['bg', 'surface', 'surface-2', 'surface-3', 'terminal-bg']) {
-    for (const ink of ['ink', 'muted', 'working', 'attention']) {
+    for (const ink of ['ink', 'muted', 'working', 'attention', 'action', 'success', 'danger', 'idle']) {
       const a = color(plane), b = color(ink), ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
-      assert.ok(ratio >= 4.5, `--${ink} on --${plane}: ${ratio.toFixed(2)} < 4.5`);
+      const minimum = ink === 'idle' ? 3 : 4.5;
+      assert.ok(ratio >= minimum, `--${ink} on --${plane}: ${ratio.toFixed(2)} < ${minimum}`);
     }
   }
 });
@@ -212,7 +252,7 @@ test('reading and state inks retain AA on translucent wells, including a white i
     const alpha = Number(percent) / 100;
     for (const background of [[0, 0, 0], [1, 1, 1], rgb('surface-3')]) {
       const composite = rgb(base).map((v, i) => v * alpha + background[i] * (1 - alpha));
-      for (const ink of ['ink', 'muted', 'working', 'attention']) {
+      for (const ink of ['ink', 'muted', 'working', 'attention', 'action', 'success', 'danger']) {
         const ratio = contrast(rgb(ink), composite);
         assert.ok(ratio >= 4.5, `--${ink} on --${token}: ${ratio.toFixed(2)} < 4.5`);
       }
@@ -230,16 +270,27 @@ test('chrome reading inks retain AA across the existing CSS atmospheres and proj
   const over = (front, back, alpha) => front.map((v, i) => v * alpha + back[i] * (1 - alpha));
   const luminance = rgb => rgb.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
     .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+  assert.match(declarations(tokens, '--glass-tint')[0], /^#[\da-f]{6}$/i);
+  assert.ok(luminance(token('glass-tint')) <= luminance(token('surface')));
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const shell = sheets.find(sheet => sheet.name === 'src/shell.css').css;
+  const panels = sheets.find(sheet => sheet.name === 'src/panels.css').css;
+  assert.doesNotMatch(panels, /\.dock-action\[data-type\][^{}]*\{[^}]*var\(--type\b/);
+  assert.match(sidebar, /\.context-menu-panel\s*\{[^}]*background-color: var\(--menu\)/);
+  assert.match(chat, /\.pc-models\s*\{[^}]*background: var\(--menu\)/);
+  for (const [, selectors, body] of shell.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (selectors.includes('.dock-action'))
+      for (const background of declarations(body, 'background(?:-color)?')) assert.doesNotMatch(background, /var\(--type\b/);
+  }
   const backgrounds = [token('bg'), ...[...studio.matchAll(/--atmosphere:[^;}]+/g)]
     .flatMap(([value]) => [...value.matchAll(/#[\da-f]{6}\b/gi)].map(([hex]) => rgb(hex)))];
-  // Full intensity at each gradient's brightest stop and top of the sheen.
-  // Personal images are runtime content; opaque accessibility modes remain available.
-  for (const accent of ['c-lilac', 'c-iris', 'c-mint', 'c-sand', 'c-rose', 'c-sky']) {
-    const tint = over(token(accent), token('surface-3'), .13);
+  // Opaque chrome stays independent of atmospheres and project accents.
+  for (const accent of ['action', 'attention', 'success', 'danger', 'ink']) {
     for (const material of ['glass', 'glass-thick']) {
-      const alpha = Number(declarations(tokens, `--${material}`)[0].match(/ (\d+)%/)[1]) / 100;
       for (const background of backgrounds) {
-        const composite = over([1, 1, 1], over(tint, background, alpha), 31 / 255);
+        const plane = material === 'glass' ? token('surface') : over(token('surface'), token('surface-2'), .6);
+        const composite = over(plane, background, 1);
         for (const ink of ['ink', 'ink-on-glass']) {
           const a = luminance(token(ink)), b = luminance(composite);
           const ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
@@ -259,4 +310,21 @@ test('materials retire the old activity glint and keep auxiliary status indicato
     const css = sheets.find(sheet => sheet.name === `src/${name}.css`).css;
     assert.doesNotMatch(css, /animation\s*:[^;}]*\binfinite\b/, `${name}: no continuous material/status animation`);
   }
+});
+
+test('black planes step up in order and menus own the only raised plane', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const menus = sheets.find(sheet => sheet.name === 'src/menus.css').css;
+  const level = name => parseInt(declarations(canvas, `--${name}`)[0].slice(1, 3), 16);
+  const ladder = ['bg', 'terminal-bg', 'surface', 'surface-2', 'menu', 'surface-3'].map(level);
+  assert.deepEqual(ladder, [...ladder].sort((a, b) => a - b), 'Planes must step from the black canvas upwards.');
+  assert.ok(level('bg') <= 8, 'The canvas stays black.');
+  assert.ok(level('surface-3') <= 32, 'No plane rises into grey.');
+  assert.match(menus, /background-color: var\(--menu\)/);
+  assert.match(menus, /border-color: var\(--menu-edge\)/);
+  assert.match(menus, /select:not\(\[multiple\]\):not\(\[size\]\)\s*\{[^}]*appearance: base-select/);
+  assert.match(menus, /::picker\(select\)\s*\{[^}]*appearance: base-select/);
+  // The current value is ink, weight and a mark; the only fill is hover/keyboard.
+  assert.match(menus, /\[aria-selected="true"\]:not\(:hover, :focus-visible\)[^{]*\{[^}]*background: none/s);
+  assert.doesNotMatch(menus, /outline:\s*2px/);
 });

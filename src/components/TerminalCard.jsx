@@ -3,6 +3,7 @@ import { ArrowUpRight, GitBranch, Folder, RotateCcw } from 'lucide-react';
 import { ProviderTile, providerKey } from './Glyphs';
 import { AGENT_LABELS } from './AgentIdentity';
 import { useTerminalTail } from '../hooks/useTerminalTail';
+import { formatSince, stateTone, useNow } from '../hooks/terminalPulse.mjs';
 import { ModeSwitch } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 
@@ -60,6 +61,9 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
   const agent = node.data?.agent || {};
   const provider = providerOf(node, tail?.foreground);
   const state = effectiveStatus(agent, tail?.screenState);
+  const updatedAt = agent.updatedAt != null && agent.updatedAt !== '' ? new Date(agent.updatedAt) : null;
+  const hasTime = !!updatedAt && Number.isFinite(updatedAt.getTime());
+  const now = useNow(!overview && !!agent.step && hasTime);
   const preparing = !sessionId && node.data?.launchState === 'creating';
   const status = !connected ? 'disconnected' : !sessionId ? 'lost' : tail?.status || 'connecting';
   const { cwd, branch, where } = locationOf(node, workspace);
@@ -77,7 +81,11 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
       {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
       {state && <AgentState agent={agent} status={state} />}
       {overview && <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>}
-      {agent.step && <p className="pt-card-step" title={agent.step}>{agent.step}</p>}
+      {agent.step && (overview ? <p className="pt-card-step" title={agent.step}>{agent.step}</p> : <div className="pt-card-now" data-tone={stateTone(state)}>
+        <i aria-hidden="true" />
+        <p key={agent.step} className="pt-card-step" title={agent.step}>{agent.step}</p>
+        {hasTime && <time dateTime={updatedAt.toISOString()} title={`${updatedAt.toLocaleString()} · ${agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}`}>{formatSince(now - updatedAt.getTime())}</time>}
+      </div>)}
     </div>
     {overview && !agent.step && <p className="pt-card-glimpse" aria-hidden="true">{glimpse || (ended || preparing ? '' : '…')}</p>}
     {!overview && <div className={`pt-card-screen ${alternate ? 'is-alternate' : ''}`} role="log" aria-label={`Últimas líneas de ${node.title}`} aria-live="off" style={alternate ? { '--rows': tail.lines.length || 1, '--cols': tail.cols || 80 } : undefined}>
