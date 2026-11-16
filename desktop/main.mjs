@@ -145,7 +145,8 @@ async function hostInvoke(method, payload = {}) {
     // Validation failures and request timeouts preserve the channel. Never replay mutations:
     // after a timeout or disconnect their outcome may still be unknown.
     if (connected && transportLost) {
-      connected.reconnect();
+      // null ensures reconnection without forcing replacement of a live socket.
+      connected.reconnect(error.transport ?? null);
     }
     throw Object.assign(new Error(`Host: ${error.message}`), { code: error.code });
   }
