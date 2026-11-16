@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import { contextAdvice, contextNudge, nudgeDismissal, contextUse as measuredContextUse, mergeChat } from './chatState.js';
 const contextUse = meta => measuredContextUse({ contextSource: 'claude:request-v1', ...meta });
 
+test('mergeChat conserva las partes y mensajes que no cambian durante streaming', () => {
+  const untouched = { id: 'user', role: 'user', parts: [{ type: 'text', text: 'Hola' }] };
+  const previous = { id: 'assistant', status: 'streaming', parts: [
+    { type: 'tool', id: 'read', name: 'read', status: 'done', input: { path: 'a.txt' }, output: 'contenido' },
+    { type: 'text', text: 'Respuesta' },
+  ], usage: { outputTokens: 2 } };
+  const incoming = structuredClone(previous);
+  incoming.parts[1].text += ' alargada';
+  const merged = mergeChat({ provider: 'claude', messages: [untouched, previous] }, { provider: 'claude', running: true, messages: [incoming] });
+  assert.strictEqual(merged.messages[0], untouched);
+  assert.notStrictEqual(merged.messages[1], previous);
+  assert.strictEqual(merged.messages[1].parts[0], previous.parts[0]);
+  assert.strictEqual(merged.messages[1].usage, previous.usage);
+  assert.notStrictEqual(merged.messages[1].parts[1], previous.parts[1]);
+  assert.equal(merged.messages[1].parts[1].text, 'Respuesta alargada');
+});
+
 test('Legacy, invalid and cleared state cannot retain context warnings', () => {
   for (const meta of [{ contextTokens: 164000 }, {}, ...[NaN, Infinity, -1, null].map(contextTokens => ({ contextTokens, contextSource: 'claude:request-v1' }))]) {
     assert.equal(measuredContextUse(meta), null);

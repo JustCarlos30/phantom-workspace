@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
+import { createRequire, registerHooks } from 'node:module';
 import { createHost } from '../host/server.mjs';
 import { detectAgent, tailLines, screenSignal, nextScreenState } from '../host/terminals.mjs';
 
@@ -11,6 +11,46 @@ const require = createRequire(import.meta.url);
 const { Terminal } = require('@xterm/headless');
 async function until(fn, ms = 6000) { const end = Date.now() + ms; while (Date.now() < end) { const value = await fn(); if (value) return value; await new Promise(r => setTimeout(r, 30)); } throw new Error('Timed out'); }
 const write = (terminal, data) => new Promise(resolve => terminal.write(data, resolve));
+
+const rendererImports = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === './useWorkspace' && context.parentURL === new URL('../src/hooks/useTerminalTail.js', import.meta.url).href) {
+      return { url: 'data:text/javascript,export const subscribe = () => () => {};', shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+});
+let shareTerminalTail, shouldResetTerminalTail;
+try {
+  ({ shareTerminalTail, shouldResetTerminalTail } = await import('../src/hooks/useTerminalTail.js'));
+} finally {
+  rendererImports.deregister();
+}
+
+test('the same terminal session does not reset the tail', () => {
+  assert.equal(shouldResetTerminalTail('session-a', 'session-a'), false);
+});
+
+test('a different terminal session resets the tail', () => {
+  assert.equal(shouldResetTerminalTail('session-a', 'session-b'), true);
+  assert.equal(shouldResetTerminalTail('session-a', null), true);
+  assert.equal(shouldResetTerminalTail(null, 'session-a'), true);
+});
+
+test('identical terminal tails retain the previous reference', () => {
+  const previous = { lines: ['hello', '> '], screenState: 'awaiting_input', foreground: { command: 'bash', shell: true } };
+  assert.equal(shareTerminalTail(previous, structuredClone(previous)), previous);
+});
+
+for (const [field, value] of Object.entries({ lines: ['changed'], screenState: 'working', foreground: { command: 'codex', shell: false } })) {
+  test(`a change in terminal tail ${field} produces a new reference`, () => {
+    const previous = { lines: ['hello', '> '], screenState: 'awaiting_input', foreground: { command: 'bash', shell: true } };
+    const next = { ...structuredClone(previous), [field]: value };
+    const shared = shareTerminalTail(previous, next);
+    assert.notEqual(shared, previous);
+    assert.deepEqual(shared, next);
+  });
+}
 
 test('detectAgent recognises agent CLIs by comm, argv and install path', () => {
   assert.equal(detectAgent('opencode', ['opencode']), 'OpenCode');

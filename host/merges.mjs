@@ -15,10 +15,44 @@ const now = () => new Date().toISOString();
 const line = (value, label, max) => { text(value, label, max); assert(!/[\x00-\x1f\x7f]/.test(value), `${label} debe ser una sola línea`); return value.trim(); };
 const count = value => value ? value.split('\n').length : 0;
 
+export class GitPolling {
+  constructor(execute = git) { this.entries = new Map(); this.active = 0; this.waiters = []; this.execute = execute; }
+  invalidate() { this.entries.clear(); }
+  read(key, fn, ttl = 2000) {
+    const previous = this.entries.get(key);
+    if (previous && (previous.pending || previous.until > Date.now())) return previous.promise;
+    const entry = { pending: true, until: 0 };
+    entry.promise = Promise.resolve().then(fn).then(value => {
+      entry.pending = false; entry.until = Date.now() + ttl;
+      if (!ttl && this.entries.get(key) === entry) this.entries.delete(key);
+      return value;
+    }, error => {
+      if (this.entries.get(key) === entry) this.entries.delete(key);
+      throw error;
+    });
+    this.entries.set(key, entry);
+    for (const [id, item] of this.entries) if (!item.pending && item.until <= Date.now()) this.entries.delete(id);
+    return entry.promise;
+  }
+  async limit(fn) {
+    if (this.active >= 8) await new Promise(resolve => this.waiters.push(resolve));
+    else this.active++;
+    try { return await fn(); }
+    finally { const next = this.waiters.shift(); if (next) next(); else this.active--; }
+  }
+  git(cwd, args) {
+    // Only immutable object queries survive a poll; checkout and file facts stay fresh.
+    const command = args[0] === '--literal-pathspecs' ? args[1] : args[0];
+    const immutable = ['rev-list', 'diff', 'merge-tree', 'ls-tree'].includes(command) && args.some(arg => /^[0-9a-f]{40,64}(?:\.\.\.?[0-9a-f]{40,64})?$/.test(arg));
+    return this.read(JSON.stringify(['git', cwd, args]), () => this.limit(() => this.execute(cwd, args)), immutable ? 2000 : 0);
+  }
+}
+
 export class Merges {
   constructor({ store, terminals, mutate, emit }) {
     Object.assign(this, { store, terminals, mutate, emit });
     this.running = new Set(); this.bases = new Map(); this.draining = new Set();
+    this.polling = new GitPolling();
     // A merge cannot outlive the host: Git either finished it or left it for the next attempt.
     let interrupted = false;
     for (const w of store.state.workspaces) for (const item of w.integration?.queue ?? []) if (item.status === 'merging') { item.status = 'queued'; interrupted = true; }
@@ -27,6 +61,7 @@ export class Merges {
   of(w) { return w.integration ?? { enabled: false, plan: '', queue: [] }; }
   // Mutations re-resolve the workspace: earlier awaits may have let other writes land.
   change(workspaceId, fn) {
+    this.polling.invalidate();
     return this.mutate(workspaceId, () => {
       const w = this.store.getWorkspace(workspaceId);
       w.integration = { plan: '', ...this.of(w) };
@@ -69,7 +104,12 @@ export class Merges {
     return { env, instructions };
   }
 
-  async status(w, requestId) {
+  status(w, requestId) {
+    const key = JSON.stringify(['merge.status', w, requestId, this.terminals.sessions.map(({ nodeId, status }) => [nodeId, status])]);
+    return this.polling.read(key, () => this.readStatus(w, requestId), 0);
+  }
+  async readStatus(w, requestId) {
+    const git = (cwd, args) => this.polling.git(cwd, args);
     const integration = this.of(w), orchestratorNode = w.nodes.find(n => n.type === 'terminal' && n.data?.role === 'orchestrator');
     const merged = integration.queue.filter(item => item.status === 'merged'), recent = [...merged].sort((a, b) => (Date.parse(a.finishedAt) || 0) - (Date.parse(b.finishedAt) || 0)).slice(-30);
     const median = values => { values = values.filter(Number.isFinite).sort((a, b) => a - b); const n = values.length; return n ? (values[Math.floor((n - 1) / 2)] + values[Math.floor(n / 2)]) / 2 : null; };
@@ -86,7 +126,7 @@ export class Merges {
     let base;
     try { base = await this.base(w); } catch (error) { return { ...result, reason: error.message }; }
     const { source } = base;
-    const [guard, dirty] = await Promise.all([guardState(source), git(source, ['status', '--porcelain', '--untracked-files=no']).then(count, () => null)]);
+    const [guard, dirty] = await Promise.all([this.polling.limit(() => guardState(source)), git(source, ['status', '--porcelain', '--untracked-files=no']).then(count, () => null)]);
     const terminals = w.nodes.filter(n => n.type === 'terminal' && n.data?.worktree?.branch && n.data.role !== 'orchestrator').slice(0, 80);
     const facts = new Map(await Promise.all(terminals.map(async node => {
       const { branch, path: tree } = node.data.worktree;
@@ -178,6 +218,12 @@ export class Merges {
   }
 
   async handle(method, p) {
+    if (['merge.status', 'merge.queue'].includes(method)) return this.act(method, p);
+    this.polling.invalidate();
+    try { return await this.act(method, p); }
+    finally { this.polling.invalidate(); }
+  }
+  async act(method, p) {
     if (method === 'merge.status') return this.status(this.store.getWorkspace(p.workspaceId), p.requestId);
     if (method === 'merge.configure') {
       const w = this.store.getWorkspace(p.workspaceId);
@@ -340,6 +386,6 @@ export class Merges {
         if (integration.auto) integration.autoBlocked = { reason: error.message, at: now() };
       });
       throw error;
-    } finally { this.running.delete(w.id); if (!this.draining.has(w.id)) void this.drain(w.id); }
+    } finally { this.polling.invalidate(); this.running.delete(w.id); if (!this.draining.has(w.id)) void this.drain(w.id); }
   }
 }

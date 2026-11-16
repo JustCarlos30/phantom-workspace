@@ -1,3 +1,5 @@
+import { structuralShare } from './structuralShare.js';
+
 // Fold a host `chat.update` into the loaded conversation: messages are
 // upserted by ID, so a streamed reply simply replaces its previous version.
 export function mergeChat(chat, event) {
@@ -5,7 +7,7 @@ export function mergeChat(chat, event) {
   const messages = [...chat.messages];
   for (const message of event.messages || []) {
     const index = messages.findIndex(m => m.id === message.id);
-    if (index >= 0) messages[index] = message; else messages.push(message);
+    if (index >= 0) messages[index] = structuralShare(messages[index], message); else messages.push(message);
   }
   return { ...chat, running: event.running, meta: event.meta ?? chat.meta, messages, queue: event.queue ?? chat.queue ?? [] };
 }

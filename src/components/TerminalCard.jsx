@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, GitBranch, Folder, RotateCcw } from 'lucide-react';
 import { ProviderTile, providerKey } from './Glyphs';
 import { AGENT_LABELS } from './AgentIdentity';
@@ -53,11 +53,18 @@ export function locationOf(node, workspace) {
   return { cwd, folder, branch, where };
 }
 
-export default function TerminalCard({ node, workspace, api, notify, overview = false, connected = true, onOpen, onRelaunch }) {
+export default function TerminalCard({ node, workspace, api, notify, overview = false, connected = true, enabled = true, onOpen, onRelaunch }) {
+  const card = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting));
+    observer.observe(card.current);
+    return () => observer.disconnect();
+  }, []);
   const sessionId = node.data?.sessionId;
   const lines = Math.max(4, Math.min(40, Math.floor(((node.height || 400) - 150) / LINE_HEIGHT)));
   // Overview keeps a few lines so the glimpse can skip a blank prompt row.
-  const { tail, error } = useTerminalTail({ sessionId, api, lines: overview ? 4 : lines, connected });
+  const { tail, error } = useTerminalTail({ sessionId, api, lines: overview ? 4 : lines, connected, enabled: enabled && visible });
   const agent = node.data?.agent || {};
   const provider = providerOf(node, tail?.foreground);
   const state = effectiveStatus(agent, tail?.screenState);
@@ -75,7 +82,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     : error ? `No se pudo leer la salida: ${error}`
     : !tail ? 'Leyendo la salida…' : 'Sin salida todavía.';
   const glimpse = overview ? (tail?.lines || []).filter(line => line.trim()).slice(-3).join('\n') : null;
-  return <div className={`pt-card ${overview ? 'is-overview' : ''}`} data-agent={state || 'idle'} data-session={status} onDoubleClick={e => { if (!e.target.closest('button')) onOpen(); }}>
+  return <div ref={card} className={`pt-card ${overview ? 'is-overview' : ''}`} data-agent={state || 'idle'} data-session={status} onDoubleClick={e => { if (!e.target.closest('button')) onOpen(); }}>
     <div className="pt-card-identity">
       {!overview && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />}
       {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
