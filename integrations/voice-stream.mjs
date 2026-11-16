@@ -2,11 +2,16 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { requireWorkspace, stateDirectory, executableOnPath } from './run-manager.mjs';
 
 const engines = new Map();
 const sessions = new Map();
 const METHODS = new Set(['voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel']);
+
+export function resolveStreamScript(argv, bundledScript) {
+  return argv.map(arg => path.basename(arg) === 'voice-stream.py' ? bundledScript : arg);
+}
 
 export function buildStreamArgv(argv, settings = {}) {
   const language = settings.voiceLanguage ?? 'es';
@@ -112,6 +117,9 @@ export async function handleVoiceStream(method, payload, context) {
       || config.streamArgv.length < 2 || config.streamArgv.length > 40
       || config.streamArgv.some(arg => typeof arg !== 'string' || !arg || arg.length > 4096 || arg.includes('\0'))
       || (config.gpuLibraryPath !== undefined && (typeof config.gpuLibraryPath !== 'string' || config.gpuLibraryPath.length > 8192))) throw new Error('Runtime sin streaming; ejecuta npm run setup:voice -- --model large-v3-turbo --device cuda --replace');
+    const bundled = fileURLToPath(new URL('../scripts/voice-stream.py', import.meta.url));
+    const bundledStat = await lstat(bundled).catch(() => null);
+    if (bundledStat?.isFile() && !bundledStat.isSymbolicLink()) config.streamArgv = resolveStreamScript(config.streamArgv, bundled);
     config.streamArgv = buildStreamArgv(config.streamArgv, settings);
     let engine = engines.get(root);
     if (engine?.session) throw new Error('Ya hay un dictado activo. Detén o cancela la otra captura.');
