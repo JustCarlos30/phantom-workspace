@@ -4,7 +4,7 @@ export const BACKGROUNDS = [
   ['tide', 'Marea', 'Profundidad verde petróleo'],
   ['ember', 'Brasa', 'Luz cálida y grafito'],
   ['plain', 'Grafito', 'Sin atmósfera, solo espacio'],
-  ['ascii', 'Acuario ASCII', 'Medusas, mariposas y peces multicolor en ASCII animado'],
+  ['ascii', 'Medusas ASCII', 'Medusas multicolor que ascienden, dibujadas en ASCII'],
 ];
 export const ACCENTS = [['blue', 'Azul', '#5b9cff'], ['orange', 'Naranja', '#f3a45b'], ['green', 'Verde', '#65ba83'], ['red', 'Rojo', '#f27670'], ['ivory', 'Marfil', '#f2f0eb']];
 const VERSION = 4;

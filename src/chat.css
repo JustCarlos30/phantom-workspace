@@ -223,7 +223,8 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-subagent-hidden { color: var(--muted); font-style: italic; }
 .pc-subagent-prompt { margin: 4px 0 0; padding: 8px 10px; max-height: 200px; overflow: auto; border-radius: var(--r-ctl); background: var(--fill); color: var(--ink); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
 .pc-subagent-output { margin-top: 4px; }
-.pc-phantom-link { display: grid; gap: 6px; min-width: 0; }
+.pc-phantom-link { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
+.pc-phantom-link > * { min-width: 0; }
 .pc-phantom-run .pc-subagent-head { flex-wrap: wrap; }
 .pc-phantom-run .pc-subagent-steps { max-height: 308px; }
 .pc-phantom-id { color: var(--muted); font-size: 11px; }
