@@ -222,6 +222,18 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-subagent-hidden { color: var(--muted); font-style: italic; }
 .pc-subagent-prompt { margin: 4px 0 0; padding: 8px 10px; max-height: 200px; overflow: auto; border-radius: var(--r-ctl); background: var(--fill); color: var(--ink); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
 .pc-subagent-output { margin-top: 4px; }
+.pc-phantom-link { display: grid; gap: 6px; min-width: 0; }
+.pc-phantom-run .pc-subagent-head { flex-wrap: wrap; }
+.pc-phantom-id { color: var(--muted); font-size: 11px; }
+.pc-phantom-status { margin-left: auto; color: var(--muted); }
+.pc-phantom-status.is-live { color: var(--working); }
+.pc-phantom-status.is-blocked { color: var(--attention); }
+.pc-phantom-status.is-done { color: var(--success); }
+.pc-phantom-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; color: var(--muted); }
+.pc-phantom-checks { margin: 4px 0; padding-left: 20px; }
+.pc-phantom-open { justify-self: start; color: var(--ink); font-size: 12px; }
+.pc-phantom-warning, .pc-phantom-command { margin: 0; color: var(--muted); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .pc-phantom-run .pc-subagent-more > summary, .pc-phantom-run .pc-subagent-more > summary > svg { transition: none; } }
 .pc-working-agents { color: var(--ink); }
 
 .pc-thinking { color: var(--ink-3); font: var(--t-support); }

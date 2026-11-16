@@ -11,7 +11,9 @@ import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, conte
 import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
-import { ProviderGlyph, ProviderTile } from './Glyphs';
+import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
+import { phantomRunIds, summarizePhantomRun } from '../hooks/phantom-run-link.mjs';
+import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 
@@ -189,6 +191,51 @@ function ToolRow({ part }) {
   </div></details></li>;
 }
 
+export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    let disposed = false, timer;
+    setState(null);
+    if (typeof api !== 'function' || !workspaceId) {
+      setState({ error: true });
+      return;
+    }
+    const refresh = async () => {
+      try {
+        const [detail, controllers] = await Promise.all([
+          api('phantom.detail', { workspaceId, topic: 'tasks', id }),
+          api('phantom.controllers', { workspaceId }),
+        ]);
+        if (disposed) return;
+        if (!detail || detail.available === false || detail.task?.available === false || controllers?.available === false || !Array.isArray(controllers?.items)) throw new Error('No disponible');
+        const summary = summarizePhantomRun(detail, itemsOf(controllers), id);
+        setState(summary);
+        if (summary.live) timer = setTimeout(refresh, 3000);
+      } catch {
+        if (!disposed) setState({ error: true });
+      }
+    };
+    refresh();
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [api, workspaceId, id]);
+  if (!state) return null;
+  if (state.error) return <p className="pc-phantom-warning" role="status">Seguimiento Phantom no disponible.</p>;
+  return <section className="pc-subagent pc-phantom-run" aria-label={`Encargo Phantom ${id}`}>
+    <header className="pc-subagent-head">
+      <span className="pc-subagent-mark" aria-hidden="true"><PhantomGlyph size={16} /></span>
+      <span className="pc-subagent-label">Encargo Phantom</span>
+      <code className="pc-phantom-id" title={id}>{id.slice(0, 13)}</code>
+      <span className={`pc-phantom-status is-${state.tone}`} role="status">{state.label}</span>
+    </header>
+    <p className="pc-subagent-goal" title={state.goal}>{state.goal}</p>
+    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>{state.duration}</span>}</p>
+    {state.line && <p className="pc-subagent-said">{state.line}</p>}
+    {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}
+    {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Checks · {state.passed}/{state.total} pasados</summary><ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
+    {onOpenPanel && <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, state.goal)}>Abrir en Phantom</button>}
+  </section>;
+}
+
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const KIND_PHRASE = {
   read: items => `leyó ${plural(new Set(items.map(part => part.detail || part.id)).size, 'archivo', 'archivos')}`,
@@ -332,6 +379,8 @@ function groupParts(parts) {
   for (const part of parts) {
     if (part.type === 'tool' && asked.has(part.id)) continue;
     if (isSubagent(part)) { groups.push({ type: 'subagent', part }); continue; }
+    const ids = phantomRunIds(part);
+    if (ids.length) { groups.push({ type: 'phantom', part, ids }); continue; }
     const last = groups.at(-1);
     if (part.type === 'tool' && last?.type === 'tools') last.items.push(part);
     else groups.push(part.type === 'tool' ? { type: 'tools', items: [part] } : part);
@@ -340,12 +389,12 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
   if (message.role === 'user') return <div className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></div>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} />;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
@@ -356,6 +405,8 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
   return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
     {groups.map((group, i) => group.type === 'tools'
       ? <ToolGroup key={i} items={group.items} />
+      : group.type === 'phantom'
+        ? <div key={group.part.id} className="pc-phantom-link">{group.ids.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}<ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -654,7 +705,7 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
   return '';
 }
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
   const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
@@ -752,7 +803,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
             <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
           </dl>}
         </EmptyState>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
