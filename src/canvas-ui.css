@@ -116,9 +116,6 @@
 .button,
 .icon-button,
 .rail-heading button,
-.project-item,
-.project-initials,
-.open-folder,
 .rail-bottom>button,
 .search-command,
 .canvas-navigation button,
@@ -143,7 +140,6 @@
 .canvas-popover>button,
 .canvas-zoom-presets button,
 .background-upload,
-.accent-options button,
 .activity-tray button:not(.icon-button),
 .activity-base input,
 .plugin-surface .tw-section,
@@ -167,8 +163,7 @@
 .panel-index,
 .context-menu,
 .toast,
-.canvas-popover,
-.background-option { border-radius: var(--r-obj); }
+.canvas-popover { border-radius: var(--r-obj); }
 .tw-palette,
 .app-dialog,
 .attention-tray,
@@ -229,10 +224,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 }
 .rail-collapse, .rail-collapsed-project { display: none; }
 @media (min-width: 851px) {
-  .rail-collapsed .rail-collapsed-project { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 4px; border-radius: var(--r-ctl); font-size: 12px; font-weight: 600; color: var(--ink); min-width: 0; }
-  .rail-collapsed-project:hover { background: var(--island-hover); }
-  .rail-collapsed-project > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rail-collapsed-project .project-initials { width: 24px; height: 24px; border-radius: var(--r-ctl); background: var(--accent-soft); color: var(--accent); }
+  .rail-collapsed .rail-collapsed-project { display: flex; }
 }
 @media (max-width: 850px) { .project-rail { border-radius: 0 var(--r-obj) var(--r-obj) 0; } }
 
@@ -699,14 +691,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 
 /* ---------- Appearance ---------- */
 .appearance-panel h2 { font-weight: 600; }
-.background-option { border-color: var(--hairline); border-radius: var(--r-obj); padding: 5px 5px 9px; }
-.background-option:hover { border-color: var(--hairline); background: var(--fill); }
-.background-option[aria-pressed=true] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.background-option[aria-pressed=true] > svg { color: var(--accent); }
 .background-preview { border-radius: var(--r-ctl); }
 .background-upload { border: 1px dashed var(--hairline); border-radius: var(--r-obj); }
-.accent-options button { border-radius: var(--r-ctl); }
-.accent-options button:hover, .accent-options button[aria-pressed=true] { background: var(--fill-2); }
 .grid-toggle, .appearance-footer { border-top-color: var(--hairline); }
 
 /* ---------- First run ---------- */

@@ -45,7 +45,7 @@ export function Appearance({ appearance, update, reset, workspace, interfaceScal
       <Row label="Intensidad" htmlFor="background-intensity"><input id="background-intensity" className="st-range" type="range" min="0" max="100" value={appearance.intensity} onChange={e => update({ intensity: Number(e.target.value) })} /><output htmlFor="background-intensity">{appearance.intensity}%</output></Row>
     </Group>
     <Group title="Color de acento">
-      <div className="st-block"><div className="accent-options">{ACCENTS.map(([key, name, color]) => <button type="button" key={key} aria-label={`Acento ${name}`} aria-pressed={appearance.accent === key} style={{ '--swatch': color }} onClick={() => update({ accent: key })}><span>{appearance.accent === key && <Check size={14} />}</span>{name}</button>)}</div></div>
+      <div className="st-block"><div className="accent-options" role="group" aria-label="Color de acento">{ACCENTS.map(([key, name, color]) => <button type="button" key={key} aria-label={`Acento ${name}`} aria-pressed={appearance.accent === key} style={{ '--swatch': color }} onClick={() => update({ accent: key })}><span>{appearance.accent === key && <Check size={14} />}</span>{name}</button>)}</div></div>
     </Group>
     <Group title="Gengar">
       <Row label="Mostrar Gengar"><Switch label="Mostrar Gengar" checked={appearance.gengar} onChange={gengar => update({ gengar })} /></Row>
