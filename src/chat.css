@@ -193,7 +193,8 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 
 /* Sub-agent: a delegated piece of work, framed as its own small card with an
    accent rail while it runs, so a delegation never hides among tool rows. */
-.pc-subagent { position: relative; display: grid; gap: 6px; padding: 10px 12px 10px 14px; border-radius: var(--r-ctl); background: var(--fill); font-size: 12px; overflow: hidden; }
+.pc-subagent { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 6px; padding: 10px 12px 10px 14px; border-radius: var(--r-ctl); background: var(--fill); font-size: 12px; overflow: hidden; }
+.pc-subagent > * { min-width: 0; }
 .pc-subagent::before { content: none; }
 .pc-subagent.is-running::before { background: var(--accent); }
 .pc-subagent.is-error { background: color-mix(in srgb, var(--danger) 6%, var(--surface)); }
