@@ -418,7 +418,7 @@ function Hub({ type, ...props }) {
   const [, , content] = hubTab(type, tab);
   return <div className="hub" data-hub={type}>
     <div className="hub-bar"><div className="hub-tabs" role="tablist" aria-label={hub.name}>{hub.tabs.map(([id, name]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => pick(id)}>{name}</button>)}</div></div>
-    <div className="hub-body" role="tabpanel" aria-label={hub.tabs.find(item => item[0] === tab)?.[1]}>{content === 'sites' ? <GlobalSites api={props.api} embedded /> : <ToolContent type={content} bare {...props} />}</div>
+    <div className="hub-body" role="tabpanel" aria-label={hub.tabs.find(item => item[0] === tab)?.[1]}>{content === 'sites' ? <GlobalSites api={props.api} onOpenPanel={props.onOpenPanel} embedded /> : <ToolContent type={content} bare {...props} />}</div>
   </div>;
 }
 
