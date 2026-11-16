@@ -1,6 +1,7 @@
 import { _electron as electron } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,6 +41,32 @@ const page = await app.firstWindow(); page.setDefaultTimeout(15000);
 const errors = []; page.on('pageerror', error => errors.push(error.message));
 const invoke = (method, payload = {}) => page.evaluate(([m, p]) => window.phantom.invoke(m, p), [method, payload]);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+// Electron helpers and the detached host outlive a SIGKILLed main process, so
+// snapshot the whole tree (plus anything bound to this test's profile) and reap it.
+function processTable() {
+  const table = [];
+  for (const entry of fs.readdirSync('/proc')) {
+    if (!/^\d+$/.test(entry)) continue;
+    try {
+      const stat = fs.readFileSync(`/proc/${entry}/stat`, 'utf8');
+      const ppid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+      const cmdline = fs.readFileSync(`/proc/${entry}/cmdline`, 'utf8');
+      table.push({ pid: Number(entry), ppid, cmdline });
+    } catch {}
+  }
+  return table;
+}
+function testProcesses(roots) {
+  const table = processTable();
+  const found = new Set(roots.filter(Boolean));
+  for (const { pid, cmdline } of table) if (cmdline.includes(env.PHANTOM_WORKSPACE_HOME) || cmdline.includes(temp)) found.add(pid);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const { pid, ppid } of table) if (found.has(ppid) && !found.has(pid)) { found.add(pid); grew = true; }
+  }
+  found.delete(process.pid);
+  return found;
+}
 let hostPid;
 try {
   await page.waitForSelector('.app-shell');
@@ -146,6 +173,7 @@ try {
   console.error(error);
   process.exitCode = 1;
 } finally {
+  const leftovers = testProcesses([electronProcess.pid]);
   if (hostPid) {
     const command = await readFile(`/proc/${hostPid}/cmdline`, 'utf8').catch(() => '');
     if (command.includes(env.PHANTOM_WORKSPACE_HOME)) {
@@ -155,6 +183,7 @@ try {
   }
   await Promise.race([app.close().catch(() => {}), delay(2500)]);
   if (electronProcess.exitCode === null && electronProcess.signalCode === null) electronProcess.kill('SIGKILL');
+  for (const pid of new Set([...leftovers, ...testProcesses([])])) try { process.kill(pid, 'SIGKILL'); } catch {}
 }
 // Playwright may retain a pending dispatcher after a timed-out Electron close.
 // Cleanup above is bounded; don't let that connection hold the check open.
