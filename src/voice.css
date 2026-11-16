@@ -35,26 +35,27 @@
   content: ''; position: absolute; top: 50%; left: 50%; width: max(300%, 1200px); aspect-ratio: 1;
   background: conic-gradient(from 0turn, var(--c-rose), var(--c-lilac), var(--c-iris), var(--c-sky), var(--c-iris), var(--c-rose));
   transform: translate(-50%, -50%) rotate(0turn); will-change: transform;
-  animation: voice-aura-spin 3.2s linear infinite;
+  animation: voice-aura-spin 6s linear infinite;
 }
 /* Spectral edge. */
 .voice-aura-ring {
-  padding: 3px; opacity: calc(.55 + var(--voice-level, 0) * .45);
+  padding: 1.5px; opacity: calc(.38 + var(--voice-level, 0) * .5);
+  transition: opacity 120ms ease-out;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 /* Soft inner light that swells with the voice, faded from every edge. */
 .voice-aura-glow {
-  opacity: calc(.14 + var(--voice-level, 0) * .5); transition: opacity 100ms ease-out;
-  -webkit-mask: linear-gradient(to right, #000, transparent 72px), linear-gradient(to left, #000, transparent 72px), linear-gradient(to bottom, #000, transparent 72px), linear-gradient(to top, #000, transparent 72px);
-  mask: linear-gradient(to right, #000, transparent 72px), linear-gradient(to left, #000, transparent 72px), linear-gradient(to bottom, #000, transparent 72px), linear-gradient(to top, #000, transparent 72px);
+  opacity: calc(.08 + var(--voice-level, 0) * .3); transition: opacity 100ms ease-out;
+  -webkit-mask: linear-gradient(to right, #000, transparent 48px), linear-gradient(to left, #000, transparent 48px), linear-gradient(to bottom, #000, transparent 48px), linear-gradient(to top, #000, transparent 48px);
+  mask: linear-gradient(to right, #000, transparent 48px), linear-gradient(to left, #000, transparent 48px), linear-gradient(to bottom, #000, transparent 48px), linear-gradient(to top, #000, transparent 48px);
 }
-.voice-aura-glow::before { animation-direction: reverse; animation-duration: 5s; }
+.voice-aura-glow::before { animation-direction: reverse; animation-duration: 9s; }
 /* Waiting for permission: amber, still. Closing the transcript: slow and dim. */
 .voice-aura[data-state="requesting"] .voice-aura-ring::before, .voice-aura[data-state="requesting"] .voice-aura-glow::before { background: var(--attention); animation: none; }
-.voice-aura[data-state="transcribing"] .voice-aura-ring { opacity: .5; }
-.voice-aura[data-state="transcribing"] .voice-aura-glow { opacity: .18; animation: voice-thinking 1.4s ease-in-out infinite alternate; }
-.voice-aura[data-state="transcribing"] :is(.voice-aura-ring, .voice-aura-glow)::before { animation-duration: 9s; }
+.voice-aura[data-state="transcribing"] .voice-aura-ring { opacity: .32; }
+.voice-aura[data-state="transcribing"] .voice-aura-glow { opacity: .1; animation: voice-thinking 1.4s ease-in-out infinite alternate; }
+.voice-aura[data-state="transcribing"] :is(.voice-aura-ring, .voice-aura-glow)::before { animation-duration: 14s; }
 @keyframes voice-aura-spin { to { transform: translate(-50%, -50%) rotate(1turn); } }
 @keyframes voice-aura-in { from { opacity: 0; } to { opacity: 1; } }
 
