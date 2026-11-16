@@ -14,7 +14,7 @@
   --r-pill: 999px;
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
-  --hairline: color-mix(in srgb, #fff 8%, transparent);
+  --hairline: color-mix(in srgb, #fff 10%, transparent);
    /* One edge (the border hairline) and a contact shadow;
       shadows never animate their blur. */
   --shadow-chrome: 0 1px 2px #00000066, 0 18px 40px -20px #000000cc;
@@ -29,11 +29,11 @@
   --shadow-workplane-rest: 0 2px 4px #00000066, 0 10px 20px -12px #00000099;
   --shadow-workplane-lift: 0 3px 6px #00000073, 0 16px 28px -14px #000000b3;
   /* Matte chrome planes. Workplanes and wells use real alpha. */
-  --glass-tint: #1e1e1e;
+  --glass-tint: #0d0d0d;
   --glass: var(--surface);
   --glass-thick: color-mix(in srgb, var(--surface) 60%, var(--surface-2));
   --glass-filter: none;
-  --ink-on-glass: #f2f0eb;
+  --ink-on-glass: #a8a6a0;
   --glass-sheen: none;
   --on: #f2f0eb;
   --on-ink: #141414;
@@ -69,15 +69,16 @@
   --dot: color-mix(in srgb, var(--ink) 16%, transparent);
   --dot-major: color-mix(in srgb, var(--ink) 26%, transparent);
   /* Neutral planes keep identity and state accents local. */
-  --bg: #141414;
-  --surface: #1e1e1e;
-  --surface-2: #292929;
-  --surface-3: #303030;
-  --menu: #171717; /* Plano de los menús anidados, más oscuro que su contenedor. */
+  --bg: #050505;
+  --surface: #0d0d0d;
+  --surface-2: #151515;
+  --surface-3: #1d1d1d;
+  --menu: #161616; /* Lo que se abre encima: el único plano elevado. */
+  --menu-edge: color-mix(in srgb, #fff 13%, transparent);
   --ink: #f2f0eb;
-  --muted: #bcbab4;
-  --ink-3: #b0aea8;
-  --terminal-bg: #161616;
+  --muted: #a8a6a0;
+  --ink-3: #8b8983;
+  --terminal-bg: #080808;
   --terminal-ink: #e1dfda;
   --scroll-thumb: color-mix(in srgb, #fff 16%, transparent);
   /* Type: seven roles, three weights (400, 500, 600). */
@@ -1247,7 +1248,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 select:not([multiple]):not([size]) {
   appearance: none; -webkit-appearance: none; cursor: pointer;
   padding-inline-end: 28px !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23a69bb7' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E") !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%238b8983' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important; background-position: right 9px center !important; background-size: 12px 12px !important;
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }

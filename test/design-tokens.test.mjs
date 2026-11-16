@@ -101,7 +101,7 @@ test('sidebar keeps neutral selection, compact status and consistent control siz
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
   const source = readFileSync(path.join(root, 'src/components/SidebarPanels.jsx'), 'utf8');
-  for (const [name, value] of Object.entries({ bg: '#141414', surface: '#1e1e1e', 'surface-2': '#292929', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
+  for (const [name, value] of Object.entries({ bg: '#050505', surface: '#0d0d0d', 'surface-2': '#151515', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
     assert.equal(declarations(canvas, `--${name}`)[0], value);
   }
   assert.doesNotMatch(declarations(canvas, '--glass-tint')[0], /--accent/);
@@ -310,4 +310,21 @@ test('materials retire the old activity glint and keep auxiliary status indicato
     const css = sheets.find(sheet => sheet.name === `src/${name}.css`).css;
     assert.doesNotMatch(css, /animation\s*:[^;}]*\binfinite\b/, `${name}: no continuous material/status animation`);
   }
+});
+
+test('black planes step up in order and menus own the only raised plane', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const menus = sheets.find(sheet => sheet.name === 'src/menus.css').css;
+  const level = name => parseInt(declarations(canvas, `--${name}`)[0].slice(1, 3), 16);
+  const ladder = ['bg', 'terminal-bg', 'surface', 'surface-2', 'menu', 'surface-3'].map(level);
+  assert.deepEqual(ladder, [...ladder].sort((a, b) => a - b), 'Planes must step from the black canvas upwards.');
+  assert.ok(level('bg') <= 8, 'The canvas stays black.');
+  assert.ok(level('surface-3') <= 32, 'No plane rises into grey.');
+  assert.match(menus, /background-color: var\(--menu\)/);
+  assert.match(menus, /border-color: var\(--menu-edge\)/);
+  assert.match(menus, /select:not\(\[multiple\]\):not\(\[size\]\)\s*\{[^}]*appearance: base-select/);
+  assert.match(menus, /::picker\(select\)\s*\{[^}]*appearance: base-select/);
+  // The current value is ink, weight and a mark; the only fill is hover/keyboard.
+  assert.match(menus, /\[aria-selected="true"\]:not\(:hover, :focus-visible\)[^{]*\{[^}]*background: none/s);
+  assert.doesNotMatch(menus, /outline:\s*2px/);
 });

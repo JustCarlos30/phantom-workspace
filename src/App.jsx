@@ -44,6 +44,7 @@ import PhantomChat from './components/PhantomChat';
 import { DOCK_TABS, dockStatus } from './hooks/phantom-dock.mjs';
 import './phantom-chat.css';
 import './panels.css';
+import './menus.css';
 import GlobalSites from './components/GlobalSites';
 
 const TYPES = [
