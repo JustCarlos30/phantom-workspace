@@ -181,6 +181,12 @@ const describeTool = (part, name, input, cwd) => {
   const change = toolChange(name, input); if (change) part.change = change;
 };
 const sum = (...values) => values.reduce((total, value) => total + (Number.isFinite(value) ? value : 0), 0);
+const validTokens = value => Number.isFinite(value) && value >= 0;
+function contextReading(turn, source, values) {
+  const total = values.every(validTokens) ? sum(...values) : undefined;
+  turn.contextTokens = validTokens(total) ? total : undefined;
+  turn.contextSource = turn.contextTokens !== undefined ? source : undefined;
+}
 const toolPart = (message, id, name) => {
   let part = message.parts.find(p => p.type === 'tool' && p.id === id);
   if (!part) { part = { type: 'tool', id, name: String(name || 'tool').slice(0, 120), detail: '', status: 'running' }; message.parts.push(part); }
@@ -247,7 +253,11 @@ export function applyClaudeEvent(turn, event) {
   if (event.parent_tool_use_id) return applyClaudeSubagent(turn, event);
   if (event.type === 'stream_event') {
     const e = event.event || {};
-    if (e.type === 'message_start' && e.message?.id) turn.streamed.add(e.message.id);
+    if (e.type === 'message_start') {
+      if (e.message?.id) turn.streamed.add(e.message.id);
+      contextReading(turn, null, [undefined]);
+      return true;
+    }
     if (e.type === 'content_block_start' && ['text', 'thinking'].includes(e.content_block?.type)) { turn.freshText = true; return false; }
     if (e.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) { appendText(message, e.delta.thinking, turn.freshText, 'thinking'); turn.freshText = false; return true; }
     if (e.type === 'content_block_start' && e.content_block?.type === 'tool_use') { toolPart(message, e.content_block.id, e.content_block.name); return true; }
@@ -258,7 +268,7 @@ export function applyClaudeEvent(turn, event) {
     const streamed = turn.streamed.has(event.message?.id), usage = event.message?.usage;
     if (typeof event.message?.model === 'string') turn.model = event.message.model;
     // The prompt of the latest request is what the conversation occupies now.
-    if (usage) turn.contextTokens = sum(usage.input_tokens, usage.cache_read_input_tokens, usage.cache_creation_input_tokens, usage.output_tokens);
+    contextReading(turn, 'claude:request-v1', [usage?.input_tokens, usage?.cache_read_input_tokens, usage?.cache_creation_input_tokens, usage?.output_tokens]);
     for (const block of event.message?.content || []) {
       if (block.type === 'text' && !streamed && block.text) appendText(message, block.text, true);
       if (block.type === 'thinking' && !streamed && block.thinking) appendText(message, block.thinking, true, 'thinking');
@@ -276,8 +286,8 @@ export function applyClaudeEvent(turn, event) {
   }
   if (event.type === 'result') {
     turn.usage = { durationMs: event.duration_ms, costUsd: event.total_cost_usd, outputTokens: event.usage?.output_tokens, steps: event.num_turns };
-    const windows = Object.entries(event.modelUsage || {}).map(([model, value]) => [model, value?.contextWindow]).filter(([, value]) => Number.isFinite(value));
-    if (windows.length) turn.contextWindow = (windows.find(([model]) => model === turn.model) || windows[0])[1];
+    const window = event.modelUsage?.[turn.model]?.contextWindow;
+    turn.contextWindow = Number.isFinite(window) && window > 0 ? window : undefined;
     if (event.is_error) turn.error = String(event.result || (event.errors || []).join(' ') || event.subtype || 'El agente terminó con error').slice(0, 2000);
     else if (!message.parts.some(p => p.type === 'text') && typeof event.result === 'string' && event.result) appendText(message, event.result, true);
     return true;
@@ -331,7 +341,10 @@ export function applyOpenCodeEvent(turn, event) {
   }
   if (event.type === 'step_finish') {
     const tokens = part.tokens || {};
-    if (Number.isFinite(tokens.total)) turn.contextTokens = tokens.total;
+    if (typeof event.sessionID === 'string' && part.sessionID === event.sessionID) {
+      const values = [tokens.total, ...['input', 'output', 'reasoning'].filter(key => Object.hasOwn(tokens, key)).map(key => tokens[key]), ...Object.values(tokens.cache || {})];
+      contextReading(turn, 'opencode:request-v1', values.every(validTokens) ? [tokens.total] : [undefined]);
+    } else contextReading(turn, null, [undefined]);
     turn.usage = { costUsd: sum(turn.usage?.costUsd, part.cost), outputTokens: sum(turn.usage?.outputTokens, tokens.output, tokens.reasoning), steps: sum(turn.usage?.steps, 1) };
     return true;
   }
@@ -347,7 +360,7 @@ export function applyCodexEvent(turn, event) {
   if (event.type === 'error' || event.type === 'turn.failed') { turn.error = String(event.error?.message || event.message || 'Codex terminó con error').slice(0, 2000); return true; }
   if (event.type === 'turn.completed') {
     const usage = event.usage || {};
-    turn.contextTokens = sum(usage.input_tokens, usage.output_tokens);
+    contextReading(turn, null, [undefined]);
     turn.usage = { outputTokens: usage.output_tokens }; return true;
   }
   const item = event.item;
@@ -417,7 +430,11 @@ export class Chats {
   save() { this.dirty = false; atomicJSON(this.filename, this.nodes); }
   thread(nodeId, provider) {
     const entry = this.nodes[nodeId] ??= { threads: {} };
-    return entry.threads[provider] ??= { sessionId: null, messages: [] };
+    const thread = entry.threads[provider] ??= { sessionId: null, messages: [] };
+    if (thread.meta && (provider === 'codex' || thread.meta.contextSource !== `${provider}:request-v1` || !validTokens(thread.meta.contextTokens))) {
+      delete thread.meta.contextTokens; delete thread.meta.contextSource; delete thread.meta.contextWindow;
+    }
+    return thread;
   }
   running(nodeId) { return this.turns.has(nodeId); }
   // The canvas browser bridge, for chat cards as for PTYs. One stable identity
@@ -433,7 +450,7 @@ export class Chats {
     return { active: Boolean(turn && !turn.finished && turn.workspaceId === workspaceId && turn.browserSession && turn.browserSession === sessionId) };
   }
   get(node) {
-    const provider = node.data.chat?.provider ?? null, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
+    const provider = node.data.chat?.provider ?? null, thread = provider ? this.thread(node.id, provider) : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
     return { provider, autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), permissionMode: explicitMode(node.data.chat), mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
   }
@@ -490,6 +507,7 @@ export class Chats {
     assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
     assert(this.turns.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
     const definition = CHAT_PROVIDERS[provider], thread = this.thread(node.id, provider), now = () => new Date().toISOString();
+    if (thread.meta) { delete thread.meta.contextTokens; delete thread.meta.contextSource; delete thread.meta.contextWindow; }
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
     const user = { id: randomUUID(), role: 'user', parts: [{ type: 'text', text: message }], status: 'done', createdAt: now() };
     const reply = { id: randomUUID(), role: 'assistant', provider, parts: [], status: 'streaming', createdAt: now() };
@@ -498,7 +516,11 @@ export class Chats {
     const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
     const started = Date.now();
     // Session facts as known right now: the turn's own readings over the thread's.
-    const meta = () => ({ ...thread.meta, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextTokens ? { contextTokens: turn.contextTokens } : {}), ...(turn.contextWindow ? { contextWindow: turn.contextWindow } : {}) });
+    const meta = () => {
+      const value = { ...thread.meta };
+      delete value.contextTokens; delete value.contextSource; delete value.contextWindow;
+      return { ...value, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextSource ? { contextTokens: turn.contextTokens, contextSource: turn.contextSource } : {}), ...(turn.contextSource && turn.contextWindow > 0 ? { contextWindow: turn.contextWindow } : {}) };
+    };
     const publish = extra => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: this.turns.has(node.id), meta: meta(), messages: [structuredClone(reply)], ...extra });
     const schedule = () => { this.dirty = true; turn.timer ??= setTimeout(() => { turn.timer = null; publish(); }, 40); };
     turn.schedule = schedule;
