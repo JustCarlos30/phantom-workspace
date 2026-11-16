@@ -12,6 +12,9 @@ export const ACCENTS = [['lilac', 'Violeta', '#a78bda'], ['iris', 'Iris', '#8fa2
 const VERSION = 3;
 export const defaults = { background: 'gengar', accent: 'lilac', grid: true, intensity: 55, image: '', gengar: true, gengarIntensity: 55, pulse: false, concentration: false };
 const keyFor = id => `phantom:studio:${id || 'default'}`;
+export function accentColor(key) {
+  return (ACCENTS.find(([accent]) => accent === key) || ACCENTS.find(([accent]) => accent === defaults.accent))[2];
+}
 export function normalizeAppearance(saved = {}) {
   if (!saved || typeof saved !== 'object') saved = {};
   const intensity = Number.isFinite(saved.intensity) ? Math.min(100, Math.max(0, saved.intensity)) : defaults.intensity;
@@ -42,7 +45,7 @@ export function useAppearance(workspaceId, notify) {
   // Never copy the previous project's preferences across a workspace switch.
   const appearance = entry.id === workspaceId ? entry.value : loadAppearance(workspaceId);
   useEffect(() => {
-    const accent = ACCENTS.find(([key]) => key === appearance.accent)[2];
+    const accent = accentColor(appearance.accent);
     document.documentElement.style.setProperty('--accent', accent);
     return () => document.documentElement.style.removeProperty('--accent');
   }, [appearance.accent]);

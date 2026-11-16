@@ -573,7 +573,7 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [open]);
-  if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
+  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">Contexto no disponible</span>;
   const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
