@@ -7,6 +7,24 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { createHost } from '../host/server.mjs';
 import { loopbackRequest } from '../host/opencode-chat.mjs';
+import { applyOpenCodeEvent } from '../host/chats.mjs';
+
+test('OpenCode context is the latest root step total, never a sum or incomplete fallback', () => {
+  const turn = { message: { parts: [] } };
+  const apply = (tokens, sessionID = 'root') => applyOpenCodeEvent(turn, { type: 'step_finish', sessionID: 'root', part: { sessionID, tokens } });
+  apply({ total: 80000, output: 10, reasoning: 5 });
+  assert.equal(turn.contextTokens, 80000);
+  apply({ total: 999999 }, 'child');
+  assert.equal(turn.contextTokens, 80000);
+  apply({ total: 60000 });
+  assert.equal(turn.contextTokens, 60000);
+  assert.equal(turn.contextSource, 'opencode:request-v1');
+  for (const tokens of [undefined, {}, { input: 100, output: 5, reasoning: 1, cache: { read: 10, write: 0 } }, ...[NaN, Infinity, -1, null].map(total => ({ total })), { total: 100, output: -1 }, { total: 100, cache: { read: NaN } }]) {
+    apply({ total: 80000 }); apply(tokens);
+    assert.equal(turn.contextTokens, undefined);
+    assert.equal(turn.contextSource, undefined);
+  }
+});
 
 const until = async fn => {
   const end = Date.now() + 8000;
