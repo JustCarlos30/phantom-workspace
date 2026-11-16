@@ -2,9 +2,27 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import '../mobile.css';
 import { readBrowserPairingCode } from '../phone-pairing.mjs';
 
+const initialPairCode = readBrowserPairingCode(location.hash);
+if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 const TOKEN_KEY = 'phantom:mobile:bearer';
 const readToken = () => { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } };
 const actionID = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+const hex = bytes => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
+const digest = text => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+const defaultName = () => `${/Android/.test(navigator.userAgent) ? 'Android' : /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone' : 'Teléfono'} · ${/Edg/.test(navigator.userAgent) ? 'Edge' : /Firefox/.test(navigator.userAgent) ? 'Firefox' : /Chrome|CriOS/.test(navigator.userAgent) ? 'Chrome' : 'Safari'}`;
+function keysDB(value) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open('phantom-mobile', 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('keys');
+    open.onerror = () => reject(new Error('No se pudo abrir el almacén de llaves; vuelve a vincular'));
+    open.onsuccess = () => {
+      const db = open.result, tx = db.transaction('keys', value ? 'readwrite' : 'readonly'), store = tx.objectStore('keys');
+      const request = value ? store.put(value, 'device') : store.get('device');
+      tx.oncomplete = () => { resolve(request.result); db.close(); };
+      tx.onabort = tx.onerror = () => { reject(new Error('No se pudo guardar o leer la llave del dispositivo')); db.close(); };
+    };
+  });
+}
 
 function Question({ part, disabled, answer }) {
   const [answers, setAnswers] = useState({});
@@ -54,8 +72,10 @@ function Session({ item, view, terminal, connected, busy, action, onBack }) {
 }
 
 export default function MobileApp() {
-  const [token, setToken] = useState(readToken), [connected, setConnected] = useState(!!readToken());
-  const [code, setCode] = useState(''), [name, setName] = useState('Mi móvil'), [error, setError] = useState('');
+  const [token, setToken] = useState(() => initialPairCode ? '' : readToken()), [connected, setConnected] = useState(() => !initialPairCode && !!readToken());
+  const [code, setCode] = useState(initialPairCode), [name, setName] = useState(defaultName), [error, setError] = useState(() => crypto.subtle ? '' : 'Abre la dirección https:// de Ajustes');
+  const [pending, setPending] = useState(null), [time, setTime] = useState(Date.now());
+  const autoPair = useRef(false), pairingGeneration = useRef(0);
   const [catalog, setCatalog] = useState(null), [selected, setSelected] = useState(null), [view, setView] = useState(null);
   const [busy, setBusy] = useState(false), [revision, setRevision] = useState(0);
   const controllers = useRef(new Set()), writeLock = useRef(false), mounted = useRef(true);
@@ -71,7 +91,15 @@ export default function MobileApp() {
     if (signal?.aborted) controller.abort();
     const timeout = setTimeout(abort, 12000);
     try {
-      const response = await fetch(route, { method: 'POST', credentials: 'omit', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body), signal: controller.signal });
+      const rawBody = JSON.stringify(body), headers = { 'Content-Type': 'application/json' };
+      if (route === '/api/rpc') {
+        if (!crypto.subtle) throw Object.assign(new Error('Abre la dirección https:// de Ajustes'), { status: 401 });
+        const saved = await keysDB();
+        if (!saved?.keys?.privateKey || saved.token !== token) throw Object.assign(new Error('Falta la llave del dispositivo; vuelve a vincular'), { status: 401 });
+        const time = String(Date.now()), signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, saved.keys.privateKey, new TextEncoder().encode(`${time}\n${route}\n${hex(await digest(rawBody))}`));
+        Object.assign(headers, { Authorization: `Bearer ${token}`, 'X-Phantom-Time': time, 'X-Phantom-Signature': btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') });
+      }
+      const response = await fetch(route, { method: 'POST', credentials: 'omit', cache: 'no-store', headers, body: rawBody, signal: controller.signal });
       const data = await response.json();
       if (!response.ok) throw Object.assign(new Error(data.error || 'Solicitud rechazada'), { status: response.status });
       return data;
@@ -106,28 +134,46 @@ export default function MobileApp() {
     catch (e) { if (mounted.current) disconnect(`${e.status ? e.message : 'Respuesta no confirmada.'} No se reenvió la acción. Reconecta y consulta la sesión antes de volver a enviarla.`, e.status === 401); return false; }
     finally { writeLock.current = false; if (mounted.current) setBusy(false); }
   };
-  const pair = async (e, pairingCode = code) => {
-    e.preventDefault(); if (writeLock.current) return; writeLock.current = true; setBusy(true); setError('');
-    try { const result = await request('/api/pair', { code: pairingCode.trim(), name }); saveToken(result.token); setCode(''); setCatalog(null); setSelected(null); setConnected(true); }
-    catch (e) { setError(e.message || 'No se pudo conectar. Comprueba el acceso en Ajustes.'); }
+  const pair = async e => {
+    e?.preventDefault(); if (writeLock.current) return; writeLock.current = true; setBusy(true); setError('');
+    const generation = ++pairingGeneration.current;
+    try {
+      if (!crypto.subtle) throw new Error('Abre la dirección https:// de Ajustes');
+      const keys = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
+      const exported = await crypto.subtle.exportKey('jwk', keys.publicKey), publicKey = Object.fromEntries(['kty', 'crv', 'x', 'y'].map(k => [k, exported[k]]));
+      await keysDB({ keys, token: '' });
+      const sas = String(new DataView(await digest(`${code.trim()}\n${publicKey.x}.${publicKey.y}`)).getUint32(0) % 1000000).padStart(6, '0');
+      const result = await request('/api/pair', { code: code.trim(), name, publicKey });
+      if (mounted.current && generation === pairingGeneration.current) { setPending({ ...result, sas, keys }); setCode(''); setConnected(false); saveToken(''); }
+    }
+    catch (e) { if (mounted.current) setError(e.message || 'No se pudo conectar. Comprueba el acceso en Ajustes.'); }
     finally { writeLock.current = false; setBusy(false); }
   };
+  useEffect(() => { if (initialPairCode && !autoPair.current) { autoPair.current = true; pair(); } }, []);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const value = readBrowserPairingCode(location.hash);
-      if (!value) return;
-      setCode(value);
-      history.replaceState(history.state, '', location.pathname + location.search);
-      pair({ preventDefault() {} }, value);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!pending) return;
+    let cancelled = false, timer; const controller = new AbortController();
+    const clock = setInterval(() => setTime(Date.now()), 1000);
+    const poll = async () => {
+      try {
+        const result = await request('/api/pair/status', { requestId: pending.requestId, poll: pending.poll }, controller.signal);
+        if (cancelled) return;
+        if (result.state === 'approved') {
+          await keysDB({ keys: pending.keys, token: result.token });
+          if (cancelled) return; saveToken(result.token); setPending(null); setCatalog(null); setSelected(null); setConnected(true); return;
+        }
+        if (result.state !== 'pending') { setPending(null); setError(result.state === 'rejected' ? 'Vinculación rechazada. Escanea de nuevo el QR de Ajustes.' : 'La solicitud ha caducado. Escanea de nuevo el QR de Ajustes.'); return; }
+        timer = setTimeout(poll, 1000);
+      } catch (e) { if (!cancelled) { setPending(null); setError(e.message || 'No se pudo consultar la aprobación. Escanea de nuevo el QR de Ajustes.'); } }
+    };
+    poll(); return () => { cancelled = true; controller.abort(); clearTimeout(timer); clearInterval(clock); };
+  }, [pending, request]);
   const item = catalog?.sessions.find(s => s.nodeId === selected?.nodeId), terminal = item?.terminals.find(t => t.id === selected?.sessionId);
   const open = (session, terminalId) => { setSelected({ nodeId: session.nodeId, sessionId: terminalId || null }); setView(null); };
   return <main className="mobile-app">
     <header className="mobile-heading"><div><h1>Phantom</h1><p>{catalog?.workspace.name || 'Conexión móvil local'}</p></div><span role="status">{connected ? 'Conectado' : 'Desconectado'}</span></header>
     {error && <div className="mobile-error" role="alert">{error}</div>}
-    {!token ? <form className="mobile-pair" onSubmit={pair}><h2>Emparejar con tu escritorio</h2><p>Escanea el QR en Configuración &gt; Teléfono de Phantom o pega el código</p><label>Nombre del dispositivo<input maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label><label>Código de emparejamiento<input autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={128} value={code} onChange={e => setCode(e.target.value)} /></label><button className="mobile-primary" disabled={busy} type="submit">Emparejar</button></form> : <>
+    {pending ? <section className="mobile-pair"><h2>Esperando aprobación</h2><strong className="mobile-sas">{pending.sas.slice(0, 3)} {pending.sas.slice(3)}</strong><p>Compáralo con el que aparece en tu escritorio y pulsa Vincular allí</p><p role="status">Caduca en {Math.max(0, Math.ceil((pending.expiresAt - time) / 1000))} s</p><button onClick={() => { pairingGeneration.current++; setPending(null); setError('Vinculación cancelada. Escanea de nuevo el QR de Ajustes.'); }}>Cancelar</button></section> : !token ? <form className="mobile-pair" onSubmit={pair}><h2>Emparejar con tu escritorio</h2><p>En la misma Wi-Fi, escanea el QR de Ajustes de Phantom o pega el código temporal. Compara la huella del certificado antes de vincular.</p><label>Nombre del dispositivo<input maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label><label>Código de emparejamiento<input autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={128} value={code} onChange={e => setCode(e.target.value)} /></label><button className="mobile-primary" disabled={busy} type="submit">Emparejar</button></form> : <>
       {!connected && <div className="mobile-actions"><button disabled={busy} onClick={() => { setError(''); setConnected(true); setRevision(n => n + 1); }}>Reconectar</button><button onClick={() => disconnect('Introduce un código nuevo generado en Ajustes.', true)}>Emparejar de nuevo</button></div>}
       {item ? <Session key={`${item.nodeId}:${selected.sessionId}`} item={item} terminal={terminal} view={view} connected={connected} busy={busy} action={action} onBack={() => { setSelected(null); setView(null); }} /> : <section className="mobile-list"><h2>Sesiones</h2>{!catalog ? <p>Consultando sesiones…</p> : !catalog.sessions.length ? <p>No hay sesiones en este proyecto.</p> : catalog.sessions.map(session => <article key={session.nodeId}><h3>{session.title}</h3>{session.kind === 'chat' && <button disabled={!connected} onClick={() => open(session)}>Abrir conversación · {session.provider}</button>}{session.terminals.map(t => <button key={t.id} disabled={!connected} onClick={() => open(session, t.id)}>Abrir terminal · {t.status} · {t.createdAt ? new Date(t.createdAt).toLocaleString() : ''}</button>)}{session.kind !== 'chat' && !session.terminals.length && <p className="mobile-muted">Sin proceso existente. Inícialo desde el escritorio.</p>}</article>)}</section>}
     </>}

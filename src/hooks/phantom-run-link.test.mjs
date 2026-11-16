@@ -9,6 +9,21 @@ const shell = detail => ({ type: 'tool', name: 'Bash', detail });
 test('enlaza agent.mjs run', () => {
   assert.deepEqual(phantomRunIds(shell(`node /tmp/agent.mjs run ${id}`)), [id]);
 });
+test('enlaza el comando de bootstrap con modelo y cola de salida', () => {
+  assert.deepEqual(phantomRunIds(shell(`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" run ${id} openai/gpt-5.1-codex 2>&1 | head -20 | cut -c1-250`)), [id]);
+});
+test('enlaza variables de CLI con y sin intérprete para run y bind', () => {
+  for (const cli of ['"$PHANTOM_AGENT_CLI"', '$PHANTOM_AGENT_CLI', '${PHANTOM_AGENT_CLI}', '"${PHANTOM_AGENT_CLI}"']) {
+    for (const node of ['', '"$PHANTOM_AGENT_NODE" ', '${PHANTOM_AGENT_NODE} ', 'node ']) {
+      for (const action of ['run', 'bind']) {
+        assert.deepEqual(phantomRunIds(shell(`${node}${cli} ${action} ${id}`)), [id], `${node}${cli} ${action}`);
+      }
+    }
+  }
+});
+test('enlaza phantom card', () => {
+  assert.deepEqual(phantomRunIds(shell(`phantom card ${card}`)), [card]);
+});
 test('enlaza un bucle que espera phantom show', () => {
   assert.deepEqual(phantomRunIds(shell(`while true; do phantom show ${id}; sleep 3; done`)), [id]);
 });
@@ -16,6 +31,7 @@ test('no enlaza comandos ajenos aunque su salida mencione Phantom', () => {
   assert.deepEqual(phantomRunIds({ ...shell(`echo ${id}`), output: `phantom run ${id}` }), []);
   assert.deepEqual(phantomRunIds(shell(`echo phantom run ${id}`)), []);
   assert.deepEqual(phantomRunIds(shell(`cat agent.mjs run ${id}`)), []);
+  assert.deepEqual(phantomRunIds(shell(`echo "$PHANTOM_AGENT_CLI" run ${id}`)), []);
 });
 test('deduplica IDs de detalle, entrada y salida', () => {
   assert.deepEqual(phantomRunIds({ ...shell(`phantom run ${id}`), input: { command: `phantom run ${id}` }, output: `${id} ${card} ${id}` }), [id, card]);

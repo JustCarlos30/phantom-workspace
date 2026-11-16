@@ -7,7 +7,7 @@ const commandOf = part => typeof part.input === 'object' && part.input ? part.in
 export function phantomRunIds(part) {
   if (part?.type !== 'tool' || !/^(bash|shell|exec|run)/i.test(part.name || '')) return [];
   const command = textOf(commandOf(part));
-  if (!/(?:^|[;|&(\n]|\b(?:do|then|while|until|if)\s+)\s*(?:["']?(?:[^\s;|&()]*\/)?phantom["']?\s+(?:run|show|events|do|create)\b|(?:["']?(?:[^\s;|&()]*\/)?node["']?\s+)?["']?[^\s;|&()]*agent\.mjs["']?\s+(?:run|bind)\b)/.test(command)) return [];
+  if (!/(?:^|[;|&(\n]|\b(?:do|then|while|until|if)\s+)\s*(?:["']?(?:[^\s;|&()]*\/)?phantom["']?\s+(?:run|show|events|do|create|card)\b|(?:["']?(?:(?:[^\s;|&()]*\/)?node|\$(?:PHANTOM_AGENT_NODE|\{PHANTOM_AGENT_NODE\}))["']?\s+)?(?:["']?[^\s;|&()]*agent\.mjs["']?|"?\$(?:PHANTOM_AGENT_CLI|\{PHANTOM_AGENT_CLI\})"?)\s+(?:run|bind)\b)/.test(command)) return [];
   return [...new Set([part.detail, part.input, part.output].flatMap(value => textOf(value).match(/\b(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi) || []))];
 }
 
