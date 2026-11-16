@@ -16,6 +16,7 @@ import { pinnedRef, readerKind, emptyMessage } from '../hooks/context-view.mjs';
 import Settings from './Settings.jsx';
 import GlobalSites from './GlobalSites.jsx';
 import { HUBS, hubTab } from '../hooks/hubs.mjs';
+import { processesView } from '../hooks/processes-view.mjs';
 import '../hubs.css';
 
 export const TOOL_TITLES = { tasks: 'Trabajo', context: 'Contexto', sessions: 'Sesiones', mission: 'Misiones', git: 'Git', services: 'Servicios', docker: 'Docker', workflows: 'Automatizar', playwright: 'Navegador automático', playground: 'Código', settings: 'Configuración' };
@@ -300,6 +301,30 @@ function Services({ workspace, api, refresh, notify, onOpenPanel }) {
     </Section><OperationState op={op} /></>;
 }
 
+function Processes({ workspace, api, notify, onOpenPanel }) {
+  const sessions = useResource(api, 'terminal.list', { workspaceId: workspace.id });
+  const services = useResource(api, 'services.list', { workspaceId: workspace.id });
+  const op = useOperation(notify);
+  const reload = useCallback(() => { sessions.reload(); services.reload(); }, [sessions.reload, services.reload]);
+  useEffect(() => window.phantom?.onEvent?.(event => {
+    if (event.type === 'terminal.exit' && event.workspaceId === workspace.id) reload();
+  }), [workspace.id, reload]);
+  const rows = processesView(workspace.nodes, sessions.data || [], itemsOf(services.data));
+  return <><Section title="Procesos" action={<Button icon={RefreshCw} disabled={sessions.loading || services.loading} onClick={reload}>Actualizar</Button>}>
+    <ResourceState resource={sessions} empty="" /><ResourceState resource={services} empty="" />
+    {!rows.length && <EmptyState className="tw-empty" title="Aún no hay procesos" description="Los agentes envían aquí servidores y tareas largas para no dejar ocupada su sesión." />}
+    {rows.map(row => <article className="tw-item" key={row.processId}>
+      <div className="tw-heading"><strong>{row.title}</strong>{sessions.data && <span className="tw-badge">{row.status === 'running' ? 'En marcha' : 'Detenido'}</span>}</div>
+      <small className="tw-process-command">{row.command}</small>
+      {row.services.map(service => <div className="tw-row" key={service.id}><small>{service.url}</small><Button disabled={op.busy || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: service.url }, row.title))}>Abrir</Button></div>)}
+      <div className="tw-row"><Button disabled={op.busy || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('terminal', { focusNodeId: row.nodeId }, row.title))}>Ver sesión</Button>
+        {row.status === 'running' && <Button icon={Square} disabled={op.busy || sessions.loading || !!sessions.error} onClick={() => op.run(async () => { await api('terminal.stop', { sessionId: row.sessionId }); reload(); })}>Detener</Button>}
+      </div><DataView value={{ processId:row.processId, nodeId:row.nodeId, sessionId:row.sessionId, cwd:row.cwd, origen:row.from, createdAt:row.createdAt }} />
+    </article>)}
+    {services.data?.processReason && <DataView value={services.data.processReason} />}
+  </Section><OperationState op={op} /></>;
+}
+
 function Docker({ workspace, api, notify }) {
   const resource = useResource(api, 'docker.list', { workspaceId: workspace.id });
   const [logs, setLogs] = useState(null); const op = useOperation(notify);
@@ -426,7 +451,7 @@ export function ToolContent({ type, bare, ...props }) {
   if (HUBS[type] && !bare && props.workspace) return <Hub type={type} {...props} />;
   if (PLUGIN_TITLES[type]) return <ToolErrorBoundary key={`${props.workspace?.id}:${type}:${props.node?.id || 'inspector'}`} title={PLUGIN_TITLES[type]}><PluginPanels type={type} {...props} /></ToolErrorBoundary>;
   if (!props.workspace && type !== 'settings') return <EmptyState className="tw-empty" description="Abre una carpeta para usar las herramientas del workspace." />;
-  const components = { review: VideoReview, 'command-center': CommandCenter, incorporaciones: Incorporaciones, branches: Branches, repo: Repository, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
+  const components = { review: VideoReview, 'command-center': CommandCenter, incorporaciones: Incorporaciones, branches: Branches, repo: Repository, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, processes: Processes, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
   const Content = components[type];
   const identity = `${props.workspace?.id || 'host'}:${type}:${props.node?.id || 'inspector'}`;
   return <div className={`tw-content${type === 'skills-catalog' || type === 'branches' || type === 'repo' ? ' is-flush' : ''}`}><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <Content {...props} /> : <p className="tw-warning" role="status">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;
