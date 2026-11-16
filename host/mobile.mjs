@@ -3,7 +3,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, createHash, timingSafeEqual, createPublicKey, verify } from 'node:crypto';
 import { Chats, chatMode } from './chats.mjs';
 import { mobileTLS } from './mobile-tls.mjs';
 import { MobileAudit } from './mobile-audit.mjs';
@@ -61,20 +61,25 @@ function chatView(view) {
 }
 
 export class MobileAccess {
-  constructor({ dataDir, store, terminals, chats, openssl = 'openssl', distDir = DIST, now = Date.now, pairingTTL = 120000, sessionTTL = 8 * 3600000 }) {
-    Object.assign(this, { dataDir, store, terminals, chats, openssl, distDir, now, pairingTTL, sessionTTL });
+  constructor({ dataDir, store, terminals, chats, openssl = 'openssl', distDir = DIST, now = Date.now, pairingTTL = 120000, approvalTTL = 60000, sessionTTL = 8 * 3600000 }) {
+    Object.assign(this, { dataDir, store, terminals, chats, openssl, distDir, now, pairingTTL, approvalTTL, sessionTTL });
     this.audit = new MobileAudit(dataDir);
-    this.devices = new Map(); this.sockets = new Set(); this.active = 0; this.pairAttempts = [];
+    this.devices = new Map(); this.pending = new Map(); this.sockets = new Set(); this.active = 0; this.pairAttempts = [];
   }
   status() {
     this.expire();
     return { enabled: !!this.server, interfaces: mobileInterfaces(), workspaceId: this.workspaceId ?? null,
       url: this.origin ? `${this.origin}/mobile` : null, tls: this.server ? { fingerprint: this.fingerprint } : null,
       pairingExpiresAt: this.pair?.expiresAt ?? null,
+      pending: [...this.pending.values()].filter(p => p.state === 'pending').map(p => pick(p, ['id', 'name', 'sas', 'remoteAddress', 'expiresAt'])),
       devices: [...this.devices.values()].map(d => pick(d, ['id', 'name', 'createdAt', 'expiresAt', 'lastSeenAt'])) };
   }
   expire() {
     if (this.pair && this.pair.expiresAt <= this.now()) { this.pair = null; this.record('pairing.expire'); }
+    for (const [id, request] of this.pending) {
+      if (['pending', 'approved'].includes(request.state) && request.expiresAt <= this.now()) { request.state = 'expired'; delete request.publicKey; this.record('pairing.request.expire', request); }
+      if (request.expiresAt + 60000 <= this.now()) this.pending.delete(id);
+    }
     for (const [key, device] of this.devices) if (device.expiresAt <= this.now()) this.removeDevice(key, 'device.expire');
   }
   record(method, device, remoteAddress = null, result = 'ok', target = {}, phase) {
@@ -87,8 +92,20 @@ export class MobileAccess {
   pairing() {
     check(this.server, 'Activa primero el acceso móvil');
     const code = secret(); this.pair = { digest: hash(code), expiresAt: this.now() + this.pairingTTL };
-    return { code, expiresAt: this.pair.expiresAt };
+    return { code, link: `${this.origin}/mobile#pair=${code}`, expiresAt: this.pair.expiresAt };
   }
+  decide({ id } = {}, state) {
+    check(string(id), 'Solicitud no válida'); this.expire();
+    const request = this.pending.get(id);
+    if (!request) fail(404, 'Solicitud no encontrada');
+    check(request.state === 'pending', 'Solicitud caducada o ya resuelta');
+    if (state === 'approved' && this.devices.size + [...this.pending.values()].filter(p => p.state === 'approved').length >= 8) fail(429, 'Revoca un dispositivo antes de emparejar otro');
+    this.record(state === 'approved' ? 'pairing.approve' : 'pairing.reject', request);
+    request.state = state; if (state === 'rejected') delete request.publicKey;
+    return this.status();
+  }
+  approve(payload) { return this.decide(payload, 'approved'); }
+  reject(payload) { return this.decide(payload, 'rejected'); }
   async start({ workspaceId, address, port = 0 } = {}) {
     check(!this.server && !this.starting && !this.stopping, 'El acceso móvil ya está activo o cambiando de estado');
     this.store.getWorkspace(workspaceId);
@@ -130,7 +147,7 @@ export class MobileAccess {
     if (this.stopping) return this.stopping;
     this.stopping = (async () => {
       if (this.starting) await this.startDone;
-      clearInterval(this.timer); this.pair = null; this.devices.clear(); this.pairAttempts = [];
+      clearInterval(this.timer); this.pair = null; this.devices.clear(); this.pending.clear(); this.pairAttempts = [];
       const server = this.server; this.server = null; this.origin = null; this.workspaceId = null;
       for (const socket of this.sockets) socket.destroy();
       if (server) { await new Promise(resolve => server.close(resolve)); this.record('mobile.stop'); }
@@ -143,7 +160,8 @@ export class MobileAccess {
     if (Number(req.headers['content-length']) > 65536) fail(413, 'Entrada demasiado grande');
     let size = 0, chunks = [];
     for await (const chunk of req) { size += chunk.length; if (size > 65536) fail(413, 'Entrada demasiado grande'); chunks.push(chunk); }
-    let value; try { value = JSON.parse(Buffer.concat(chunks).toString()); } catch { fail(400, 'JSON no válido'); }
+    req.rawBody = Buffer.concat(chunks);
+    let value; try { value = JSON.parse(req.rawBody.toString()); } catch { fail(400, 'JSON no válido'); }
     check(value && typeof value === 'object' && !Array.isArray(value)); return value;
   }
   async handle(req, res) {
@@ -179,21 +197,47 @@ export class MobileAccess {
         if (!this.server) fail(401, 'Acceso desactivado');
         if (!string(body.code, 128) || !this.pair || !timingSafeEqual(Buffer.from(hash(body.code)), Buffer.from(this.pair.digest))) fail(401, 'Código caducado, usado o incorrecto; genera otro en Ajustes');
         if (this.devices.size >= 8) fail(429, 'Revoca un dispositivo antes de emparejar otro');
+        const jwk = body.publicKey;
+        check(jwk && typeof jwk === 'object' && !Array.isArray(jwk) && Object.keys(jwk).length === 4 && Object.keys(jwk).every(k => ['kty', 'crv', 'x', 'y'].includes(k)) && jwk.kty === 'EC' && jwk.crv === 'P-256' && /^[A-Za-z0-9_-]{43}$/.test(jwk.x) && /^[A-Za-z0-9_-]{43}$/.test(jwk.y), 'Llave pública P-256 no válida');
+        try { createPublicKey({ key: jwk, format: 'jwk' }); } catch { fail(400, 'Llave pública P-256 no válida'); }
+        if ([...this.pending.values()].filter(p => ['pending', 'approved'].includes(p.state)).length >= 4 || this.pending.size >= 64) fail(429, 'Demasiadas solicitudes pendientes');
         this.pair = null;
-        const token = secret(), device = { id: randomUUID(), name: typeof body.name === 'string' ? body.name.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 80) : 'Móvil', remoteAddress: req.socket.remoteAddress, createdAt: this.now(), expiresAt: this.now() + this.sessionTTL, lastSeenAt: this.now(), requests: [], actions: new Map() };
-        this.record('pairing', device, req.socket.remoteAddress); paired = true;
-        this.devices.set(hash(token), device); (req.socket.mobileDevices ??= new Set()).add(device.id);
-        json(200, { token, expiresAt: device.expiresAt }); return;
+        const poll = secret(), request = { id: randomUUID(), name: typeof body.name === 'string' ? body.name.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 80) : 'Móvil', publicKey: { ...jwk }, remoteAddress: req.socket.remoteAddress, sas: String(createHash('sha256').update(`${body.code}\n${jwk.x}.${jwk.y}`).digest().readUInt32BE(0) % 1000000).padStart(6, '0'), expiresAt: this.now() + this.approvalTTL, pollDigest: hash(poll), state: 'pending', requests: [] };
+        this.record('pairing.request', request); paired = true; this.pending.set(request.id, request);
+        json(200, { requestId: request.id, poll, expiresAt: request.expiresAt }); return;
+      }
+      if (req.url === '/api/pair/status') {
+        const body = await this.body(req); this.expire();
+        const request = string(body.requestId) && this.pending.get(body.requestId);
+        if (!this.server || !request || !string(body.poll, 128) || !timingSafeEqual(Buffer.from(hash(body.poll)), Buffer.from(request.pollDigest))) fail(401, 'Solicitud no autorizada');
+        request.requests = request.requests.filter(t => t > this.now() - 60000);
+        if (request.requests.length >= 60) fail(429, 'Demasiadas consultas; espera un minuto'); request.requests.push(this.now());
+        if (request.state === 'pending') { json(200, { state: 'pending', expiresAt: request.expiresAt }); return; }
+        if (request.state !== 'approved') { json(200, { state: request.state }); return; }
+        const token = secret(), device = { ...pick(request, ['id', 'name', 'publicKey', 'remoteAddress']), createdAt: this.now(), expiresAt: this.now() + this.sessionTTL, lastSeenAt: this.now(), requests: [], actions: new Map(), signatures: new Map() };
+        this.record('pairing', device); this.pending.delete(request.id); this.devices.set(hash(token), device);
+        (req.socket.mobileDevices ??= new Set()).add(device.id);
+        json(200, { state: 'approved', token, expiresAt: device.expiresAt }); return;
       }
       if (req.url !== '/api/rpc') fail(404, 'Ruta no disponible');
       const authorization = req.headers.authorization || '';
       const device = /^Bearer [A-Za-z0-9_-]{43}$/.test(authorization) && this.devices.get(hash(authorization.slice(7)));
       if (!device) fail(401, 'Acceso caducado o revocado; vuelve a emparejar');
-      (req.socket.mobileDevices ??= new Set()).add(device.id); device.lastSeenAt = this.now();
+      (req.socket.mobileDevices ??= new Set()).add(device.id);
       device.requests = device.requests.filter(time => time > this.now() - 60000);
       if (device.requests.length >= 120) fail(429, 'Demasiadas solicitudes; reconecta en un minuto');
       device.requests.push(this.now());
       const body = await this.body(req);
+      const time = req.headers['x-phantom-time'], signature = req.headers['x-phantom-signature'];
+      if (typeof time !== 'string' || !/^\d{1,16}$/.test(time) || Math.abs(this.now() - Number(time)) > 30000 || typeof signature !== 'string' || !/^[A-Za-z0-9_-]{86}$/.test(signature)) fail(401, 'Firma de dispositivo requerida o caducada');
+      const signatureBytes = Buffer.from(signature, 'base64url'), signatureDigest = hash(signatureBytes);
+      for (const [key, expiresAt] of device.signatures) if (expiresAt < this.now()) device.signatures.delete(key);
+      if (signatureBytes.length !== 64 || device.signatures.has(signatureDigest) || device.signatures.size >= 256) fail(401, 'Firma repetida o no válida');
+      let valid = false;
+      try { valid = verify('sha256', Buffer.from(`${time}\n${req.url}\n${hash(req.rawBody)}`), { key: createPublicKey({ key: device.publicKey, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, signatureBytes); } catch {}
+      if (!valid) fail(401, 'Firma de dispositivo no válida');
+      device.signatures.set(signatureDigest, Number(time) + 30000);
+      device.lastSeenAt = this.now();
       auditDevice = device;
       if (['chat.send', 'chat.stop', 'chat.permission.answer', 'chat.question.answer', 'terminal.write', 'terminal.stop'].includes(body.method)) {
         action = { method: body.method, target: pick(body.payload, ['nodeId', 'sessionId']) };
