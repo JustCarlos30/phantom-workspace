@@ -17,7 +17,7 @@ const AGENT = { working: 'Trabajando', blocked: 'Bloqueado', review: 'En espera'
 function CardPlan({ plan }) {
   return <div className="pd-deleg-plan-block">
     <small>Plan · {plan.done} de {plan.total} completadas</small>
-    <ul className="pd-deleg-plan" aria-label="Plan de la card">{plan.children.map(child => <li key={child.key} className="pd-deleg-child" data-status={child.status}><small>{statusLabel(child.status)}</small><span>{child.goal}</span></li>)}</ul>
+    <ul className="pd-deleg-plan" aria-label="Plan de la card">{plan.children.map(child => <li key={child.key} className="pd-deleg-child" data-status={child.status}><small>{child.status === 'sin registrar' ? 'Sin registrar' : statusLabel(child.status)}</small><span>{child.goal}</span></li>)}</ul>
   </div>;
 }
 
@@ -27,7 +27,16 @@ function CardPlan({ plan }) {
 export default function PhantomOrchestrator({ workspace, api, notify, connected, status, onOpenPanel }) {
   const orchestrator = status.orchestrator;
   const tasks = useResource(api, 'phantom.list', { workspaceId: workspace.id, topic: 'tasks' });
-  const delegation = useMemo(() => withCardPlans(buildDelegation(workspace), tasks.error ? null : tasks.data), [workspace, tasks.data, tasks.error]);
+  const [lastTasks, setLastTasks] = useState(null);
+  useEffect(() => {
+    if (tasks.data != null) setLastTasks({ workspaceId: workspace.id, data: tasks.data });
+  }, [tasks.data, workspace.id]);
+  useEffect(() => {
+    const interval = setInterval(tasks.reload, 20_000);
+    return () => clearInterval(interval);
+  }, [tasks.reload]);
+  const taskData = tasks.data ?? (lastTasks?.workspaceId === workspace.id ? lastTasks.data : null);
+  const delegation = useMemo(() => withCardPlans(buildDelegation(workspace), taskData), [workspace, taskData]);
   const delegates = delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden);
   const working = delegates.filter(row => row.status === 'working').length;
   const blocked = delegates.filter(row => row.status === 'blocked').length;

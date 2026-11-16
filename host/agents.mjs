@@ -24,7 +24,16 @@ export function cardPanelTitle(cardTitle, max = 80) {
 }
 // Task goals are free multi-line text; the stored card title must stay a
 // single line (validateAgent rejects control characters) and within 512.
-export const cardTitleOf = goal => String(goal ?? '').replace(/[\x00-\x1f\x7f\s]+/g, ' ').trim().slice(0, 512);
+export const cardTitleOf = goal => {
+  const lines = String(goal ?? '').split(/\r\n|\n|\r/);
+  while (lines.length && !lines[0].trim()) lines.shift();
+  if (/^\s*#{1,6}[ \t]+(?:título|titulo|title|objetivo|goal|propósito|proposito|purpose):?\s*$/i.test(lines[0] ?? '')) {
+    lines.shift();
+    while (lines.length && !lines[0].trim()) lines.shift();
+  }
+  if (lines.length) lines[0] = lines[0].replace(/^\s*#{1,6}[ \t]+/, '');
+  return lines.join('\n').replace(/[\x00-\x1f\x7f\s]+/g, ' ').trim().slice(0, 512);
+};
 
 // A terminal owns its worktree, so an open Phantom task registered on exactly
 // that worktree identifies the terminal's work. Only never-linked terminals
