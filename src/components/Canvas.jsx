@@ -9,6 +9,7 @@ import ChatCardContent from './ChatCard';
 import BrowserPanelContent from './BrowserPanel';
 import { ToolPanel as ToolPanelContent } from './ToolPanels';
 import { useInlineName } from '../hooks/useInlineName';
+import { useFitDensity } from '../hooks/useFitDensity';
 import { isEditingTarget } from '../hooks/inputOwnership';
 import { canScroll, createWheelGesture, isDiscreteWheel, wheelZoomFactor } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
@@ -30,6 +31,7 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const editable = isEditingTarget;
 const defaultCamera = { x: 300, y: 84, zoom: 1 };
 const GRID = 24;
+const NAV_FIT = ['full', 'compact', 'tight'];
 // Text only stays sharp when the world lands on whole device pixels.
 const snap = value => { const ratio = window.devicePixelRatio || 1; return Math.round(value * ratio) / ratio; };
 export const ZONE_COLORS = ['iris', 'mint', 'amber', 'rose', 'slate'];
@@ -91,6 +93,7 @@ const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, an
 });
 
 export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null }) {
+  const navFit = useFitDensity(NAV_FIT);
   const root = useRef(null);
   const stage = useRef(null);
   const world = useRef(null);
@@ -598,7 +601,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     </div>
     <div className="canvas-view-controls">
     {!focused && minimap && <Minimap nodes={nodes} camera={camera} cameraRef={cameraRef} frameRef={minimapFrame} size={size} selected={selected} onUpdate={next => { stopInertia(); updateCamera(next); }} />}
-    {!focused && <><div className="canvas-navigation" role="toolbar" aria-label="Navegación del canvas">
+    {!focused && <><div ref={navFit} className="canvas-navigation" role="toolbar" aria-label="Navegación del canvas">
       <button aria-label="Herramienta de selección" title="Seleccionar · V" aria-pressed={tool === 'select'} onClick={() => { setTool('select'); root.current.focus(); }}><MousePointer2 size={16} /></button>
       <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /></button>
       <button aria-label="Herramienta de comentarios" title="Comentar · C" aria-pressed={tool === 'comment'} onClick={() => { setTool(current => current === 'comment' ? 'select' : 'comment'); root.current.focus(); }}><MessageCircle size={16} />{comments.some(c => !c.resolved) && <b className="comment-count">{comments.filter(c => !c.resolved).length}</b>}</button><i />

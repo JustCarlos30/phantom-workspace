@@ -13,6 +13,7 @@ import { useInlineName } from './hooks/useInlineName';
 import { overlayPolicy } from './hooks/inputOwnership';
 import { useAppearance } from './hooks/useAppearance';
 import { useInterfaceScale } from './hooks/useInterfaceScale';
+import { useFitDensity } from './hooks/useFitDensity';
 import ActivityNotch, { ActivityTray, activityMood } from './components/ActivityNotch';
 import { useActivity } from './hooks/useActivity';
 import { useReadyBranches } from './hooks/useReadyBranches';
@@ -65,6 +66,7 @@ const HUB_ACTIONS = HUB_ORDER.map(id => TYPES.find(t => t[0] === id));
 // The creation dock: one weight for every action, the icon names the panel and
 // a short word under it says it. Hints are the launcher's own descriptions.
 const DOCK_ACTIONS = QUICK_TYPES.map(([type, name, , hint]) => [type, name, hint]);
+const DOCK_FIT = ['full', 'compact', 'tight'];
 const initials = name => name?.split(/[\s_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
 const label = type => TYPES.find(t => t[0] === type)?.[1] || (type === 'reference' ? 'Referencia' : type);
 
@@ -113,6 +115,7 @@ export default function App() {
 }
 
 function WorkspaceUI({ model, toasts, setToasts, notify }) {
+  const dockFit = useFitDensity(DOCK_FIT);
   const dictation = useVoiceWorkspace();
   const { state, error, saveError, connection, saving, refresh, patch, flush, registerBeforeFlush, closeRequest, retryClose } = model;
   const [focused, setFocused] = useState(null);
@@ -469,7 +472,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           <div key="canvas-content" className="sites-canvas-content" inert={sitesOpen}>
           {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked || sitesOpen} obscured={sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <GengarMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
-          {workspace && <div key="create-dock" className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
+          {workspace && <div key="create-dock" ref={dockFit} className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} />
             <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" />{HUB_ACTIONS.map(([type, name, Icon, hint]) => <button key={type} className="dock-action dock-hub" data-hub={type} disabled={!!busy} title={hint} onClick={() => onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>)}</div>
           </div>}
