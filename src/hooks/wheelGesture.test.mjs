@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canScroll, createWheelGesture, isDiscreteWheel, wheelZoomFactor, ZOOM_STEP } from './wheelGesture.js';
+import { canScroll, hasScrollable, createWheelGesture, isDiscreteWheel, wheelZoomFactor, ZOOM_STEP } from './wheelGesture.js';
 
 const input = extra => ({ zooming: false, overCanvasChrome: false, overTerminal: false, overMinimap: false, overBody: false, bodyCanScroll: false, ...extra });
 const clocked = () => {
@@ -32,6 +32,16 @@ test('un body desplazable de una card no seleccionada mueve el canvas', () => {
 test('un body activo sin desplazamiento pertenece al canvas', () => {
   const { route } = clocked();
   assert.equal(route(0, { overBody: true, bodyActive: true }), 'canvas');
+});
+
+test('un body activo desplazable conserva el elemento en su limite', () => {
+  const { route } = clocked();
+  assert.equal(route(0, { overBody: true, bodyActive: true, bodyCanScroll: false, bodyScrollable: true }), 'element');
+});
+
+test('un body desplazable no seleccionado en su limite mueve el canvas', () => {
+  const { route } = clocked();
+  assert.equal(route(0, { overBody: true, bodyActive: false, bodyCanScroll: false, bodyScrollable: true }), 'canvas');
 });
 
 test('una rueda con muescas espaciadas recalcula con la seleccion actual', () => {
@@ -79,6 +89,19 @@ test('canScroll respeta los limites superior e inferior', () => {
   boundary.scrollTop = 200;
   assert.equal(canScroll(boundary, 0, 1, boundary, styleOf), false);
   assert.equal(canScroll(boundary, 0, -1, boundary, styleOf), true);
+});
+
+test('hasScrollable detecta overflow en el limite inferior', () => {
+  const boundary = { scrollTop: 200, scrollHeight: 300, clientHeight: 100, parentElement: null };
+  const child = { parentElement: boundary };
+  const styleOf = el => ({ overflowY: el === boundary ? 'auto' : 'visible' });
+  assert.equal(hasScrollable(child, 0, 1, boundary, styleOf), true);
+  boundary.scrollHeight = 100;
+  assert.equal(hasScrollable(child, 0, 1, boundary, styleOf), false);
+  boundary.scrollHeight = 101;
+  assert.equal(hasScrollable(child, 0, 1, boundary, styleOf), false);
+  boundary.scrollHeight = 300;
+  assert.equal(hasScrollable(child, 0, 1, boundary, () => ({ overflowY: 'hidden' })), false);
 });
 
 test('el pinch del touchpad sigue a los dedos (deltaY = -100·ln(escala))', () => {

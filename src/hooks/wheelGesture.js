@@ -20,9 +20,10 @@ export function createWheelGesture({ idle = 150, now = () => performance.now() }
         // On the map a card's own content (a terminal's scrollback included)
         // only scrolls once that card is the active one (clicked). Passing over
         // any other card keeps moving the map, so the wheel never "sticks" on
-        // whatever happens to be under it.
+        // whatever happens to be under it. An active scrollable body keeps the
+        // gesture even at its scroll limits.
         else if (input.overTerminal && input.terminalActive) owner = 'element';
-        else if (input.overBody && input.bodyActive && input.bodyCanScroll) owner = 'element';
+        else if (input.overBody && input.bodyActive && (input.bodyCanScroll || input.bodyScrollable)) owner = 'element';
         else owner = 'canvas';
       }
       lastTime = time;
@@ -48,6 +49,20 @@ export function wheelZoomFactor(dy, { discrete = false, pinch = false } = {}) {
   if (!dy) return 1;
   if (discrete) return ZOOM_STEP ** -Math.sign(dy);
   return Math.exp(-Math.max(-100, Math.min(100, dy)) * (pinch ? .01 : .004));
+}
+
+export function hasScrollable(element, dx, dy, boundary, styleOf = el => getComputedStyle(el)) {
+  const axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+  for (let current = element; current; current = current.parentElement) {
+    const style = styleOf(current);
+    const overflow = axis === 'x' ? style.overflowX || style.overflow : style.overflowY || style.overflow;
+    if (overflow === 'auto' || overflow === 'scroll') {
+      const extent = axis === 'x' ? current.scrollWidth - current.clientWidth : current.scrollHeight - current.clientHeight;
+      if (extent > 1) return true;
+    }
+    if (current === boundary) break;
+  }
+  return false;
 }
 
 export function canScroll(element, dx, dy, boundary, styleOf = el => getComputedStyle(el)) {
