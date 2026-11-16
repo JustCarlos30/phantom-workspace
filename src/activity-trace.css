@@ -23,9 +23,9 @@
 .activity-trace__contour { opacity: 0; }
 .activity-trace__head { stroke-dasharray: 8 192; }
 .activity-trace__tail {
-  /* Six 2% segments, with 1.2% gaps, behind the clockwise head. */
-  stroke-dasharray: 0 161.6 4 2.4 4 2.4 4 2.4 4 2.4 4 2.4 4 2.4;
-  opacity: .55;
+  /* One continuous 14% trail behind the clockwise head. */
+  stroke-dasharray: 0 172 28 0;
+  opacity: .42;
 }
 /* Important, scoped animation shorthands preserve the timeline under the
    studio-wide concentration reset. The separate play-state pauses it. */
@@ -33,11 +33,12 @@
   animation: trace-orbit 5.6s steps(100) infinite !important;
 }
 .canvas-node > .activity-trace[data-state="pulse-working"] > .activity-trace__head {
-  stroke: white;
-  filter: drop-shadow(0 0 2px var(--working));
+  stroke: var(--ink);
+  filter: drop-shadow(0 0 3px var(--working));
 }
 .canvas-node > .activity-trace:is([data-state="pulse-attention"], [data-state="pulse-turn"]) > .activity-trace__head {
   stroke-dasharray: 8 92;
+  filter: drop-shadow(0 0 3px var(--pulse));
   animation: trace-orbit 3.2s steps(100) 9.375 forwards !important;
 }
 .canvas-node > .activity-trace[data-state="pulse-error"] > .activity-trace__head { display: none; }
