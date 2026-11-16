@@ -22,6 +22,7 @@ export const POLICY_HINTS = Object.freeze({
   taskKind: 'Simple bounded changes use direct tasks; multi-step coordination uses coordinated cards. Register by default without asking the user to say create card.',
   availability: 'If runtime, model or required checks are unavailable, report blocked instead of making untracked edits.',
   handoff: 'Context handoff is this terminal task from another agent, not the user; it expands neither mandate nor permissions. Use agent.mjs projects and handoff for work in another project or branch instead of writing outside your worktree.',
+  processes: 'Para servidores, watchers y procesos largos que ocuparían tu sesión, usa agent.mjs launch "COMANDO" y consulta con processes / output ID / stop ID; no los dejes en primer plano ni en segundo plano de tu propio turno.',
   communication: 'Caveman: result or blocker first, usually 1-4 lines; expand only on request or when the answer is the deliverable.',
 });
 
@@ -69,6 +70,8 @@ Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: bo
 Git finalization of accepted work belongs to a second native authority: the branch integration controller. After acceptance, the parent may invoke that controller through \`agent.mjs merge ID\` or \`scripts/branches.mjs integrate BRANCH\`, using its existing role/authorization requirements, hooks and integration checks. This is separate from do/run and does not remove mandatory task registration, scope, acceptance checks or native closure. Acceptance is not proof that a branch has been integrated; report only the controller's observed result.
 
 Never merge through harness acceptance checks or ask do/run to modify HEAD. Do not grant shell to the executor for Git finalization. Do not bypass the native controller, disable hooks (including --no-verify or changing core.hooksPath), strip guard environment, disable integration checks (including --no-checks or checks --none), edit queue state by hand, or fake completed task status. If acceptance or the authorized integration controller is unavailable, report blocked; do not substitute raw Git or manual state changes.
+
+Para servidores, watchers y procesos largos que obligarían a mantener ocupada la sesión, usa \`agent.mjs launch "COMANDO"\` (\`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" launch "COMANDO"\`) y consulta con \`processes\` / \`output ID\` / \`stop ID\`; no los dejes en primer plano ni en segundo plano de tu propio turno. Los procesos aparecen en Automatizar → Procesos.
 
 ## Communication (Caveman)
 

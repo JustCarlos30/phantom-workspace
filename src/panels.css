@@ -48,6 +48,8 @@
 .app-shell .canvas-node .tw-details > summary { font: var(--t-support); font-weight: 500; color: var(--muted); }
 .app-shell .canvas-node .tw-details > summary:hover { color: var(--ink); }
 .app-shell .canvas-node .tw-code { border-radius: var(--r-ctl); background: var(--well-terminal); box-shadow: var(--shadow-well); }
+.app-shell .canvas-node .tw-document-reader { max-height: 480px; overflow: auto; margin-top: 12px; padding: 12px; border-radius: var(--r-ctl); background: var(--well-terminal); }
+.app-shell .canvas-node .tw-content .mem-card { background: var(--fill); border: 0; border-radius: var(--r-ctl); }
 .app-shell .canvas-node :is(.tw-error, .tw-warning) { max-width: 560px; padding: 12px 14px; border-radius: var(--r-ctl); font: var(--t-support); }
 .app-shell .canvas-node .tw-table th, .app-shell .canvas-node .tw-table td { border-bottom: 0; }
 .app-shell .canvas-node .tw-table tbody tr:nth-child(odd) td { background: var(--fill); }
@@ -79,3 +81,4 @@
 .app-shell .browser-toolbar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app-shell .browser-preview-label { background: var(--well-raised); }
 .app-shell .note-editor { padding: 18px 20px; font: var(--t-body); }
+.app-shell .canvas-node .tw-content small.tw-process-command { font-family: var(--mono); overflow-wrap: anywhere; }

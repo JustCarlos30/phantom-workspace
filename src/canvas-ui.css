@@ -15,11 +15,12 @@
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
   --hairline: color-mix(in srgb, #fff 8%, transparent);
-   /* Quiet chrome and contact depth; shadows never animate their blur. */
-  --shadow-chrome: inset 0 1px 0 #ffffff33, inset 0 0 0 1px #ffffff14, 0 2px 6px #05030a59, 0 24px 48px -26px #05030ad9;
+   /* One edge (the border hairline), light above and inner shadow below,
+      without a second ring; shadows never animate their blur. */
+  --shadow-chrome: inset 0 1px 0 #ffffff26, inset 0 -1px 0 #05030a59, 0 1px 2px #05030a66, 0 18px 40px -20px #05030acc;
   /* The glass rim: a lit top edge and a faint ring. It is the edge of every
      capsule that sits inside an island; it never adds a second fill. */
-  --shadow-rim: inset 0 1px 0 #ffffff26, inset 0 0 0 1px #ffffff0f;
+  --shadow-rim: inset 0 1px 0 #ffffff1f, inset 0 0 0 1px #ffffff0a;
   --shadow-key: inset 0 1px 0 #ffffff4d, inset 0 -1px 0 #05030a66, 0 1px 3px #05030a8c;
   --shadow-well: inset 0 1px 2px #05030a8c, inset 0 0 0 1px #05030a33;
   --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9;
@@ -28,12 +29,12 @@
   --shadow-workplane-rest: 0 2px 4px #05030a66, 0 10px 20px -12px #05030a99;
   --shadow-workplane-lift: 0 3px 6px #05030a73, 0 16px 28px -14px #05030ab3;
   /* Glass filters belong only to chrome. Workplanes and wells use real alpha. */
-  --glass-tint: color-mix(in srgb, var(--accent) 6%, color-mix(in srgb, #05030a 60%, var(--surface-3)));
-  --glass: color-mix(in srgb, var(--glass-tint) 52%, transparent);
+  --glass-tint: color-mix(in srgb, var(--accent) 10%, color-mix(in srgb, #05030a 25%, var(--surface-3)));
+  --glass: color-mix(in srgb, var(--glass-tint) 48%, transparent);
   --glass-thick: color-mix(in srgb, var(--glass-tint) 68%, transparent);
   --glass-filter: blur(40px) saturate(190%);
   --ink-on-glass: #ece9f2;
-  --glass-sheen: linear-gradient(155deg, #ffffff14 0%, #ffffff0c 38%, #ffffff06 100%);
+  --glass-sheen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"), linear-gradient(172deg, #ffffff12 0%, #ffffff07 26%, #ffffff03 100%);
   --on: #f1ecf8;
   --on-ink: #1a1226;
   --workplane: color-mix(in srgb, var(--surface) 80%, transparent);
@@ -1213,3 +1214,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
     animation-duration: 60ms !important;
   }
 }
+
+/* Native selects share one chevron and one quiet transition. A data URI cannot
+   read tokens: the stroke is --muted. !important keeps the chevron when a
+   panel sets the `background`/`padding` shorthands on its own select. */
+select:not([multiple]):not([size]) {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-inline-end: 28px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23a69bb7' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 9px center !important; background-size: 12px 12px !important;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+select:disabled { cursor: not-allowed; }

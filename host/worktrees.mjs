@@ -16,6 +16,7 @@ async function git(cwd, args) {
 }
 
 export async function prepareTerminalDirectory(store, workspace, node) {
+  if (node.data?.process) return { cwd: canonicalFolder(node.data.process.cwd), worktree: null, worktreeReason: 'Proceso lanzado por un agente: usa la carpeta de su sesión' };
   const source = canonicalFolder(workspace.canonicalPath || workspace.path);
   // The orchestrator session integrates in the project checkout itself.
   if (node.data?.role === 'orchestrator') return { cwd: source, worktree: null, worktreeReason: 'Sesión orquestadora: trabaja en el checkout del proyecto' };

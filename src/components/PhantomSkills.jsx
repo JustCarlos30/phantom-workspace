@@ -5,6 +5,7 @@ import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from 
 import { Markdown } from './SkillsMarkdown';
 import '../skills.css';
 import { itemsOf, linesOf, refOf } from '../hooks/plugin-model.mjs';
+const unavailableReason = reason => reason?.replace(/^Phantom unavailable: /, '') || 'sin motivo informado';
 
 const SkillsIcon = PANEL_ICONS['phantom-skills'];
 
@@ -110,7 +111,7 @@ function SkillDetail({ selection, workspace, api, notify, onOpenPanel, onPublish
     </header>
     {detail.loading && !native && <div className="sk-skeleton" role="status" aria-label="Leyendo Skill"><i /><i /><i /></div>}
     {detail.error && <ErrorNotice error={detail.error} retry={detail.reload} />}
-    {native?.available === false && <p className="sk-notice">Phantom no está disponible: {native.reason || 'sin motivo informado'}.</p>}
+    {native?.available === false && <p className="sk-notice">Phantom no está disponible: {unavailableReason(native.reason)}.</p>}
     {native && native.available !== false && !detail.loading && !detail.error && !valid && <ErrorNotice error="La fuente no devolvió manifiesto y referencia exacta válidos. Actualiza el detalle." retry={detail.reload} />}
     {valid && <>
       {manifest.description && <p className="sk-lede">{manifest.description}</p>}
@@ -187,7 +188,7 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
     <div className="sk-body">
       {showList && <nav className="sk-list" aria-label="Skills de Phantom">
         {source.error && <ErrorNotice error={source.error} retry={source.reload} />}
-        {unavailable && <p className="sk-notice">Phantom no está disponible: {source.data.reason || 'sin motivo informado'}.</p>}
+        {unavailable && <p className="sk-notice">Phantom no está disponible: {unavailableReason(source.data.reason)}.</p>}
         {source.data && !unavailable && !Array.isArray(source.data.items) && <ErrorNotice error="La fuente no devolvió una biblioteca válida." retry={source.reload} />}
         {source.loading && !source.data && <div className="sk-skeleton is-list" role="status" aria-label="Leyendo Skills"><i /><i /><i /></div>}
         {source.data && !source.loading && !source.error && !unavailable && Array.isArray(source.data.items) && !items.length && <EmptyState className="sk-empty" icon={SkillsIcon} title="No hay Skills nativas disponibles." description="Publica la primera Skill del proyecto: instrucciones versionadas que cualquier agente puede cargar." actions={<Button tone="primary" icon={Plus} onClick={() => setCreating(true)}>Publicar la primera Skill</Button>} />}

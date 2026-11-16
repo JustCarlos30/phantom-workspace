@@ -56,6 +56,25 @@ test('Ramas gives every branch one state, one line and one action, most urgent f
   assert.equal(changeLabel('??'), 'Nuevo'); assert.equal(changeLabel(' D'), 'Borrado');
 });
 
+test('state filters count search matches and preserve global totals and row order', () => {
+  const data = { base: { branch: 'dev' }, branches: [row('dev', { isBase: true }), row('match/landed', { behind: 2 }), row('match/ready', { ahead: 1, work: 'ready' }), row('other/dirty', { changeCount: 2, work: 'dirty' }), row('match/clash', { conflicts: ['x'] })] };
+  const all = buildBranches(data), searched = buildBranches(data, { query: 'match/' });
+  assert.deepEqual(buildBranches(data, { filter: '' }), all);
+  assert.deepEqual(all.rows.map(item => item.name), ['match/clash', 'match/ready', 'other/dirty', 'match/landed']);
+  assert.deepEqual(searched.filters, [{ id: 'conflict', label: 'Conflicto', count: 1 }, { id: 'ready', label: 'Lista', count: 1 }, { id: 'merged', label: 'En dev', count: 1 }]);
+  assert.equal(searched.matched, 3);
+  const filtered = buildBranches(data, { query: 'match/', filter: 'merged' });
+  assert.deepEqual(filtered.filters, searched.filters); assert.equal(filtered.matched, 3);
+  assert.equal(filtered.visible, 1); assert.deepEqual(filtered.rows.map(item => item.name), ['match/landed']);
+  assert.deepEqual(filtered.groups.flatMap(group => group.rows), filtered.rows);
+  assert.deepEqual(filtered.active, []); assert.deepEqual(filtered.landed, filtered.rows);
+  assert.deepEqual(all.active, all.rows.filter(item => item.state !== 'merged'));
+  assert.deepEqual(all.landed, all.rows.filter(item => item.state === 'merged'));
+  for (const key of ['counts', 'total', 'removable', 'updatable']) assert.deepEqual(filtered[key], all[key]);
+  const empty = buildBranches(data, { query: 'match/', filter: 'unsaved' });
+  assert.equal(empty.visible, 0); assert.equal(empty.matched, 3); assert.deepEqual(empty.active, []); assert.deepEqual(empty.landed, []);
+});
+
 test('branchState is pure and prefers the queue over local Git facts', () => {
   const dirty = row('x', { changeCount: 2, ahead: 1, request: 'merging' });
   assert.equal(branchState(dirty).state, 'merging');

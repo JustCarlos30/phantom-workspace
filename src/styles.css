@@ -8,7 +8,7 @@
 .project-active-dot{height:5px;width:5px;border-radius:50%}
 .rail-toggle,.rail-close,.rail-scrim{display:none}
 .main-workspace{display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden}
-.workspace-header{height:75px;min-height:75px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 25px;z-index:20}
+.workspace-header{height:75px;min-height:75px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 25px;z-index:20}
 .workspace-identity{min-width:0;flex:1}
 .breadcrumb{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--muted);white-space:nowrap;min-width:0}
 .breadcrumb>button{font-size:12px;font-weight:650;color:var(--ink);display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:4px 0}

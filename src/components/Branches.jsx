@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Save, Search, X } from 'lucide-react';
+import { ChevronRight, RefreshCw, Save, Search, X } from 'lucide-react';
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
 import EmptyState from './EmptyState.jsx';
 import { MergeSteps } from './MergePath.jsx';
@@ -92,7 +92,7 @@ function Detail({ row, base, checks, cards, skills, busy, armed, setArmed, act, 
   </div>;
 }
 
-function Row({ row, base, selected, wide, busy, notice, mode, setMode, armed, setArmed, act, select, onOpenPanel, detail }) {
+function Row({ row, base, selected, wide, busy, notice, dismiss, mode, setMode, armed, setArmed, act, select, onOpenPanel, detail }) {
   const open = mode?.id === row.id ? mode.kind : null, armKey = `row:${row.id}`;
   const action = open ? null
     : row.action === 'save' ? <button type="button" className="br-button" disabled={busy} onClick={() => setMode({ id: row.id, kind: 'save' })}><Save size={14} aria-hidden="true" />Guardar</button>
@@ -107,7 +107,7 @@ function Row({ row, base, selected, wide, busy, notice, mode, setMode, armed, se
       {!(row.isBase && row.state === 'merged') && <Chip row={row} />}
       <span className="br-slot">{action}</span>
     </div>
-    {notice && <p className={`br-notice is-${notice.tone}`} role="status">{notice.text}</p>}
+    {notice && <p className={`br-notice is-${notice.tone}`} role="status"><span>{notice.text}</span>{notice.tone === 'warn' && <button type="button" className="br-icon" aria-label="Descartar aviso" onClick={() => dismiss(row.id)}><X size={12} aria-hidden="true" /></button>}</p>}
     {open === 'save' && <SaveForm row={row} base={base} busy={busy} onCancel={() => setMode(null)} onSubmit={(message, integrate) => act(row, 'save', { message, integrate })} />}
     {open === 'remove' && <div className="br-form"><p>¿Limpiar «{row.title}»? Ya está en {base}.</p><div className="br-actions"><button type="button" className="br-button is-danger" disabled={busy} onClick={() => act(row, 'remove')}>Limpiar</button><button type="button" className="br-button" onClick={() => setMode(null)}>Cancelar</button></div></div>}
     {selected && !wide && <div className="br-inline">{detail}</div>}
@@ -123,6 +123,9 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
   const op = useOperation(notify);
   const [query, setQuery] = useState(''), [mode, setMode] = useState(null), [notices, setNotices] = useState({}), [bulk, setBulk] = useState(null);
   const [selectedId, setSelectedId] = useState(null), [armed, setArmed] = useState(null);
+  const [filter, setFilter] = useState(''), [foldOpen, setFoldOpen] = useState(null);
+  const timers = useRef(new Map());
+  useEffect(() => () => { for (const timer of timers.current.values()) clearTimeout(timer); }, []);
   const [root, setRoot] = useState(null), [wide, setWide] = useState(false);
   const { data, reload } = resource;
   const last = useRef(null); if (data) last.current = data;
@@ -142,8 +145,14 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
 
   const catalog = cards.data?.available !== false ? cards.data?.items || [] : [];
   const content = useMemo(() => contentByBranch({ cards: catalog, skills: skills.data?.items, baseBranch: shown?.base?.branch }), [cards.data, skills.data, shown?.base?.branch]);
-  const model = useMemo(() => buildBranches(shown, { query, content, cards: catalog }), [shown, query, content, cards.data]);
-  const note = (row, tone, text) => setNotices(old => ({ ...old, [row.id]: { tone, text } }));
+  const model = useMemo(() => buildBranches(shown, { query, filter, content, cards: catalog }), [shown, query, filter, content, cards.data]);
+  useEffect(() => { if (filter && !model.counts[filter]) setFilter(''); }, [filter, model.counts]);
+  const dismiss = id => { clearTimeout(timers.current.get(id)); timers.current.delete(id); setNotices(old => { const next = { ...old }; delete next[id]; return next; }); };
+  const note = (row, tone, text) => {
+    clearTimeout(timers.current.get(row.id)); timers.current.delete(row.id);
+    setNotices(old => ({ ...old, [row.id]: { tone, text } }));
+    if (tone === 'ok') timers.current.set(row.id, setTimeout(() => dismiss(row.id), 6000));
+  };
   const call = (method, row, extra = {}) => api(method, { workspaceId: workspace.id, branch: row.name, ...extra });
   const settle = (row, result, base, saved = false) => {
     if (result.status === 'conflict') { note(row, 'warn', `${saved ? 'Guardada, pero no integrada' : 'No se integró'}: ${list(result.conflicts)} ${result.conflicts.length > 1 ? 'chocan' : 'choca'} con ${base}.`); return false; }
@@ -183,7 +192,13 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
   const baseRow = model.baseRow, base = model.base;
   const selected = model.rows.find(row => row.id === selectedId) || null;
   const select = id => { setSelectedId(id); setArmed(null); };
-  const shared = { base, wide, busy: op.busy, mode, setMode, armed, setArmed, act, select, onOpenPanel };
+  const shared = { base, wide, busy: op.busy, mode, setMode, armed, setArmed, act, select, onOpenPanel, dismiss };
+  const landedOpen = Boolean(query.trim() || filter === 'merged' || model.landed.some(row => row.id === selectedId) || (foldOpen ?? model.landed.length <= 3));
+  const bulkOf = kind => bulk === kind && <div className="br-bulk" role="group">
+    <span>{kind === 'remove' ? `¿Limpiar ${plural(model.removable.length, 'rama', 'ramas')} ya ${model.removable.length === 1 ? 'integrada' : 'integradas'}?` : `¿Poner al día ${plural(model.updatable.length, 'rama', 'ramas')} con ${base}?`}</span>
+    <button type="button" className={`br-button ${kind === 'remove' ? 'is-danger' : 'is-primary'}`} disabled={op.busy} onClick={() => runBulk(kind)}>{kind === 'remove' ? 'Limpiar todas' : 'Poner todas al día'}</button><button type="button" className="br-button" onClick={() => setBulk(null)}>Cancelar</button>
+  </div>;
+  const rowsOf = rows => <ul className="br-group">{rows.map(row => <Row key={row.id} row={row} {...shared} selected={selected?.id === row.id} notice={notices[row.id]} detail={selected?.id === row.id && !wide ? detailOf(row) : null} />)}</ul>;
   const detailOf = (row, onClose) => <Detail row={row} base={base} checks={shown.checks || ''} cards={cardsOf(row, content.get(row.name || row.worktree?.path), catalog)} skills={content.get(row.name)?.skills || []} busy={op.busy} armed={armed} setArmed={setArmed} act={act} setMode={setMode} onOpenPanel={onOpenPanel} onClose={onClose} skip={onClose ? null : row.action} />;
   return <div className={`br-root${wide && selected ? ' has-detail' : ''}`} ref={setRoot}>
     <div className="br-list">
@@ -191,6 +206,7 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
         <label className="br-search"><Search size={14} aria-hidden="true" /><input type="search" aria-label="Buscar rama, tarea o archivo" placeholder="Buscar rama o archivo" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} /></label>
         <button type="button" className="br-icon" aria-label="Actualizar" title="Actualizar" disabled={resource.loading} onClick={() => { reload(); cards.reload(); }}><RefreshCw size={14} className={resource.loading ? 'spinning' : ''} /></button>
       </div>
+      {model.filters.length >= 2 && <div className="br-filters" role="group" aria-label="Filtrar por estado">{[{ id: '', label: 'Todas', count: model.matched }, ...model.filters].map(item => <button key={item.id} type="button" className="br-filter" aria-pressed={filter === item.id} onClick={() => setFilter(filter === item.id ? '' : item.id)}>{item.label} <span className="br-filter-count">{item.count}</span></button>)}</div>}
       <ErrorNotice error={op.error} clear={op.clear} />
       {resource.error && <ErrorNotice error={`No se pudo leer Git: ${resource.error.message}`} retry={reload} />}
       {baseRow && <section className="br-section" aria-label={base}>
@@ -198,19 +214,17 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
         {shown.integration?.enabled && <p className="br-quiet br-under">El orquestador integra las ramas listas</p>}
       </section>}
       {model.total > 0 && <section className="br-section" aria-label={model.title}>
-        <h3 className="br-group-title">{model.title}</h3>
-        {model.visible > 0 && <ul className="br-group">{model.rows.map(row => <Row key={row.id} row={row} {...shared} selected={selected?.id === row.id} notice={notices[row.id]} detail={selected?.id === row.id && !wide ? detailOf(row) : null} />)}</ul>}
-        {!model.visible && <EmptyState className="br-quiet" size="compact" description={<>Ninguna rama coincide con «{query}».</>} />}
+        <div className="br-group-head"><h3 className="br-group-title">{model.title}</h3>{model.updatable.length > 0 && <button type="button" className="br-button is-quiet is-small" aria-label={`Poner al día ${plural(model.updatable.length, 'rama', 'ramas')}`} disabled={op.busy} onClick={() => setBulk('update')}>Poner al día {model.updatable.length}</button>}</div>
+        {bulkOf('update')}
+        {model.active.length > 0 && rowsOf(model.active)}
+        {!model.visible && <EmptyState className="br-quiet" size="compact" description={query.trim() ? <>Ninguna rama coincide con «{query}».</> : 'Ninguna rama en este estado.'} />}
+      </section>}
+      {model.landed.length > 0 && <section className="br-section" aria-label={`Ya en ${base}`}>
+        <div className="br-group-head"><button type="button" className="br-fold" aria-expanded={landedOpen} onClick={() => setFoldOpen(!landedOpen)}><ChevronRight size={14} aria-hidden="true" />Ya en {base} <span className="br-filter-count">{model.landed.length}</span></button>{model.removable.length > 0 && <button type="button" className="br-button is-quiet is-small" aria-label={`Limpiar ${plural(model.removable.length, 'rama', 'ramas')} ya ${model.removable.length === 1 ? 'integrada' : 'integradas'}`} disabled={op.busy} onClick={() => setBulk('remove')}>Limpiar {model.removable.length}</button>}</div>
+        {bulkOf('remove')}
+        {landedOpen && rowsOf(model.landed)}
       </section>}
       {!model.total && <EmptyState className="br-quiet" size="compact" description="Aún no hay ramas. Cada sesión nueva crea la suya." />}
-      {(model.updatable.length > 0 || model.removable.length > 0) && <div className="br-bulk">
-        {bulk ? <><span>{bulk === 'remove' ? `¿Limpiar ${plural(model.removable.length, 'rama', 'ramas')} ya ${model.removable.length === 1 ? 'integrada' : 'integradas'}?` : `¿Poner al día ${plural(model.updatable.length, 'rama', 'ramas')} con ${base}?`}</span>
-          <button type="button" className={`br-button ${bulk === 'remove' ? 'is-danger' : 'is-primary'}`} disabled={op.busy} onClick={() => runBulk(bulk)}>{bulk === 'remove' ? 'Limpiar todas' : 'Poner todas al día'}</button><button type="button" className="br-button" onClick={() => setBulk(null)}>Cancelar</button></>
-          : <>
-            {model.removable.length > 0 && <button type="button" className="br-link" disabled={op.busy} onClick={() => setBulk('remove')}>Limpiar {plural(model.removable.length, 'rama', 'ramas')} ya {model.removable.length === 1 ? 'integrada' : 'integradas'}</button>}
-            {model.updatable.length > 0 && <button type="button" className="br-link" disabled={op.busy} onClick={() => setBulk('update')}>Poner al día {plural(model.updatable.length, 'rama', 'ramas')}</button>}
-          </>}
-      </div>}
     </div>
     {wide && selected && <aside className="br-detail" aria-label={`Detalle de ${selected.title}`}>{detailOf(selected, () => select(null))}</aside>}
   </div>;

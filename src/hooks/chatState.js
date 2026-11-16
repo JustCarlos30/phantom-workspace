@@ -35,7 +35,7 @@ export function formatCost(usd) {
   return usd < .01 ? '<$0.01' : `$${usd.toFixed(2)}`;
 }
 export function contextUse(meta) {
-  if (!Number.isFinite(meta?.contextTokens) || meta.contextTokens <= 0) return null;
+  if (!['claude:request-v1', 'opencode:request-v1'].includes(meta?.contextSource) || !Number.isFinite(meta?.contextTokens) || meta.contextTokens <= 0) return null;
   const window = Number.isFinite(meta.contextWindow) && meta.contextWindow > 0 ? meta.contextWindow : null;
   return { tokens: meta.contextTokens, window, ratio: window ? meta.contextTokens / window : null };
 }

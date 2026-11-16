@@ -4,11 +4,54 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHost } from '../host/server.mjs';
-import { applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
+import { Chats, applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
 import { mergeChat } from '../src/hooks/chatState.js';
 
 const until = async fn => { const end = Date.now() + 5000; while (Date.now() < end) { if (await fn()) return; await new Promise(r => setTimeout(r, 25)); } throw new Error('Timed out'); };
 const turn = () => ({ message: { parts: [] }, sessionId: null, streamed: new Set(), freshText: true, cwd: '/repo', error: '' });
+test('Codex aggregate usage never becomes occupied context', () => {
+  const t = turn();
+  t.contextTokens = 164000;
+  applyCodexEvent(t, { type: 'turn.completed', usage: { input_tokens: 160000, cached_input_tokens: 100000, output_tokens: 4000 } });
+  assert.equal(t.contextTokens, undefined);
+  assert.equal(t.contextSource, undefined);
+  assert.equal(t.usage.outputTokens, 4000);
+});
+
+test('Claude keeps only complete latest root request readings', () => {
+  const t = turn(), usage = { input_tokens: 80000, cache_read_input_tokens: 20000, cache_creation_input_tokens: 100, output_tokens: 50 };
+  const apply = usage => applyClaudeEvent(t, { type: 'assistant', message: { usage } });
+  apply(usage);
+  assert.equal(t.contextTokens, 100150);
+  applyClaudeEvent(t, { type: 'assistant', parent_tool_use_id: 'child', message: { usage: { ...usage, input_tokens: 999999 } } });
+  assert.equal(t.contextTokens, 100150);
+  apply({ ...usage, input_tokens: 1 });
+  assert.equal(t.contextTokens, 20151);
+  for (const invalid of [undefined, {}, { input_tokens: 1, output_tokens: 2 }, ...[NaN, Infinity, -1, null].map(output_tokens => ({ ...usage, output_tokens }))]) {
+    apply(usage); apply(invalid);
+    assert.equal(t.contextTokens, undefined);
+    assert.equal(t.contextSource, undefined);
+  }
+});
+
+test('Reload invalidates legacy metadata and clear removes measured context', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-context-'));
+  let chats;
+  t.after(() => { clearInterval(chats.timer); fs.rmSync(root, { recursive: true, force: true }); });
+  const node = { id: 'n', data: { cwd: root, chat: { provider: 'codex' } } };
+  fs.writeFileSync(path.join(root, 'chats.json'), JSON.stringify({ n: { threads: { codex: { messages: [], meta: { contextTokens: 164000, contextWindow: 200000, costUsd: 1 } }, claude: { messages: [], meta: { contextSource: 'claude:request-v1', contextTokens: 84000, contextWindow: 200000 } } } } }));
+  chats = new Chats({ dir: root }, () => {});
+  assert.deepEqual(chats.get(node).meta, { costUsd: 1 });
+  node.data.chat.provider = 'claude';
+  assert.equal(chats.get(node).meta.contextTokens, 84000);
+  chats.clear({ id: 'w' }, node);
+  assert.deepEqual(chats.get(node).meta, {});
+  chats.save(); clearInterval(chats.timer);
+  chats = new Chats({ dir: root }, () => {});
+  assert.deepEqual(chats.get(node).meta, {});
+  node.data.chat.provider = 'codex';
+  assert.deepEqual(chats.get(node).meta, { costUsd: 1 });
+});
 test('Codex folds lifecycle events without duplicating updates and reports failures', () => {
   const t = turn();
   applyCodexEvent(t, { type: 'thread.started', thread_id: 'thread-1' });
@@ -16,7 +59,7 @@ test('Codex folds lifecycle events without duplicating updates and reports failu
   applyCodexEvent(t, { type: 'item.completed', item: { id: 'c', type: 'command_execution', command: 'npm test', exit_code: 1, aggregated_output: 'failed' } });
   for (const type of ['item.updated', 'item.completed']) applyCodexEvent(t, { type, item: { id: 'a', type: 'agent_message', text: 'Listo' } });
   applyCodexEvent(t, { type: 'turn.completed', usage: { input_tokens: 100, output_tokens: 20 } });
-  assert.equal(t.sessionId, 'thread-1'); assert.equal(t.message.parts.length, 2); assert.equal(t.message.parts[0].status, 'error'); assert.equal(t.message.parts[1].text, 'Listo'); assert.equal(t.contextTokens, 120);
+  assert.equal(t.sessionId, 'thread-1'); assert.equal(t.message.parts.length, 2); assert.equal(t.message.parts[0].status, 'error'); assert.equal(t.message.parts[1].text, 'Listo'); assert.equal(t.contextTokens, undefined);
   applyCodexEvent(t, { type: 'turn.failed', error: { message: 'sin crédito' } }); assert.equal(t.error, 'sin crédito');
 });
 
@@ -149,7 +192,7 @@ test('OpenCode events become text and tool parts; arguments resume the right ses
   const t = turn();
   applyOpenCodeEvent(t, { type: 'step_start', sessionID: 'ses_1', part: { type: 'step-start' } });
   applyOpenCodeEvent(t, { type: 'tool_use', sessionID: 'ses_1', part: { tool: 'glob', callID: 'c1', state: { status: 'completed', input: { pattern: 'a.txt' }, output: '/repo/a.txt' } } });
-  applyOpenCodeEvent(t, { type: 'step_finish', sessionID: 'ses_1', part: { tokens: { total: 14915, output: 13, reasoning: 28 }, cost: .01 } });
+  applyOpenCodeEvent(t, { type: 'step_finish', sessionID: 'ses_1', part: { sessionID: 'ses_1', tokens: { total: 14915, output: 13, reasoning: 28 }, cost: .01 } });
   applyOpenCodeEvent(t, { type: 'text', sessionID: 'ses_1', part: { text: 'Listo.' } });
   applyOpenCodeEvent(t, { type: 'error', error: { name: 'APIError', data: { message: 'Límite alcanzado' } } });
   assert.deepEqual(t.message.parts, [{ type: 'tool', id: 'c1', name: 'glob', detail: 'a.txt', status: 'done', output: '/repo/a.txt' }, { type: 'text', text: 'Listo.' }]);
@@ -190,7 +233,7 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
     const resume=process.argv.indexOf('--resume');
     if(input==='cuelga'){out({type:'system',subtype:'init',session_id:'sid-1'});setInterval(()=>{},1000);return;}
     out({type:'system',subtype:'init',session_id:'sid-1'});
-    out({type:'assistant',message:{id:'m1',model:'claude-x',usage:{input_tokens:5000,output_tokens:9},content:[{type:'text',text:'eco:'+input+' resume:'+(resume<0?'no':process.argv[resume+1])+(process.argv.includes('--model')?' modelo:'+process.argv[process.argv.indexOf('--model')+1]:'')+' modo:'+(process.argv.includes('acceptEdits')?'editar':'preguntar')+' cwd:'+process.cwd()}]}});
+    out({type:'assistant',message:{id:'m1',model:'claude-x',usage:{input_tokens:5000,cache_read_input_tokens:0,cache_creation_input_tokens:0,output_tokens:9},content:[{type:'text',text:'eco:'+input+' resume:'+(resume<0?'no':process.argv[resume+1])+(process.argv.includes('--model')?' modelo:'+process.argv[process.argv.indexOf('--model')+1]:'')+' modo:'+(process.argv.includes('acceptEdits')?'editar':'preguntar')+' cwd:'+process.cwd()}]}});
     out({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'sid-1',duration_ms:1200,total_cost_usd:.25,usage:{output_tokens:9},modelUsage:{'claude-x':{contextWindow:200000}}});});`);
   const opencode = fixture(root, 'opencode', `${out}if(process.argv[2]==='models'){console.log('openai/gpt-x\\nopencode/free-y\\nruido sin barra');process.exit(0);}out({type:'text',sessionID:'ses_9',part:{text:'oc:'+process.argv.at(-1)+' pwd:'+(process.env.PWD===process.cwd())}});console.error('fallo del proveedor');process.exit(3);`);
   let host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
@@ -217,7 +260,7 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   await host.invoke('chat.send', { ...ref, text: 'sigue' }); await idle();
   chat = await host.invoke('chat.get', ref);
   assert.match(chat.messages[3].parts[0].text, /^eco:sigue resume:sid-1 modo:editar/);
-  assert.deepEqual(chat.meta, { model: 'claude-x', contextTokens: 5009, contextWindow: 200000, costUsd: .5, turns: 2 });
+  assert.deepEqual(chat.meta, { model: 'claude-x', contextSource: 'claude:request-v1', contextTokens: 5009, contextWindow: 200000, costUsd: .5, turns: 2 });
   assert.deepEqual([chat.messages[3].model, chat.messages[3].usage], ['claude-x', { durationMs: 1200, costUsd: .25, outputTokens: 9 }]);
 
   // The model is chosen per provider and returns to the default with null.
@@ -269,8 +312,8 @@ test('status line readings are compact and never invent a context window', async
   assert.deepEqual([30116, 1000000, 200000, 999, 1500000].map(formatTokens), ['30.1k', '1M', '200k', '999', '1.5M']);
   assert.deepEqual([6198, 42000, 72500].map(formatDuration), ['6.2 s', '42 s', '1 min 13 s']);
   assert.deepEqual([.3277, .004].map(formatCost), ['$0.33', '<$0.01']);
-  assert.deepEqual(contextUse({ contextTokens: 50000, contextWindow: 200000 }), { tokens: 50000, window: 200000, ratio: .25 });
-  assert.deepEqual(contextUse({ contextTokens: 14915 }), { tokens: 14915, window: null, ratio: null });
+  assert.deepEqual(contextUse({ contextSource: 'claude:request-v1', contextTokens: 50000, contextWindow: 200000 }), { tokens: 50000, window: 200000, ratio: .25 });
+  assert.deepEqual(contextUse({ contextSource: 'opencode:request-v1', contextTokens: 14915 }), { tokens: 14915, window: null, ratio: null });
   assert.equal(contextUse({}), null);
 });
 

@@ -10,6 +10,17 @@ from faster_whisper import WhisperModel
 from faster_whisper.vad import VadOptions, get_speech_timestamps
 
 RATE = 16000
+PAUSE_MS = 800
+SPEECH_PAD_MS = 100
+VAD_THRESHOLD = 0.4
+CONTEXT_CHARS = 200
+PARTIAL_BEAM_SIZE = 1
+CONFIRMED_BEAM_SIZE = 5
+STABLE_SECONDS = 15
+MAX_SECONDS = 25
+STABLE_TAIL_SECONDS = 2
+MAX_TEXT = 32768
+TECHNICAL_PROMPT = "Dictado técnico en español con términos en inglés: Phantom, OpenCode, Git, worktree, endpoint, API, terminal."
 
 
 class Dictation:
@@ -28,34 +39,41 @@ class Dictation:
         samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
         self.audio = np.concatenate((self.audio, samples))
         started = time.monotonic()
-        speech = get_speech_timestamps(self.audio, VadOptions(min_silence_duration_ms=500,
-                                           speech_pad_ms=100)) if self.audio.size else []
+        options = VadOptions(threshold=VAD_THRESHOLD, min_silence_duration_ms=PAUSE_MS,
+                             speech_pad_ms=SPEECH_PAD_MS)
+        speech = get_speech_timestamps(self.audio, options) if self.audio.size else []
         if speech:
-            ended = final or self.audio.size - speech[-1]["end"] >= RATE // 2
-            segments = list(self.model.transcribe(self.audio, language="es", beam_size=1,
-                condition_on_previous_text=False, vad_filter=True,
-                initial_prompt="Dictado técnico en español con términos en inglés: Phantom, OpenCode, Git, worktree, endpoint, API, terminal.")[0])
+            ended = final or self.audio.size - speech[-1]["end"] >= RATE * PAUSE_MS // 1000
+            context = self.confirmed
+            if len(context) > CONTEXT_CHARS:
+                start = context.find(" ", len(context) - CONTEXT_CHARS)
+                context = context[start + 1:] if start >= 0 else ""
+            segments = list(self.model.transcribe(self.audio, language="es", beam_size=CONFIRMED_BEAM_SIZE if ended else PARTIAL_BEAM_SIZE,
+                condition_on_previous_text=False, vad_filter=True, vad_parameters=options,
+                initial_prompt=" ".join(filter(None, (TECHNICAL_PROMPT, context))))[0])
             self.partial = " ".join(s.text.strip() for s in segments).strip()
             if ended:
                 self.confirmed = " ".join(filter(None, (self.confirmed, self.partial)))
                 self.partial = ""
-                self.audio = np.zeros(0, dtype=np.float32)
-            elif self.audio.size >= RATE * 15:
+                self.audio = self.audio[max(speech[-1]["end"], self.audio.size - RATE):]
+            elif self.audio.size >= RATE * STABLE_SECONDS:
                 # Commit only complete decoded segments; retain their uncommitted audio.
-                stable = [s for s in segments if s.end <= self.audio.size / RATE - 2]
+                stable = [s for s in segments if s.end <= self.audio.size / RATE - STABLE_TAIL_SECONDS]
                 if stable:
                     self.confirmed = " ".join(filter(None, (self.confirmed,
                         " ".join(s.text.strip() for s in stable))))
                     self.partial = " ".join(s.text.strip() for s in segments[len(stable):])
                     self.audio = self.audio[int(stable[-1].end * RATE):]
-                elif self.audio.size >= RATE * 25:
+                elif self.audio.size >= RATE * MAX_SECONDS:
                     raise ValueError("No stable speech boundary; stop and retry a shorter phrase")
         else:
             self.partial = ""
             # Retain a little silence so the next speech onset is not clipped.
-            self.audio = self.audio[-RATE // 2:]
+            self.audio = self.audio[-RATE:]
+        if final:
+            self.audio = np.zeros(0, dtype=np.float32)
         text = " ".join(filter(None, (self.confirmed, self.partial)))
-        if len(text) > 32768:
+        if len(text) > MAX_TEXT:
             raise ValueError("Transcript exceeds 32768 characters")
         return {"text": text, "confirmed": self.confirmed, "partial": self.partial,
                 "inferenceMs": round((time.monotonic() - started) * 1000)}
