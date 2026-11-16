@@ -10,7 +10,25 @@ const temp = await mkdtemp('/tmp/phantom-sites-ui-');
 const bin = path.join(temp, 'bin'); await mkdir(bin);
 const first = path.join(temp, `SYNTHETIC-web-${'longname'.repeat(8)}`), second = path.join(temp, 'SYNTHETIC-empty');
 await mkdir(first); await mkdir(second); await writeFile(path.join(first, 'compose.yaml'), 'services: {}');
-await writeFile(path.join(bin, 'docker'), `#!${process.execPath}\nconst a=process.argv.slice(2); if(a[0]==='context'&&a[1]==='show') console.log('fixture'); else if(a[0]==='context') console.log(JSON.stringify([{Endpoints:{docker:{Host:'unix:///fixture'}}}])); else if(a.includes('ps')) console.log(''); else if(a.includes('config')) console.log(JSON.stringify({services:{web:{ports:[{target:80}]},['service'+'long'.repeat(30)]:{ports:[{target:5432}]}}})); else if(a.includes('logs')) console.log('SYNTHETIC Docker log');\n`, { mode: 0o755 });
+await writeFile(path.join(bin, 'docker'), `#!${process.execPath}
+const fs = require('node:fs');
+const a = process.argv.slice(2), marker = ${JSON.stringify(path.join(temp, 'container.json'))};
+const container = fs.existsSync(marker) ? JSON.parse(fs.readFileSync(marker, 'utf8')) : null;
+if (a[0] === 'context' && a[1] === 'show') console.log('fixture');
+else if (a[0] === 'context') console.log(JSON.stringify([{Endpoints:{docker:{Host:'unix:///fixture'}}}]));
+else if (a.includes('ps')) console.log(container ? container.Id : '');
+else if (a.includes('inspect')) console.log(JSON.stringify(container ? [container] : []));
+else if (a.includes('config')) console.log(JSON.stringify({services:{web:{ports:[{target:80}]},['service'+'long'.repeat(30)]:{ports:[{target:5432}]}}}));
+else if (a.includes('up')) {
+  fs.writeFileSync(marker, JSON.stringify({Id:'a'.repeat(64), Config:{Labels:{
+    'com.docker.compose.project':a[a.indexOf('-p')+1],
+    'com.docker.compose.service':'web',
+    'com.docker.compose.project.working_dir':${JSON.stringify(first)},
+    'com.docker.compose.project.config_files':${JSON.stringify(path.join(first, 'compose.yaml'))}
+  }}, State:{Status:'running'}, NetworkSettings:{Ports:{}}}));
+} else if (a.includes('stop')) { container.State.Status = 'exited'; fs.writeFileSync(marker, JSON.stringify(container)); }
+else if (a.includes('logs')) console.log('SYNTHETIC Docker log');
+`, { mode: 0o755 });
 const env = { ...process.env };
 for (const key of Object.keys(env)) {
   if (key.startsWith('PHANTOM_') || ['ELECTRON_RUN_AS_NODE', 'NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'ENV', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'COMPOSE_FILE'].includes(key)) delete env[key];
@@ -30,15 +48,35 @@ try {
   await invoke('workspace.open', { path: second });
   await page.reload(); await page.waitForSelector('.app-shell');
   await page.getByRole('button', { name: 'Sitios', exact: true }).click();
-  const sites = page.getByRole('region', { name: 'Sitios globales' });
+  const sites = page.getByRole('region', { name: 'Servicios de todos los proyectos', exact: true });
   await sites.getByText('Sin crear').first().waitFor();
-  assert.equal(await sites.getByText('No se encontró un archivo Compose', { exact: false }).count(), 1);
+  assert.equal(await sites.getByRole('region', { name: 'Sin Compose', exact: true }).count(), 1);
   await sites.getByLabel('Proyecto', { exact: true }).selectOption(a.id);
-  assert.equal(await sites.getByText('No se encontró un archivo Compose', { exact: false }).count(), 0);
+  assert.equal(await sites.getByRole('region', { name: 'Sin Compose', exact: true }).count(), 0);
+  assert.equal(await sites.getByRole('button', { name: /Registro web en/ }).count(), 0);
+  assert.equal(await sites.getByRole('button', { name: /Detener web en/ }).count(), 0);
+  await sites.getByLabel('Buscar', { exact: true }).fill('ningún-servicio');
+  await sites.getByText('No hay resultados con estos filtros.', { exact: true }).waitFor();
+  await sites.getByRole('button', { name: 'Quitar filtros' }).click();
+  assert.equal(await sites.getByLabel('Proyecto', { exact: true }).inputValue(), '');
+  await sites.getByLabel('Proyecto', { exact: true }).selectOption(a.id);
+  await sites.getByLabel('Buscar', { exact: true }).fill('web');
+  assert.equal(await sites.locator('.sites-service').count(), 1);
+  await sites.getByLabel('Buscar', { exact: true }).fill('');
   await sites.getByRole('button', { name: /Iniciar web en/ }).click();
-  await sites.getByRole('button', { name: /Logs web en/ }).click();
+  await sites.getByRole('button', { name: /Detener web en/ }).waitFor();
+  assert.equal(await sites.getByRole('button', { name: /Iniciar web en/ }).count(), 0);
+  await sites.getByRole('button', { name: 'Solo en marcha', exact: true }).click();
+  assert.equal(await sites.getByRole('button', { name: 'Solo en marcha', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await sites.locator('.sites-service').count(), 1);
+  await sites.getByRole('button', { name: 'Solo en marcha', exact: true }).click();
+  await sites.getByRole('button', { name: /Registro web en/ }).click();
   await sites.getByText('SYNTHETIC Docker log').waitFor();
-  await sites.getByRole('button', { name: 'Cerrar logs' }).click();
+  const log = sites.getByRole('region', { name: /Registro de .*web/ });
+  assert.equal(await log.evaluate(el => el.previousElementSibling?.classList.contains('sites-service')), true);
+  await log.getByRole('button', { name: 'Actualizar registro' }).click();
+  await page.waitForFunction(() => !document.querySelector('.sites-service[aria-busy="true"]'));
+  await log.getByRole('button', { name: 'Cerrar registro' }).click();
   for (const [index, { width, scale }] of [{ width: 1280, scale: 1 }, { width: 870, scale: 1 }, { width: 870, scale: 1.25 }].entries()) {
     const zoom = await app.evaluate(({ BrowserWindow }, { width, scale }) => {
       const window = BrowserWindow.getAllWindows()[0];
@@ -72,7 +110,7 @@ try {
     assert.ok(geometry.viewRight <= geometry.viewportRight + 1, JSON.stringify(geometry));
     assert.ok(geometry.scrollWidth <= geometry.clientWidth + 1, JSON.stringify(geometry));
     assert.deepEqual(geometry.overflowing, [], JSON.stringify(geometry));
-    for (const name of ['Actualizar', 'Cerrar Sitios', /Iniciar web en/, /Detener web en/, /Reiniciar web en/, /Logs web en/]) {
+    for (const name of ['Actualizar', 'Cerrar Sitios', /Iniciar servicelong/, /Detener web en/, /Reiniciar web en/, /Registro web en/]) {
       const button = sites.getByRole('button', { name });
       await button.scrollIntoViewIfNeeded();
       assert.equal(await button.isVisible(), true, String(name));
@@ -84,8 +122,16 @@ try {
     await sites.evaluate(el => { el.scrollTop = 0; });
     await page.screenshot({ path: path.join(temp, `sitios-${width}${scale === 1 ? '' : '-escala-125'}.png`) });
   }
+  await sites.getByRole('button', { name: /Detener web en/ }).click();
+  await sites.getByRole('button', { name: /Iniciar web en/ }).waitFor();
+  assert.equal(await sites.getByRole('button', { name: /Reiniciar web en/ }).count(), 0);
+  assert.equal(await sites.getByRole('button', { name: /Registro web en/ }).count(), 1);
   assert.equal(await page.locator('.sites-canvas-content').evaluate(el => el.inert), true);
   await sites.getByLabel('Proyecto', { exact: true }).focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await sites.getByLabel('Buscar', { exact: true }).evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Tab');
+  assert.equal(await sites.getByRole('button', { name: 'Solo en marcha', exact: true }).evaluate(el => el === document.activeElement), true);
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => !!document.activeElement.closest('.sites-service')), true, 'Tab avanza desde el filtro a los servicios');
   const canvasBefore = await page.locator('.canvas').evaluate(el => ({ transform: el.querySelector('.canvas-world')?.getAttribute('style'), selected: el.querySelectorAll('.canvas-node.selected').length }));
