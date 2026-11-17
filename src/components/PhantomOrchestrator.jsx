@@ -8,7 +8,8 @@ import Incorporaciones from './Incorporaciones';
 import { preferredCardMode } from './ChatCard';
 import { ErrorNotice, useResource } from './PluginPrimitives';
 import { buildCola } from '../hooks/incorporaciones-model.mjs';
-import { buildDelegation, withCardPlans } from '../hooks/delegation-model.mjs';
+import { buildDelegation, withCardPlans, withChatSubagents } from '../hooks/delegation-model.mjs';
+import { useChatSubagents } from '../hooks/useChatSubagents';
 import { statusLabel } from '../hooks/phantom-desk.mjs';
 import '../incorporaciones.css';
 
@@ -36,7 +37,8 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
     return () => clearInterval(interval);
   }, [tasks.reload]);
   const taskData = tasks.data ?? (lastTasks?.workspaceId === workspace.id ? lastTasks.data : null);
-  const delegation = useMemo(() => withCardPlans(buildDelegation(workspace), taskData), [workspace, taskData]);
+  const chatSubagents = useChatSubagents(workspace, api, connected);
+  const delegation = useMemo(() => withChatSubagents(withCardPlans(buildDelegation(workspace), taskData), chatSubagents), [workspace, taskData, chatSubagents]);
   const delegates = delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden);
   const working = delegates.filter(row => row.status === 'working').length;
   const blocked = delegates.filter(row => row.status === 'blocked').length;

@@ -1,5 +1,31 @@
 import { childrenOf } from './card-view.mjs';
 
+export function chatSubagents(messages) {
+  const result = [];
+  for (const message of Array.isArray(messages) ? messages : []) {
+    for (const part of Array.isArray(message?.parts) ? message.parts : []) {
+      if (part?.type !== 'tool' || !part.agent || typeof part.agent !== 'object' || Array.isArray(part.agent) || part.status !== 'running' || part.id == null || part.id === '') continue;
+      const description = part.detail || part.name || '';
+      result.push({ id: String(part.id), type: typeof part.agent.type === 'string' ? part.agent.type : '', description: typeof description === 'string' ? description.replace(/\s+/g, ' ').trim().slice(0, 240) : '', background: false });
+    }
+  }
+  return result;
+}
+
+export function withChatSubagents(delegation, byNode) {
+  const rows = delegation.rows.map(row => {
+    const subagents = [...row.subagents];
+    const ids = new Set(subagents.map(entry => entry.id));
+    for (const entry of byNode?.[row.id] || []) {
+      if (ids.has(entry.id)) continue;
+      ids.add(entry.id);
+      subagents.push(entry);
+    }
+    return { ...row, subagents };
+  });
+  return { ...delegation, rows, counts: { ...delegation.counts, subagents: rows.reduce((total, row) => total + row.subagents.length, 0) } };
+}
+
 export function withCardPlans(delegation, tasks) {
   const items = Array.isArray(tasks) ? tasks : Array.isArray(tasks?.items) ? tasks.items : [];
   const plans = new Map();

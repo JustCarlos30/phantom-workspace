@@ -1,10 +1,47 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDelegation, withCardPlans } from './delegation-model.mjs';
+import { buildDelegation, withCardPlans, chatSubagents, withChatSubagents } from './delegation-model.mjs';
 
 const terminal = (id, data, title) => ({ id, type: 'terminal', data, title });
 const handoff = (nodeId, createdAt = '', extra = {}) => ({ from: { workspaceId: 'w', nodeId, title: nodeId }, createdAt, ...extra });
 const build = nodes => buildDelegation({ id: 'w', nodes });
+
+test('chat subagents select running tools in appearance order and normalize fields', () => {
+  const part = { type: 'tool', status: 'running', agent: { type: 'Explore' } };
+  assert.deepEqual(chatSubagents([{ parts: [
+    { ...part, id: 'a', detail: ' Buscar\n  usos ' },
+    { ...part, id: 'done', status: 'done' },
+    { ...part, id: 'plain', agent: null },
+    { ...part },
+  ] }, { parts: [{ ...part, id: 0, agent: {}, detail: '', name: 'Agent' }] }]), [
+    { id: 'a', type: 'Explore', description: 'Buscar usos', background: false },
+    { id: '0', type: '', description: 'Agent', background: false },
+  ]);
+});
+
+test('chat subagents tolerate malformed messages and bound descriptions', () => {
+  for (const messages of [null, undefined, 'x', {}]) assert.deepEqual(chatSubagents(messages), []);
+  assert.deepEqual(chatSubagents([null, {}, { parts: {} }, { parts: [null] }]), []);
+  const parts = [{ type: 'tool', id: 7, status: 'running', agent: { type: 1 }, detail: 'x'.repeat(500) }];
+  assert.deepEqual(chatSubagents([{ parts }]), [{ id: '7', type: '', description: 'x'.repeat(240), background: false }]);
+});
+
+test('chat enrichment deduplicates per row and preserves plans, cards and inputs', () => {
+  const base = withCardPlans(build([terminal('a', { agent: { cardId: 'c' } }), terminal('b')]), [card('c'), card('open')]);
+  const old = { id: 'old', type: 'PTY', description: '', background: true };
+  const added = { id: 'new', type: 'Explore', description: 'Find', background: false };
+  base.rows[0].subagents.push(old);
+  base.counts.subagents = 1;
+  const snapshot = structuredClone(base);
+  const result = withChatSubagents(base, { a: [{ ...old, type: 'Chat' }, added, added], absent: [added] });
+  assert.deepEqual(result.rows[0].subagents, [old, added]);
+  assert.deepEqual(result.rows[1].subagents, []);
+  assert.equal(result.counts.subagents, 2);
+  assert.equal(result.rows[0].plan, base.rows[0].plan);
+  assert.equal(result.cards, base.cards);
+  assert.deepEqual(base, snapshot);
+  for (const byNode of [null, undefined]) assert.deepEqual(withChatSubagents(base, byNode), base);
+});
 
 test('subagents discard expired and malformed dates and normalize presentation', () => {
   const now=Date.parse('2026-01-01T12:00:00Z');
