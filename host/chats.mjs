@@ -69,6 +69,10 @@ export function applyPatch(chat, patch) {
 }
 
 const realpath = value => { try { return fs.realpathSync(value); } catch { return null; } };
+function inOwnWorktree(node, cwd) {
+  const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
+  return Boolean(tree && here && realpath(tree) === here);
+}
 // How a turn handles permissions. 'full': everything except a short list of
 // dangerous actions, which still asks. 'auto': the agent works without
 // interruptions and asks only for sensitive actions (destructive, commit and
@@ -79,8 +83,7 @@ const realpath = value => { try { return fs.realpathSync(value); } catch { retur
 export function chatMode(node, cwd) {
   const chosen = explicitMode(node.data?.chat);
   if (chosen) return chosen;
-  const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
-  return tree && here && realpath(tree) === here ? 'auto' : 'ask';
+  return inOwnWorktree(node, cwd) ? 'auto' : 'ask';
 }
 const GATE_SERVER = 'phantom_workspace_chat';
 export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
@@ -527,7 +530,7 @@ export class Chats {
     const reply = { id: randomUUID(), role: 'assistant', provider, parts: [], status: 'streaming', createdAt: now() };
     thread.messages.push(user, reply);
     if (thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
-    const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
+    const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, ownBranch: inOwnWorktree(node, cwd), mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
     const started = Date.now();
     turn.model = node.data.chat.models?.[provider] || thread.meta?.model;
     // Session facts as known right now: the turn's own readings over the thread's.
@@ -678,7 +681,7 @@ export class Chats {
     assert(input && typeof input === 'object' && !Array.isArray(input) && JSON.stringify(input).length <= 1024 * 1024, 'Invalid tool input');
     const turn = this.gates.get(token); assert(turn && !turn.finished, 'Permiso fuera de una respuesta en curso');
     if (tool === QUESTION_TOOL) return this.askQuestion(turn, input, toolUseId);
-    const decision = permissionDecision({ tool, input, cwd: turn.cwd, mode: turn.mode });
+    const decision = permissionDecision({ tool, input, cwd: turn.cwd, mode: turn.mode, ownBranch: turn.ownBranch });
     if (decision.allow || turn.thread.grants?.includes(decision.key)) return { behavior: 'allow', updatedInput: input };
     const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
     turn.message.parts.push(part); turn.schedule();
