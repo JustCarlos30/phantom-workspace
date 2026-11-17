@@ -910,7 +910,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 }
 .activity-dock .activity-strip .activity-notch.needs-you > svg { color: var(--attention); }
 .activity-dock .activity-strip .activity-notch.needs-you > .notch-dot { background: var(--attention); opacity: 1; }
-.activity-dock .activity-strip .activity-notch.needs-you strong { font-weight: 600; }
+.activity-dock .activity-strip .activity-notch.needs-you strong { font-weight: 500; }
 .activity-dock .activity-strip .activity-notch.needs-you:hover, .activity-dock .activity-strip .activity-notch.needs-you[aria-expanded=true] {
   background: var(--fill-2); color: var(--ink);
 }

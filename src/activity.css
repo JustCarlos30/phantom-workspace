@@ -6,7 +6,7 @@
 .terminal-activity-status.warning { color: var(--attention); }
 .activity-notch > strong { min-width: 0; overflow-wrap: anywhere; }
 .activity-notch svg { flex-shrink: 0; }
-.activity-notch > .notch-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--attention); color: var(--on-ink); font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; }
+.activity-notch > .notch-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill); color: var(--attention); font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; }
 .activity-notch > .notch-dot { display: block; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--muted); opacity: .7; }
 .notch-lead { max-width: 34ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 @media (max-width: 850px) { .notch-lead { display: none; } }
