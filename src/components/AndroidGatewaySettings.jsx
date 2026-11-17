@@ -5,7 +5,7 @@ import MobileSettings from './MobileSettings.jsx';
 import { buildAppPairingPayload } from '../phone-pairing.mjs';
 import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement } from '../phone-permissions.mjs';
 
-function DevicePermissions({ device, workspaces, busy, run, api }) {
+function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run, api }) {
   const [selection, setSelection] = useState(() => selectionFromGrants(device, workspaces));
   const [dirty, setDirty] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(null);
   useEffect(() => { if (!dirty) setSelection(selectionFromGrants(device, workspaces)); }, [device, workspaces, dirty]);
@@ -21,6 +21,7 @@ function DevicePermissions({ device, workspaces, busy, run, api }) {
   const blocked = needsAcknowledgement(selection, workspaces) && !selection.acknowledgeAgentAuthority;
   return <form onSubmit={async e => {
     e.preventDefault(); setError('');
+    if (!workspacesAvailable) return;
     const result = await run(() => api('android.approve', { id: device.id, grants: grantsFromSelection(selection, workspaces), acknowledgeAgentAuthority: selection.acknowledgeAgentAuthority }));
     if (result?.error) setError(result.error.message);
     if (result?.status) {
@@ -44,7 +45,7 @@ function DevicePermissions({ device, workspaces, busy, run, api }) {
     </Group></details>)}
     <Group>
       {needsAcknowledgement(selection, workspaces) && <div className="st-row is-attention"><div className="st-row-text"><span>Entiendo que el teléfono actuará con la autoridad del agente</span><small>Obligatorio para el chat principal o un orquestador.</small></div><div className="st-row-control"><Switch label="Entiendo que el teléfono actuará con la autoridad del agente" checked={selection.acknowledgeAgentAuthority} disabled={busy} onChange={value => edit({ ...selection, acknowledgeAgentAuthority: value })} /></div></div>}
-      <Row label="Permisos" hint={blocked ? 'Reconoce la autoridad del agente para aplicar estos permisos.' : 'Actualizar reemplaza todos los permisos anteriores.'}><button className="st-btn" disabled={busy || blocked} type="submit">{device.state === 'pending' ? 'Aprobar' : 'Actualizar permisos'}</button></Row>
+      <Row label="Permisos" hint={blocked ? 'Reconoce la autoridad del agente para aplicar estos permisos.' : 'Actualizar reemplaza todos los permisos anteriores.'}><button className="st-btn" disabled={busy || blocked || !workspacesAvailable} type="submit">{device.state === 'pending' ? 'Aprobar' : 'Actualizar permisos'}</button></Row>
     </Group>
     {dirty && <p className="st-note" role="status">Cambios sin aplicar</p>}
     {saved !== null && <p className="st-note" role="status">Permisos aplicados · {saved} proyectos</p>}
@@ -61,12 +62,21 @@ export default function AndroidGatewaySettings({ workspace, api }) {
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [time, setTime] = useState(Date.now());
   const lock = useRef(false), mounted = useRef(true), repoEdited = useRef(false), generation = useRef(0);
   const acceptStatus = result => {
+    result = {
+      ...result,
+      workspacesAvailable: Array.isArray(result?.workspaces),
+      workspaces: Array.isArray(result?.workspaces) ? result.workspaces.map(workspace => ({ ...workspace, nodes: Array.isArray(workspace.nodes) ? workspace.nodes : [] })) : [],
+      devices: Array.isArray(result?.devices) ? result.devices : [],
+      node: result?.node ?? { compatible: false },
+      interfaces: Array.isArray(result?.interfaces) ? result.interfaces : [],
+    };
     setStatus(result);
     if (!result.repoValid || !result.node.compatible) setAdvanced(true);
     if (result.devices.some(device => device.state === 'pending')) { setLinking(false); setPairing(null); }
     setAddress(previous => result.interfaces.some(item => item.address === previous) ? previous : result.interfaces[0]?.address || '');
     if (!repoEdited.current) setRepoPath(result.repoPath || '');
     if (!result.enabled) { setBootstrap(null); setPairing(null); setLinking(false); }
+    return result;
   };
   useEffect(() => {
     mounted.current = true; let cancelled = false, timer;
@@ -89,14 +99,13 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     try {
       await action();
       const result = await api('android.status', {});
-      if (mounted.current) acceptStatus(result);
-      return { status: result };
+      if (mounted.current) return { status: acceptStatus(result) };
     } catch (e) { if (mounted.current) setError(e.message); return { error: e }; }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   };
   const link = () => run(async () => {
     const result = await api('android.link', { ...(networkEdited.current ? { address, port: Number(port) } : {}) });
-    if (mounted.current) { acceptStatus(result.status); setBootstrap(result.bootstrap); setPairing(result.pairing); setLinking(!result.status.devices.some(device => device.state === 'pending')); }
+    if (mounted.current) { const next = acceptStatus(result.status); setBootstrap(result.bootstrap); setPairing(result.pairing); setLinking(!next.devices.some(device => device.state === 'pending')); }
   });
   const changing = busy || status?.starting || status?.stopping;
   const expiry = value => typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? (/^\d+$/.test(value) ? Number(value) : Date.parse(value)) : NaN;
@@ -114,6 +123,7 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     <Group title="Vincular teléfono">
     <Row label="Estado" hint="Vincula Android con Phantom Workspace (todos tus proyectos) por la red local."><span className="st-status" data-tone={error || status?.lastError ? 'warn' : status?.enabled ? 'ok' : undefined}>{error || status?.lastError ? 'Error' : !status ? 'Consultando' : status.enabled ? 'Activo' : 'Apagado'}</span></Row>
     {error && <p className="st-error" role="alert">{error}</p>}
+    {status && !status.workspacesAvailable && <p className="st-error" role="alert">El servicio de Phantom está desactualizado. Cierra y vuelve a abrir Phantom para vincular el teléfono.</p>}
     {status?.lastError && status.lastError !== error && <p className="st-error" role="alert">{status.lastError}</p>}
     {status && !linking && status.repoValid && status.node.compatible && !status.devices.some(device => device.state === 'pending') && <Row label="App Android"><button className="st-btn is-primary" disabled={changing || !validPort} onClick={link}>{status.devices.some(device => device.state === 'approved') ? 'Vincular otro teléfono' : 'Vincular teléfono'}</button></Row>}
     </Group>
@@ -121,9 +131,9 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     {status?.devices.filter(device => device.state === 'pending' || device.state === 'approved').sort((a, b) => Number(b.state === 'pending') - Number(a.state === 'pending')).map(device => <div className="st-device" key={device.id}><Group title={device.state === 'pending' ? `${device.name || 'Teléfono Android'} quiere conectarse` : `${device.name || 'Teléfono Android'} · ${device.connected ? 'Conectado' : 'Aprobado'}`}>
       <Row label="Huella del dispositivo"><span className="st-fingerprint" title={device.keyFingerprint}>{device.keyFingerprint?.slice(0, 8)}…{device.keyFingerprint?.slice(-8)}</span></Row>
       {device.state === 'pending' && <Row label="Permitir en todos tus proyectos" hint="Podrá leer el chat principal, enviar mensajes y parar turnos con la autoridad del agente, y leer las herramientas en todos tus proyectos." />}
-      <Row label="Dispositivo"><div className="st-actions">{device.state === 'pending' && <button className="st-btn is-primary" disabled={changing} onClick={() => run(() => api('android.approve', { id: device.id, grants: standardGrants(status.workspaces), acknowledgeAgentAuthority: true }))}>Permitir</button>}
+      <Row label="Dispositivo"><div className="st-actions">{device.state === 'pending' && <button className="st-btn is-primary" disabled={changing || !status.workspacesAvailable} onClick={() => status.workspacesAvailable && run(() => api('android.approve', { id: device.id, grants: standardGrants(status.workspaces), acknowledgeAgentAuthority: true }))}>Permitir</button>}
       <button className="st-btn is-danger" disabled={changing} onClick={() => run(() => api('android.revoke', { id: device.id }))}>{device.state === 'pending' ? 'Rechazar' : 'Quitar'}</button></div></Row>
-    </Group><details className="st-details"><summary>{device.state === 'pending' ? 'Personalizar permisos' : 'Permisos'}</summary><DevicePermissions device={device} workspaces={status.workspaces} busy={changing} run={run} api={api} /></details></div>)}
+    </Group><details className="st-details"><summary>{device.state === 'pending' ? 'Personalizar permisos' : 'Permisos'}</summary><DevicePermissions device={device} workspaces={status.workspaces} workspacesAvailable={status.workspacesAvailable} busy={changing} run={run} api={api} /></details></div>)}
     <details className="st-details" open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}><summary>Opciones avanzadas</summary>
     <form onSubmit={e => { e.preventDefault(); run(async () => {
       const result = await api('android.configure', { repoPath });
