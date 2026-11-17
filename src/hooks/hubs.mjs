@@ -3,7 +3,7 @@
 // and no new node type reaches the host.
 // tab: [id, label, content type rendered inside the hub]
 export const HUBS = {
-  tasks: { name: 'Trabajo', hint: 'Tareas de Phantom, borradores y misiones', tabs: [['cards', 'Tareas', 'phantom-cards'], ['tasks', 'Borradores', 'tasks'], ['mission', 'Misiones', 'mission']] },
+  tasks: { name: 'Trabajo', hint: 'Tareas de Phantom, pendientes y misiones', tabs: [['cards', 'Tareas', 'phantom-cards'], ['tasks', 'Pendientes', 'tasks'], ['mission', 'Misiones', 'mission']] },
   repo: { name: 'Git', hint: 'Ramas, historial y cola de integración', tabs: [['branches', 'Ramas', 'branches'], ['repo', 'Historial', 'repo'], ['incorporaciones', 'Cola', 'incorporaciones']] },
   services: { name: 'Entorno', hint: 'Este proyecto, procesos y contenedores', tabs: [['services', 'Este proyecto', 'services'], ['processes', 'Procesos', 'processes'], ['docker', 'Docker', 'docker'], ['sites', 'Todos los proyectos', 'sites']] },
   context: { name: 'Contexto', hint: 'Documentos, memoria y skills', tabs: [['context', 'Documentos y memoria', 'context'], ['skills-catalog', 'Skills', 'skills-catalog']] },

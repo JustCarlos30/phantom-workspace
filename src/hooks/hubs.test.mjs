@@ -36,6 +36,12 @@ test('a request for one card or reference keeps its own panel', () => {
   assert.deepEqual(resolveHub('phantom-cards'), { type: 'tasks', tab: 'cards' });
 });
 
+test('Trabajo routes local pendientes independently of native cards and missions', () => {
+  assert.deepEqual(hubTab('tasks', 'tasks'), ['tasks', 'Pendientes', 'tasks']);
+  assert.deepEqual(resolveHub('phantom-cards'), { type: 'tasks', tab: 'cards' });
+  assert.deepEqual(resolveHub('mission'), { type: 'tasks', tab: 'mission' });
+});
+
 test('an unknown tab falls back to the first one', () => {
   assert.equal(hubTab('repo', 'nope')[0], 'branches');
   assert.equal(hubTab('repo', 'incorporaciones')[2], 'incorporaciones');
