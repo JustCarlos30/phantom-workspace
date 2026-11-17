@@ -121,6 +121,19 @@ test('context keeps existing identity/report fields and exposes worktree and pol
   for (const text of ['context', 'bind ID', 'report', 'run ID', '"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" runs', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes', '## Communication (Caveman)', 'Lead with the result or the blocker']) assert.ok(policy.includes(text), text);
 });
 
+test('plan and routing guidance appears once in terminal and main chat instructions', () => {
+  const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' });
+  const instructions = phantomInstructions({ name: 'Project', canonicalPath: '/project' });
+  for (const text of [policy, instructions, POLICY_HINTS.planning]) {
+    assert.equal(text.split('card.prepare').length - 1, 1);
+    assert.equal(text.split('Plan y ruteo').length - 1, 1);
+    assert.ok(text.includes(POLICY_HINTS.planning));
+    assert.match(text, /Before registering a task or card.*resolve and load/);
+    assert.match(text, /declare it in the contract: lane, children only if justified, model\/variant proportional to difficulty \(fast mechanical work on the economical model\), budget\.maxTokens, and judge when project policy requires it/);
+    assert.match(text, /If the skill or those fields are unavailable in the installed harness, continue with the contract it admits and say so in the report; never invent fields/);
+  }
+});
+
 test('chat execution guidance registers tasks and hands runs to the host', () => {
   const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' });
   const instructions = phantomInstructions({ name: 'Project', canonicalPath: '/project' });
