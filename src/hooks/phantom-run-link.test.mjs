@@ -56,6 +56,20 @@ test('enlaza variables de CLI con y sin intérprete para run y bind', () => {
     }
   }
 });
+test('enlaza alias de node y CLI con run desde la entrada completa', () => {
+  const command = `A="$PHANTOM_AGENT_NODE"; C="$PHANTOM_AGENT_CLI"; "$A" "$C" run ${id}`;
+  assert.deepEqual(phantomRunIds({ ...shell(command.slice(0, 30)), input: { command } }), [id]);
+  assert.deepEqual(phantomRunIds({ ...shell(command.slice(0, 30)), input: command }), [id]);
+});
+test('enlaza alias de CLI con bind', () => {
+  assert.deepEqual(phantomRunIds(shell(`C="\${PHANTOM_AGENT_CLI}"; "$C" bind ${card}`)), [card]);
+  assert.deepEqual(phantomRunIds(shell(`A=$PHANTOM_AGENT_NODE; C=$PHANTOM_AGENT_CLI; "\${A}" "\${C}" bind ${card}`)), [card]);
+});
+test('no enlaza echo ni cat con alias', () => {
+  for (const command of ['echo', 'cat']) {
+    assert.deepEqual(phantomRunIds(shell(`A="$PHANTOM_AGENT_NODE"; C="$PHANTOM_AGENT_CLI"; ${command} "$A" "$C" run ${id}`)), []);
+  }
+});
 test('enlaza phantom card', () => {
   assert.deepEqual(phantomRunIds(shell(`phantom card ${card}`)), [card]);
 });

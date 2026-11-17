@@ -6,7 +6,15 @@ const commandOf = part => typeof part.input === 'object' && part.input ? part.in
 
 export function phantomRunIds(part) {
   if (part?.type !== 'tool' || !/^(bash|shell|exec|run)/i.test(part.name || '')) return [];
-  const command = textOf(commandOf(part));
+  const aliases = new Map();
+  const command = textOf(commandOf(part)).replace(/(?:^|[;|&(\n])\s*([A-Za-z_][A-Za-z0-9_]*)=("?)\$(?:\{(PHANTOM_AGENT_(?:CLI|NODE))\}|(PHANTOM_AGENT_(?:CLI|NODE)))\2(?=\s|[;|&)]|$)|\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g, (match, alias, quote, braced, plain, bracedRef, plainRef) => {
+    if (alias) {
+      aliases.set(alias, braced || plain);
+      return match;
+    }
+    const target = aliases.get(bracedRef || plainRef);
+    return target ? `$${target}` : match;
+  });
   if (!/(?:^|[;|&(\n]|\b(?:do|then|while|until|if)\s+)\s*(?:["']?(?:[^\s;|&()]*\/)?phantom["']?\s+(?:run|show|events|do|create|card)\b|(?:["']?(?:(?:[^\s;|&()]*\/)?node|\$(?:PHANTOM_AGENT_NODE|\{PHANTOM_AGENT_NODE\}))["']?\s+)?(?:["']?[^\s;|&()]*agent\.mjs["']?|"?\$(?:PHANTOM_AGENT_CLI|\{PHANTOM_AGENT_CLI\})"?)\s+(?:run|bind)\b)/.test(command)) return [];
   return [...new Set([part.detail, part.input, part.output].flatMap(value => textOf(value).match(/\b(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi) || []))];
 }
