@@ -21,8 +21,24 @@ test('actividad relativa, etiquetas, paso actual y anteriores', () => {
   assert.equal(summary.current.id, 4);
   assert.equal(summary.hidden, 7);
   assert.equal(summary.total, 20);
-  assert.deepEqual(summarizePhantomActivity(null), { steps: [], total: 0, hidden: 0, current: null });
+  assert.deepEqual(summarizePhantomActivity(null), { steps: [], total: 0, hidden: 0, current: null, runs: [], reason: null });
   assert.deepEqual(summarizePhantomActivity({ available: false, items: [{}] }).steps, []);
+});
+
+test('resume checks, verificaciones e intentos con sus motivos', () => {
+  const check = { id: 'initial', tool: 'check', target: 'Pruebas', status: 'error' };
+  const verify = { id: 'final', tool: 'verify', target: 'Build', status: 'running' };
+  const summary = summarizePhantomActivity({ available: true, items: [verify], total: 1, reason: 'Bloqueado', runs: [
+    { runId: 'a', attempt: 1, steps: [check], total: 42, reason: 'Sin pruebas' },
+    { runId: 'b', attempt: 2, steps: [verify], total: 1, reason: 'Bloqueado' },
+  ] });
+  assert.equal(summary.reason, 'Bloqueado');
+  assert.equal(summary.runs[0].steps[0].label, 'Check');
+  assert.equal(summary.runs[0].hidden, 41);
+  assert.equal(summary.runs[0].reason, 'Sin pruebas');
+  assert.equal(summary.runs[1].steps[0].label, 'Verificar');
+  assert.deepEqual(summary.current, summary.runs[1].current);
+  assert.deepEqual(summary.steps, summary.runs[1].steps);
 });
 
 test('enlaza agent.mjs run', () => {
