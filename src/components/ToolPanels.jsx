@@ -159,6 +159,44 @@ export function NativeForm({ kind = 'card', workspace, api, refresh, notify, ini
   </form>;
 }
 
+export function Todos({ workspace, api, refresh, notify }) {
+  const [title, setTitle] = useState(''), [filter, setFilter] = useState('all');
+  const [editing, setEditing] = useState(null), [editedTitle, setEditedTitle] = useState('');
+  const op = useOperation(notify);
+  const tasks = (workspace.tasks || []).filter(task => task.kind !== 'phantom');
+  const pending = tasks.filter(task => task.status !== 'done').length;
+  const visible = tasks.filter(task => filter === 'all' || (filter === 'done' ? task.status === 'done' : task.status !== 'done'));
+  return <Section title="Pendientes">
+    <form className="tw-form" onSubmit={event => { event.preventDefault(); op.run(async () => {
+      if (!title.trim()) throw new Error('Escribe un título.');
+      await api('task.create', { workspaceId: workspace.id, title: title.trim(), kind: 'draft', status: 'todo', description: '', refs: [] });
+      await refresh(); setTitle('');
+    }); }}>
+      <Field label="Añadir pendiente"><input value={title} readOnly={op.busy} onChange={event => setTitle(event.target.value)} required /></Field>
+      <Button type="submit" disabled={op.busy}>Añadir</Button>
+    </form>
+    <OperationState op={op} />
+    <p role="status">{pending} pendientes · {tasks.length - pending} completados · {tasks.length} en total</p>
+    <div className="tw-row" role="group" aria-label="Filtrar pendientes">{[['all', 'Todos'], ['todo', 'Pendientes'], ['done', 'Completados']].map(([value, label]) => <Button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}</div>
+    {!visible.length && <EmptyState className="tw-empty" description="No hay pendientes que mostrar con este filtro." />}
+    {visible.map(task => <article className="tw-item" key={task.id} aria-label={task.title}>
+      <label className="tw-check"><input type="checkbox" checked={task.status === 'done'} disabled={op.busy} onChange={event => {
+        const status = event.target.checked ? 'done' : 'todo';
+        op.run(async () => { await api('task.update', { workspaceId: workspace.id, id: task.id, patch: { status } }); await refresh(); });
+      }} />{task.title}</label>
+      {task.description && <p className="tw-prose">{task.description}</p>}
+      {editing === task.id ? <form className="tw-form" onSubmit={event => { event.preventDefault(); op.run(async () => {
+        if (!editedTitle.trim()) throw new Error('Escribe un título.');
+        await api('task.update', { workspaceId: workspace.id, id: task.id, patch: { title: editedTitle.trim() } });
+        await refresh(); setEditing(null);
+      }); }}>
+        <Field label="Título del pendiente"><input required disabled={op.busy} value={editedTitle} onChange={event => setEditedTitle(event.target.value)} /></Field>
+        <div className="tw-row"><Button type="submit" disabled={op.busy}>Guardar</Button><Button disabled={op.busy} onClick={() => setEditing(null)}>Cancelar</Button></div>
+      </form> : <div className="tw-row"><Button disabled={op.busy} onClick={() => { setEditing(task.id); setEditedTitle(task.title); }}>Editar</Button><Button icon={Trash2} disabled={op.busy} onClick={() => op.run(async () => { await api('task.remove', { workspaceId: workspace.id, id: task.id }); await refresh(); })}>Eliminar</Button></div>}
+    </article>)}
+  </Section>;
+}
+
 function Tasks(props) {
   const { workspace, api, refresh, notify, onOpenPanel } = props;
   const [mode, setMode] = useState('draft'), [title, setTitle] = useState(''), [description, setDescription] = useState(''), [edit, setEdit] = useState(null);
@@ -167,7 +205,7 @@ function Tasks(props) {
   const [cardId, setCardId] = useState(props.node?.data?.cardId || '');
   useEffect(() => { setCardId(props.node?.data?.cardId || ''); }, [props.node?.data?.cardId]);
   if (cardId) return <Section title="Tarea vinculada" action={<Refresh resource={source} />}><Button onClick={() => setCardId('')}>Ver todas</Button><ResourceState resource={source} empty="" onOpenPanel={onOpenPanel} />{itemsOf(source.data).filter(item => item.id === cardId).map(item => <PhantomItem key={item.id} item={item} topic="tasks" kind="card" {...props} onChange={source.reload} />)}{!source.loading && source.data?.available && !itemsOf(source.data).some(item => item.id === cardId) && <p className="tw-warning">La tarea vinculada ya no está en este proyecto.</p>}</Section>;
-  return <><Section title={edit ? 'Editar borrador' : 'Nuevo borrador'}><form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => { if (!title.trim()) throw new Error('Escribe un título.'); await api(edit ? 'task.update' : 'task.create', { workspaceId: workspace.id, ...(edit ? { id: edit, patch: { title: title.trim(), description, kind: mode } } : { title: title.trim(), description, kind: mode, status: 'todo', refs: [] }) }); await refresh(); setTitle(''); setDescription(''); setEdit(null); }, 'Guardado'); }}>
+  return <><Todos key={workspace.id} {...props} /><Section title={edit ? 'Editar borrador' : 'Nuevo borrador'}><form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => { if (!title.trim()) throw new Error('Escribe un título.'); await api(edit ? 'task.update' : 'task.create', { workspaceId: workspace.id, ...(edit ? { id: edit, patch: { title: title.trim(), description, kind: mode } } : { title: title.trim(), description, kind: mode, status: 'todo', refs: [] }) }); await refresh(); setTitle(''); setDescription(''); setEdit(null); }, 'Guardado'); }}>
       <Field label="Tipo"><select value={mode} onChange={e => setMode(e.target.value)}><option value="draft">Borrador</option><option value="checklist">Lista de pasos</option></select></Field>
       <Field label="Título"><input value={title} onChange={e => setTitle(e.target.value)} required /></Field><Field label={mode === 'checklist' ? 'Pasos' : 'Descripción'}><textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} /></Field><div className="tw-row"><Button type="submit" tone="primary" disabled={op.busy}>{edit ? 'Guardar' : 'Crear'}</Button>{edit && <Button onClick={() => { setEdit(null); setTitle(''); setDescription(''); }}>Cancelar</Button>}</div>
     </form><OperationState op={op} /></Section>
