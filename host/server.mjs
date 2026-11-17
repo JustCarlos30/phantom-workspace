@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome } from './store.mjs';
+import { applySubagent, validateSubagentOp } from './subagents.mjs';
 import { Terminals } from './terminals.mjs';
 import { Chats, validateChat, validateModel, permissionPatch, applyPatch } from './chats.mjs';
 import { Merges } from './merges.mjs';
@@ -192,6 +193,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     }
     // Browser bridge: is this chat card's capability backed by a live turn? Desktop-only, not renderer IPC.
     if(method==='chat.browser.active') {store.getWorkspace(p.workspaceId);return chats.browserActive(p);}
+    if(method==='terminal.agent.subagent') {
+      const session=terminals.get(p.sessionId),w=store.getWorkspace(session.workspaceId),node=w.nodes.find(n=>n.id===session.nodeId);
+      assert(node?.type==='terminal','Terminal node not found');
+      assert(session.status==='running' && node.data.sessionId===session.id,'Report requires the current live terminal session');
+      const op=validateSubagentOp(p.op),list=applySubagent(node.data.subagents,op);
+      if(JSON.stringify(list)!==JSON.stringify(node.data.subagents))mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.subagents=applySubagent(current.data.subagents,op);});
+      return {count:list.length};
+    }
     if(method==='terminal.agent.context' || method==='terminal.agent.report') {
       const session=terminals.get(p.sessionId),w=store.getWorkspace(session.workspaceId),node=w.nodes.find(n=>n.id===session.nodeId);
       assert(node?.type==='terminal','Terminal node not found');

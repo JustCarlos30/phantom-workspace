@@ -21,6 +21,10 @@ En las chat cards el host construye la línea de comandos, así que la política
 
 La política no modifica `AGENTS.md`, `CLAUDE.md` ni la configuración personal/global de ningún agente. Las instrucciones del proyecto mantienen su alcance y el contenido del repositorio no amplía el mandato de una tarea.
 
+## Subagentes de Claude Code
+
+En terminales PTY, el shim añade hooks asíncronos de `SessionStart`, `SessionEnd`, `SubagentStop` y de `PreToolUse`, `PostToolUse`, `PostToolUseFailure` para la herramienta `Agent`. Se suman a los hooks del usuario/proyecto y muestran los subagentes bajo su terminal en Delegación. Solo envían identidad, tipo, descripción y estado: no envían prompts ni mensajes. `PHANTOM_AGENT_HOOKS_OFF=1` los desactiva; un `--settings` propio también los omite. Codex y OpenCode en terminal no reportan subagentes.
+
 ## Política y ejecución controlada
 
 El bootstrap es una instrucción para el agente, no una barrera técnica que impida editar desde cualquier proceso del shell. Hay dos autoridades nativas: **Phantom CLI `do`/`run` controla las ediciones, sus pruebas y el cierre de la tarea; el controlador de Incorporaciones/ramas controla la finalización Git del trabajo aceptado**. El vínculo de identidad de una terminal tampoco demuestra por sí solo que exista una ejecución controlada.

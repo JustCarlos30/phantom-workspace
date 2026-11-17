@@ -72,14 +72,26 @@ export function tokensOf(run) {
 export function childrenOf(detail, catalogItems = []) {
   const d = obj(detail?.task || detail), plan = arr(d.contract?.coordination?.children);
   const registered = [...arr(d.childTasks), ...arr(d.children), ...arr(catalogItems).map(v => v?.raw || v).filter(v => v && (v.parentId === d.id || v.parentTaskId === d.id || v.parent_id === d.id || v.parent === d.id || v.parent?.id === d.id))];
+  const matches = (task, key) => task && (task.key === key || task.childKey === key || task.coordinationKey === key);
+  const latest = tasks => tasks.reduce((previous, task) => {
+    if (!previous) return task;
+    const updated = str(task.updatedAt), previousUpdated = str(previous.updatedAt);
+    if (updated && previousUpdated && updated !== previousUpdated) return updated > previousUpdated ? task : previous;
+    return str(task.createdAt) >= str(previous.createdAt) ? task : previous;
+  }, undefined);
   const nodes = plan.map((child, index) => {
     const c = obj(child), key = str(c.key) || `hijo-${index + 1}`;
-    const task = registered.find(t => t && typeof t === 'object' && (t.key === key || t.childKey === key || t.coordinationKey === key));
+    const task = latest(registered.filter(t => matches(t, key)));
     return { key, goal: str(c.goal) || key, scope: arr(c.scope).filter(v => typeof v === 'string'), dependencies: arr(c.dependencies).filter(v => typeof v === 'string'), status: str(task?.status) || 'sin registrar', ...(task?.id ? { taskId: task.id } : {}) };
   });
+  const extras = new Map();
   for (const task of registered) {
-    if (!task || typeof task !== 'object' || nodes.some(n => n.taskId === task.id || n.key === task.key)) continue;
-    nodes.push({ key: str(task.key) || str(task.id), goal: str(task.contract?.goal) || str(task.goal) || str(task.id), scope: arr(task.contract?.scope), dependencies: arr(task.contract?.dependencies), status: str(task.status) || 'sin registrar', taskId: task.id });
+    if (!task || typeof task !== 'object' || nodes.some(n => matches(task, n.key))) continue;
+    const key = str(task.key) || str(task.childKey) || str(task.coordinationKey) || str(task.id);
+    extras.set(key, latest([extras.get(key), task].filter(Boolean)));
+  }
+  for (const [key, task] of extras) {
+    nodes.push({ key, goal: str(task.contract?.goal) || str(task.goal) || str(task.id), scope: arr(task.contract?.scope), dependencies: arr(task.contract?.dependencies), status: str(task.status) || 'sin registrar', taskId: task.id });
   }
   return { nodes, edges: nodes.flatMap(n => n.dependencies.map(from => ({ from, to: n.key }))) };
 }

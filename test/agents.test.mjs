@@ -26,6 +26,18 @@ async function fixture(t) {
   return {root,w,node,session,update,get host(){return host;},restart:async()=>{await host.close();host=await createHost({dataDir,handleIntegration});}};
 }
 
+test('terminal subagent reports store starts and ends and reject invalid operations and stale sessions',async t=>{
+  const f=await fixture(t);
+  const report=op=>f.host.invoke('terminal.agent.subagent',{sessionId:f.session.id,op});
+  const entries=async()=>(await f.host.invoke('state.get')).workspaces[0].nodes.find(node=>node.id===f.node.id).data.subagents;
+  assert.deepEqual(await report({op:'start',id:'t',type:'Explore',description:'Files',background:false}),{count:1});
+  assert.equal((await entries())[0].id,'t');assert.equal((await entries())[0].type,'Explore');
+  await assert.rejects(report({op:'reset',prompt:'secret'}));
+  assert.equal((await entries()).length,1);
+  assert.deepEqual(await report({op:'end',id:'t'}),{count:0});assert.deepEqual(await entries(),[]);
+  await f.restart();await assert.rejects(report({op:'reset'}),/current live/);
+});
+
 test('identity validates workspace ownership, survives rename/restart and preserves reports through stale presentation saves',async t=>{
   const f=await fixture(t);
   await f.update({name:'Backend · Auth',cardId:'card-owned',providerSessionId:'ses_owned'});

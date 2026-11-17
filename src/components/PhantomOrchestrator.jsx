@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowUp, ArrowUpRight, Mic, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
@@ -8,15 +8,48 @@ import Incorporaciones from './Incorporaciones';
 import { preferredCardMode } from './ChatCard';
 import { ErrorNotice, useResource } from './PluginPrimitives';
 import { buildCola } from '../hooks/incorporaciones-model.mjs';
+import { buildDelegation, withCardPlans, withChatSubagents } from '../hooks/delegation-model.mjs';
+import { useChatSubagents } from '../hooks/useChatSubagents';
+import { statusLabel } from '../hooks/phantom-desk.mjs';
 import '../incorporaciones.css';
 
 const AGENT = { working: 'Trabajando', blocked: 'Bloqueado', review: 'En espera', idle: 'En espera' };
+
+function CardPlan({ plan }) {
+  return <div className="pd-deleg-plan-block">
+    <small>Plan · {plan.done} de {plan.total} completadas</small>
+    <ul className="pd-deleg-plan" aria-label="Plan de la card">{plan.children.map(child => <li key={child.key} className="pd-deleg-child" data-status={child.status}><small>{child.status === 'sin registrar' ? 'Sin registrar' : statusLabel(child.status)}</small><span>{child.goal}</span></li>)}</ul>
+  </div>;
+}
 
 // The dock's Orquestador tab: the orchestrator at a glance, a line to talk to
 // it (typed or dictated) when it runs as a chat, and where the queue stands.
 // The full queue lives in Git › Cola; without a way to open it, it is shown here.
 export default function PhantomOrchestrator({ workspace, api, notify, connected, status, onOpenPanel }) {
   const orchestrator = status.orchestrator;
+  const tasks = useResource(api, 'phantom.list', { workspaceId: workspace.id, topic: 'tasks' });
+  const [lastTasks, setLastTasks] = useState(null);
+  useEffect(() => {
+    if (tasks.data != null) setLastTasks({ workspaceId: workspace.id, data: tasks.data });
+  }, [tasks.data, workspace.id]);
+  useEffect(() => {
+    const interval = setInterval(tasks.reload, 20_000);
+    return () => clearInterval(interval);
+  }, [tasks.reload]);
+  const taskData = tasks.data ?? (lastTasks?.workspaceId === workspace.id ? lastTasks.data : null);
+  const chatSubagents = useChatSubagents(workspace, api, connected);
+  const delegation = useMemo(() => withChatSubagents(withCardPlans(buildDelegation(workspace), taskData), chatSubagents), [workspace, taskData, chatSubagents]);
+  const delegates = delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden);
+  const working = delegates.filter(row => row.status === 'working').length;
+  const blocked = delegates.filter(row => row.status === 'blocked').length;
+  const unassigned = delegates.filter(row => row.purpose === 'none').length;
+  const subagents = delegates.reduce((total, row) => total + row.subagents.length, 0);
+  const summary = [
+    working && `${working} trabajando`,
+    blocked && `${blocked} ${blocked === 1 ? 'bloqueada' : 'bloqueadas'}`,
+    unassigned && `${unassigned} sin encargo`,
+    subagents && `${subagents} ${subagents === 1 ? 'subagente' : 'subagentes'}`,
+  ].filter(Boolean).join(' · ');
   return <div className="pd-orchestrator">
     {orchestrator && <section className="pd-session" data-tone={status.tone} aria-label="Orquestador">
       <div className="pd-session-head">
@@ -27,6 +60,33 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
       {orchestrator.chat
         ? <OrchestratorComposer key={orchestrator.id} workspace={workspace} api={api} connected={connected} nodeId={orchestrator.id} title={orchestrator.title} />
         : null}
+    </section>}
+    {(delegates.length > 0 || delegation.cards.length > 0) && <section className="pd-deleg" aria-label="Delegación">
+      <div className="pd-deleg-head"><strong>Quién tiene qué</strong>{summary && <small>{summary}</small>}</div>
+      <ul className="pd-deleg-list">{delegates.map(row => {
+        const content = <>
+          <span className="pd-deleg-dot" aria-hidden="true" />
+          <span className="pd-deleg-content">
+            <strong>{row.title}</strong>
+            <small>{{ working: 'Trabajando', blocked: 'Bloqueado', review: 'Lista para revisión', idle: 'En espera' }[row.status]}{row.step ? ` · ${row.step}` : ''}</small>
+            {(row.purpose === 'none' || (row.what && !row.title.endsWith(row.what))) && <span className="pd-deleg-what">{row.purpose === 'none' ? 'Sin tarea ni encargo' : row.what}</span>}
+            {row.why && <small>{row.why}</small>}
+            {row.from && <small>Pedido por {row.from.title}{row.from.external ? ` · ${row.from.workspaceName}` : ''}</small>}
+            {row.branch && <code>{row.branch}</code>}
+          </span>
+        </>;
+        return <li key={row.id} className="pd-deleg-row" data-purpose={row.purpose} data-status={row.status} style={{ '--deleg-depth': row.depth }}>
+          {onOpenPanel
+            ? <button type="button" className="pd-deleg-item" aria-label={`Ir a ${row.title}`} onClick={() => onOpenPanel('terminal', { focusNodeId: row.id })}>{content}</button>
+             : <div className="pd-deleg-item">{content}</div>}
+          {row.plan && <CardPlan plan={row.plan} />}
+          {row.subagents.length > 0 && <ul className="pd-deleg-subs" aria-label="Subagentes">{row.subagents.map(subagent => <li key={subagent.id} className="pd-deleg-sub"><span>Subagente{subagent.type ? ` · ${subagent.type}` : ''}</span>{subagent.description && <span>{subagent.description}</span>}{subagent.background && <span>en segundo plano</span>}</li>)}</ul>}
+        </li>;
+      })}</ul>
+      {delegation.cards.length > 0 && <div className="pd-deleg-cards">
+        <strong>Cards sin terminal</strong>
+        {delegation.cards.map(card => <div key={card.id}><strong>{card.goal}</strong><small>{statusLabel(card.status)}</small><CardPlan plan={card.plan} /></div>)}
+      </div>}
     </section>}
     {onOpenPanel
       ? <QueueSummary workspace={workspace} api={api} onOpenPanel={onOpenPanel} hasOrchestrator={Boolean(orchestrator)} />
