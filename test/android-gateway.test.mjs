@@ -22,8 +22,9 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2), command = args[0];
 fs.appendFileSync(path.join(root, 'argv.jsonl'), JSON.stringify(args) + '\\n');
 const settings = JSON.parse(fs.readFileSync(path.join(root, 'fixture.json'), 'utf8'));
-const result = { url: 'https://192.168.1.10:9443', hostId: 'fake-host', fingerprint: 'SHA256:fake', workspaceId: '${WORKSPACE}' };
-if (command === 'start') {
+const result = { url: 'https://192.168.1.10:9443', hostId: 'fake-host', fingerprint: 'SHA256:fake', workspaceId: null, scope: 'all' };
+if (command === '--help') console.log(settings.oldCli ? 'start --workspace' : 'approve --grants');
+else if (command === 'start') {
   if (settings.mode === 'die') { process.stderr.write('Fallo TLS sintético\\n', () => process.exit(7)); }
   else {
     process.stdout.write(JSON.stringify(result).slice(0, 12));
@@ -42,6 +43,7 @@ function fixture(t, overrides = {}) {
   const repoPath = path.join(root, 'phantom-mobile'), hostDataDir = path.join(root, 'desktop'), gatewayDataDir = path.join(root, 'gateway');
   fs.mkdirSync(path.join(repoPath, 'host'), { recursive: true });
   fs.mkdirSync(hostDataDir);
+  fs.writeFileSync(path.join(hostDataDir, 'state.json'), JSON.stringify({ workspaces: [{ id: WORKSPACE, name: 'Proyecto', nodes: [{ id: SESSION, title: 'Terminal', type: 'terminal', data: {} }] }] }));
   fs.writeFileSync(path.join(repoPath, 'package.json'), JSON.stringify({ name: 'phantom-mobile', type: 'module' }));
   fs.writeFileSync(path.join(repoPath, 'host/cli.mjs'), cliSource);
   const settings = { mode: 'normal', devices: [{ id: DEVICE, name: 'Prueba', state: 'pending', keyFingerprint: 'FAKE', grants: [] }] };
@@ -63,30 +65,27 @@ function fixture(t, overrides = {}) {
 
 // La interfaz es sintética: ningún test abre sockets ni depende de la red de la máquina.
 const lanTest = (name, fn) => test(name, fn);
-const start = gateway => gateway.start({ workspaceId: WORKSPACE, address, port: 0 });
+const start = gateway => gateway.start({ address, port: 0 });
 
 test('link arranca con la primera interfaz y devuelve bootstrap, pairing y status', async t => {
   const f = fixture(t);
-  const result = await f.gateway.link({ workspaceId: WORKSPACE });
+  const result = await f.gateway.link();
   assert.equal(result.bootstrap.certificate, 'PUBLICO');
   assert.deepEqual(result.pairing, { code: 'codigo-sintetico', expiresAt: 123456 });
   assert.equal(result.status.enabled, true);
-  assert.equal(f.argv()[0][2], address);
+  assert.equal(f.argv().find(args => args[0] === 'start')[2], address);
   assert.equal(f.spawns.length, 1);
   await f.gateway.link({ workspaceId: WORKSPACE });
   assert.equal(f.spawns.length, 1);
   assert.equal(f.argv().filter(args => args[0] === 'pairing').length, 2);
 });
 
-test('link rechaza otro proyecto vivo y UUID inválido sin reiniciar', async t => {
+test('link ignora proyecto incluso inválido y reutiliza el gateway global', async t => {
   const f = fixture(t);
-  await assert.rejects(f.gateway.link({ workspaceId: 'inválido' }), /UUID/);
-  assert.equal(f.calls.length, 0);
-  await f.gateway.link({ workspaceId: WORKSPACE });
-  const calls = f.calls.length;
-  await assert.rejects(f.gateway.link({ workspaceId: SESSION }), /otro proyecto/);
-  await assert.rejects(f.gateway.link({ workspaceId: '--workspace' }), /UUID/);
-  assert.equal(f.calls.length, calls);
+  await f.gateway.link({ workspaceId: 'inválido' });
+  await f.gateway.link({ workspaceId: SESSION });
+  await f.gateway.link({ workspaceId: '--workspace' });
+  assert.ok(f.argv().every(args => !args.includes('--workspace')));
   assert.equal(f.spawns.length, 1);
   assert.equal(f.gateway.alive(), true);
 });
@@ -110,6 +109,41 @@ test('link explica la falta de red LAN antes de arrancar', async t => {
   t.mock.method(os, 'networkInterfaces', () => ({}));
   await assert.rejects(f.gateway.link({ workspaceId: WORKSPACE }), /No se detecta una red LAN/);
   assert.equal(f.spawns.length, 0);
+});
+
+test('CLI antiguo sin --grants se rechaza antes de spawn', async t => {
+  const f = fixture(t); f.save({ oldCli: true });
+  await assert.rejects(start(f.gateway), { message: 'Esta versión de phantom-mobile solo admite un proyecto. Actualiza phantom-mobile para usar el gateway en todo el workspace.' });
+  assert.equal(f.spawns.length, 0);
+  assert.ok(f.argv().some(args => args.length === 1 && args[0] === '--help'));
+});
+
+test('status devuelve catálogo vivo filtrado y grants por proyecto', async t => {
+  const workspaces = [{ id: WORKSPACE, name: 'Uno', nodes: [
+    { id: SESSION, title: 'Terminal', type: 'terminal', data: { role: 'orchestrator' } },
+    { id: DEVICE, title: 'Chat', type: 'note', data: { chat: {} } },
+    { id: 'nota', title: 'Nota', type: 'note', data: {} },
+  ] }];
+  const f = fixture(t, { listWorkspaces: () => workspaces });
+  const grants = [{ workspaceId: WORKSPACE, nodeId: null, capabilities: ['workspace.read'] }];
+  f.save({ devices: [{ id: DEVICE, state: 'approved', grants, acknowledgeAgentAuthority: true }] });
+  await start(f.gateway);
+  let status = await f.gateway.status();
+  assert.equal(status.scope, 'all'); assert.equal(status.workspaceId, null);
+  assert.deepEqual(status.devices[0].grants, grants);
+  assert.equal(status.devices[0].acknowledgeAgentAuthority, true);
+  assert.deepEqual(status.workspaces, [{ id: WORKSPACE, name: 'Uno', nodes: [
+    { id: SESSION, title: 'Terminal', type: 'terminal', role: 'orchestrator' },
+    { id: DEVICE, title: 'Chat', type: 'note', role: null },
+  ] }]);
+  workspaces.push({ id: DEVICE, name: 'Dos', nodes: [] });
+  status = await f.gateway.status();
+  assert.equal(status.workspaces.length, 2);
+  await assert.rejects(f.gateway.approve({ id: DEVICE, grants: [{ workspaceId: DEVICE, nodeId: SESSION, capabilities: ['read'] }] }), /Nodo ajeno/);
+  await assert.rejects(f.gateway.approve({ id: DEVICE, grants: [{ workspaceId: DEVICE, nodeId: `phantom:${DEVICE}`, capabilities: ['read'] }] }), /autoridad/);
+  const all = [...grants, { workspaceId: DEVICE, nodeId: `phantom:${DEVICE}`, capabilities: ['read', 'chat.send'] }];
+  await f.gateway.approve({ id: DEVICE, grants: all, acknowledgeAgentAuthority: true });
+  assert.deepEqual(f.argv().at(-1), ['permissions', '--id', DEVICE, '--grants', JSON.stringify(all), '--acknowledge-agent-authority', '--data', f.gatewayDataDir]);
 });
 
 test('status explica repositorios ausentes y package.json con otro nombre', async t => {
@@ -166,9 +200,10 @@ lanTest('start parsea JSON fragmentado y pasa exactamente argv sin shell y datos
   const f = fixture(t);
   const ready = await start(f.gateway);
   assert.equal(ready.enabled, true); assert.equal(ready.hostId, 'fake-host');
-  assert.deepEqual(f.argv()[0], ['start', '--address', address, '--workspace', WORKSPACE,
+  const startArgs = f.argv().find(args => args[0] === 'start');
+  assert.deepEqual(startArgs, ['start', '--address', address,
     '--host-data', f.hostDataDir, '--data', f.gatewayDataDir, '--port', '0']);
-  assert.deepEqual(f.spawns[0], { bin: process.execPath, args: [path.join(f.repoPath, 'host/cli.mjs'), ...f.argv()[0]], options: { shell: false, stdio: ['ignore', 'pipe', 'pipe'] } });
+  assert.deepEqual(f.spawns[0], { bin: process.execPath, args: [path.join(f.repoPath, 'host/cli.mjs'), ...startArgs], options: { shell: false, stdio: ['ignore', 'pipe', 'pipe'] } });
   const status = await f.gateway.status();
   assert.equal(status.processAlive, true); assert.equal(status.enabled, true); assert.equal(status.devices[0].id, DEVICE);
   assert.equal(status.node.compatible, true); assert.ok(status.interfaces.some(item => item.address === address));
@@ -221,6 +256,8 @@ lanTest('timeout de arranque a los 20 s informa stderr acotado y termina el hijo
   const signals = [];
   child.kill = signal => { signals.push(signal); child.signalCode = signal; queueMicrotask(() => child.emit('close', null, signal)); return true; };
   const f = fixture(t, { spawn: () => child });
+  const execute = f.gateway.execFile;
+  f.gateway.execFile = (bin, args, options, callback) => args[1] === '--help' ? queueMicrotask(() => callback(null, '--grants', '')) : execute(bin, args, options, callback);
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const pending = start(f.gateway);
   const rejected = assert.rejects(pending, error => {
@@ -237,18 +274,18 @@ lanTest('timeout de arranque a los 20 s informa stderr acotado y termina el hijo
 
 lanTest('approve para pending construye permisos y reconocimiento exactos', async t => {
   const f = fixture(t); await start(f.gateway);
-  await f.gateway.approve({ id: DEVICE, nodes: [MAIN], allow: [`${MAIN}=chat.send`, `${MAIN}=chat.stop`], workspaceRead: true, acknowledgeAgentAuthority: true });
-  assert.deepEqual(f.argv().at(-1), ['approve', '--id', DEVICE, '--node', MAIN, '--allow', `${MAIN}=chat.send`, '--allow', `${MAIN}=chat.stop`,
-    '--workspace-read', '--acknowledge-agent-authority', '--data', f.gatewayDataDir]);
+  const grants = [{ workspaceId: WORKSPACE, nodeId: MAIN, capabilities: ['read', 'chat.send', 'chat.stop'] }, { workspaceId: WORKSPACE, nodeId: null, capabilities: ['workspace.read'] }];
+  await f.gateway.approve({ id: DEVICE, grants, acknowledgeAgentAuthority: true });
+  assert.deepEqual(f.argv().at(-1), ['approve', '--id', DEVICE, '--grants', JSON.stringify(grants), '--acknowledge-agent-authority', '--data', f.gatewayDataDir]);
 });
 
 lanTest('permissions para approved reemplaza grants, incluyendo permisos del proyecto', async t => {
   const f = fixture(t); f.save({ devices: [{ id: DEVICE, state: 'approved', grants: [] }] }); await start(f.gateway);
-  await f.gateway.approve({ id: DEVICE, nodes: [SESSION], allow: [`${SESSION}=chat.send`], workspaceRead: true, workspaceAllow: ['cards.list'] });
-  assert.deepEqual(f.argv().at(-1), ['permissions', '--id', DEVICE, '--node', SESSION, '--allow', `${SESSION}=chat.send`,
-    '--workspace-read', '--workspace-allow', 'cards.list', '--data', f.gatewayDataDir]);
-  await f.gateway.approve({ id: DEVICE });
-  assert.deepEqual(f.argv().at(-1), ['permissions', '--id', DEVICE, '--data', f.gatewayDataDir]);
+  const grants = [{ workspaceId: WORKSPACE, nodeId: SESSION, capabilities: ['read', 'chat.send'] }, { workspaceId: WORKSPACE, nodeId: null, capabilities: ['workspace.read', 'cards.list'] }];
+  await f.gateway.approve({ id: DEVICE, grants });
+  assert.deepEqual(f.argv().at(-1), ['permissions', '--id', DEVICE, '--grants', JSON.stringify(grants), '--data', f.gatewayDataDir]);
+  await f.gateway.approve({ id: DEVICE, grants: [] });
+  assert.deepEqual(f.argv().at(-1), ['permissions', '--id', DEVICE, '--grants', '[]', '--data', f.gatewayDataDir]);
 });
 
 lanTest('revoke usa el UUID exacto y pairing/bootstrap usan solo datos del gateway', async t => {
@@ -263,19 +300,21 @@ lanTest('revoke usa el UUID exacto y pairing/bootstrap usan solo datos del gatew
 
 test('valida UUID, IPv4 privada y puertos antes de invocar procesos', async t => {
   const f = fixture(t);
-  for (const patch of [{ workspaceId: '--workspace' }, { workspaceId: 'no-uuid' }, { address: '8.8.8.8' }, { address: '127.0.0.1' }, { address: '--address' }, { address: '192.168.999.1' }, { port: 1023 }, { port: 65536 }, { port: -1 }, { port: '1234' }, { port: 1024.5 }]) {
+  for (const patch of [{ address: '8.8.8.8' }, { address: '127.0.0.1' }, { address: '--address' }, { address: '192.168.999.1' }, { port: 1023 }, { port: 65536 }, { port: -1 }, { port: '1234' }, { port: 1024.5 }]) {
     await assert.rejects(f.gateway.start({ workspaceId: WORKSPACE, address: address || '192.168.1.1', port: 0, ...patch }));
   }
   assert.equal(f.calls.length, 0); assert.equal(f.spawns.length, 0);
 });
 
-test('valida permisos sin invocar CLI: flags, allow sin nodo y autoridad ausente', async t => {
+test('valida grants sin invocar CLI: proyecto/nodo ajeno, duplicados, lectura y autoridad', async t => {
   const f = fixture(t);
-  for (const patch of [{ id: '--id' }, { nodes: ['--node'] }, { allow: ['--allow'] }, { nodes: [SESSION], allow: [`${MAIN}=chat.send`] },
-    { nodes: [SESSION], allow: [`${SESSION}=--metodo`] }, { nodes: [SESSION], allow: [`${SESSION}=chat.send=otro`] },
-    { nodes: [MAIN] }, { workspaceAllow: ['cards.list'] }, { workspaceRead: 'true' }, { workspaceRead: true, workspaceAllow: ['--metodo'] },
-    { acknowledgeAgentAuthority: 'true' }, { nodes: 'no-array' }]) {
-    await assert.rejects(f.gateway.approve({ id: DEVICE, ...patch }));
+  const grant = { workspaceId: WORKSPACE, nodeId: SESSION, capabilities: ['read'] };
+  for (const patch of [{ id: '--id' }, { grants: null }, { grants: 'no-array' }, { grants: Array(513).fill(grant) },
+    ...[{ workspaceId: '--workspace' }, { workspaceId: DEVICE }, { nodeId: DEVICE }, { nodeId: `phantom:${DEVICE}` }, { nodeId: '--node' },
+      { capabilities: ['chat.send'] }, { capabilities: ['read', '--metodo'] }, { capabilities: ['read', 'chat.send=otro'] },
+      { capabilities: ['read', 'read'] }, { nodeId: MAIN }, { nodeId: null, capabilities: ['cards.list'] }].map(change => ({ grants: [{ ...grant, ...change }] })),
+    { grants: [grant, grant] }, { acknowledgeAgentAuthority: 'true' }]) {
+    await assert.rejects(f.gateway.approve({ id: DEVICE, grants: [grant], ...patch }));
   }
   await assert.rejects(f.gateway.revoke({ id: '--id' }), /UUID/);
   assert.equal(f.calls.length, 0);
@@ -284,7 +323,7 @@ test('valida permisos sin invocar CLI: flags, allow sin nodo y autoridad ausente
 test('los orquestadores también exigen reconocer la autoridad antes de construir argv', async t => {
   const f = fixture(t);
   fs.writeFileSync(path.join(f.hostDataDir, 'state.json'), JSON.stringify({ workspaces: [{ id: WORKSPACE, nodes: [{ id: SESSION, data: { role: 'orchestrator' } }] }] }));
-  await assert.rejects(f.gateway.approve({ id: DEVICE, nodes: [SESSION] }), /autoridad.*orquestador/);
+  await assert.rejects(f.gateway.approve({ id: DEVICE, grants: [{ workspaceId: WORKSPACE, nodeId: SESSION, capabilities: ['read'] }] }), /autoridad.*orquestador/);
   assert.equal(f.calls.length, 0);
 });
 

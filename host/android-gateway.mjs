@@ -8,16 +8,14 @@ import { mobileInterfaces } from './mobile.mjs';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NODE = /^(?:[0-9a-f-]{36}|[a-zA-Z][\w-]*:[0-9a-f-]{36})$/;
 const METHOD = /^[a-zA-Z][\w-]*(?:\.[a-zA-Z][\w-]*)+$/;
 const check = (ok, message) => { if (!ok) throw new Error(message); };
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 4096 && !value.startsWith('--') && !/[\x00-\x1f\x7f]/.test(value);
 const inside = (parent, child) => { const relative = path.relative(parent, child); return !relative || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)); };
-const nodeId = value => text(value) && NODE.test(value) && UUID.test(value.slice(value.lastIndexOf(':') + 1));
 const privateIPv4 = value => isIPv4(value) && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(value);
 
 export class AndroidGateway {
-  constructor({ hostDataDir, gatewayDataDir, repoPath, nodeBin, spawn: spawnImpl = spawn, execFile: execImpl = execFile, configFile } = {}) {
+  constructor({ hostDataDir, gatewayDataDir, repoPath, nodeBin, spawn: spawnImpl = spawn, execFile: execImpl = execFile, configFile, listWorkspaces } = {}) {
     check(text(hostDataDir), 'Falta el directorio de datos del host');
     this.hostDataDir = path.resolve(hostDataDir);
     this.gatewayDataDir = path.resolve(gatewayDataDir ?? path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-mobile-host'));
@@ -27,6 +25,10 @@ export class AndroidGateway {
     this.nodeBin = nodeBin ?? process.env.PHANTOM_MOBILE_NODE ?? (process.versions.electron ? 'node' : process.execPath);
     check(text(this.nodeBin), 'Binario Node no válido');
     this.spawn = spawnImpl; this.execFile = execImpl;
+    this.listWorkspaces = listWorkspaces ?? (() => {
+      try { return JSON.parse(fs.readFileSync(path.join(this.hostDataDir, 'state.json'), 'utf8')).workspaces ?? []; }
+      catch (error) { if (error.code === 'ENOENT') return []; throw new Error(`No se pueden comprobar los proyectos: ${error.message}`); }
+    });
     this.lastError = null; this.expectedExits = new WeakSet();
   }
 
@@ -84,7 +86,10 @@ export class AndroidGateway {
     return { ...gateway, ...config, node, hostDataDir: this.hostDataDir, gatewayDataDir: this.gatewayDataDir,
       interfaces: mobileInterfaces(), processAlive, enabled: processAlive && !!this.ready,
       starting: !!this.starting, stopping: !!this.stopping, lastError: this.lastError,
-      devices: processAlive ? (gateway.devices ?? []) : [], workspaceId: processAlive ? (gateway.workspaceId ?? null) : null };
+      devices: processAlive ? (gateway.devices ?? []) : [], workspaceId: null, scope: gateway.scope ?? 'all',
+      workspaces: this.listWorkspaces().map(workspace => ({ id: workspace.id, name: workspace.name,
+        nodes: (workspace.nodes ?? []).filter(node => node.type === 'terminal' || node.data?.chat)
+          .map(node => ({ id: node.id, title: node.title, type: node.type, role: node.data?.role || null })) })) };
   }
 
   async configure({ repoPath } = {}) {
@@ -97,37 +102,37 @@ export class AndroidGateway {
     return this.status();
   }
 
-  async start({ workspaceId, address, port = 0 } = {}) {
+  async start({ address, port = 0 } = {}) {
     check(!this.starting && !this.stopping && !this.alive(), 'El gateway ya está activo o cambiando de estado');
-    check(text(workspaceId) && UUID.test(workspaceId), 'UUID de proyecto no válido');
     check(typeof address === 'string' && privateIPv4(address) && mobileInterfaces().some(item => item.address === address), 'Elige una interfaz LAN IPv4 privada detectada');
     check(Number.isInteger(port) && (port === 0 || (port >= 1024 && port <= 65535)), 'Puerto no válido (0 o 1024–65535)');
     this.stopRequested = false;
-    this.starting = this.launch({ workspaceId, address, port });
+    this.starting = this.launch({ address, port });
     try { return await this.starting; }
     catch (error) { this.lastError = error.message; throw error; }
     finally { this.starting = null; }
   }
 
-  async link({ workspaceId, address, port = 0 } = {}) {
-    check(text(workspaceId) && UUID.test(workspaceId), 'UUID de proyecto no válido');
+  async link({ address, port = 0 } = {}) {
     if (!this.alive()) {
       address ??= mobileInterfaces()[0]?.address;
       check(address, 'No se detecta una red LAN. Conecta el equipo a una red local.');
-      await this.start({ workspaceId, address, port });
+      await this.start({ address, port });
     }
     this.requireActive();
-    check(this.ready.workspaceId === workspaceId, 'El gateway está activo para otro proyecto. Desactívalo antes de vincular este proyecto.');
     const pairing = await this.pairing();
     const bootstrap = await this.bootstrap();
     return { bootstrap, pairing, status: await this.status() };
   }
 
-  async launch({ workspaceId, address, port }) {
+  async launch({ address, port }) {
     const config = this.config();
     check(config.repoValid, config.repoError);
     const node = await this.detectNode();
     check(node.compatible, node.error);
+    check(!this.stopRequested, 'Arranque cancelado');
+    const help = await this.execute([path.join(config.repoPath, 'host/cli.mjs'), '--help']);
+    check(help.includes('--grants'), 'Esta versión de phantom-mobile solo admite un proyecto. Actualiza phantom-mobile para usar el gateway en todo el workspace.');
     check(!this.stopRequested, 'Arranque cancelado');
     check(!inside(this.hostDataDir, this.gatewayDataDir), 'Los datos del gateway deben estar separados de los del desktop');
     fs.mkdirSync(this.hostDataDir, { recursive: true, mode: 0o700 });
@@ -135,7 +140,7 @@ export class AndroidGateway {
     check(!inside(fs.realpathSync(this.hostDataDir), fs.realpathSync(this.gatewayDataDir)), 'Los datos del gateway deben estar separados de los del desktop');
     fs.chmodSync(this.gatewayDataDir, 0o700);
     this.activeRepo = config.repoPath; this.lastError = null; this.ready = null;
-    const args = [path.join(config.repoPath, 'host/cli.mjs'), 'start', '--address', address, '--workspace', workspaceId,
+    const args = [path.join(config.repoPath, 'host/cli.mjs'), 'start', '--address', address,
       '--host-data', this.hostDataDir, '--data', this.gatewayDataDir, '--port', String(port)];
     const child = this.spawn(this.nodeBin, args, { shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
     this.child = child;
@@ -170,7 +175,7 @@ export class AndroidGateway {
           try {
             const value = JSON.parse(output.slice(0, end));
             check(value && typeof value.url === 'string' && new URL(value.url).protocol === 'https:' &&
-              text(value.hostId) && text(value.fingerprint) && value.workspaceId === workspaceId, 'Respuesta de arranque del gateway no válida');
+              text(value.hostId) && text(value.fingerprint) && value.scope === 'all', 'Respuesta de arranque del gateway no válida');
             finish(null, value);
           } catch (error) { finish(new Error(reason(`Respuesta de arranque no válida: ${error.message}`))); }
         };
@@ -222,32 +227,32 @@ export class AndroidGateway {
   async pairing() { this.requireActive(); return this.command('pairing'); }
   async bootstrap() { this.requireActive(); return this.command('export-bootstrap'); }
 
-  async approve({ id, nodes = [], allow = [], workspaceRead = false, workspaceAllow = [], acknowledgeAgentAuthority = false } = {}) {
+  async approve({ id, grants, acknowledgeAgentAuthority = false } = {}) {
     check(text(id) && UUID.test(id), 'UUID de dispositivo no válido');
-    check(Array.isArray(nodes) && nodes.length <= 256 && nodes.every(nodeId), 'Nodos no válidos');
-    check(Array.isArray(allow) && allow.length <= 1024, 'Permisos no válidos');
-    for (const value of allow) {
-      check(text(value), 'Permiso no válido');
-      const parts = value.split('=');
-      check(parts.length === 2 && nodeId(parts[0]) && METHOD.test(parts[1]) && nodes.includes(parts[0]), 'Cada permiso NODE_ID=METHOD exige su nodo de lectura');
-    }
-    check(typeof workspaceRead === 'boolean' && typeof acknowledgeAgentAuthority === 'boolean', 'Opciones de permisos no válidas');
-    check(Array.isArray(workspaceAllow) && workspaceAllow.length <= 256 && workspaceAllow.every(value => text(value) && METHOD.test(value)), 'Permisos del proyecto no válidos');
-    check(!workspaceAllow.length || workspaceRead, 'Los permisos del proyecto exigen lectura del proyecto');
-    check(!nodes.some(value => value.startsWith('phantom:')) || acknowledgeAgentAuthority, 'Debes reconocer que el teléfono actuará con la autoridad del agente');
-    if (nodes.length && !acknowledgeAgentAuthority) {
-      let state;
-      try { state = JSON.parse(fs.readFileSync(path.join(this.hostDataDir, 'state.json'), 'utf8')); }
-      catch (error) { if (error.code !== 'ENOENT') throw new Error(`No se pueden comprobar los roles del proyecto: ${error.message}`); }
-      const orchestrators = (state?.workspaces ?? []).flatMap(workspace => (workspace.nodes ?? []).filter(node => node.data?.role === 'orchestrator').map(node => node.id));
-      check(!nodes.some(value => orchestrators.includes(value)), 'Debes reconocer que el teléfono actuará con la autoridad del agente orquestador');
+    check(Array.isArray(grants) && grants.length <= 512, 'Permisos no válidos (máximo 512)');
+    check(typeof acknowledgeAgentAuthority === 'boolean', 'Opciones de permisos no válidas');
+    const workspaces = this.listWorkspaces(), pairs = new Set();
+    for (const grant of grants) {
+      check(grant && typeof grant === 'object' && text(grant.workspaceId) && UUID.test(grant.workspaceId), 'UUID de proyecto no válido');
+      const workspace = workspaces.find(item => item.id === grant.workspaceId);
+      check(workspace, 'Proyecto ajeno o eliminado');
+      const main = grant.nodeId === `phantom:${workspace.id}`;
+      const node = (workspace.nodes ?? []).find(item => item.id === grant.nodeId);
+      check(grant.nodeId === null || (text(grant.nodeId) && (main || node)), 'Nodo ajeno o no válido para este proyecto');
+      const key = JSON.stringify([grant.workspaceId, grant.nodeId]);
+      check(!pairs.has(key), 'Par proyecto/nodo repetido'); pairs.add(key);
+      const read = grant.nodeId === null ? 'workspace.read' : 'read';
+      check(Array.isArray(grant.capabilities) && grant.capabilities.length <= 1024 && grant.capabilities.includes(read) &&
+        grant.capabilities.every(value => text(value) && (value === read || METHOD.test(value))), 'Cada permiso exige lectura y métodos válidos');
+      check(new Set(grant.capabilities).size === grant.capabilities.length, 'Capabilities repetidas');
+      check(!(main || node?.data?.role === 'orchestrator') || acknowledgeAgentAuthority === true,
+        'Debes reconocer que el teléfono actuará con la autoridad del agente u orquestador');
     }
     this.requireActive();
     const status = await this.command('status');
     const device = status.devices?.find(item => item.id === id);
     check(device && ['pending', 'approved'].includes(device.state), 'Dispositivo no disponible');
-    const args = ['--id', id, ...nodes.flatMap(value => ['--node', value]), ...allow.flatMap(value => ['--allow', value]),
-      ...(workspaceRead ? ['--workspace-read'] : []), ...workspaceAllow.flatMap(value => ['--workspace-allow', value]),
+    const args = ['--id', id, '--grants', JSON.stringify(grants),
       ...(acknowledgeAgentAuthority ? ['--acknowledge-agent-authority'] : [])];
     return this.command(device.state === 'pending' ? 'approve' : 'permissions', args);
   }

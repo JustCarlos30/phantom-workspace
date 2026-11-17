@@ -52,6 +52,27 @@ Mobile permission answers use the effective mode helper from `chats.mjs`: `allow
 
 `test/mobile.test.mjs` trusts only each fixture's generated certificate; `test/mobile-browser.mjs` pins that fixture's SPKI in Chromium and verifies the presented certificate through a CA-verified Node HTTPS request. Neither disables TLS verification globally. Fixtures are isolated from user sessions.
 
+## Gateway Android: todo el workspace
+
+El gateway Android sirve **Phantom Workspace (todos tus proyectos)**, no un proyecto individual. El desktop usa `phantom-mobile/host/cli.mjs` con Node >= 26, argv sin shell y datos del gateway separados de los del desktop. Antes de arrancar ejecuta `cli.mjs --help`: debe contener el literal `--grants`. Una versión antigua se rechaza sin iniciar el proceso, indicando que hay que actualizar phantom-mobile.
+
+### Contrato CLI desktop ↔ phantom-mobile
+
+- `start --address IPv4 [--host-data DIR] [--data DIR] [--port N]`, **sin `--workspace`**, activa el ámbito global. La disponibilidad es una línea JSON de stdout: `{"url":"https://…","hostId":"…","fingerprint":"…","scope":"all","workspaceId":null}`.
+- `approve|permissions --id UUID --grants JSON [--acknowledge-agent-authority] [--data DIR]`. `approve` admite pendientes; `permissions` reemplaza **todos** los permisos de un dispositivo aprobado. Ya no se usan `--node`, `--allow`, `--workspace-read` ni `--workspace-allow`.
+- `JSON` es un array de hasta 512 objetos `{"workspaceId":UUID,"nodeId":string|null,"capabilities":[string,...]}`. El proyecto debe existir en el host. `nodeId:null` identifica herramientas del proyecto y exige `workspace.read`; las acciones adicionales cumplen el patrón de método `namespace.action`. Un nodo exige `read`, pertenece a ese proyecto o es su chat principal `phantom:<workspaceId>`; sus acciones adicionales también son métodos (`chat.send`, `chat.stop`, `terminal.write`, etc.). No se repiten pares `(workspaceId,nodeId)` ni capabilities. El chat principal y cualquier nodo orquestador exigen reconocimiento explícito de autoridad, incluso solo para lectura.
+- `status` devuelve `{enabled,scope:"all",workspaceId:null,url,hostId,fingerprint,pairingExpiresAt,devices:[{id,name,state,keyFingerprint,createdAt,permissionVersion,acknowledgeAgentAuthority:boolean,connected:boolean,grants:[{workspaceId,nodeId,capabilities}]}]}`.
+- `pairing`, `export-bootstrap`, `revoke --id` y `stop` conservan su contrato.
+
+La API desktop `android.start({address,port})` / `android.link({address,port})` ignora un `workspaceId` heredado. `android.approve({id,grants,acknowledgeAgentAuthority})` valida contra el estado vivo del host. `android.status` añade `workspaces:[{id,name,nodes:[{id,title,type,role}]}]`: solo terminales o nodos con `data.chat`, con `role=data.role || null`. El constructor acepta `listWorkspaces()`; sin esta opción lee `state.json` de `hostDataDir`.
+
+### API móvil `/api/v2`
+
+- `workspaces.list` devuelve `[{id,name}]` solo para proyectos donde el dispositivo tenga algún permiso.
+- Los demás métodos exigen `payload.workspaceId` y autorizan contra los grants de ese proyecto. Si no hay ninguno, responden `403` («Workspace ajeno»).
+- Los sobres de desafío usan el `workspaceId` del payload para acciones y `null` para pair/login.
+- Cambiar permisos invalida la sesión. La app debe volver a iniciar sesión y releer las capabilities por proyecto, sin volver a vincularse.
+
 ## Persistence and limits
 
 - `state.json`: validated schema v1, atomic rename, file and directory fsync. Corrupt files fail visibly without replacement. Imports validate before changing state. Imported histories are journaled in this file until their transfer to `terminals.json` completes, so a crash during import can finish on restart.

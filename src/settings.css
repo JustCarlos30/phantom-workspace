@@ -4,6 +4,14 @@
 .st *, .st *::before, .st *::after { box-sizing: border-box; }
 .st-phone-qr { display: flex; justify-content: center; padding: 16px; }
 .st-phone-qr svg { background: white; outline: 1px solid var(--hairline); border-radius: var(--r-obj); max-width: 100%; height: auto; }
+.st-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; min-width: 0; max-width: 100%; }
+.st-phone-link { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; padding: 16px; margin-bottom: 24px; background: var(--fill); border-radius: var(--r-obj); }
+.st-phone-link .st-actions { flex-direction: column; align-items: center; }
+.st-phone-link .st-phone-qr { min-width: 0; max-width: 100%; padding: 0; }
+.st-fingerprint { font: var(--t-support); font-family: var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.st .st-row.is-attention .st-row-text > :is(span, small) { color: var(--attention); }
+.st-row-text > :is(span, label) { overflow-wrap: anywhere; }
+.st-details { min-width: 0; margin-bottom: 12px; }
 .st-body { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100%; min-height: 0; }
 .tw-content:has(> .st) { padding: 0; overflow: hidden; }
 
@@ -41,6 +49,9 @@
 .st-back:hover { background: var(--fill-2); }
 
 .st-group { margin: 0 0 24px; min-width: 0; }
+.st-device { margin-bottom: 24px; }
+.st-device > .st-group { margin-bottom: 1px; }
+.st-device > .st-details { margin-bottom: 0; }
 .st .st-group > h3 { margin: 0 6px 8px; color: var(--muted); font: var(--t-control); }
 .st-list { display: grid; gap: 1px; border-radius: var(--r-obj); overflow: hidden; }
 .st-row, .st-block { background: var(--fill); }

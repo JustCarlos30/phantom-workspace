@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { buildAppPairingPayload, parseAppPairingPayload, buildBrowserPairingUrl, readBrowserPairingCode, qrMatrix } from '../src/phone-pairing.mjs';
+import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement } from '../src/phone-permissions.mjs';
 
 async function payload(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-qr-'));
@@ -71,12 +72,18 @@ test('UI pasa expiry ISO/numérico, oculta QR inválido y ofrece recuperación s
     let index = 0;
     const states = [{ enabled: true, pairingExpiresAt: expiresAt, devices: [], interfaces: [], node: {}, repoValid: true }, '', '', '0', fixed.bootstrap, { code: fixed.code, expiresAt: expiry }, true, false, '', false, now];
     const effects = [];
-    const component = new Function('React', 'useState', 'useRef', 'useEffect', 'Group', 'Row', 'TextRow', 'Switch', 'PhoneQr', 'MobileSettings', 'buildAppPairingPayload', code + '\nreturn AndroidGatewaySettings;')(React, () => [states[index++], () => {}], value => ({ current: value }), (...args) => effects.push(args), 'Group', 'Row', 'TextRow', 'Switch', 'PhoneQr', 'MobileSettings', buildAppPairingPayload);
+    const component = new Function('React', 'useState', 'useRef', 'useEffect', 'Group', 'Row', 'TextRow', 'Switch', 'PhoneQr', 'MobileSettings', 'buildAppPairingPayload', 'standardGrants', 'grantsFromSelection', 'selectionFromGrants', 'needsAcknowledgement', code + '\nreturn AndroidGatewaySettings;')(React, () => [states[index++], () => {}], value => ({ current: value }), (...args) => effects.push(args), 'Group', 'Row', 'TextRow', 'Switch', 'PhoneQr', 'MobileSettings', buildAppPairingPayload, standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement);
     const tree = component({ workspace: { id: 'test', name: 'Test' }, api: () => {} });
     const nodes = [];
     const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node && typeof node === 'object') { nodes.push(node); visit(node.children); } };
     visit(tree);
     const qr = nodes.find(node => node.type === 'PhoneQr');
+    assert.ok(nodes.some(node => node.props?.className === 'st-phone-link'));
+    const actions = nodes.find(node => node.props?.className === 'st-actions');
+    assert.ok(actions);
+    assert.ok(nodes.some(node => node.type === 'Row' && node.props?.hint?.includes('Phantom Workspace (todos tus proyectos)')));
+    assert.ok(!nodes.some(node => node.type === 'Row' && node.props?.label === ''));
+    assert.ok(!nodes.some(node => node.type === 'p' && node.children.includes('Test')));
     if (expiry === now - 1 || expiry === 'invalid') {
       assert.equal(qr, undefined);
       assert.ok(nodes.some(node => node.props?.role === 'alert'));
