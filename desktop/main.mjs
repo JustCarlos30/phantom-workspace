@@ -418,6 +418,23 @@ async function invokeLocal(method, payload) {
     if (payload.stopHost !== undefined && typeof payload.stopHost !== 'boolean') throw new Error('stopHost debe ser boolean');
     return quit(payload.stopHost === true);
   }
+  if (method === 'desktop.openBrowser') {
+    const url = browserURL(payload.url, { external: true });
+    const state = await hostInvoke('state.get');
+    const workspace = state.workspaces.find(w => w.id === state.activeWorkspaceId);
+    if (!workspace) throw new Error('Abre un proyecto para navegar');
+    const node = await hostInvoke('node.create', { workspaceId: workspace.id, type: 'browser', data: { url } });
+    openMainWindow();
+    const end = Date.now() + 10000;
+    do {
+      const current = await hostInvoke('state.get');
+      if (current.activeWorkspaceId !== workspace.id) throw new Error('El proyecto activo cambió');
+      emit({ type: 'browser.agentFocus', id: node.id, workspaceId: workspace.id });
+      if (browsers.entries.get(node.id)?.attached) return { opened: true, id: node.id, workspaceId: workspace.id };
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } while (Date.now() < end);
+    throw new Error('Timeout esperando panel visible');
+  }
   if (method === 'desktop.openExternal') {
     await shell.openExternal(browserURL(payload.url, { external: true }));
     return { opened: true };

@@ -54,7 +54,7 @@ function MarkdownLink({ label, url, embedded }) {
     setError(''); setBusy(true);
     try {
       if (!window.phantom) throw new Error('Abre este enlace desde Phantom Workspace');
-      await window.phantom.invoke(target.kind === 'web' ? 'desktop.openExternal' : 'desktop.openPath', target.kind === 'web' ? { url: target.url } : { path: target.path });
+      await window.phantom.invoke(target.kind === 'web' ? 'desktop.openBrowser' : 'desktop.openPath', target.kind === 'web' ? { url: target.url } : { path: target.path });
     } catch (reason) { setError(reason.message); }
     finally { setBusy(false); }
   };

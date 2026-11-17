@@ -101,7 +101,7 @@ export function byteRange(header, size) {
   return start <= end && start < size ? { start, end } : false;
 }
 export const LOCAL_METHODS = new Set([
-  'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.previewImage',
+  'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.openBrowser', 'desktop.previewImage',
   'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady', 'desktop.notify',
   'desktop.interfaceScale.get', 'desktop.interfaceScale.set',
   'browser.attach', 'browser.bounds', 'browser.navigate', 'browser.back', 'browser.forward',
