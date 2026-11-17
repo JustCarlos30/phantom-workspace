@@ -282,7 +282,9 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   await idle();
   let chat = await host.invoke('chat.get', ref);
   assert.equal(chat.sessionId, 'sid-1'); assert.deepEqual(chat.messages.map(m => [m.role, m.status]), [['user', 'done'], ['assistant', 'done']]);
-  assert.equal(chat.messages[1].parts[0].text, `eco:hola resume:no modo:preguntar cwd:${fs.realpathSync(root)}`);
+  assert.equal(chat.messages[1].parts[0].text, `eco:hola resume:no modelo:sonnet modo:preguntar cwd:${fs.realpathSync(root)}`);
+  // The rest of the test covers the CLI default path.
+  await host.invoke('settings.update', { patch: { routing: { enabled: false } } });
   assert.ok(events.some(e => e.type === 'chat.update' && e.running === false && e.messages[0].status === 'done'));
 
   // Layout saves must not drop the chat selection; permission is per card.

@@ -8,6 +8,23 @@ const workspaces = [
 ];
 const grant = (index, nodeId, capabilities) => ({ workspaceId: workspaces[index].id, nodeId, capabilities });
 
+test('un host sin workspaces no concede permisos ni exige reconocimiento', () => {
+  const device = { grants: standardGrants(workspaces), acknowledgeAgentAuthority: true };
+  assert.deepEqual(standardGrants(undefined), []);
+  assert.deepEqual(grantsFromSelection(device, undefined), []);
+  assert.deepEqual(selectionFromGrants(device, undefined), { grants: [], acknowledgeAgentAuthority: true });
+  assert.equal(needsAcknowledgement(device, undefined), false);
+});
+
+test('dispositivos sin grants o capabilities no conceden permisos', () => {
+  for (const device of [{}, { grants: [grant(0, 'orchestrator', undefined), grant(0, null, undefined)] }]) {
+    assert.deepEqual(selectionFromGrants(device, workspaces), { grants: [], acknowledgeAgentAuthority: false });
+    assert.deepEqual(grantsFromSelection(device, workspaces), []);
+    assert.equal(needsAcknowledgement(device, workspaces), false);
+    assert.deepEqual(selectionFromGrants(device, undefined), { grants: [], acknowledgeAgentAuthority: false });
+  }
+});
+
 test('estándar concede chat y herramientas en todos los proyectos', () => {
   assert.deepEqual(standardGrants(workspaces), workspaces.flatMap(({ id }) => [
     { workspaceId: id, nodeId: `phantom:${id}`, capabilities: ['read', 'chat.send', 'chat.stop'] },

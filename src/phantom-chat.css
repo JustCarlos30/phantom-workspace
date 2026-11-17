@@ -42,6 +42,7 @@
 .phantom-chat .pc-icon { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 
 .phantom-chat .pc-thread { background: var(--well); }
+.phantom-chat .pc-composer::before { background: var(--well); }
 .phantom-chat .pc-column { padding: 12px 20px 20px; gap: 20px; }
 .phantom-chat .pc-tool-row { gap: 6px; }
 .phantom-chat .pc-tool-output { margin-left: 26px; }
