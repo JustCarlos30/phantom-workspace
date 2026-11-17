@@ -116,3 +116,47 @@ test('dos intentos conservan historial y limitan cada lista; campos planos son d
   assert.deepEqual(result.items, result.runs[1].steps);
   assert.equal(result.items[0].id, 'new-5');
 });
+
+test('error de motor extrae mensaje y HTTP sin cabeceras en el motivo legible', async t => {
+  const f = await fixture(t);
+  const message = 'gpt-5.5 no soportado con cuenta ChatGPT';
+  for (const [index, data] of [
+    { message, statusCode: 400, isRetryable: false },
+    { responseBody: JSON.stringify({ detail: message }), statusCode: 400, isRetryable: false },
+    { error: { message }, statusCode: 400, isRetryable: false },
+  ].entries()) {
+    const raw = `El motor reportó un error: ${JSON.stringify({ ...data, responseHeaders: { 'set-cookie': 'SECRET_COOKIE' } })}`;
+    f.add('run.error', { reason: raw }, `run-${index}`);
+    f.add('task.blocked', { reason: raw }, `run-${index}`);
+  }
+  const nested = `El motor reportó un error: ${JSON.stringify({ data: { message, statusCode: 400, isRetryable: false, responseHeaders: { 'set-cookie': 'SECRET_COOKIE' } } })}`;
+  f.add('run.error', { reason: nested }, 'nested');
+  const result = await f.activity();
+  for (const run of result.runs) {
+    assert.equal(run.reason, `${message} (HTTP 400, no reintentable)`);
+    assert.doesNotMatch(run.reason, /set-cookie|SECRET_COOKIE|responseHeaders/);
+    assert.match(run.reasonRaw, /El motor reportó un error:/);
+  }
+  assert.equal(result.reason, result.runs.at(-1).reason);
+});
+
+test('motivo no JSON conserva el texto original', async t => {
+  const f = await fixture(t);
+  const reason = 'El motor reportó un error: conexión interrumpida';
+  f.add('run.error', { reason });
+  const result = await f.activity();
+  assert.equal(result.reason, reason);
+  assert.equal(result.runs[0].reasonRaw, reason);
+});
+
+test('reasonRaw se limita a 2000 caracteres por intento sin truncar el JSON antes de extraer', async t => {
+  const f = await fixture(t);
+  const raw = `El motor reportó un error: ${JSON.stringify({ data: { responseHeaders: { padding: 'x'.repeat(3000) }, message: 'Causa legible', statusCode: 400 } })}`;
+  f.add('run.error', { reason: raw });
+  f.add('task.blocked', { reason: 'Otro intento' }, 'second');
+  const result = await f.activity();
+  assert.equal(result.runs[0].reasonRaw, raw.slice(0, 2000));
+  assert.equal(result.runs[0].reasonRaw.length, 2000);
+  assert.equal(result.runs[0].reason, 'Causa legible (HTTP 400)');
+  assert.equal(result.runs[1].reasonRaw, 'Otro intento');
+});
