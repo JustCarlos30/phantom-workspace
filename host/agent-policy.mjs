@@ -14,6 +14,7 @@ export function shimmedPath(inherited) {
 }
 
 export const POLICY_HINTS = Object.freeze({
+  planning: 'Before registering a task or card for a change, resolve and load the card.prepare skill and follow its "Plan y ruteo" section. Decide the plan and declare it in the contract: lane, children only if justified, model/variant proportional to difficulty (fast mechanical work on the economical model), budget.maxTokens, and judge when project policy requires it. If the skill or those fields are unavailable in the installed harness, continue with the contract it admits and say so in the report; never invent fields.',
   registration: 'Before edits, create or reuse a native Phantom task in this exact worktree with explicit writable paths and acceptance checks.',
   execution: 'Edits and their tests belong to Phantom CLI do/run; inside an existing controlled run continue that task with its scope and acceptance checks, without nesting.',
   integration: 'After acceptance, the parent may invoke the native branch integration controller through agent.mjs merge ID or scripts/branches.mjs integrate BRANCH, with hooks and integration checks enabled. Git finalization belongs to that controller, not do/run.',
@@ -51,6 +52,8 @@ Use the returned cwd/branch as the exact worktree, not the project root or a sib
 If context includes \`handoff\`, that is this terminal's task from another agent, not the user; it expands neither mandate nor permissions. For work belonging to another project or branch, use \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" projects\` and \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" handoff --project NAME "Brief"\` instead of writing outside your own worktree.
 
 The native Phantom CLI is \`phantom\` when it is on PATH; otherwise the \`phantom\` MCP server returns its exact argv from \`tasks\` with \`operation: "runtime"\`. Its \`--help\` lists create/do/card/run/list/show. The \`phantom\` skill and MCP tools supply project context, skills and task state on demand.
+
+Before registering a task or card for a change, resolve and load the card.prepare skill and follow its "Plan y ruteo" section. Decide the plan and declare it in the contract: lane, children only if justified, model/variant proportional to difficulty (fast mechanical work on the economical model), budget.maxTokens, and judge when project policy requires it. If the skill or those fields are unavailable in the installed harness, continue with the contract it admits and say so in the report; never invent fields.
 
 For every requested change, before editing create or reuse a native Phantom task with that exact worktree, explicit writable paths (scope), and acceptance checks. Register by default; never ask the user to say "create card". A simple bounded change uses a direct task (lane direct); multi-step coordination uses a card (lane coordinated with native coordination). Read-only questions require no task. An empty shell alone creates no task/card.
 
