@@ -14,7 +14,7 @@
 .voice-activity[data-state="transcribing"] .voice-waves i { inset: 8px; --orb-color: var(--muted); }
 .voice-activity[data-state="requesting"] { color: var(--attention); }
 .voice-activity[data-state="requesting"] .voice-waves { animation: none; }
-.voice-activity[data-state="requesting"] .voice-waves i { --orb-color: var(--attention); }
+.voice-activity[data-state="requesting"] .voice-waves i { --orb-color: var(--muted); }
 /* Live transcript: committed words in ink, the tentative tail still forming. */
 .voice-live { margin: 0; max-height: 7.5em; overflow-y: auto; color: var(--ink); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 .voice-live-confirmed { color: var(--ink); }
@@ -51,8 +51,8 @@
   mask: linear-gradient(to right, #000, transparent 48px), linear-gradient(to left, #000, transparent 48px), linear-gradient(to bottom, #000, transparent 48px), linear-gradient(to top, #000, transparent 48px);
 }
 .voice-aura-glow::before { animation-direction: reverse; animation-duration: 9s; }
-/* Waiting for permission: amber, still. Closing the transcript: slow and dim. */
-.voice-aura[data-state="requesting"] .voice-aura-ring::before, .voice-aura[data-state="requesting"] .voice-aura-glow::before { background: var(--attention); animation: none; }
+/* Closing the transcript: slow and dim. */
+.voice-aura[data-state="requesting"] { display: none; }
 .voice-aura[data-state="transcribing"] .voice-aura-ring { opacity: .32; }
 .voice-aura[data-state="transcribing"] .voice-aura-glow { opacity: .1; animation: voice-thinking 1.4s ease-in-out infinite alternate; }
 .voice-aura[data-state="transcribing"] :is(.voice-aura-ring, .voice-aura-glow)::before { animation-duration: 14s; }

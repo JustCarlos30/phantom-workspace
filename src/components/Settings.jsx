@@ -11,11 +11,11 @@ import { CopyButton, Group, Row, Segmented, Switch, TextRow, useOperation, useRe
 // Narrow hosts (the side inspector, a small panel) show the categories as a
 // first-level list and drill into one, like a phone's settings.
 const CATEGORIES = [
-  ['agents', 'Agentes', Bot, 'working'],
-  ['git', 'Git e integración', GitBranch, 'success'],
-  ['appearance', 'Apariencia', Sun, 'attention'],
-  ['voice', 'Voz', Mic, 'accent'],
-  ['phone', 'Teléfono', Smartphone, 'danger'],
+  ['agents', 'Agentes', Bot],
+  ['git', 'Git e integración', GitBranch],
+  ['appearance', 'Apariencia', Sun],
+  ['voice', 'Voz', Mic],
+  ['phone', 'Teléfono', Smartphone],
   ['connections', 'Conexiones', Plug],
   ['data', 'Datos y respaldo', Folder],
   ['advanced', 'Avanzado', Wrench],
@@ -256,7 +256,7 @@ export default function Settings({ workspace, state, api, refresh, notify, onOpe
     <div className="st-body">
       <nav className="st-nav" aria-label="Categorías de configuración">
         <h2>Configuración</h2>
-        <ul>{available.map(([id, name, Icon, tone]) => <li key={id}><button type="button" aria-current={category === id ? 'page' : undefined} onClick={() => open(id)}><span className="st-ico" data-tone={tone}><Icon size={16} aria-hidden="true" /></span><span>{name}</span><ChevronRight className="st-chev" size={15} aria-hidden="true" /></button></li>)}</ul>
+        <ul>{available.map(([id, name, Icon]) => <li key={id}><button type="button" aria-current={category === id ? 'page' : undefined} onClick={() => open(id)}><span className="st-ico"><Icon size={16} aria-hidden="true" /></span><span>{name}</span><ChevronRight className="st-chev" size={15} aria-hidden="true" /></button></li>)}</ul>
       </nav>
       <section className="st-pane" aria-labelledby="st-pane-title">
         <button type="button" className="st-back" onClick={() => setDrill(false)}><ChevronLeft size={16} aria-hidden="true" />Configuración</button>

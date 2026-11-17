@@ -125,7 +125,7 @@
 .index-item>button:first-child{flex:1;min-width:0;text-align:left;padding:11px 5px}
 .index-item strong{display:block;font-size:12px;margin:4px 0;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .index-type{font-size:9px;color:var(--muted)}
-.index-item small{font-size:10px;color:var(--success)}
+.index-item small{font-size:10px;color:var(--muted)}
 .index-footer{display:flex;align-items:center;justify-content:space-between;padding:12px;border-top:1px solid var(--hairline);font-size:10px}
 .index-footer button{color:var(--accent);font-weight:550}
 .attention-tray{position:fixed;right:25px;top:65px;width:350px;z-index:46;border-radius:var(--r-ctl);box-shadow:var(--shadow-float);max-height:calc(100% - 110px);overflow:auto}

@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './appearance-preferences.test.mjs';
+import { ACCENTS, accentColor, defaults, normalizeAppearance } from '../src/hooks/useAppearance.js';
 
 // The design system as constraints (see DESIGN.md, «Reglas»). Three radii,
 // chrome/workplane elevations, one hairline, and a per-file budget of drawn edges that can
@@ -18,6 +19,7 @@ const sheets = walk(path.join(root, 'src')).map(file => ({
 }));
 const declarations = (css, property) => [...css.matchAll(new RegExp(`(?<![-\\w])${property}\\s*:([^;}]+)`, 'g'))]
   .map(match => match[1].replace('!important', '').trim());
+const rootDeclarations = (css, property) => declarations(css.match(/:root\s*\{([^}]+)\}/)?.[1] || '', property);
 const split = (value, separator) => {
   const out = []; let depth = 0, current = '';
   for (const ch of value) {
@@ -90,7 +92,7 @@ export { drawnEdges, sheets };
 test('approved type roles use local families and three weights', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   for (const [role, value] of Object.entries({ display: '600 24px/30px', title: '600 17px/22px', headline: '600 14px/22px', body: '400 14px/22px', control: '500 14px/20px', support: '400 12px/16px', micro: '500 12px/16px' })) {
-    assert.equal(declarations(canvas, `--t-${role}`)[0], `${value} var(--sans)`);
+    assert.equal(rootDeclarations(canvas, `--t-${role}`)[0], `${value} var(--sans)`);
   }
   for (const { name, css } of sheets) assert.doesNotMatch(css, /@import\s+url\([^)]*https?:|@font-face[^}]*https?:/i, name);
   const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
@@ -102,9 +104,9 @@ test('sidebar keeps neutral selection, compact status and consistent control siz
   const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
   const source = readFileSync(path.join(root, 'src/components/SidebarPanels.jsx'), 'utf8');
   for (const [name, value] of Object.entries({ bg: '#050505', surface: '#0d0d0d', 'surface-2': '#151515', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
-    assert.equal(declarations(canvas, `--${name}`)[0], value);
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
   }
-  assert.doesNotMatch(declarations(canvas, '--glass-tint')[0], /--accent/);
+  assert.doesNotMatch(rootDeclarations(canvas, '--glass-tint')[0], /--accent/);
   assert.match(sidebar, /\.rail-panel-row\.selected\s*\{[^}]*background: var\(--fill-2\);[^}]*color: var\(--ink\)/);
   assert.match(sidebar, /\.rail-session-row:has\(\.rail-session-dot\.warning\) \.rail-session-status\s*\{\s*color: var\(--attention\)/);
   assert.doesNotMatch(sidebar, /box-shadow: 0 0 0 2px var\(--(?:attention|working)\)/);
@@ -116,8 +118,12 @@ test('sidebar keeps neutral selection, compact status and consistent control siz
 test('sidebar status text retains AA over its selected neutral surface', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
-  const rgb = name => (declarations(canvas, `--${name}`)[0] || declarations(studio, `--${name}`)[0])
-    .slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
+  assert.deepEqual(rootDeclarations('.pixel-field { --attention: transparent; } :root { --attention: #c6f135; } .pixel-field { --attention: transparent; }', '--attention'), ['#c6f135']);
+  const rgb = name => {
+    const value = rootDeclarations(canvas, `--${name}`)[0] || rootDeclarations(studio, `--${name}`)[0];
+    assert.match(value, /^#[\da-f]{6}$/i);
+    return value.slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
+  };
   const luminance = values => values.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
     .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
   const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
@@ -183,8 +189,9 @@ test('workplane elevation aliases stay local and the canvas exposes environmenta
 test('neutral reading and state inks retain AA contrast on opaque planes', () => {
   const css = readFileSync(path.join(root, 'src/studio.css'), 'utf8');
   const color = name => {
-    const value = css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6});`, 'i'))?.[1];
+    const value = rootDeclarations(css, `--${name}`)[0];
     assert.ok(value, `Declared opaque palette token --${name}`);
+    assert.match(value, /^#[\da-f]{6}$/i);
     const rgb = value.slice(1).match(/../g).map(v => parseInt(v, 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
     return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
   };
@@ -240,7 +247,7 @@ test('reading and state inks retain AA on translucent wells, including a white i
   const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
   const tokens = canvas.match(/:root\s*\{([^}]+)\}/)[1];
   const rgb = name => {
-    const value = declarations(tokens, `--${name}`)[0] || declarations(studio, `--${name}`)[0];
+    const value = declarations(tokens, `--${name}`)[0] || rootDeclarations(studio, `--${name}`)[0];
     assert.match(value, /^#[\da-f]{6}$/i);
     return value.slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
   };
@@ -266,7 +273,7 @@ test('chrome reading inks retain AA across the existing CSS atmospheres and proj
   const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
   const tokens = canvas.match(/:root\s*\{([^}]+)\}/)[1];
   const rgb = hex => hex.slice(1).match(/../g).map(value => parseInt(value, 16) / 255);
-  const token = name => rgb(declarations(tokens, `--${name}`)[0] || declarations(studio, `--${name}`)[0]);
+  const token = name => rgb(declarations(tokens, `--${name}`)[0] || rootDeclarations(studio, `--${name}`)[0]);
   const over = (front, back, alpha) => front.map((v, i) => v * alpha + back[i] * (1 - alpha));
   const luminance = rgb => rgb.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
     .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
@@ -315,7 +322,7 @@ test('materials retire the old activity glint and keep auxiliary status indicato
 test('black planes step up in order and menus own the only raised plane', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const menus = sheets.find(sheet => sheet.name === 'src/menus.css').css;
-  const level = name => parseInt(declarations(canvas, `--${name}`)[0].slice(1, 3), 16);
+  const level = name => parseInt(rootDeclarations(canvas, `--${name}`)[0].slice(1, 3), 16);
   const ladder = ['bg', 'terminal-bg', 'surface', 'surface-2', 'menu', 'surface-3'].map(level);
   assert.deepEqual(ladder, [...ladder].sort((a, b) => a - b), 'Planes must step from the black canvas upwards.');
   assert.ok(level('bg') <= 8, 'The canvas stays black.');
@@ -327,4 +334,96 @@ test('black planes step up in order and menus own the only raised plane', () => 
   // The current value is ink, weight and a mark; the only fill is hover/keyboard.
   assert.match(menus, /\[aria-selected="true"\]:not\(:hover, :focus-visible\)[^{]*\{[^}]*background: none/s);
   assert.doesNotMatch(menus, /outline:\s*2px/);
+});
+
+test('categories are decorative neutrals and active switches are ivory with dark indicators', () => {
+  const source = readFileSync(path.join(root, 'src/components/Settings.jsx'), 'utf8');
+  const categories = source.match(/const CATEGORIES = \[([\s\S]*?)\n\];/)[1];
+  assert.equal([...categories.matchAll(/\['[^']+', '[^']+', \w+\]/g)].length, 8);
+  assert.doesNotMatch(categories, /'working'|'success'|'attention'|'danger'|'accent'/);
+  assert.doesNotMatch(source, /className="st-ico"[^>]*data-tone/);
+  const css = sheets.find(sheet => sheet.name === 'src/settings.css').css;
+  assert.doesNotMatch(css, /\.st-ico\[data-tone/);
+  assert.match(css, /\.st-ico\s*\{[^}]*background: var\(--fill-3\);[^}]*color: var\(--ink\)/);
+  assert.match(css, /\.st-switch\[aria-checked="true"\]\s*\{\s*background: var\(--on\)/);
+  assert.match(css, /\.st-switch\[aria-checked="true"\] > i\s*\{[^}]*background: var\(--on-ink\)/);
+  assert.match(css, /\.st :is\(button, input, select, textarea, summary\):focus-visible\s*\{\s*outline: 2px solid var\(--accent\)/);
+  const incorporaciones = sheets.find(sheet => sheet.name === 'src/incorporaciones.css').css;
+  assert.match(incorporaciones, /\.inc-switch\[aria-checked="true"\]\s*\{\s*background: var\(--on\)/);
+  assert.match(incorporaciones, /\.inc-switch\[aria-checked="true"\] i\s*\{[^}]*background: var\(--on-ink\)/);
+  const branches = sheets.find(sheet => sheet.name === 'src/branches.css').css;
+  assert.doesNotMatch(branches, /\.br-button\.is-armed[^{}]*\{[^}]*var\(--success\)/);
+  const terminal = sheets.find(sheet => sheet.name === 'src/terminal.css').css;
+  for (const provider of ['claude', 'opencode', 'codex', 'agent']) {
+    assert.equal(declarations(terminal, `--hue-${provider}`)[0], 'var(--ink)', `${provider} chrome is decorative, not a state`);
+  }
+});
+
+test('attention aliases cannot colour surfaces, wells or rings in any src stylesheet', () => {
+  const aliases = new Set(['--attention', '--warning', '--tone', '--pc-tone']);
+  const references = value => [...value.matchAll(/var\((--[\w-]+)/g)].map(match => match[1]);
+  const usesAttention = value => /#c6f135\b|rgba?\(\s*198[, ]+241[, ]+53\b/i.test(value) || references(value).some(name => aliases.has(name));
+  let changed;
+  do {
+    changed = false;
+    for (const { css } of sheets) for (const [, name, value] of css.matchAll(/(--[\w-]+)\s*:([^;}]+)/g)) {
+      if (!aliases.has(name) && usesAttention(value)) { aliases.add(name); changed = true; }
+    }
+  } while (changed);
+  const marks = /(?:\.rail-session-dot\.warning|\.attention-button i|\.status-dot\.(?:connecting|disconnected)|\.host-indicator\.(?:connecting|reconnecting) i|\.pt-card-now\[data-tone="attention"\] > i|\.pt-card-line\.is-current::before|\.reference-timeline button|\.phantom-chat-toggle:is\([^{}]+\)::after|\.pd-tab-dot|\.notch-dot|\.phantom-launcher-dot|\.pc-context-bands li\.is-watch > i|\.rp-dirty-dot|\.rp-mix-seg\.is-conflict|\.rp-mix-key\.is-conflict i|\.rp-side-mix \.is-conflict|\.pc-dep i)$/;
+  const bad = [];
+  for (const { name, css } of sheets) for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const declaration of body.split(';')) {
+      const match = declaration.match(/^\s*([\w-]+)\s*:\s*([\s\S]*)$/);
+      if (!match) continue;
+      const [, property, value] = match;
+      if (!/^(?:background(?:-[\w-]+)?|border(?:-[\w-]+)?|outline(?:-[\w-]+)?|box-shadow|filter|fill|stroke)$/.test(property) || !usesAttention(value)) continue;
+      for (const selector of split(selectors.trim(), ',')) {
+        if (/^background(?:-color)?$/.test(property) && marks.test(selector)) continue;
+        if (property === 'stroke' && selector.includes('.phantom-face')) continue;
+        if (property === 'stroke' && selector === '.canvas-node > .activity-trace > rect') continue;
+        bad.push(`${name}: ${selector}: ${property}: ${value}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'Attention is ink or a compact mark, never a tinted surface or ring');
+  const terminal = sheets.find(sheet => sheet.name === 'src/terminal.css').css;
+  assert.match(terminal, /\.pt-state\s*\{[^}]*background: var\(--fill-2\)/);
+  assert.doesNotMatch(terminal, /\.pt-state\s*\{[^}]*background:[^;}]*currentColor/);
+  const trace = sheets.find(sheet => sheet.name === 'src/activity-trace.css').css;
+  assert.match(trace, /\.canvas-node > \.activity-trace:is\(\[data-state="pulse-attention"\], \[data-state="pulse-turn"\]\)\s*\{\s*display: none/);
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  assert.match(canvas, /\.pixel-field\s*\{\s*--attention: transparent/);
+});
+
+test('ivory fallback agrees across CSS, preferences and terminal without losing saved accents or ANSI', () => {
+  const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
+  for (const [name, color] of Object.entries({ attention: '#c6f135', success: '#65ba83', working: '#5b9cff', action: '#5b9cff', danger: '#f27670', accent: '#f2f0eb' })) {
+    assert.equal(rootDeclarations(studio, `--${name}`)[0], color);
+  }
+  assert.equal(defaults.accent, 'ivory');
+  for (const value of [undefined, null, '', 'missing']) {
+    assert.equal(accentColor(value), '#f2f0eb');
+    assert.equal(normalizeAppearance({ accent: value }).accent, 'ivory');
+  }
+  for (const [key, , color] of ACCENTS) {
+    assert.equal(accentColor(normalizeAppearance({ v: 4, accent: key }).accent), color);
+  }
+  const source = readFileSync(path.join(root, 'src/components/TerminalPanel.jsx'), 'utf8');
+  const body = source.match(/function phantomTheme\(\) \{([\s\S]*?)\n\}/)[1];
+  const theme = tokens => Function('getComputedStyle', 'document', body)(() => ({ getPropertyValue: name => tokens[name] || '' }), { documentElement: {} });
+  const fallback = theme({});
+  assert.equal(fallback.cursor, '#f2f0eb');
+  assert.equal(fallback.background, rootDeclarations(studio, '--terminal-bg')[0]);
+  assert.equal(fallback.foreground, rootDeclarations(studio, '--terminal-ink')[0]);
+  assert.equal(fallback.selectionBackground, '#f2f0eb4d');
+  const personal = theme({ '--accent': '#f27670', '--terminal-bg': '#151515', '--terminal-ink': '#f2f0eb' });
+  assert.equal(personal.cursor, '#f27670');
+  assert.equal(personal.background, '#151515');
+  assert.equal(personal.foreground, '#f2f0eb');
+  const ansi = { black: '#232040', red: '#ff86b7', green: '#7aeec4', yellow: '#f5cf8a', blue: '#7da8ff', magenta: '#c39bff', cyan: '#6fe3f2', white: '#a9a6cf', brightBlack: '#5d5888', brightRed: '#ffa3c8', brightGreen: '#9df4d4', brightYellow: '#f8dca8', brightBlue: '#a0c0ff', brightMagenta: '#d6b8ff', brightCyan: '#98ecf6', brightWhite: '#e4e2f7' };
+  for (const [name, color] of Object.entries(ansi)) {
+    assert.equal(fallback[name], color);
+    assert.equal(personal[name], color);
+  }
 });
