@@ -80,6 +80,13 @@ test('auto mode: destructive, commit/push, external services and databases ask',
   }
 });
 
+test('auto mode allows commits in the card own worktree but still asks for shared Git changes', () => {
+  const decide = (command, mode = 'auto') => permissionDecision({ tool: 'Bash', input: { command }, cwd, mode, ownBranch: true });
+  for (const command of ['git commit -m x', 'git add -A && git commit -m "x"', "git commit -m \"$(cat <<'EOF'\nhi\nEOF\n)\"", 'git commit --amend --no-edit', 'sh -c "git commit -m x"', 'eval git commit -m x']) assert.ok(decide(command).allow, command);
+  for (const command of ['git push', 'git branch -D x', 'git worktree remove ../x', 'git remote set-url origin x', 'git config --global user.name x', 'git stash drop', 'git update-ref -d refs/heads/x', 'sh -c "git push"', 'eval git push']) assert.ok(!decide(command).allow, command);
+  assert.ok(!decide('git commit -m x', 'ask').allow);
+});
+
 test('ask mode still reads the folder classifier', () => {
   for (const line of ['docker ps', 'docker logs api', 'gh pr list', 'gh pr view 12 --json title', 'gh api repos/o/r/pulls', 'kubectl get pods']) assert.equal(scope(line), 'read', line);
   for (const line of ['uv sync', 'just build', 'biome check src', 'swift build --package-path=./src', 'shellcheck ./scripts/x.sh', 'bash scripts/build.sh', 'make -C src']) assert.equal(scope(line), 'local', line);

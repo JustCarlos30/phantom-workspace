@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 //
 // The line Autónomo draws: the agent works without interruptions and asks only
 // for what cannot be taken back or leaves the machine — deleting or writing
-// beyond its folder (temporary folders are fine), commits, pushes and shared
+// beyond its folder (temporary folders are fine), commits outside the card's
+// own worktree, pushes and shared
 // Git refs, external MCP tools, external services and providers, databases,
 // privilege and the system. "Pregunta todo" keeps the stricter folder rule.
 // The shell classifiers are heuristics over the command text: a guard against
@@ -368,11 +369,11 @@ const NPM_PUBLISH = new Set(['publish', 'unpublish', 'login', 'logout', 'adduser
 const DELETERS = new Set(['rm', 'rmdir', 'shred', 'mv']);
 const LOCAL_HOST = /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)([:/]|$)/;
 
-function sensitiveGit(rest) {
+function sensitiveGit(rest, ownBranch) {
   const tail = [...rest];
   while (tail[0]?.startsWith('-')) { const flag = tail.shift(); if (flag === '-C' || flag === '-c') tail.shift(); }
   const [sub = '', ...args] = tail, has = pattern => args.some(arg => pattern.test(arg));
-  if (sub === 'commit') return has(/^--dry-run$/) ? null : 'git commit registra un commit';
+  if (sub === 'commit') return ownBranch || has(/^--dry-run$/) ? null : 'git commit registra un commit';
   if (sub === 'push') return has(/^(-n|--dry-run)$/) ? null : 'git push publica en el remoto';
   if (sub === 'branch' && has(/^-(d|D|m|M|f)$|^--(delete|move|force)$/)) return 'git branch borra o mueve ramas compartidas por todos los worktrees';
   if (sub === 'tag' && has(/^(-d|--delete)$/)) return 'git tag borra una etiqueta';
@@ -387,7 +388,7 @@ function sensitiveGit(rest) {
 }
 
 // Why one simple command asks in Autónomo, or null. `state.at` follows cd.
-function sensitiveSegment(words, root, state, depth) {
+function sensitiveSegment(words, root, state, depth, ownBranch) {
   const args = [...words];
   if (args[0]) args[0] = args[0].replace(/^[({]+/, '');
   if (args.length) args[args.length - 1] = args.at(-1).replace(/[)}]+$/, '');
@@ -409,13 +410,13 @@ function sensitiveSegment(words, root, state, depth) {
     state.at = where && !/^~|\$/.test(where) && (path.isAbsolute(where) || at) ? path.resolve(at || '/', where) : null;
     return null;
   }
-  if (name === 'eval') return sensitiveCommand(rest.join(' '), root, depth + 1)?.reason ?? null;
+  if (name === 'eval') return sensitiveCommand(rest.join(' '), root, depth + 1, ownBranch)?.reason ?? null;
   if (SHELLS.has(name)) {
     const inline = rest.findIndex(arg => /^-[a-z]*c[a-z]*$/.test(arg));
-    if (inline >= 0) return sensitiveCommand(rest[inline + 1] ?? '', root, depth + 1)?.reason ?? null;
+    if (inline >= 0) return sensitiveCommand(rest[inline + 1] ?? '', root, depth + 1, ownBranch)?.reason ?? null;
     return paths.length ? null : `${name} ejecuta lo que recibe por la entrada`;
   }
-  if (name === 'git') return sensitiveGit(rest);
+  if (name === 'git') return sensitiveGit(rest, ownBranch);
   if (DATABASE_COMMANDS.has(name)) return `«${name}» opera sobre una base de datos`;
   if (FILE_DATABASES.has(name)) { const file = paths.find(arg => beyond(arg, true)); return file ? `«${name}» abre una base de datos fuera de la carpeta (${file})` : null; }
   if (MIGRATION.test(` ${args.join(' ')}`)) return 'ejecuta migraciones o cambios de esquema en una base de datos';
@@ -490,7 +491,7 @@ function unnest(line) {
 }
 
 // Why a Bash line asks in Autónomo: { reason, key } or null.
-export function sensitiveCommand(line, cwd, depth = 0) {
+export function sensitiveCommand(line, cwd, depth = 0, ownBranch = false) {
   if (typeof line !== 'string' || !line.trim()) return null;
   const unreadable = { reason: 'no se puede leer el comando completo', key: 'Bash:?' };
   if (depth > 3) return unreadable;
@@ -500,7 +501,7 @@ export function sensitiveCommand(line, cwd, depth = 0) {
     const tokens = tokenize(part);
     if (!tokens) return unreadable;
     const state = { at: cwd }; let words = [], found = null;
-    const close = () => { if (!found && words.length) { const reason = sensitiveSegment(words, cwd, state, depth); if (reason) found = { reason, key: commandKey(words) }; } words = []; };
+    const close = () => { if (!found && words.length) { const reason = sensitiveSegment(words, cwd, state, depth, ownBranch); if (reason) found = { reason, key: commandKey(words) }; } words = []; };
     for (let i = 0; i < tokens.length && !found; i++) {
       const token = tokens[i];
       if (token.op) { close(); continue; }
@@ -519,8 +520,8 @@ export function sensitiveCommand(line, cwd, depth = 0) {
 }
 
 // Why any tool call asks in Autónomo: { reason, key? } or null.
-export function sensitive(tool, input, cwd) {
-  if (tool === 'Bash') { const found = sensitiveCommand(input?.command, cwd); return found && { ...found, reason: `Acción delicada: ${found.reason}` }; }
+export function sensitive(tool, input, cwd, ownBranch = false) {
+  if (tool === 'Bash') { const found = sensitiveCommand(input?.command, cwd, 0, ownBranch); return found && { ...found, reason: `Acción delicada: ${found.reason}` }; }
   const field = EDIT_TOOLS[tool];
   if (field) {
     const target = input?.[field];
@@ -575,7 +576,7 @@ export const PERMISSION_MODES = ['ask', 'auto', 'full'];
 // mode 'auto': everything goes except the hard list and the sensitive actions
 // above (destructive, commit/push, external tools and services, databases).
 // mode 'ask': it may read anything, but every change asks.
-export function permissionDecision({ tool, input = {}, cwd, mode = 'ask' }) {
+export function permissionDecision({ tool, input = {}, cwd, mode = 'ask', ownBranch = false }) {
   const key = grantKey(tool, input, cwd);
   if (READ_TOOLS.has(tool) || phantomTool(tool)) return { allow: true, key };
   if (tool === 'Bash' && phantomCommand(input.command)) return { allow: true, key };
@@ -586,7 +587,7 @@ export function permissionDecision({ tool, input = {}, cwd, mode = 'ask' }) {
   if (mode === 'auto') {
     const hard = hardStop(tool, input, cwd, true);
     if (hard) return { allow: false, key, reason: `Acción delicada: ${hard}` };
-    const found = sensitive(tool, input, cwd);
+    const found = sensitive(tool, input, cwd, ownBranch);
     return found ? { allow: false, key: found.key || key, reason: found.reason } : { allow: true, key };
   }
   const field = EDIT_TOOLS[tool];
