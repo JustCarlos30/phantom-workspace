@@ -111,8 +111,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='mobile.reject') return mobile.reject(p);
     if(method==='android.status') return android.status();
     if(method==='android.configure') return android.configure(p);
-    if(method==='android.start') {store.getWorkspace(p.workspaceId);return android.start(p);}
-    if(method==='android.link') {store.getWorkspace(p.workspaceId);return android.link(p);}
+    if(method==='android.start') return android.start(p);
+    if(method==='android.link') return android.link(p);
     if(method==='android.stop') return android.stop();
     if(method==='android.pairing') return android.pairing();
     if(method==='android.bootstrap') return android.bootstrap();
@@ -345,7 +345,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
-    android=new AndroidGateway({hostDataDir:dataDir});
+    android=new AndroidGateway({hostDataDir:dataDir,listWorkspaces:()=>store.state.workspaces});
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};

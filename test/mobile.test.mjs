@@ -270,7 +270,9 @@ test('only canonical allowlisted build assets are served; raw traversal and syml
 
 test('body, pairing-attempt, device request and concurrency budgets are enforced', async t => {
   const f = await fixture(t), { origin, token, rpc } = await authorized(f);
-  assert.equal((await post(origin, '/api/rpc', 'x'.repeat(65537), token)).status, 413);
+  const largeBody = JSON.stringify({ method: 'sessions.list' }) + ' '.repeat(65537);
+  assert.equal((await post(origin, '/api/rpc', largeBody, token)).status, 200);
+  assert.equal((await post(origin, '/api/rpc', 'x'.repeat(8 * 1024 * 1024 + 1), token)).status, 413);
   assert.equal((await post(origin, '/api/rpc', '{invalid', token)).status, 400);
   assert.equal((await post(origin, '/api/rpc', { method: 'sessions.list' }, token, { 'Content-Type': 'text/plain' })).status, 400);
   for (let i = 0; i < 9; i++) await post(origin, '/api/pair', { code: 'wrong' });
@@ -288,6 +290,35 @@ test('body, pairing-attempt, device request and concurrency budgets are enforced
   let limited = false;
   for (let i = 0; i < 125; i++) if ((await rpc('sessions.list')).status === 429) { limited = true; break; }
   assert.ok(limited);
+});
+
+test('large chat text reaches the chat intact and text limits remain enforced', async t => {
+  const f = await fixture(t), { rpc } = await authorized(f);
+  const text = ' á\n漢字'.repeat(40000);
+  assert.equal(text.length, 200000);
+  const received = [];
+  f.host.chats.send = async (workspace, node, value) => { received.push(value); assert.equal(workspace.id, f.w.id); assert.equal(node.id, f.node.id); };
+  assert.equal((await rpc('chat.send', { nodeId: f.node.id, text })).status, 200);
+  assert.deepEqual(received, [text]);
+  assert.equal((await rpc('chat.send', { nodeId: f.node.id, text: 'x'.repeat(2000000) })).status, 200);
+  assert.equal((await rpc('chat.send', { nodeId: f.node.id, text: 'x'.repeat(2000001) })).status, 400);
+  assert.equal(received.length, 2);
+});
+
+test('large RPC bodies require a valid session before body reading', async t => {
+  const f = await fixture(t), { origin, token } = await authorized(f);
+  for (const bearer of ['', token + 'x']) {
+    const status = await new Promise((resolve, reject) => {
+      const request = https.request(origin + '/api/rpc', { method: 'POST', ca: certificates.get(origin), agent: false,
+        headers: { Origin: origin, 'Content-Type': 'application/json', 'Content-Length': 65537, ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) } }, response => {
+        response.resume(); response.on('end', () => { resolve(response.statusCode); request.destroy(); });
+      });
+      request.on('error', reject);
+      request.setTimeout(3000, () => request.destroy(new Error('Session check waited for the body')));
+      request.flushHeaders();
+    });
+    assert.equal(status, 401);
+  }
 });
 
 test('pairing audits only 401 failures, not rejected origins, invalid bodies or rate limits', async t => {
