@@ -107,6 +107,20 @@ async function list(payload, context, c) {
   const query = (payload.query ?? '').toLowerCase();
   return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
 }
+function activityReason(raw) {
+  if (!raw.startsWith('El motor reportó un error:')) return raw;
+  try {
+    const error = JSON.parse(raw.slice('El motor reportó un error:'.length).trim());
+    const data = error.data ?? error;
+    let body = data.responseBody ?? error.responseBody;
+    if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = null; } }
+    const message = [data.message, body?.detail, error.error?.message, error.message].find(value => typeof value === 'string' && value.trim());
+    const status = data.statusCode ?? error.statusCode;
+    const retryable = data.isRetryable ?? error.isRetryable;
+    const meta = [Number.isInteger(status) ? `HTTP ${status}` : null, retryable === false ? 'no reintentable' : null].filter(Boolean);
+    return message ? `${message.slice(0, 500)}${meta.length ? ` (${meta.join(', ')})` : ''}` : 'El motor reportó un error';
+  } catch { return raw; }
+}
 async function events(payload, context, c) {
   if (payload.view !== undefined && payload.view !== 'activity') throw new Error('Invalid Phantom events view');
   // Authorize the canonical task before invoking the CLI event reader. In
@@ -126,12 +140,15 @@ async function events(payload, context, c) {
     let model = null;
     const runs = [...grouped].map(([runId, events], index) => {
       const steps = new Map(), processes = new Map();
-      let admitted = false, stopped = false, verifying = false, baseline = 0, round = 0, reason = null, verification = null;
+      let admitted = false, stopped = false, verifying = false, baseline = 0, round = 0, reason = null, reasonRaw = null, verification = null;
       model = null;
       for (const event of events) {
        const data = event.data || {};
        if (event.type === 'preflight.admitted') admitted = true;
-       if (event.type === 'run.error' || event.type === 'task.blocked') { reason = data.reason || reason; stopped = true; }
+       if (event.type === 'run.error' || event.type === 'task.blocked') {
+         if (typeof data.reason === 'string' && data.reason) { reason = activityReason(data.reason); reasonRaw = data.reason.slice(0, 2000); }
+         stopped = true;
+       }
        if (event.type === 'task.verifying') { verifying = true; verification = null; }
        if (event.type === 'process.intended' && data.kind === 'check' && data.id) {
          if (verifying) {
@@ -162,7 +179,7 @@ async function events(payload, context, c) {
       steps.set(data.callID, { id: data.callID, tool, target: String(target).slice(0, 240), status: observed ? failed ? 'error' : 'done' : previous?.status || 'running', at: previous?.at ?? event.at });
       }
       const items = [...steps.values()].flatMap(step => step.steps ? [...step.steps.values()] : [step]);
-      return { runId, attempt: index + 1, steps: items.slice(-40), reason, total: items.length };
+      return { runId, attempt: index + 1, steps: items.slice(-40), reason, reasonRaw, total: items.length };
     });
     const latest = runs.at(-1);
     return { available: true, id: payload.id, source: 'phantom', observedAt: observedAt(), runs, runId: latest?.runId ?? null, model, reason: latest?.reason ?? null, total: latest?.total ?? 0, items: latest?.steps ?? [], truncated: (latest?.total ?? 0) > 40 };
