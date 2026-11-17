@@ -9,6 +9,8 @@ import { mobileTLS } from './mobile-tls.mjs';
 import { MobileAudit } from './mobile-audit.mjs';
 
 const DIST = fileURLToPath(new URL('../dist', import.meta.url));
+const MAX_CHAT_TEXT = 2_000_000;
+const MAX_RPC_BODY = 8 * 1024 * 1024;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const secret = () => randomBytes(32).toString('base64url');
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
@@ -155,11 +157,11 @@ export class MobileAccess {
     })();
     try { return await this.stopping; } finally { this.stopping = null; }
   }
-  async body(req) {
+  async body(req, max = 65536) {
     check(req.headers['content-type'] === 'application/json', 'Se requiere JSON');
-    if (Number(req.headers['content-length']) > 65536) fail(413, 'Entrada demasiado grande');
+    if (Number(req.headers['content-length']) > max) fail(413, 'Entrada demasiado grande');
     let size = 0, chunks = [];
-    for await (const chunk of req) { size += chunk.length; if (size > 65536) fail(413, 'Entrada demasiado grande'); chunks.push(chunk); }
+    for await (const chunk of req) { size += chunk.length; if (size > max) fail(413, 'Entrada demasiado grande'); chunks.push(chunk); }
     req.rawBody = Buffer.concat(chunks);
     let value; try { value = JSON.parse(req.rawBody.toString()); } catch { fail(400, 'JSON no válido'); }
     check(value && typeof value === 'object' && !Array.isArray(value)); return value;
@@ -227,7 +229,7 @@ export class MobileAccess {
       device.requests = device.requests.filter(time => time > this.now() - 60000);
       if (device.requests.length >= 120) fail(429, 'Demasiadas solicitudes; reconecta en un minuto');
       device.requests.push(this.now());
-      const body = await this.body(req);
+      const body = await this.body(req, MAX_RPC_BODY);
       const time = req.headers['x-phantom-time'], signature = req.headers['x-phantom-signature'];
       if (typeof time !== 'string' || !/^\d{1,16}$/.test(time) || Math.abs(this.now() - Number(time)) > 30000 || typeof signature !== 'string' || !/^[A-Za-z0-9_-]{86}$/.test(signature)) fail(401, 'Firma de dispositivo requerida o caducada');
       const signatureBytes = Buffer.from(signature, 'base64url'), signatureDigest = hash(signatureBytes);
@@ -310,7 +312,7 @@ export class MobileAccess {
         if (![...this.devices.values()].includes(device) || device.expiresAt <= this.now()) fail(401, 'Acceso revocado');
         const current = node ? this.node(payload.nodeId) : null;
         if (method.startsWith('terminal.')) this.session(payload.sessionId);
-        if (method === 'chat.send') { check(string(payload.text, 32000) && payload.text.trim()); await this.chats.send(this.workspace(), current, payload.text); }
+        if (method === 'chat.send') { check(string(payload.text, MAX_CHAT_TEXT) && payload.text.trim()); await this.chats.send(this.workspace(), current, payload.text); }
         if (method === 'chat.stop') await this.chats.stop(current.id);
         if (method === 'chat.permission.answer') {
           check(['allow', 'deny'].includes(payload.decision));

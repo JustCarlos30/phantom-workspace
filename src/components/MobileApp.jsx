@@ -65,7 +65,7 @@ function Session({ item, view, terminal, connected, busy, action, onBack }) {
     {!atEnd && <button className="mobile-bottom" onClick={bottom}>Volver al final ↓</button>}
     <form className="mobile-composer" onSubmit={send}>
       <label htmlFor="mobile-input">{terminal ? 'Entrada de terminal' : 'Mensaje'}</label>
-      <textarea id="mobile-input" rows={3} maxLength={terminal ? 15000 : 30000} value={draft} onChange={e => setDraft(e.target.value)} placeholder={terminal ? 'Entrada explícita al proceso existente' : 'Escribe un mensaje…'} />
+      <textarea id="mobile-input" rows={3} maxLength={terminal ? 15000 : undefined} value={draft} onChange={e => setDraft(e.target.value)} placeholder={terminal ? 'Entrada explícita al proceso existente' : 'Escribe un mensaje…'} />
       <div className="mobile-actions"><button className="mobile-primary" disabled={disabled || !draft.trim() || (terminal && view?.status !== 'running')} type="submit">Enviar</button><button type="button" disabled={disabled || (terminal ? view?.status !== 'running' : !view?.running)} onClick={() => action(terminal ? 'terminal.stop' : 'chat.stop', terminal ? { sessionId: terminal.id } : { nodeId: item.nodeId })}>Parar</button></div>
     </form>
   </section>;
