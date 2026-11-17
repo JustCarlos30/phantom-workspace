@@ -6,6 +6,25 @@ const terminal = (id, data, title) => ({ id, type: 'terminal', data, title });
 const handoff = (nodeId, createdAt = '', extra = {}) => ({ from: { workspaceId: 'w', nodeId, title: nodeId }, createdAt, ...extra });
 const build = nodes => buildDelegation({ id: 'w', nodes });
 
+test('subagents discard expired and malformed dates and normalize presentation', () => {
+  const now=Date.parse('2026-01-01T12:00:00Z');
+  const delegation=buildDelegation({id:'w',nodes:[terminal('a',{subagents:[
+    {id:'valid',type:'Explore',description:'Files',background:true,startedAt:new Date(now-1000).toISOString()},
+    {id:'defaults',startedAt:new Date(now).toISOString()},
+    {id:'old',startedAt:new Date(now-7*3600e3).toISOString()},
+    {id:'bad',startedAt:'invalid'},null,{startedAt:new Date(now).toISOString()},
+  ]})]}, {now});
+  assert.deepEqual(delegation.rows[0].subagents,[{id:'valid',type:'Explore',description:'Files',background:true},{id:'defaults',type:'',description:'',background:false}]);
+  assert.equal(delegation.counts.subagents,2);
+  assert.deepEqual(withCardPlans(delegation,null).rows[0].subagents,delegation.rows[0].subagents);
+});
+
+test('subagents default to empty for missing or non-array data', () => {
+  const delegation=build([terminal('a'),terminal('b',{subagents:'bad'})]);
+  assert.deepEqual(delegation.rows.map(row=>row.subagents),[[],[]]);
+  assert.equal(delegation.counts.subagents,0);
+});
+
 const card = (id, status = 'ready', children = [{ key: 'one', goal: 'Primero' }], goal = ' Meta  de\n la card ') => ({
   id, kind: 'card', status, raw: { id, contract: { goal, coordination: { children } } },
 });
@@ -126,10 +145,10 @@ test('cycles, self-links and absent data yield each terminal exactly once', () =
   const missing = rows.find(row => row.id === 'missing');
   assert.deepEqual(missing, {
     id: 'missing', title: 'Terminal', role: 'worker', depth: 0, parentId: null,
-    purpose: 'none', what: '', why: '', from: null, status: 'idle', step: '', branch: '', cardId: '', hidden: false,
+    purpose: 'none', what: '', why: '', from: null, status: 'idle', step: '', branch: '', cardId: '', hidden: false, subagents: [],
   });
   assert.equal(rows.find(row => row.id === 'self').parentId, null);
-  const empty = { rows: [], counts: { total: 0, unassigned: 0, working: 0, blocked: 0 } };
+  const empty = { rows: [], counts: { total: 0, unassigned: 0, working: 0, blocked: 0, subagents: 0 } };
   assert.deepEqual(buildDelegation(null), empty);
   assert.deepEqual(buildDelegation({ id: 'w' }), empty);
 });
@@ -141,7 +160,7 @@ test('counts include hidden terminals and normalize invalid status', () => {
     terminal('review', { agent: { status: 'review' }, handoff: {} }),
     terminal('invalid', { agent: { status: 'unknown' } }),
   ]);
-  assert.deepEqual(counts, { total: 4, unassigned: 2, working: 1, blocked: 1 });
+  assert.deepEqual(counts, { total: 4, unassigned: 2, working: 1, blocked: 1, subagents: 0 });
   assert.equal(rows[0].hidden, true);
   assert.equal(rows[0].step, 'Editing');
   assert.equal(rows[0].branch, 'feature');

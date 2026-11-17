@@ -14,11 +14,26 @@ export function invokeAgent(method, payload, socketPath, timeout=10000) {
     socket.once('end',()=>finish(new Error('Se cerró la conexión con el host.')));
   });
 }
+export function subagentOp(payload) {
+  if(!payload || typeof payload!=='object' || Array.isArray(payload))return null;
+  const {hook_event_name:event,tool_use_id:id}=payload;
+  const valid=value=>typeof value==='string'&&value.length>0;
+  if(event==='SessionStart'||event==='SessionEnd')return {op:'reset'};
+  if(event==='SubagentStop')return valid(payload.agent_id)?{op:'end',agentId:payload.agent_id}:null;
+  if(payload.tool_name!=='Agent'||!valid(id))return null;
+  if(event==='PreToolUse') {
+    const input=payload.tool_input;
+    return {op:'start',id,type:typeof input?.subagent_type==='string'?input.subagent_type.slice(0,80):'',description:typeof input?.description==='string'?input.description.replace(/[\s\x00-\x1f\x7f-\x9f]+/g,' ').trim().slice(0,240):'',background:input?.run_in_background===true};
+  }
+  if(event==='PostToolUse')return payload.tool_response?.status==='async_launched'&&valid(payload.tool_response.agentId)?{op:'background',id,agentId:payload.tool_response.agentId}:{op:'end',id};
+  return event==='PostToolUseFailure'?{op:'end',id}:null;
+}
 const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review] | run ID [MODELO] | runs\n'
   +'Encargos: projects | handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)\n'
   +'Procesos: launch [--title TÍTULO] "COMANDO" | processes | output ID [LÍNEAS] | stop ID\n'
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
-  +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"';
+  +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"\n'
+  +'Hooks: subagent (lee el evento de Claude Code por stdin)';
 // Incorporaciones: [payload from arguments, argument check]. Orchestrator actions carry its token.
 const MERGE={
   queue:{method:'merge.queue',valid:rest=>!rest.length,payload:()=>({})},
@@ -48,6 +63,16 @@ function handoffArguments(args) {
   return {...payload,brief:source.stdin?fs.readFileSync(0,'utf8'):source.file?fs.readFileSync(source.file,'utf8'):source.brief};
 }
 export async function main(args=process.argv.slice(2), env=process.env) {
+  if(args[0]==='subagent') {
+    try {
+      if(args.length!==1)return;
+      const chunks=[];let size=0;
+      for await(const chunk of process.stdin){size+=Buffer.byteLength(chunk);if(size>1024*1024){process.stdin.destroy();return;}chunks.push(chunk);}
+      const op=subagentOp(JSON.parse(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk))).toString('utf8')));
+      if(op&&env.PHANTOM_TERMINAL_SESSION_ID&&env.PHANTOM_WORKSPACE_SOCKET)await invokeAgent('terminal.agent.subagent',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,op},env.PHANTOM_WORKSPACE_SOCKET,3000);
+    } catch {}
+    return;
+  }
   if(['launch','processes','output','stop'].includes(args[0])) {
     const [action,...rest]=args;
     let payload={},method=`terminal.agent.${action}`;
@@ -93,4 +118,4 @@ export async function main(args=process.argv.slice(2), env=process.env) {
   }
   return invokeAgent(`terminal.agent.${action}`,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...(action==='report'?{patch:{step:rest[0],status:rest[1]||'working'}}:{})},env.PHANTOM_WORKSPACE_SOCKET);
 }
-if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href)main().then(value=>console.log(JSON.stringify(value,null,2)),error=>{console.error(error.message);process.exitCode=1;});
+if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href)main().then(value=>{if(process.argv[2]!=='subagent')console.log(JSON.stringify(value,null,2));},error=>{if(process.argv[2]!=='subagent'){console.error(error.message);process.exitCode=1;}});

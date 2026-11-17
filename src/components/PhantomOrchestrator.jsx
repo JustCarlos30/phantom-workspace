@@ -41,10 +41,12 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
   const working = delegates.filter(row => row.status === 'working').length;
   const blocked = delegates.filter(row => row.status === 'blocked').length;
   const unassigned = delegates.filter(row => row.purpose === 'none').length;
+  const subagents = delegates.reduce((total, row) => total + row.subagents.length, 0);
   const summary = [
     working && `${working} trabajando`,
     blocked && `${blocked} ${blocked === 1 ? 'bloqueada' : 'bloqueadas'}`,
     unassigned && `${unassigned} sin encargo`,
+    subagents && `${subagents} ${subagents === 1 ? 'subagente' : 'subagentes'}`,
   ].filter(Boolean).join(' · ');
   return <div className="pd-orchestrator">
     {orchestrator && <section className="pd-session" data-tone={status.tone} aria-label="Orquestador">
@@ -76,6 +78,7 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
             ? <button type="button" className="pd-deleg-item" aria-label={`Ir a ${row.title}`} onClick={() => onOpenPanel('terminal', { focusNodeId: row.id })}>{content}</button>
              : <div className="pd-deleg-item">{content}</div>}
           {row.plan && <CardPlan plan={row.plan} />}
+          {row.subagents.length > 0 && <ul className="pd-deleg-subs" aria-label="Subagentes">{row.subagents.map(subagent => <li key={subagent.id} className="pd-deleg-sub"><span>Subagente{subagent.type ? ` · ${subagent.type}` : ''}</span>{subagent.description && <span>{subagent.description}</span>}{subagent.background && <span>en segundo plano</span>}</li>)}</ul>}
         </li>;
       })}</ul>
       {delegation.cards.length > 0 && <div className="pd-deleg-cards">

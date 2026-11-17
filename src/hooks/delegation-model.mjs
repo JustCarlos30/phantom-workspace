@@ -19,7 +19,7 @@ export function withCardPlans(delegation, tasks) {
   };
 }
 
-export function buildDelegation(workspace) {
+export function buildDelegation(workspace, { now = Date.now() } = {}) {
   const nodes = (workspace?.nodes || []).filter(node => node.type === 'terminal' && !node.data?.process);
   const rows = nodes.map(node => {
     const { agent = {}, handoff, worktree = {}, role, hidden } = node.data || {};
@@ -48,6 +48,7 @@ export function buildDelegation(workspace) {
       branch: worktree.branch || '',
       cardId: agent.cardId || '',
       hidden: Boolean(hidden),
+      subagents: (Array.isArray(node.data?.subagents) ? node.data.subagents : []).filter(entry => entry && typeof entry.id === 'string' && typeof entry.startedAt === 'string' && Number.isFinite(Date.parse(entry.startedAt)) && now - Date.parse(entry.startedAt) <= 6 * 3600e3).map(entry => ({ id: entry.id, type: typeof entry.type === 'string' ? entry.type : '', description: typeof entry.description === 'string' ? entry.description : '', background: entry.background === true })),
     };
   });
   const byId = new Map(rows.map(row => [row.id, row]));
@@ -82,6 +83,7 @@ export function buildDelegation(workspace) {
       unassigned: rows.filter(row => row.purpose === 'none').length,
       working: rows.filter(row => row.status === 'working').length,
       blocked: rows.filter(row => row.status === 'blocked').length,
+      subagents: rows.reduce((total, row) => total + row.subagents.length, 0),
     },
   };
 }
