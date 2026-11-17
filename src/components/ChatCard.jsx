@@ -159,7 +159,7 @@ export function useElapsed(since, active) {
   return active && since ? Math.max(0, now - Date.parse(since)) : 0;
 }
 
-const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
+const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^(check|verify)$/, ListChecks, 'check'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
 // Codex-style: each action is a sentence. The verb's tense carries the state
 // (gerund while it runs, past once done); only failures and stops add a word.
@@ -230,6 +230,10 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
   }, [api, workspaceId, id]);
   if (!state) return null;
   if (state.error) return <p className="pc-phantom-warning" role="status">Seguimiento Phantom no disponible.</p>;
+  const stepList = (activity, latest = false) => <ol className="pc-subagent-steps" ref={latest ? stepsRef : undefined} aria-label="Pasos del encargo">
+    {activity.hidden > 0 && <li className="pc-subagent-hidden">{activity.hidden} pasos anteriores</li>}
+    {activity.steps.map(step => { const [, Icon] = toolKind(step.kind); return <li key={step.id} className={`is-${step.status}`}><Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.label}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} /></li>; })}
+  </ol>;
   return <section className="pc-subagent pc-phantom-run" aria-label={`Encargo Phantom ${id}`}>
     <header className="pc-subagent-head">
       <span className="pc-subagent-mark" aria-hidden="true"><PhantomGlyph size={16} /></span>
@@ -239,14 +243,16 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
       {state.model && <span className="pc-subagent-type" title={state.model}>{state.model.split('/').at(-1)}</span>}
     </header>
     <p className="pc-subagent-goal" title={state.goal}>{state.goal}</p>
+    {!state.live && state.activity.reason && <p className="pc-phantom-reason" role="alert">{state.activity.reason}</p>}
     {state.live && state.activity.current && <p className="pc-subagent-now" role="status" aria-label="Actividad actual"><LoaderCircle className="spinning" size={14} aria-hidden="true" /><span className="pc-tool-name">{state.activity.current.label}</span><span className="pc-tool-detail" title={state.activity.current.detail}>{state.activity.current.detail}</span></p>}
     <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>· {state.duration}</span>}{state.turns !== undefined && <span>· {state.turns} turnos</span>}{state.tools !== undefined && <span>· {state.tools} herramientas</span>}</p>
-    {state.activity.total > 0 && <details className="pc-subagent-more" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
-      <summary><ChevronRight size={14} aria-hidden="true" />Pasos del ejecutor · {state.activity.total}</summary>
-      <ol className="pc-subagent-steps" ref={stepsRef} aria-label="Pasos del ejecutor">
-        {state.activity.hidden > 0 && <li className="pc-subagent-hidden">{state.activity.hidden} pasos anteriores</li>}
-        {state.activity.steps.map(step => { const [, Icon] = toolKind(step.kind); return <li key={step.id} className={`is-${step.status}`}><Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.label}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} /></li>; })}
-      </ol>
+    {state.activity.runs.length > 1 ? <div className="pc-phantom-attempts">{state.activity.runs.map((run, index) => <details className="pc-subagent-more" key={run.runId} open={index === state.activity.runs.length - 1}>
+      <summary><ChevronRight size={14} aria-hidden="true" />Intento {run.attempt} de {state.activity.runs.length}</summary>
+      {run.reason && <p className="pc-phantom-reason">{run.reason}</p>}
+      {stepList(run, index === state.activity.runs.length - 1)}
+    </details>)}</div> : (state.activity.total > 0 || state.activity.runs.length > 0 || state.activity.reason) && <details className="pc-subagent-more" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
+      <summary><ChevronRight size={14} aria-hidden="true" />Pasos del encargo · {state.activity.total}</summary>
+      {stepList(state.activity, true)}
     </details>}
     {state.line && <p className="pc-subagent-said">{state.line}</p>}
     {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}

@@ -116,11 +116,41 @@ async function events(payload, context, c) {
   const result = await c.call(['events', payload.id]);
   if (!Array.isArray(result)) throw new Error('Phantom returned invalid events');
   if (payload.view === 'activity') {
-    const runId = result.findLast(event => event.run_id)?.run_id ?? null;
-    const steps = new Map();
+    const checks = (task.contract ?? task.raw?.contract)?.checks ?? [];
+    const grouped = new Map();
+    for (const event of result) {
+      if (!event.run_id) continue;
+      if (!grouped.has(event.run_id)) grouped.set(event.run_id, []);
+      grouped.get(event.run_id).push(event);
+    }
     let model = null;
-    for (const event of result.filter(event => runId !== null && event.run_id === runId)) {
-      const data = event.data || {};
+    const runs = [...grouped].map(([runId, events], index) => {
+      const steps = new Map(), processes = new Map();
+      let admitted = false, stopped = false, verifying = false, baseline = 0, round = 0, reason = null, verification = null;
+      model = null;
+      for (const event of events) {
+       const data = event.data || {};
+       if (event.type === 'preflight.admitted') admitted = true;
+       if (event.type === 'run.error' || event.type === 'task.blocked') { reason = data.reason || reason; stopped = true; }
+       if (event.type === 'task.verifying') { verifying = true; verification = null; }
+       if (event.type === 'process.intended' && data.kind === 'check' && data.id) {
+         if (verifying) {
+           if (!verification) { verification = { steps: new Map() }; steps.set(`verification-${round}`, verification); }
+           const step = { id: data.id, tool: 'verify', target: checks[verification.steps.size % checks.length]?.name || `Check ${verification.steps.size + 1}`, status: 'running', at: event.at };
+           verification.steps.set(data.id, step);
+         } else if (!admitted && !stopped) {
+           const name = checks[baseline % checks.length]?.name || `Check ${baseline + 1}`;
+           baseline++;
+           const step = { id: data.id, tool: 'check', target: name, status: 'running', at: event.at };
+           steps.set(data.id, step); processes.set(data.id, step);
+         }
+       }
+       if (event.type === 'process.exited' && processes.has(data.id)) processes.get(data.id).status = data.code === 0 ? 'done' : 'error';
+       if (event.type === 'verification.recorded') {
+         if (!verification) { verification = { steps: new Map() }; steps.set(`verification-${round}`, verification); }
+         verification.steps = new Map((data.checks || []).map((check, i) => [`verify-${data.round ?? round}-${i}`, { id: `verify-${data.round ?? round}-${i}`, tool: 'verify', target: check.name || `Check ${i + 1}`, status: check.passed ? 'done' : 'error', at: event.at }]));
+         round++; verification = null;
+       }
       if (event.type === 'model.requested') model = data.model;
       if (!['action.intended', 'action.observed'].includes(event.type) || !data.callID) continue;
       const previous = steps.get(data.callID), args = data.args || {}, tool = data.tool || previous?.tool || '';
@@ -130,9 +160,12 @@ async function events(payload, context, c) {
       const observed = event.type === 'action.observed';
       const failed = data.error || data.status === 'error' || data.metadata?.error || data.metadata?.status === 'error' || data.output?.isError || data.output?.error || data.output?.status === 'error';
       steps.set(data.callID, { id: data.callID, tool, target: String(target).slice(0, 240), status: observed ? failed ? 'error' : 'done' : previous?.status || 'running', at: previous?.at ?? event.at });
-    }
-    const items = [...steps.values()];
-    return { available: true, id: payload.id, source: 'phantom', observedAt: observedAt(), runId, model, total: items.length, items: items.slice(-40), truncated: items.length > 40 };
+      }
+      const items = [...steps.values()].flatMap(step => step.steps ? [...step.steps.values()] : [step]);
+      return { runId, attempt: index + 1, steps: items.slice(-40), reason, total: items.length };
+    });
+    const latest = runs.at(-1);
+    return { available: true, id: payload.id, source: 'phantom', observedAt: observedAt(), runs, runId: latest?.runId ?? null, model, reason: latest?.reason ?? null, total: latest?.total ?? 0, items: latest?.steps ?? [], truncated: (latest?.total ?? 0) > 40 };
   }
   return { items: result.slice(-100), events: result, id: payload.id, source: 'phantom', observedAt: observedAt(), truncated: result.length > 100 };
 }

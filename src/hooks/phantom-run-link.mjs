@@ -35,12 +35,17 @@ export function summarizePhantomRun(value, controllers = [], id, now = Date.now(
 }
 
 export function summarizePhantomActivity(activity, workspace) {
-  const labels = { read: 'Leer', grep: 'Buscar', glob: 'Buscar', list: 'Buscar', edit: 'Editar', write: 'Editar', apply_patch: 'Editar', patch: 'Editar', bash: 'Ejecutar', shell: 'Ejecutar', webfetch: 'Web', task: 'Agente' };
+  const labels = { check: 'Check', verify: 'Verificar', read: 'Leer', grep: 'Buscar', glob: 'Buscar', list: 'Buscar', edit: 'Editar', write: 'Editar', apply_patch: 'Editar', patch: 'Editar', bash: 'Ejecutar', shell: 'Ejecutar', webfetch: 'Web', task: 'Agente' };
   const prefix = typeof workspace === 'string' && workspace ? `${workspace.replace(/\/$/, '')}/` : '';
-  const steps = activity?.available && Array.isArray(activity.items) ? activity.items.map(item => {
+  const mapSteps = items => items.map(item => {
     const kind = String(item.tool || '').toLowerCase();
     return { id: item.id, kind, label: labels[kind] || item.tool, detail: prefix ? String(item.target || '').split(prefix).join('') : String(item.target || ''), status: item.status };
+  });
+  const steps = activity?.available && Array.isArray(activity.items) ? mapSteps(activity.items) : [];
+  const runs = activity?.available && Array.isArray(activity.runs) ? activity.runs.map(run => {
+    const steps = mapSteps(run.steps || []), total = Math.max(run.total || 0, steps.length);
+    return { ...run, steps, total, hidden: total - steps.length, current: steps.findLast(step => step.status === 'running') || null };
   }) : [];
   const total = activity?.available ? Math.max(activity.total || 0, steps.length) : 0;
-  return { steps, total, hidden: total - steps.length, current: steps.findLast(step => step.status === 'running') || null };
+  return { steps, total, hidden: total - steps.length, current: steps.findLast(step => step.status === 'running') || null, runs, reason: activity?.available ? activity.reason ?? null : null };
 }
