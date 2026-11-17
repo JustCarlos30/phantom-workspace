@@ -142,7 +142,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .tv-diff { --tv-accent: var(--pc-add); }
 .tv-shell { --tv-accent: var(--pc-hue); }
 .tv-read { --tv-accent: color-mix(in srgb, var(--ink) 45%, transparent); }
-.tv-search { --tv-accent: var(--pc-caution); }
+.tv-search { --tv-accent: var(--muted); }
 .tv-json { --tv-accent: var(--pc-hue); }
 .tv-error { --tv-accent: var(--pc-del); }
 .tv-head { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 0 4px; color: var(--muted); font: 500 11px/1.4 var(--sans); }
@@ -320,16 +320,16 @@ button.pc-model > svg:last-child { color: var(--muted); }
 button.pc-context { margin: -3px -6px; padding: 3px 6px; border-radius: var(--r-ctl); color: inherit; font: inherit; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 button.pc-context:hover, button.pc-context.is-open { background: var(--fill-2); color: var(--ink); }
 button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); outline-offset: 1px; }
-.pc-context-flag { padding: 1px 6px; border-radius: var(--r-mark); background: color-mix(in srgb, var(--pc-caution) 16%, transparent); color: var(--pc-caution); font: 600 10px/1.5 var(--sans); letter-spacing: .02em; }
+.pc-context-flag { padding: 1px 6px; border-radius: var(--r-mark); background: var(--fill-2); color: var(--pc-caution); font: 600 10px/1.5 var(--sans); letter-spacing: .02em; }
 .pc-context-panel { position: absolute; left: -8px; bottom: calc(100% + 10px); z-index: 6; display: flex; flex-direction: column; gap: 12px; width: 300px; padding: 14px; border-radius: var(--r-obj); background: var(--surface-2); box-shadow: var(--shadow-float); color: var(--ink); font: 12px/1.45 var(--sans); white-space: normal; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
 .pc-context-panel:focus-visible { outline: none; }
 .pc-context-panel header { display: flex; flex-direction: column; gap: 4px; }
 .pc-context-panel h4 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 600; }
 .pc-context-reading { margin: 0; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .pc-context-reading strong { color: var(--ink); font: 600 18px/1.1 var(--mono); margin-right: 4px; }
-.pc-context-track { position: relative; display: block; height: 6px; border-radius: var(--r-mark); background: linear-gradient(90deg, var(--fill-2) 0 var(--watch, 40%), color-mix(in srgb, var(--pc-caution) 14%, var(--fill-2)) var(--watch, 40%) var(--compact, 70%), color-mix(in srgb, var(--pc-del) 16%, var(--fill-2)) var(--compact, 70%)); }
+.pc-context-track { position: relative; display: block; height: 6px; border-radius: var(--r-mark); background: linear-gradient(90deg, var(--fill-2) 0 var(--watch, 40%), var(--fill-3) var(--watch, 40%) var(--compact, 70%), color-mix(in srgb, var(--pc-del) 16%, var(--fill-2)) var(--compact, 70%)); }
 .pc-context-track > i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--muted); }
-.pc-context-panel.is-watch .pc-context-track > i { background: var(--pc-caution); }
+.pc-context-panel.is-watch .pc-context-track > i { background: var(--ink); }
 .pc-context-panel.is-compact .pc-context-track > i { background: var(--pc-del); }
 .pc-context-track > b { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--hairline); }
 .pc-context-bands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0; padding: 0; list-style: none; }
@@ -354,7 +354,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-context-bar { width: 44px; height: 4px; border-radius: var(--r-mark); background: var(--fill-2); overflow: hidden; }
 .pc-context-bar > i { display: block; height: 100%; border-radius: var(--r-mark); background: var(--muted); }
 .pc-context-share { color: var(--ink); }
-.pc-context.is-high .pc-context-bar > i { background: var(--pc-caution); }
+.pc-context.is-high .pc-context-bar > i { background: var(--ink); }
 .pc-context.is-high .pc-context-share { color: var(--pc-caution); }
 .pc-context.is-full .pc-context-bar > i { background: var(--pc-del); }
 .pc-context.is-full .pc-context-share { color: var(--pc-del); }
@@ -434,7 +434,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 /* A permission the agent waits on: answered in place, then kept as a record. */
 .pc-ask { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 10px 10px 12px; border: 1px solid var(--hairline); border-radius: var(--r-obj); background: var(--surface-2); }
 .pc-ask:not(.is-pending) { border-color: transparent; background: none; padding-block: 7px; padding-inline: 0; }
-.pc-ask.is-pending { border-color: color-mix(in srgb, var(--attention) 65%, var(--hairline)); background: color-mix(in srgb, var(--attention) 8%, var(--surface-2)); }
+.pc-ask.is-pending { border-color: var(--hairline); background: var(--surface-2); }
 .pc-ask-icon { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; color: var(--pc-caution); }
 .pc-ask:not(.is-pending) .pc-ask-icon { color: var(--muted); }
 .pc-ask-body { display: grid; gap: 3px; flex: 1; min-width: 0; }
@@ -562,15 +562,15 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 }
 .pc-agent-menu button[aria-checked="true"] > svg:last-child { color: inherit; }
 
-/* Context nudge: a calm, dismissible note above the composer, tinted by band. */
-.pc-nudge { --nudge: var(--pc-caution); display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; margin: 0 0 8px; padding: 10px 8px 10px 12px; border-radius: var(--r-obj); background: color-mix(in srgb, var(--nudge) 9%, var(--fill-2)); color: var(--ink); font: 12px/1.45 var(--sans); animation: island-in var(--dur) var(--ease-out); }
+/* Context nudge: a calm, dismissible note above the composer. */
+.pc-nudge { --nudge: var(--pc-caution); display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; margin: 0 0 8px; padding: 10px 8px 10px 12px; border-radius: var(--r-obj); background: var(--fill-2); color: var(--ink); font: 12px/1.45 var(--sans); animation: island-in var(--dur) var(--ease-out); }
 .pc-nudge.is-compact { --nudge: var(--pc-del); }
 .pc-nudge > svg { margin-top: 1px; color: var(--nudge); }
 .pc-nudge strong { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pc-nudge p { margin: 2px 0 0; color: var(--ink-3); }
 .pc-nudge-actions { display: flex; align-items: center; gap: 2px; }
-.pc-nudge-actions > button:not(.pc-icon) { padding: 5px 9px; border-radius: var(--r-ctl); color: var(--nudge); font: 600 12px/1 var(--sans); white-space: nowrap; cursor: pointer; }
-.pc-nudge-actions > button:not(.pc-icon):hover { background: color-mix(in srgb, var(--nudge) 14%, transparent); }
+.pc-nudge-actions > button:not(.pc-icon) { padding: 5px 9px; border-radius: var(--r-ctl); color: var(--ink); font: 600 12px/1 var(--sans); white-space: nowrap; cursor: pointer; }
+.pc-nudge-actions > button:not(.pc-icon):hover { background: var(--fill-3); }
 @media (prefers-reduced-motion: reduce) { .pc-nudge { animation: none; } }
 .pc-context-cap { margin: -4px 0 0; color: var(--muted); font-size: 11px; }
 .pc-context-cap.is-active { color: var(--ink-3); font-weight: 500; }

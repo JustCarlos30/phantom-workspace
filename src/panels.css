@@ -68,7 +68,7 @@
 .app-shell .sk-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app-shell .sk-row.is-active { background: var(--fill-2); }
 .app-shell .sk-group-title { background: transparent; }
-.app-shell .sk-notice { max-width: 560px; margin: 8px 8px 12px; padding: 12px 14px; border: 0; background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); font: var(--t-support); }
+.app-shell .sk-notice { max-width: 560px; margin: 8px 8px 12px; padding: 12px 14px; border: 0; background: var(--fill-2); color: var(--warning); font: var(--t-support); }
 .app-shell .sk-notice.is-error { background: var(--error-bg); color: var(--danger); }
 .app-shell .sk-notice button { height: 26px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); }
 .app-shell .browser-toolbar { height: 46px; min-height: 46px; gap: 2px; padding: 0 10px; border-bottom: 0; background: transparent; }

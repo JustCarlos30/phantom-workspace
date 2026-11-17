@@ -48,13 +48,12 @@ button.br-main:focus-visible { outline-offset: -2px; border-radius: var(--r-ctl)
 .br-slot .br-button { width: 100%; }
 
 /* State chip: the tone always travels with its word. */
-.br-chip { --tone: var(--muted); justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--tone); font: var(--t-micro); white-space: nowrap; }
+.br-chip { --tone: var(--muted); justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r-pill); background: var(--fill-2); color: var(--tone); font: var(--t-micro); white-space: nowrap; }
 .br-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .br-chip[data-tone="working"] { --tone: var(--working); }
 .br-chip[data-tone="attention"] { --tone: var(--attention); }
 .br-chip[data-tone="success"] { --tone: var(--success); }
 .br-chip[data-tone="danger"] { --tone: var(--danger); }
-.br-chip[data-tone="neutral"] { background: var(--fill-2); }
 
 /* Buttons: pills. One filled key per row. */
 .br-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font: var(--t-control); white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
@@ -62,8 +61,8 @@ button.br-main:focus-visible { outline-offset: -2px; border-radius: var(--r-ctl)
 .br-button:disabled { opacity: .5; cursor: default; }
 .br-button.is-primary { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); font-weight: 600; }
 .br-button.is-primary:hover:not(:disabled) { background: var(--on); }
-.br-button.is-armed { background: var(--success); }
-.br-button.is-armed:hover:not(:disabled) { background: var(--success); }
+.br-button.is-armed { background: var(--on); color: var(--on-ink); }
+.br-button.is-armed:hover:not(:disabled) { background: var(--on); }
 .br-button.is-quiet { background: transparent; color: var(--muted); }
 .br-button.is-quiet:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
 .br-button.is-danger { color: var(--danger); }

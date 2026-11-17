@@ -1,17 +1,16 @@
 /* Phantom terminal: a Phantom-drawn card on the map, the xterm engine only in focus.
    One quiet identity row, a full-bleed output well, a slim footer. Who answers
-   (Claude · OpenCode · Terminal) is a segmented control; every provider keeps
-   one glyph and one hue wherever it appears. */
+   (Claude · OpenCode · Terminal) is a segmented control with neutral chrome. */
 :root {
   --mono: "Monaspace Neon", "GeistMono Nerd Font", "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", monospace;
   --pt-working: var(--working);
   --pt-blocked: var(--attention);
   --pt-review: var(--attention);
   --pt-idle: var(--muted);
-  --hue-claude: var(--accent);
-  --hue-opencode: var(--c-mint);
-  --hue-codex: var(--c-sky);
-  --hue-agent: var(--c-iris);
+  --hue-claude: var(--ink);
+  --hue-opencode: var(--ink);
+  --hue-codex: var(--ink);
+  --hue-agent: var(--ink);
   --hue-shell: var(--muted);
 }
 
@@ -27,14 +26,13 @@
 .pt-provider { display: inline-flex; align-items: center; gap: .55em; min-width: 0; max-width: 100%; color: var(--ink); font-size: 1em; font-weight: 550; line-height: 1; white-space: nowrap; }
 .pt-provider > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .pt-provider.is-shell, .pt-provider.is-process { color: var(--muted); font-family: var(--mono); font-weight: 450; }
-.pt-state { display: inline-flex; align-items: center; gap: .5em; height: 1.9em; padding: 0 .75em 0 .65em; border-radius: var(--r-pill); background: color-mix(in srgb, currentColor 13%, transparent); color: var(--pt-idle); font-size: 1em; font-weight: 550; white-space: nowrap; }
+.pt-state { display: inline-flex; align-items: center; gap: .5em; height: 1.9em; padding: 0 .75em 0 .65em; border-radius: var(--r-pill); background: var(--fill-2); color: var(--pt-idle); font-size: 1em; font-weight: 550; white-space: nowrap; }
 .pt-state > i { width: .5em; height: .5em; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .pt-state.is-working { color: var(--pt-working); }
 .pt-state.is-working > i { border-radius: 0; }
 .pt-state.is-blocked { color: var(--pt-blocked); }
 .pt-state.is-review { color: var(--pt-review); }
-.pt-state:is(.is-approval, .is-turn) { color: var(--attention); background: color-mix(in srgb, var(--attention) 18%, transparent); }
-.pt-state.is-approval { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 45%, transparent); }
+.pt-state:is(.is-approval, .is-turn) { color: var(--attention); }
 .pt-state.is-idle { background: none; padding: 0; }
 /* Static state dots keep real status visible without a repaint loop. */
 .pt-focus .status-dot, .pt-card .status-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--muted); flex-shrink: 0; }
@@ -68,7 +66,6 @@
 .pt-card-line.is-current { color: var(--terminal-ink); opacity: 1; }
 .pt-card-line.is-current::before { content: ''; position: absolute; left: -8px; top: 1px; width: 2px; height: 14px; border-radius: var(--r-mark); background: var(--accent); pointer-events: none; }
 .pt-card[data-agent="working"] > .pt-card-screen { border-top-color: color-mix(in srgb, var(--working) 45%, transparent); background-image: linear-gradient(to bottom, color-mix(in srgb, var(--working) 7%, transparent), transparent 28px); }
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) > .pt-card-screen { border-top-color: color-mix(in srgb, var(--attention) 55%, transparent); background-image: linear-gradient(to bottom, color-mix(in srgb, var(--attention) 8%, transparent), transparent 28px); }
 .pt-card[data-agent="working"] .pt-card-line.is-current::before { background: var(--working); }
 .pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-line.is-current::before { background: var(--attention); }
 .pt-card-screen.is-alternate { justify-content: flex-start; container-type: size; -webkit-mask-image: none; mask-image: none; }
@@ -80,11 +77,7 @@
 .pt-card-location > svg { flex-shrink: 0; }
 .pt-card-location > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pt-card-action { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border-radius: var(--r-ctl); color: var(--ink); font-size: 12px; font-weight: 550; white-space: nowrap; flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.pt-card-action:hover { background: var(--fill-2); }
-.pt-card-action.is-primary { background: var(--fill-2); color: var(--ink); }
-.pt-card-action.is-primary:hover { background: var(--accent); color: var(--primary-ink); }
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary { background: color-mix(in srgb, var(--attention) 16%, var(--fill-2)); color: var(--attention); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 30%, transparent); }
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary:hover { background: color-mix(in srgb, var(--attention) 26%, var(--fill-2)); }
+.pt-card-action:hover { background: var(--fill-3); }
 .pt-card-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Far zoom: see "Semantic zoom" below. */
 .pt-card.is-overview { justify-content: flex-start; }
@@ -131,7 +124,6 @@
 /* An inline line under the prompt, not a card inside the panel. */
 .pt-focus .terminal-message { position: static; flex-shrink: 0; margin: 0; padding: 8px 12px 8px 22px; background: var(--surface); border: 0; border-radius: 0; color: var(--ink); font-size: 12px; }
 .pt-focus .terminal-message button { min-height: 28px; padding: 0 11px; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font-size: 12px; }
-.pt-focus .terminal-message button:hover:not(:disabled) { background: var(--accent); color: var(--primary-ink); }
 .pt-focus .terminal-message button:disabled { opacity: .4; cursor: not-allowed; }
 .terminal-history-end { position: absolute; right: 22px; bottom: 18px; z-index: 2; display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 13px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--ink); font-size: 12px; box-shadow: var(--shadow-float); }
 .terminal-history-end:hover { background: var(--surface-3); }
@@ -173,10 +165,7 @@
 .pt-card-glimpse { opacity: 1; }
 .pt-focus .terminal-host > .xterm, .pt-focus .terminal-host .xterm-viewport { background-color: transparent; }
 .pt-card-action { background: var(--fill); }
-.pt-card-action:hover { background: var(--fill-3); }
 .pt-card-action.is-primary, .pt-card-action.is-primary:hover,
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary,
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary:hover,
 .pt-focus .terminal-message button:hover:not(:disabled) {
   background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key);
 }

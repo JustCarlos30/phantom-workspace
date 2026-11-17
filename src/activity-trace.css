@@ -36,11 +36,7 @@
   stroke: var(--ink);
   filter: drop-shadow(0 0 3px var(--working));
 }
-.canvas-node > .activity-trace:is([data-state="pulse-attention"], [data-state="pulse-turn"]) > .activity-trace__head {
-  stroke-dasharray: 8 92;
-  filter: drop-shadow(0 0 3px var(--pulse));
-  animation: trace-orbit 3.2s steps(100) 9.375 forwards !important;
-}
+.canvas-node > .activity-trace:is([data-state="pulse-attention"], [data-state="pulse-turn"]) { display: none; }
 .canvas-node > .activity-trace[data-state="pulse-error"] > .activity-trace__head { display: none; }
 .canvas-node > .activity-trace[data-state="pulse-error"] > .activity-trace__contour {
   opacity: 1;
@@ -53,7 +49,6 @@
   animation: none !important;
   display: none;
 }
-.activity-trace[data-settled="true"]:is([data-state="pulse-attention"], [data-state="pulse-turn"]) > .activity-trace__contour { opacity: 1; }
 .studio-concentration .canvas-node > .activity-trace[data-state] > rect,
 .canvas-node > .activity-trace[data-state]:is([data-hidden="true"], [data-visible="false"]) > rect {
   animation-play-state: paused !important;

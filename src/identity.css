@@ -2,7 +2,6 @@
 .app-shell img.gengar-icon { width: 40px; height: 30px; max-width: none; flex-shrink: 0; image-rendering: pixelated; object-fit: contain; opacity: 1; animation: none; }
 .app-shell .gengar-icon.is-asleep { filter: grayscale(1); opacity: .5; }
 .app-shell .gengar-icon.is-unsure { opacity: .7; }
-.app-shell .gengar-icon.is-grin { filter: drop-shadow(1px 0 0 var(--attention)) drop-shadow(-1px 0 0 var(--attention)) drop-shadow(0 1px 0 var(--attention)) drop-shadow(0 -1px 0 var(--attention)); }
 .app-shell .gengar-icon.is-working[data-motion="running"] { animation: gengar-hop 1.2s steps(2, end) infinite; }
 .app-shell .gengar-icon.is-grin[data-motion="running"] { animation: gengar-attention 2.4s ease-in-out infinite; }
 @keyframes gengar-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }

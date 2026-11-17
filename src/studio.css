@@ -54,7 +54,7 @@
   --c-sand: var(--attention);
   --c-rose: var(--muted);
   --c-slate: var(--muted);
-  --accent: var(--action);
+  --accent: #f2f0eb;
   --accent-soft: color-mix(in srgb, var(--accent) 17%, transparent);
   /* State remains independent of the workspace accent. */
   --working: #5b9cff;
@@ -64,7 +64,7 @@
   --warning: var(--attention);
   --idle: #92908a;
   --danger-soft: color-mix(in srgb, var(--danger) 12%, var(--surface));
-  --warning-soft: color-mix(in srgb, var(--warning) 10%, var(--surface));
+  --warning-soft: var(--fill-2);
   --rail: var(--surface);
   --terminal-bg: #080808;
   --terminal-ink: #e1dfda;
@@ -130,7 +130,6 @@
 .node-body, .inspector-host, .tool-picker, .panel-index, .attention-tray, .context-menu, .app-dialog, .toast, .canvas-busy { background: var(--surface); }
 .node-title input, .project-name-editor .inline-name-input { background: var(--surface); border-color: var(--accent); }
 .note-editor { background: var(--surface-2); color: var(--ink); }
-.mission-chip { background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); }
 .focus-return { color: var(--muted); }
 .focus-return>span { border-color: var(--hairline); }
 .dock-main, .canvas-navigation { background-color: var(--glass); background-image: var(--glass-sheen); box-shadow: var(--shadow-chrome); }
@@ -257,9 +256,7 @@
 
 .host-indicator i { background: var(--success); }
 .host-indicator.disconnected i, .host-indicator.error i { background: var(--danger); }
-.host-indicator.connecting i, .host-indicator.reconnecting i { background: var(--warning); }
-.status-dot.running, .host-indicator i { background: var(--success); }
-.status-dot.connecting, .status-dot.disconnected, .host-indicator.connecting i, .host-indicator.reconnecting i { background: var(--attention); }
+.host-indicator.connecting i, .host-indicator.reconnecting i { background: var(--attention); }
 .st-mobile-qr { text-align: center; padding: 16px; }
 .st-mobile-qr svg { display: block; width: 280px; max-width: 100%; height: auto; margin: auto; shape-rendering: crispEdges; }
 .st-mobile-request { padding: 16px; background: var(--fill); border-radius: var(--r-obj); }

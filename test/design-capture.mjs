@@ -3,13 +3,25 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
+import { execFileSync } from 'node:child_process';
+import { build } from 'vite';
 import { killElectronGroup } from './support/electron-process.mjs';
 
 // Design review captures: production Electron + real host on an isolated
 // profile with a synthetic project. Usage: node test/design-capture.mjs <label>
-// Writes /tmp/opencode/design-<label>-<scene>.png. Run `npm run build` first.
+// Builds this worktree explicitly; captures HEAD (before) and the working tree
+// (after) with the same scenes and isolated profiles.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const label = process.argv[2] || 'now';
+const requestedLabel = process.argv[2] || 'now';
+let activeProcess, activeHost;
+const deadline = setTimeout(() => {
+  killElectronGroup(activeProcess);
+  if (activeHost) { try { process.kill(activeHost, 'SIGTERM'); } catch {} }
+  console.error('Design capture exceeded 270 seconds');
+  process.exit(1);
+}, 270000);
+
+async function capture(label, standardized) {
 const evidence = '/tmp/opencode';
 await mkdir(evidence, { recursive: true });
 const temp = await mkdtemp(path.join(evidence, 'phantom-design-'));
@@ -119,13 +131,19 @@ const shot = async scene => {
 };
 
 try {
-  app = await electron.launch({ args: [root, '--ozone-platform=headless'], cwd: root, env });
-  appProcess = app.process();
-  page = await app.firstWindow();
+  app = await electron.launch({ args: [root, '--ozone-platform=headless'], cwd: root, env, timeout: 20000 });
+  activeProcess = appProcess = app.process();
+  page = await app.firstWindow({ timeout: 10000 });
   page.setDefaultTimeout(10000);
   page.on('pageerror', error => errors.push(error.message));
+  await page.waitForLoadState('domcontentloaded');
+  if (await page.locator('body').innerText() === 'Not found') {
+    throw new Error(`Electron could not load the local build: ${page.url()}`);
+  }
   await page.locator('.app-shell').waitFor();
   host = (await invoke('system.info')).pid;
+  const hostCommand = await readFile(`/proc/${host}/cmdline`, 'utf8').catch(() => '');
+  if (hostCommand.includes(profile)) activeHost = host;
   await app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0];
     win.setMinimumSize(580, 500);
@@ -203,8 +221,83 @@ try {
     }
   });
   await shot('synthetic-states');
+  await page.evaluate(() => {
+    const fixture = document.createElement('section');
+    fixture.id = 'color-fixture';
+    fixture.setAttribute('aria-label', 'Estados sintéticos de color');
+    Object.assign(fixture.style, { position: 'fixed', left: '360px', top: '120px', width: '520px', padding: '24px', background: 'var(--surface)', zIndex: '1000', display: 'grid', gap: '16px' });
+    fixture.innerHTML = `<h2>Sintético · Atención</h2>
+      <div class="pt-card" data-agent="approval"><span class="pt-state is-approval">Pide permiso</span><div class="pt-card-screen"><pre>Pozo de terminal · permiso pendiente</pre></div><button class="pt-card-action is-primary">Revisar permiso</button></div>
+      <div class="pt-card" data-agent="turn"><span class="pt-state is-turn">Tu turno</span></div>
+      <div class="pt-card"><span class="pt-state is-blocked">Bloqueado</span> <span class="pt-state is-review">En revisión</span></div>
+      <span class="br-chip" data-tone="attention">Revisar rama</span>
+      <span class="rp-pill" data-tone="attention">Revisión pendiente</span>
+      <span class="inc-chip" style="--tone: var(--attention)">Pendiente de incorporación</span>
+      <div class="activity-tray" style="position: static; width: auto"><span class="activity-item-icon" data-ink="attention">!</span></div>
+      <button class="inc-switch" role="switch" aria-label="Switch sintético de incorporación" aria-checked="true"><i></i></button>`;
+    document.body.append(fixture);
+  });
+  if (standardized) await page.locator('#color-fixture').evaluate(fixture => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d');
+    const assertNeutral = value => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+      if (Math.max(...rgb) - Math.min(...rgb) > 1) throw new Error(`Non-neutral state surface: ${value}`);
+    };
+    for (const el of fixture.querySelectorAll('.pt-state, .br-chip, .rp-pill, .inc-chip, .activity-item-icon')) {
+      const style = getComputedStyle(el);
+      assertNeutral(style.backgroundColor);
+      if (style.color !== 'rgb(198, 241, 53)') throw new Error(`Missing attention ink: ${el.className} ${style.color}`);
+      if (style.boxShadow !== 'none') throw new Error(`State ring: ${el.className}`);
+    }
+    for (const el of fixture.querySelectorAll('.pt-card-screen')) {
+      const style = getComputedStyle(el);
+      assertNeutral(style.backgroundColor);
+      if (style.backgroundImage !== 'none') throw new Error('Attention well must have no wash');
+      if (style.boxShadow !== 'none') throw new Error('Attention well must have no ring');
+      if (style.borderTopColor !== 'rgba(0, 0, 0, 0)') throw new Error('Attention well must have no coloured edge');
+    }
+    const action = getComputedStyle(fixture.querySelector('.pt-card-action'));
+    if (action.backgroundColor !== 'rgb(242, 240, 235)' || action.color !== 'rgb(20, 20, 20)') throw new Error('Attention action must be ivory/dark');
+    const toggle = fixture.querySelector('.inc-switch');
+    if (getComputedStyle(toggle).backgroundColor !== 'rgb(242, 240, 235)' || getComputedStyle(toggle.querySelector('i')).backgroundColor !== 'rgb(20, 20, 20)') throw new Error('Incorporation switch must be ivory/dark');
+  });
+  await shot('attention');
+  await page.locator('#color-fixture').evaluate(el => el.remove());
   await page.reload();
   await page.locator('.canvas-node').first().waitFor();
+  await page.getByRole('button', { name: 'Configuración', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Categorías de configuración' }).waitFor();
+  if (standardized) await page.locator('.st-ico').evaluateAll(icons => {
+    if (icons.length !== 8) throw new Error('Expected all eight settings categories');
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d');
+    for (const icon of icons) {
+      const style = getComputedStyle(icon);
+      for (const value of [style.backgroundColor, style.color]) {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        if (Math.max(...rgb) - Math.min(...rgb) > 8) throw new Error(`Non-neutral category: ${value}`);
+      }
+    }
+  });
+  await shot('settings-categories');
+  await page.getByRole('button', { name: 'Apariencia', exact: true }).click();
+  const gridSwitch = page.getByRole('switch', { name: 'Retícula de puntos', exact: true });
+  await gridSwitch.scrollIntoViewIfNeeded();
+  if (standardized) await gridSwitch.evaluate(el => {
+    if (el.getAttribute('aria-checked') !== 'true') throw new Error('Expected enabled grid in isolated profile');
+    if (getComputedStyle(el).backgroundColor !== 'rgb(242, 240, 235)' || getComputedStyle(el.querySelector('i')).backgroundColor !== 'rgb(20, 20, 20)') throw new Error('Active switch must be ivory/dark');
+  });
+  await shot('settings-switches');
+  await page.getByRole('button', { name: 'Cerrar configuración', exact: true }).click();
   try {
     await page.locator('.space-switcher-trigger').click();
     await page.waitForTimeout(450);
@@ -219,12 +312,12 @@ try {
   } catch (error) { console.log('model-menu:', error.message); }
   const notch = page.locator('.activity-notch').first();
   if (await notch.count()) { await notch.click(); await shot('tray'); }
-  if (paintFailed) process.exitCode = 1;
+   if (paintFailed || errors.length) throw new Error(`Design capture failed: ${errors.join('; ')}`);
   console.log(JSON.stringify({ label, captures, errors }, null, 2));
 } catch (error) {
-  await page?.screenshot({ path: path.join(evidence, `design-${label}-failure.png`) }).catch(() => {});
+  await page?.screenshot({ path: path.join(evidence, `design-${label}-failure.png`), timeout: 2500 }).catch(() => {});
   console.error(JSON.stringify({ label, captures, errors, error: error.message }));
-  process.exitCode = 1;
+   throw error;
 } finally {
   try {
     if (host) {
@@ -237,6 +330,35 @@ try {
   } finally {
     if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
     killElectronGroup(appProcess);
+    activeProcess = activeHost = null;
     await rm(temp, { recursive: true, force: true });
   }
+}
+}
+
+try {
+  const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', timeout: 10000 }).trim();
+  console.log(JSON.stringify({ label: requestedLabel, beforeRevision: revision, root }));
+  const rendererSources = new Map();
+  const files = execFileSync('git', ['ls-tree', '-r', '--name-only', revision, '--', 'src'], { cwd: root, encoding: 'utf8', timeout: 10000 }).trim().split('\n')
+    .filter(file => file.endsWith('.css') || ['src/components/Settings.jsx', 'src/components/TerminalPanel.jsx', 'src/hooks/useAppearance.js'].includes(file));
+  for (const file of files) rendererSources.set(path.join(root, file), execFileSync('git', ['show', `${revision}:${file}`], { cwd: root, encoding: 'utf8', timeout: 10000 }));
+  const localBuild = async plugins => {
+    const result = await build({ root, configFile: path.join(root, 'vite.config.mjs'), plugins, build: { outDir: path.join(root, 'dist'), emptyOutDir: true, write: true } });
+    await readFile(path.join(root, 'dist/index.html'));
+    for (const bundle of [result].flat()) for (const asset of bundle.output) {
+      const file = path.join(root, 'dist', asset.fileName);
+      const expected = Buffer.from(asset.type === 'chunk' ? asset.code : asset.source);
+      if (!(await readFile(file)).equals(expected)) throw new Error(`Local build artifact differs from Vite output: ${file}`);
+    }
+  };
+  try {
+    await localBuild([{ name: 'design-before', enforce: 'pre', load(id) { return rendererSources.get(id) ?? null; } }]);
+    await capture(`${requestedLabel}-before`, false);
+  } finally {
+    await localBuild([]);
+  }
+  await capture(requestedLabel, true);
+} finally {
+  clearTimeout(deadline);
 }

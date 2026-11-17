@@ -38,12 +38,11 @@
 .inc-item > .inc-review-body { padding: 0 18px 18px; }
 .inc-item > .inc-review-body .mp-steps { max-width: 460px; }
 
-.inc-chip { --tone: var(--muted); justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--tone); font: var(--t-micro); white-space: nowrap; }
+.inc-chip { --tone: var(--muted); justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r-pill); background: var(--fill-2); color: var(--tone); font: var(--t-micro); white-space: nowrap; }
 .inc-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .inc-chip[data-tone="working"] { --tone: var(--working); }
 .inc-chip[data-tone="danger"] { --tone: var(--danger); }
 .inc-chip[data-tone="success"] { --tone: var(--success); }
-.inc-chip[data-tone="neutral"] { background: var(--fill-2); }
 
 .inc-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font: var(--t-control); white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
 .inc-button:hover:not(:disabled) { background: var(--fill-3); }
@@ -53,8 +52,8 @@
 .inc-button.is-quiet:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
 .inc-switch { flex: none; display: flex; align-items: center; width: 44px; height: 26px; padding: 3px; border: 0; border-radius: var(--r-pill); background: var(--fill-3); box-shadow: var(--shadow-well); cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
 .inc-switch i { width: 20px; height: 20px; border-radius: 50%; background: var(--on); box-shadow: var(--shadow-key); transition: transform var(--dur-fast) var(--ease-out); }
-.inc-switch[aria-checked="true"] { background: var(--working); }
-.inc-switch[aria-checked="true"] i { transform: translateX(18px); }
+.inc-switch[aria-checked="true"] { background: var(--on); }
+.inc-switch[aria-checked="true"] i { transform: translateX(18px); background: var(--on-ink); }
 .inc-switch:disabled { opacity: .6; cursor: default; }
 
 /* Folds: plan, history, details. */

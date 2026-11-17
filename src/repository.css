@@ -69,12 +69,11 @@
 .rp-side-item.is-selected > svg { color: var(--accent); }
 .rp-side-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-side-badges { display: flex; align-items: center; gap: 3px; flex: none; font-size: 10px; }
-.rp-pill { --tone: var(--muted); flex: none; padding: 0 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--tone); font: var(--t-micro); line-height: 18px; white-space: nowrap; }
+.rp-pill { --tone: var(--muted); flex: none; padding: 0 8px; border-radius: var(--r-pill); background: var(--fill-2); color: var(--tone); font: var(--t-micro); line-height: 18px; white-space: nowrap; }
 .rp-pill[data-tone="working"] { --tone: var(--working); }
 .rp-pill[data-tone="attention"] { --tone: var(--attention); }
 .rp-pill[data-tone="success"] { --tone: var(--success); }
 .rp-pill[data-tone="danger"] { --tone: var(--danger); }
-.rp-pill[data-tone="neutral"] { background: var(--fill-2); }
 
 /* Tabs */
 .rp-tabs { flex: none; display: flex; align-items: stretch; gap: 1px; height: 34px; padding: 0 6px; border-bottom: 1px solid var(--hairline); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
@@ -113,12 +112,12 @@
 .rp-graph-more { display: flex; justify-content: center; padding: 12px; }
 .rp-refs { display: flex; gap: 4px; min-width: 0; max-width: 260px; overflow: hidden; }
 .rp-ref { display: inline-flex; align-items: center; gap: 4px; max-width: 160px; height: 18px; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: var(--r-mark); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); font-size: 11px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
-.rp-ref.is-base { border-color: color-mix(in srgb, var(--rp-add) 55%, transparent); background: color-mix(in srgb, var(--rp-add) 14%, transparent); }
+.rp-ref.is-base { border-color: var(--hairline); background: var(--fill-2); }
 .rp-ref.is-head { font-weight: 700; }
 .rp-ref.is-remote { border-color: var(--hairline); background: var(--surface-2); color: var(--muted); }
-.rp-ref.is-tag { border-color: color-mix(in srgb, var(--c-sand) 50%, transparent); background: color-mix(in srgb, var(--c-sand) 12%, transparent); }
-.rp-ref.is-dirty, .rp-ref.is-wip { border-style: dashed; border-color: var(--rp-dirty); }
-.rp-ref.is-wip { background: color-mix(in srgb, var(--rp-dirty) 12%, transparent); }
+.rp-ref.is-tag { border-color: var(--hairline); background: var(--fill-2); }
+.rp-ref.is-dirty, .rp-ref.is-wip { border-style: dashed; border-color: var(--hairline); }
+.rp-ref.is-wip { background: var(--fill-2); }
 .rp-ref.is-more { background: var(--surface-2); border-color: var(--hairline); color: var(--muted); }
 .rp-ref[style] { border-color: color-mix(in srgb, var(--ref-color) 65%, transparent); background: color-mix(in srgb, var(--ref-color) 14%, var(--surface)); }
 .rp-ref-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -203,7 +202,7 @@
 .rp-mix-seg.is-added, .rp-mix-key.is-added i, .rp-side-mix .is-added { background: var(--rp-add); }
 .rp-mix-seg.is-modified, .rp-mix-key.is-modified i, .rp-side-mix .is-modified { background: var(--c-sky, #7cc4ff); }
 .rp-mix-seg.is-renamed, .rp-mix-key.is-renamed i, .rp-side-mix .is-renamed { background: var(--accent); }
-.rp-mix-seg.is-copied, .rp-mix-key.is-copied i, .rp-side-mix .is-copied { background: var(--c-sand, #d7c296); }
+.rp-mix-seg.is-copied, .rp-mix-key.is-copied i, .rp-side-mix .is-copied { background: var(--muted); }
 .rp-mix-seg.is-type, .rp-mix-key.is-type i, .rp-side-mix .is-type { background: var(--muted); }
 .rp-mix-seg.is-removed, .rp-mix-key.is-removed i, .rp-side-mix .is-removed { background: var(--rp-del); }
 .rp-mix-seg.is-conflict, .rp-mix-key.is-conflict i, .rp-side-mix .is-conflict { background: var(--warning); }
