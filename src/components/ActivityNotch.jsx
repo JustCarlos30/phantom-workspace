@@ -89,7 +89,6 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
   const view = VIEWS.includes(filter) ? filter : 'needs';
   const { now, later } = activity.pending, count = now.length;
   const opened = now.some(item => item.key === openKey) ? openKey : now[0]?.key;
-  const oldest = Math.min(...now.map(item => item.at).filter(Boolean));
   useEffect(() => { setSent(keys => keys.filter(key => now.some(item => item.key === key))); }, [now]);
   const failing = Object.values(activity.sources).some(source => source?.error);
   useEffect(() => {
@@ -133,10 +132,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
   };
   return <><button className="popover-dismiss top-dismiss" aria-label="Cerrar" onClick={onClose} /><section ref={root} id="activity-tray" className="activity-tray needs-tray" role="dialog" aria-modal="true" aria-label="Te necesitan" onKeyDown={keydown}>
     <header className="activity-head">
-      <div>
-        <h1 className={count ? 'needs-you' : undefined}>{count ? <>Te necesitan <b>{count}</b></> : 'Todo en orden'}</h1>
-        <p>{count ? Number.isFinite(oldest) ? ago(oldest, activity.now) === 'ahora' ? 'Acaba de llegar.' : `La más antigua espera ${ago(oldest, activity.now)}.` : 'Al resolverlas, los agentes siguen solos.' : 'Nada espera una decisión tuya.'}</p>
-      </div>
+      <h1 className="sr-only">{count ? <>Te necesitan <b>{count}</b></> : 'Todo en orden'}</h1>
       <button className="icon-button" aria-label="Cerrar" title="Cerrar" onClick={onClose}><X size={16} /></button>
     </header>
     <nav className="activity-filters" aria-label="Vista">{tabs.map(([id, name, total]) => <button key={id} type="button" data-tab={id} aria-pressed={view === id} onClick={() => onFilter(id)}><span>{name}</span>{total > 0 && <b>{total}</b>}</button>)}</nav>
