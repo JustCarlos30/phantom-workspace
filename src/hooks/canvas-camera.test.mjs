@@ -148,3 +148,17 @@ test('reduced motion settles and persists the exact requested camera', () => {
   assert.deepEqual(f.commits, [target]);
   assert.deepEqual(f.paints.at(-1), target);
 });
+
+// A busy renderer delivers a frame whose timestamp predates the navigate()
+// call. Negative progress used to extrapolate the zoom below zero, which hung
+// the dot-grid spacing loop forever.
+test('a frame stamped before navigate() never extrapolates the camera', () => {
+  const f = fixture();
+  const far = { x: 0, y: 0, zoom: .15 };
+  f.camera.updateCamera(far); f.frame(16); f.advance(400);
+  f.camera.navigate(origin);
+  for (const [id, fn] of [...f.rafs]) if (f.rafs.delete(id)) fn(340);
+  for (const paint of f.paints) assert.ok(paint.zoom >= .15 && paint.zoom <= 1, `zoom ${paint.zoom} left its range`);
+  f.frame(900);
+  assert.deepEqual(plain(f.camera.cameraRef.current), origin);
+});

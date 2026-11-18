@@ -24,6 +24,7 @@ import GengarMascot from './GengarMascot.jsx';
 import ReferencePanelContent, { CommentLayer } from './References';
 import { INLINE_LIMIT, readTransfer, toBase64, visibleComments } from '../hooks/references.mjs';
 import { fitCapture } from '../hooks/pageCapture';
+import { gridStep } from '../hooks/canvasGrid.js';
 import '../references.css';
 
 const icons = { ...PANEL_ICONS, 'skills-catalog': PANEL_ICONS['phantom-skills'] };
@@ -41,9 +42,10 @@ const initialCamera = camera => !camera || (camera.x === 0 && camera.y === 0 && 
 const readMinimap = () => { try { return localStorage.getItem('phantom.minimap') !== 'off'; } catch { return true; } };
 // The dot grid lives in world space: it pans and scales with the camera and
 // doubles its spacing when dots would get too dense, like Figma or Miro.
+// The only elements that read --map-label-scale / --overview-scale.
+const SCALED = '.node-header, .zone-label, .comment-anchor, .canvas-node.overview';
 function gridStyle(camera) {
-  let step = GRID * camera.zoom;
-  while (step < 14) step *= 2;
+  const step = gridStep(GRID, camera.zoom);
   return { '--grid-size': `${step}px`, '--grid-x': `${camera.x}px`, '--grid-y': `${camera.y}px`, '--grid-major': `${step * 4}px` };
 }
 const TerminalPanel = React.memo(function CanvasTerminal({ node, onFocus, ...props }) {
@@ -149,27 +151,56 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   // Camera frames are painted straight to the DOM. React re-renders the map
   // only when the zoom tier changes or navigation settles.
   const minimapFrame = useRef(null);
-  const paintCamera = useCallback(c => {
+  // The camera's styles are owned here, never by a React style prop, so the
+  // cache below always matches the DOM. Only values that changed are written. A write that changes nothing still
+  // costs: a custom property re-inherits through every panel, and replacing
+  // the zoom label's text node re-evaluates the :has() rules on the shell,
+  // which restyles the whole tree on every frame of a pan.
+  const painted = useRef({});
+  const paintCamera = useCallback((c, settled = false) => {
     minimapFrame.current?.(c);
+    const last = painted.current;
+    const put = (el, slot, key, value) => { if (last[slot] === el && last[key] === value) return; last[key] = value; el.style.setProperty(key, value); };
     const el = world.current;
     if (el) {
       const unfocused = !focusedRef.current;
-      el.style.transform = unfocused ? `translate(${snap(c.x)}px, ${snap(c.y)}px) scale(${c.zoom})` : 'none';
-      el.style.setProperty('--map-label-scale', unfocused ? String(Math.min(2.4, Math.max(1, 1 / c.zoom))) : '1');
-      el.style.setProperty('--overview-scale', unfocused ? String(1 / c.zoom) : '1');
+      const transform = unfocused ? `translate(${snap(c.x)}px, ${snap(c.y)}px) scale(${c.zoom})` : 'none';
+      if (last.world !== el || last.transform !== transform) { last.transform = transform; el.style.transform = transform; }
+      // Both scales change on every frame of a zoom. Written on the world they
+      // would re-inherit through each panel's whole subtree, so a frame writes
+      // them on the few elements that read them. The world only catches up
+      // once React renders (settle, tier change), for elements mounted later.
+      const labelScale = unfocused ? String(Math.min(2.4, Math.max(1, 1 / c.zoom))) : '1', overview = unfocused ? String(1 / c.zoom) : '1';
+      if (last.world !== el || last.labelScale !== labelScale || last.overview !== overview) {
+        last.labelScale = labelScale; last.overview = overview;
+        for (const target of el.querySelectorAll(SCALED)) { target.style.setProperty('--map-label-scale', labelScale); target.style.setProperty('--overview-scale', overview); }
+      }
+      if (settled) {
+        put(el, 'world', '--map-label-scale', labelScale);
+        put(el, 'world', '--overview-scale', overview);
+        // A card that left the overview keeps no scale of its own.
+        for (const card of el.querySelectorAll('.canvas-node:not(.overview)')) { card.style.removeProperty('--map-label-scale'); card.style.removeProperty('--overview-scale'); }
+      }
+      last.world = el;
     }
-    if (root.current) for (const [key, value] of Object.entries(gridStyle(c))) root.current.style.setProperty(key, value);
+    if (root.current) {
+      for (const [key, value] of Object.entries(gridStyle(c))) put(root.current, 'root', key, value);
+      last.root = root.current;
+    }
     fieldPaint.current?.();
-    if (zoomLabel.current) {
-      zoomLabel.current.textContent = `${Math.round(c.zoom * 100)}`;
-      zoomLabel.current.parentElement?.setAttribute('aria-label', `Zoom ${Math.round(c.zoom * 100)}%. Opciones de zoom`);
+    const label = zoomLabel.current, percent = `${Math.round(c.zoom * 100)}`;
+    if (label && (last.label !== label || last.percent !== percent)) {
+      last.label = label; last.percent = percent;
+      // Mutate the existing text node: inserting a new one is what :has() sees.
+      if (label.firstChild?.nodeType === 3 && label.childNodes.length === 1) label.firstChild.data = percent; else label.textContent = percent;
+      label.parentElement?.setAttribute('aria-label', `Zoom ${percent}%. Opciones de zoom`);
     }
   }, []);
   const commitCamera = useCallback(next => onCamera(next, workspace.id), [onCamera, workspace.id]);
   const { camera, cameraRef, updateCamera, navigate: navigateCamera, flushCamera: settleCamera } = useCanvasCamera(initialCamera(workspace.camera), commitCamera, paintCamera);
   const navigate = useCallback(next => { stopInertia(); navigateCamera(next); }, [stopInertia, navigateCamera]);
   const flushCamera = useCallback(() => { stopInertia(); settleCamera(); }, [stopInertia, settleCamera]);
-  useLayoutEffect(() => { paintCamera(cameraRef.current); });
+  useLayoutEffect(() => { paintCamera(cameraRef.current, true); });
   useEffect(() => registerBeforeFlush?.(flushCamera), [registerBeforeFlush, flushCamera]);
   useEffect(() => { wheelGesture.current.reset(); }, [focused]);
   // See studio.css: a layer while panning, never across a zoom change. An
@@ -565,7 +596,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     return kind ? [{ ...n, ...preview[n.id], id: n.id, kind }] : [];
   }), [nodes, preview, terminalActivity, chatPulses, focused]);
   const connected = !connection || connection.status === 'connected';
-  return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''} ${tool === 'comment' ? 'comment-tool' : ''}`} style={gridStyle(camera)} aria-label="Lienzo espacial del proyecto" onPointerMove={e => { pointer.current = { x: e.clientX, y: e.clientY }; move(e); }} onDragOver={e => { if (droppable(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }} onDrop={drop} onMouseDown={blockMiddle} onMouseUp={blockMiddle} onAuxClick={blockMiddle} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (tool === 'comment' && e.button === 0 && !inputBlocked && !e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor,.node-header,.zone-label,.browser-toolbar')) { placeComment(e); return; } if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
+  return <section ref={root} tabIndex={0} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''} ${tool === 'comment' ? 'comment-tool' : ''}`} aria-label="Lienzo espacial del proyecto" onPointerMove={e => { pointer.current = { x: e.clientX, y: e.clientY }; move(e); }} onDragOver={e => { if (droppable(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }} onDrop={drop} onMouseDown={blockMiddle} onMouseUp={blockMiddle} onAuxClick={blockMiddle} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (tool === 'comment' && e.button === 0 && !inputBlocked && !e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor,.node-header,.zone-label,.browser-toolbar')) { placeComment(e); return; } if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
     <Presence>{focusedNode && <div className="focus-return"><button onClick={() => onFocus(null)}><ArrowLeft size={15} /> Volver al mapa</button><span>{focusedNode.title}</span><kbd>Ctrl ⇧ ↵</kbd></div>}</Presence>
     <div ref={stage} className="canvas-stage" onPointerDown={e => { if (e.target === e.currentTarget && tool === 'select' && !space.current && e.button === 0) begin(e, 'select'); }} onFocusCapture={e => {
       // Keyboard focus (Tab) reveals the panel. Pointer focus is handled on

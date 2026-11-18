@@ -60,7 +60,10 @@ export function useCanvasCamera(value, onCommit, onFrame) {
     const duration = Math.min(360, 180 + 90 * Math.abs(Math.log2(next.zoom / start.zoom)));
     const tick = now => {
       animation.current = null;
-      const progress = Math.min(1, (now - time) / duration), ease = 1 - (1 - progress) ** 3;
+      // A frame's timestamp can predate the navigate() call when the renderer
+      // is busy. Negative progress would extrapolate past the start (a zoom
+      // below zero), so progress never leaves 0..1.
+      const progress = Math.max(0, Math.min(1, (now - time) / duration)), ease = 1 - (1 - progress) ** 3;
       // Animation owns its RAF; deliberate input still interrupts via update.
       if (progress < 1) {
         current.current = Object.fromEntries(['x', 'y', 'zoom'].map(key => [key, start[key] + (next[key] - start[key]) * ease]));

@@ -257,6 +257,12 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .connection-error { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); z-index: 29; border-radius: var(--r-obj); }
 
 /* ---------- Canvas: world-space dot grid ---------- */
+/* The camera rewrites these every frame. Registered as non-inherited so a pan
+   restyles the canvas alone instead of re-inheriting through every panel. */
+@property --grid-size { syntax: '<length>'; inherits: false; initial-value: 24px; }
+@property --grid-major { syntax: '<length>'; inherits: false; initial-value: 96px; }
+@property --grid-x { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --grid-y { syntax: '<length>'; inherits: false; initial-value: 0px; }
 .canvas {
   background-color: transparent;
   background-image: radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px), radial-gradient(circle, var(--dot) .9px, transparent 1.2px);
