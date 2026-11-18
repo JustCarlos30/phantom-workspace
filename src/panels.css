@@ -11,15 +11,15 @@
 .app-shell .canvas-node .tw-muted, .app-shell .canvas-node .tw-content small { font: var(--t-support); color: var(--muted); }
 
 /* Forms */
-.app-shell .canvas-node :is(.tw-form, .tw-search) { max-width: 560px; }
-.app-shell .canvas-node .tw-form { gap: 12px; margin-top: 4px; }
-.app-shell .canvas-node .tw-field { gap: 6px; margin-bottom: 0; }
-.app-shell .canvas-node .tw-field > label { font: var(--t-support); font-weight: 500; color: var(--muted); }
-.app-shell .canvas-node .tw-field > :is(input, select, textarea) { min-height: 36px; padding: 8px 12px; background: var(--fill); box-shadow: var(--shadow-well); font: var(--t-control); }
-.app-shell .canvas-node .tw-field > textarea { line-height: 20px; }
+.app-shell .canvas-node :is(.tw-form, .tw-search):not(:where(.pc-root *, .sk-root *)) { max-width: 560px; }
+.app-shell .canvas-node .tw-form:not(:where(.pc-root *, .sk-root *)) { gap: 12px; margin-top: 4px; }
+.app-shell .canvas-node .tw-field:not(:where(.pc-root *, .sk-root *)) { gap: 6px; margin-bottom: 0; }
+.app-shell .canvas-node .tw-field:not(:where(.pc-root *, .sk-root *)) > label { font: var(--t-support); font-weight: 500; color: var(--muted); }
+.app-shell .canvas-node .tw-field:not(:where(.pc-root *, .sk-root *)) > :is(input, select, textarea) { min-height: 36px; padding: 8px 12px; background: var(--fill); box-shadow: var(--shadow-well); font: var(--t-control); }
+.app-shell .canvas-node .tw-field:not(:where(.pc-root *, .sk-root *)) > textarea { line-height: 20px; }
 .app-shell .canvas-node .tw-field > .tw-code-input { font-family: var(--mono); font-size: 12px; }
-.app-shell .canvas-node .tw-field > :is(input, select, textarea):hover { background: var(--fill-2); }
-.app-shell .canvas-node .tw-field > :is(input, select, textarea):focus-visible { outline: 0; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.app-shell .canvas-node .tw-field:not(:where(.pc-root *, .sk-root *)) > :is(input, select, textarea):hover { background: var(--fill-2); }
+.app-shell .canvas-node .tw-field:not(:where(.pc-root *, .sk-root *)) > :is(input, select, textarea):focus-visible { outline: 0; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 
 /* Buttons: pills. The light key is the form's one action. */
 .app-shell .canvas-node .tw-content .tw-button { min-height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font: var(--t-control); white-space: nowrap; }
@@ -64,8 +64,6 @@
 .app-shell .sk-segments { padding: 3px; border-radius: var(--r-pill); box-shadow: var(--shadow-well); }
 .app-shell .sk-segment { border-radius: var(--r-pill); padding: 0 11px; }
 .app-shell .sk-segment[aria-selected="true"] { background: var(--fill-3); }
-.app-shell .sk-search { height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: var(--fill); box-shadow: var(--shadow-well); }
-.app-shell .sk-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app-shell .sk-row.is-active { background: var(--fill-2); }
 .app-shell .sk-group-title { background: transparent; }
 .app-shell .sk-notice { max-width: 560px; margin: 8px 8px 12px; padding: 12px 14px; border: 0; background: var(--fill-2); color: var(--warning); font: var(--t-support); }

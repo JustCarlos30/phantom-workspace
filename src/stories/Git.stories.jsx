@@ -1,0 +1,21 @@
+import React from 'react';
+import Repository from '../components/Repository';
+import Branches from '../components/Branches';
+import RepoGraph from '../components/RepoGraph';
+import Incorporaciones from '../components/Incorporaciones';
+import IntegrationReview from '../components/IntegrationReview';
+import MergePath from '../components/MergePath';
+import { branchPath } from '../hooks/branches-model.mjs';
+import { demo, Panel } from './decorators';
+import { graph, noop, merge, date } from './fixtures';
+import { within, userEvent } from 'storybook/test';
+
+export default { title: 'Git', parameters: { docs: { description: { component: 'Datos de Git sintéticos. Lecturas y acciones pasan por el mock; no se invoca Git.' } } } };
+export const Repositorio = { render: () => <Panel><Repository {...demo} /></Panel> };
+export const Ramas = { render: () => <Panel><Branches {...demo} /></Panel> };
+export const RamaSeleccionada = { ...Ramas, play: async ({ canvasElement }) => { await userEvent.click(await within(canvasElement).findByRole('button', { name: /feature\/catalogo/ })); } };
+export const Grafo = { render: () => { const [selected, select] = React.useState(null); return <RepoGraph graph={graph} base="main" selected={selected} onSelectCommit={oid => select({ kind: 'commit', oid })} />; } };
+export const Cola = { render: () => <Panel><Incorporaciones {...demo} /></Panel> };
+export const ColaConDatos = { ...Cola, parameters: { host: { overrides: { 'merge.status': () => ({ ...merge, enabled: true, base: { branch: 'main' }, checks: { command: 'node --test' }, queue: [{ id: 'merge-demo', title: 'Catálogo listo para integrar', branch: 'feature/catalogo', status: 'queued', requestedAt: date, fileCount: 2 }, { id: 'conflict-demo', title: 'Revisar conflicto sintético', branch: 'feature/conflicto', status: 'conflict', conflicts: ['src/example.jsx'], requestedAt: date }], history: [{ id: 'merged-demo', title: 'Cambio sintético integrado', branch: 'feature/anterior', status: 'merged', mergedAt: date }] }) } } } };
+export const Revision = { render: () => <IntegrationReview {...demo} item={{ id: 'integration-demo', branch: 'feature/catalogo', status: 'queued', title: 'Catálogo sintético', changes: [] }} base="main" onCard={noop} onTerminal={noop} /> };
+export const Camino = { render: () => <MergePath path={branchPath({ ahead: 1, behind: 0, changes: [], committed: [] }, { base: 'main', checks: 'node --test' })} /> };

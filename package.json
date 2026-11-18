@@ -12,6 +12,10 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "vite build",
+    "storybook": "storybook dev --host 127.0.0.1 --port 6006",
+    "build-storybook": "storybook build",
+    "test:storybook": "node test/storybook-smoke.mjs",
+    "inventory:storybook": "node scripts/storybook-inventory.mjs",
     "start": "electron .",
     "test": "node --test test/*.test.mjs src/hooks/*.test.mjs",
     "test:desktop": "node test/desktop-smoke.mjs",
@@ -34,7 +38,12 @@
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
+    "@storybook/addon-a11y": "10.6.7",
+    "@storybook/addon-docs": "10.6.7",
+    "@storybook/react-vite": "10.6.7",
     "electron": "45.3.0",
+    "storybook": "10.6.7",
+    "typescript": "7.0.2",
     "vite": "^7.3.0"
   },
   "allowScripts": {

@@ -1,0 +1,25 @@
+import React from 'react';
+import Markdown from '../components/Markdown';
+import MarkdownTable from '../components/MarkdownTable';
+import BrowserPanel from '../components/BrowserPanel';
+import ReferencePanel from '../components/References';
+import ResearchReader from '../components/ResearchReader';
+import GlobalSites from '../components/GlobalSites';
+import VideoReview from '../components/VideoReview';
+import { VideoLog } from '../components/VideoLog';
+import { demo, Panel } from './decorators';
+import { markdown, noop, workspace } from './fixtures';
+import { within, userEvent } from 'storybook/test';
+
+const browser = { id: 'browser-demo', type: 'browser', data: { url: 'https://example.invalid', reader: true } };
+const reference = { id: 'reference-demo', type: 'reference', title: 'Fuente sintética', data: { kind: 'link', url: 'https://example.invalid', note: 'Referencia de ejemplo', tags: ['research'] } };
+export default { title: 'Contenido' };
+export const Texto = { render: () => <Markdown source={markdown} /> };
+export const Tabla = { render: () => <MarkdownTable block={{ head: ['Estado', 'Descripción'], rows: [['Listo', 'Contenido sintético'], ['En curso', 'Texto largo para revisar scroll y lectura compacta']], align: [] }} inline={text => text} /> };
+export const Navegador = { render: () => <div className="catalog-page"><p>UI real de BrowserPanel. WebContentsView pertenece a Electron: aquí no hay página nativa ni captura fingida.</p><Panel><BrowserPanel {...demo} node={browser} active={false} /></Panel></div> };
+export const Referencia = { render: () => <Panel><ReferencePanel {...demo} node={reference} comments={[]} onOpenComment={noop} /></Panel> };
+export const Lector = { render: () => <Panel><ResearchReader {...demo} node={browser} nodes={[reference]} workspaceId={workspace.id} browserUrl={reference.data.url} onNavigate={noop} /></Panel> };
+export const Sitios = { render: () => <Panel><GlobalSites {...demo} embedded /></Panel> };
+export const RevisionVideo = { render: () => <Panel><VideoReview {...demo} /></Panel> };
+export const Bitacora = { render: () => <Panel><VideoLog {...demo} /></Panel> };
+export const Aprendizaje = { ...Bitacora, play: async ({ canvasElement }) => { await userEvent.click(await within(canvasElement).findByRole('button', { name: /Conservar la evidencia/ })); } };

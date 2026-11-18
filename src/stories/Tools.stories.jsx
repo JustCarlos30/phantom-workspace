@@ -1,0 +1,27 @@
+import React from 'react';
+import { ToolContent, NativeForm } from '../components/ToolPanels';
+import { PluginPanels } from '../components/PluginPanels';
+import { PluginCenter } from '../components/PluginCenter';
+import Plugins from '../components/Plugins';
+import CommandCenter from '../components/CommandCenter';
+import ToolOutput from '../components/ToolOutput';
+import { demo, Panel } from './decorators';
+
+export default { title: 'Herramientas' };
+export const CentroDeMando = { render: () => <Panel><CommandCenter {...demo} /></Panel> };
+export const CentroCargando = { ...CentroDeMando, parameters: { host: { scenario: 'loading' } } };
+export const CentroVacio = { ...CentroDeMando, parameters: { host: { scenario: 'empty' } } };
+export const CentroError = { ...CentroDeMando, parameters: { host: { scenario: 'error' } } };
+export const PluginsCentro = { render: () => <Panel><PluginCenter {...demo} /></Panel> };
+export const PluginsCompatibilidad = { render: () => <Panel><Plugins {...demo} /></Panel> };
+export const PluginPanel = { render: () => <Panel><PluginPanels {...demo} type="phantom-cards" /></Panel> };
+export const Trabajo = { render: () => <Panel><ToolContent {...demo} type="tasks" /></Panel> };
+export const Borradores = { render: () => <Panel><NativeForm {...demo} /></Panel> };
+export const Misiones = { render: () => <Panel><ToolContent {...demo} type="mission" /></Panel> };
+export const Procesos = { render: () => <Panel><ToolContent {...demo} type="processes" /></Panel> };
+export const Servicios = { render: () => <Panel><ToolContent {...demo} type="services" bare /></Panel> };
+export const Docker = { render: () => <Panel><ToolContent {...demo} type="docker" /></Panel> };
+export const Secuencias = { render: () => <Panel><ToolContent {...demo} type="workflows" bare /></Panel> };
+export const NavegadorAutomatico = { render: () => <Panel><ToolContent {...demo} type="playwright" /></Panel> };
+export const Codigo = { render: () => <Panel><ToolContent {...demo} type="playground" /></Panel> };
+export const Salida = { render: () => <ToolOutput kind="bash" part={{ type: 'tool', name: 'bash', status: 'completed', output: 'Salida sintética\nSin ejecución real', input: { command: 'ejemplo' } }} /> };

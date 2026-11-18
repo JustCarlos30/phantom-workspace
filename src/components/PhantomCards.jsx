@@ -48,7 +48,7 @@ function CardForm({ existing, workspace, api, notify, onSaved, onClose }) {
       <div className="pc-form-group"><h4>Checks de aceptación</h4><p className="tw-muted">Comandos reales tal como los escribirías en una terminal; las comillas agrupan palabras y no se expande nada. No se ejecutan al guardar.</p>
         {form.checks.map((check, index) => <div className="plugin-check pc-check-edit" key={index}>
           <Field label={`Nombre del check ${index + 1}`}><input required value={check.name} onChange={e => patch('checks', form.checks.map((item, i) => i === index ? { ...item, name: e.target.value } : item))} /></Field>
-          <Field label={`Comando del check ${index + 1}`}><input className="pc-mono" required value={check.argv} placeholder="node --test test/ejemplo.test.mjs" onChange={e => patch('checks', form.checks.map((item, i) => i === index ? { ...item, argv: e.target.value } : item))} /></Field>
+          <Field label={`Comando del check ${index + 1}`}><input className="pc-mono" required value={check.argv} placeholder="npm test" onChange={e => patch('checks', form.checks.map((item, i) => i === index ? { ...item, argv: e.target.value } : item))} /></Field>
           <Button disabled={form.checks.length === 1} onClick={() => patch('checks', form.checks.filter((_, i) => i !== index))}>Quitar check {index + 1}</Button>
         </div>)}
         <Button icon={Plus} onClick={() => patch('checks', [...form.checks, { name: '', argv: '' }])}>Añadir check</Button></div>

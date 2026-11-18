@@ -1,0 +1,17 @@
+services:
+  storybook:
+    build:
+      context: .
+      dockerfile: Dockerfile.storybook
+    ports:
+      - target: 80
+        published: "6006"
+        host_ip: 127.0.0.1
+        protocol: tcp
+        app_protocol: http
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

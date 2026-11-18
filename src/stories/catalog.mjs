@@ -1,0 +1,34 @@
+const groups = {
+  Primitivas: [
+    ['EmptyState', 'Panel', '.empty-state'], ['CopyButton', 'Controles', '.md-copy'], ['PluginPrimitives', 'Controles', '.st-switch'], ['Presence', 'Presencia', '.empty-state', 'Composición con Presence y PresenceGroup; providers de transición sin DOM propio.'],
+  ],
+  Identidad: [['AgentIdentity', 'Agente', '.agent-identity'], ['Glyphs', 'Marcas', '#storybook-root svg'], ['ShellIcons', 'Iconos', '#storybook-root svg'], ['GengarMascot', 'Mascota', '.gengar-mascot']],
+  Navegación: [['Canvas', 'Lienzo', '.canvas-node'], ['Minimap', 'Minimapa', '.canvas-minimap'], ['Spaces', 'Espacios', '#storybook-root button'], ['ProjectSwitcher', 'Proyectos', '#storybook-root button'], ['SidebarPanels', 'Paneles', '.rail-panels'], ['ToolPicker', 'Herramientas', '.tool-picker'], ['CommandPalette', 'Comandos', '.tw-palette'], ['Inspector', 'InspectorContextual', '.tw-inspector']],
+  Actividad: [['ActivityNotch', 'Resumen', '.activity-notch'], ['ActivityTrace', 'Trazas', '.activity-trace']],
+  Conversaciones: [['TerminalPanel', 'Terminal', '.xterm-rows', 'Motor xterm real; snapshot y callbacks sintéticos, sin PTY.'], ['TerminalCard', 'TarjetaTerminal', '.pt-card'], ['ChatCard', 'Chat', '.pc-thread'], ['PhantomChat', 'Dock', '.phantom-chat'], ['PhantomOrchestrator', 'Orquestador', '.pd-orchestrator']],
+  Herramientas: [['ToolPanels', 'Codigo', '.tw-content', 'Composiciones adicionales: Trabajo, Misiones, Procesos, Servicios, Docker, Secuencias, NavegadorAutomatico, Borradores.'], ['PluginPanels', 'PluginPanel', '.plugin-cards'], ['PluginCenter', 'PluginsCentro', '.st'], ['Plugins', 'PluginsCompatibilidad', '.st'], ['CommandCenter', 'CentroDeMando', '.cc-task'], ['ToolOutput', 'Salida', '.tv']],
+  Phantom: [['PhantomCards', 'Cards', '.plugin-cards'], ['PhantomSkills', 'Skills', '.plugin-skills'], ['SkillsCatalog', 'CatalogoSkills', '.sk-root'], ['PhantomConvencions', 'Convenciones', '.convencions', 'Contrato de lectura validado con convenciones sintéticas; no declara normas del proyecto real.'], ['MemoryCard', 'Memoria', '.mem-card'], ['SkillsMarkdown', 'MarkdownSkills', '#storybook-root table']],
+  Git: [['Repository', 'Repositorio', '.rp-root'], ['Branches', 'Ramas', '.br-root'], ['RepoGraph', 'Grafo', '.rp-graph-row'], ['Incorporaciones', 'Cola', '.inc'], ['IntegrationReview', 'Revision', '.inc-review'], ['MergePath', 'Camino', '.mp']],
+  Contenido: [['Markdown', 'Texto', '#storybook-root table'], ['MarkdownTable', 'Tabla', '#storybook-root table'], ['BrowserPanel', 'Navegador', '.browser-panel', 'Solo chrome DOM real; WebContentsView y captura nativa requieren Electron.'], ['References', 'Referencia', '.reference'], ['ResearchReader', 'Lector', '.research-reader'], ['GlobalSites', 'Sitios', '.global-sites'], ['VideoReview', 'RevisionVideo', '.vr', 'UI de selección real; sin render audiovisual verificado en la fixture.'], ['VideoLog', 'Bitacora', '.video-log']],
+  Ajustes: [['Settings', 'Configuracion', '.st'], ['Appearance', 'Apariencia', '.st-appearance'], ['MobileSettings', 'Movil', '.st-group'], ['AndroidGatewaySettings', 'Android', '.st-group'], ['MobileApp', 'ClienteMovil', '.mobile-pair', 'Formulario real de vinculación. Session y Question privados requieren credenciales y firma del gateway; no se declara cobertura de esos estados.'], ['PhoneQr', 'CodigoQr', '#storybook-root svg']],
+  Voz: [['VoiceActivity', 'Indicador', '.voice-activity'], ['VoiceCapture', 'Captura', '.tw-voice'], ['VoiceDictation', 'Dictado', '.voice-dialog'], ['VoiceProvider', 'Lanzador', '.voice-launcher', 'Provider real en el decorador global; launcher real. getUserMedia bloqueado antes de permisos.']],
+  Fondos: [['AsciiField', 'Ascii', '.ascii-field'], ['PixelField', 'Pixeles', 'canvas']],
+};
+export const slug = value => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+export const storyId = (family, name) => `${slug(family)}--${name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}`;
+export const catalog = Object.entries(groups).flatMap(([family, rows]) => rows.map(([name, scenario, selector, limitation = '']) => ({ source: `src/components/${name}.jsx`, family, scenario, story: storyId(family, scenario), selector, status: 'renderizado', limitation })));
+export const exclusions = [
+  { source: '.storybook/preview.jsx', family: 'Catálogo', status: 'configuración no visual', limitation: 'Carga estilos y decoradores del catálogo; no es un componente de producto.' },
+  { source: 'scripts/remotion-template/Root.tsx', family: 'Plantillas', status: 'plantilla externa', limitation: 'Registro Remotion generado para proyectos de video; requiere runtime Remotion ajeno al renderer de Workspace.' },
+  { source: 'scripts/remotion-template/Storyboard.tsx', family: 'Plantillas', status: 'plantilla externa', limitation: 'Composición Remotion con frames y assets del proyecto de video generado. No es una superficie de Workspace; VideoReview muestra su selector real.' },
+  { source: 'src/App.jsx', family: 'Aplicación', status: 'integración excluida', limitation: 'App inicia useWorkspace y el ciclo de persistencia del escritorio. WorkspaceUI es privado y depende de ese modelo. Se inventarían sus símbolos, sin montar App; Canvas, Inspector, Settings y dock tienen composiciones reales independientes.' },
+  { source: 'src/main.jsx', family: 'Entrada', status: 'bootstrap no visual', limitation: 'createRoot monta App o MobileApp por ubicación; importarlo arrancaría la aplicación. MobileApp tiene una story directa.' },
+];
+export const opportunities = [
+  { priority: 'P1', title: 'Consolidar primitivas duplicadas', detail: 'Button, Field, ErrorNotice, DataView y ResourceState de ToolPanels/PluginPrimitives: comparar contratos y migrar por separado; conservar retry, errores y accesibilidad.' },
+  { priority: 'P1', title: 'Unificar CopyButton', detail: 'CopyButton.jsx recibe text; PluginPrimitives recibe value. Acordar una API y feedback accesible antes de migrar.' },
+  { priority: 'P1', title: 'Extraer composiciones privadas complejas', detail: 'ChatCard, Canvas, Repository y ToolPanels: publicar límites testeables para estados privados. El inventario AST no equivale a cobertura de cada rama.' },
+  { priority: 'P2', title: 'Estados y lectura compacta', detail: 'Comparar loading/error/empty de plugins y herramientas; revisar targets, truncado y teclado con datos largos.' },
+  { priority: 'P2', title: 'Auditoría de accesibilidad', detail: 'El addon muestra resultados por escenario. Resolver incidencias observadas antes de declarar conformidad AA.' },
+  { priority: 'P3', title: 'Pruebas nativas complementarias', detail: 'WebContentsView, audio real, render de video y cliente móvil autenticado necesitan suites de integración; no se sustituyen con éxito simulado.' },
+];
