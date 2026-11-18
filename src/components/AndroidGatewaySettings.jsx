@@ -8,7 +8,8 @@ import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowle
 function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run, api }) {
   const [selection, setSelection] = useState(() => selectionFromGrants(device, workspaces));
   const [dirty, setDirty] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(null);
-  useEffect(() => { if (!dirty) setSelection(selectionFromGrants(device, workspaces)); }, [device, workspaces, dirty]);
+  // El reconocimiento ya dado se conserva aunque el gateway no lo devuelva en el estado del dispositivo.
+  useEffect(() => { if (!dirty) setSelection(prev => { const next = selectionFromGrants(device, workspaces); return { ...next, acknowledgeAgentAuthority: next.acknowledgeAgentAuthority || prev.acknowledgeAgentAuthority }; }); }, [device, workspaces, dirty]);
   const edit = next => { setSelection(next); setDirty(true); setSaved(null); setError(''); };
   const checkbox = (workspaceId, nodeId, capability, label) => {
     const capabilities = selection.grants.find(grant => grant.workspaceId === workspaceId && grant.nodeId === nodeId)?.capabilities ?? [];
@@ -28,6 +29,7 @@ function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run,
       const updated = result.status.devices.find(item => item.id === device.id);
       if (updated) {
         const next = selectionFromGrants(updated, result.status.workspaces);
+        next.acknowledgeAgentAuthority = next.acknowledgeAgentAuthority || selection.acknowledgeAgentAuthority;
         setSelection(next); setDirty(false); setSaved(new Set(next.grants.map(grant => grant.workspaceId)).size);
       } else setError('El dispositivo ya no está disponible.');
     }
