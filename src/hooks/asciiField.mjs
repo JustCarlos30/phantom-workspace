@@ -1,4 +1,4 @@
-export const GLYPHS = "_-~,.'/\\():oO@uvw{}S$%&|!;";
+export const GLYPHS = "_-~,.'/\\():uvw{}S$%&|!;=+";
 export const OCEAN_COLORS = ['#090c12', '#0c1118', '#10171a'];
 export const SHADES = 24;
 export const CREATURE_SCHEMES = [
@@ -87,39 +87,62 @@ export function renderFrame(creatures, t, { cols, rows }) {
         shade[cell] = Math.round(Math.max(0, Math.min(1, (ny + height) / (3.2 + height))) * (SHADES - 1));
         level[cell] = brightness;
       };
-      const strands = 9;
+      const anatomy = creature.hue * Math.PI * 2;
+      const strands = 7 + 2 * Math.floor(scale / 3);
       for (let i = 0; i < strands; i++) {
-        const length = 2.6 + .6 * (.5 + .5 * Math.sin(i * 2));
-        for (let ny = .1; ny <= length; ny += 1 / scale) {
-          const wave = ny * 3.5 - t * 1.2 - phase + i * .8;
-          const amplitude = .045 + ny * .045;
-          const nx = (i - 4) * radius * .22 + amplitude * Math.sin(wave);
-          const slope = .045 * Math.sin(wave) + amplitude * 3.5 * Math.cos(wave);
+        const root = (i / (strands - 1) * 2 - 1) * radius * .94;
+        const length = 2.7 + .85 * (.5 + .5 * Math.sin(i * 2.3 + anatomy));
+        const frequency = 2.8 + .5 * Math.sin(i + anatomy);
+        for (let ny = .05; ny <= length; ny += .5 / scale) {
+          const progress = ny / length;
+          const wave = ny * frequency - t * 1.2 - phase + i * .8;
+          const amplitude = .025 + ny * .055;
+          const nx = root * (1 - .12 * progress) + amplitude * Math.sin(wave);
+          const slope = -root * .12 / length + .055 * Math.sin(wave) + amplitude * frequency * Math.cos(wave);
           let char = Math.abs(slope) < .13 ? '|' : slope > 0 ? '\\' : '/';
           if (Math.abs(slope) < .045 && ny > .6) char = Math.sin(wave) > 0 ? ')' : '(';
-          if (ny > length * .7) char = "!;:'."[Math.min(4, Math.floor((ny / length - .7) / .3 * 5))];
-          put(nx, ny, char, Math.max(1, Math.round(7 * (1 - ny / length))));
+          if (progress > .65) char = "!;:'."[Math.min(4, Math.floor((progress - .65) / .35 * 5))];
+          put(nx, ny, char, Math.max(1, Math.round(7 * (1 - progress))));
         }
       }
-      for (let arm = -1; arm <= 1; arm++) {
-        for (let ny = .1; ny < 1.65; ny += 1 / scale) {
-          const wave = ny * 10 - t * .9 - phase + arm;
-          const nx = arm * .17 + .09 * Math.sin(wave);
-          put(nx, ny, '{}S$%&'[Math.floor((ny * scale + (arm + 1) * 2)) % 6], 6);
+      for (let arm = 0; arm < 4; arm++) {
+        const length = 1.8 + .5 * (.5 + .5 * Math.sin(arm * 2 + anatomy));
+        for (let ny = .1; ny < length; ny += .5 / scale) {
+          const progress = ny / length;
+          const wave = ny * (8 + Math.sin(arm + anatomy)) - t * .9 - phase + arm * 1.7;
+          const curl = (.08 + .035 * Math.sin(ny * 3 + anatomy)) * (1 - .5 * progress);
+          const nx = (arm - 1.5) * .19 * (1 + .18 * ny) + curl * Math.sin(wave);
+          const fringe = .035 * (1 - progress) * (1 + Math.cos(wave));
+          const brightness = Math.max(2, Math.round(7 - 5 * progress));
+          put(nx - fringe, ny, progress > .8 ? ';' : '{(S%'[Math.floor(ny * scale + arm) % 4], brightness);
+          put(nx + fringe, ny, progress > .8 ? ':' : '})&~'[Math.floor(ny * scale + arm) % 4], brightness);
         }
       }
-      for (let rib = -2; rib <= 2; rib++) {
-        for (let ny = -height + .2; ny < -.12; ny += 1 / scale) {
-          const nx = rib * .28 * radius * (1 + ny / height);
-          put(nx, ny, ":.'"[Math.abs(Math.round(ny * scale) + rib) % 3], 4);
+      for (let row = Math.ceil(y - height * scale); row < y; row++) {
+        const ny = (row - y) / scale;
+        const v = -ny / height;
+        const section = Math.sqrt(Math.max(0, 1 - v * v));
+        for (let col = Math.ceil(x - radius * section * scale * 2); col <= Math.floor(x + radius * section * scale * 2); col++) {
+          const nx = (col - x) / (scale * 2);
+          const u = nx / radius;
+          const volume = Math.sqrt(Math.max(0, 1 - u * u - v * v));
+          const light = Math.max(0, Math.min(1, .25 + .55 * volume - .22 * u + .18 * v));
+          let ribDistance = Infinity;
+          for (let rib = -3; rib <= 3; rib++) {
+            const meridian = Math.sin(rib * Math.PI / 8 + .025 * Math.sin(v * 5 + anatomy)) * section;
+            ribDistance = Math.min(ribDistance, Math.abs(u - meridian) * radius * scale * 2);
+          }
+          const texture = Math.abs(Math.sin((col - Math.round(x)) * 12.9898 + (row - Math.round(y)) * 78.233 + anatomy));
+          const rib = ribDistance < .48;
+          if (!rib && texture > .96) continue;
+          const brightness = rib ? Math.round(5 + 2 * light) : Math.round(2 + 3 * light);
+          const char = rib ? (u < -.1 ? '/' : u > .1 ? '\\' : ':')
+            : ".,:;=+"[Math.min(5, Math.floor(light * 4 + texture * 2))];
+          put(nx, ny, char, brightness);
         }
-      }
-      for (let i = 0; i < 4; i++) {
-        const angle = Math.PI / 4 + i * Math.PI / 2;
-        put(Math.cos(angle) * .36 * radius, -.4 + Math.sin(angle) * .16, 'oO@o'[i], 9);
       }
       for (let nx = -radius; nx <= radius; nx += .5 / scale) {
-        const ny = -.025 + .045 * Math.cos(nx / radius * (12 + pulse * 10));
+        const ny = .025 + .075 * Math.cos(nx / radius * Math.PI * 8 + .2 * Math.sin(anatomy));
         put(nx, ny, 'uvw~'[Math.abs(Math.round(nx * scale * (1 + pulse))) % 4], 9);
       }
       for (let angle = 0; angle <= Math.PI; angle += 1 / (scale * 3)) {

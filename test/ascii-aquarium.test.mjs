@@ -56,15 +56,38 @@ test('medusa has anatomical brightness and spatially varied shades', () => {
   assert.ok(new Set(painted).size >= 8);
   const glyphs = new Set([...frame.chars.join('')].filter(char => char !== ' '));
   assert.ok(glyphs.size >= 8);
-  const text = frame.chars.join('');
-  [...text].forEach((char, cell) => {
-    if ('oO@'.includes(char)) assert.equal(frame.level[cell], 9);
-    if ('{}S$%&'.includes(char)) assert.equal(frame.level[cell], 6);
-  });
+  assert.doesNotMatch(frame.chars.join(''), /[oO@]/);
+  assert.ok(frame.level.every((level, cell) => frame.tint[cell] ? level >= 1 && level <= 9 : level === 0));
+  const arms = frame.chars.slice(42, 58).join('');
+  assert.match(arms, /[{}S%&]/);
+  assert.match(arms, /[\/\\|]/);
   const tips = [...frame.level].filter((_, cell) => Math.floor(cell / detailedArea.cols) > 65 && frame.tint[cell]);
   assert.ok(tips.length > 0 && tips.every(level => level <= 3));
   assert.ok(frame.chars[0].trim().length === 0 && frame.chars.at(-1).trim().length === 0);
   assert.ok(frame.chars.slice(61).some(row => row.trim().length > 0));
+});
+
+test('bell interior is filled, translucent and shaded through contraction', () => {
+  for (const scale of [6, 10]) for (const phase of [0, Math.PI]) {
+    const creature = { ...detailedCreature, scale, phase };
+    const frame = renderFrame([creature], 0, detailedArea);
+    const radius = phase === 0 ? .8 : 1.08;
+    const height = phase === 0 ? 1.07 : .95;
+    const interior = [];
+    for (let row = 0; row < detailedArea.rows; row++) for (let col = 0; col < detailedArea.cols; col++) {
+      const u = (col - creature.x) / (scale * 2 * radius);
+      const v = (creature.y - row) / (scale * height);
+      if (v > .2 && v < .75 && u * u + v * v < .75 ** 2) {
+        interior.push(frame.level[row * detailedArea.cols + col]);
+      }
+    }
+    const filled = interior.filter(level => level > 0);
+    assert.ok(filled.length / interior.length > .65, `bell fill at scale ${scale}, phase ${phase}`);
+    assert.ok(interior.includes(0), 'bell keeps gaps between its filaments');
+    assert.ok(filled.some(level => level <= 4), 'soft tissue remains dimmer');
+    assert.ok(filled.some(level => level >= 6), 'nervures catch the light');
+    assert.ok(new Set(filled).size >= 3, 'interior has volume rather than uniform brightness');
+  }
 });
 
 test('near medusas overlay distant ones while tint retains original indices', () => {
