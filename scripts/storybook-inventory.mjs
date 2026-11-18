@@ -46,12 +46,14 @@ export async function productionStyles() {
   await visit('src/App.jsx');
   return styles;
 }
-export async function repositoryFiles(directory = root) {
+export async function repositoryFiles(directory = root, inventoryRoot = directory) {
   const files = [];
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  if (directory !== inventoryRoot && entries.some(entry => entry.name === '.git' && (entry.isFile() || entry.isDirectory()))) return files;
+  for (const entry of entries) {
     if (ignored.has(entry.name)) continue;
     const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await repositoryFiles(path));
+    if (entry.isDirectory()) files.push(...await repositoryFiles(path, inventoryRoot));
     else if (entry.isFile()) files.push(relative(root, path));
   }
   return files.sort();

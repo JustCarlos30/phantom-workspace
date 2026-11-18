@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateInventory, analyzeSource, inspectRepository, productionStyles } from '../scripts/storybook-inventory.mjs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { validateInventory, analyzeSource, inspectRepository, productionStyles, repositoryFiles } from '../scripts/storybook-inventory.mjs';
 import { createHost } from '../src/stories/host-mock.js';
 
 test('el inventario detecta fuentes sin registrar y enlaces inexistentes', () => {
@@ -17,6 +21,27 @@ test('detecta duplicados y cobertura declarada sin escenario', () => {
   const errors = validateInventory(['A.jsx'], [{ source: 'A.jsx', status: 'renderizado' }, { source: 'A.jsx', story: 'a--real' }], ['a--real']);
   assert.ok(errors.some(e => e.includes('duplicada')));
   assert.ok(errors.some(e => e.includes('sin escenario')));
+});
+
+test('el inventario conserva fuentes propias y excluye repositorios y worktrees anidados', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'storybook-inventory-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(join(directory, '.git'));
+  await mkdir(join(directory, 'src'));
+  await writeFile(join(directory, 'src', 'Propio.jsx'), 'export const Propio = () => <div />;');
+  const nested = join(directory, '.claude', 'worktrees');
+  await mkdir(join(nested, 'worktree', 'src'), { recursive: true });
+  await writeFile(join(nested, 'worktree', '.git'), 'gitdir: /otro/repositorio/worktrees/copia\n');
+  await writeFile(join(nested, 'worktree', 'src', 'Duplicado.jsx'), 'export const Duplicado = () => <div />;');
+  await mkdir(join(nested, 'repo', '.git'), { recursive: true });
+  await writeFile(join(nested, 'repo', 'Otro.jsx'), 'export const Otro = () => <div />;');
+  await mkdir(join(directory, 'node_modules'));
+  await writeFile(join(directory, 'node_modules', 'Dependencia.jsx'), 'export const Dependencia = () => <div />;');
+
+  const files = await repositoryFiles(directory);
+  const ownSource = relative(fileURLToPath(new URL('../', import.meta.url)), join(directory, 'src', 'Propio.jsx'));
+  assert.deepEqual(files, [ownSource]);
+  assert.ok(validateInventory(files, [], []).some(error => error.includes('Propio.jsx')));
 });
 
 test('AST distingue componentes privados, exports y registros sin confundir comentarios', () => {
