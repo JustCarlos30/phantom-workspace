@@ -95,6 +95,10 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base', d
     const streaming = path.join(engine, 'voice-stream.py');
     await copyFile(new URL('./voice-stream.py', import.meta.url), streaming, constants.COPYFILE_EXCL);
     await chmod(streaming, 0o600);
+    // Sibling helper the streaming worker imports.
+    const helper = path.join(engine, 'voice_text.py');
+    await copyFile(new URL('./voice_text.py', import.meta.url), helper, constants.COPYFILE_EXCL);
+    await chmod(helper, 0o600);
     const hardwareArgs = ['--device', device, '--compute-type', computeType];
     const prepared = await execute(venvPython, ['-I', runner, '--prepare', '--model', model, '--cache-dir', path.join(engine, 'cache', 'hub'), ...hardwareArgs], 300_000);
     const provenance = JSON.parse(prepared.trim().split('\n').at(-1));

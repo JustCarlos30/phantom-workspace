@@ -5,6 +5,7 @@ import { Appearance } from './Appearance';
 import MobileSettings from './MobileSettings.jsx';
 import AndroidGatewaySettings from './AndroidGatewaySettings.jsx';
 import { preferredCardMode } from './ChatCard';
+import { suggestCorrections, parseCorrectionLines, addCorrectionLine } from '../hooks/voice-send.mjs';
 import { CopyButton, Group, Row, Segmented, Switch, TextRow, useOperation, useResource } from './PluginPrimitives';
 
 // Configuración: one screen, categories on the left, grouped rows on the right.
@@ -122,11 +123,21 @@ function GitSettings({ workspace, api, notify }) {
 
 function VoiceSettings({ settings, saveSettings, notify }) {
   const command = typeof settings.localWhisperCommand === 'string' ? settings.localWhisperCommand : settings.localWhisperCommand ? JSON.stringify(settings.localWhisperCommand) : '';
-  const form = useDraft({ voiceModel: settings.voiceModel || '', voiceBaseURL: settings.voiceBaseURL || '', localWhisperCommand: command, voiceVocabulary: settings.voiceVocabulary || '', voicePauseMs: String(settings.voicePauseMs ?? 700), voiceVadThreshold: String(settings.voiceVadThreshold ?? 0.5) });
+  const form = useDraft({ voiceModel: settings.voiceModel || '', voiceBaseURL: settings.voiceBaseURL || '', localWhisperCommand: command, voiceVocabulary: settings.voiceVocabulary || '', voiceProfile: settings.voiceProfile || '', voiceCorrections: settings.voiceCorrections || '', voicePauseMs: String(settings.voicePauseMs ?? 500), voiceVadThreshold: String(settings.voiceVadThreshold ?? 0.5) });
   const op = useOperation(notify), commandId = useId();
+  const [learn, setLearn] = useState({ dictated: '', edited: '' });
+  const suggestions = suggestCorrections(learn.dictated, learn.edited, parseCorrectionLines(form.draft.voiceCorrections));
   const provider = ['auto', 'local', 'openai'].includes(settings.voiceProvider) ? settings.voiceProvider : 'auto';
   const save = () => op.run(async () => {
-    const patch = Object.fromEntries(form.dirty.map(key => [key, form.draft[key].trim()]));
+    const patch = Object.fromEntries(form.dirty.map(key => [key, form.draft[key].replace(/\r\n?/g, '\n').trim()]));
+    if (patch.voiceProfile !== undefined && (patch.voiceProfile.length > 400 || /\p{Cc}/u.test(patch.voiceProfile))) throw new Error('Perfil inválido: máximo 400 caracteres sin controles');
+    if (patch.voiceCorrections !== undefined) {
+      if (patch.voiceCorrections.length > 4000 || /[^\P{Cc}\n]/u.test(patch.voiceCorrections)) throw new Error('Correcciones inválidas: máximo 4000 caracteres');
+      const lines = parseCorrectionLines(patch.voiceCorrections);
+      if (lines.length > 100) throw new Error('Máximo 100 correcciones');
+      const bad = lines.findIndex(line => !line.heard || !line.meant || line.heard.length > 80 || line.meant.length > 200);
+      if (bad >= 0) throw new Error(`Corrección ${bad + 1} inválida: usa «oído => intención»`);
+    }
     if (patch.voiceVocabulary !== undefined && (patch.voiceVocabulary.length > 500 || /\p{Cc}/u.test(patch.voiceVocabulary))) throw new Error('Vocabulario inválido: máximo 500 caracteres sin controles');
     if (patch.voicePauseMs !== undefined) {
       patch.voicePauseMs = Number(patch.voicePauseMs);
@@ -148,6 +159,20 @@ function VoiceSettings({ settings, saveSettings, notify }) {
       <Row label="Vocabulario" htmlFor={`${commandId}-vocabulary`} hint={<span id={`${commandId}-vocabulary-hint`}>Nombres de proyectos y términos (máximo 500 caracteres)</span>}>
         <input id={`${commandId}-vocabulary`} aria-describedby={`${commandId}-vocabulary-hint`} className="st-input" type="text" spellCheck={false} value={form.draft.voiceVocabulary} onChange={event => form.set('voiceVocabulary')(event.target.value)} placeholder="Nombres y términos" />
       </Row>
+      <Row label="Muletillas" htmlFor={`${commandId}-fillers`} hint="Corregir con Claude arregla por contexto las palabras mal oídas (divulgar → divagar) mientras dictas; envía el texto a Anthropic y necesita ANTHROPIC_API_KEY. Sin llave solo quita titubeos."><select id={`${commandId}-fillers`} className="st-select" value={settings.voiceFillers ?? 'clean'} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceFillers: event.target.value }))}><option value="keep">Conservar</option><option value="remove">Quitar</option><option value="clean">Corregir con Claude</option></select></Row>
+      <Row label="Perfil de habla" htmlFor={`${commandId}-profile`} hint={<span id={`${commandId}-profile-hint`}>Frase de ejemplo con tu forma de hablar; Whisper imita su estilo. Vacío usa el perfil mexicano integrado (máximo 400 caracteres).</span>} stack>
+        <textarea id={`${commandId}-profile`} aria-describedby={`${commandId}-profile-hint`} className="st-input" rows={3} spellCheck={false} value={form.draft.voiceProfile} onChange={event => form.set('voiceProfile')(event.target.value)} placeholder="Pues, o sea, wey, neta, está chido… makeup, deploy, commit." />
+      </Row>
+      <Row label="Correcciones personales" htmlFor={`${commandId}-corrections`} hint={<span id={`${commandId}-corrections-hint`}>Una por línea: «lo que oye => lo que quise decir». Ejemplo: meikap => makeup</span>} stack>
+        <textarea id={`${commandId}-corrections`} aria-describedby={`${commandId}-corrections-hint`} className="st-input is-mono" rows={5} spellCheck={false} value={form.draft.voiceCorrections} onChange={event => form.set('voiceCorrections')(event.target.value)} placeholder={'meikap => makeup\nguey => wey'} />
+      </Row>
+      <Details>
+        <Row label="Aprender de una corrección" hint="Pega lo que dictaste y cómo lo dejaste; se proponen correcciones de palabras mal oídas." stack>
+          <textarea aria-label="Texto dictado" className="st-input" rows={2} value={learn.dictated} onChange={event => setLearn(previous => ({ ...previous, dictated: event.target.value }))} placeholder="Texto tal como se dictó" />
+          <textarea aria-label="Texto corregido" className="st-input" rows={2} value={learn.edited} onChange={event => setLearn(previous => ({ ...previous, edited: event.target.value }))} placeholder="Texto como lo corregiste" />
+          {suggestions.map(item => <div key={item.heard}><code>{item.heard} =&gt; {item.meant}</code> <button type="button" className="st-btn" onClick={() => form.set('voiceCorrections')(addCorrectionLine(form.draft.voiceCorrections, item))}>Agregar</button></div>)}
+        </Row>
+      </Details>
       <Row label="Interpretar comandos con" htmlFor={`${commandId}-intent`}><select id={`${commandId}-intent`} className="st-select" value={settings.voiceIntentProvider ?? 'rules'} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceIntentProvider: event.target.value }))}><option value="rules">Reglas locales</option><option value="claude">Claude</option></select></Row>
       <Row label="Proveedor" htmlFor={`${commandId}-provider`}><select id={`${commandId}-provider`} className="st-select" value={provider} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceProvider: event.target.value }))}><option value="auto">Automático</option><option value="local">En este equipo</option><option value="openai">API compatible con OpenAI</option></select></Row>
       <TextRow label="Modelo" value={form.draft.voiceModel} onChange={form.set('voiceModel')} placeholder="Automático" mono />
@@ -161,7 +186,7 @@ function VoiceSettings({ settings, saveSettings, notify }) {
     </Group>
     <Problem error={op.error} /><SaveBar form={form} busy={op.busy} />
     <Group title="Motor de voz en este equipo">
-      <Row label="Instalar o actualizar" hint="Ejecútalo en la carpeta de Phantom Workspace"><code className="st-command">npm run setup:voice</code><CopyButton value="npm run setup:voice" /></Row>
+      <Row label="Instalar o actualizar" hint="Ejecútalo en la carpeta de Phantom Workspace. Para el español mexicano con jerga se recomienda large-v3-turbo en GPU."><code className="st-command">npm run setup:voice -- --model large-v3-turbo --device cuda --replace</code><CopyButton value="npm run setup:voice -- --model large-v3-turbo --device cuda --replace" /></Row>
     </Group>
   </form>;
 }

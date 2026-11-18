@@ -2,6 +2,7 @@
 import argparse
 import base64
 import json
+import os
 import re
 import sys
 import time
@@ -10,23 +11,31 @@ import numpy as np
 from faster_whisper import WhisperModel
 from faster_whisper.vad import VadOptions, get_speech_timestamps
 
+# Load the sibling helper even when this file is imported by path, not run as a script.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import voice_text  # noqa: E402
+
 RATE = 16000
-PAUSE_MS = 700
+PAUSE_MS = 500
 SPEECH_PAD_MS = 100
 VAD_THRESHOLD = 0.5
-CONTEXT_CHARS = 200
-PARTIAL_BEAM_SIZE = 2
+CONTEXT_CHARS = voice_text.CONTEXT_CHARS
+# Partials are re-decoded every push and replaced on confirmation: favour speed.
+PARTIAL_BEAM_SIZE = 1
 CONFIRMED_BEAM_SIZE = 5
-STABLE_SECONDS = 15
+STABLE_SECONDS = 10
 MAX_SECONDS = 25
 STABLE_TAIL_SECONDS = 2
 MAX_TEXT = 32768
-TECHNICAL_PROMPT = "Dictado técnico en español con términos en inglés: Phantom, OpenCode, Git, worktree, endpoint, API, terminal."
 
 
 class Dictation:
-    def __init__(self, model, language="es", vocabulary="", pause_ms=PAUSE_MS, vad_threshold=VAD_THRESHOLD):
+    def __init__(self, model, language="es", vocabulary="", pause_ms=PAUSE_MS, vad_threshold=VAD_THRESHOLD,
+                 profile="", corrections=None, fillers="keep"):
         self.model = model
+        self.profile = profile
+        self.corrections = corrections or {}
+        self.fillers = fillers
         self.language = None if language == "auto" else language
         self.vocabulary = vocabulary
         self.pause_ms = pause_ms
@@ -55,7 +64,7 @@ class Dictation:
                 context = context[start + 1:] if start >= 0 else ""
             segments = list(self.model.transcribe(self.audio, language=self.language, beam_size=CONFIRMED_BEAM_SIZE if ended else PARTIAL_BEAM_SIZE,
                 condition_on_previous_text=False, vad_filter=True, vad_parameters=options,
-                initial_prompt=" ".join(filter(None, (TECHNICAL_PROMPT, self.vocabulary, context))))[0])
+                initial_prompt=voice_text.build_prompt(self.profile, self.vocabulary, context))[0])
             self.partial = " ".join(s.text.strip() for s in segments).strip()
             if ended:
                 self.confirmed = " ".join(filter(None, (self.confirmed, self.partial)))
@@ -77,10 +86,14 @@ class Dictation:
             self.audio = self.audio[-RATE:]
         if final:
             self.audio = np.zeros(0, dtype=np.float32)
-        text = " ".join(filter(None, (self.confirmed, self.partial)))
+        # Raw ASR text stays untouched in self.confirmed (it feeds the next prompt);
+        # corrections and filler removal apply only to what the user sees.
+        confirmed = voice_text.postprocess(self.confirmed, self.corrections, self.fillers)
+        partial = voice_text.postprocess(self.partial, self.corrections, self.fillers)
+        text = " ".join(filter(None, (confirmed, partial)))
         if len(text) > MAX_TEXT:
             raise ValueError("Transcript exceeds 32768 characters")
-        return {"text": text, "confirmed": self.confirmed, "partial": self.partial,
+        return {"text": text, "confirmed": confirmed, "partial": partial,
                 "inferenceMs": round((time.monotonic() - started) * 1000)}
 
 
@@ -93,6 +106,9 @@ def main():
     parser.add_argument("--vocabulary", default="")
     parser.add_argument("--pause-ms", type=int, default=PAUSE_MS)
     parser.add_argument("--vad-threshold", type=float, default=VAD_THRESHOLD)
+    parser.add_argument("--profile", default="")
+    parser.add_argument("--corrections", default="")
+    parser.add_argument("--fillers", default="keep")
     args = parser.parse_args()
     if not re.fullmatch(r"auto|[a-z]{2,3}", args.language):
         parser.error("Idioma del dictado inválido")
@@ -100,11 +116,20 @@ def main():
         parser.error("Vocabulario inválido: máximo 500 caracteres sin controles")
     if not 300 <= args.pause_ms <= 2000 or not 0.2 <= args.vad_threshold <= 0.8:
         parser.error("Pausa (300-2000 ms) o sensibilidad VAD (0.2-0.8) fuera de rango")
+    if len(args.profile) > voice_text.MAX_PROFILE or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in args.profile):
+        parser.error("Perfil inválido: máximo %d caracteres sin controles" % voice_text.MAX_PROFILE)
+    if args.fillers not in voice_text.FILLER_MODES:
+        parser.error("Modo de muletillas inválido")
+    try:
+        corrections = voice_text.parse_corrections(args.corrections)
+    except ValueError as error:
+        parser.error(str(error))
     model = WhisperModel(args.model, device=args.device, compute_type=args.compute_type,
                          cpu_threads=4, num_workers=1, local_files_only=True)
     # Exercise CUDA kernels before declaring readiness, not on the user's first phrase.
     list(model.transcribe(np.zeros(RATE, dtype=np.float32), beam_size=1)[0])
-    state = Dictation(model, args.language, args.vocabulary, args.pause_ms, args.vad_threshold)
+    state = Dictation(model, args.language, args.vocabulary, args.pause_ms, args.vad_threshold,
+                      args.profile, corrections, args.fillers)
     print(json.dumps({"ready": True}), flush=True)
     for line in sys.stdin:
         request = json.loads(line)

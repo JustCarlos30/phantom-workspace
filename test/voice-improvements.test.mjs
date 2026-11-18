@@ -16,7 +16,7 @@ test('Argumentos del stream incluyen ajustes y valores por defecto', () => {
   const base = ['python', 'voice-stream.py'];
   assert.deepEqual(buildStreamArgv(base, { voiceLanguage: 'auto', voiceVocabulary: 'Orion API', voicePauseMs: 1200, voiceVadThreshold: 0.7 }), [...base, '--language', 'auto', '--vocabulary', 'Orion API', '--pause-ms', '1200', '--vad-threshold', '0.7']);
   assert.deepEqual(base, ['python', 'voice-stream.py']);
-  assert.deepEqual(buildStreamArgv(base).slice(2), ['--language', 'es', '--vocabulary', '', '--pause-ms', '700', '--vad-threshold', '0.5']);
+  assert.deepEqual(buildStreamArgv(base).slice(2), ['--language', 'es', '--vocabulary', '', '--pause-ms', '500', '--vad-threshold', '0.5']);
 });
 
 test('Argumentos rechazan idioma, controles y rangos inválidos', () => {

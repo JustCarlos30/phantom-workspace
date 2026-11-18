@@ -46,14 +46,15 @@ if case == "tail":
     assert state.audio.size == rate
 elif case == "beam":
     state.audio = np.zeros(rate, dtype=np.float32)
-    speech = [{"start": 0, "end": rate // 2}]
+    # 250 ms of trailing silence is shorter than the 500 ms pause: still a partial.
+    speech = [{"start": 0, "end": rate * 3 // 4}]
     state.push()
-    assert model.calls[-1]["beam_size"] == 2
+    assert model.calls[-1]["beam_size"] == 1
     state.audio = np.zeros(rate * 2, dtype=np.float32)
     state.push()
     assert model.calls[-1]["beam_size"] == 5
     options = model.calls[-1]["vad_parameters"]
-    assert options.threshold == 0.5 and options.min_silence_duration_ms == 700
+    assert options.threshold == 0.5 and options.min_silence_duration_ms == 500
 elif case == "auto":
     state = engine.Dictation(model, language="auto", vocabulary="Proyecto Orion", pause_ms=1000, vad_threshold=0.6)
     state.audio = np.zeros(rate, dtype=np.float32)
@@ -69,10 +70,12 @@ elif case == "context":
     speech = [{"start": 0, "end": rate}]
     state.push()
     prompt = model.calls[-1]["initial_prompt"]
-    assert prompt.startswith(engine.TECHNICAL_PROMPT)
+    profile = engine.voice_text.DEFAULT_PROFILE
+    assert prompt.startswith(profile)
     assert prompt.endswith("continuidad técnica final")
-    context = prompt[len(engine.TECHNICAL_PROMPT) + 1:]
-    assert len(context) <= 200 and context.startswith("principio ")
+    context = prompt[len(profile) + 1:]
+    assert len(context) <= engine.voice_text.CONTEXT_CHARS and context.startswith("principio ")
+    assert len(prompt) <= engine.voice_text.PROMPT_CHARS
 elif case == "final":
     state.confirmed = "anterior"
     state.audio = np.zeros(rate, dtype=np.float32)
@@ -91,7 +94,7 @@ elif case == "final":
 
 for (const [name, scenario] of [
   ['Confirmar por pausa conserva la cola; sin voz conserva un segundo', 'tail'],
-  ['Decodificación usa beam 2 parcial y 5 confirmado con VAD sensible', 'beam'],
+  ['Decodificación usa beam 1 parcial y 5 confirmado con VAD sensible', 'beam'],
   ['Idioma automático y ajustes de vocabulario y VAD llegan al modelo', 'auto'],
   ['El prompt conserva contexto confirmado en límite de palabra', 'context'],
   ['Final devuelve el texto y vacía el audio', 'final'],
