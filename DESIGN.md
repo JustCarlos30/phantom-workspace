@@ -142,6 +142,16 @@ Menús, selects y ventanas emergentes (`src/menus.css`, único dueño, cargado a
 
 La selección de un panel es una línea del acento al 64 % con halo al 14 %.
 
+### Formularios de Configuración, Cards y Skills (2026-11-18)
+
+- En estas familias, los campos de texto, textarea y selects de formulario usan `--surface-2`, borde de 1 px `--hairline`, radio `--r-ctl`, padding 8×12 px y altura mínima de 38 px. Texto a la izquierda; cantidades a la derecha. Controles en `--t-control`, comandos/identidades en mono 12/20 y ayudas en `--t-support`. Sin sombra interior.
+- Hover cambia el borde a `--muted` solo en controles habilitados y editables. Foco de teclado: contorno de 2 px `--accent`, offset 2 px. Solo lectura mantiene selección/copiar y foco, con tinta `--muted`; disabled usa opacidad .55 y cursor de indisponibilidad, también dentro de fieldsets, sin hover activo.
+- Búsquedas y filtros compuestos tienen una sola superficie: la caja exterior recibe borde y foco, el input/select interior es transparente. Las pistas de búsqueda usan el tipo de apoyo de 12 px. A ≤340 px de contenedor, Skills prioriza el texto del buscador sobre su icono decorativo y reduce el inset de filtros a 8 px. Los menús abiertos siguen perteneciendo a `menus.css`.
+- Configuración conserva grupos con radio de objeto y extremos redondeados, incluso en Detalles, sin recortar el foco con overflow. Sus filas separan etiqueta y control por 8 px y etiqueta/ayuda por 4 px; los formularios se limitan a 720 px. En compacto apilan campos y conservan scroll y acciones.
+- Creación de Card/Skill: columna editable de hasta 640 px, 8 px entre label/campo/ayuda, 16 px entre campos y pares, y 24 px desde el encabezado. Grupos separados con espacio; las acciones envuelven y permanecen dentro del scroll. La misma regla rige en canvas e inspector; `panels.css` deja estos campos a su dueño en `plugins.css`.
+
+Evidencia y límites: `docs/ui-refinement.md`. Estas reglas describen implementación; no acreditan aprobación visual humana.
+
 ### Refinamiento aprobado el 2026-11-15
 
 Esta revisión sustituye las referencias históricas de color y tipografía de las secciones inferiores: carbón `#141414`, `#1e1e1e`, `#292929`, elevación `#303030` y terminal `#161616`; marfil `#f2f0eb`. Azul `#5b9cff` para trabajo, lima `#c6f135` para atención, verde `#65ba83` para éxito y rojo `#f27670` para peligro. El dock y los iconos descansan neutros. Las marcas y sprites originales conservan sus colores. El chrome es mate, el lavado del plano es 2 % y el pozo elevado 96 %.

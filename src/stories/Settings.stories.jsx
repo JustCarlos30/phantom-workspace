@@ -8,11 +8,16 @@ import PhoneQr from '../components/PhoneQr';
 import { demo, Panel } from './decorators';
 import { appearance } from './fixtures';
 
-export default { title: 'Ajustes' };
-export const Configuracion = { render: () => <Panel><Settings {...demo} /></Panel> };
-export const Git = { render: () => <Panel><Settings {...demo} category="git" /></Panel> };
-export const Voz = { render: () => <Panel><Settings {...demo} category="voice" /></Panel> };
-export const Conexiones = { render: () => <Panel><Settings {...demo} category="connections" /></Panel> };
+function SettingsPanel({ host, children }) {
+  if (host === 'canvas') return <section className="canvas-node" style={{ position: 'relative', width: '100%', height: 720 }}><div className="node-body"><div className="tw-tool-panel">{children}</div></div></section>;
+  if (host === 'sheet') return <div className="inspector-host settings-sheet"><aside className="tw-inspector is-settings" aria-label="Configuración">{children}</aside></div>;
+  return <Panel>{children}</Panel>;
+}
+export default { title: 'Ajustes', args: { host: 'catalog' }, argTypes: { host: { control: 'select', options: ['catalog', 'canvas', 'sheet'] } } };
+export const Configuracion = { render: args => <SettingsPanel {...args}><Settings {...demo} /></SettingsPanel> };
+export const Git = { render: args => <SettingsPanel {...args}><Settings {...demo} category="git" /></SettingsPanel> };
+export const Voz = { render: args => <SettingsPanel {...args}><Settings {...demo} category="voice" /></SettingsPanel> };
+export const Conexiones = { render: args => <SettingsPanel {...args}><Settings {...demo} category="connections" /></SettingsPanel> };
 export const Datos = { render: () => <Panel><Settings {...demo} category="data" /></Panel> };
 export const Avanzado = { render: () => <Panel><Settings {...demo} category="advanced" /></Panel> };
 export const Apariencia = { render: () => { const [value, setValue] = React.useState(appearance), [scale, setScale] = React.useState(115); return <Panel><Appearance appearance={value} update={patch => { setValue(v => ({ ...v, ...patch })); return true; }} reset={() => setValue(appearance)} interfaceScale={{ scale, update: setScale }} /></Panel>; } };

@@ -4,11 +4,14 @@ import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { catalog } from '../src/stories/catalog.mjs';
+import { assertFormGeometry, assertVisibleFocus, assertActionsReachable } from './ui-refinement.mjs';
 
 const root = resolve('storybook-static');
 const index = JSON.parse(await readFile(resolve(root, 'index.json'), 'utf8'));
 const stories = Object.values(index.entries).filter((entry) => entry.type === 'story');
 assert.ok(stories.length, 'El build no contiene stories');
+assert.equal(stories.length, 99, 'Conservar las 99 stories');
+assert.equal(catalog.length, 61, 'Conservar las 61 fuentes del catálogo');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.gif': 'image/gif' };
 const server = createServer(async (req, res) => {
   try {
@@ -81,6 +84,22 @@ try {
     await page.goto(`${base}/iframe.html?id=${encodeURIComponent(id)}&viewMode=story`);
     await page.waitForFunction(id => document.documentElement.dataset.catalogRendered === id, id);
   };
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+    for (const id of ['ajustes--configuracion', 'ajustes--git', 'ajustes--voz', 'ajustes--conexiones', 'phantom--nueva-card', 'phantom--nueva-skill']) {
+      await visit(id);
+      if (id === 'ajustes--configuracion' && await page.locator('.st-pane').isHidden()) await page.getByRole('button', { name: 'Agentes', exact: true }).click();
+      for (const details of await page.locator('.st-details, .pc-advanced').all()) await details.evaluate(el => { el.open = true; });
+      const context = `${id}/${width}`;
+      await assertFormGeometry(page, context);
+      const input = page.locator('.st-input:not([type=number]), .pc-form input, .pc-form textarea').filter({ visible: true }).first();
+      await assertVisibleFocus(page, input, context);
+      if (id.startsWith('ajustes')) await input.fill('Borrador visual');
+      await assertActionsReachable(page, page.locator(id.startsWith('ajustes') ? '.st-save' : '.pc-form-actions').first(), context);
+      await page.screenshot({ path: `.test-artifacts/smoke-form-${id}-${width}-actions.png` });
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await visit('catálogo--inventario');
   assert.equal(await page.locator('.catalog-stage').evaluate(el => getComputedStyle(el).fontSize), '14px');
   assert.equal(await page.locator('.catalog-page h1').evaluate(el => getComputedStyle(el).fontSize), '24px');

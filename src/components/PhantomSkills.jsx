@@ -181,7 +181,7 @@ export function PhantomSkills({ workspace, api, refresh, notify, onOpenPanel, no
     </header>
     <div className="sk-toolbar">
       <div className="sk-segments" role="tablist" aria-label="Alcance">{[['all', 'Todas'], ['workspace', 'Proyecto'], ['global', 'Globales']].map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={scope === key} className="sk-segment" onClick={() => setScope(key)}>{label}<span>{counts[key]}</span></button>)}</div>
-      <label className="sk-search"><Search size={13} /><input type="search" aria-label="Buscar Skills por ID, descripción, scope o versión" placeholder="Buscar por ID, descripción o versión" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setQuery(''); }} /></label>
+      <label className="sk-search"><Search size={13} /><input type="search" aria-label="Buscar Skills por ID, descripción, scope o versión" placeholder="Buscar Skills…" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setQuery(''); }} /></label>
       <label className="pc-select"><span aria-hidden="true">Versiones</span><select aria-label="Historial de versiones" value={allVersions ? 'all' : 'latest'} onChange={e => setAllVersions(e.target.value === 'all')}><option value="latest">Versiones actuales</option><option value="all">Todas las versiones</option></select></label>
     </div>
     {plugin?.enabled === false && <p className="sk-notice">Activa Phantom en el Centro de Plugins para publicar.</p>}

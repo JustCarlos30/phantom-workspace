@@ -145,7 +145,9 @@ function VoiceSettings({ settings, saveSettings, notify }) {
   return <form onSubmit={event => { event.preventDefault(); save(); }}>
     <Group title="Dictado">
       <Row label="Idioma del dictado" htmlFor={`${commandId}-language`}><select id={`${commandId}-language`} className="st-select" value={settings.voiceLanguage ?? 'es'} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceLanguage: event.target.value }))}><option value="es">Español</option><option value="en">Inglés</option><option value="auto">Automático</option></select></Row>
-      <TextRow label="Vocabulario" value={form.draft.voiceVocabulary} onChange={form.set('voiceVocabulary')} placeholder="Nombres de proyectos y términos (máximo 500 caracteres)" />
+      <Row label="Vocabulario" htmlFor={`${commandId}-vocabulary`} hint={<span id={`${commandId}-vocabulary-hint`}>Nombres de proyectos y términos (máximo 500 caracteres)</span>}>
+        <input id={`${commandId}-vocabulary`} aria-describedby={`${commandId}-vocabulary-hint`} className="st-input" type="text" spellCheck={false} value={form.draft.voiceVocabulary} onChange={event => form.set('voiceVocabulary')(event.target.value)} placeholder="Nombres y términos" />
+      </Row>
       <Row label="Interpretar comandos con" htmlFor={`${commandId}-intent`}><select id={`${commandId}-intent`} className="st-select" value={settings.voiceIntentProvider ?? 'rules'} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceIntentProvider: event.target.value }))}><option value="rules">Reglas locales</option><option value="claude">Claude</option></select></Row>
       <Row label="Proveedor" htmlFor={`${commandId}-provider`}><select id={`${commandId}-provider`} className="st-select" value={provider} disabled={op.busy} onChange={event => op.run(() => saveSettings({ voiceProvider: event.target.value }))}><option value="auto">Automático</option><option value="local">En este equipo</option><option value="openai">API compatible con OpenAI</option></select></Row>
       <TextRow label="Modelo" value={form.draft.voiceModel} onChange={form.set('voiceModel')} placeholder="Automático" mono />
