@@ -1,0 +1,25 @@
+import React from 'react';
+import { PhantomCards } from '../components/PhantomCards';
+import { PhantomSkills } from '../components/PhantomSkills';
+import { PhantomConvencions } from '../components/PhantomConvencions';
+import SkillsCatalog from '../components/SkillsCatalog';
+import MemoryCard, { MemoryForm } from '../components/MemoryCard';
+import { Markdown } from '../components/SkillsMarkdown';
+import { demo, Panel } from './decorators';
+import { markdown, date } from './fixtures';
+import { within, userEvent } from 'storybook/test';
+
+export default { title: 'Phantom', decorators: [Story => <div className="plugin-surface"><Story /></div>] };
+export const Cards = { render: () => <Panel><PhantomCards {...demo} /></Panel> };
+export const ContratoCard = { render: () => <Panel><PhantomCards {...demo} node={{ data: { cardId: 'task-1' } }} /></Panel> };
+export const NuevaCard = { ...Cards, play: async ({ canvasElement }) => { await userEvent.click(await within(canvasElement).findByRole('button', { name: 'Nueva Card' })); } };
+export const Tablero = { ...Cards, play: async ({ canvasElement }) => { await userEvent.click(await within(canvasElement).findByRole('button', { name: 'Tablero' })); } };
+export const Skills = { render: () => <Panel><PhantomSkills {...demo} /></Panel> };
+export const DetalleSkill = { render: () => <Panel><PhantomSkills {...demo} node={{ data: { skillId: 'skill-demo' } }} /></Panel> };
+export const NuevaSkill = { ...Skills, play: async ({ canvasElement }) => { await userEvent.click(await within(canvasElement).findByRole('button', { name: 'Nueva Skill' })); } };
+export const CatalogoSkills = { render: () => <Panel><SkillsCatalog {...demo} /></Panel> };
+export const Convenciones = { render: () => <Panel><PhantomConvencions {...demo} type="convencions-base" /></Panel> };
+export const DetalleConvencion = { ...Convenciones, play: async ({ canvasElement }) => { await userEvent.click(await within(canvasElement).findByRole('button', { name: /Patrón observado/ })); } };
+export const Memoria = { render: () => <MemoryCard {...demo} item={{ id: 'memory-demo', kind: 'decision', title: 'Decisión sintética', body: markdown, scope: '.', space: 'project', revision: 1, state: 'active', updatedAt: date, evidence: [] }} /> };
+export const FormularioMemoria = { render: () => <MemoryForm {...demo} /> };
+export const MarkdownSkills = { render: () => <Markdown source={markdown} /> };

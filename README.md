@@ -2,6 +2,18 @@
 
 App de escritorio local para organizar **terminales, navegador, sesiones, tareas y contexto por proyecto**. Versión 0.1 para Linux x64.
 
+## Catálogo oficial de componentes
+
+```sh
+npm run storybook
+```
+
+Abre **http://127.0.0.1:6006**. Storybook muestra los componentes reales en español, fundamentos computados, estados y una matriz buscable de fuentes y cobertura. Las 12 familias usan datos sintéticos y un host aislado. **Catálogo → Inventario** distingue escenarios renderizados, símbolos privados y límites nativos.
+
+También está declarado como servicio Docker en `compose.yaml`, descubrible por **Sitios / Servicios**. Inicio manual: `docker compose up -d --build storybook`; parada: `docker compose down`; registros: `docker compose logs -f storybook`. El puerto se publica solo en loopback. La ejecución npm y Docker usan el mismo puerto: usa una a la vez.
+
+Guías: [Storybook, fixtures y comprobaciones](docs/storybook.md) · [Mapa de componentes y propuestas](docs/component-inventory.md). El catálogo no inicia el host de escritorio ni ejecuta Git, PTY, agentes o micrófono real.
+
 ## Abrir
 
 ```sh
