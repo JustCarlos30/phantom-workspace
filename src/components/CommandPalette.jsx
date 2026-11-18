@@ -23,7 +23,7 @@ export function CommandPalette({ open, onClose, workspace, onAction }) {
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
       { title: 'Dictado por voz · Ctrl/Cmd + Shift + M', group: workspace.name, action: { type: 'dictation' } },
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: 'En el mapa', action: { type: 'panel', id: node.id } })),
-      ...[['terminal', 'Nueva terminal'], ['browser', 'Nuevo navegador'], ['note', 'Nueva nota'], ['zone', 'Nueva zona']].map(([panelType, title]) => ({ title, group: 'Crear', action: { type: 'create', panelType } })),
+       ...[['terminal', 'Nueva terminal', 'Ctrl/Cmd + Shift + T'], ['browser', 'Nuevo navegador', 'Ctrl/Cmd + Shift + B'], ['note', 'Nueva nota', 'Ctrl/Cmd + Shift + N'], ['zone', 'Nueva zona', 'Ctrl/Cmd + Shift + Z']].map(([panelType, title, shortcut]) => ({ title: `${title} · ${shortcut}`, group: 'Crear', action: { type: 'create', panelType } })),
     ] : []),
   ], [workspace]);
   const results = actions.filter(item => `${item.title} ${item.group}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
