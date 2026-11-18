@@ -42,8 +42,9 @@ const initialCamera = camera => !camera || (camera.x === 0 && camera.y === 0 && 
 const readMinimap = () => { try { return localStorage.getItem('phantom.minimap') !== 'off'; } catch { return true; } };
 // The dot grid lives in world space: it pans and scales with the camera and
 // doubles its spacing when dots would get too dense, like Figma or Miro.
-// The only elements that read --map-label-scale / --overview-scale.
-const SCALED = '.node-header, .zone-label, .comment-anchor, .canvas-node.overview';
+// The only elements that read --map-label-scale and --overview-scale.
+const LABEL_SCALED = '.node-header, .zone-label';
+const OVERVIEW_SCALED = '.comment-anchor, .canvas-node.overview';
 function gridStyle(camera) {
   const step = gridStep(GRID, camera.zoom);
   return { '--grid-size': `${step}px`, '--grid-x': `${camera.x}px`, '--grid-y': `${camera.y}px`, '--grid-major': `${step * 4}px` };
@@ -171,9 +172,15 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       // them on the few elements that read them. The world only catches up
       // once React renders (settle, tier change), for elements mounted later.
       const labelScale = unfocused ? String(Math.min(2.4, Math.max(1, 1 / c.zoom))) : '1', overview = unfocused ? String(1 / c.zoom) : '1';
-      if (last.world !== el || last.labelScale !== labelScale || last.overview !== overview) {
-        last.labelScale = labelScale; last.overview = overview;
-        for (const target of el.querySelectorAll(SCALED)) { target.style.setProperty('--map-label-scale', labelScale); target.style.setProperty('--overview-scale', overview); }
+      // Each scale goes to its own readers: at 100% and above the label scale
+      // is constant, so a zoom there touches no header at all.
+      if (last.world !== el || last.labelScale !== labelScale) {
+        last.labelScale = labelScale;
+        for (const target of el.querySelectorAll(LABEL_SCALED)) target.style.setProperty('--map-label-scale', labelScale);
+      }
+      if (last.world !== el || last.overview !== overview) {
+        last.overview = overview;
+        for (const target of el.querySelectorAll(OVERVIEW_SCALED)) target.style.setProperty('--overview-scale', overview);
       }
       if (settled) {
         put(el, 'world', '--map-label-scale', labelScale);
