@@ -10,6 +10,7 @@ import { VoiceProvider, VoiceLauncher, useVoiceWorkspace } from './components/Vo
 import { cancelVoiceRecording } from './hooks/useVoiceRecorder';
 import { api, subscribe, useWorkspace } from './hooks/useWorkspace';
 import { findPanelPlacement } from './hooks/panelPlacement';
+import { panelShortcut } from './hooks/panel-shortcuts.mjs';
 import { useInlineName } from './hooks/useInlineName';
 import { overlayPolicy } from './hooks/inputOwnership';
 import { useAppearance } from './hooks/useAppearance';
@@ -361,6 +362,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   }, [openFolder, onOpenPanel, notify, focusPanel, openPhantomChat, dictation.openDictation]);
   useEffect(() => {
     const handler = e => {
+      const panelType = panelShortcut(e);
+      if (panelType) { e.preventDefault(); onOpenPanel(panelType); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette(v => !v); return; }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); setList(v => !v); return; }
       // Ctrl ⇧ Space: open Phantom and type; from inside the chat, close it.
@@ -378,7 +381,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       }
     };
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
-  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat, sitesOpen, contextMenu, closeSites]);
+  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat, sitesOpen, contextMenu, closeSites, onOpenPanel]);
   useEffect(() => { if (workspace && focused && !workspace.nodes?.some(n => n.id === focused)) setFocused(null); }, [workspace, focused]);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 850px)');
