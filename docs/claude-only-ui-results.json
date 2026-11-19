@@ -1,0 +1,41 @@
+{
+  "fixtureOnly": true,
+  "liveExecutionProved": false,
+  "note": "CLI stub + isolated state: proves UI rendering only, not a live Claude Code run.",
+  "checks": [
+    {
+      "name": "selector de agente: solo Claude Code y Terminal vacía",
+      "ok": true,
+      "detail": [
+        "Claude Code",
+        "Terminal vacía"
+      ]
+    },
+    {
+      "name": "contrato claude-code/haiku + escrito sonnet: solicitado=haiku, origen contrato, observado Desconocido",
+      "ok": true,
+      "detail": "Cliente\nclaude\nMotor\nclaude-code\nModelo solicitado\nclaude-code/haiku · origen: contrato\nModelo observado\nDesconocido · sin evidencia del runtime"
+    },
+    {
+      "name": "contrato antiguo con juez no-Claude: ejecución bloqueada",
+      "ok": true,
+      "detail": "El contrato declara «openai/gpt-5-mini» (juez del contrato), que no es Claude Code: una ejecución nueva se bloquea."
+    },
+    {
+      "name": "historial OpenAI legible y sin etiqueta Claude",
+      "ok": true,
+      "detail": "Cliente\ndesconocido\nMotor\ndesconocido\nModelo solicitado\nopenai/gpt-5 · origen: contrato\nModelo observado\nDesconocido · sin evidencia del runtime"
+    },
+    {
+      "name": "sin ejecuciones ni errores de renderer",
+      "ok": true
+    }
+  ],
+  "screenshots": [
+    "/tmp/phantom-claude-only-evidence/01-settings-agent-selector.png",
+    "/tmp/phantom-claude-only-evidence/02-card-contract-model-precedence.png",
+    "/tmp/phantom-claude-only-evidence/03-card-legacy-contract-blocked.png",
+    "/tmp/phantom-claude-only-evidence/04-card-history-readable.png"
+  ],
+  "ok": true
+}

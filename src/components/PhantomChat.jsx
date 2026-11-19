@@ -55,7 +55,7 @@ function ProviderMenu({ active, disabled, onChoose }) {
       <ProviderGlyph provider={current.id} size={14} /><span>{current.label}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Agente que responde como Phantom">
-      {PROVIDERS.map(p => <button key={p.id} type="button" role="menuitemradio" aria-checked={p.id === active} tabIndex={-1} onClick={() => { close(); onChoose(p.id); }}>
+      {PROVIDERS.filter(p => p.id === 'claude').map(p => <button key={p.id} type="button" role="menuitemradio" aria-checked={p.id === active} tabIndex={-1} onClick={() => { close(); onChoose(p.id); }}>
         <ProviderGlyph provider={p.id} size={16} /><span>{p.label}<small>{p.hint}</small></span>{p.id === active && <Check size={14} aria-hidden="true" />}
       </button>)}
     </div>}

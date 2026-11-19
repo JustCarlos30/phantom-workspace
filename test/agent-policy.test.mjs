@@ -12,6 +12,7 @@ import { agentContext } from '../host/agents.mjs';
 import { createHost, phantomInstructions } from '../host/server.mjs';
 import { main as agentCLI } from '../scripts/agent.mjs';
 import { handleIntegration } from '../integrations/index.mjs';
+import { CLAUDE_CLIENT, DEFAULT_HARNESS_MODEL, assertClaudeClient, assertContractClaudeOnly, claudeModelCatalog, contractModels, describeExecution, isClaudeModel, resolveHarnessModel } from '../shared/execution-policy.mjs';
 
 function temporary(t, cleanup = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-policy-test-'));
@@ -39,6 +40,38 @@ async function until(fn) {
   }
   throw new Error('Timed out waiting for bootstrap PTY observation');
 }
+
+test('central Claude Code policy: defaults, aliases, rejection of other engines, contract walk and provenance', () => {
+  assert.equal(DEFAULT_HARNESS_MODEL, 'claude-code/sonnet'); assert.equal(CLAUDE_CLIENT, 'claude');
+  assert.deepEqual(resolveHarnessModel(undefined, '', null), { model: 'claude-code/sonnet', source: 'default' });
+  assert.deepEqual(resolveHarnessModel('', { model: 'opus' }), { model: 'claude-code/opus', source: 'contract' });
+  assert.deepEqual(resolveHarnessModel('claude-code/sonnet', { model: 'claude-code/haiku' }, 'opus'), { model: 'claude-code/haiku', source: 'contract' });
+  assert.deepEqual(resolveHarnessModel('sonnet', {}, 'opus'), { model: 'claude-code/sonnet', source: 'payload' });
+  assert.deepEqual(resolveHarnessModel(undefined, {}, 'opus'), { model: 'claude-code/opus', source: 'config' });
+  assert.throws(() => resolveHarnessModel('sonnet', { model: 'openai/gpt-5' }), /no es Claude Code/);
+  assert.equal(resolveHarnessModel('claude-code/claude-sonnet-5-5').model, 'claude-code/claude-sonnet-5-5');
+  assert.deepEqual(describeExecution({ requested: 'openai/gpt-5' }).engine, 'desconocido');
+  for (const bad of ['openai/gpt-5', 'opencode/x', 'provider/model', 'gpt-test', 'claude-code/', 'sonnet;rm', '--model', 42]) {
+    assert.equal(isClaudeModel(bad), false, String(bad));
+    assert.throws(() => resolveHarnessModel(bad), /no es Claude Code/);
+  }
+  assert.throws(() => assertClaudeClient('opencode'), /Claude Code/); assert.throws(() => assertClaudeClient('codex'), /Claude Code/); assert.equal(assertClaudeClient('claude'), 'claude');
+  assert.deepEqual(contractModels({ model: 'a', judge: { model: 'b' }, coordination: { children: [{ id: 'c1', model: 'c', coordination: { children: [{ id: 'g', judge: { model: 'd' } }] } }] } }).map(item => item.model), ['a', 'b', 'c', 'd']);
+  assert.throws(() => assertContractClaudeOnly({ model: 'claude-code/sonnet', coordination: { children: [{ id: 'x', model: 'openai/gpt' }] } }), /hijo x/);
+  assert.equal(assertContractClaudeOnly({ goal: 'sin modelos' }).goal, 'sin modelos');
+  assert.deepEqual(claudeModelCatalog().map(item => item.id), ['claude-code/fable', 'claude-code/opus', 'claude-code/sonnet', 'claude-code/haiku']);
+  // Provenance: requested is never presented as observed.
+  assert.deepEqual(describeExecution({ requested: 'claude-code/opus', requestedSource: 'contract' }), { client: 'claude', engine: 'claude-code', requested: 'claude-code/opus', requestedSource: 'contract', observed: null, status: 'unknown' });
+  assert.deepEqual(describeExecution({ requested: 'claude-code/opus', observed: 'claude-opus-5-5' }).status, 'observed');
+  assert.equal(describeExecution().requested, 'claude-code/sonnet'); assert.equal(describeExecution().requestedSource, 'default');
+});
+
+test('bootstrap policy states the Claude Code engine rule and never imposes OpenCode', () => {
+  const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', sessionId: 's', cwd: '/tmp/x', branch: 'b' });
+  assert.ok(policy.includes(POLICY_HINTS.engine)); assert.match(POLICY_HINTS.engine, /claude-code\/sonnet/);
+  assert.doesNotMatch(policy, /opencode/i);
+  assert.equal(agentContext({ id: 'w', canonicalPath: '/tmp/x' }, { id: 'n', title: 't', data: {} }, null).policy.engine, POLICY_HINTS.engine);
+});
 
 test('inline merge preserves all inherited settings and instruction order without mutation', () => {
   const inherited = {

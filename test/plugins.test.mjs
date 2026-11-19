@@ -93,7 +93,7 @@ test('project activation, partial preferences and panel immutable refs survive r
   assert.deepEqual(initial.items[0].config, { phantomPath: '', phantomData: '', model: '' });
   const ref = { id: 'fixture/skill', scope: 'workspace', version: '1.0.0', sha256: 'a'.repeat(64) };
   f.workspaces[0].nodes.push({ id: randomUUID(), type: 'phantom-skills', title: 'Skills', x: 0, y: 0, width: 640, height: 400, data: { pluginId: 'phantom', panelId: 'skills', ref } });
-  await f.call('plugins.update', { id: 'phantom', patch: { enabled: true, config: { model: 'provider/model' } } });
+  await f.call('plugins.update', { id: 'phantom', patch: { enabled: true, config: { model: 'claude-code/opus' } } });
   await f.call('plugins.update', { id: 'phantom', patch: { config: { phantomData: path.join(f.home, 'native') } } });
   assert.equal((await f.call('plugins.list', {}, 1)).items[0].enabled, false);
   assert.equal((await f.call('plugins.list', {}, 1)).items[0].config.model, '');
@@ -101,9 +101,9 @@ test('project activation, partial preferences and panel immutable refs survive r
   const reloaded = new Store(f.store.dir);
   assert.equal(reloaded.getWorkspace(f.workspaces[0].id).plugins.phantom.enabled, false);
   assert.deepEqual(reloaded.getWorkspace(f.workspaces[0].id).nodes[0].data.ref, ref);
-  assert.equal(reloaded.getWorkspace(f.workspaces[0].id).plugins.phantom.config.model, 'provider/model');
+  assert.equal(reloaded.getWorkspace(f.workspaces[0].id).plugins.phantom.config.model, 'claude-code/opus');
   await f.call('plugins.update', { id: 'phantom', patch: { enabled: true } });
-  assert.equal((await f.call('plugins.list')).items[0].config.model, 'provider/model');
+  assert.equal((await f.call('plugins.list')).items[0].config.model, 'claude-code/opus');
   const exported = validateState(JSON.parse(await readFile(f.store.filename, 'utf8')));
   assert.deepEqual(exported.workspaces[0].nodes[0].data.ref, ref);
   assert.ok(['plugins', 'phantom-cards', 'phantom-skills'].every(type => NODE_TYPES.includes(type)));
@@ -139,11 +139,11 @@ test('host routes plugins, recovers panel metadata and preserves preferences whe
   const workspace = await host.invoke('workspace.open', { path: f.roots[0] });
   const oldSnapshot = await host.invoke('storage.export');
   delete oldSnapshot.workspaces[0].plugins;
-  const update = { workspaceId: workspace.id, id: 'phantom', patch: { enabled: true, config: { model: 'provider/model' } } };
+  const update = { workspaceId: workspace.id, id: 'phantom', patch: { enabled: true, config: { model: 'claude-code/haiku' } } };
   await host.invoke('plugins.update', update);
   await host.invoke('storage.import', { data: oldSnapshot });
   const preferences = (await host.invoke('plugins.list', { workspaceId: workspace.id })).items[0];
-  assert.equal(preferences.enabled, true); assert.equal(preferences.config.model, 'provider/model');
+  assert.equal(preferences.enabled, true); assert.equal(preferences.config.model, 'claude-code/haiku');
   const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'phantom-cards' });
   assert.deepEqual(node.data, { pluginId: 'phantom', panelId: 'cards' });
   await host.invoke('plugins.update', { workspaceId: workspace.id, id: 'phantom', patch: { enabled: false } });
@@ -159,9 +159,10 @@ test('disabled surfaces reject native writes, while unavailable CLI and models r
   assert.equal(status.available, false); assert.equal(status.source, 'phantom'); assert.match(status.reason, /Configure phantomPath or PHANTOM_CLI/);
   // Legacy writes reach their backend even when the new Plugin Center is disabled.
   await assert.rejects(f.call('phantom.create', {}), /CLI not found/);
+  // Model catalog is static Claude Code: a missing OpenCode binary is irrelevant and never spawned.
   f.context.state.settings.opencodePath = path.join(f.home, 'missing-opencode');
   const models = await f.call('plugins.models', { id: 'phantom' });
-  assert.equal(models.available, false); assert.deepEqual(models.models, []); assert.match(models.reason, /OpenCode unavailable/);
+  assert.equal(models.available, true); assert.equal(models.engine, 'claude-code'); assert.equal(models.defaultModel, 'claude-code/sonnet');
   await assert.rejects(discoverPhantomCLI(path.join(f.home, 'missing')), /CLI not found/);
   f.context.execFile = async () => { throw new Error('native transport failure'); };
   await writeFile(path.join(f.home, 'inert.mjs'), '// Never executed');
@@ -169,12 +170,27 @@ test('disabled surfaces reject native writes, while unavailable CLI and models r
   assert.match((await f.call('plugins.status', { id: 'phantom' })).reason, /native transport failure/);
 });
 
-test('real OpenCode model catalog uses bounded argv transport without running models', async t => {
+test('plugins.models offers only Claude Code models and never starts opencode models', async t => {
   const f = await fixture(t);
+  let spawned = 0;
+  f.context.execFile = async () => { spawned++; throw new Error('must not run'); };
   const result = await f.call('plugins.models', { id: 'phantom' });
-  if (!result.available) { assert.ok(result.reason); assert.deepEqual(result.models, []); return; }
-  assert.ok(result.models.length > 0);
-  assert.ok(result.models.every(model => typeof model === 'string' && model.includes('/')));
+  assert.equal(spawned, 0);
+  assert.deepEqual(result.models, ['claude-code/fable', 'claude-code/opus', 'claude-code/sonnet', 'claude-code/haiku']);
+  assert.ok(result.models.every(model => model.startsWith('claude-code/')));
+  await assert.rejects(f.call('plugins.models', { id: 'convencions' }), /no utiliza modelos/);
+});
+
+test('plugin configuration rejects non-Claude models but keeps a stored legacy value readable', async t => {
+  const f = await fixture(t);
+  for (const model of ['provider/model', 'openai/gpt-5', 'gpt-test', 'opencode/free']) await assert.rejects(f.call('plugins.update', { id: 'phantom', patch: { config: { model } } }), /no es Claude Code/);
+  assert.equal((await f.call('plugins.list')).items[0].config.model, '');
+  f.workspaces[0].plugins.phantom.config.model = 'provider/legacy';
+  assert.equal((await f.call('plugins.list')).items[0].config.model, 'provider/legacy');
+  await f.call('plugins.update', { id: 'phantom', patch: { config: { model: 'claude-code/sonnet' } } });
+  assert.equal((await f.call('plugins.list')).items[0].config.model, 'claude-code/sonnet');
+  assert.match(PHANTOM_PLUGIN.configuration.model.label, /Claude Code/);
+  assert.doesNotMatch(PHANTOM_PLUGIN.configuration.model.label, /OpenCode/);
 });
 
 test('installed native CLI: isolated cards/replacements, events ownership, immutable skills and errors', async t => {
@@ -183,7 +199,7 @@ test('installed native CLI: isolated cards/replacements, events ownership, immut
   const f = await fixture(t), native = path.join(f.home, 'native-data');
   // Workspace-scoped Skills require a real Git project identity in the native CLI.
   for (const root of f.roots) await exec('git', ['init', '-b', 'main', root], { shell: false });
-  await f.call('plugins.update', { id: 'phantom', patch: { enabled: true, config: { phantomPath: cli, phantomData: native, model: 'provider/never-run' } } });
+  await f.call('plugins.update', { id: 'phantom', patch: { enabled: true, config: { phantomPath: cli, phantomData: native, model: 'claude-code/haiku' } } });
   // Every native process gets an explicit isolated data directory; never touch personal DBs.
   const nativeCall = async args => JSON.parse((await exec(process.execPath, [cli, ...args, '--data', native, '--json'], { cwd: f.roots[0], shell: false, timeout: 15000 })).stdout);
   assert.equal((await f.call('plugins.status', { id: 'phantom' })).available, true);
@@ -247,12 +263,12 @@ test('command-center preferences and native plugin config share durable state wi
   const host = await createHost({ dataDir: f.store.dir, handleIntegration });
   t.after(async () => { await host.close(); await rm(f.home, { recursive: true, force: true }); });
   const workspaceId = f.workspaces[0].id;
-  await host.invoke('plugins.update', { workspaceId, id: 'phantom', patch: { enabled: true, config: { model: 'fixture/model' } } });
+  await host.invoke('plugins.update', { workspaceId, id: 'phantom', patch: { enabled: true, config: { model: 'claude-code/haiku' } } });
   await host.invoke('plugin.update', { workspaceId, id: 'phantom', settings: { enabled: true, refreshMs: 3000 } });
   let saved = (await host.invoke('state.get')).workspaces.find(w => w.id === workspaceId).plugins.phantom;
-  assert.equal(saved.config.model, 'fixture/model'); assert.equal(saved.refreshMs, 3000);
-  await host.invoke('plugins.update', { workspaceId, id: 'phantom', patch: { enabled: false, config: { model: 'fixture/other' } } });
+  assert.equal(saved.config.model, 'claude-code/haiku'); assert.equal(saved.refreshMs, 3000);
+  await host.invoke('plugins.update', { workspaceId, id: 'phantom', patch: { enabled: false, config: { model: 'claude-code/opus' } } });
   saved = (await host.invoke('state.get')).workspaces.find(w => w.id === workspaceId).plugins.phantom;
-  assert.equal(saved.config.model, 'fixture/other'); assert.equal(saved.refreshMs, 3000); assert.equal(saved.enabled, false);
+  assert.equal(saved.config.model, 'claude-code/opus'); assert.equal(saved.refreshMs, 3000); assert.equal(saved.enabled, false);
   assert.deepEqual(await host.invoke('plugin.get', { workspaceId, id: 'phantom' }), { enabled: false, refreshMs: 3000 });
 });

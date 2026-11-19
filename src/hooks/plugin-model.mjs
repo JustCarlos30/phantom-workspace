@@ -1,4 +1,19 @@
 // Pure transformations shared by the native plugin surfaces.
+import { describeExecution, contractModels, isClaudeModel } from '../../shared/execution-policy.mjs';
+
+// Effective client/engine/model for a card with provenance. "requested" is what a
+// new run would ask for; "observed" is only what events actually recorded. Nothing
+// is called confirmed without evidence, and a non-Claude declared model is shown as blocked.
+export function executionFacts({ contract, typedModel, pluginModel, observedModel, recordedRequest } = {}) {
+  const typed = typedModel?.trim(), plugin = pluginModel?.trim();
+  const declared = contractModels(contract).filter(item => !isClaudeModel(item.model));
+  // Same precedence as the host: a model fixed by the contract wins; typed/plugin values apply only when it fixes none.
+  const pick = contract?.model ? [contract.model, 'contrato'] : typed ? [typed, 'solicitud actual'] : plugin ? [plugin, 'configuración del plugin'] : [undefined, 'predeterminado'];
+  const base = describeExecution({ requested: pick[0], requestedSource: pick[1], observed: observedModel });
+  const ignored = contract?.model && typed && typed !== contract.model ? ` El modelo escrito «${typed}» se ignora: el contrato fija el suyo.` : '';
+  const blocked = declared.length ? `El contrato declara «${declared[0].model}» (${declared[0].where}), que no es Claude Code: una ejecución nueva se bloquea.` : pick[0] && !isClaudeModel(pick[0]) ? `«${pick[0]}» (${pick[1]}) no es Claude Code: una ejecución nueva se bloquea.` : null;
+  return { ...base, blocked, note: ignored || null, recordedRequest: recordedRequest || null, observedLabel: base.observed ?? 'Desconocido' };
+}
 export const linesOf = value => String(value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
 export const itemsOf = value => Array.isArray(value) ? value : Array.isArray(value?.items) ? value.items : [];
 export const contractOf = value => value?.contract || value?.spec || value?.raw?.contract || value || {};

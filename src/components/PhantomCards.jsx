@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, GitBranch, Clock, Columns3, ExternalLink, FileText, Layers, LayoutDashboard, Pause, Play, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Square, X, XCircle } from 'lucide-react';
 import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from './PluginPrimitives';
-import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions } from '../hooks/plugin-model.mjs';
+import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions, executionFacts } from '../hooks/plugin-model.mjs';
 import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf, checkResult, eventLabel, eventDetails, phaseOf } from '../hooks/phantom-desk.mjs';
 import { cardLocations } from '../hooks/branches-model.mjs';
 const unavailableReason = reason => reason?.replace(/^Phantom unavailable: /, '') || 'sin motivo informado';
@@ -94,11 +94,11 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
   const allControllers = itemsOf(controllers.data);
   const related = allControllers.filter(item => item.taskId === id);
   const actions = cardActions(value, allControllers);
-  const effectiveModel = model.trim() || plugin?.config?.model?.trim();
+  const facts = executionFacts({ contract, typedModel: model, pluginModel: plugin?.config?.model, recordedRequest: events.data?.model });
   const controlsBlocked = op.busy || detail.loading || Boolean(detail.error) || controllers.loading || Boolean(controllers.error) || controllers.data?.available === false || !Array.isArray(controllers.data?.items);
   const reload = () => { detail.reload(); events.reload(); controllers.reload(); onChanged?.(); };
   const control = action => op.run(async () => {
-    if (action === 'run' && !effectiveModel) throw new Error('Indica un modelo explícito o guarda un modelo en la configuración del plugin.');
+    if (action === 'run' && facts.blocked) throw new Error(facts.blocked);
     const result = await api('phantom.control', { ...payload, id, action, ...(action === 'run' && model.trim() ? { model: model.trim() } : {}) });
     setOutput(result); reload(); await refresh?.();
   }, 'Acción enviada a Phantom');
@@ -126,8 +126,16 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
       {(native.reason || catalog?.reason) && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />Motivo de tarea: {native.reason || catalog.reason}</p>}
       <section className="pc-next" aria-label="Siguiente paso">
         <div className="pc-next-copy"><strong>Siguiente paso</strong><span>{available.length ? 'Solo se muestran las acciones que Phantom admite ahora para esta Card.' : 'Phantom no admite acciones sobre esta Card en su estado actual.'}</span></div>
-        {actions.run && <div className="pc-model"><Field label="Modelo para ejecutar" hint={plugin?.config?.model ? `Vacío: configuración guardada (${plugin.config.model}).` : 'Indica un modelo o configúralo en el Centro de Plugins.'}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="proveedor/modelo" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>Consultar catálogo real</Button></div>}
-        {available.length > 0 && <div className="pc-next-actions">{available.map(([action, label, Icon], index) => <Button key={action} icon={Icon} tone={index === 0 ? 'primary' : undefined} disabled={controlsBlocked || (action === 'run' && !effectiveModel)} onClick={() => control(action)}>{label}</Button>)}</div>}
+        {actions.run && <div className="pc-model"><Field label="Modelo para ejecutar" hint={`Vacío: ${facts.requested} (${facts.requestedSource}). Solo Claude Code.`}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="claude-code/sonnet" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>Ver modelos Claude Code</Button></div>}
+        <dl className="pc-facts pc-execution" aria-label="Ejecución efectiva">
+          <div><dt>Cliente</dt><dd>{facts.client}</dd></div>
+          <div><dt>Motor</dt><dd>{facts.engine}</dd></div>
+          <div><dt>Modelo solicitado</dt><dd>{facts.requested} <span className="pc-quiet">· origen: {facts.requestedSource}</span></dd></div>
+          <div><dt>Modelo observado</dt><dd>{facts.observedLabel}{facts.status === 'observed' ? <span className="pc-quiet"> · evidencia registrada</span> : <span className="pc-quiet"> · sin evidencia del runtime{facts.recordedRequest ? `; el historial solo registra la solicitud «${facts.recordedRequest}»` : ''}</span>}</dd></div>
+        </dl>
+        {facts.note && <p className="pc-quiet">{facts.note}</p>}
+        {facts.blocked && <p className="pc-reason" role="alert"><AlertTriangle size={14} aria-hidden="true" />{facts.blocked}</p>}
+        {available.length > 0 && <div className="pc-next-actions">{available.map(([action, label, Icon], index) => <Button key={action} icon={Icon} tone={index === 0 ? 'primary' : undefined} disabled={controlsBlocked || (action === 'run' && Boolean(facts.blocked))} onClick={() => control(action)}>{label}</Button>)}</div>}
       </section>
       <ErrorNotice error={op.error} clear={op.clear} />{op.busy && <p role="status" className="pc-status">Enviando acción…</p>}
       {output && <DataView value={output} label="Ver respuesta real del control" />}

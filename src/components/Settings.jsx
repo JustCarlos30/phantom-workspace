@@ -48,7 +48,7 @@ function NewSession({ settings, saveSettings, notify }) {
   const pick = id => { try { localStorage.setItem('phantom.cardMode', id); setAgent(id); } catch { notify?.('No se pudo guardar la preferencia en este equipo.', 'error'); } };
   return <form onSubmit={event => { event.preventDefault(); op.run(() => saveSettings({ shell: form.draft.shell.trim() }), 'Guardado'); }}>
     <Group title="Al abrir una sesión nueva">
-      <Row label="Agente"><Segmented label="Agente por defecto" value={agent} onChange={pick} options={[['claude', 'Claude'], ['codex', 'Codex'], ['opencode', 'OpenCode'], ['terminal', 'Terminal']]} /></Row>
+      <Row label="Agente"><Segmented label="Agente por defecto" value={agent} onChange={pick} options={[['claude', 'Claude Code'], ['terminal', 'Terminal vacía']]} /></Row>
       <TextRow label="Shell" value={form.draft.shell} onChange={form.set('shell')} placeholder="Automático" mono />
     </Group>
     <Problem error={op.error} /><SaveBar form={form} busy={op.busy} />
@@ -81,7 +81,7 @@ function PhantomGroup({ workspace, api, refresh, notify, settings, saveSettings 
         {plugin?.enabled && <Status tone={connected ? 'ok' : status.loading ? undefined : 'warn'}>{status.loading ? 'Comprobando…' : connected ? 'Conectado' : 'No conectado'}</Status>}
         <Switch label={`Tareas y memoria de Phantom en ${workspace.name}`} checked={plugin?.enabled} disabled={!plugin || op.busy} onChange={toggle} />
       </Row>}
-      <TextRow label="Modelo para ejecutar tareas" value={form.draft.model} onChange={form.set('model')} placeholder="proveedor/modelo" list={listId} mono onFocus={() => { if (id && !asked.current) { asked.current = true; models.reload(); } }} />
+      <TextRow label="Modelo para ejecutar tareas" value={form.draft.model} onChange={form.set('model')} placeholder="claude-code/sonnet (Claude Code)" list={listId} mono onFocus={() => { if (id && !asked.current) { asked.current = true; models.reload(); } }} />
       <datalist id={listId}>{models.data?.available && models.data.models.map(model => <option key={model} value={model} />)}</datalist>
       <Details>
         <TextRow label="Ejecutable" value={form.draft.phantomPath} onChange={form.set('phantomPath')} placeholder={status.data?.cli || 'Detectada automáticamente'} mono />

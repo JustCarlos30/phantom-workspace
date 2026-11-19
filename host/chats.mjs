@@ -10,6 +10,7 @@ import { permissionDecision, phantomCommand, PHANTOM_SCRIPTS, inside, PERMISSION
 import { codexWriteArgs, phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
+import { assertClaudeClient, assertClaudeModel, CLAUDE_MODEL_ALIASES } from '../shared/execution-policy.mjs';
 import { claudeRoutingArgs, resolveRouting, roleOfChat } from '../shared/routing.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
 import { driveOpenCode, openCodeServerEnv } from './opencode-chat.mjs';
@@ -25,6 +26,12 @@ export const CHAT_PROVIDERS = {
 };
 const MAX_QUEUE = 20, MAX_MESSAGES = 400, MAX_PART = 200_000, MAX_OUTPUT = 6000, MAX_LINE = 8 * 1024 * 1024, MAX_TURNS = 16;
 
+// New chat settings must name Claude Code; stored OpenCode/Codex threads stay readable.
+export function assertNewChatPolicy(patch) {
+  if (patch?.provider !== undefined && patch.provider !== null) assertClaudeClient(patch.provider);
+  for (const [provider, model] of Object.entries(patch?.models ?? {})) { assertClaudeClient(provider); assertClaudeModel(model, 'chat'); }
+  return patch;
+}
 // A model is passed to the CLI as an argument: an identifier, never a flag.
 export function validateModel(model) {
   assert(typeof model === 'string' && /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(model), 'Modelo inválido');
@@ -123,6 +130,8 @@ export function openCodeModels(stdout) {
   return [...items.values()];
 }
 
+const cliModel = (model, where) => assertClaudeModel(model, where).slice('claude-code/'.length);
+
 export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions, phantom, routing }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
@@ -138,8 +147,10 @@ export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = 
     ...(phantom ? ['-c', phantomMcpConfig(phantom)] : []),
     ...(instructions || phantom ? ['-c', `developer_instructions=${JSON.stringify([instructions, phantom && PHANTOM_MCP_HINT].filter(Boolean).join('\n\n'))}`] : []), ...(sessionId ? [sessionId] : []), '-'];
   if (provider === 'claude') {
+    // The CLI takes bare names: a stored «claude-code/sonnet» becomes «sonnet»; anything that is not Claude is refused before spawn.
+    if (model) model = cliModel(model, 'chat');
     const routed = claudeRoutingArgs(routing?.config, routing?.role, { model, reasoning });
-    model = routed.model; reasoning = routed.effort;
+    model = routed.model ? cliModel(routed.model, 'enrutamiento') : routed.model; reasoning = routed.effort;
     return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     ...(reasoning ? ['--effort', reasoning] : []),
     ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' || mode === 'full' ? ['--permission-mode', 'acceptEdits'] : []),
@@ -477,6 +488,8 @@ export class Chats {
   send(workspace, node, message) {
     assert(!this.closed, 'Host is shutting down');
     const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente antes de escribir');
+    assertClaudeClient(provider, 'El agente de este chat');
+    if (node.data.chat.models?.[provider]) assertClaudeModel(node.data.chat.models[provider], 'modelo guardado del chat');
     text(message, 'chat message', 64 * 1024); assert(message.trim(), 'Escribe un mensaje');
     const thread = this.thread(node.id, provider);
     thread.queue ??= [];
@@ -656,7 +669,8 @@ export class Chats {
   // models (any full model name is also valid); other providers list their catalog.
   async models(workspace, node) {
     const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente primero');
-    if (provider === 'claude') return { provider, items: ['fable', 'opus', 'sonnet', 'haiku'].map(id => ({ id, group: 'Alias del modelo más reciente' })) };
+    assertClaudeClient(provider, 'El agente de este chat');
+    if (provider === 'claude') return { provider, items: CLAUDE_MODEL_ALIASES.map(id => ({ id, group: 'Alias del modelo más reciente' })) };
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
     const definition = CHAT_PROVIDERS[provider], bin = this.store.state.settings[definition.setting] || definition.bin;
     const key = JSON.stringify([provider, bin, cwd]);
@@ -776,6 +790,9 @@ export class Chats {
     if (provider !== undefined) patch.provider = provider;
     validateChat(patch);
     assert(patch.provider !== null, 'Phantom necesita un agente');
+    if (patch.provider !== undefined) assertClaudeClient(patch.provider);
+    if (model !== undefined || reasoning !== undefined) assertClaudeClient(patch.provider ?? node.data.chat.provider, 'El agente de este chat');
+    if (typeof model === 'string') assertClaudeModel(model, 'chat de Phantom');
     assert(patch.provider === undefined || patch.provider === node.data.chat.provider || !this.running(node.id), 'Detén la respuesta antes de cambiar de agente');
     if (model !== undefined && model !== null) validateModel(model);
     const entry = this.nodes[node.id] ??= { threads: {} }, chat = applyPatch(node.data.chat, patch);

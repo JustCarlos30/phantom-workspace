@@ -40,9 +40,8 @@ test('terminal subagent reports store starts and ends and reject invalid operati
 
 test('identity validates workspace ownership, survives rename/restart and preserves reports through stale presentation saves',async t=>{
   const f=await fixture(t);
-  await f.update({name:'Backend · Auth',cardId:'card-owned',providerSessionId:'ses_owned'});
+  await f.update({name:'Backend · Auth',cardId:'card-owned'});
   await assert.rejects(f.update({cardId:'foreign'}),/another workspace/);
-  await assert.rejects(f.update({providerSessionId:'ses_foreign'}),/not found/);
   await assert.rejects(f.update({status:'completed'}),/Invalid agent status/);
   await assert.rejects(f.update({step:'invalid\nline'}),/single-line/);
   const stale=structuredClone((await f.host.invoke('state.get')).workspaces[0].nodes[0].data);
@@ -53,10 +52,24 @@ test('identity validates workspace ownership, survives rename/restart and preser
   assert.equal((await f.host.invoke('terminal.list',{workspaceId:f.w.id}))[0].name,'Auth API');
   await f.restart();
   context=await f.host.invoke('terminal.agent.context',{sessionId:f.session.id});
-  assert.equal(context.name,'Auth API');assert.equal(context.cardTitle,'Autenticación');assert.equal(context.providerSessionId,'ses_owned');assert.equal(context.step,'Validando tokens');
+  assert.equal(context.name,'Auth API');assert.equal(context.cardTitle,'Autenticación');assert.equal(context.step,'Validando tokens');
   await assert.rejects(f.host.invoke('terminal.agent.report',{sessionId:f.session.id,patch:{step:'stale'}}),/current live/);
   await f.update({cardId:''});
   context=await f.host.invoke('terminal.agent.context',{sessionId:f.session.id});assert.equal(context.step,'');assert.equal(context.status,'idle');
+});
+
+test('Claude-only policy: no new OpenCode session binding, but stored identity stays readable and can be cleared',async t=>{
+  const f=await fixture(t);
+  await assert.rejects(f.update({providerSessionId:'ses_owned'}),/Claude Code/);
+  await assert.rejects(f.update({providerSessionId:'ses_foreign'}),/Claude Code/);
+  // A historical record (provider opencode + session) still validates, so old state loads and reads.
+  const legacy={cardId:'c',providerSessionId:'ses_1',provider:'opencode',step:'x',status:'review',source:'agent',updatedAt:'now'};
+  assert.deepEqual(validateAgent(structuredClone(legacy)),legacy);
+  const node=f.host.store.getWorkspace(f.w.id).nodes.find(n=>n.id===f.node.id);node.data.agent={...legacy};
+  const context=await f.host.invoke('terminal.agent.context',{sessionId:f.session.id});
+  assert.equal(context.provider,'opencode');assert.equal(context.providerSessionId,'ses_1');
+  await f.update({providerSessionId:''});
+  assert.equal((await f.host.invoke('terminal.agent.context',{sessionId:f.session.id})).providerSessionId,'');
 });
 
 test('linking a card names a default-titled terminal but never overrides a manual name',async t=>{
