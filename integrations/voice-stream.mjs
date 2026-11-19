@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile, lstat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireWorkspace, stateDirectory, executableOnPath } from './run-manager.mjs';
@@ -83,12 +84,82 @@ export async function cleanTranscript(text, settings = {}, fetchImpl = fetch, en
     if (!response.ok) { await response.body?.cancel(); return { text, cleaned: false, reason: `Claude no disponible (HTTP ${response.status})` }; }
     const data = await response.json();
     if (data.stop_reason !== 'end_turn') return { text, cleaned: false, reason: `Claude no completó la limpieza (${data.stop_reason})` };
-    const out = (data.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('').trim();
-    // Guard against a model that answers the dictation instead of correcting it.
-    if (!out || /<\/?(dictado|contexto)>/.test(out) || out.length > text.length * 1.5 + 40 || out.length < text.length * 0.3) throw new Error();
+    const out = acceptClean(text, (data.content ?? []).filter(block => block.type === 'text').map(block => block.text).join(''));
+    if (!out) throw new Error();
     return { text: out, cleaned: true };
   } catch { return { text, cleaned: false, reason: 'Claude no disponible o respuesta inválida' }; }
   finally { clearTimeout(timer); }
+}
+
+// Guard against a model that answers the dictation instead of correcting it.
+function acceptClean(text, output) {
+  const out = String(output ?? '').trim();
+  return !out || /<\/?(dictado|contexto)>/.test(out) || out.length > text.length * 1.5 + 40 || out.length < text.length * 0.3 ? '' : out;
+}
+
+// Same correction through the user's Claude Code login: no API key needed.
+// One headless process per dictation stays open, so only the first phrase pays
+// the start-up; the conversation itself carries the earlier phrases as context.
+// No tools, settings, MCP servers or skills are loaded: dictated text is only data.
+export function createClaudeCodeCleaner(settings = {}, spawnImpl = spawn, timeoutMs = 8_000) {
+  const model = settings.voiceCleanModel || 'haiku';
+  if (typeof model !== 'string' || !/^[a-z0-9.-]{1,128}$/.test(model)) throw new Error('Modelo de corrección inválido');
+  const hints = [settings.voiceVocabulary, settings.voiceProfile].filter(value => typeof value === 'string' && value.trim()).join(' ');
+  const system = hints ? `${CLEAN_SYSTEM}\n\nPalabras y estilo habituales de esta persona: ${hints}` : CLEAN_SYSTEM;
+  let child = null, waiting = null, queue = Promise.resolve(), closed = false;
+  const stop = () => { const current = child; child = null; waiting?.(null); waiting = null; current?.kill('SIGTERM'); };
+  const start = () => {
+    const env = { ...process.env };
+    // Force the Claude Code login; an API key in the host must not be billed here.
+    delete env.ANTHROPIC_API_KEY;
+    const current = spawnImpl('claude', ['-p', '--model', model, '--effort', 'low', '--system-prompt', system, '--tools', '',
+      '--strict-mcp-config', '--disable-slash-commands', '--no-session-persistence', '--setting-sources', '',
+      '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'], { cwd: tmpdir(), env, shell: false, stdio: ['pipe', 'pipe', 'ignore'] });
+    let buffer = '';
+    current.stdout.setEncoding?.('utf8');
+    current.stdout.on('data', chunk => {
+      // Output from a process already replaced belongs to no pending phrase.
+      if (child !== current) return;
+      buffer += chunk;
+      if (buffer.length > 1024 * 1024) return stop();
+      let index;
+      while ((index = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, index); buffer = buffer.slice(index + 1);
+        let message; try { message = JSON.parse(line); } catch { continue; }
+        if (message?.type !== 'result' || !waiting) continue;
+        const done = waiting; waiting = null;
+        done(message.subtype === 'success' && !message.is_error ? message.result : null);
+      }
+    });
+    current.stdin.on('error', () => { if (child === current) stop(); });
+    current.once('error', () => { if (child === current) stop(); });
+    current.once('close', () => { if (child === current) stop(); });
+    return current;
+  };
+  return {
+    // Phrases are corrected one at a time, in the order they were spoken.
+    clean(text) {
+      const run = async () => {
+        if (closed) return { text, cleaned: false };
+        child ??= start();
+        const output = await new Promise(resolve => {
+          const timer = setTimeout(() => resolve(undefined), timeoutMs);
+          waiting = value => { clearTimeout(timer); resolve(value); };
+          child.stdin.write(JSON.stringify({ type: 'user', message: { role: 'user', content: `<dictado>\n${text}\n</dictado>` } }) + '\n');
+        });
+        // A late answer would be paired with the next phrase: restart instead.
+        if (output === undefined) { stop(); return { text, cleaned: false, reason: 'Claude Code tardó demasiado' }; }
+        const out = output === null ? '' : acceptClean(text, output);
+        return out ? { text: out, cleaned: true } : { text, cleaned: false, reason: 'Claude Code no disponible o respuesta inválida' };
+      };
+      const result = queue.then(run, run);
+      queue = result.catch(() => {});
+      return result.catch(() => ({ text, cleaned: false, reason: 'Claude Code no disponible o respuesta inválida' }));
+    },
+    // Start the process while the user is still speaking the first phrase.
+    warm() { if (!closed) child ??= start(); },
+    close() { closed = true; stop(); },
+  };
 }
 
 // Corrects each confirmed phrase as it arrives, so the text is already clean
@@ -188,6 +259,7 @@ class Engine {
 
 function release(session) {
   clearTimeout(session.timer);
+  session.cleaner?.close();
   sessions.delete(session.id);
   session.engine.session = null;
   idle(session.engine);
@@ -250,9 +322,17 @@ export async function handleVoiceStream(method, payload, context) {
     const { root, config, engine, busy } = await acquireEngine(context, settings);
     if (busy) throw new Error('Ya hay un dictado activo. Detén o cancela la otra captura.');
     clearTimeout(engine.idleTimer);
-    const session = { id: randomUUID(), workspaceId: workspace.id, root, engine, sequence: 0, samples: 0, busy: false,
-      corrector: fillerMode(settings) === 'clean' && process.env.ANTHROPIC_API_KEY
-        ? createPhraseCorrector((text, before) => cleanTranscript(text, settings, fetch, process.env, { context: before, timeoutMs: 8_000 })) : null };
+    const session = { id: randomUUID(), workspaceId: workspace.id, root, engine, sequence: 0, samples: 0, busy: false, cleaner: null, corrector: null };
+    if (fillerMode(settings) === 'clean') {
+      // Prefer the Claude Code login (no key to configure); fall back to the API key.
+      if (await executableOnPath('claude')) {
+        session.cleaner = createClaudeCodeCleaner(settings);
+        session.cleaner.warm();
+        session.corrector = createPhraseCorrector(text => session.cleaner.clean(text));
+      } else if (process.env.ANTHROPIC_API_KEY) {
+        session.corrector = createPhraseCorrector((text, before) => cleanTranscript(text, settings, fetch, process.env, { context: before, timeoutMs: 8_000 }));
+      }
+    }
     engine.session = session;
     sessions.set(session.id, session);
     session.timer = setTimeout(() => { engine.close(new Error('Sesión de dictado caducada')); release(session); }, 180_000);

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { buildStreamArgv, cleanTranscript, createPhraseCorrector } from '../integrations/voice-stream.mjs';
+import { EventEmitter } from 'node:events';
+import { buildStreamArgv, cleanTranscript, createClaudeCodeCleaner, createPhraseCorrector } from '../integrations/voice-stream.mjs';
 import { suggestCorrections, parseCorrectionLines, addCorrectionLine } from '../src/hooks/voice-send.mjs';
 
 const root = new URL('../scripts/', import.meta.url).pathname;
@@ -128,4 +129,80 @@ test('Las correcciones se agregan y se leen en el formato del worker', () => {
   const text = addCorrectionLine(addCorrectionLine('', { heard: 'meikap', meant: 'makeup' }), { heard: 'guey', meant: 'wey' });
   assert.equal(text, 'meikap => makeup\nguey => wey');
   assert.deepEqual(parseCorrectionLines(`# nota\n${text}\n`), [{ heard: 'meikap', meant: 'makeup' }, { heard: 'guey', meant: 'wey' }]);
+});
+
+// Stand-in for the headless Claude Code process: records what it is sent and
+// answers only when the test says so.
+function fakeClaude() {
+  const spawned = [];
+  const spawnImpl = (command, args, options) => {
+    const child = new EventEmitter();
+    Object.assign(child, { command, args, options, sent: [], killed: false, stdout: new EventEmitter(), stdin: new EventEmitter() });
+    child.stdin.write = line => { child.sent.push(JSON.parse(line)); };
+    child.kill = () => { child.killed = true; };
+    child.answer = (result, extra = {}) => child.stdout.emit('data', JSON.stringify({ type: 'system' }) + '\n' + JSON.stringify({ type: 'result', subtype: 'success', result, ...extra }) + '\n');
+    spawned.push(child);
+    return child;
+  };
+  return { spawned, spawnImpl };
+}
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('Claude Code corrige en un solo proceso, sin herramientas ni llave de API', async () => {
+  const { spawned, spawnImpl } = fakeClaude();
+  process.env.ANTHROPIC_API_KEY = 'no-debe-usarse';
+  let cleaner;
+  try { cleaner = createClaudeCodeCleaner({ voiceVocabulary: 'Phantom' }, spawnImpl); cleaner.warm(); } finally { delete process.env.ANTHROPIC_API_KEY; }
+  const [child] = spawned;
+  assert.equal(child.command, 'claude');
+  assert.equal(child.options.env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(child.options.shell, false);
+  const flag = name => child.args[child.args.indexOf(name) + 1];
+  assert.equal(flag('--tools'), '');
+  assert.equal(flag('--setting-sources'), '');
+  assert.equal(flag('--model'), 'haiku');
+  assert.equal(flag('--effort'), 'low');
+  assert.match(flag('--system-prompt'), /Phantom$/);
+  for (const name of ['--strict-mcp-config', '--disable-slash-commands', '--no-session-persistence']) assert.ok(child.args.includes(name), name);
+  // Two phrases queued: the second is not sent until the first is answered.
+  const first = cleaner.clean('me puse a divulgar'), second = cleaner.clean('y perdí el hilo');
+  await tick();
+  assert.equal(child.sent.length, 1);
+  assert.equal(child.sent[0].message.content, '<dictado>\nme puse a divulgar\n</dictado>');
+  child.answer('Me puse a divagar');
+  assert.deepEqual(await first, { text: 'Me puse a divagar', cleaned: true });
+  await tick();
+  assert.equal(child.sent.length, 2);
+  // An answer instead of a correction is rejected and the raw phrase kept.
+  child.answer('Claro, te explico con todo detalle qué significa perder el hilo de una conversación larga.');
+  assert.equal((await second).cleaned, false);
+  const failed = cleaner.clean('otra frase');
+  await tick();
+  child.answer('', { subtype: 'error_during_execution', is_error: true });
+  assert.equal((await failed).cleaned, false);
+  assert.equal(spawned.length, 1);
+  cleaner.close();
+  assert.equal(child.killed, true);
+  assert.deepEqual(await cleaner.clean('después de cerrar'), { text: 'después de cerrar', cleaned: false });
+  assert.equal(spawned.length, 1);
+  assert.throws(() => createClaudeCodeCleaner({ voiceCleanModel: 'x; rm -rf' }, spawnImpl), /inválido/);
+});
+
+test('Claude Code lento o caído no detiene el dictado y se reinicia', async () => {
+  const { spawned, spawnImpl } = fakeClaude();
+  const cleaner = createClaudeCodeCleaner({}, spawnImpl, 20);
+  assert.deepEqual(await cleaner.clean('frase lenta'), { text: 'frase lenta', cleaned: false, reason: 'Claude Code tardó demasiado' });
+  assert.equal(spawned[0].killed, true);
+  // A late answer from the killed process must not be paired with the next phrase.
+  const next = cleaner.clean('frase nueva');
+  await tick();
+  assert.equal(spawned.length, 2);
+  spawned[0].answer('respuesta tardía');
+  spawned[1].answer('Frase nueva.');
+  assert.deepEqual(await next, { text: 'Frase nueva.', cleaned: true });
+  const dying = cleaner.clean('se cae');
+  await tick();
+  spawned[1].emit('close');
+  assert.equal((await dying).cleaned, false);
+  cleaner.close();
 });
