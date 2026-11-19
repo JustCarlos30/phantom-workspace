@@ -107,6 +107,13 @@ Diferencia de evidencia:
 Estado: esta documentación no afirma despliegue ni integración externa; ambos siguen pendientes del
 controlador nativo.
 
+## Base con confianza de Claude
+
+Esta base incluye la incorporación de `main` 8d6b764 (`host/claude-trust.mjs` y
+`test/claude-trust.test.mjs`), que hereda la confianza ya autorizada de Claude Code en worktrees de Phantom.
+La validación de esta base corresponde al controlador: suite completa, build y desktop. Esta nota no
+declara un conteo actual de pruebas ni que la base esté desplegada.
+
 ## Límites
 
 - Esta entrega cubre el host y la UI de Phantom Workspace. El harness externo y su MCP global se
