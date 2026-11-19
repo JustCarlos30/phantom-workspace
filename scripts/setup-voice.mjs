@@ -65,7 +65,8 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base', d
   const lock = await open(path.join(runtime, 'setup.lock'), 'wx', 0o600).catch(error => { throw new Error(error.code === 'EEXIST' ? `Hay otro setup activo o un lock antiguo: ${path.join(runtime, 'setup.lock')}. Compruébalo antes de reintentar.` : error.message); });
   const engine = path.join(runtime, 'engines', `${model}-${randomUUID()}`);
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 600_000);
+  // GPU libraries (~700 MB) and large models (~1.6 GB) need long downloads on slow links.
+  const timer = setTimeout(() => abort.abort(), 3_600_000);
   let installed = false;
   try {
     await lock.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
@@ -85,7 +86,7 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base', d
     await execute(venvPython, ['-I', '-m', 'pip', '--isolated', '--disable-pip-version-check', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'faster-whisper==1.2.1', 'av>=14,<17'], 300_000);
     let gpuLibraryPath;
     if (device === 'cuda') {
-      await execute(venvPython, ['-I', '-m', 'pip', '--isolated', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'nvidia-cublas-cu12', 'nvidia-cudnn-cu12==9.*'], 300_000);
+      await execute(venvPython, ['-I', '-m', 'pip', '--isolated', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'nvidia-cublas-cu12', 'nvidia-cudnn-cu12==9.*'], 1_200_000);
       gpuLibraryPath = (await execute(venvPython, ['-I', '-c', 'import sysconfig,os; p=sysconfig.get_paths()["purelib"]; print(os.path.join(p,"nvidia/cublas/lib")+":"+os.path.join(p,"nvidia/cudnn/lib"))'], 10_000)).trim();
       env.LD_LIBRARY_PATH = [gpuLibraryPath, env.LD_LIBRARY_PATH].filter(Boolean).join(path.delimiter);
     }
@@ -100,7 +101,7 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base', d
     await copyFile(new URL('./voice_text.py', import.meta.url), helper, constants.COPYFILE_EXCL);
     await chmod(helper, 0o600);
     const hardwareArgs = ['--device', device, '--compute-type', computeType];
-    const prepared = await execute(venvPython, ['-I', runner, '--prepare', '--model', model, '--cache-dir', path.join(engine, 'cache', 'hub'), ...hardwareArgs], 300_000);
+    const prepared = await execute(venvPython, ['-I', runner, '--prepare', '--model', model, '--cache-dir', path.join(engine, 'cache', 'hub'), ...hardwareArgs], 1_800_000);
     const provenance = JSON.parse(prepared.trim().split('\n').at(-1));
     const argv = [venvPython, '-I', runner, '{input}', '{outputDir}', '--model', provenance.modelPath, ...hardwareArgs];
     const streamArgv = [venvPython, '-I', '-u', streaming, '--model', provenance.modelPath, ...hardwareArgs];
