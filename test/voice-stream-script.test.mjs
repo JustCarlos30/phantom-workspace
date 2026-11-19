@@ -24,7 +24,7 @@ test('Sin voice-stream.py conserva todos los argumentos', () => {
 
 test('El script empaquetado declara los ajustes de dictado enviados por el host', async () => {
   const script = await readFile(new URL('../scripts/voice-stream.py', import.meta.url), 'utf8');
-  for (const flag of ['--language', '--vocabulary', '--pause-ms', '--vad-threshold']) {
+  for (const flag of ['--language', '--vocabulary', '--pause-ms', '--vad-threshold', '--profile', '--corrections', '--fillers']) {
     assert.match(script, new RegExp(`parser\\.add_argument\\(["']${flag}["']`));
   }
 });

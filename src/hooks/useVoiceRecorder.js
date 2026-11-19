@@ -73,6 +73,8 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
   }, []);
   useEffect(() => { transition('idle'); setError(''); setLive(EMPTY); setMode(null); setNotice(''); return dispose; }, [dispose, workspaceId, scopeId]);
   useEffect(() => { if (!enabled) { dispose(); transition('idle'); } }, [enabled, dispose]);
+  // Load the speech model before the first dictation so live text starts at once.
+  useEffect(() => { if (enabled && workspaceId) apiRef.current('voice.stream.warm', { workspaceId }).catch(() => {}); }, [enabled, workspaceId]);
   const stop = useCallback(() => {
     if (phase.current !== 'recording') return;
     cancelled.current = false; transition('transcribing');
