@@ -7,7 +7,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome } from './store.mjs';
 import { applySubagent, validateSubagentOp } from './subagents.mjs';
 import { Terminals } from './terminals.mjs';
-import { Chats, validateChat, validateModel, permissionPatch, applyPatch } from './chats.mjs';
+import { Chats, validateChat, validateModel, permissionPatch, applyPatch, assertNewChatPolicy } from './chats.mjs';
 import { Merges } from './merges.mjs';
 import { Branches } from './branches.mjs';
 import { Repo } from './repo.mjs';
@@ -133,7 +133,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
-       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);}
+       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);assertNewChatPolicy(node.data.chat);}
        // One orchestrator session per project.
        if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
        w.nodes.push(node);return node;
@@ -226,8 +226,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         else {validated.cardId='';validated.cardTitle='';}
       }
       if(patch.providerSessionId!==undefined) {
-        text(patch.providerSessionId,'OpenCode session',512);
-        if(patch.providerSessionId){const result=await routeIntegration('opencode.sessions',{workspaceId:w.id});assert(result.result?.available&&result.result.items.some(s=>s.id===patch.providerSessionId),'OpenCode session not found in this workspace');validated.provider='opencode';validated.providerSessionId=patch.providerSessionId;}
+        text(patch.providerSessionId,'provider session',512);
+        // Claude-only policy: no new OpenCode session binding; an existing one stays readable and can be cleared.
+        if(patch.providerSessionId) throw new Error('Phantom Workspace ya no vincula sesiones nuevas de OpenCode: las ejecuciones nuevas usan Claude Code. La sesión anterior sigue legible y puede desvincularse.');
         else {validated.providerSessionId='';}
       }
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
@@ -267,6 +268,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='chat.question.answer') return chats.answerQuestion(node,p.requestId,p.answers===undefined?null:p.answers);
       // permissionMode ('ask'|'auto'|'full') wins over the older boolean autoApprove.
       const patch=permissionPatch({autoApprove:p.autoApprove,permissionMode:p.permissionMode});if(p.provider!==undefined)patch.provider=p.provider;validateChat(patch);
+      if(patch.provider!==(node.data.chat?.provider??null))assertNewChatPolicy(patch);
       assert(patch.provider===undefined||patch.provider===(node.data.chat?.provider??null)||!chats.running(node.id),'Detén la respuesta antes de cambiar de agente');
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
       if(p.model!==undefined&&p.model!==null)validateModel(p.model);

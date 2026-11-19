@@ -344,16 +344,18 @@ test('Phantom controllers use host Node argv, owned SIGINT, bounded output and r
   f.context.spawn = (file, args, options) => {
     assert.equal(file, process.execPath); assert.equal(options.shell, false);
     assert.deepEqual(args.slice(0, 2), ['--import', controllerPreload]); assert.ok(path.isAbsolute(args[1])); assert.ok(path.isAbsolute(args[2]));
-    assert.deepEqual(args.slice(3), ['run', 'task_owned', '--model', 'provider/model;literal', '--json']);
+    assert.deepEqual(args.slice(3), ['run', 'task_owned', '--model', 'claude-code/haiku', '--json']);
     const child = new EventEmitter(); child.pid = 123456; child.stdout = new PassThrough(); child.stderr = new PassThrough();
     child.signals = []; child.kill = signal => { child.signals.push(signal); return true; }; children.push(child); return child;
   };
   const [descriptor, concurrent] = await Promise.all([
-    f.call('phantom.control', { id: task.id, action: 'run', model: 'provider/model;literal' }),
-    f.call('phantom.control', { id: task.id, action: 'run', model: 'provider/model;literal' }),
+    f.call('phantom.control', { id: task.id, action: 'run', model: 'claude-code/haiku' }),
+    f.call('phantom.control', { id: task.id, action: 'run', model: 'claude-code/haiku' }),
   ]);
   assert.equal(concurrent.id, descriptor.id);
   assert.equal(descriptor.status, 'running'); assert.equal(children.length, 1);
+  // The descriptor records what was requested, never a confirmed runtime.
+  assert.equal(descriptor.requestedModel, 'claude-code/haiku'); assert.equal(descriptor.modelSource, 'payload'); assert.equal(descriptor.engine, 'claude-code'); assert.equal(descriptor.observedModel, undefined);
   assert.equal((await f.call('phantom.control', { id: task.id, action: 'verify' })).id, descriptor.id);
   children[0].stdout.write('x'.repeat(1100000));
   await f.call('phantom.control', { id: descriptor.id, action: 'stop' }); assert.deepEqual(children[0].signals, ['SIGINT']);
@@ -364,6 +366,57 @@ test('Phantom controllers use host Node argv, owned SIGINT, bounded output and r
   await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller/);
   assert.equal(f.context.events.filter(e => e.type === 'tool.output').reduce((n, e) => n + Buffer.byteLength(e.data), 0), 1048576);
   const cancel = await f.call('phantom.control', { id: task.id, action: 'cancel' }); assert.equal(cancel.id, task.id); assert.ok(calls.some(args => args.includes('cancel')));
+});
+
+async function policyRun(t, contract, config = {}) {
+  const f = await fixture(t);
+  const task = { id: 'task_policy', kind: 'card', status: 'ready', contract: { workspace: f.root, goal: 'Policy', ...contract } };
+  const spawned = [];
+  f.context.execFile = async (file) => { if (file === 'git') throw new Error('no git'); return { stdout: JSON.stringify(task), stderr: '' }; };
+  f.context.spawn = (file, args) => {
+    spawned.push(args.slice(3));
+    const child = new EventEmitter(); child.pid = 1; child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => true; return child;
+  };
+  f.workspace.plugins = { phantom: { enabled: true, config: { phantomPath: '', phantomData: '', model: '', ...config } } };
+  return { ...f, task, spawned, run: payload => f.call('phantom.control', { id: task.id, action: 'run', ...payload }) };
+}
+
+test('Claude-only: contract, judge and child models must be Claude even when the payload model is Claude', async t => {
+  for (const [contract, where] of [
+    [{ model: 'opencode/gpt-5' }, /contrato/],
+    [{ model: 'claude-code/sonnet', judge: { model: 'openai/gpt-5' } }, /juez del contrato/],
+    [{ coordination: { children: [{ id: 'a', model: 'claude-code/haiku' }, { id: 'b', model: 'provider/model' }] } }, /hijo b/],
+    [{ coordination: { children: [{ id: 'a', judge: { model: 'gpt-4' } }] } }, /juez del hijo a/],
+  ]) {
+    const f = await policyRun(t, contract);
+    await assert.rejects(f.run({ model: 'claude-code/sonnet' }), where);
+    await assert.rejects(f.run({ model: 'claude-code/sonnet' }), /Claude Code/);
+    assert.deepEqual(f.spawned, [], 'no process starts and the task is untouched');
+    assert.deepEqual(f.workspace.phantomControllers ?? [], []);
+  }
+});
+
+test('Claude-only: explicit non-Claude payload or stored plugin model blocks; empty falls back to claude-code/sonnet', async t => {
+  let f = await policyRun(t, {});
+  await assert.rejects(f.run({ model: 'openai/gpt-5' }), /no es Claude Code.*claude-code\/sonnet/);
+  assert.deepEqual(f.spawned, []);
+  f = await policyRun(t, {}, { model: 'provider/legacy' });
+  await assert.rejects(f.run({}), /provider\/legacy.*no es Claude Code/);
+  assert.deepEqual(f.spawned, []);
+  f = await policyRun(t, {});
+  const descriptor = await f.run({});
+  assert.deepEqual(f.spawned, [['run', 'task_policy', '--model', 'claude-code/sonnet', '--json']]);
+  assert.equal(descriptor.requestedModel, 'claude-code/sonnet'); assert.equal(descriptor.modelSource, 'default');
+  f = await policyRun(t, { model: 'claude-code/opus' });
+  assert.equal((await f.run({})).requestedModel, 'claude-code/opus');
+  f = await policyRun(t, { model: 'claude-code/opus' }, { model: 'claude-code/haiku' });
+  // The contract's fixed model wins over payload and plugin config, exactly as the harness runtime does.
+  const fixed = await f.run({ model: 'claude-code/sonnet' });
+  assert.equal(fixed.requestedModel, 'claude-code/opus'); assert.equal(fixed.modelSource, 'contract');
+  assert.deepEqual(f.spawned.at(-1), ['run', 'task_policy', '--model', 'claude-code/opus', '--json']);
+  f = await policyRun(t, {}, { model: 'claude-code/haiku' });
+  const payloadWins = await f.run({ model: 'sonnet' });
+  assert.equal(payloadWins.requestedModel, 'claude-code/sonnet'); assert.equal(payloadWins.modelSource, 'payload');
 });
 
 test('Docker rejects names/images without labels, foreign workdirs and config-file symlink escapes', async t => {

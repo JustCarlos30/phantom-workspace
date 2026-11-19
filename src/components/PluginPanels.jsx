@@ -37,7 +37,8 @@ function Content({ type, ...props }) {
   const nativeApi = useCallback(async (method, payload) => {
     const result = await api(method, payload);
     const current = latest.current;
-    if (method === 'phantom.detail' && current.node && result?.available !== false) {
+    // The inspector hosts this panel for another node (e.g. a terminal): only a node of the panel's own type owns its selection.
+    if (method === 'phantom.detail' && current.node?.type === panel?.nodeType && result?.available !== false) {
       const selection = payload.topic === 'tasks' ? { cardId: payload.id } : payload.ref ? { ref: payload.ref } : {};
       const data = { ...current.node.data, pluginId: panel.pluginId, panelId: panel.id, ...selection };
       if (JSON.stringify(data) !== JSON.stringify(current.node.data)) {

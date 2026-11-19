@@ -2,8 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildCardInput, cardFormOf, emptyCardForm, validateScopePath,
-  cardActions, contractOf, stateOf, refOf, filterCards,
+  cardActions, contractOf, stateOf, refOf, filterCards, executionFacts,
 } from './plugin-model.mjs';
+
+test('executionFacts distingue solicitado de observado y bloquea modelos no Claude sin fingir', () => {
+  const none = executionFacts({});
+  assert.deepEqual([none.client, none.engine, none.requested, none.requestedSource, none.status, none.observedLabel, none.blocked], ['claude', 'claude-code', 'claude-code/sonnet', 'predeterminado', 'unknown', 'Desconocido', null]);
+  assert.equal(executionFacts({ contract: { model: 'claude-code/opus' }, pluginModel: 'claude-code/haiku' }).requestedSource, 'contrato');
+  assert.equal(executionFacts({ pluginModel: 'claude-code/haiku' }).requestedSource, 'configuración del plugin');
+  const fixed = executionFacts({ contract: { model: 'claude-code/haiku' }, typedModel: 'claude-code/sonnet' });
+  assert.deepEqual([fixed.requested, fixed.requestedSource], ['claude-code/haiku', 'contrato']); assert.match(fixed.note, /se ignora/);
+  assert.equal(executionFacts({ typedModel: 'sonnet' }).requested, 'sonnet');
+  const hist = executionFacts({ contract: { model: 'openai/gpt-5' }, recordedRequest: 'openai/gpt-5' });
+  assert.deepEqual([hist.client, hist.engine, hist.status, hist.observedLabel], ['desconocido', 'desconocido', 'unknown', 'Desconocido']); assert.ok(hist.blocked);
+  const seen = executionFacts({ contract: { model: 'claude-code/opus' }, observedModel: 'claude-opus-5-5' });
+  assert.deepEqual([seen.status, seen.observed, seen.requested], ['observed', 'claude-opus-5-5', 'claude-code/opus']);
+  const legacy = executionFacts({ contract: { model: 'claude-code/sonnet', judge: { model: 'openai/gpt-5' } } });
+  assert.match(legacy.blocked, /juez del contrato.*no es Claude Code/); assert.equal(legacy.engine, 'claude-code');
+  assert.match(executionFacts({ pluginModel: 'provider/legacy' }).blocked, /configuración del plugin/);
+});
 
 function validForm(overrides = {}) {
   return {

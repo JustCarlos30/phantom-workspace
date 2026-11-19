@@ -46,15 +46,15 @@ test('projects enumera todos los proyectos, marca la sesión y exige una existen
 test('encargo local crea panel visible, metadatos y PTY nueva con worktree y entorno existentes',async t=>{
   const f=await fixture(t),result=await f.handoff({brief:'\n Primera tarea\nDetalles \" $ ` \\ peligrosos\n '});
   assert.equal(result.workspaceId,f.w.id);assert.equal(result.workspaceName,'Origen');
-  assert.equal(result.title,'Primera tarea');assert.equal(result.agent,'none');assert.equal(result.launched,false);
+  assert.equal(result.title,'Primera tarea');assert.equal(result.agent,'claude');assert.equal(result.launched,true);
   const node=f.getNode(result),session=f.host.terminals.get(result.sessionId);
   assert.equal(node.type,'terminal');assert.equal(node.title,'Encargo: Primera tarea');assert.ok(!node.data.hidden);
-  assert.deepEqual(node.data.handoff,{id:result.handoffId,from:{workspaceId:f.w.id,workspaceName:'Origen',nodeId:f.node.id,title:f.node.title},title:'Primera tarea',brief:'Primera tarea\nDetalles \" $ ` \\ peligrosos',agent:'none',depth:1,createdAt:'2026-11-14T12:00:00.000Z'});
+  assert.deepEqual(node.data.handoff,{id:result.handoffId,from:{workspaceId:f.w.id,workspaceName:'Origen',nodeId:f.node.id,title:f.node.title},title:'Primera tarea',brief:'Primera tarea\nDetalles \" $ ` \\ peligrosos',agent:'claude',depth:1,createdAt:'2026-11-14T12:00:00.000Z'});
   assert.equal(node.data.sessionId,session.id);assert.equal(node.data.launchState,'ready');
   assert.notEqual(session.id,f.session.id);assert.equal(session.status,'running');assert.equal(session.workspaceId,f.w.id);
   assert.equal(session.cols,120);assert.equal(session.rows,32);assert.ok(f.host.terminals.live.has(session.id));
   assert.equal(session.cwd,session.worktree.path);assert.notEqual(session.cwd,f.session.cwd);
-  assert.equal(session.worktree.source,f.w.canonicalPath);assert.equal(f.writes.length,0);
+  assert.equal(session.worktree.source,f.w.canonicalPath);assert.equal(f.writes.length,1);assert.equal(f.writes[0].data,HANDOFF_COMMANDS.claude);
   assert.ok(f.host.store.getWorkspace(f.w.id).nodes.filter(n=>n.id!==node.id).every(n=>n.x!==node.x||n.y!==node.y));
   const env=fs.readFileSync(`/proc/${session.pid}/environ`,'utf8').split('\0');
   assert.ok(env.includes(`PHANTOM_TERMINAL_SESSION_ID=${session.id}`));
@@ -104,21 +104,26 @@ test('Atención recibe un solo aviso con eventos y los campos existentes',async 
 test('comandos son constantes exactas y none no escribe; arranque explícito escribe una línea',async t=>{
   const f=await fixture(t);
   assert.doesNotMatch(HANDOFF_INSTRUCTION,/["$`\\\r\n]/);
-  for(const [agent,prefix] of [['claude','claude'],['codex','codex'],['opencode','opencode --prompt']]){
+  for(const [agent,prefix] of [['claude','claude']]){
     const result=await f.handoff({agent,title:'$(no-ejecutar)',brief:'`texto` "$HOME" \\'});
     assert.equal(result.launched,true);assert.equal(result.agent,agent);
     assert.deepEqual(f.writes.at(-1),{sessionId:result.sessionId,data:`${prefix} "${HANDOFF_INSTRUCTION}"\r`});
     assert.equal(handoffCommand(agent),HANDOFF_COMMANDS[agent]);
   }
-  const none=await f.handoff({agent:'none'});assert.equal(none.launched,false);assert.equal(f.writes.length,3);
+  const none=await f.handoff({agent:'none'});assert.equal(none.launched,false);assert.equal(f.writes.length,1);
   assert.equal(handoffCommand('none'),'');assert.throws(()=>handoffCommand('gemini'),/no admitido/);
+  // Claude-only policy: no OpenCode/Codex launch command exists in the catalog and an explicit request is refused before a node is created.
+  assert.deepEqual(Object.keys(HANDOFF_COMMANDS).sort(),['claude','none']);
+  for(const agent of ['codex','opencode']){assert.throws(()=>handoffCommand(agent),/Claude Code/);await assert.rejects(f.handoff({agent}),/Claude Code/);}
+  assert.equal(f.writes.length,1);
 });
 
-test('agente por defecto reutiliza el nombre detectado en primer plano y admite fallback',async t=>{
+test('agente por defecto es Claude Code y no hereda el cliente del emisor',async t=>{
   const f=await fixture(t);
-  for(const [name,expected] of [['Claude Code','claude'],['Codex','codex'],['OpenCode','opencode'],['Gemini CLI','none'],[null,'none']]){
+  for(const name of ['Claude Code','Codex','OpenCode','Gemini CLI',null]){
     f.host.terminals.foreground=()=>({agent:name});
-    const result=await f.handoff();assert.equal(result.agent,expected);assert.equal(result.launched,expected!=='none');
+    const result=await f.handoff();assert.equal(result.agent,'claude');assert.equal(result.launched,true);
+    assert.deepEqual(f.writes.at(-1),{sessionId:result.sessionId,data:HANDOFF_COMMANDS.claude});
   }
 });
 
