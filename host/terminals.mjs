@@ -9,6 +9,7 @@ import { provisionBrowserTerminal } from './agent-browser.mjs';
 import { bootstrapAgentPolicy, shimmedPath } from './agent-policy.mjs';
 import { prepareWorktree } from './worktree-setup.mjs';
 import { roleEnv, roleOf } from './merge-guard.mjs';
+import { inheritClaudeTrust } from './claude-trust.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
 function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
@@ -147,6 +148,7 @@ export class Terminals {
       // Incorporaciones: the policy states the terminal's role and the guard reads it from the environment.
       const integration = w.integration?.enabled ? { role: roleOf(node), base: await this.integrationBase?.(w).catch(() => null) ?? null } : null;
       const policyEnv = { ...await bootstrapAgentPolicy({ stateDir:this.store.dir,workspace:w,env:process.env,nodeId:node.id,sessionId,cwd:directory.cwd,branch,integration }), ...roleEnv({ stateDir:this.store.dir,workspace:w,node,branch }) };
+      if (directory.worktree) await inheritClaudeTrust(this.store, w, directory).catch(() => {});
       signal.throwIfAborted();
       assert(!this.closed && !this.closingNodes.has(node.id), 'Terminal is closing');
       child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
