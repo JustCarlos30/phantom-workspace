@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createHost } from '../host/server.mjs';
 import { opencodeSessions } from '../integrations/opencode.mjs';
 import { main as agentCLI } from '../scripts/agent.mjs';
-import { autoBindings } from '../host/agents.mjs';
+import { autoBindings, validateAgent } from '../host/agents.mjs';
 
 async function fixture(t) {
   const root=fs.mkdtempSync('/tmp/opencode/phantom-agents-'),dataDir=path.join(root,'state');
@@ -112,6 +112,11 @@ test('OpenCode catalog scopes canonical folders/worktrees and handles missing ru
   assert.deepEqual((await opencodeSessions({},context)).items.map(s=>s.id),['ses_owned','ses_tree']);
   context.execFile=async()=>{throw new Error('ENOENT');};
   const unavailable=await opencodeSessions({},context);assert.equal(unavailable.available,false);assert.deepEqual(unavailable.items,[]);
+});
+
+test('agent validation accepts claude-code and opencode providers only',()=>{
+  for(const provider of ['claude-code','opencode'])assert.equal(validateAgent({provider}).provider,provider);
+  for(const provider of ['codex','','Claude-Code'])assert.throws(()=>validateAgent({provider}),/Unsupported agent provider/);
 });
 
 test('a never-linked terminal adopts the single open Phantom task on its own worktree',async t=>{
