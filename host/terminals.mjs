@@ -70,10 +70,12 @@ export function tailLines(terminal,count) {
 // What the screen says about whose turn it is. Agent TUIs print a stable
 // "esc to interrupt" hint while they work and a numbered/yes-no question when
 // they need approval; nothing is inferred beyond those visible signals.
+const TRUST_PROMPT=[/\bquick safety check\b/i,/\bis this a project you (created|trust)\b/i,/\byes, i trust this folder\b/i,/\baccessing workspace:/i];
 const WORKING=/\besc(ape)?\b.{0,4}\b(to )?(interrupt|cancel)\b/i;
 const APPROVAL=[/\bdo you want to (proceed|make|create|run|allow|continue|apply|overwrite|delete)\b/i,/\bwould you like to (run|proceed|allow|make|apply|continue)\b/i,/\ballow (once|always)\b/i,/\bpermission required\b/i,/\brequires? (your )?approval\b/i,/^\s*[❯›>]\s*1\.\s*(yes|allow|approve)\b/i,/\((y\/n|yes\/no)\)|\[(y\/n|Y\/n|y\/N)\]/,/\bpress enter to (continue|confirm)\b/i];
 export function screenSignal(lines) {
   const recent=lines.filter(l=>l.trim()).slice(-14);
+  if(recent.some(l=>TRUST_PROMPT.some(r=>r.test(l)))) return 'awaiting_approval';
   if(recent.some(l=>WORKING.test(l))) return 'working';
   if(recent.some(l=>APPROVAL.some(r=>r.test(l)))) return 'awaiting_approval';
   return null;
