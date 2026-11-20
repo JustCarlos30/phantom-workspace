@@ -19,7 +19,8 @@ function SubmittedDiff({ item, workspace, api }) {
 
 // What a branch changes: its files, the test result when there is one, and the
 // diff on demand. Ordering, rejecting and integrating belong to the orchestrator.
-export function IntegrationChanges({ item, workspace, api, base, path }) {
+// `explained`: the row already says why it came back (FailureCard), so the note and clash are not repeated.
+export function IntegrationChanges({ item, workspace, api, base, path, explained = false }) {
   const [diff, setDiff] = useState(false);
   const submitted = Boolean(item.id), inspection = item.inspection, target = base || item.base || 'main';
   const exact = Boolean(item.headOid) && inspection?.available === true && inspection.headOid === item.headOid;
@@ -30,8 +31,8 @@ export function IntegrationChanges({ item, workspace, api, base, path }) {
   return <div className="inc-review-body">
     {path && <MergeSteps path={path} />}
     {tested && <p className={item.checks.ok ? 'inc-ok' : 'inc-conflict'}>Tests: {item.checks.ok ? 'pasaron' : 'fallaron'}</p>}
-    {item.conflicts?.length > 0 && <p className="inc-conflict">Chocan con {target}: {item.conflicts.join(', ')}</p>}
-    {item.note && item.status !== 'failed' && <p className="inc-note">{item.note}</p>}
+    {!explained && item.conflicts?.length > 0 && <p className="inc-conflict">Chocan con {target}: {item.conflicts.join(', ')}</p>}
+    {!explained && item.note && <p className="inc-note">{item.note}</p>}
     {Array.isArray(paths) && paths.length > 0
       ? <><h4>{total} {total === 1 ? 'archivo' : 'archivos'}</h4><ul className="inc-paths">{paths.map(file => <li key={file}><code>{file}</code></li>)}</ul>{paths.length < total && <p className="inc-hint">y {total - paths.length} más</p>}</>
       : <p className="inc-hint">{Array.isArray(paths) ? 'Sin archivos cambiados.' : 'Sin datos de archivos.'}</p>}

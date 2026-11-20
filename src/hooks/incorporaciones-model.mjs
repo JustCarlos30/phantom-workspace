@@ -122,7 +122,7 @@ export const ownerLabel = owner => OWNER[owner] ?? '';
 // Board labels use the same seven branch states as Ramas; `blocked` is the
 // agent's state, not the branch's.
 const BRANCH_STATE = {
-  conflict: ['Conflicto', 'danger'], failed: ['Conflicto', 'danger'], blocked: ['Bloqueada', 'danger'],
+  conflict: ['Conflicto', 'danger'], failed: ['Tests fallaron', 'danger'], blocked: ['Bloqueada', 'danger'],
   merging: ['Integrando', 'working'], queued: ['En cola', 'muted'], ready: ['Lista', 'success'],
   working: ['Trabajando', 'working'], review: ['Lista', 'success'], unsaved: ['Sin guardar', 'attention'], idle: ['Trabajando', 'working'],
 };
@@ -152,7 +152,7 @@ export function buildBranchBoard(data) {
 // The Cola tab: what is being integrated now, what follows in order, and what
 // came back to its session. Branches nobody sent belong to Ramas, not here.
 const COLA = {
-  merging: ['Integrando', 'working'], queued: ['En cola', 'neutral'], conflict: ['Conflicto', 'danger'], failed: ['Conflicto', 'danger'],
+  merging: ['Integrando', 'working'], queued: ['En cola', 'neutral'], conflict: ['Conflicto', 'danger'], failed: ['Tests fallaron', 'danger'],
   merged: ['En main', 'neutral'], rejected: ['Rechazada', 'danger'], withdrawn: ['Retirada', 'neutral'],
 };
 export function buildCola(data, now = Date.now()) {
@@ -162,7 +162,7 @@ export function buildCola(data, now = Date.now()) {
     return { key: item.id, item, state: item.status, label: item.status === 'merged' ? `En ${base}` : label, tone, detail };
   };
   const size = item => item.fileCount != null ? plural(item.fileCount, 'archivo', 'archivos') : '';
-  const returned = item => item.status === 'failed' ? 'Los tests fallaron'
+  const returned = item => item.status === 'failed' ? `Los tests fallaron${Number.isFinite(item.checks?.code) ? ` · código ${item.checks.code}` : ''}${item.checks?.timedOut ? ' · tiempo agotado' : ''}`
     : item.conflicts?.length ? `${fileName(item.conflicts[0])}${item.conflicts.length > 1 ? ` y ${item.conflicts.length - 1} más chocan` : ' choca'} con ${base}` : `Choca con ${base}`;
   const closedAt = item => item.finishedAt || item.updatedAt || item.requestedAt;
   const day = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toDateString(); };

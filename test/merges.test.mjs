@@ -117,6 +117,54 @@ test('auto rolls failing checks back, returns the worker and continues the queue
   assert.equal(f.git('status', '--porcelain'), '');
 });
 
+test('failed checks keep their output tail and the failure kind tells checks from conflicts', async t => {
+  const f = autoFixture(t);
+  f.workspace.integration.checks = `${JSON.stringify(process.execPath)} -e "console.log('x'.repeat(9000) + 'FIN'); process.exit(3)"`;
+  await f.submit(f.worker('bad', 'bad.txt'));
+  await f.configure({ auto: true }); await f.settled();
+  const failed = f.workspace.integration.queue[0];
+  assert.equal(failed.status, 'failed'); assert.equal(failed.failure, 'checks');
+  assert.equal(failed.checks.ok, false); assert.equal(failed.checks.code, 3); assert.equal(failed.checks.timedOut, false); assert.ok(failed.checks.durationMs >= 0);
+  assert.ok(failed.checks.output.trimEnd().endsWith('FIN')); assert.ok(failed.checks.output.length <= 8000); assert.match(failed.note, /Checks fallidos/);
+  const listed = (await f.merges.status(f.workspace)).queue[0];
+  assert.equal(listed.failure, 'checks'); assert.equal(listed.checks.output, failed.checks.output);
+
+  const g = autoFixture(t);
+  await g.submit(g.worker('one', 'base.txt', 'one\n')); await g.submit(g.worker('two', 'base.txt', 'two\n'));
+  await g.configure({ auto: true }); await g.settled();
+  assert.deepEqual(g.workspace.integration.queue.map(item => item.failure), [undefined, 'conflict']);
+  assert.equal(g.workspace.integration.queue[1].checks, undefined);
+});
+
+test('operator withdraw and retry act by item id, only from valid states, without a session or token', async t => {
+  const f = autoFixture(t), id = n => f.workspace.integration.queue[n].id, by = { workspaceId: f.workspace.id };
+  await f.submit(f.worker('bad', 'bad.txt')); await f.submit(f.worker('good')); await f.submit(f.worker('also'));
+  await f.configure({ auto: true }); await f.settled();
+  assert.deepEqual(f.workspace.integration.queue.map(item => item.status), ['failed', 'merged', 'merged']);
+  await f.configure({ auto: false });
+  // Retry: only failed/conflict/stale go back to the queue; the evidence of the failure is cleared.
+  await assert.rejects(f.merges.handle('merge.retry', { ...by, id: id(1) }), /estado «merged»/);
+  await assert.rejects(f.merges.handle('merge.retry', { ...by, id: 'nope-nope' }), /no encontrada/);
+  await assert.rejects(f.merges.handle('merge.retry', { id: id(0) }), /Invalid workspace ID/);
+  const retried = await f.merges.handle('merge.retry', { ...by, id: id(0) });
+  assert.equal(retried.status, 'queued'); assert.equal(retried.by, 'operator'); assert.equal(retried.failure, undefined); assert.equal(retried.checks, undefined);
+  await assert.rejects(f.merges.handle('merge.retry', { ...by, id: id(0) }), /estado «queued»/);
+  // Withdraw: queued/failed/conflict/rejected/stale; merged is final.
+  await assert.rejects(f.merges.handle('merge.withdraw', { ...by, id: id(1) }), /estado «merged»/);
+  const withdrawn = await f.merges.handle('merge.withdraw', { ...by, id: id(0) });
+  assert.equal(withdrawn.status, 'withdrawn'); assert.equal(withdrawn.by, 'operator'); assert.ok(withdrawn.finishedAt);
+  await assert.rejects(f.merges.handle('merge.withdraw', { ...by, id: id(0) }), /estado «withdrawn»/);
+  for (const status of ['rejected', 'stale', 'conflict']) {
+    f.workspace.integration.queue.push({ id: `item-${status}`, nodeId: 'x', title: 'x', branch: 'x', status, headOid: 'a'.repeat(40), requestedAt: new Date().toISOString() });
+    assert.equal((await f.merges.handle('merge.withdraw', { ...by, id: `item-${status}` })).status, 'withdrawn');
+  }
+  // Worker sessions keep their own withdraw, and the orchestrator-only methods still demand the token.
+  await f.submit(f.worker('late')); assert.equal((await f.merges.handle('merge.withdraw', { sessionId: 'late' })).status, 'withdrawn');
+  await assert.rejects(f.merges.handle('merge.reject', { ...by, id: id(0), reason: 'x' }), /Solo la sesión orquestadora/);
+  f.workspace.integration.enabled = false;
+  await assert.rejects(f.merges.handle('merge.retry', { ...by, id: id(0) }), /no está activo/);
+});
+
 test('auto aborts conflicts, returns the worker and continues the queue', async t => {
   const f = autoFixture(t);
   await f.submit(f.worker('one', 'base.txt', 'one\n'));
