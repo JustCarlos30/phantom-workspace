@@ -30,6 +30,7 @@ test('settings RPC projects nested credentials while persistence and integration
   assert.deepEqual((await client.invoke('state.get')).settings, expected);
   assert.deepEqual(patch, before);
   assert.deepEqual(host.store.state.settings, before);
+  host.store.flush();
   assert.deepEqual(JSON.parse(fs.readFileSync(host.store.filename, 'utf8')).settings, before);
   assert.equal((await client.invoke('fixture.private-settings')).intact, true);
   await assert.rejects(client.invoke('settings.update', { patch: ['fixture-rejected-secret'] }), error => {

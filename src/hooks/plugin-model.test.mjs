@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildCardInput, cardFormOf, emptyCardForm, validateScopePath,
-  cardActions, contractOf, stateOf, refOf, filterCards, executionFacts,
+  cardActions, contractOf, stateOf, refOf, filterCards, executionFacts, enabledProviders,
 } from './plugin-model.mjs';
 
 test('executionFacts distingue solicitado de observado y bloquea modelos no Claude sin fingir', () => {
@@ -18,8 +18,29 @@ test('executionFacts distingue solicitado de observado y bloquea modelos no Clau
   const seen = executionFacts({ contract: { model: 'claude-code/opus' }, observedModel: 'claude-opus-5-5' });
   assert.deepEqual([seen.status, seen.observed, seen.requested], ['observed', 'claude-opus-5-5', 'claude-code/opus']);
   const legacy = executionFacts({ contract: { model: 'claude-code/sonnet', judge: { model: 'openai/gpt-5' } } });
-  assert.match(legacy.blocked, /juez del contrato.*no es Claude Code/); assert.equal(legacy.engine, 'claude-code');
+  assert.match(legacy.blocked, /no es Claude Code \(juez del contrato\).*habilita OpenCode en Configuración > Agentes/); assert.equal(legacy.engine, 'claude-code');
   assert.match(executionFacts({ pluginModel: 'provider/legacy' }).blocked, /configuración del plugin/);
+});
+
+const withOpenCode = { providers: { claude: { enabled: true }, opencode: { enabled: true }, codex: { enabled: false } }, defaults: { chat: { client: 'claude', model: null }, handoff: { client: 'claude', model: null }, task: { client: 'claude', model: 'claude-code/sonnet' }, judge: { client: 'claude', model: 'claude-code/sonnet' } } };
+
+test('executionFacts con OpenCode habilitado enruta por motor sin fallback ni Claude por OpenCode', () => {
+  const open = executionFacts({ contract: { model: 'openai/gpt-5' }, policy: withOpenCode });
+  assert.deepEqual([open.client, open.engine, open.requested, open.requestedSource, open.blocked], ['opencode', 'opencode', 'openai/gpt-5', 'contrato', null]);
+  const child = executionFacts({ contract: { model: 'claude-code/sonnet', coordination: { children: [{ id: 'h1', model: 'openai/gpt-5', judge: { model: 'openai/gpt-5-mini' } }] } }, policy: withOpenCode });
+  assert.deepEqual([child.engine, child.blocked], ['claude-code', null]);
+  assert.match(executionFacts({ typedModel: 'anthropic/claude-sonnet', policy: withOpenCode }).blocked, /solo con Claude Code/);
+  const area = executionFacts({ policy: { ...withOpenCode, defaults: { ...withOpenCode.defaults, task: { client: 'opencode', model: 'openai/gpt-5' } } } });
+  assert.deepEqual([area.engine, area.requested, area.requestedSource], ['opencode', 'openai/gpt-5', 'predeterminado']);
+  const disabledChild = executionFacts({ contract: { model: 'claude-code/sonnet', coordination: { children: [{ id: 'h1', model: 'openai/gpt-5' }] } } });
+  assert.match(disabledChild.blocked, /hijo h1/);
+  const noClaude = { ...withOpenCode, providers: { ...withOpenCode.providers, claude: { enabled: false } } };
+  assert.match(executionFacts({ contract: { model: 'claude-code/opus' }, policy: noClaude }).blocked, /deshabilitado/);
+});
+
+test('enabledProviders: sin datos o con error solo Claude Code', () => {
+  assert.deepEqual(enabledProviders(null), ['claude']);
+  assert.deepEqual(enabledProviders({ policy: withOpenCode }), ['claude', 'opencode']);
 });
 
 function validForm(overrides = {}) {

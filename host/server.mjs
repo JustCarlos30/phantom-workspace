@@ -18,9 +18,12 @@ import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 import { MobileAccess } from './mobile.mjs';
 import { agentProjects, resolveHandoffProject, validateHandoff, handoffCommand, handoffPosition, createHandoffLimit } from './handoffs.mjs';
-import { validateLaunch, createProcessLimit, processList } from './processes.mjs';
+import { validateLaunch, createProcessLimit, processList, validateEnv, createEnvLimit } from './processes.mjs';
 import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
+import { setExecutionPolicy } from './agent-policy.mjs';
+import { createProviders } from './providers.mjs';
+import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
 // workspace. It states only what the host knows; it never claims live state.
@@ -37,7 +40,7 @@ Before registering a task or card for a change, resolve and load the card.prepar
 
 Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: both die when the turn ends. Register the task with \`phantom create\` (or \`phantom card\`), including its scope and checks, then use \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" run ID [MODEL]\`, which hands it to the host and survives your turn. Check its status with \`phantom show ID\` or \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" runs\`; do not relaunch a task already shown as running.
 
-This product's procedures are published as Phantom skills. Before integrating branches, verifying before publishing, preparing a release, organizing the canvas, or doing research, resolve the appropriate skill with the Phantom MCP \`skills_resolve\` tool and follow it: \`branch.integrate\`, \`verify.prepublish\`, \`release.build\`, \`canvas.organize\`, or \`research.collect\`. If the MCP or skill is unavailable, say so and use the CLI help instead. Each research belongs in its own space created with the canvas CLI \`research\` command, which the user reviews in the Reader panel.
+This product's procedures are published as Phantom skills. Before integrating branches, verifying before publishing, preparing a release, organizing the canvas, or doing research, resolve the appropriate skill with the Phantom MCP \`skills_resolve\` tool and follow it: \`branch.integrate\`, \`verify.prepublish\`, \`release.build\`, \`canvas.organize\`, or \`research.collect\`. If the MCP or skill is unavailable, say so and use the CLI help instead. For feedback services and jobs run through Docker compose (previews, long-running services, e2e or migration jobs, full dev environments by profile), resolve the skill actions \`env.service\`, \`env.job\` and \`env.up\` and write them as compose.yaml services with \`x-phantom\`. Each research belongs in its own space created with the canvas CLI \`research\` command, which the user reviews in the Reader panel.
 
 You can organize the user's canvas when they ask (order, group, move, resize, rename, hide panels): run \`"\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(CANVAS_CLI)} help\` for usage. Start with \`list\`; prefer \`arrange --by type|branch|status --zones\` for "ordénalo"; hiding a panel never stops its session.
 
@@ -54,7 +57,7 @@ export function probeSocket(socketPath) { return new Promise(resolve => { const 
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
 }
-export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions}={}) {
+export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions}={}) {
   assert(!process.versions.electron,'Run the host with system Node, never Electron');
   dataDir=path.resolve(dataDir); fs.mkdirSync(dataDir,{recursive:true,mode:0o700}); fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock'), lockPath=path.join(dataDir,'host.lock');
@@ -63,11 +66,15 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,chats,merges,branches,repo,server,mobile,android,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,branches,repo,server,mobile,android,providers,closingPromise,ownsSocket=false;
   const clients=new Set();
-  const limits=createLimits();
+  const limits=providerOptions?.limits??createLimits();
+  // Effective provider policy: read from settings on every use, never cached as a fallback.
+  const policy=()=>executionPolicy(store.state.settings);
+  const publishPolicy=()=>{try{setExecutionPolicy(policy());}catch{/* Invalid stored settings: execution throws on use; the hint keeps the last valid policy. */}};
   const reserveHandoff=createHandoffLimit(handoffOptions);
   const reserveProcess=createProcessLimit(processOptions);
+  const reserveEnv=createEnvLimit(processOptions);
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
@@ -80,15 +87,41 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         const now=new Date().toISOString(),source=terminalExit?'terminal':event.result?.source==='phantom'?'phantom':'tool';
         const item={id:randomUUID(),eventKey,title:terminalExit?`Terminal finalizada (código ${event.exitCode??'desconocido'})`:`Proceso ${source==='phantom'?'Phantom':'de herramienta'} ${event.status==='failed'?'fallido':'finalizado'}`,source,ref:runId,...(terminalExit?{sessionId:runId,exitCode:event.exitCode}:{runId,status:event.status}),createdAt:now,observedAt:now};
         store.transaction(()=>{w.attention.push(item);if(w.attention.length>1000)w.attention.shift();});
-        broadcast({type:'attention.new',workspaceId:w.id,item});broadcast({type:'state.changed',workspaceId:w.id});
+        broadcast({type:'attention.new',workspaceId:w.id,item});markChanged(w.id);
       }
     }
     broadcast(event);
+    // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
+    if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
   };
+  // Environment owners are registered in the workspace state; releases are serialized so racing triggers do not repeat work.
+  let envChain=Promise.resolve();
+  const envRelease=(workspaceId,sessionId,nodeId)=>envChain=envChain.then(async()=>{
+    let w;try{w=store.getWorkspace(workspaceId);}catch{return;}
+    if(!(w.envOwners||[]).some(e=>(sessionId&&e.ownerSessionId===sessionId)||(nodeId&&e.ownerNodeId===nodeId)))return;
+    try{const answer=await routeIntegration('env.release',{workspaceId,sessionId,nodeId});if(answer?.handled)closeEnvBrowsers(workspaceId,answer.result?.removed);}catch{}
+  });
+  const closeEnvBrowsers=(workspaceId,names)=>{
+    if(!names?.length)return;
+    const gone=n=>n.type==='browser'&&names.includes(n.data?.envService);
+    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);w.nodes=w.nodes.filter(n=>!gone(n));});
+  };
+  async function envBrowser(w,sender,service) {
+    const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name);
+    if(existing){if(existing.data.url!==service.url)await invoke('node.update',{workspaceId:w.id,id:existing.id,patch:{data:{...existing.data,url:service.url}}});return existing.id;}
+    const node=await invoke('node.create',{workspaceId:w.id,type:'browser',title:`Entorno: ${service.name}`,...handoffPosition(store.getWorkspace(w.id)),data:{url:service.url,agentTerminal:sender.id,envService:service.name}});
+    return node.id;
+  }
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
   const mainEnv=w=>({...roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null}),PHANTOM_WORKSPACE_ID:w.id});
-  const persist=workspaceId=>{store.persist();emit({type:'state.changed',...(workspaceId?{workspaceId}:{})});};
-  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
+  // Coalesce state.changed: one event per workspace (plus one global) per tick.
+  const dirtyWorkspaces=new Set();let dirtyGlobal=false,dirtyTimer;
+  const markChanged=workspaceId=>{
+    if(workspaceId)dirtyWorkspaces.add(workspaceId);else dirtyGlobal=true;
+    dirtyTimer??=setImmediate(()=>{dirtyTimer=undefined;const ids=[...dirtyWorkspaces],global=dirtyGlobal;dirtyWorkspaces.clear();dirtyGlobal=false;for(const workspaceId of ids)broadcast({type:'state.changed',workspaceId});if(global)broadcast({type:'state.changed'});});
+  };
+  const persist=workspaceId=>{store.persist();markChanged(workspaceId);};
+  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); markChanged(workspaceId); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;
   const inFlightIntegrations=new Set();
   const routeIntegration=async(method,payload)=>{
@@ -119,7 +152,23 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
     if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
-    if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
+    if(method==='settings.update') {
+      object(p.patch);
+      // Provider policy keys are validated as a whole; providers.configure is the dedicated path.
+      // A non-object `providers` is a legacy settings shape, not the policy; execution still refuses it explicitly.
+      const policyPatch=v=>v&&typeof v==='object'&&!Array.isArray(v);
+      if(policyPatch(p.patch.providers)||p.patch.executionDefaults!==undefined) executionPolicy({...store.state.settings,...p.patch});
+      const result=mutate(null,()=>{Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
+      publishPolicy();providers.invalidate();return result;
+    }
+    if(method==='providers.list') return providers.list({force:p.force===true});
+    if(method==='providers.models') return providers.models(p.provider,{force:p.force===true});
+    if(method==='providers.configure') {
+      const next=configurePolicy(store.state.settings,p);
+      mutate(null,()=>{store.state.settings.providers=next.providers;store.state.settings.executionDefaults=next.executionDefaults;});
+      publishPolicy();
+      return {policy:policy()};
+    }
     if(method==='workspace.open') return mutate(null,()=>store.open(p.path));
     if(method==='workspace.select') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);store.state.activeWorkspaceId=w.id;return w;});
     if(method==='plugin.get') { const {getPluginDescriptor,pluginSettings}=await import('../src/plugins/registry.js');assert(getPluginDescriptor(p.id),'Plugin desconocido');return pluginSettings(store.getWorkspace(p.workspaceId),p.id); }
@@ -130,13 +179,13 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
-       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);assertNewChatPolicy(node.data.chat);}
+       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);assertNewChatPolicy(node.data.chat,policy());}
        // One orchestrator session per project.
        if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
        w.nodes.push(node);return node;
     });
      if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='reference'&&patch.data){for(const key of ['file','hash','kind','mime','previousVersion']) assert(patch.data[key]===undefined||patch.data[key]===n.data[key],'La identidad de la referencia es inmutable; importa una nueva versión');patch.data={...patch.data};for(const key of ['file','hash','kind','mime','previousVersion']) if(n.data[key]!==undefined)patch.data[key]=n.data[key];}if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.handoff;if(n.data.handoff)patch.data.handoff=n.data.handoff;delete patch.data.process;if(n.data.process)patch.data.process=n.data.process;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
-    if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);return mutate(w.id,()=>{const current=store.getWorkspace(w.id),node=current.nodes.find(n=>n.id===p.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
+    if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);await envRelease(w.id,null,p.id);return mutate(w.id,()=>{const current=store.getWorkspace(w.id),node=current.nodes.find(n=>n.id===p.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
     if(method.startsWith('reference.')||method.startsWith('comment.')) return handleReference(method,p,{store,mutate,dataDir,brief:(w,comment)=>mentionBrief(w,comment,dataDir,CANVAS_CLI),mention:(w,comment,brief)=>chats.send(w,chats.mainNode(w),brief)});
     if(method==='terminal.create') {
       const w=store.getWorkspace(p.workspaceId); let node=p.nodeId?w.nodes.find(n=>n.id===p.nodeId):null; if(p.nodeId) assert(node?.type==='terminal','Terminal node not found');
@@ -171,6 +220,27 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(Number.isInteger(lines)&&lines>=1&&lines<=400,'Las líneas deben ser un entero entre 1 y 400');
       return terminals.tail(node.data.sessionId,lines,400);
     }
+    if(['terminal.agent.env.list','terminal.agent.env.up','terminal.agent.env.run','terminal.agent.env.down'].includes(method)) {
+      const action=method.slice('terminal.agent.env.'.length),sender=terminals.get(p.sessionId),w=store.getWorkspace(sender.workspaceId),from=w.nodes.find(n=>n.id===sender.nodeId);
+      assert(from?.type==='terminal','No se encuentra el panel emisor del entorno');
+      const fields=validateEnv(action,p),ask=async(name,extra)=>{const answer=await routeIntegration(name,{workspaceId:w.id,...extra});assert(answer?.handled,'El entorno no está disponible');return answer.result;};
+      if(action==='list'){const result=await ask('env.list');return {...result,services:result.services.map(s=>({...s,mine:s.owner?.ownerSessionId===sender.id}))};}
+      assert(sender.status==='running'&&from.data.sessionId===sender.id,'El entorno requiere la sesión viva actual del panel');
+      reserveEnv(sender.id);
+      const result=await ask(`env.${action}`,{owner:{sessionId:sender.id,nodeId:from.id},actor:'agent',...fields});
+      if(action==='up'){result.browsers=[];for(const s of result.services)if(s.url)result.browsers.push({service:s.name,nodeId:await envBrowser(w,sender,s)});}
+      if(action==='down')closeEnvBrowsers(w.id,result.down);
+      return result;
+    }
+    // UI: observe the environment and bring a service down (any lifecycle) from the Entorno panel.
+    if(method==='env.list'||method==='env.down') {
+      for(const key of Object.keys(p))assert(['workspaceId',...(method==='env.down'?['service']:[])].includes(key),`Clave de entorno desconocida: ${key}`);
+      store.getWorkspace(p.workspaceId);
+      const answer=await routeIntegration(method,{workspaceId:p.workspaceId,...(method==='env.down'?{service:p.service,actor:'ui'}:{})});assert(answer?.handled,'El entorno no está disponible');
+      if(method==='env.down')closeEnvBrowsers(p.workspaceId,answer.result.down);
+      return answer.result;
+    }
+    assert(!method.startsWith('env.'),`Unknown method: ${method}`);
     if(method==='terminal.agent.projects') {
       const session=terminals.get(p.sessionId);
       return agentProjects(store.state.workspaces,session.workspaceId);
@@ -179,11 +249,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const sender=terminals.get(p.sessionId),source=store.getWorkspace(sender.workspaceId),fromNode=source.nodes.find(n=>n.id===sender.nodeId);
       assert(fromNode?.type==='terminal','No se encuentra el panel emisor del encargo');
       assert(sender.status==='running'&&fromNode.data.sessionId===sender.id,'El encargo requiere la sesión viva actual del panel');
-      const fields=validateHandoff(p,fromNode,terminals.foreground(sender.id)?.agent),target=resolveHandoffProject(store.state.workspaces,p.project,source.id);
+      const rules=policy(),fields=validateHandoff(p,fromNode,terminals.foreground(sender.id)?.agent,rules),target=resolveHandoffProject(store.state.workspaces,p.project,source.id);
       const createdAt=reserveHandoff(sender.id),handoff={id:randomUUID(),from:{workspaceId:source.id,workspaceName:source.name,nodeId:fromNode.id,title:fromNode.title},...fields,createdAt};
       const node=await invoke('node.create',{workspaceId:target.id,type:'terminal',title:`Encargo: ${fields.title}`,...handoffPosition(target),data:{handoff}});
       const {session}=await invoke('terminal.create',{workspaceId:target.id,nodeId:node.id,cols:120,rows:32});
-      const command=handoffCommand(fields.agent);
+      const command=handoffCommand(fields.agent,rules);
       if(command)terminals.write(session.id,command);
       const item={id:randomUUID(),eventKey:`handoff:${handoff.id}`,title:`Encargo recibido: ${fields.title}`,source:'terminal',ref:session.id,sessionId:session.id,workspaceId:target.id,createdAt,observedAt:createdAt};
       mutate(target.id,()=>{const w=store.getWorkspace(target.id);w.attention.push(item);if(w.attention.length>1000)w.attention.shift();});
@@ -224,8 +294,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       }
       if(patch.providerSessionId!==undefined) {
         text(patch.providerSessionId,'provider session',512);
-        // Claude-only policy: no new OpenCode session binding; an existing one stays readable and can be cleared.
-        if(patch.providerSessionId) throw new Error('Phantom Workspace ya no vincula sesiones nuevas de OpenCode: las ejecuciones nuevas usan Claude Code. La sesión anterior sigue legible y puede desvincularse.');
+        // Binding a new OpenCode session requires OpenCode enabled; an existing one stays readable and can be cleared.
+        if(patch.providerSessionId) {
+          assertClientAllowed('opencode',policy(),'Vincular sesiones: el agente');
+          const result=await routeIntegration('opencode.sessions',{workspaceId:w.id});
+          assert(result.handled&&result.result?.available,`No se pudo comprobar la sesión OpenCode: ${result.result?.reason??'catálogo no disponible'}`);
+          assert(result.result.items.some(item=>item.id===patch.providerSessionId),'La sesión OpenCode no pertenece a este workspace');
+          validated.providerSessionId=patch.providerSessionId;validated.provider='opencode';
+        }
         else {validated.providerSessionId='';}
       }
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
@@ -240,7 +316,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='terminal.close') {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Terminal node not found');
-      await terminals.closeNode(node.id);chats.removeNode(node.id);
+      await terminals.closeNode(node.id);chats.removeNode(node.id);await envRelease(w.id,null,node.id);
       return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
     // Chat cards: a terminal node whose data.chat.provider selects an agent CLI
@@ -265,10 +341,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='chat.question.answer') return chats.answerQuestion(node,p.requestId,p.answers===undefined?null:p.answers);
       // permissionMode ('ask'|'auto'|'full') wins over the older boolean autoApprove.
       const patch=permissionPatch({autoApprove:p.autoApprove,permissionMode:p.permissionMode});if(p.provider!==undefined)patch.provider=p.provider;validateChat(patch);
-      if(patch.provider!==(node.data.chat?.provider??null))assertNewChatPolicy(patch);
+      const rules=policy();
+      if(patch.provider!==(node.data.chat?.provider??null))assertNewChatPolicy(patch,rules);
       assert(patch.provider===undefined||patch.provider===(node.data.chat?.provider??null)||!chats.running(node.id),'Detén la respuesta antes de cambiar de agente');
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
-      if(p.model!==undefined&&p.model!==null)validateModel(p.model);
+      if(p.model!==undefined&&p.model!==null){validateModel(p.model);const provider=patch.provider===undefined?node.data.chat?.provider:patch.provider;if(provider)assertClientModel(provider,p.model,rules,'chat');}
       assert((p.model===undefined&&p.reasoning===undefined)||!chats.running(node.id),'Detén la respuesta antes de cambiar modelo o effort/variant');
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat=applyPatch(current.data.chat,patch);for(const [field,key] of [['model','models'],['reasoning','reasoning']])if(p[field]!==undefined){assert(chat.provider,'Elige un agente primero');const values={...chat[key]};if(p[field]===null)delete values[chat.provider];else values[chat.provider]=p[field];chat[key]=values;}validateChat(chat);current.data={...current.data,chat};return current;});
     }
@@ -331,8 +408,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
           // production adapters solely to close a host using injected fixtures.
           await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
           try {if(shutdownIntegration)await bounded(Promise.resolve().then(()=>shutdownIntegration()),5000,'Integration shutdown');}
-          finally {await chats?.close();await terminals?.close();}
+          finally {try {await chats?.close();await terminals?.close();} finally {store?.close();}}
           await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Final integration drain').catch(()=>{});
+          store?.flush();
         }
       }finally {
         for(const c of clients)c.destroy();
@@ -345,6 +423,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
+    providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
     android=new AndroidGateway({hostDataDir:dataDir,listWorkspaces:()=>store.state.workspaces});
     server=net.createServer(socket=>{

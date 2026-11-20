@@ -226,7 +226,7 @@ test('native browser identity is checked against the current canonical state, ty
 
 test('RPC exposes only contract methods with bounded, finite plain JSON payloads', () => {
   assert.doesNotThrow(() => validateInvocation('limits.read', {}));
-  for (const method of ['terminal.write', 'workspace.open', 'desktop.info', 'browser.capture', 'browser.inspect', 'voice.transcribe', 'host.shutdown']) {
+  for (const method of ['terminal.write', 'workspace.open', 'desktop.info', 'browser.capture', 'browser.inspect', 'voice.transcribe', 'host.shutdown', 'providers.list', 'providers.models', 'providers.configure']) {
     assert.doesNotThrow(() => validateInvocation(method, {}));
   }
   for (const method of ['shell.exec', 'fs.readFile', 'browser.executeJavaScript', 'desktop.spawn', '__proto__', null]) {
@@ -377,7 +377,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
     return tracks;
   });
   assert.equal(mic, 1);
-  assert.equal(await electron.evaluate(() => globalThis.phantomMicPrompts), 1);
+  assert.equal(await electron.evaluate(() => globalThis.phantomMicPrompts), 0);
   assert.equal(await page.evaluate(async () => {
     try { const stream = await navigator.mediaDevices.getUserMedia({ video: true }); stream.getTracks().forEach(track => track.stop()); return 'allowed'; }
     catch { return 'denied'; }
@@ -411,7 +411,7 @@ test('isolated Electron API spike: bridge, native view, capture, isolation and l
   assert.equal(remote.bridge, 'undefined');
   assert.equal(remote.require, 'undefined');
   assert.equal(remote.microphone, 'denied');
-  assert.equal(await electron.evaluate(() => globalThis.phantomMicPrompts), 1);
+  assert.equal(await electron.evaluate(() => globalThis.phantomMicPrompts), 0);
   assert.equal(remote.preferences.sandbox, true);
   assert.equal(remote.preferences.contextIsolation, true);
   assert.equal(remote.preferences.nodeIntegration, false);
