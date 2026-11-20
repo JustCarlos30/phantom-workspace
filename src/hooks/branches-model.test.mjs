@@ -39,7 +39,12 @@ test('Ramas gives every branch one state, one line and one action, most urgent f
   // A predicted conflict is resolved in its session, never forced from the panel.
   assert.deepEqual(read('feature/clash'), ['Conflicto', 'danger', 'Canvas.jsx choca con main', 'session']);
   assert.deepEqual(by['feature/clash'].can, { commit: false, integrate: false, update: false, remove: false });
-  assert.deepEqual(read('feature/failed'), ['Conflicto', 'danger', 'Los tests fallaron al integrar', null]);
+  assert.deepEqual(read('feature/failed'), ['Tests fallaron', 'danger', 'Los tests fallaron al integrar', null]);
+  // By hand: a terminal in the copy, resolving a clash when no agent is live, aborting only a half-done update.
+  assert.deepEqual(by['feature/clash'].byHand, { terminal: true, resolve: true, abort: false });
+  assert.equal(by[`phantom/terminal-${uuid}`].byHand.resolve, false);
+  const half = buildBranches({ available: true, base: { branch: 'main' }, branches: [row('feature/half', { ahead: 1, behind: 2, changeCount: 1, changes: [{ status: 'UU', path: 'a.js' }] })] }).rows[0];
+  assert.deepEqual([half.midMerge, half.byHand.abort], [true, true]);
   assert.deepEqual(read('feature/queued'), ['En cola', 'neutral', 'Espera su turno en la cola', null]);
   assert.deepEqual(read('feature/merging'), ['Integrando', 'working', 'El orquestador la está integrando', null]);
   // Only branches without a session are cleaned; owned ones are brought up to date.
@@ -48,7 +53,8 @@ test('Ramas gives every branch one state, one line and one action, most urgent f
   assert.deepEqual(model.removable.map(item => item.name), ['old/orphan']);
   assert.deepEqual(model.updatable.map(item => item.name).sort(), ['old/orphan', 'old/owned']);
   assert.equal(buildBranches(data, { query: 'app.jsx' }).visible, 1);
-  assert.equal(buildBranches(data, { query: 'conflicto' }).visible, 2);
+  assert.equal(buildBranches(data, { query: 'conflicto' }).visible, 1);
+  assert.equal(buildBranches(data, { query: 'tests fallaron' }).visible, 1);
   assert.equal(shortBranch(`phantom/terminal-${uuid}`), 'Sesión cerrada · 362f2765'); assert.equal(shortBranch('feature/x'), 'feature/x');
   assert.equal(branchTitle(null), 'Sin rama');
   assert.equal(buildBranches({ base: { branch: 'main' }, branches: [row(`phantom/terminal-${uuid}`)] }).title, '1 rama de tus sesiones');

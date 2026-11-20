@@ -9,7 +9,64 @@ import vm from 'node:vm';
 import { createHost } from '../host/server.mjs';
 import { connectHost, requestTimeout } from '../desktop/host-client.mjs';
 import { isHostTransportError } from '../desktop/security.mjs';
+import './public-settings.test.mjs';
 const until=async fn=>{const end=Date.now()+5000;while(Date.now()<end){if(await fn())return;await new Promise(r=>setTimeout(r,25));}throw new Error('Timed out');};
+
+test('settings RPC projects nested credentials while persistence and integrations retain private configuration', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-settings-'));
+  const patch = { theme: 'dark', providers: [{ name: 'fixture', private_key: 'fixture-private', options: [[{ signingKey: 'fixture-signing', enabled: true }]] },
+    [null, false, 3, 'visible', { CLIENT_SECRET: 'fixture-client', accessToken: 'fixture-access', refresh_token: 'fixture-refresh', passphrase: 'fixture-pass', label: 'public' }]],
+    apiKey: 'fixture-api', localWhisperCommand: ['fixture-command', '{input}'] };
+  let client;
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: (method, p, context) => ({
+    handled: method === 'fixture.private-settings', result: { intact: JSON.stringify(context.state.settings) === JSON.stringify(patch) },
+  }) });
+  t.after(async () => { client?.close(); await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  client = await connectHost({ dataDir: host.store.dir });
+  const before = structuredClone(patch);
+  const expected = { theme: 'dark', providers: [{ name: 'fixture', options: [[{ enabled: true }]] },
+    [null, false, 3, 'visible', { label: 'public' }]], localWhisperCommand: ['fixture-command', '{input}'] };
+  assert.deepEqual(await client.invoke('settings.update', { patch }), expected);
+  assert.deepEqual((await client.invoke('state.get')).settings, expected);
+  assert.deepEqual(patch, before);
+  assert.deepEqual(host.store.state.settings, before);
+  host.store.flush();
+  assert.deepEqual(JSON.parse(fs.readFileSync(host.store.filename, 'utf8')).settings, before);
+  assert.equal((await client.invoke('fixture.private-settings')).intact, true);
+  await assert.rejects(client.invoke('settings.update', { patch: ['fixture-rejected-secret'] }), error => {
+    assert.match(error.message, /Expected an object/);
+    assert.doesNotMatch(error.message, /fixture-rejected-secret/);
+    return true;
+  });
+  assert.deepEqual((await client.invoke('state.get')).settings, expected);
+});
+
+test('export omits object and array preferences, preserves normal scalars and user content, import stays private', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-portable-settings-'));
+  let client;
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { client?.close(); await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  client = await connectHost({ dataDir: host.store.dir });
+  const w = await client.invoke('workspace.open', { path: root });
+  const content = { messages: [{ role: 'user', text: 'User text: token and privateKey', token: 'user-authored-content' }] };
+  const node = await client.invoke('node.create', { workspaceId: w.id, type: 'note', data: content });
+  const malicious = { theme: { nested: [[{ privateKey: 'fixture-theme-secret', label: 'fixture-benign-name-secret' }]] },
+    language: [{ clientSecret: 'fixture-language-secret' }], fontSize: { token: 'fixture-font-secret' }, terminalFontSize: [[{ passphrase: 'fixture-terminal-secret' }]] };
+  const incoming = await client.invoke('storage.export');
+  incoming.settings = malicious;
+  const imported = await client.invoke('storage.import', { data: incoming });
+  assert.deepEqual(imported.settings, { theme: { nested: [[{ label: 'fixture-benign-name-secret' }]] }, language: [{}], fontSize: {}, terminalFontSize: [[{}]] });
+  assert.deepEqual(host.store.state.settings, malicious);
+  const exported = await client.invoke('storage.export');
+  assert.deepEqual(exported.settings, {});
+  assert.deepEqual(exported.workspaces[0].nodes.find(n => n.id === node.id).data, content);
+  assert.deepEqual((await client.invoke('state.get')).workspaces[0].nodes.find(n => n.id === node.id).data, content);
+  assert.deepEqual(host.store.state.settings, malicious);
+  const normal = { theme: 'dark', language: 'es', fontSize: 14, terminalFontSize: 16 };
+  await client.invoke('settings.update', { patch: { ...normal, apiKey: 'fixture-runtime-secret', voiceProvider: 'auto' } });
+  assert.deepEqual((await client.invoke('storage.export')).settings, normal);
+  assert.equal(host.store.state.settings.apiKey, 'fixture-runtime-secret');
+});
 
 test('private singleton host, request IDs, async integration, disconnect survival, import validation',async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'phantom-rpc-'));let client;

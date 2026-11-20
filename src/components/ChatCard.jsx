@@ -12,21 +12,47 @@ import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
 import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
-import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
+import { phantomRunIds, turnRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
 import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
+import { executionPolicy } from '../../shared/execution-policy.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 
-export const CARD_MODES = [
+const AGENT_MODES = [
   { id: 'claude', key: 'claude', label: 'Claude', hint: 'Conversar con Claude Code en esta carpeta' },
   { id: 'opencode', key: 'opencode', label: 'OpenCode', hint: 'Conversar con OpenCode en esta carpeta' },
   { id: 'codex', key: 'codex', label: 'Codex', hint: 'Conversar con Codex en esta carpeta' },
-  { id: null, key: 'shell', label: 'Terminal', hint: 'Usar la sesión de terminal de esta card' },
 ];
+const SHELL_MODE = { id: null, key: 'shell', label: 'Terminal', hint: 'Usar la sesión de terminal de esta card' };
+export const CARD_MODES = [AGENT_MODES[0], SHELL_MODE];
+// Enabled agents plus the card's own (a disabled one stays visible so its history reads), then the terminal.
+export const cardModes = (enabled, current) => [...AGENT_MODES.filter(mode => enabled.includes(mode.id) || mode.id === current), SHELL_MODE];
+
+// Enabled providers from the global policy (settings.providers). Without it, Claude Code only, as before.
+let policyCache = { enabled: ['claude'], chat: 'claude' }, policyRead = null, policyAt = 0;
+export function rememberPolicy(settings) {
+  try { const policy = executionPolicy(settings); policyCache = { enabled: Object.keys(policy.providers).filter(id => policy.providers[id].enabled), chat: policy.defaults.chat.client, policy }; policyAt = Date.now(); }
+  catch (error) { policyCache = { enabled: ['claude'], chat: 'claude', error }; }
+  return policyCache;
+}
+export function useEnabledProviders(api) {
+  const [value, setValue] = useState(policyCache);
+  useEffect(() => {
+    let live = true;
+    if (Date.now() - policyAt > 3000) policyRead ||= Promise.resolve().then(() => api('state.get', {})).then(state => rememberPolicy(state?.settings), () => policyCache).finally(() => { policyRead = null; });
+    Promise.resolve(policyRead || policyCache).then(next => { if (live) setValue(next); });
+    return () => { live = false; };
+  }, [api]);
+  return value;
+}
 const MODE_KEY = 'phantom.cardMode';
-// New cards open in the mode chosen last; chat with Claude until one is chosen.
+// New cards open in the mode chosen last if it is still enabled; otherwise the chats default (Claude Code unless configured).
 export function preferredCardMode() {
-  try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : ['opencode', 'codex'].includes(saved) ? saved : 'claude'; } catch { return 'claude'; }
+  let saved = null;
+  try { saved = localStorage.getItem(MODE_KEY); } catch { /* per-viewer preference only */ }
+  if (saved === 'terminal') return null;
+  if (saved && saved !== 'claude' && policyCache.enabled.includes(saved)) return saved;
+  return saved === 'claude' && policyCache.enabled.includes('claude') ? 'claude' : policyCache.enabled.includes(policyCache.chat) ? policyCache.chat : 'claude';
 }
 const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
 // Branches Phantom creates per session are named after an id; show the project instead.
@@ -94,19 +120,20 @@ function useModeChoice({ node, workspace, api, notify, disabled }) {
 // An agent to chat with, or the plain terminal: the prominent choice.
 export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
   const { active, pending, choosing, choose } = useModeChoice({ node, workspace, api, notify, disabled });
+  const modes = cardModes(useEnabledProviders(api).enabled, active);
   const navigate = event => {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault(); event.stopPropagation();
     if (disabled || choosing.current) return;
-    const count = CARD_MODES.length;
-    const index = CARD_MODES.findIndex(mode => mode.id === active);
+    const count = modes.length;
+    const index = modes.findIndex(mode => mode.id === active);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? count - 1 : 1)) % count;
     event.currentTarget.querySelectorAll('button')[next]?.focus();
-    choose(CARD_MODES[next].id);
+    choose(modes[next].id);
   };
-  const activeMode = CARD_MODES.find(mode => mode.id === active) || CARD_MODES[0];
-  return <div className="pc-modes" data-active={activeMode.key} style={{ '--mode-index': CARD_MODES.indexOf(activeMode), '--mode-count': CARD_MODES.length }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
-    {CARD_MODES.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
+  const activeMode = modes.find(mode => mode.id === active) || modes[0];
+  return <div className="pc-modes" data-active={activeMode.key} style={{ '--mode-index': modes.indexOf(activeMode), '--mode-count': modes.length }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+    {modes.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
   </div>;
 }
 
@@ -115,7 +142,8 @@ function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
   const { active, choose } = useModeChoice({ node, workspace, api, notify, disabled });
   const [open, setOpen] = useState(false);
   const root = useRef(null), trigger = useRef(null), menu = useRef(null);
-  const mode = CARD_MODES.find(item => item.id === active) || CARD_MODES[0];
+  const modes = cardModes(useEnabledProviders(api).enabled, active);
+  const mode = modes.find(item => item.id === active) || modes[0];
   const items = () => [...(menu.current?.querySelectorAll('[role="menuitemradio"]') || [])];
   useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   useEffect(() => {
@@ -140,7 +168,7 @@ function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
       <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Quién responde en esta card">
-      {CARD_MODES.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
+      {modes.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
         <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={14} aria-hidden="true" />}
       </button>)}
     </div>}
@@ -196,6 +224,7 @@ const ToolRow = React.memo(function ToolRow({ part }) {
 export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
   const [state, setState] = useState(null);
   const [chosen, setChosen] = useState(null);
+  const [attempt, setAttempt] = useState(0);
   const stepsRef = useRef(null);
   const open = chosen ?? state?.live ?? false;
   useEffect(() => {
@@ -227,9 +256,9 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
     };
     refresh();
     return () => { disposed = true; clearTimeout(timer); };
-  }, [api, workspaceId, id]);
+  }, [api, workspaceId, id, attempt]);
   if (!state) return null;
-  if (state.error) return <p className="pc-phantom-warning" role="status">Seguimiento Phantom no disponible.</p>;
+  if (state.error) return <p className="pc-phantom-warning" role="alert">Seguimiento Phantom no disponible para <code>{id.slice(0, 13)}</code>. <button type="button" className="pc-phantom-open" onClick={() => setAttempt(n => n + 1)}>Reintentar</button></p>;
   const stepList = (activity, latest = false) => <ol className="pc-subagent-steps" ref={latest ? stepsRef : undefined} aria-label="Pasos del encargo">
     {activity.hidden > 0 && <li className="pc-subagent-hidden">{activity.hidden} pasos anteriores</li>}
     {activity.steps.map(step => { const [, Icon] = toolKind(step.kind); return <li key={step.id} className={`is-${step.status}`}><Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.label}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} /></li>; })}
@@ -426,6 +455,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
+  const runIds = turnRunIds(message.parts);
   const delegated = streaming ? activeSubagents(message.parts) : 0;
   const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
   const stamp = [message.model || model, clock(message.createdAt), ...facts].filter(Boolean).join(' · ');
@@ -433,7 +463,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
     {groups.map((group, i) => group.type === 'tools'
       ? <ToolGroup key={i} items={group.items} />
       : group.type === 'phantom'
-        ? <div key={group.part.id} className="pc-phantom-link">{group.ids.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}<ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
+        ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -443,6 +473,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
+    {runIds.length > 0 && <div className="pc-phantom-final" role="group" aria-label="Estado actual en Phantom">{runIds.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}</div>}
     {streaming && !waiting && <p className="pc-working"><span className="pc-tool-mark" aria-hidden="true" />{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
@@ -737,7 +768,7 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
 }
 
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
-  const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
+  const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);

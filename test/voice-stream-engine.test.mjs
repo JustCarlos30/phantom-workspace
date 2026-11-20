@@ -52,7 +52,7 @@ elif case == "beam":
     assert model.calls[-1]["beam_size"] == 1
     state.audio = np.zeros(rate * 2, dtype=np.float32)
     state.push()
-    assert model.calls[-1]["beam_size"] == 5
+    assert model.calls[-1]["beam_size"] == 2
     options = model.calls[-1]["vad_parameters"]
     assert options.threshold == 0.5 and options.min_silence_duration_ms == 500
 elif case == "auto":
@@ -84,7 +84,7 @@ elif case == "final":
     assert state.audio.size == 0
     assert result["text"] == "anterior nueva frase"
     assert result["confirmed"] == result["text"] and result["partial"] == ""
-    assert model.calls[-1]["beam_size"] == 5
+    assert model.calls[-1]["beam_size"] == 2
     assert "inferenceMs" in result
     speech = []
     state.audio = np.zeros(rate, dtype=np.float32)
@@ -94,7 +94,7 @@ elif case == "final":
 
 for (const [name, scenario] of [
   ['Confirmar por pausa conserva la cola; sin voz conserva un segundo', 'tail'],
-  ['Decodificación usa beam 1 parcial y 5 confirmado con VAD sensible', 'beam'],
+  ['Decodificación usa beam 1 parcial y 2 confirmado con VAD sensible', 'beam'],
   ['Idioma automático y ajustes de vocabulario y VAD llegan al modelo', 'auto'],
   ['El prompt conserva contexto confirmado en límite de palabra', 'context'],
   ['Final devuelve el texto y vacía el audio', 'final'],

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -47,7 +48,7 @@ async function setup(t) {
   t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
   await host.invoke('settings.update', { patch: { opencodePath: bin } });
   const workspace = await host.invoke('workspace.open', { path: root });
-  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { cwd: root, chat: { provider: 'opencode', models: { opencode: 'openai/gpt-test' }, reasoning: { opencode: 'high' } } } });
+  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { cwd: root } });
   const ref = { workspaceId: workspace.id, nodeId: node.id };
   const get = () => host.invoke('chat.get', ref);
   return { root, host, ref, get,
@@ -58,71 +59,38 @@ async function setup(t) {
   };
 }
 
-test('OpenCode external read waits for approval, resumes, and remembers only the exact grant', async t => {
+// Claude-only policy: a stored OpenCode chat stays readable but can no longer execute. The driveOpenCode
+// protocol tests below remain as historical-parser coverage; the host refuses to start OpenCode.
+test('Claude-only: OpenCode cannot be chosen for a chat and no OpenCode process ever starts', async t => {
   const f = await setup(t);
-  await f.send('twice');
-  const ask = await f.ask();
-  assert.equal(ask.tool, 'external_directory'); assert.match(ask.detail, /phantom-visual-card/);
-  assert.equal((await f.get()).running, true);
-  assert.equal((await f.get()).messages.at(-1).parts.filter(p => p.type === 'permission').length, 1);
-  await f.answer(ask, 'always');
-  let chat = await f.idle(), reply = chat.messages.at(-1);
-  assert.equal(reply.status, 'done'); assert.equal(chat.sessionId, 'ses_fixture');
-  assert.deepEqual(JSON.parse(reply.parts.find(p => p.type === 'text').text), [{ reply: 'once' }, { reply: 'once' }]);
-  assert.equal(reply.parts.filter(p => p.type === 'text').length, 1); assert.equal(reply.usage.costUsd, .01);
-  const transport = JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json')));
-  assert.deepEqual(transport.body.model, { providerID: 'openai', modelID: 'gpt-test' }); assert.equal(transport.body.variant, 'high');
-  assert.throws(() => process.kill(transport.pid, 0), /ESRCH/);
-  // Resume the same provider session; a different path still asks.
-  await f.send('different'); const other = await f.ask(); assert.match(other.detail, /other.json/);
-  await f.answer(other, 'deny'); chat = await f.idle();
-  assert.deepEqual(JSON.parse(chat.messages.at(-1).parts.find(p => p.type === 'text').text), [{ reply: 'reject', message: 'El usuario rechazó este permiso en Phantom Workspace.' }]);
+  assert.deepEqual((await f.get()).messages, []);
+  await assert.rejects(f.host.invoke('chat.configure', { ...f.ref, provider: 'opencode' }), /Claude Code/);
+  await assert.rejects(f.send('twice'));
+  assert.equal(fs.existsSync(path.join(f.root, 'transport.json')), false, 'the OpenCode binary was never spawned');
+  assert.equal((await f.get()).messages.length, 0, 'the refused message is not recorded');
 });
 
-test('OpenCode allow once asks again; stopping cancels pending permissions and closes its server', async t => {
-  const f = await setup(t);
-  await f.send('twice'); await f.answer(await f.ask(), 'allow');
-  const pending = await f.ask();
-  const { pid } = JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json')));
-  await f.host.invoke('chat.stop', f.ref);
-  const chat = await f.idle(); assert.equal(chat.messages.at(-1).status, 'stopped');
-  assert.equal(chat.messages.at(-1).parts.find(p => p.id === pending.id).status, 'cancelled');
-  assert.throws(() => process.kill(pid, 0), /ESRCH/);
-  await assert.rejects(f.answer(pending, 'allow'), /pendiente/);
-});
-
-test('OpenCode explicit automatic mode replies without an approval row; server failures finish the turn', async t => {
-  const f = await setup(t);
-  for (const setting of [{ autoApprove: true }, { permissionMode: 'auto' }, { permissionMode: 'full' }]) {
-    await f.host.invoke('chat.configure', { ...f.ref, ...setting });
-    await f.send('hello'); const chat = await f.idle();
-    assert.equal(chat.messages.at(-1).status, 'done');
-    assert.ok(!chat.messages.at(-1).parts.some(p => p.type === 'permission'));
-  }
-  await f.send('crash'); const chat = await f.idle();
-  assert.equal(chat.messages.at(-1).status, 'error');
-  assert.match(chat.messages.at(-1).error, /OpenCode/);
-});
-
-test('the main Phantom chat also approves OpenCode requests, and questions wait for the actual answer', async t => {
+test('Claude-only: the main Phantom chat also refuses OpenCode', async t => {
   const f = await setup(t), ref = { ...f.ref, nodeId: `phantom:${f.ref.workspaceId}` };
-  await f.host.invoke('chat.configure', { ...ref, provider: 'opencode' });
-  await f.host.invoke('chat.send', { ...ref, text: 'main' });
-  const get = () => f.host.invoke('chat.get', ref);
-  const ask = await until(async () => (await get()).messages.at(-1)?.parts.find(p => p.type === 'permission' && p.status === 'pending'));
-  await f.host.invoke('chat.permission.answer', { ...ref, requestId: ask.id, decision: 'allow' });
-  await until(async () => !(await get()).running);
-  assert.equal((await get()).messages.at(-1).status, 'done');
-  await f.send('question');
-  const question = await until(async () => (await f.get()).messages.at(-1)?.parts.find(p => p.type === 'question' && p.status === 'pending'));
-  await f.host.invoke('chat.question.answer', { ...f.ref, requestId: question.id, answers: { '¿Cómo continuar?': 'Revisar' } });
+  await assert.rejects(f.host.invoke('chat.configure', { ...ref, provider: 'opencode' }), /Claude Code/);
+  assert.equal(fs.existsSync(path.join(f.root, 'transport.json')), false);
+});
+
+test('OpenCode habilitado: el chat usa el transporte real con su modelo; deshabilitado se rechaza sin arrancar', async t => {
+  const f = await setup(t);
+  await f.host.invoke('providers.configure', { providers: { opencode: { enabled: true } } });
+  await assert.rejects(f.host.invoke('chat.configure', { ...f.ref, provider: 'opencode', model: 'anthropic/claude-sonnet-4' }), /solo con Claude Code/);
+  await f.host.invoke('chat.configure', { ...f.ref, provider: 'opencode' });
+  await f.host.invoke('chat.configure', { ...f.ref, model: 'openai/gpt-5' });
+  await f.send('main-recovered');
   const chat = await f.idle();
-  assert.deepEqual(JSON.parse(chat.messages.at(-1).parts.find(p => p.type === 'text').text), [{ answers: [['Revisar']] }]);
-  await f.send('question');
-  const skipped = await until(async () => (await f.get()).messages.at(-1)?.parts.find(p => p.type === 'question' && p.status === 'pending'));
-  await f.host.invoke('chat.question.answer', { ...f.ref, requestId: skipped.id, answers: null });
-  const finished = await f.idle();
-  assert.deepEqual(JSON.parse(finished.messages.at(-1).parts.find(p => p.type === 'text').text), [{ rejected: true }]);
+  assert.equal(chat.messages.at(-1).parts.find(p => p.type === 'text').text, 'Respuesta final del agente principal');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json'), 'utf8')).body.model, { providerID: 'openai', modelID: 'gpt-5' });
+  fs.rmSync(path.join(f.root, 'transport.json'));
+  await f.host.invoke('providers.configure', { providers: { opencode: { enabled: false } } });
+  await assert.rejects(f.send('otra'), /Habilita OpenCode/);
+  assert.equal(fs.existsSync(path.join(f.root, 'transport.json')), false);
+  assert.equal((await f.get()).messages.length, 2);
 });
 
 async function localServer(t, handler) {
@@ -262,114 +230,116 @@ test('aborting a loopback SSE stream rejects its reader and closes the connectio
   await reader.cancel().catch(() => {});
 });
 
+// Transport coverage: the protocol fixture is spawned directly and driven by driveOpenCode. The Claude-only
+// host is deliberately not involved, so no production bypass exists; these tests keep the historical
+// transport (retries, SSE reconnection, cancellation) verified without making OpenCode executable from a chat.
+function drive(t, message, { onPermission = async () => ({ behavior: 'allow' }), onQuestion = async () => ({ behavior: 'allow', answers: [['Revisar']] }), signal } = {}) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-opencode-transport-')));
+  const fixture = fileURLToPath(new URL('./fixtures/opencode-chat-server.mjs', import.meta.url));
+  const password = 'fixture-secret';
+  const child = spawn(process.execPath, [fixture, 'serve'], { cwd: root, env: { ...process.env, PWD: root, OPENCODE_SERVER_USERNAME: 'opencode', OPENCODE_SERVER_PASSWORD: password }, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+  t.after(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Already stopped. */ } fs.rmSync(root, { recursive: true, force: true }); });
+  const events = [];
+  const run = driveOpenCode(child, { cwd: root, message, password, signal, onEvent: event => events.push(event), onPermission, onQuestion });
+  const read = name => JSON.parse(fs.readFileSync(path.join(root, name)));
+  return { root, events, run, counts: () => read('control.json'), transport: () => read('transport.json') };
+}
+const finalText = events => events.find(e => e.type === 'text')?.part.text;
+const gone = pid => assert.throws(() => process.kill(pid, 0), /ESRCH/);
+
 test('OpenCode routes only bounded requests through fetch', async t => {
-  const f = await setup(t), originalFetch = globalThis.fetch, boundedRoutes = [];
+  const originalFetch = globalThis.fetch, boundedRoutes = [];
   t.mock.method(globalThis, 'fetch', (url, options) => {
     const route = new URL(url).pathname;
     assert.ok(route !== '/event' && !route.endsWith('/message'), `Unexpected long fetch: ${route}`);
     boundedRoutes.push(route);
     return originalFetch(url, options);
   });
-  await f.host.invoke('chat.configure', { ...f.ref, autoApprove: true });
-  await f.send('hello');
-  const chat = await f.idle();
-  assert.equal(chat.messages.at(-1).status, 'done');
+  const d = drive(t, 'hello');
+  await d.run;
   assert.ok(boundedRoutes.includes('/session'));
   assert.ok(boundedRoutes.some(route => route.startsWith('/permission/')));
 });
 
 test('OpenCode subtask failures and tentative main errors leave successful parent replies done', async t => {
-  const f = await setup(t);
   for (const message of ['subtask-fail', 'child-abort', 'main-recovered', 'main-failed', 'main-transport-failed']) {
-    await f.send(message);
-    const reply = (await f.idle()).messages.at(-1);
-    const failed = message === 'main-failed' || message === 'main-transport-failed';
-    assert.equal(reply.status, failed ? 'error' : 'done');
-    if (failed) assert.match(reply.error, /Bad Gateway/);
-    else assert.equal(reply.error, undefined);
-    if (message === 'main-failed') assert.match(reply.error, /Final failure/);
-    if (message !== 'main-transport-failed') assert.match(reply.parts.find(p => p.type === 'text').text, /Respuesta final/);
+    const d = drive(t, message);
+    if (message === 'main-transport-failed') { await assert.rejects(d.run, /Bad Gateway/); continue; }
+    await d.run;
+    const error = d.events.find(e => e.type === 'error');
+    assert.match(finalText(d.events), /Respuesta final/);
+    if (message === 'main-failed') { assert.match(error.error.message, /Bad Gateway/); assert.match(error.error.message, /Final failure/); }
+    else assert.equal(error, undefined);
     if (message === 'subtask-fail' || message === 'child-abort') {
-      const tool = reply.parts.find(p => p.type === 'tool');
-      assert.equal(tool.status, 'error'); assert.match(tool.output, /Subagent failed/);
+      const tool = d.events.find(e => e.type === 'tool_use');
+      assert.equal(tool.part.state.status, 'error'); assert.match(tool.part.state.error, /Subagent failed/);
     }
   }
 });
 
 test('OpenCode control replies retry transient failures only, with a bounded attempt count', async t => {
-  const f = await setup(t);
   for (const message of ['transient', 'network-transient', 'persistent', 'gone', 'question-transient', 'question-reject-transient']) {
-    await f.send(message);
-    if (message.includes('question')) {
-      const part = await until(async () => (await f.get()).messages.at(-1)?.parts.find(p => p.type === 'question' && p.status === 'pending'));
-      await f.host.invoke('chat.question.answer', { ...f.ref, requestId: part.id, answers: message.includes('reject') ? null : { '¿Cómo continuar?': 'Revisar' } });
-    } else await f.answer(await f.ask(), 'allow');
-    const reply = (await f.idle()).messages.at(-1);
-    const counts = JSON.parse(fs.readFileSync(path.join(f.root, 'control.json')));
-    assert.equal(reply.status, message === 'persistent' ? 'error' : 'done');
+    const d = drive(t, message, { onQuestion: async () => message.includes('reject') ? { behavior: 'deny' } : { behavior: 'allow', answers: [['Revisar']] } });
+    if (message === 'persistent') await assert.rejects(d.run, /OpenCode.*HTTP 503/); else await d.run;
+    const counts = d.counts();
     assert.equal(counts.attempts, message === 'persistent' || message === 'network-transient' ? 3 : message === 'gone' ? 1 : 2);
     assert.equal(counts.delivered, message === 'persistent' ? 0 : 1);
-    if (message === 'persistent') assert.match(reply.error, /OpenCode.*HTTP 503/);
   }
 });
 
 test('OpenCode reconnects SSE and catches pending requests exactly once', async t => {
-  const f = await setup(t);
   for (const message of ['sse-drop', 'sse-drop-question']) {
-    await f.send(message);
-    if (message.includes('question')) {
-      const question = await until(async () => (await f.get()).messages.at(-1)?.parts.find(p => p.type === 'question' && p.status === 'pending'));
-      await f.host.invoke('chat.question.answer', { ...f.ref, requestId: question.id, answers: { '¿Cómo continuar?': 'Revisar' } });
-    } else await f.answer(await f.ask(), 'allow');
-    const reply = (await f.idle()).messages.at(-1);
-    const counts = JSON.parse(fs.readFileSync(path.join(f.root, 'control.json')));
-    assert.equal(reply.status, 'done'); assert.equal(counts.connections, 2);
+    let asked = 0;
+    const d = drive(t, message, {
+      onPermission: async () => { asked++; return { behavior: 'allow' }; },
+      onQuestion: async () => { asked++; return { behavior: 'allow', answers: [['Revisar']] }; },
+    });
+    await d.run;
+    const counts = d.counts();
+    assert.equal(counts.connections, 2);
     assert.equal(counts.delivered, 1); assert.equal(counts.attempts, 1);
-    assert.equal(reply.parts.filter(p => p.type === 'permission' || p.type === 'question').length, 1);
+    assert.equal(asked, 1);
   }
 });
 
 test('OpenCode fails after bounded SSE reconnections and closes its server', async t => {
-  const f = await setup(t);
-  await f.send('sse-exhausted');
-  const reply = (await f.idle()).messages.at(-1);
-  assert.equal(reply.status, 'error'); assert.match(reply.error, /OpenCode/);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(f.root, 'control.json'))).connections, 4);
-  const { pid } = JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json')));
-  assert.throws(() => process.kill(pid, 0), /ESRCH/);
+  const d = drive(t, 'sse-exhausted');
+  await assert.rejects(d.run, /OpenCode/);
+  assert.equal(d.counts().connections, 4);
+  gone(d.transport().pid);
 });
 
-test('OpenCode recovered subtasks let queued messages continue', async t => {
-  const f = await setup(t);
-  await f.send('subtask-fail');
-  const queued = await f.send('main-recovered'); assert.equal(queued.queued, true);
-  const chat = await until(async () => { const chat = await f.get(); return !chat.running && chat.messages.filter(m => m.role === 'assistant').length === 2 && chat; });
-  assert.deepEqual(chat.messages.filter(m => m.role === 'assistant').map(m => m.status), ['done', 'done']);
-  assert.equal(chat.queue.length, 0);
+test('OpenCode transport keeps serving sequential turns after a recovered subtask', async t => {
+  for (const message of ['subtask-fail', 'main-recovered']) {
+    const d = drive(t, message);
+    await d.run;
+    assert.equal(d.events.find(e => e.type === 'error'), undefined);
+    gone(d.transport().pid);
+  }
 });
 
-test('OpenCode remembers denied permission keys within the turn and rejects children without feedback', async t => {
-  const f = await setup(t);
+test('OpenCode transport rejects denied permissions and sends children no feedback', async t => {
+  const feedback = 'El usuario rechazó este permiso en Phantom Workspace.';
   for (const message of ['child-denied', 'main-denied']) {
-    await f.send(message); await f.answer(await f.ask(), 'deny');
-    const reply = (await f.idle()).messages.at(-1);
-    assert.equal(reply.status, 'done');
-    assert.equal(reply.parts.filter(p => p.type === 'permission').length, 1);
-    const verdict = message === 'child-denied' ? { reply: 'reject' } : { reply: 'reject', message: 'El usuario rechazó este permiso en Phantom Workspace.' };
-    assert.deepEqual(JSON.parse(reply.parts.find(p => p.type === 'text').text), [verdict, verdict]);
+    const asked = [];
+    const d = drive(t, message, { onPermission: async request => { asked.push(request); return { behavior: 'deny', ...(request.child ? {} : { message: feedback }) }; } });
+    await d.run;
+    assert.equal(asked.length, 2);
+    assert.ok(asked.every(request => request.child === (message === 'child-denied')));
+    const verdict = message === 'child-denied' ? { reply: 'reject' } : { reply: 'reject', message: feedback };
+    assert.deepEqual(JSON.parse(finalText(d.events)), [verdict, verdict]);
   }
 });
 
 test('OpenCode cancellation interrupts retry backoff and leaves no server or later attempts', async t => {
-  const f = await setup(t);
-  await f.send('cancel-backoff'); await f.answer(await f.ask(), 'allow');
-  const counts = () => JSON.parse(fs.readFileSync(path.join(f.root, 'control.json')));
-  await until(() => counts().attempts === 1);
-  const { pid } = JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json')));
-  await f.host.invoke('chat.stop', f.ref);
-  const reply = (await f.idle()).messages.at(-1);
-  assert.equal(reply.status, 'stopped'); assert.equal(reply.error, undefined);
-  assert.throws(() => process.kill(pid, 0), /ESRCH/);
+  const controller = new AbortController();
+  const d = drive(t, 'cancel-backoff', { signal: controller.signal });
+  const outcome = assert.rejects(d.run);
+  await until(() => { try { return d.counts().attempts === 1; } catch { return false; } });
+  const { pid } = d.transport();
+  controller.abort(new Error('detenido'));
+  await outcome;
+  gone(pid);
   await new Promise(resolve => setTimeout(resolve, 250));
-  assert.equal(counts().attempts, 1);
+  assert.equal(d.counts().attempts, 1);
 });

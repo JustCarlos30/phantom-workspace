@@ -19,6 +19,17 @@ export function phantomRunIds(part) {
   return [...new Set([part.detail, part.input, part.output].flatMap(value => textOf(value).match(/\b(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi) || []))];
 }
 
+// One entry per task id for the whole turn, in first-seen order.
+export const turnRunIds = parts => [...new Set((parts || []).flatMap(phantomRunIds))];
+
+const LINKED = { running: ['En ejecución', 'live'], verifying: ['En ejecución', 'live'], recovering: ['En ejecución', 'live'], review: ['En revisión', 'review'], in_review: ['En revisión', 'review'], blocked: ['Bloqueada', 'blocked'], failed: ['Fallida', 'blocked'] };
+// Real Phantom status for the card linked to a terminal; null when it is not one worth showing.
+export function linkedRunBadge(status, startedAt, now = Date.now()) {
+  const entry = LINKED[status];
+  if (!entry) return null;
+  return { label: entry[0], tone: entry[1], elapsed: duration(startedAt, undefined, now) };
+}
+
 export function summarizePhantomRun(value, controllers = [], id, now = Date.now()) {
   const native = value?.task || value || {}, run = runsOf(value)[0];
   const related = controllers.filter(item => item.taskId === id);

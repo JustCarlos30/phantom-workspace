@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { assert, object, text, canonicalFolder } from './store.mjs';
+import { assert, object, text, canonicalFolder, pushAttention } from './store.mjs';
 import { mergeAgentConfig, terminalPolicy } from './agent-policy.mjs';
 import { git, guardState, installGuard, removeGuard, mergeToken, roleEnv, roleOf, integrationPolicy } from './merge-guard.mjs';
 import { checksFor, runChecks, validateChecks } from './checks.mjs';
@@ -213,7 +213,7 @@ export class Merges {
     const node = w.nodes.find(n => n.id === item.nodeId);
     if (node) node.data.agent = { ...node.data.agent, step: step.replace(/[\x00-\x1f\x7f]+/g, ' ').slice(0, 1000), status: 'blocked', source: 'agent', updatedAt: now() };
     const attention = { id: randomUUID(), title: `${item.title}: ${step}`.slice(0, 512), source: 'incorporaciones', ref: item.id, nodeId: item.nodeId, createdAt: now(), observedAt: now() };
-    w.attention.push(attention); if (w.attention.length > 1000) w.attention.shift();
+    pushAttention(w, attention);
     queueMicrotask(() => this.emit({ type: 'attention.new', workspaceId: w.id, item: attention }));
   }
 
@@ -257,7 +257,7 @@ export class Merges {
         let item = integration.queue.find(item => item.nodeId === node.id && OPEN.includes(item.status));
         assert(item?.status !== 'merging', 'Esta solicitud se está incorporando ahora mismo.');
         const cardId = node.data.agent?.cardId || '';
-        if (item) { delete item.conflicts; delete item.checks; Object.assign(item, { headOid, cardId, summary: summary || item.summary, status: 'queued', updatedAt: now() }); }
+        if (item) { delete item.conflicts; delete item.checks; delete item.failure; delete item.error; Object.assign(item, { headOid, cardId, summary: summary || item.summary, status: 'queued', updatedAt: now() }); }
         else { item = { id: randomUUID(), nodeId: node.id, title: node.title, branch, cardId, summary, note: '', status: 'queued', headOid, base: base.branch, requestedAt: now(), updatedAt: now() }; integration.queue.push(item); }
         if (integration.queue.length > 500) integration.queue.splice(integration.queue.findIndex(item => !OPEN.includes(item.status)), 1);
         const target = current.nodes.find(n => n.id === node.id);
@@ -266,6 +266,21 @@ export class Merges {
       });
       void this.drain(w.id);
       return submitted;
+    }
+    // Operator (renderer) actions: no session, addressed by workspace and item id; the orchestrator still integrates.
+    if (method === 'merge.withdraw' && p.sessionId === undefined) {
+      const w = this.store.getWorkspace(text(p.workspaceId, 'workspace ID', 128)); assert(this.of(w).enabled, 'Incorporaciones no está activo en este proyecto.');
+      return this.change(w.id, integration => Object.assign(this.item(integration, p.id, ['queued', 'failed', 'conflict', 'rejected', 'stale']), { status: 'withdrawn', by: 'operator', finishedAt: now(), updatedAt: now() }));
+    }
+    if (method === 'merge.retry') {
+      const w = this.store.getWorkspace(text(p.workspaceId, 'workspace ID', 128)); assert(this.of(w).enabled, 'Incorporaciones no está activo en este proyecto.');
+      const item = this.change(w.id, integration => {
+        const item = this.item(integration, p.id, ['failed', 'conflict', 'stale']);
+        for (const key of ['conflicts', 'checks', 'failure', 'error']) delete item[key];
+        return Object.assign(item, { status: 'queued', by: 'operator', updatedAt: now() });
+      });
+      void this.drain(w.id);
+      return item;
     }
     if (method === 'merge.withdraw') {
       const { w, node } = this.session(p.sessionId);
@@ -336,21 +351,24 @@ export class Merges {
       assert(!await git(source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de incorporar.');
       const command = checks === false ? '' : checksFor(this.store.getWorkspace(w.id), source);
       if (command) assert(!await git(source, ['status', '--porcelain', '--untracked-files=no']), `El checkout de ${base.branch} tiene cambios sin commitear; los checks no serían fiables.`);
-      const queued = this.change(w.id, integration => Object.assign(this.item(integration, id, ['queued']), { status: 'merging', startedAt: now(), by, base: base.branch, updatedAt: now() }));
+      const queued = this.change(w.id, integration => { const item = this.item(integration, id, ['queued']); delete item.failure; delete item.error; return Object.assign(item, { status: 'merging', startedAt: now(), by, base: base.branch, updatedAt: now() }); });
       const env = { PHANTOM_MERGE_TOKEN: mergeToken(this.store.dir, w.id) };
+      if (!await git(source, ['cat-file', '-e', `${queued.headOid}^{commit}`]).then(() => true, () => false)) {
+        this.change(w.id, integration => Object.assign(this.item(integration, id, ['merging']), { status: 'queued', failure: 'stale', error: `El commit enviado (${queued.headOid.slice(0, 8)}) ya no existe en el repositorio.`, updatedAt: now() }));
+        throw new Error(`El commit enviado por ${queued.branch} ya no existe; vuelve a solicitar la incorporación.`);
+      }
       try {
-        await git(source, ['cat-file', '-e', `${queued.headOid}^{commit}`]);
         await git(source, ['merge', '--no-ff', '--no-edit', '-m', `Incorporar ${queued.title} (${queued.branch})`, queued.headOid], { env, timeout: 180000 });
       } catch (error) {
         const conflicts = (await git(source, ['diff', '--name-only', '--diff-filter=U']).catch(() => '')).split('\n').filter(Boolean);
         if (await git(source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => '')) await git(source, ['merge', '--abort'], { env });
         if (!conflicts.length) {
           // Not a content conflict (dirty checkout, hook, identity…): the request stays queued.
-          this.change(w.id, integration => Object.assign(this.item(integration, id, ['merging']), { status: 'queued', updatedAt: now() }));
+          this.change(w.id, integration => Object.assign(this.item(integration, id, ['merging']), { status: 'queued', failure: 'error', error: error.message.slice(0, 1000), updatedAt: now() }));
           throw new Error(`No se pudo incorporar ${queued.branch} en ${base.branch}: ${error.message}`);
         }
         return this.change(w.id, (integration, current) => {
-          const item = Object.assign(this.item(integration, id, ['merging']), { status: 'conflict', conflicts: conflicts.slice(0, 100), updatedAt: now() });
+          const item = Object.assign(this.item(integration, id, ['merging']), { status: 'conflict', failure: 'conflict', conflicts: conflicts.slice(0, 100), updatedAt: now() });
           this.returnToWorker(current, item, `Conflicto al incorporar en ${base.branch} (${conflicts.slice(0, 3).join(', ')}${conflicts.length > 3 ? '…' : ''}). Actualiza tu rama desde ${base.branch}, resuelve y vuelve a enviar.`);
           return item;
         });
@@ -362,8 +380,9 @@ export class Merges {
         if (!checks.ok) {
           // The merge does not stay; the worker gets the failing output.
           await git(source, ['reset', '--keep', base.oid], { env });
+          const failed = { ...checkEvidence, timedOut: checks.timedOut, output: String(checks.output ?? '').slice(-8000) };
           return this.change(w.id, (integration, current) => {
-            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', checks: checkEvidence, note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
+            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', failure: 'checks', checks: failed, note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
             this.returnToWorker(current, item, `Los checks fallaron tras incorporar en ${base.branch} (${command}). Corrígelo en tu rama y vuelve a enviar.`);
             return { ...item, checks };
           });

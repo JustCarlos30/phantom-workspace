@@ -7,7 +7,7 @@ import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { formatCost, formatElapsed } from '../hooks/chatState';
-import { ContextMeter, Message, ModelPicker, PermissionRow, PermissionSwitch, QueuedMessages, ReasoningPicker, useElapsed, withEdited } from './ChatCard';
+import { ContextMeter, Message, ModelPicker, PermissionRow, PermissionSwitch, QueuedMessages, ReasoningPicker, useElapsed, useEnabledProviders, withEdited } from './ChatCard';
 import { PhantomGlyph, ProviderGlyph } from './Glyphs';
 import PhantomOrchestrator from './PhantomOrchestrator';
 
@@ -26,7 +26,7 @@ const PERMISSIONS = {
 
 // Who answers as Phantom: a compact menu in the composer, beside the model it
 // runs with. It is changed rarely, so it does not hold a row of its own.
-function ProviderMenu({ active, disabled, onChoose }) {
+function ProviderMenu({ active, enabled, disabled, onChoose }) {
   const [open, setOpen] = useState(false);
   const root = useRef(null), trigger = useRef(null), menu = useRef(null);
   const current = PROVIDERS.find(p => p.id === active) || PROVIDERS[0];
@@ -55,7 +55,7 @@ function ProviderMenu({ active, disabled, onChoose }) {
       <ProviderGlyph provider={current.id} size={14} /><span>{current.label}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Agente que responde como Phantom">
-      {PROVIDERS.map(p => <button key={p.id} type="button" role="menuitemradio" aria-checked={p.id === active} tabIndex={-1} onClick={() => { close(); onChoose(p.id); }}>
+      {PROVIDERS.filter(p => enabled.includes(p.id) || p.id === active).map(p => <button key={p.id} type="button" role="menuitemradio" aria-checked={p.id === active} tabIndex={-1} onClick={() => { close(); onChoose(p.id); }}>
         <ProviderGlyph provider={p.id} size={16} /><span>{p.label}<small>{p.hint}</small></span>{p.id === active && <Check size={14} aria-hidden="true" />}
       </button>)}
     </div>}
@@ -83,6 +83,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   useEffect(() => { setPending(null); }, [chat?.provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   const active = pending || chat?.provider || 'claude';
+  const { enabled } = useEnabledProviders(api);
   const label = PROVIDERS.find(p => p.id === active)?.label || active;
   const permissionMode = chat?.permissionMode || (chat?.autoApprove ? 'auto' : 'ask');
   const waiting = messages.some(message => message.parts?.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending'));
@@ -170,7 +171,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
         <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         <div className="pc-controls">
           <div className="pc-settings">
-            <ProviderMenu active={active} disabled={running || switching || !chat} onChoose={chooseProvider} />
+            <ProviderMenu active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />
             {chat && <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={running} />}
             {chat && <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} observed={meta.model} disabled={running} />}
           </div>

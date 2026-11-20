@@ -1,0 +1,80 @@
+{
+  "round": 0,
+  "passed": true,
+  "stable": true,
+  "snapshot": "4e207888a8659a9dcba0438d42fbf8b0fed24269a71a7cc3944e33f8bf00ee29",
+  "changed": [
+    "docs/claude-only-workflow.md",
+    "src/components/PhantomChat.jsx",
+    "src/components/PluginPanels.jsx",
+    "test/claude-only-desktop.mjs",
+    "test/opencode-chat.test.mjs"
+  ],
+  "checks": [
+    {
+      "name": "all-tests",
+      "argv": [
+        "node",
+        "-e",
+        "const{spawnSync}=require('node:child_process');const r=spawnSync('npm',['test'],{encoding:'utf8',maxBuffer:32*1024*1024});const s=r.stdout||'';console.log(s.split('\\n').filter(l=>/^[✖ℹ]/u.test(l)).join('\\n'));if(r.status!==0)console.log(s.slice(-18000));if(r.stderr)console.error(r.stderr.slice(-4000));if(r.error)console.error(r.error);process.exit(r.status??1);"
+      ],
+      "executedArgv": [
+        "node",
+        "-e",
+        "const{spawnSync}=require('node:child_process');const r=spawnSync('npm',['test'],{encoding:'utf8',maxBuffer:32*1024*1024});const s=r.stdout||'';console.log(s.split('\\n').filter(l=>/^[✖ℹ]/u.test(l)).join('\\n'));if(r.status!==0)console.log(s.slice(-18000));if(r.stderr)console.error(r.stderr.slice(-4000));if(r.error)console.error(r.error);process.exit(r.status??1);"
+      ],
+      "cwd": ".",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "tests": null,
+      "stdout": "ℹ tests 879\nℹ suites 0\nℹ pass 875\nℹ fail 0\nℹ cancelled 0\nℹ skipped 4\nℹ todo 0\nℹ duration_ms 41075.530486\n",
+      "stderr": "npm notice run phantom-workspace@0.1.0 test\nnpm notice run node --test test/*.test.mjs src/hooks/*.test.mjs\n\n",
+      "durationMs": 41287
+    },
+    {
+      "name": "build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "executedArgv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": ".",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "tests": null,
+      "stdout": "\u001b[36mvite v7.3.8 \u001b[32mbuilding client environment for production...\u001b[36m\u001b[39m\ntransforming...\n\u001b[32m✓\u001b[39m 1917 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\u001b[2mdist/\u001b[22m\u001b[32mindex.html                        \u001b[39m\u001b[1m\u001b[2m    0.29 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   0.23 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[32mgengar-idle-PxQvLNF4.gif   \u001b[39m\u001b[1m\u001b[2m   24.93 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[32mgengar-DE59DuMW.png        \u001b[39m\u001b[1m\u001b[2m  144.71 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[35mMobileApp-D6cob1M0.css     \u001b[39m\u001b[1m\u001b[2m    3.20 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   1.21 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[35mempty-state-nOmm-CIU.css   \u001b[39m\u001b[1m\u001b[2m    3.22 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   0.97 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[35mtools-BNhFcCem.css         \u001b[39m\u001b[1m\u001b[2m    8.52 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   2.20 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[35mstyles-CTnJ6RNg.css        \u001b[39m\u001b[1m\u001b[2m   33.16 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   6.97 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[35mApp-7UhJqzt3.css           \u001b[39m\u001b[1m\u001b[2m  333.52 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:  56.99 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[36mMobileApp-Cbau4_gP.js      \u001b[39m\u001b[1m\u001b[2m   13.70 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   5.15 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[36mphone-pairing-Bu3oC_5l.js  \u001b[39m\u001b[1m\u001b[2m   22.82 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   8.55 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[36mindex-CN20HHks.js          \u001b[39m\u001b[1m\u001b[2m  224.34 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:  70.01 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[36mApp-DS6x8I4p.js            \u001b[39m\u001b[1m\u001b[33m1,161.73 kB\u001b[39m\u001b[22m\u001b[2m │ gzip: 332.15 kB\u001b[22m\n\u001b[32m✓ built in 2.31s\u001b[39m\n",
+      "stderr": "npm notice run phantom-workspace@0.1.0 build\nnpm notice run vite build\n\u001b[33m[plugin vite:esbuild] src/components/Settings.jsx: \u001b[33mThe character \">\" is not valid inside a JSX element\u001b[33m\n164 |          <textarea id={`${commandId}-profile`} aria-describedby={`${commandId}-profile-hint`} className=\"st-input\" row...\n165 |        </Row>\n166 |  ...commandId}-corrections-hint`}>Una por línea: «lo que oye => lo que quise decir». Ejemplo: meikap => makeup</span>}...\n    |                                                                 ^\n167 |          <textarea id={`${commandId}-corrections`} aria-describedby={`${commandId}-corrections-hint`} className=\"st-in...\n168 |        </Row>\n\u001b[39m\n\u001b[33m[plugin vite:esbuild] src/components/Settings.jsx: \u001b[33mThe character \">\" is not valid inside a JSX element\u001b[33m\n164 |          <textarea id={`${commandId}-profile`} aria-describedby={`${commandId}-profile-hint`} className=\"st-input\" row...\n165 |        </Row>\n166 |  ...ea: «lo que oye => lo que quise decir». Ejemplo: meikap => makeup</span>} stack>\n    |                                                                 ^\n167 |          <textarea id={`${commandId}-corrections`} aria-describedby={`${commandId}-corrections-hint`} className=\"st-in...\n168 |        </Row>\n\u001b[39m\n\u001b[33m\n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001b[39m\n",
+      "durationMs": 2620
+    },
+    {
+      "name": "desktop-claude-only",
+      "argv": [
+        "node",
+        "test/claude-only-desktop.mjs"
+      ],
+      "executedArgv": [
+        "node",
+        "test/claude-only-desktop.mjs"
+      ],
+      "cwd": ".",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "tests": null,
+      "stdout": "PASS: Claude-only desktop UI (fixture/stub only, no live execution). Evidence: /tmp/phantom-claude-only-evidence\n",
+      "stderr": "",
+      "durationMs": 7663
+    }
+  ],
+  "patch": "/home/carlosj/.local/state/phantom/artifacts/run_7a7a36c4-9b4b-46ce-b19e-25a1a4cc9557/revision-0/task.patch"
+}

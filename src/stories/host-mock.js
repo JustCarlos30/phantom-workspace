@@ -1,4 +1,4 @@
-import { state, workspace, tasks, messages, date, graph, branches, merge, plugin, skill, conventions } from './fixtures.js';
+import { state, workspace, tasks, taskRun, messages, date, graph, branches, merge, environment, plugin, skill, conventions } from './fixtures.js';
 
 export function createHost({ scenario = 'data', overrides = {}, workspaceId = workspace.id } = {}) {
   const listeners = new Set(), pending = new Set(), calls = [], unknown = [];
@@ -15,7 +15,7 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'desktop.info': () => ({ version: 'catálogo', dataDir: '/synthetic/data', platform: 'linux' }),
     'system.info': () => ({ version: 'catálogo', dataDir: '/synthetic/data', platform: 'linux' }),
     'settings.update': p => (model.settings = { ...model.settings, ...p.patch }),
-    'terminal.list': () => [{ id: 'session-demo', nodeId: 'terminal-demo', workspaceId: workspace.id, status: 'running', createdAt: date }],
+    'terminal.list': () => scenario === 'environment' ? environment.sessions : [{ id: 'session-demo', nodeId: 'terminal-demo', workspaceId: workspace.id, status: 'running', createdAt: date }],
     'terminal.attach': () => ({ seq, data: '\x1b[36mPhantom · salida sintética\x1b[0m\r\nSin PTY ni proceso real.\r\n$ ', session: { id: 'session-demo', status: 'running', cols: 80, rows: 24 } }),
     'terminal.tail': () => ({ lines: ['Phantom · salida sintética', 'Revisando componentes'], text: 'Phantom · salida sintética', status: 'running', observedAt: date }),
     'terminal.resize': () => ({ ok: true }),
@@ -28,8 +28,14 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'chat.configure': p => ({ ...p }),
     'chat.permission.answer': p => { for (const m of chat.messages) for (const part of m.parts) if (part.type === 'permission') part.status = 'answered'; emit({ type: 'chat.changed', workspaceId: p.workspaceId, nodeId: p.nodeId }); return { ok: true }; },
     'phantom.list': p => items(p.topic === 'skills' ? [skill] : tasks),
-    'phantom.detail': p => p.topic === 'skills' ? { ...skill, available: true } : { available: true, ...tasks.find(t => t.id === p.id)?.raw, task: tasks.find(t => t.id === p.id)?.raw, item: tasks.find(t => t.id === p.id)?.raw },
-    'phantom.events': () => items([{ id: 'event-demo', type: 'observed', message: 'Evento sintético', at: date }]),
+    'phantom.detail': p => {
+      if (p.topic === 'skills') return { ...skill, available: true };
+      const raw = tasks.find(t => t.id === p.id)?.raw;
+      const task = raw?.status === 'blocked' ? { ...raw, run: taskRun } : raw;
+      return { available: true, ...task, task, item: task };
+    },
+    'phantom.control': p => ({ ok: true, id: p.id, action: p.action, simulated: true }),
+    'phantom.events': () => items([{ id: 'event-demo', type: 'run.started', at: date }, { id: 'event-fail', type: 'run.finished', at: '2026-01-01T10:12:30Z', data: { reason: 'Verificación fallida; margen de reparación agotado' } }]),
     'phantom.controllers': () => items([]),
     'plugins.list': () => items([plugin, { ...plugin, id: 'convencions', name: 'Convencions' }, { ...plugin, id: 'video-log', name: 'Bitácora' }]),
     'plugin.get': () => plugin,
@@ -44,8 +50,10 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'repo.files': () => ({ available: true, items: [], files: [] }),
     'repo.diff': () => ({ available: true, text: 'diff --git a/example b/example\n--- a/example\n+++ b/example\n@@ -1 +1 @@\n-anterior\n+nuevo', files: [] }),
     'git.inspect': () => ({ available: true, branch: 'main', branches: ['main'], changes: [], worktrees: [] }),
-    'merge.status': () => merge,
-    'services.list': () => items([{ id: 'site-demo', name: 'Storybook sintético', title: 'Storybook sintético', url: 'http://127.0.0.1:6006', status: 'running', source: 'compose' }]),
+    'merge.status': () => scenario === 'environment' ? { ...merge, checks: environment.checks.checks } : merge,
+    'terminal.setup.retry': () => ({ ok: true }),
+    'terminal.stop': () => ({ ok: true }),
+    'services.list': () => scenario === 'environment' ? { ...items(environment.ports), scripts: environment.scripts } : items([{ id: 'site-demo', name: 'Storybook sintético', title: 'Storybook sintético', url: 'http://127.0.0.1:6006', status: 'running', source: 'compose' }]),
     'sites.list': () => ({ items: [], projects: [] }),
     'docker.list': p => p.scope === 'sites' ? { projects: [{ workspaceId: workspace.id, name: workspace.name, path: workspace.path, compose: '/synthetic/project/compose.yaml', services: [{ name: 'storybook-demo', status: 'running', containers: [{ id: 'container-demo', name: 'storybook-demo', state: 'running' }], urls: ['http://127.0.0.1:6006'] }] }] } : items([{ id: 'container-demo', name: 'storybook-demo', status: 'running', image: 'storybook:synthetic' }]),
     'docker.logs': () => ({ text: 'Servidor sintético listo' }),

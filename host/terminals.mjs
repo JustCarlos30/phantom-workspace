@@ -9,6 +9,7 @@ import { provisionBrowserTerminal } from './agent-browser.mjs';
 import { bootstrapAgentPolicy, shimmedPath } from './agent-policy.mjs';
 import { prepareWorktree } from './worktree-setup.mjs';
 import { roleEnv, roleOf } from './merge-guard.mjs';
+import { inheritClaudeTrust } from './claude-trust.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
 function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
@@ -70,10 +71,12 @@ export function tailLines(terminal,count) {
 // What the screen says about whose turn it is. Agent TUIs print a stable
 // "esc to interrupt" hint while they work and a numbered/yes-no question when
 // they need approval; nothing is inferred beyond those visible signals.
+const TRUST_PROMPT=[/\bquick safety check\b/i,/\bis this a project you (created|trust)\b/i,/\byes, i trust this folder\b/i,/\baccessing workspace:/i];
 const WORKING=/\besc(ape)?\b.{0,4}\b(to )?(interrupt|cancel)\b/i;
 const APPROVAL=[/\bdo you want to (proceed|make|create|run|allow|continue|apply|overwrite|delete)\b/i,/\bwould you like to (run|proceed|allow|make|apply|continue)\b/i,/\ballow (once|always)\b/i,/\bpermission required\b/i,/\brequires? (your )?approval\b/i,/^\s*[❯›>]\s*1\.\s*(yes|allow|approve)\b/i,/\((y\/n|yes\/no)\)|\[(y\/n|Y\/n|y\/N)\]/,/\bpress enter to (continue|confirm)\b/i];
 export function screenSignal(lines) {
   const recent=lines.filter(l=>l.trim()).slice(-14);
+  if(recent.some(l=>TRUST_PROMPT.some(r=>r.test(l)))) return 'awaiting_approval';
   if(recent.some(l=>WORKING.test(l))) return 'working';
   if(recent.some(l=>APPROVAL.some(r=>r.test(l)))) return 'awaiting_approval';
   return null;
@@ -85,6 +88,12 @@ export function nextScreenState(previous,signal,agent) {
   return previous?'awaiting_input':null;
 }
 const HIGH_WATER=256*1024,LOW_WATER=64*1024;
+// /proc reads are cheap but frequent: reuse one result per session for a second.
+function cachedForeground(entry) {
+  const now=Date.now();
+  if(!entry.fg||now-entry.fg.at>=1000) entry.fg={at:now,value:foregroundOf(entry.child.pid)};
+  return entry.fg.value;
+}
 export class Terminals {
   constructor(store, emit) {
     this.store = store; this.emit = emit; this.live = new Map(); this.sessions = []; this.dirty = false; this.closingNodes = new Map(); this.creating = new Map(); this.setupControllers = new Map(); this.setupJobs = new Map(); this.closed = false;
@@ -145,6 +154,7 @@ export class Terminals {
       // Incorporaciones: the policy states the terminal's role and the guard reads it from the environment.
       const integration = w.integration?.enabled ? { role: roleOf(node), base: await this.integrationBase?.(w).catch(() => null) ?? null } : null;
       const policyEnv = { ...await bootstrapAgentPolicy({ stateDir:this.store.dir,workspace:w,env:process.env,nodeId:node.id,sessionId,cwd:directory.cwd,branch,integration }), ...roleEnv({ stateDir:this.store.dir,workspace:w,node,branch }) };
+      if (directory.worktree) await inheritClaudeTrust(this.store, w, directory).catch(() => {});
       signal.throwIfAborted();
       assert(!this.closed && !this.closingNodes.has(node.id), 'Terminal is closing');
       child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
@@ -163,7 +173,7 @@ export class Terminals {
         entry.pumpQueued=true;
         // Coalesce tiny OS reads instead of creating a parser promise/timer per
         // character. One waiting batch plus one in-flight batch is byte-bounded.
-        entry.chain=entry.chain.then(()=>new Promise(r=>setTimeout(r,4))).then(async()=>{
+        entry.chain=entry.chain.then(()=>new Promise(r=>setTimeout(r,16))).then(async()=>{
           const batch=entry.pendingData;entry.pendingData='';entry.pumpQueued=false;
           await new Promise(resolve=>terminal.write(batch,resolve));
           entry.pending-=Buffer.byteLength(batch);s.seq++;entry.snapshotDirty=true;this.dirty=true;
@@ -225,7 +235,7 @@ export class Terminals {
   tail(id,count=12,maxCount=40) {
     assert(Number.isInteger(count)&&count>=1&&count<=maxCount,'Invalid tail line count');
     const s=this.get(id),e=this.live.get(id),base={status:e?s.status:s.status==='running'?'lost':s.status,seq:s.seq,cols:s.cols,rows:s.rows};
-    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:foregroundOf(e.child.pid),screenState:e.screenState??null};
+    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:cachedForeground(e),screenState:e.screenState??null};
     // Closed sessions: parse the persisted snapshot once per sequence.
     const key=s.snapshotSeq??s.seq,cached=this.tails?.get(id);
     if(cached?.key===key&&cached.count===count) return {...base,...cached.value,foreground:null};
@@ -246,7 +256,7 @@ export class Terminals {
       e.screenTimer=null; if(e.exited) return;
       const buffer=e.terminal.buffer.active,lines=[];
       for(let i=Math.max(0,buffer.viewportY);i<buffer.viewportY+e.terminal.rows;i++) lines.push(buffer.getLine(i)?.translateToString(true)??'');
-      const agent=foregroundOf(e.child.pid)?.agent??null;
+      const agent=cachedForeground(e)?.agent??null;
       this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent));
     },450);
     e.screenTimer.unref?.();

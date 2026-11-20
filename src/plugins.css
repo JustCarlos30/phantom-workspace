@@ -167,6 +167,8 @@
 .pc-root .pc-model { height: auto; padding: 0; gap: 12px; min-width: 0; }
 .pc-model .tw-field { flex: 1 1 220px; margin: 0; }
 .pc-next-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pc-details > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.card-agent-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .pc-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0; border-radius: var(--r-ctl); overflow: hidden; }
 .pc-facts div { padding: 9px 12px; background: var(--surface); min-width: 0; }
 .pc-facts dt, .pc-label { font-size: 12px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--muted); }
@@ -281,3 +283,53 @@
 /* Cards scattered across worktrees: where each one lives. */
 .pc-where { display: inline-flex; align-items: center; gap: 3px; max-width: 160px; padding: 0 6px; border-radius: var(--r-mark); font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-place select { max-width: 190px; }
+/* Mesa: causes, folded zones and bulk close. */
+.pc-cause + .pc-cause { margin-top: 14px; }
+.plugin-surface .pc-cause-title { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.pc-fold > summary { cursor: pointer; list-style: none; }
+.pc-fold > summary::-webkit-details-marker { display: none; }
+.pc-fold > summary::after { content: '▸'; margin-left: 2px; color: var(--muted); font-size: 10px; }
+.pc-fold[open] > summary::after { content: '▾'; }
+.pc-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-mark); }
+.pc-fold > .pc-zone-items + .tw-button, .pc-fold > .pc-zone-items + button { margin-top: 8px; }
+.pc-close-all { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; font-size: 12px; }
+.pc-close-all .pc-quiet { margin: 0; }
+.pc-close-errors { margin: 0; padding-left: 18px; font-size: 12px; color: var(--warning); }
+/* Detalle: qué pasó, resumen, pestañas y detalles técnicos. */
+.pc-what-label { display: flex; align-items: center; gap: 6px; }
+.pc-what-label svg { flex: none; color: var(--pc-blocked); }
+.pc-next-copy .pc-what-next { margin-top: 6px; color: var(--ink); font-weight: 500; }
+.pc-message { flex: 1 1 100%; min-width: 0; }
+.pc-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
+.pc-link { margin-top: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
+.pc-link:focus-visible, .pc-tablist button:focus-visible, .pc-tabpanel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-mark); }
+.pc-next-actions { align-items: flex-start; flex: 1 1 100%; }
+.pc-run-options { flex: 1 1 100%; font-size: 12px; }
+.pc-run-options > summary { width: fit-content; color: var(--muted); cursor: pointer; }
+.pc-run-options[open] > summary { margin-bottom: 10px; }
+.pc-tablist { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; width: fit-content; max-width: 100%; border-radius: var(--r-ctl); background: var(--fill); }
+.pc-tablist button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-mark); background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.pc-tablist button:hover { color: var(--ink); }
+.pc-tablist button[aria-selected="true"] { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+.pc-tabpanel { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; min-width: 0; }
+.plugin-surface .pc-tabpanel .pc-label { margin: 10px 0 0; }
+.pc-goal-section .pc-label { margin-top: 0; }
+.pc-prose { margin: 4px 0 0; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pc-diffstat { margin-left: auto; flex: none; font-size: 12px; }
+.pc-diffstat .is-add { color: var(--success); }
+.pc-diffstat .is-del { color: var(--warning); }
+.pc-patch { max-height: 420px; white-space: pre; overflow-wrap: normal; }
+.pc-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pc-check-line { display: flex; gap: 10px; align-items: flex-start; padding: 6px 10px; border-radius: var(--r-ctl); font-size: 13px; }
+.pc-check-line > div { flex: 1; min-width: 0; }
+.pc-check-line.is-failed { background: var(--fill-2); }
+.pc-check-line p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.pc-check-mark { flex: none; width: 14px; font-weight: 700; color: var(--muted); }
+.pc-check-line.is-ok .pc-check-mark { color: var(--success); }
+.pc-check-line.is-failed .pc-check-mark { color: var(--warning); }
+.pc-check-meta { font-size: 12px; color: var(--muted); }
+.pc-tech { font-size: 13px; }
+.pc-tech > summary { width: fit-content; font-size: 12px; color: var(--muted); cursor: pointer; }
+.pc-tech > summary:hover { color: var(--ink); }
+.pc-tech > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-mark); }
+.pc-tech-body { display: flex; flex-direction: column; gap: 16px; padding-top: 14px; }

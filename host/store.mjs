@@ -55,8 +55,8 @@ export function validateIntegration(value) {
   }
   return value;
 }
-export function validateState(input) {
-  const state = structuredClone(object(input));
+export function validateState(input, { clone = true } = {}) {
+  const state = clone ? structuredClone(object(input)) : object(input);
   assert(state.schemaVersion === 1, 'Unsupported schemaVersion'); object(state.settings);
   assert(Array.isArray(state.workspaces) && state.workspaces.length <= 1000, 'Invalid workspaces');
   const ids = new Set(), paths = new Set();
@@ -99,6 +99,11 @@ export function validateState(input) {
   assert(Buffer.byteLength(JSON.stringify(state)) <= 16 * 1024 * 1024, 'State too large');
   return state;
 }
+export const ATTENTION_LIMIT = 300;
+export function pushAttention(workspace, item) {
+  workspace.attention.push(item);
+  if (workspace.attention.length > ATTENTION_LIMIT) workspace.attention.splice(0, workspace.attention.length - ATTENTION_LIMIT);
+}
 export class Store {
   constructor(dir = dataHome()) {
     this.dir = path.resolve(dir); fs.mkdirSync(this.dir, {recursive:true, mode:0o700}); fs.chmodSync(this.dir, 0o700);
@@ -107,13 +112,25 @@ export class Store {
     // A restart cannot establish whether an in-flight delivery reached the chat.
     // Keep the brief and expose uncertainty rather than silently delivering again.
     let interrupted = false;
-    for (const w of this.state.workspaces) interrupted = prunePhantomControllers(w) || interrupted;
+    for (const w of this.state.workspaces) interrupted = prunePhantomControllers(w, undefined, this.dir) || interrupted;
     for (const w of this.state.workspaces) for (const c of w.comments || []) if (c.handoff?.status === 'sending') {
       c.handoff = { ...c.handoff, status: 'uncertain', error: 'Host reiniciado durante el envío. Revisa el chat de Phantom antes de volver a pedirlo.', updatedAt: new Date().toISOString() }; interrupted = true;
     }
+    for (const w of this.state.workspaces) if (w.attention.length > ATTENTION_LIMIT) { w.attention = w.attention.slice(-ATTENTION_LIMIT); interrupted = true; }
     if (interrupted) this.persist();
   }
-  persist() { this.state.lastSavedAt = new Date().toISOString(); atomicJSON(this.filename, this.state); }
+  // Writes are grouped: persist() marks the state dirty and one atomic write follows within 100 ms.
+  persist() {
+    this.pending = true;
+    if (!this.timer) { this.timer = setTimeout(() => { this.timer = undefined; try { this.flush(); } catch (e) { console.error(e.message); } }, 100); this.timer.unref?.(); }
+    if (!this.exitHook) { this.exitHook = () => { try { this.flush(); } catch { /* Nothing left to report at exit. */ } }; process.on('exit', this.exitHook); }
+  }
+  flush() {
+    if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
+    if (!this.pending) return;
+    this.state.lastSavedAt = new Date().toISOString(); atomicJSON(this.filename, this.state); this.pending = false;
+  }
+  close() { this.flush(); if (this.exitHook) { process.off('exit', this.exitHook); this.exitHook = undefined; } }
   getWorkspace(id) { const w = this.state.workspaces.find(w => w.id === id); assert(w, 'Workspace not found'); return w; }
   open(folder) {
     const canonicalPath = canonicalFolder(folder);
@@ -121,5 +138,5 @@ export class Store {
     if (!w) { const now = new Date().toISOString(); w = {id:randomUUID(), name:path.basename(canonicalPath) || canonicalPath,path:canonicalPath,canonicalPath,createdAt:now,updatedAt:now,camera:{x:0,y:0,zoom:1}}; for (const key of arrays) w[key] = []; this.state.workspaces.push(w); }
     w.plugins ??= defaultPlugins(); this.state.activeWorkspaceId = w.id; return w;
   }
-  transaction(fn) { const before = structuredClone(this.state); try { const result = fn(); validateState(this.state); this.persist(); return result; } catch (e) { this.state = before; throw e; } }
+  transaction(fn) { const before = structuredClone(this.state); try { const result = fn(); validateState(this.state, { clone: false }); this.persist(); return result; } catch (e) { this.state = before; throw e; } }
 }

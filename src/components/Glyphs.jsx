@@ -1,21 +1,17 @@
-import React, { useRef } from 'react';
-import gengarIcon from '../../assets/gengar-icon.png';
-import { useSpriteMotion } from './GengarMascot.jsx';
+import React from 'react';
+import TitiGhost from './TitiGhost.jsx';
 
 // One glyph and one hue per provider, wherever it appears (mode switch, card
 // identity, chat avatar). Drawn on lucide's 24px grid so they sit with the rest.
 const base = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
 
-// A compact angular Phantom mark: pointed silhouette, two cut-in eyes.
-export function PhantomGlyph({ size = 20, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="M4 4l5 3h6l5-3-1 11-7 5-7-5Z" /><path d="m7.5 11 3 1.5M16.5 11l-3 1.5" /></svg>;
+// Phantom's mark is Titi, the procedural ghost.
+export function PhantomGlyph({ size = 20, mood = 'calm', ...props }) {
+  return <PhantomFace {...props} mood={mood} size={size} />;
 }
 
-// Kept as the shared identity API; always uses the native, unscaled icon.
-export function PhantomFace({ mood = 'calm', size: _size, className = '', ...props }) {
-  const ref = useRef(null);
-  const moving = useSpriteMotion(ref);
-  return <img {...props} ref={ref} src={gengarIcon} width="40" height="30" alt="" aria-hidden="true" draggable="false" className={`phantom-face gengar-icon is-${mood} ${className}`} data-mood={mood} data-motion={moving ? 'running' : 'stopped'} />;
+export function PhantomFace({ mood = 'calm', size = 30, className = '', ...props }) {
+  return <TitiGhost {...props} mood={mood} size={size} className={`phantom-face titi-ghost is-${mood} ${className}`} data-mood={mood} />;
 }
 
 // An open circular C monogram with a filled dot.

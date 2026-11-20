@@ -5,7 +5,9 @@ import { PluginCenter } from '../components/PluginCenter';
 import Plugins from '../components/Plugins';
 import CommandCenter from '../components/CommandCenter';
 import ToolOutput from '../components/ToolOutput';
+import Environment from '../components/Environment';
 import { demo, Panel } from './decorators';
+import { environmentNodes } from './fixtures';
 
 export default { title: 'Herramientas' };
 export const CentroDeMando = { render: () => <Panel><CommandCenter {...demo} /></Panel> };
@@ -18,8 +20,7 @@ export const PluginPanel = { render: () => <Panel><PluginPanels {...demo} type="
 export const Trabajo = { render: () => <Panel><ToolContent {...demo} type="tasks" /></Panel> };
 export const Borradores = { render: () => <Panel><NativeForm {...demo} /></Panel> };
 export const Misiones = { render: () => <Panel><ToolContent {...demo} type="mission" /></Panel> };
-export const Procesos = { render: () => <Panel><ToolContent {...demo} type="processes" /></Panel> };
-export const Servicios = { render: () => <Panel><ToolContent {...demo} type="services" bare /></Panel> };
+export const Entorno = { render: () => <Panel><Environment {...demo} workspace={{ ...demo.workspace, nodes: [...demo.workspace.nodes, ...environmentNodes] }} /></Panel>, parameters: { host: { scenario: 'environment' } } };
 export const Docker = { render: () => <Panel><ToolContent {...demo} type="docker" /></Panel> };
 export const Secuencias = { render: () => <Panel><ToolContent {...demo} type="workflows" bare /></Panel> };
 export const NavegadorAutomatico = { render: () => <Panel><ToolContent {...demo} type="playwright" /></Panel> };

@@ -16,7 +16,8 @@ import { pinnedRef, readerKind, emptyMessage } from '../hooks/context-view.mjs';
 import Settings from './Settings.jsx';
 import GlobalSites from './GlobalSites.jsx';
 import { HUBS, hubTab } from '../hooks/hubs.mjs';
-import { processesView } from '../hooks/processes-view.mjs';
+import Environment from './Environment.jsx';
+import { envView } from '../hooks/env-view.mjs';
 import '../hubs.css';
 
 export const TOOL_TITLES = { tasks: 'Trabajo', context: 'Contexto', sessions: 'Sesiones', mission: 'Misiones', git: 'Git', services: 'Entorno', docker: 'Docker', workflows: 'Automatizar', playwright: 'Navegador automático', playground: 'Código', settings: 'Configuración' };
@@ -230,7 +231,7 @@ function PhantomItem({ item, topic, kind, workspace, api, refresh, notify, onCha
     }, 'Fijado')}>Fijar</Button></div>
     {kind === 'card' && <CardAgents cardId={item.id} workspace={workspace} onOpenPanel={onOpenPanel} />}
     {detail && <><DataView value={detail} open />{editable && <Button onClick={() => setEditing(!editing)}>{editing ? 'Cerrar edición' : kind === 'card' ? 'Crear reemplazo' : 'Editar'}</Button>}{editing && <NativeForm kind={kind} workspace={workspace} api={api} refresh={refresh} notify={notify} onOpenPanel={onOpenPanel} existing={{ ...item, raw: detail }} onSaved={() => { setEditing(false); setDetail(null); onChange?.(); }} />}</>}
-    {controller && <><p className="tw-muted">Ejecución: {statusLabel(controller.status)}</p><pre className="tw-code" aria-live="polite">{controller.text || controller.output || 'Sin salida.'}</pre><ErrorNotice error={controller.error} /></>}<OperationState op={op} onOpenPanel={onOpenPanel} />
+    {controller && <><p className="tw-muted">Ejecución: {statusLabel(controller.status)}</p><pre className="tw-code" aria-live="polite">{controller.text || controller.output || 'Sin salida.'}</pre>{controller.outputFile && !controller.text && <p className="tw-muted">Esto es el final de la salida; el registro completo está en {controller.outputFile} dentro del directorio de datos.</p>}<ErrorNotice error={controller.error} /></>}<OperationState op={op} onOpenPanel={onOpenPanel} />
   </article>;
 }
 
@@ -306,67 +307,30 @@ function Git({ workspace, api }) {
   return <><form className="tw-search" onSubmit={e => { e.preventDefault(); setChosenBase(base); if (base === chosenBase) resource.reload(); }}><Field label="Base de comparación (vacío: base del adaptador)"><input value={base} onChange={e => setBase(e.target.value)} placeholder="Referencia Git opcional" /></Field><Button type="submit" icon={RefreshCw} disabled={resource.loading}>Inspeccionar</Button></form><ResourceState resource={resource} empty="" />{data?.available && <><Section title="Repositorio"><Identity value={data.root} /><p>Rama: <b>{data.branch || 'desconocida / HEAD separado'}</b> · base: {data.base || 'desconocida'}</p><p>Árbol: {data.dirty === true ? 'Con cambios' : data.dirty === false ? 'Limpio' : 'desconocido'} · observado: {data.observedAt || 'desconocido'}</p></Section><Section title="Ramas"><div className="tw-table-scroll"><table className="tw-table"><thead><tr><th>Rama</th><th>Adelante / detrás</th><th>Integración en base</th></tr></thead><tbody>{data.branches?.map(branch => <tr key={branch.name}><td><span title={branch.oid}>{branch.current ? 'Actual · ' : ''}{branch.name}</span></td><td>{branch.ahead ?? '?'} / {branch.behind ?? '?'}</td><td>{branch.merged === true ? 'Integrada' : branch.merged === false ? 'No integrada (no implica lista)' : 'Desconocida'}</td></tr>)}</tbody></table></div></Section><Section title="Cambios">{!data.changes?.length && <p className="tw-empty">No se observaron cambios.</p>}{data.changes?.map((change, i) => <div className="tw-list-row" key={i}><Identity value={typeof change === 'string' ? change : change.path || change.file} /><span className="tw-badge">{change.status || change.xy || '?'}</span><DataView value={change} label="Detalle" /></div>)}</Section><Section title="Worktrees">{data.worktrees?.map((tree, i) => <div className="tw-item" key={i}><Identity value={tree.path || tree.worktree} /><DataView value={tree} /></div>)}</Section></>}</>;
 }
 
-function ServiceOwner({ owner, workspace, onOpenPanel, op }) {
-  if (!owner || typeof owner !== 'object' || Array.isArray(owner)) return null;
-  const sessionId = typeof owner.sessionId === 'string' && owner.sessionId ? owner.sessionId : null;
-  const node = sessionId && workspace.nodes?.find(node => node.type === 'terminal' && node.data?.sessionId === sessionId);
-  if (node && onOpenPanel) return <Button icon={ArrowUpRight} disabled={op.busy} onClick={() => op.run(() => onOpenPanel('terminal', { focusNodeId: node.id }, textValue(node.title, 'Terminal')))}>Ir a la sesión</Button>;
-  return null;
-}
-
-function Services({ workspace, api, refresh, notify, onOpenPanel }) {
-  const resource = useResource(api, 'services.list', { workspaceId: workspace.id });
-  const [url, setUrl] = useState(''), [title, setTitle] = useState(''); const op = useOperation(notify);
-  const notes = [resource.data?.processReason, resource.data?.dockerReason].filter(value => typeof value === 'string' && value);
-  return <><Section title="Fijar un sitio"><form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => {
-    const parsed = new URL(url); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Usa una URL http o https.');
-    await api('services.pin', { workspaceId: workspace.id, url: parsed.href, title: title.trim() || parsed.host }); await refresh(); resource.reload(); setUrl(''); setTitle('');
-  }, 'Sitio fijado'); }}><Field label="URL"><input type="url" required value={url} onChange={e => setUrl(e.target.value)} placeholder="http://localhost:3000" /></Field><Field label="Nombre"><input value={title} onChange={e => setTitle(e.target.value)} placeholder="Opcional" /></Field><Button type="submit" tone="primary" disabled={op.busy}>Fijar</Button></form></Section>
-    <Section title="Servicios y sitios" action={<Refresh resource={resource} />}><ResourceState resource={resource} empty="Fija una URL o arranca un servidor en una sesión para verlo aquí." />
-      {notes.length > 0 && <DataView value={notes.join('\n')} />}
-      {itemsOf(resource.data).map((service, index) => {
-        const serviceURL = typeof service.url === 'string' ? service.url : null;
-        const label = textValue(service.title, serviceURL || 'Servicio');
-        return <article className="tw-item" key={textValue(service.id, `service-${index}`)}>
-          <div className="tw-heading"><strong>{label}</strong><span className="tw-badge">{statusLabel(service.status)}</span></div>
-          {serviceURL && serviceURL !== label && <small>{serviceURL}</small>}
-          <div className="tw-row"><Button icon={ArrowUpRight} disabled={op.busy || !serviceURL || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: serviceURL }, label))}>Abrir</Button>
-            <ServiceOwner owner={service.owner} workspace={workspace} onOpenPanel={onOpenPanel} op={op} />
-            {service.source === 'pinned' && typeof service.id === 'string' && <Button icon={Trash2} disabled={op.busy} onClick={() => op.run(async () => { await api('services.remove', { workspaceId: workspace.id, id: service.id }); await refresh(); resource.reload(); })}>Quitar</Button>}
-          </div><DataView value={service} />
-        </article>;
-      })}
-    </Section><OperationState op={op} /></>;
-}
-
-function Processes({ workspace, api, notify, onOpenPanel }) {
-  const sessions = useResource(api, 'terminal.list', { workspaceId: workspace.id });
-  const services = useResource(api, 'services.list', { workspaceId: workspace.id });
+function ComposeServices({ workspace, api, notify, onOpenPanel }) {
+  const env = useResource(api, 'env.list', { workspaceId: workspace.id });
   const op = useOperation(notify);
-  const reload = useCallback(() => { sessions.reload(); services.reload(); }, [sessions.reload, services.reload]);
-  useEffect(() => window.phantom?.onEvent?.(event => {
-    if (event.type === 'terminal.exit' && event.workspaceId === workspace.id) reload();
-  }), [workspace.id, reload]);
-  const rows = processesView(workspace.nodes, sessions.data || [], itemsOf(services.data));
-  return <><Section title="Procesos" action={<Button icon={RefreshCw} disabled={sessions.loading || services.loading} onClick={reload}>Actualizar</Button>}>
-    <ResourceState resource={sessions} empty="" /><ResourceState resource={services} empty="" />
-    {!rows.length && <EmptyState className="tw-empty" title="Aún no hay procesos" description="Los agentes envían aquí servidores y tareas largas para no dejar ocupada su sesión." />}
-    {rows.map(row => <article className="tw-item" key={row.processId}>
-      <div className="tw-heading"><strong>{row.title}</strong>{sessions.data && <span className="tw-badge">{row.status === 'running' ? 'En marcha' : 'Detenido'}</span>}</div>
-      <small className="tw-process-command">{row.command}</small>
-      {row.services.map(service => <div className="tw-row" key={service.id}><small>{service.url}</small><Button disabled={op.busy || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: service.url }, row.title))}>Abrir</Button></div>)}
-      <div className="tw-row"><Button disabled={op.busy || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('terminal', { focusNodeId: row.nodeId }, row.title))}>Ver sesión</Button>
-        {row.status === 'running' && <Button icon={Square} disabled={op.busy || sessions.loading || !!sessions.error} onClick={() => op.run(async () => { await api('terminal.stop', { sessionId: row.sessionId }); reload(); })}>Detener</Button>}
-      </div><DataView value={{ processId:row.processId, nodeId:row.nodeId, sessionId:row.sessionId, cwd:row.cwd, origen:row.from, createdAt:row.createdAt }} />
-    </article>)}
-    {services.data?.processReason && <DataView value={services.data.processReason} />}
-  </Section><OperationState op={op} /></>;
+  const view = envView({ data: env.data, loading: env.loading, error: env.error, nodes: workspace.nodes || [] });
+  return <Section title="Servicios del compose" action={<Refresh resource={env} />}>
+    {view.state !== 'ready' && <p className={view.state === 'error' ? 'tw-error' : 'tw-muted'} role={view.state === 'error' ? 'alert' : 'status'}>{view.message}</p>}
+    {view.groups.map(group => <div key={group.key}><h4 className="tw-muted">{group.title}</h4>{group.rows.map(row => <article className="tw-item" key={row.name}>
+      <div className="tw-heading"><strong>{row.name}</strong><span className="tw-badge">{row.lifecycleLabel}</span><span className="tw-badge">{row.status}</span></div>
+      <small>Dueño: {row.owner}{row.age ? ` · ${row.age}` : ''}</small>
+      {(row.purpose || row.card) && <small>{[row.purpose, row.card && `Card: ${row.card}`].filter(Boolean).join(' · ')}</small>}
+      {row.url && <small>{row.url}</small>}
+      <div className="tw-row">
+        <Button icon={ArrowUpRight} disabled={op.busy || !row.canOpen || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: row.url }, row.name))}>Abrir</Button>
+        <Button icon={Trash2} disabled={op.busy || !row.canDown} onClick={() => op.run(async () => { await api('env.down', { workspaceId: workspace.id, service: row.name }); env.reload(); }, `${row.name}: eliminado`)}>Detener y eliminar</Button>
+      </div>
+    </article>)}</div>)}
+    <OperationState op={op} />
+  </Section>;
 }
 
-function Docker({ workspace, api, notify }) {
+function Docker({ workspace, api, notify, onOpenPanel }) {
   const resource = useResource(api, 'docker.list', { workspaceId: workspace.id });
   const [logs, setLogs] = useState(null); const op = useOperation(notify);
-  return <><Section title="Contenedores" action={<Refresh resource={resource} />}><ResourceState resource={resource} empty="No hay contenedores de este proyecto." />{itemsOf(resource.data).map(container => { const name = textValue(container.name || container.names, 'Contenedor'); return <article className="tw-item" key={container.id}><div className="tw-heading"><strong>{name}</strong><span className="tw-badge">{statusLabel(container.status || container.state)}</span></div><div className="tw-row">{[['start', 'Iniciar'], ['stop', 'Detener'], ['restart', 'Reiniciar']].map(([action, label]) => <Button key={action} disabled={op.busy} onClick={() => op.run(async () => { await api('docker.action', { workspaceId: workspace.id, id: container.id, action }); resource.reload(); }, `${name}: ${label.toLowerCase()}`)}>{label}</Button>)}<Button disabled={op.busy} onClick={() => op.run(async () => { const value = await api('docker.logs', { workspaceId: workspace.id, id: container.id, tail: 200 }); setLogs({ name, text: String(value.text || '').slice(-64000) }); })}>Ver registro</Button></div><DataView value={container} /></article>; })}</Section>{logs && <Section title={`Registro · ${logs.name}`}><pre className="tw-code" aria-live="polite">{logs.text || 'Sin salida.'}</pre></Section>}<OperationState op={op} /></>;
+  return <><ComposeServices workspace={workspace} api={api} notify={notify} onOpenPanel={onOpenPanel} /><Section title="Contenedores" action={<Refresh resource={resource} />}><ResourceState resource={resource} empty="No hay contenedores de este proyecto." />{itemsOf(resource.data).map(container => { const name = textValue(container.name || container.names, 'Contenedor'); return <article className="tw-item" key={container.id}><div className="tw-heading"><strong>{name}</strong><span className="tw-badge">{statusLabel(container.status || container.state)}</span></div><div className="tw-row">{[['start', 'Iniciar'], ['stop', 'Detener'], ['restart', 'Reiniciar']].map(([action, label]) => <Button key={action} disabled={op.busy} onClick={() => op.run(async () => { await api('docker.action', { workspaceId: workspace.id, id: container.id, action }); resource.reload(); }, `${name}: ${label.toLowerCase()}`)}>{label}</Button>)}<Button disabled={op.busy} onClick={() => op.run(async () => { const value = await api('docker.logs', { workspaceId: workspace.id, id: container.id, tail: 200 }); setLogs({ name, text: String(value.text || '').slice(-64000) }); })}>Ver registro</Button></div><DataView value={container} /></article>; })}</Section>{logs && <Section title={`Registro · ${logs.name}`}><pre className="tw-code" aria-live="polite">{logs.text || 'Sin salida.'}</pre></Section>}<OperationState op={op} /></>;
 }
 
 const simpleStep = step => typeof step === 'string' || (step && step.type === 'task' && typeof step.title === 'string' && Object.keys(step).every(key => ['type', 'title'].includes(key)));
@@ -489,7 +453,7 @@ export function ToolContent({ type, bare, ...props }) {
   if (HUBS[type] && !bare && props.workspace) return <Hub type={type} {...props} />;
   if (PLUGIN_TITLES[type]) return <ToolErrorBoundary key={`${props.workspace?.id}:${type}:${props.node?.id || 'inspector'}`} title={PLUGIN_TITLES[type]}><PluginPanels type={type} {...props} /></ToolErrorBoundary>;
   if (!props.workspace && type !== 'settings') return <EmptyState className="tw-empty" description="Abre una carpeta para usar las herramientas del workspace." />;
-  const components = { review: VideoReview, 'command-center': CommandCenter, incorporaciones: Incorporaciones, branches: Branches, repo: Repository, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, processes: Processes, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
+  const components = { review: VideoReview, 'command-center': CommandCenter, incorporaciones: Incorporaciones, branches: Branches, repo: Repository, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Environment, processes: Environment, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
   const Content = components[type];
   const identity = `${props.workspace?.id || 'host'}:${type}:${props.node?.id || 'inspector'}`;
   return <div className={`tw-content${type === 'skills-catalog' || type === 'branches' || type === 'repo' ? ' is-flush' : ''}`}><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <Content {...props} /> : <p className="tw-warning" role="status">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;

@@ -240,6 +240,9 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-phantom-open { justify-self: start; color: var(--ink); font-size: 12px; }
 .pc-phantom-warning, .pc-phantom-command { margin: 0; color: var(--muted); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .pc-phantom-run .pc-subagent-more > summary, .pc-phantom-run .pc-subagent-more > summary > svg { transition: none; } }
+.pc-phantom-final { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.pc-phantom-warning .pc-phantom-open { margin-left: 6px; text-decoration: underline; background: none; border: 0; padding: 0 2px; cursor: pointer; }
+.pc-phantom-warning .pc-phantom-open:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .pc-working-agents { color: var(--ink); }
 
 .pc-thinking { color: var(--ink-3); font: var(--t-support); }

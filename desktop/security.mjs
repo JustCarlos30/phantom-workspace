@@ -22,6 +22,8 @@ export const HOST_METHODS = new Set([
   'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read', 'skills.catalog', 'skills.read',
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',
   'git.inspect', 'services.list', 'services.pin', 'services.remove', 'docker.list', 'docker.logs', 'docker.action',
+  // Entorno: el renderer observa y baja servicios; subir y ejecutar jobs es de las terminales.
+  'env.list', 'env.down',
   'plugins.list', 'plugins.update', 'plugins.status', 'plugins.models',
   'review.projects', 'review.export', 'review.add', 'review.list', 'review.resolve',
   // Incorporaciones: the renderer observes and toggles; queue actions belong to terminal sessions.
@@ -31,6 +33,7 @@ export const HOST_METHODS = new Set([
   // Repositorio: graph, diffs and edits of existing text files inside the project's own worktrees.
   'repo.graph', 'repo.commit', 'repo.diff', 'repo.files', 'repo.file.read', 'repo.file.write',
   'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control',
+  'providers.list', 'providers.models', 'providers.configure',
   'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',

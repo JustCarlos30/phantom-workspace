@@ -10,8 +10,8 @@ const root = resolve('storybook-static');
 const index = JSON.parse(await readFile(resolve(root, 'index.json'), 'utf8'));
 const stories = Object.values(index.entries).filter((entry) => entry.type === 'story');
 assert.ok(stories.length, 'El build no contiene stories');
-assert.equal(stories.length, 99, 'Conservar las 99 stories');
-assert.equal(catalog.length, 61, 'Conservar las 61 fuentes del catálogo');
+assert.equal(stories.length, 99, 'Conservar las 99 stories (Procesos y Servicios se unieron en Entorno)');
+assert.equal(catalog.length, 63, 'Conservar las 63 fuentes del catálogo');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.gif': 'image/gif' };
 const server = createServer(async (req, res) => {
   try {

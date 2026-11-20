@@ -3,12 +3,15 @@ import { createSaveQueue } from './saveQueue';
 import { createCloseHandler } from './closeProtocol';
 import { createDraftRegistry } from './inlineName';
 import { structuralShare } from './structuralShare';
+import { createEventHub } from './eventHub.js';
 
 export const api = (method, payload = {}) => {
   if (!window.phantom?.invoke) return Promise.reject(new Error('Abre la aplicación de escritorio'));
   return window.phantom.invoke(method, payload);
 };
-export const subscribe = callback => window.phantom?.onEvent(callback) || (() => {});
+const hub = createEventHub(listener => window.phantom?.onEvent?.(listener) || (() => {}));
+export const subscribe = callback => hub.subscribe(callback);
+export const subscribeSession = (sessionId, callback) => hub.subscribeSession(sessionId, callback);
 
 export function useWorkspace(notify) {
   const [state, setState] = useState(null);

@@ -1,3 +1,6 @@
+.agent-run-state { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.agent-run-state.is-live { color: var(--ink); }
+.agent-run-state.is-blocked { color: var(--pc-del, var(--ink)); }
 /* Pixel sprites keep integer dimensions, independently of typography. */
 .app-shell img.gengar-icon { width: 40px; height: 30px; max-width: none; flex-shrink: 0; image-rendering: pixelated; object-fit: contain; opacity: 1; animation: none; }
 .app-shell .gengar-icon.is-asleep { filter: grayscale(1); opacity: .5; }
@@ -7,8 +10,16 @@
 @keyframes gengar-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @keyframes gengar-attention { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
 .app-shell .brand-mark:has(.gengar-icon) { width: 40px; height: 30px; padding: 0; background: none; box-shadow: none; }
-.app-shell:not(.studio-character) .brand-mark .gengar-icon,
-.studio-character .brand-state-fallback { display: none; }
+/* Titi is always shown, independently of the "Show Gengar" preference. */
+.app-shell .brand-mark:has(.titi-ghost) { width: 32px; height: 32px; padding: 0; background: none; box-shadow: none; }
+.app-shell canvas.titi-ghost:not(.brand-state-fallback) { display: block; flex-shrink: 0; image-rendering: pixelated; }
+.app-shell .brand-mark canvas.titi-ghost { width: 32px !important; height: 32px !important; }
+.app-shell .activity-notch canvas.phantom-face.titi-ghost { display: block; width: 28px !important; height: 28px !important; }
+.app-shell .phantom-chat-toggle canvas.titi-ghost { width: 28px !important; height: 28px !important; }
+.app-shell .brand-state-fallback,
+.app-shell .notch-state-fallback { display: none; }
+.app-shell .titi-ghost.is-asleep { opacity: .6; }
+.studio-concentration .titi-ghost { animation: none !important; }
 .app-shell .gengar-mascot { display: inline-flex; width: auto; height: auto; flex-shrink: 0; }
 .gengar-mascot > img { display: block; max-width: none; object-fit: contain; image-rendering: pixelated; }
 .gengar-mascot > .gengar-idle { width: 148px; height: 126px; }
