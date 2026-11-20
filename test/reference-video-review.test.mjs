@@ -74,6 +74,7 @@ test('review, PNG capture, immutable identity and rich handoff persist on their 
   await assert.rejects(f.call('comment.add', { ...input, requestId: randomUUID(), nodeId: next.id }), /inmutable/);
   await assert.rejects(f.call('comment.add', { ...input, workspaceId: f.other.id, requestId: randomUUID() }), /Node not found/);
   await assert.rejects(f.call('reference.add', { data: nextBytes.toString('base64'), workspaceId: f.other.id, previousVersion: original.id }), /fuera del proyecto/);
+  f.store.flush();
   const fresh = new Store(f.dataDir), saved = fresh.getWorkspace(f.w.id).comments[0];
   assert.deepEqual(saved, f.store.getWorkspace(f.w.id).comments[0]);
   assert.equal(saved.nodeId, original.id); assert.equal(saved.review.hash, review.hash);
@@ -100,6 +101,7 @@ test('save failure rolls back, explicit retry reuses the persisted brief and nev
   const reply = { id: made.id, text: 'respuesta local', author: 'Phantom', requestId: randomUUID() };
   await f.call('comment.reply', reply); await f.call('comment.reply', reply);
   assert.equal(f.store.getWorkspace(f.w.id).comments[0].messages.length, 2, 'reply retries are idempotent too');
+  f.store.flush();
   assert.equal(new Store(f.dataDir).getWorkspace(f.w.id).comments[0].handoff.status, 'queued');
 });
 
@@ -112,6 +114,7 @@ test('delivery acknowledgment failure and interrupted host expose uncertainty wi
   await assert.rejects(f.call('comment.retry', { id: made.id }), /Solo se reintenta/);
   f.store.persist = persist;
   f.store.transaction(() => { f.store.getWorkspace(f.w.id).comments[0].handoff.status = 'sending'; });
+  f.store.flush();
   const restarted = new Store(f.dataDir); assert.equal(restarted.getWorkspace(f.w.id).comments[0].handoff.status, 'uncertain');
   assert.equal(deliveries, 1);
 });

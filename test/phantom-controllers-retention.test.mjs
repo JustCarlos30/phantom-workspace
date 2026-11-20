@@ -14,7 +14,7 @@ test('retains only the latest 20 finished controllers and bounds historical outp
   assert.equal(prunePhantomControllers(workspace), true);
   assert.deepEqual(workspace.phantomControllers, [running, ...finished.slice(54).toReversed(), finished[0]]);
   for (const item of workspace.phantomControllers.filter(item => item !== running)) {
-    assert.equal(item.output.length, 16384);
+    assert.equal(item.output.length, 4096);
     assert.ok(item.output.endsWith('tail'));
     assert.equal(item.truncated, true);
   }

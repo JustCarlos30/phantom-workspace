@@ -1,4 +1,4 @@
-import { state, workspace, tasks, messages, date, graph, branches, merge, plugin, skill, conventions } from './fixtures.js';
+import { state, workspace, tasks, taskRun, messages, date, graph, branches, merge, plugin, skill, conventions } from './fixtures.js';
 
 export function createHost({ scenario = 'data', overrides = {}, workspaceId = workspace.id } = {}) {
   const listeners = new Set(), pending = new Set(), calls = [], unknown = [];
@@ -28,8 +28,14 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'chat.configure': p => ({ ...p }),
     'chat.permission.answer': p => { for (const m of chat.messages) for (const part of m.parts) if (part.type === 'permission') part.status = 'answered'; emit({ type: 'chat.changed', workspaceId: p.workspaceId, nodeId: p.nodeId }); return { ok: true }; },
     'phantom.list': p => items(p.topic === 'skills' ? [skill] : tasks),
-    'phantom.detail': p => p.topic === 'skills' ? { ...skill, available: true } : { available: true, ...tasks.find(t => t.id === p.id)?.raw, task: tasks.find(t => t.id === p.id)?.raw, item: tasks.find(t => t.id === p.id)?.raw },
-    'phantom.events': () => items([{ id: 'event-demo', type: 'observed', message: 'Evento sintético', at: date }]),
+    'phantom.detail': p => {
+      if (p.topic === 'skills') return { ...skill, available: true };
+      const raw = tasks.find(t => t.id === p.id)?.raw;
+      const task = raw?.status === 'blocked' ? { ...raw, run: taskRun } : raw;
+      return { available: true, ...task, task, item: task };
+    },
+    'phantom.control': p => ({ ok: true, id: p.id, action: p.action, simulated: true }),
+    'phantom.events': () => items([{ id: 'event-demo', type: 'run.started', at: date }, { id: 'event-fail', type: 'run.finished', at: '2026-01-01T10:12:30Z', data: { reason: 'Verificación fallida; margen de reparación agotado' } }]),
     'phantom.controllers': () => items([]),
     'plugins.list': () => items([plugin, { ...plugin, id: 'convencions', name: 'Convencions' }, { ...plugin, id: 'video-log', name: 'Bitácora' }]),
     'plugin.get': () => plugin,

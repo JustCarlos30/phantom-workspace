@@ -64,6 +64,7 @@ async function fixture(t, cleanup = true) {
   for (const root of roots) { await mkdir(root); await writeFile(path.join(root, 'README.md'), '# Temporary project\n'); }
   const store = new Store(path.join(home, 'host'));
   const workspaces = roots.map(root => store.transaction(() => store.open(root)));
+  store.flush();
   const context = { dataDir: store.dir, state: store.state, getWorkspace: id => store.getWorkspace(id), persist: () => store.persist() };
   const call = async (method, payload = {}, index = 0) => {
     const response = await handleIntegration(method, { workspaceId: workspaces[index].id, ...payload }, context);
@@ -98,12 +99,14 @@ test('project activation, partial preferences and panel immutable refs survive r
   assert.equal((await f.call('plugins.list', {}, 1)).items[0].enabled, false);
   assert.equal((await f.call('plugins.list', {}, 1)).items[0].config.model, '');
   await f.call('plugins.update', { id: 'phantom', patch: { enabled: false } });
+  f.store.flush();
   const reloaded = new Store(f.store.dir);
   assert.equal(reloaded.getWorkspace(f.workspaces[0].id).plugins.phantom.enabled, false);
   assert.deepEqual(reloaded.getWorkspace(f.workspaces[0].id).nodes[0].data.ref, ref);
   assert.equal(reloaded.getWorkspace(f.workspaces[0].id).plugins.phantom.config.model, 'claude-code/opus');
   await f.call('plugins.update', { id: 'phantom', patch: { enabled: true } });
   assert.equal((await f.call('plugins.list')).items[0].config.model, 'claude-code/opus');
+  f.store.flush();
   const exported = validateState(JSON.parse(await readFile(f.store.filename, 'utf8')));
   assert.deepEqual(exported.workspaces[0].nodes[0].data.ref, ref);
   assert.ok(['plugins', 'phantom-cards', 'phantom-skills'].every(type => NODE_TYPES.includes(type)));
@@ -262,6 +265,7 @@ test('installed native CLI: isolated cards/replacements, events ownership, immut
   assert.equal(typeof finished.exitCode, 'number');
   const taskAfterVerify = await nativeCall(['show', card.id]);
   assert.equal((await f.call('phantom.detail', { topic: 'tasks', id: card.id })).status, taskAfterVerify.status);
+  f.store.flush();
   const persisted = new Store(f.store.dir).getWorkspace(f.workspaces[0].id).phantomControllers;
   assert.equal(persisted.find(item => item.id === descriptor.id).status, finished.status);
   // Simulate a descriptor surviving a host crash; its PID grants no stop authority.
@@ -279,6 +283,7 @@ test('installed native CLI: isolated cards/replacements, events ownership, immut
 
 test('command-center preferences and native plugin config share durable state without overwriting each other', async t => {
   const f = await fixture(t, false);
+  f.store.flush();
   const host = await createHost({ dataDir: f.store.dir, handleIntegration });
   t.after(async () => { await host.close(); await rm(f.home, { recursive: true, force: true }); });
   const workspaceId = f.workspaces[0].id;

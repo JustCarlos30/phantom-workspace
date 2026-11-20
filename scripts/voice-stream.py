@@ -22,10 +22,12 @@ VAD_THRESHOLD = 0.5
 CONTEXT_CHARS = voice_text.CONTEXT_CHARS
 # Partials are re-decoded every push and replaced on confirmation: favour speed.
 PARTIAL_BEAM_SIZE = 1
-CONFIRMED_BEAM_SIZE = 5
-STABLE_SECONDS = 10
+CONFIRMED_BEAM_SIZE = 2
+STABLE_SECONDS = 6
 MAX_SECONDS = 25
-STABLE_TAIL_SECONDS = 2
+STABLE_TAIL_SECONDS = 1.5
+# Skip re-decoding the partial until this much new audio arrived (laptop GPU budget).
+MIN_NEW_SECONDS = 0.5
 MAX_TEXT = 32768
 
 
@@ -46,6 +48,7 @@ class Dictation:
         self.audio = np.zeros(0, dtype=np.float32)
         self.confirmed = ""
         self.partial = ""
+        self.decoded = 0
 
     def push(self, pcm=b"", final=False):
         if len(pcm) > RATE * 4 or len(pcm) % 2:
@@ -58,6 +61,9 @@ class Dictation:
         speech = get_speech_timestamps(self.audio, options) if self.audio.size else []
         if speech:
             ended = final or self.audio.size - speech[-1]["end"] >= RATE * self.pause_ms // 1000
+            if not ended and self.partial and self.audio.size - self.decoded < RATE * MIN_NEW_SECONDS:
+                return self._result(started)
+            self.decoded = self.audio.size
             context = self.confirmed
             if len(context) > CONTEXT_CHARS:
                 start = context.find(" ", len(context) - CONTEXT_CHARS)
@@ -70,6 +76,7 @@ class Dictation:
                 self.confirmed = " ".join(filter(None, (self.confirmed, self.partial)))
                 self.partial = ""
                 self.audio = self.audio[max(speech[-1]["end"], self.audio.size - RATE):]
+                self.decoded = 0
             elif self.audio.size >= RATE * STABLE_SECONDS:
                 # Commit only complete decoded segments; retain their uncommitted audio.
                 stable = [s for s in segments if s.end <= self.audio.size / RATE - STABLE_TAIL_SECONDS]
@@ -78,14 +85,28 @@ class Dictation:
                         " ".join(s.text.strip() for s in stable))))
                     self.partial = " ".join(s.text.strip() for s in segments[len(stable):])
                     self.audio = self.audio[int(stable[-1].end * RATE):]
+                    self.decoded = 0
                 elif self.audio.size >= RATE * MAX_SECONDS:
-                    raise ValueError("No stable speech boundary; stop and retry a shorter phrase")
+                    # Continuous speech with no usable boundary: force a cut instead of failing.
+                    # Keep the last segment when there are several (it may be unfinished).
+                    forced = segments[:-1] or segments
+                    self.confirmed = " ".join(filter(None, (self.confirmed,
+                        " ".join(s.text.strip() for s in forced))))
+                    self.partial = " ".join(s.text.strip() for s in segments[len(forced):])
+                    self.audio = self.audio[int(forced[-1].end * RATE):] if len(forced) < len(segments) \
+                        else self.audio[-RATE:]
+                    self.decoded = 0
         else:
             self.partial = ""
             # Retain a little silence so the next speech onset is not clipped.
             self.audio = self.audio[-RATE:]
+            self.decoded = 0
         if final:
             self.audio = np.zeros(0, dtype=np.float32)
+            self.decoded = 0
+        return self._result(started)
+
+    def _result(self, started):
         # Raw ASR text stays untouched in self.confirmed (it feeds the next prompt);
         # corrections and filler removal apply only to what the user sees.
         confirmed = voice_text.postprocess(self.confirmed, self.corrections, self.fillers)

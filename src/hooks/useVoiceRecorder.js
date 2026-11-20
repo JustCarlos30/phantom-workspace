@@ -137,7 +137,7 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
       const sendNext = () => {
         const bytes = session.queue.take(), sequence = session.sequence;
         session.inflight = session.api('voice.stream.push', { workspaceId, sessionId: session.id, sequence, audioBase64: bytesToBase64(bytes) })
-          .then(result => { session.sequence = sequence + 1; if (current() && !session.closed) setLive(liveTranscript(result)); })
+          .then(result => { session.sequence = sequence + 1; session.lastLive = liveTranscript(result); if (current() && !session.closed) setLive(session.lastLive); })
           .catch(e => { if (current() && !session.closed) fail(e.message); })
           .finally(() => { session.inflight = null; });
         return session.inflight;
@@ -204,6 +204,10 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
           if (session.failed) {
             await session.cancellation;
             if (!current() || session.closed) return;
+            // Keep what the live engine already heard rather than losing a long dictation.
+            const heard = session.lastLive ? joinLive(session.lastLive) : '';
+            if (!backup && heard) { text = heard; setLive({ confirmed: heard, partial: '' }); }
+            else {
             if (!backup) throw new Error(oversized ? 'El audio supera 1 MiB. Graba un fragmento más corto.' : 'La grabación está vacía. Vuelve a grabar.');
             const audioBase64 = await blobBase64(backup);
             if (!current()) return;
@@ -211,6 +215,7 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
             if (!current()) return;
             text = String(result?.text || '').trim();
             setLive({ confirmed: text, partial: '' });
+            }
           }
           if (text) deliver?.(text, result); else setError('No se reconoció voz. Acerca el micrófono y vuelve a grabar.');
         } catch (e) {

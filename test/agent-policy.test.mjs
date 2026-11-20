@@ -151,6 +151,9 @@ test('context keeps existing identity/report fields and exposes worktree and pol
   const policy = terminalPolicy({ workspaceId: 'workspace', nodeId: 'node', sessionId: 'session', cwd: '/tree', branch: null });
   assert.match(policy, /servidores, watchers.*launch "COMANDO"/);
   assert.match(policy, /no los dejes en primer plano ni en segundo plano de tu propio turno/);
+  assert.match(policy, /Entorno → Procesos/);
+  assert.doesNotMatch(policy, /Automatizar → Procesos/);
+  assert.match(policy, /servicio de compose\.yaml.*env up.*env run.*env\.service.*launch.*no contenerizable/);
   for (const text of ['context', 'bind ID', 'report', 'run ID', '"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" runs', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes', '## Communication (Caveman)', 'Lead with the result or the blocker']) assert.ok(policy.includes(text), text);
 });
 

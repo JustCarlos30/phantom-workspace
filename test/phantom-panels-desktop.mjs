@@ -18,7 +18,7 @@ const errors = [];
 function fixture(panelType) {
   const now = Date.now(), ago = minutes => new Date(now - minutes * 60000).toISOString();
   const workspace = { id: 'synthetic-phantom', name: 'SYNTHETIC · Phantom', path: '/synthetic/project', canonicalPath: '/synthetic/project',
-    camera: { x: 24, y: 20, zoom: 1 }, tasks: [], contextRefs: [], missions: [], workflows: [], services: [], attention: [],
+    camera: { x: 360, y: 20, zoom: 1 }, tasks: [], contextRefs: [], missions: [], workflows: [], services: [], attention: [],
     plugins: { phantom: { enabled: true, config: { phantomPath: '', phantomData: '', model: '' } } },
     nodes: [{ id: 'panel', type: panelType, title: panelType === 'phantom-cards' ? 'Cards' : 'Skills', x: 0, y: 0, width: 1180, height: 700, data: { pluginId: 'phantom', panelId: panelType === 'phantom-cards' ? 'cards' : 'skills' } }] };
   const raw = (id, status, goal, extra = {}) => ({ id, kind: 'card', status, createdAt: ago(300), updatedAt: ago(extra.age ?? 30),
@@ -87,7 +87,7 @@ try {
       assert.equal(await cards.locator('.pc-zone-decide .pc-card').count(), 3);
       await page.screenshot({ path: path.join(evidence, 'cards-fresh.png') });
       await cards.getByRole('button', { name: 'SYNTHETIC · Corregir timeouts al preparar worktrees con npm ci', exact: true }).click();
-      await cards.locator('.pc-contract .pc-facts').waitFor();
+      await cards.locator('.pc-contract .pc-summary').waitFor();
       await page.screenshot({ path: path.join(evidence, 'cards-contract.png') });
       await cards.getByRole('button', { name: 'Tablero', exact: true }).click();
       await cards.locator('.plugin-board-column').first().waitFor();
