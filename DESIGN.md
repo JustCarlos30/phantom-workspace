@@ -245,9 +245,11 @@ Dirección aprobada por Carlos el 2026-11-14 («que todo se sienta fácil», ref
 |---|---|
 | Trabajo | Tareas · Borradores · Misiones |
 | Git | Ramas · Historial · Cola |
-| Servicios | Este proyecto · Docker · Todos los proyectos |
+| Entorno | Este proyecto · Docker · Todos los proyectos |
 | Contexto | Documentos y memoria · Skills |
-| Automatizar | Procesos · Secuencias · Navegador · Código |
+| Automatizar | Secuencias · Navegador · Código |
+
+«Este proyecto» es el tablero del entorno (`Environment.jsx`): abre con una línea de estado, el porqué y un botón principal; después Cómo arrancar (scripts de `package.json`, también de la copia propia de la sesión), Procesos vivos (absorbe la antigua pestaña Procesos; el tipo `processes` abre esta pestaña), Puertos y sitios (salud real con `probe`, cada 15 s), Preparación de las copias de sesión (con Reintentar) y Pruebas de integración. Lo técnico va plegado en «Detalles».
 
 `App.jsx` reutiliza el panel existente de cada destino al abrirlo. `ToolPanels.jsx` recuerda la pestaña elegida en localStorage (`phantom.hub.${type}`, por tipo de destino); una petición explícita de pestaña prevalece sobre ese recuerdo. Las aperturas dirigidas a una tarea (`cardId`), referencia (`ref`) o panel (`focusNodeId`) conservan su destino dedicado en lugar de convertirse en un panel unificado.
 

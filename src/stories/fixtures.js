@@ -12,7 +12,24 @@ export const messages = [{ id: 'm1', role: 'user', createdAt: date, parts: [{ ty
 export const graph = { available: true, commits: [{ oid: 'abcdef123456', parents: ['123456abcdef'], subject: 'Añadir catálogo sintético', author: 'Agente de ejemplo', email: 'demo@example.invalid', at: date, refs: ['HEAD -> main'] }, { oid: '123456abcdef', parents: [], subject: 'Preparar fundamentos', author: 'Agente de ejemplo', at: date, refs: ['feature/catalogo'] }], more: false };
 export const branches = { available: true, base: { branch: 'main', path: '/synthetic/project' }, checks: 'node --test', integration: { enabled: false }, branches: [{ name: 'main', isBase: true, ahead: 0, behind: 0, changes: [], committed: [], worktree: { path: '/synthetic/project', exists: true, main: true } }, { name: 'feature/catalogo', ahead: 2, behind: 0, changes: [], committed: ['src/example.jsx'], work: 'none', worktree: { path: '/synthetic/catalogo', exists: true } }, { name: 'feature/textos-largos-para-comprobar-truncado-y-lectura', ahead: 0, behind: 1, changes: [{ path: 'src/example.jsx', status: ' M' }], changeCount: 1, committed: [], worktree: { path: '/synthetic/textos', exists: true } }] };
 export const merge = { available: true, enabled: false, base: { branch: 'main', uncommitted: 0 }, baseBranch: 'main', guard: { installed: false, reason: 'Protecciones nativas no conectadas en el catálogo' }, requests: [], queue: [], active: [], history: [], settings: {}, orchestrator: null };
-export const appearance = { background: 'gengar', accent: 'ivory', intensity: 35, gengar: true, gengarIntensity: 60, pulse: false, concentration: false, grid: true, image: '' };
+export const environmentNodes = [{ id: 'node-dev', type: 'terminal', title: 'Proceso: dev', x: 40, y: 400, width: 620, height: 360, data: { sessionId: 'session-dev', process: { id: 'process-dev', title: 'dev', command: 'vite --host 127.0.0.1', cwd: '/synthetic/project', from: { nodeId: 'operator', title: 'Operador' }, createdAt: date } } }];
+export const environment = {
+  scripts: [
+    { id: 'script-dev', name: 'dev', origin: 'project', command: 'vite --host 127.0.0.1', body: 'vite --host 127.0.0.1', cwd: '/synthetic/project' },
+    { id: 'script-build', name: 'build', origin: 'project', command: 'vite build', body: 'vite build', cwd: '/synthetic/project' },
+    { id: 'script-test', name: 'test', origin: 'project', command: 'node --test', body: 'node --test', cwd: '/synthetic/project' },
+  ],
+  ports: [
+    { id: 'port-5173', title: 'Vite', url: 'http://127.0.0.1:5173', port: 5173, source: 'managed', owner: { sessionId: 'session-dev' }, health: 'healthy', httpStatus: 200 },
+    { id: 'port-5174', title: 'Servidor de API', url: 'http://127.0.0.1:5174', port: 5174, source: 'managed', owner: { sessionId: 'session-api' }, health: 'unreachable' },
+  ],
+  sessions: [
+    { id: 'session-dev', nodeId: 'node-dev', workspaceId: 'storybook-project', status: 'running', createdAt: date },
+    { id: 'session-copy', nodeId: 'terminal-demo', workspaceId: 'storybook-project', status: 'running', name: 'Copia de catálogo', worktree: true, cwd: '/synthetic/catalogo', createdAt: date, setup: { status: 'failed', error: 'npm install terminó con el código 1', output: 'npm ERR! network request failed', updatedAt: date } },
+  ],
+  checks: { available: true, checks: { configured: true, command: 'npm test' } },
+};
+export const appearance ={ background: 'gengar', accent: 'ivory', intensity: 35, gengar: true, gengarIntensity: 60, pulse: false, concentration: false, grid: true, image: '' };
 export const need = { key: 'permission-demo', need: 'permission', headline: '¿Permitir la lectura de ejemplo?', title: 'Sesión de ejemplo', context: 'Catálogo sintético', at: Date.parse(date), code: 'Leer src/example.jsx', chatId: chatNode.id, requestId: 'permission-demo', target: 'terminal', nodeId: chatNode.id };
 export const activity = { connected: true, now: Date.parse(date), sources: {}, needs: [need], pending: { now: [need], later: [] }, inProgress: [], activeSessions: [], integrations: { active: [] }, current: [], today: [], retry: noop };
 export const plugin = { id: 'phantom', name: 'Phantom', enabled: true, version: '1.0.0', refreshMs: 4000, config: {}, panels: [], actions: [] };

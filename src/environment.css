@@ -1,0 +1,12 @@
+.env-lead { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; border-radius: var(--r-ctl); background: var(--surface-2); }
+.env-lead > strong { font-size: 14px; }
+.env-lead > span { color: var(--muted); max-width: 72ch; }
+.env-lead.env-bad > strong { color: var(--danger); }
+.env-lead.env-warn > strong { color: var(--warning); }
+.env-badge.env-ok { color: var(--accent); }
+.env-badge.env-warn { color: var(--warning); }
+.env-badge.env-bad { color: var(--danger); }
+.env-help { margin: 8px 0; }
+.env-help p { margin: 4px 0; }
+.env-section > .tw-muted { margin-top: 0; }
+.tw-process-command { font-family: var(--mono, monospace); }

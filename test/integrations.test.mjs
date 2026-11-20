@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
 import { runTimeoutMs } from '../integrations/phantom.mjs';
+import { services } from '../integrations/services.mjs';
 
 const exec = promisify(execFile);
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
@@ -140,6 +141,19 @@ test('services retain pinned unknown health and use actual Docker bindings', asy
   assert.ok(!result.items.some(i => i.port === 9999));
   assert.equal(result.items.find(i => i.id === pinned.id).status, 'unknown');
   await f.call('services.remove', { id: pinned.id }); assert.equal(f.workspace.services.length, 0);
+});
+
+test('services.scripts reads package.json of the project and of session copies, skipping unsafe names', async t => {
+  const f = await fixture(t);
+  f.context.execFile = async () => { throw new Error('Docker deliberately disabled'); };
+  await writeFile(path.join(f.root, 'package.json'), JSON.stringify({ scripts: { dev: 'vite', 'bad name; rm -rf /': 'x', 'test:unit': 'node --test' } }));
+  const copy = path.join(f.home, 'copy'); await mkdir(copy);
+  await writeFile(path.join(copy, 'package.json'), JSON.stringify({ scripts: { dev: 'vite --port 1' } }));
+  f.context.sessions.push({ id: 's1', nodeId: 'n1', workspaceId: f.workspace.id, cwd: copy, worktree: { branch: 'x' } }, { id: 's2', workspaceId: 'other', cwd: f.root, worktree: {} });
+  const result = await services('services.scripts', { workspaceId: f.workspace.id }, f.context);
+  assert.deepEqual(result.items.map(i => [i.origin, i.command, i.cwd]), [['project', 'npm run dev', f.root], ['project', 'npm run test:unit', f.root], ['session', 'npm run dev', copy]]);
+  assert.equal((await f.call('services.list', { scripts: true })).scripts.length, 3);
+  assert.equal((await f.call('services.list')).scripts, undefined);
 });
 
 test('Linux /proc service attribution excludes an unrelated listening process', async t => {
