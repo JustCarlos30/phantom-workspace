@@ -36,7 +36,6 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
       <PhantomFace mood={activityMood(activity)} /><CircleDot className="notch-state-fallback" size={14} aria-hidden="true" />
       <strong>{status}</strong>
       {shown && <b className="notch-count">{count}</b>}
-      {shown && <span className="notch-lead">{leadText}</span>}
       {fresh.failing.length > 0 && <i className="notch-dot" role="img" aria-label={STALE} title={STALE} />}
     </button>
   </div>;
