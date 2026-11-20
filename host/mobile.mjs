@@ -66,7 +66,7 @@ export class MobileAccess {
   constructor({ dataDir, store, terminals, chats, openssl = 'openssl', distDir = DIST, now = Date.now, pairingTTL = 120000, approvalTTL = 60000, sessionTTL = 8 * 3600000 }) {
     Object.assign(this, { dataDir, store, terminals, chats, openssl, distDir, now, pairingTTL, approvalTTL, sessionTTL });
     this.audit = new MobileAudit(dataDir);
-    this.devices = new Map(); this.pending = new Map(); this.sockets = new Set(); this.active = 0; this.pairAttempts = [];
+    this.devices = new Map(); this.pending = new Map(); this.sockets = new Set(); this.tlsSockets = new Set(); this.active = 0; this.pairAttempts = [];
   }
   status() {
     this.expire();
@@ -127,6 +127,9 @@ export class MobileAccess {
         this.sockets.add(socket); socket.setTimeout(15000, () => socket.destroy());
         socket.on('close', () => this.sockets.delete(socket));
       });
+      server.on('secureConnection', socket => {
+        this.tlsSockets.add(socket); socket.on('close', () => this.tlsSockets.delete(socket));
+      });
       await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, address, resolve); });
       try { this.record('mobile.start'); }
       catch (error) { await new Promise(resolve => server.close(resolve)); throw error; }
@@ -137,7 +140,7 @@ export class MobileAccess {
   }
   removeDevice(key, method = 'device.revoke') {
     const device = this.devices.get(key); this.devices.delete(key);
-    for (const socket of this.sockets) if (socket.mobileDevices?.has(device?.id)) socket.destroy();
+    for (const socket of this.tlsSockets) if (socket.mobileDevices?.has(device?.id)) socket.destroy();
     this.record(method, device);
   }
   revoke({ id } = {}) {
@@ -151,7 +154,7 @@ export class MobileAccess {
       if (this.starting) await this.startDone;
       clearInterval(this.timer); this.pair = null; this.devices.clear(); this.pending.clear(); this.pairAttempts = [];
       const server = this.server; this.server = null; this.origin = null; this.workspaceId = null;
-      for (const socket of this.sockets) socket.destroy();
+      for (const socket of [...this.tlsSockets, ...this.sockets]) socket.destroy();
       if (server) { await new Promise(resolve => server.close(resolve)); this.record('mobile.stop'); }
       return this.status();
     })();

@@ -1,4 +1,4 @@
-import { realpath, stat, readFile, writeFile, mkdir, mkdtemp, rm, rename } from 'node:fs/promises';
+import { realpath, readdir, stat, readFile, writeFile, mkdir, mkdtemp, rm, rename } from 'node:fs/promises';
 import { mkdirSync, chmodSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
@@ -107,6 +107,7 @@ async function scopedTask(raw, client, context) {
 export function normalizePhantom(raw, topic) {
   return { id: raw.id ?? raw.ref?.id, title: raw.contract?.goal ?? raw.title ?? raw.description ?? raw.ref?.id ?? raw.id, kind: topic === 'tasks' ? raw.kind : topic === 'memories' ? raw.kind : 'skill', ...(raw.status !== undefined || raw.state !== undefined ? { status: raw.status ?? raw.state } : {}), ...(raw.body ? { body: raw.body } : {}), source: 'phantom', ...(raw.revision !== undefined ? { revision: raw.revision } : raw.ref?.version ? { revision: raw.ref.version } : {}), ...(raw.ref ? { ref: raw.ref } : {}), raw };
 }
+const landedCache = new Map();
 async function list(payload, context, c) {
   const topic = payload.topic;
   if (!['tasks', 'memories', 'skills'].includes(topic)) throw new Error('topic must be tasks, memories, or skills');
@@ -115,13 +116,38 @@ async function list(payload, context, c) {
   const roots = topic === 'tasks' ? await family(c, context) : undefined;
   let raw = await c.call(topic === 'tasks' ? roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
   if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
+  const resolutions = new Map();
   if (topic === 'tasks') {
+    const blocked = raw.filter(item => item.status === 'blocked');
+    if (blocked.length) {
+      let head = null;
+      try { head = (await command(context, 'git', ['--no-optional-locks', 'rev-parse', 'HEAD'], { cwd: c.root })).stdout.trim() || null; } catch { /* Not Git. */ }
+      for (const item of blocked) {
+        const created = Date.parse(item.createdAt);
+        const successor = raw.filter(other => other.id !== item.id && typeof other.contract?.goal === 'string' && other.contract.goal.includes(item.id) && Date.parse(other.createdAt) > created)
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+        const scope = Array.isArray(item.contract?.scope) ? item.contract.scope.filter(entry => typeof entry === 'string' && entry) : [];
+        const key = `${item.id}\0${item.updatedAt}\0${head}`;
+        let landed = 0;
+        if (head && scope.length && item.updatedAt) {
+          if (landedCache.has(key)) landed = landedCache.get(key);
+          else {
+            try {
+              landed = Number.parseInt((await command(context, 'git', ['--no-optional-locks', 'rev-list', '--count', `--since=${item.updatedAt}`, 'HEAD', '--', ...scope], { cwd: c.root })).stdout, 10) || 0;
+              if (landedCache.size > 2000) landedCache.clear();
+              landedCache.set(key, landed);
+            } catch { landed = 0; }
+          }
+        }
+        resolutions.set(item, { supersededBy: successor ? { id: successor.id, status: successor.status } : null, landed });
+      }
+    }
     const filtered = [];
     for (const item of raw) { try { const home = roots.get(await realpath(item.contract?.workspace)); if (home) { filtered.push(item); locations.set(item, home); } } catch { /* Not this workspace. */ } }
     raw = filtered;
   }
   const query = (payload.query ?? '').toLowerCase();
-  return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
+  return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}), ...(resolutions.has(item) ? { resolution: resolutions.get(item) } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
 }
 function activityReason(raw) {
   if (!raw.startsWith('El motor reportó un error:')) return raw;
@@ -215,10 +241,51 @@ async function runEvidence(run, c) {
         || ['name', 'cwd', 'stdout', 'stderr', 'error', 'reason', 'signal'].some(key => check[key] != null && typeof check[key] !== 'string')
         || ['argv', 'executedArgv'].some(key => check[key] != null && (!Array.isArray(check[key]) || check[key].some(arg => typeof arg !== 'string')))
         || ['passed', 'executed'].some(key => check[key] != null && typeof check[key] !== 'boolean'))) return unavailable('Formato de evidencia desconocido');
-      return { available: true, checks: checks.map(check => Object.fromEntries(['name', 'argv', 'executedArgv', 'cwd', 'passed', 'exitCode', 'signal', 'error', 'tests', 'stdout', 'stderr', 'durationMs', 'executed', 'reason'].filter(key => Object.hasOwn(check, key)).map(key => [key, check[key]]))) };
+      const extra = verification ? { ...(Array.isArray(value.changed) ? { changed: value.changed.filter(item => typeof item === 'string').slice(0, 200) } : {}), ...(typeof value.passed === 'boolean' ? { passed: value.passed } : {}) } : {};
+      return { available: true, ...extra, checks: checks.map(check => Object.fromEntries(['name', 'argv', 'executedArgv', 'cwd', 'passed', 'exitCode', 'signal', 'error', 'tests', 'stdout', 'stderr', 'durationMs', 'executed', 'reason'].filter(key => Object.hasOwn(check, key)).map(key => [key, check[key]]))) };
     } catch (error) { return unavailable(error.code === 'ENOENT' ? 'Artefacto no disponible' : `Evidencia no disponible: ${error.message}`); }
   }
   return { baseline: await read('baseline-checks.json'), verification: await Promise.all([0, 1, 2, 3].map(async round => ({ round, ...await read(`verification-${round}.json`, true) }))) };
+}
+async function runSummary(run, c) {
+  const empty = { message: null, files: [], patch: null, patchTruncated: false };
+  if (!/^run_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(run.id ?? '')) return empty;
+  let names = [];
+  try { names = await readdir(await safePath(c.nativeHome, `artifacts/${run.id}`)); } catch { return empty; }
+  const latest = pattern => names.map(name => pattern.exec(name)).filter(Boolean).sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0];
+  const summary = { ...empty };
+  const response = latest(/^response-(\d+)\.json$/);
+  if (response) {
+    try {
+      const result = await readBounded(await safePath(c.nativeHome, `artifacts/${run.id}/${response}`), 2 * 1024 * 1024);
+      if (!result.truncated) {
+        const parts = JSON.parse(result.text)?.parts;
+        const message = Array.isArray(parts) ? parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n') : '';
+        if (message) summary.message = message.slice(0, 4000);
+      }
+    } catch { /* Optional artifact. */ }
+  }
+  const revision = latest(/^revision-(\d+)$/);
+  if (revision) {
+    try {
+      const result = await readBounded(await safePath(c.nativeHome, `artifacts/${run.id}/${revision}/task.patch`), 2 * 1024 * 1024);
+      const files = [];
+      let current = null;
+      for (const line of result.text.split('\n')) {
+        const header = /^diff --git (?:before\/)?.+? (?:after\/)?(.+)$/.exec(line);
+        if (line.startsWith('diff --git ') && header) { current = { path: header[1], added: 0, removed: 0, hunk: false }; files.push(current); continue; }
+        if (!current) continue;
+        if (line.startsWith('@@')) current.hunk = true;
+        else if (current.hunk && line.startsWith('+')) current.added++;
+        else if (current.hunk && line.startsWith('-')) current.removed++;
+      }
+      summary.files = files.slice(0, 200).map(({ path: file, added, removed }) => ({ path: file, added, removed }));
+      const bytes = Buffer.from(result.text, 'utf8'), limit = 200 * 1024;
+      summary.patchTruncated = result.truncated || bytes.length > limit;
+      summary.patch = bytes.subarray(0, limit).toString('utf8').replace(/�$/, '');
+    } catch { /* Optional artifact. */ }
+  }
+  return summary;
 }
 async function detail(payload, context, c) {
   identifier(payload.id);
@@ -226,7 +293,7 @@ async function detail(payload, context, c) {
     const raw = await c.call(['show', payload.id]);
     if (raw.id !== payload.id) throw new Error('Phantom task ID mismatch');
     if (!await scopedTask(raw, c, context)) throw new Error('Phantom task belongs to another workspace');
-    return raw.run ? { ...raw, run: { ...raw.run, evidence: await runEvidence(raw.run, c) } } : raw;
+    return raw.run ? { ...raw, run: { ...raw.run, evidence: await runEvidence(raw.run, c), summary: await runSummary(raw.run, c) } } : raw;
   }
   if (payload.topic === 'memories') return c.call(['memory-history', payload.id, '--workspace', c.root]);
   if (payload.topic !== 'skills') throw new Error('Unknown Phantom topic');
@@ -423,6 +490,28 @@ export async function phantom(method, payload, context) {
   }
   if (method === 'phantom.control') return control(payload, context, c);
   return writeNative(method, payload, context, c);
+}
+
+// Cancels the blocked tasks (only those) whose contract workspace is exactly this worktree.
+export async function closeBlockedTasks(context, worktree) {
+  const { workspace } = await workspaceRoot(context, {});
+  if (!validatePluginPreferences(workspace.plugins).phantom.enabled) return { closed: [], failed: [], reason: 'Phantom plugin is disabled for this workspace' };
+  let c, raw;
+  try {
+    c = await client({}, context);
+    const roots = await family(c, context);
+    raw = await c.call(roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list']);
+    if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
+  } catch (error) { return { closed: [], failed: [], reason: unavailableReason(error) }; }
+  const target = await realpath(worktree);
+  const closed = [], failed = [];
+  for (const task of raw) {
+    if (task.status !== 'blocked') continue;
+    try { if (await realpath(task.contract?.workspace) !== target) continue; } catch { continue; }
+    try { await c.call(['cancel', identifier(task.id)]); closed.push(task.id); }
+    catch (error) { failed.push({ id: task.id, error: error.message }); }
+  }
+  return { closed, failed };
 }
 
 export async function shutdownPhantom() {
