@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
-import { runTimeoutMs } from '../integrations/phantom.mjs';
+import { runTimeoutMs, closeBlockedTasks } from '../integrations/phantom.mjs';
 
 const exec = promisify(execFile);
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
@@ -253,6 +253,29 @@ test('Phantom task catalog excludes unrelated projects but includes known worktr
   assert.equal(result.available, true, result.reason);
   assert.deepEqual(result.items.map(i => i.id), ['task_0', 'task_1']); assert.equal(result.items[0].status, 'blocked'); assert.deepEqual(result.items[0].raw.nativeExtra, { retained: true });
   await assert.rejects(f.call('phantom.detail', { topic: 'tasks', id: 'task_2' }), /another workspace/);
+});
+
+test('closeBlockedTasks cancels only blocked tasks of the given worktree and tolerates a failed cancel', async t => {
+  const f = await fixture(t, true);
+  const cliPath = path.join(f.home, 'phantom-cli.mjs');
+  await writeFile(cliPath, '// Inert CLI fixture\n');
+  f.context.state.settings.phantomPath = cliPath;
+  const linked = path.join(f.home, 'linked'); await f.gitCommand(['worktree', 'add', '-b', 'linked', linked]);
+  const task = (id, status, workspace) => ({ id, kind: 'card', status, contract: { goal: id, workspace, lane: 'coordinated' } });
+  const raw = [task('t_blocked', 'blocked', linked), task('t_fails', 'blocked', linked), task('t_ready', 'ready', linked), task('t_running', 'running', linked), task('t_main', 'blocked', f.root)];
+  const cancelled = [];
+  f.context.execFile = async (file, args, options) => {
+    if (file === 'git') return exec(file, args, options);
+    if (args.includes('cancel')) { if (args[2] === 't_fails') throw new Error('cancel refused'); cancelled.push(args[2]); return { stdout: '{}', stderr: '' }; }
+    return { stdout: JSON.stringify(raw), stderr: '' };
+  };
+  f.workspace.plugins = { phantom: { enabled: true, config: { phantomPath: '', phantomData: '', model: '' } } };
+  const result = await closeBlockedTasks(f.context, linked);
+  assert.deepEqual(result.closed, ['t_blocked']); assert.deepEqual(cancelled, ['t_blocked']);
+  assert.deepEqual(result.failed, [{ id: 't_fails', error: 'cancel refused' }]);
+  f.workspace.plugins = { phantom: { enabled: false, config: { phantomPath: '', phantomData: '', model: '' } } };
+  const off = await closeBlockedTasks(f.context, linked);
+  assert.deepEqual([off.closed, off.failed], [[], []]); assert.match(off.reason, /disabled/);
 });
 
 test('Phantom detail reads only bounded authorized run artifacts and preserves both reasons', async t => {

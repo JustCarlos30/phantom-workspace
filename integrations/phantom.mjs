@@ -477,6 +477,28 @@ export async function phantom(method, payload, context) {
   return writeNative(method, payload, context, c);
 }
 
+// Cancels the blocked tasks (only those) whose contract workspace is exactly this worktree.
+export async function closeBlockedTasks(context, worktree) {
+  const { workspace } = await workspaceRoot(context, {});
+  if (!validatePluginPreferences(workspace.plugins).phantom.enabled) return { closed: [], failed: [], reason: 'Phantom plugin is disabled for this workspace' };
+  let c, raw;
+  try {
+    c = await client({}, context);
+    const roots = await family(c, context);
+    raw = await c.call(roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list']);
+    if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
+  } catch (error) { return { closed: [], failed: [], reason: unavailableReason(error) }; }
+  const target = await realpath(worktree);
+  const closed = [], failed = [];
+  for (const task of raw) {
+    if (task.status !== 'blocked') continue;
+    try { if (await realpath(task.contract?.workspace) !== target) continue; } catch { continue; }
+    try { await c.call(['cancel', identifier(task.id)]); closed.push(task.id); }
+    catch (error) { failed.push({ id: task.id, error: error.message }); }
+  }
+  return { closed, failed };
+}
+
 export async function shutdownPhantom() {
   for (const { child, descriptor } of controllers.values()) if (descriptor.status === 'running') child.kill('SIGINT');
 }
