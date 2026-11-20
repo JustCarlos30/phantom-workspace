@@ -419,6 +419,35 @@ test('Claude-only: explicit non-Claude payload or stored plugin model blocks; em
   assert.equal(payloadWins.requestedModel, 'claude-code/sonnet'); assert.equal(payloadWins.modelSource, 'payload');
 });
 
+test('OpenCode enabled: provider/model runs on the opencode engine, Claude never goes through it and the area default applies', async t => {
+  const enable = (f, extra = {}) => { f.context.state.settings = { providers: { opencode: { enabled: true } }, ...extra }; };
+  let f = await policyRun(t, {});
+  enable(f);
+  const descriptor = await f.run({ model: 'openai/gpt-5' });
+  assert.deepEqual(f.spawned, [['run', 'task_policy', '--model', 'openai/gpt-5', '--json']]);
+  assert.equal(descriptor.engine, 'opencode'); assert.equal(descriptor.client, 'opencode'); assert.equal(descriptor.modelSource, 'payload');
+  // Claude models keep routing to Claude Code even when OpenCode is enabled.
+  f = await policyRun(t, { judge: { model: 'claude-code/haiku' } }); enable(f);
+  const claude = await f.run({ model: 'sonnet' });
+  assert.equal(claude.engine, 'claude-code'); assert.equal(claude.client, 'claude'); assert.equal(claude.requestedModel, 'claude-code/sonnet');
+  for (const [contract, where] of [
+    [{ model: 'anthropic/claude-sonnet-4' }, /contrato.*solo con Claude Code/],
+    [{ judge: { model: 'openrouter/anthropic/claude-opus' } }, /juez del contrato.*solo con Claude Code/],
+    [{ coordination: { children: [{ id: 'c', model: 'gpt-4' }] } }, /no es válido \(hijo c\)/],
+  ]) {
+    f = await policyRun(t, contract); enable(f);
+    await assert.rejects(f.run({ model: 'openai/gpt-5' }), where);
+    assert.deepEqual(f.spawned, []);
+  }
+  // A configured task default on OpenCode is the default; disabling OpenCode blocks it instead of falling back.
+  f = await policyRun(t, {}); enable(f, { executionDefaults: { task: { client: 'opencode', model: 'openai/gpt-5-mini' } } });
+  const fallback = await f.run({});
+  assert.equal(fallback.requestedModel, 'openai/gpt-5-mini'); assert.equal(fallback.modelSource, 'default'); assert.equal(fallback.engine, 'opencode');
+  f = await policyRun(t, {}); f.context.state.settings = { providers: { opencode: { enabled: false } }, executionDefaults: { task: { client: 'opencode', model: 'openai/gpt-5-mini' } } };
+  await assert.rejects(f.run({}), /Habilita OpenCode/);
+  assert.deepEqual(f.spawned, []);
+});
+
 test('Docker rejects names/images without labels, foreign workdirs and config-file symlink escapes', async t => {
   const f = await dockerFixture(t);
   await symlink(path.join(f.home, 'foreign.yml'), path.join(f.root, 'escape-compose.yml'));

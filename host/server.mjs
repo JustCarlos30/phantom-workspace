@@ -21,6 +21,9 @@ import { agentProjects, resolveHandoffProject, validateHandoff, handoffCommand, 
 import { validateLaunch, createProcessLimit, processList } from './processes.mjs';
 import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
+import { setExecutionPolicy } from './agent-policy.mjs';
+import { createProviders } from './providers.mjs';
+import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
 // workspace. It states only what the host knows; it never claims live state.
@@ -54,7 +57,7 @@ export function probeSocket(socketPath) { return new Promise(resolve => { const 
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
 }
-export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions}={}) {
+export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions}={}) {
   assert(!process.versions.electron,'Run the host with system Node, never Electron');
   dataDir=path.resolve(dataDir); fs.mkdirSync(dataDir,{recursive:true,mode:0o700}); fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock'), lockPath=path.join(dataDir,'host.lock');
@@ -63,9 +66,12 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,chats,merges,branches,repo,server,mobile,android,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,branches,repo,server,mobile,android,providers,closingPromise,ownsSocket=false;
   const clients=new Set();
-  const limits=createLimits();
+  const limits=providerOptions?.limits??createLimits();
+  // Effective provider policy: read from settings on every use, never cached as a fallback.
+  const policy=()=>executionPolicy(store.state.settings);
+  const publishPolicy=()=>{try{setExecutionPolicy(policy());}catch{/* Invalid stored settings: execution throws on use; the hint keeps the last valid policy. */}};
   const reserveHandoff=createHandoffLimit(handoffOptions);
   const reserveProcess=createProcessLimit(processOptions);
   const outputs = new WeakMap();
@@ -119,7 +125,23 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
     if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
-    if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
+    if(method==='settings.update') {
+      object(p.patch);
+      // Provider policy keys are validated as a whole; providers.configure is the dedicated path.
+      // A non-object `providers` is a legacy settings shape, not the policy; execution still refuses it explicitly.
+      const policyPatch=v=>v&&typeof v==='object'&&!Array.isArray(v);
+      if(policyPatch(p.patch.providers)||p.patch.executionDefaults!==undefined) executionPolicy({...store.state.settings,...p.patch});
+      const result=mutate(null,()=>{Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
+      publishPolicy();providers.invalidate();return result;
+    }
+    if(method==='providers.list') return providers.list({force:p.force===true});
+    if(method==='providers.models') return providers.models(p.provider,{force:p.force===true});
+    if(method==='providers.configure') {
+      const next=configurePolicy(store.state.settings,p);
+      mutate(null,()=>{store.state.settings.providers=next.providers;store.state.settings.executionDefaults=next.executionDefaults;});
+      publishPolicy();
+      return {policy:policy()};
+    }
     if(method==='workspace.open') return mutate(null,()=>store.open(p.path));
     if(method==='workspace.select') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);store.state.activeWorkspaceId=w.id;return w;});
     if(method==='plugin.get') { const {getPluginDescriptor,pluginSettings}=await import('../src/plugins/registry.js');assert(getPluginDescriptor(p.id),'Plugin desconocido');return pluginSettings(store.getWorkspace(p.workspaceId),p.id); }
@@ -130,7 +152,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
-       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);assertNewChatPolicy(node.data.chat);}
+       const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);assertNewChatPolicy(node.data.chat,policy());}
        // One orchestrator session per project.
        if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
        w.nodes.push(node);return node;
@@ -179,11 +201,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const sender=terminals.get(p.sessionId),source=store.getWorkspace(sender.workspaceId),fromNode=source.nodes.find(n=>n.id===sender.nodeId);
       assert(fromNode?.type==='terminal','No se encuentra el panel emisor del encargo');
       assert(sender.status==='running'&&fromNode.data.sessionId===sender.id,'El encargo requiere la sesión viva actual del panel');
-      const fields=validateHandoff(p,fromNode,terminals.foreground(sender.id)?.agent),target=resolveHandoffProject(store.state.workspaces,p.project,source.id);
+      const rules=policy(),fields=validateHandoff(p,fromNode,terminals.foreground(sender.id)?.agent,rules),target=resolveHandoffProject(store.state.workspaces,p.project,source.id);
       const createdAt=reserveHandoff(sender.id),handoff={id:randomUUID(),from:{workspaceId:source.id,workspaceName:source.name,nodeId:fromNode.id,title:fromNode.title},...fields,createdAt};
       const node=await invoke('node.create',{workspaceId:target.id,type:'terminal',title:`Encargo: ${fields.title}`,...handoffPosition(target),data:{handoff}});
       const {session}=await invoke('terminal.create',{workspaceId:target.id,nodeId:node.id,cols:120,rows:32});
-      const command=handoffCommand(fields.agent);
+      const command=handoffCommand(fields.agent,rules);
       if(command)terminals.write(session.id,command);
       const item={id:randomUUID(),eventKey:`handoff:${handoff.id}`,title:`Encargo recibido: ${fields.title}`,source:'terminal',ref:session.id,sessionId:session.id,workspaceId:target.id,createdAt,observedAt:createdAt};
       mutate(target.id,()=>{const w=store.getWorkspace(target.id);w.attention.push(item);if(w.attention.length>1000)w.attention.shift();});
@@ -224,8 +246,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       }
       if(patch.providerSessionId!==undefined) {
         text(patch.providerSessionId,'provider session',512);
-        // Claude-only policy: no new OpenCode session binding; an existing one stays readable and can be cleared.
-        if(patch.providerSessionId) throw new Error('Phantom Workspace ya no vincula sesiones nuevas de OpenCode: las ejecuciones nuevas usan Claude Code. La sesión anterior sigue legible y puede desvincularse.');
+        // Binding a new OpenCode session requires OpenCode enabled; an existing one stays readable and can be cleared.
+        if(patch.providerSessionId) {
+          assertClientAllowed('opencode',policy(),'Vincular sesiones: el agente');
+          const result=await routeIntegration('opencode.sessions',{workspaceId:w.id});
+          assert(result.handled&&result.result?.available,`No se pudo comprobar la sesión OpenCode: ${result.result?.reason??'catálogo no disponible'}`);
+          assert(result.result.items.some(item=>item.id===patch.providerSessionId),'La sesión OpenCode no pertenece a este workspace');
+          validated.providerSessionId=patch.providerSessionId;validated.provider='opencode';
+        }
         else {validated.providerSessionId='';}
       }
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
@@ -265,10 +293,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(method==='chat.question.answer') return chats.answerQuestion(node,p.requestId,p.answers===undefined?null:p.answers);
       // permissionMode ('ask'|'auto'|'full') wins over the older boolean autoApprove.
       const patch=permissionPatch({autoApprove:p.autoApprove,permissionMode:p.permissionMode});if(p.provider!==undefined)patch.provider=p.provider;validateChat(patch);
-      if(patch.provider!==(node.data.chat?.provider??null))assertNewChatPolicy(patch);
+      const rules=policy();
+      if(patch.provider!==(node.data.chat?.provider??null))assertNewChatPolicy(patch,rules);
       assert(patch.provider===undefined||patch.provider===(node.data.chat?.provider??null)||!chats.running(node.id),'Detén la respuesta antes de cambiar de agente');
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
-      if(p.model!==undefined&&p.model!==null)validateModel(p.model);
+      if(p.model!==undefined&&p.model!==null){validateModel(p.model);const provider=patch.provider===undefined?node.data.chat?.provider:patch.provider;if(provider)assertClientModel(provider,p.model,rules,'chat');}
       assert((p.model===undefined&&p.reasoning===undefined)||!chats.running(node.id),'Detén la respuesta antes de cambiar modelo o effort/variant');
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat=applyPatch(current.data.chat,patch);for(const [field,key] of [['model','models'],['reasoning','reasoning']])if(p[field]!==undefined){assert(chat.provider,'Elige un agente primero');const values={...chat[key]};if(p[field]===null)delete values[chat.provider];else values[chat.provider]=p[field];chat[key]=values;}validateChat(chat);current.data={...current.data,chat};return current;});
     }
@@ -345,6 +374,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
+    providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
     android=new AndroidGateway({hostDataDir:dataDir,listWorkspaces:()=>store.state.workspaces});
     server=net.createServer(socket=>{

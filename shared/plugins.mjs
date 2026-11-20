@@ -44,7 +44,7 @@ export const PHANTOM_PLUGIN = validatePluginManifest({
   configuration: {
     phantomPath: { type: 'string', default: '', label: 'CLI Phantom (ruta absoluta)' },
     phantomData: { type: 'string', default: '', label: 'Datos Phantom (fuera del proyecto)' },
-    model: { type: 'string', default: '', label: 'Modelo Claude Code (vacío = claude-code/sonnet)' },
+    model: { type: 'string', default: '', label: 'Modelo del harness: Claude Code (claude-code/…) o proveedor/modelo de un motor habilitado (vacío = predeterminado de Tareas)' },
   },
   panels: [{ id: 'cards', name: 'Cards', nodeType: 'phantom-cards' }, { id: 'skills', name: 'Skills', nodeType: 'phantom-skills' }],
   actions: [{ id: 'phantom.cards', name: 'Abrir Cards', panelId: 'cards' }, { id: 'phantom.skills', name: 'Abrir Skills', panelId: 'skills' }],

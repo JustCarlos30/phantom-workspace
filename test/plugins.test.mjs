@@ -193,6 +193,25 @@ test('plugin configuration rejects non-Claude models but keeps a stored legacy v
   assert.doesNotMatch(PHANTOM_PLUGIN.configuration.model.label, /OpenCode/);
 });
 
+test('with OpenCode enabled plugins.models adds its catalog without Claude and the config accepts provider/model', async t => {
+  const f = await fixture(t);
+  f.context.state.settings.providers = { opencode: { enabled: true } };
+  const calls = [];
+  f.context.execFile = async (file, args) => { if (file === 'git') throw new Error('Not a Git workspace'); calls.push([file, ...args]); return { stdout: 'openai/gpt-5\nanthropic/claude-sonnet-4\nopenrouter/anthropic/claude-opus\nopenai/gpt-5-mini\n', stderr: '' }; };
+  const result = await f.call('plugins.models', { id: 'phantom' });
+  assert.deepEqual(calls, [['opencode', 'models']]);
+  assert.deepEqual(result.models, ['claude-code/fable', 'claude-code/opus', 'claude-code/sonnet', 'claude-code/haiku', 'openai/gpt-5', 'openai/gpt-5-mini']);
+  assert.deepEqual(result.engines, ['claude-code', 'opencode']); assert.equal(result.engine, 'claude-code');
+  await f.call('plugins.update', { id: 'phantom', patch: { config: { model: 'openai/gpt-5' } } });
+  assert.equal((await f.call('plugins.list')).items[0].config.model, 'openai/gpt-5');
+  await assert.rejects(f.call('plugins.update', { id: 'phantom', patch: { config: { model: 'anthropic/claude-sonnet-4' } } }), /solo con Claude Code/);
+  // A failing OpenCode listing is reported, never replaced by invented models.
+  f.context.execFile = async file => { throw new Error(file === 'git' ? 'Not a Git workspace' : 'opencode: not logged in'); };
+  const failed = await f.call('plugins.models', { id: 'phantom' });
+  assert.equal(failed.models.every(model => model.startsWith('claude-code/')), true);
+  assert.match(failed.unavailable.opencode, /not logged in/);
+});
+
 test('installed native CLI: isolated cards/replacements, events ownership, immutable skills and errors', async t => {
   let cli;
   try { cli = await discoverPhantomCLI(); } catch (error) { t.skip(`Native CLI unavailable: ${error.message}`); return; }
