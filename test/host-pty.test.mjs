@@ -45,6 +45,7 @@ test('background dependency failure preserves a writable shell; retry, attach an
   const initial = await create();
   await until(() => host.terminals.get(initial.session.id).setup?.status === 'failed', 15000);
   assert.match(host.terminals.get(initial.session.id).setup.error, /HOST_SETUP_FIXTURE_FAILED/);
+  host.store.flush();
   const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'state.json'), 'utf8')).workspaces.find(w => w.id === workspace.id).nodes.find(n => n.id === node.id).data;
   assert.ok(saved.worktree.branch);
   assert.equal(saved.cwd, saved.worktree.path);

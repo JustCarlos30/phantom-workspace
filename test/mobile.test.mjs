@@ -373,8 +373,10 @@ test('revocation and host shutdown close existing connections and the HTTPS list
   f.host.terminals.tail = async () => { enter(); await gate; return { status: 'lost', seq: 0, lines: [] }; };
   const pending = assert.rejects(rpc('terminal.attach', { sessionId: 'pending-attach' }));
   await entered;
+  const revokedAt = performance.now();
   try { await f.host.invoke('mobile.revoke', { id: (await f.host.invoke('mobile.status')).devices[0].id }); await pending; }
   finally { release(); }
+  assert.ok(performance.now() - revokedAt < 3000, 'revocation must reject the pending request in under 3 s');
   const socket = net.createConnection({ host: '127.0.0.1', port: Number(new URL(origin).port) });
   await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('error', reject); });
   const closed = new Promise(resolve => socket.once('close', resolve));

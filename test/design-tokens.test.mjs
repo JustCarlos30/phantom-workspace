@@ -118,7 +118,7 @@ test('sidebar keeps neutral selection, compact status and consistent control siz
 test('sidebar status text retains AA over its selected neutral surface', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
-  assert.deepEqual(rootDeclarations('.pixel-field { --attention: transparent; } :root { --attention: #c6f135; } .pixel-field { --attention: transparent; }', '--attention'), ['#c6f135']);
+  assert.deepEqual(rootDeclarations('.pixel-field { --attention: transparent; } :root { --attention: #f5c04a; } .pixel-field { --attention: transparent; }', '--attention'), ['#f5c04a']);
   const rgb = name => {
     const value = rootDeclarations(canvas, `--${name}`)[0] || rootDeclarations(studio, `--${name}`)[0];
     assert.match(value, /^#[\da-f]{6}$/i);
@@ -362,7 +362,7 @@ test('categories are decorative neutrals and active switches are ivory with dark
 test('attention aliases cannot colour surfaces, wells or rings in any src stylesheet', () => {
   const aliases = new Set(['--attention', '--warning', '--tone', '--pc-tone']);
   const references = value => [...value.matchAll(/var\((--[\w-]+)/g)].map(match => match[1]);
-  const usesAttention = value => /#c6f135\b|rgba?\(\s*198[, ]+241[, ]+53\b/i.test(value) || references(value).some(name => aliases.has(name));
+  const usesAttention = value => /#f5c04a\b|rgba?\(\s*245[, ]+192[, ]+74\b/i.test(value) || references(value).some(name => aliases.has(name));
   let changed;
   do {
     changed = false;
@@ -398,7 +398,7 @@ test('attention aliases cannot colour surfaces, wells or rings in any src styles
 
 test('ivory fallback agrees across CSS, preferences and terminal without losing saved accents or ANSI', () => {
   const studio = sheets.find(sheet => sheet.name === 'src/studio.css').css;
-  for (const [name, color] of Object.entries({ attention: '#c6f135', success: '#65ba83', working: '#5b9cff', action: '#5b9cff', danger: '#f27670', accent: '#f2f0eb' })) {
+  for (const [name, color] of Object.entries({ attention: '#f5c04a', success: '#65ba83', working: '#c6f135', action: '#c6f135', danger: '#f27670', accent: '#f2f0eb' })) {
     assert.equal(rootDeclarations(studio, `--${name}`)[0], color);
   }
   assert.equal(defaults.accent, 'ivory');

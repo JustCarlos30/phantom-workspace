@@ -7,14 +7,14 @@ import { dockerList, dockerTarget, owned } from './docker.mjs';
 const names = ['compose.yaml', 'compose.yml', 'docker-compose.yaml', 'docker-compose.yml'];
 const projectName = root => `phantom-${createHash('sha256').update(root).digest('hex').slice(0, 24)}`;
 
-async function registered(context, id) {
+export async function registered(context, id) {
   const workspace = (context.state?.workspaces || []).find(w => w.id === id);
   if (!workspace) throw new Error('Proyecto no registrado');
   const { root } = await workspaceRoot({ workspace }, {});
   if (workspace.canonicalPath && path.resolve(workspace.canonicalPath) !== root) throw new Error('La ruta canónica del proyecto cambió');
   return { workspace, root };
 }
-async function composeFile(root) {
+export async function composeFile(root) {
   for (const name of names) {
     const file = path.join(root, name);
     try {
@@ -25,8 +25,8 @@ async function composeFile(root) {
   }
   return null;
 }
-const opts = root => ({ cwd: root, env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('COMPOSE_'))) });
-const prefix = (target, file, project) => [...target.prefix, 'compose', '--project-directory', path.dirname(file), '-f', file, '-p', project];
+export const opts = root => ({ cwd: root, env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('COMPOSE_'))) });
+export const prefix = (target, file, project) => [...target.prefix, 'compose', '--project-directory', path.dirname(file), '-f', file, '-p', project];
 async function inspectProject(context, root, target, project, file) {
   const ids = (await command(context, 'docker', [...target.prefix, 'ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`], opts(root))).stdout.trim().split(/\s+/).filter(Boolean);
   if (ids.length > 500 || ids.some(id => !/^[a-f0-9]{12,64}$/.test(id))) throw new Error('Lista de contenedores inválida');
@@ -54,7 +54,7 @@ function urls(service, containers) {
   }
   return [...result];
 }
-async function discover(context, id) {
+export async function discover(context, id) {
   const { workspace, root } = await registered(context, id);
   const item = { workspaceId: id, name: workspace.name, root, services: [] };
   const file = await composeFile(root);
@@ -72,11 +72,13 @@ async function discover(context, id) {
   const project = [...projects][0] || projectName(root);
   if (!/^[a-z0-9][a-z0-9_-]{0,127}$/.test(project)) throw new Error('Nombre de proyecto Compose inválido');
   const containers = await inspectProject(context, root, target, project, file);
-  const config = await jsonCommand(context, 'docker', [...prefix(target, file, project), 'config', '--format', 'json'], opts(root));
+  const config = await jsonCommand(context, 'docker', [...prefix(target, file, project), '--profile', '*', 'config', '--format', 'json'], opts(root));
+  // `config` descarta las extensiones x-*; solo `--no-interpolate` las conserva.
+  const raw = await jsonCommand(context, 'docker', [...prefix(target, file, project), '--profile', '*', 'config', '--no-interpolate', '--format', 'json'], opts(root)).catch(() => null);
   item.project = project;
   item.services = Object.entries(config.services || {}).map(([name, service]) => {
     const matching = containers.filter(c => c.Config?.Labels?.['com.docker.compose.service'] === name);
-    return { name, status: matching.length ? [...new Set(matching.map(c => c.State?.Status || 'unknown'))].join(', ') : 'not created', urls: urls(service, matching), containers: matching.map(c => c.Id) };
+    return { name, status: matching.length ? [...new Set(matching.map(c => c.State?.Status || 'unknown'))].join(', ') : 'not created', urls: urls(service, matching), containers: matching.map(c => c.Id), profiles: Array.isArray(service.profiles) ? service.profiles.filter(p => typeof p === 'string') : [], extension: raw?.services?.[name]?.['x-phantom'] };
   });
   return item;
 }

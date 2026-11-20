@@ -8,7 +8,7 @@
    2. Neutral fill with a thin rim: something that is open or switched on.
    3. Nothing: everything at rest.
    Panel kinds share a neutral --type. Colour means state:
-   blue working, orange needs you, red failed, green done. */
+   lime working, amber needs you, red failed, green done. */
 
 /* ---------- Panel kinds ---------- */
 .app-shell [data-type="terminal"] { --type: var(--c-lilac); }
@@ -26,7 +26,7 @@
 .app-shell .search-command { height: 32px; margin: 0 4px 0 8px; padding: 0 6px 0 12px; gap: 8px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); box-shadow: var(--shadow-rim); color: var(--muted); font: var(--t-support); }
 .app-shell .search-command:hover { background: var(--fill-3); color: var(--ink); }
 .app-shell .search-command kbd { height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--fill-2); color: inherit; font: var(--t-micro); }
-/* A pending notice is state: orange, with a ring against the matte plane. */
+/* A pending notice is state: an amber mark, with a ring against the matte plane. */
 .app-shell .attention-button i { top: 3px; right: 3px; width: 8px; height: 8px; background: var(--attention); box-shadow: 0 0 0 2px var(--surface-2); }
 
 /* ---------- Canvas navigation: one pill of round controls ---------- */
