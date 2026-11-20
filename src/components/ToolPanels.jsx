@@ -230,7 +230,7 @@ function PhantomItem({ item, topic, kind, workspace, api, refresh, notify, onCha
     }, 'Fijado')}>Fijar</Button></div>
     {kind === 'card' && <CardAgents cardId={item.id} workspace={workspace} onOpenPanel={onOpenPanel} />}
     {detail && <><DataView value={detail} open />{editable && <Button onClick={() => setEditing(!editing)}>{editing ? 'Cerrar edición' : kind === 'card' ? 'Crear reemplazo' : 'Editar'}</Button>}{editing && <NativeForm kind={kind} workspace={workspace} api={api} refresh={refresh} notify={notify} onOpenPanel={onOpenPanel} existing={{ ...item, raw: detail }} onSaved={() => { setEditing(false); setDetail(null); onChange?.(); }} />}</>}
-    {controller && <><p className="tw-muted">Ejecución: {statusLabel(controller.status)}</p><pre className="tw-code" aria-live="polite">{controller.text || controller.output || 'Sin salida.'}</pre><ErrorNotice error={controller.error} /></>}<OperationState op={op} onOpenPanel={onOpenPanel} />
+    {controller && <><p className="tw-muted">Ejecución: {statusLabel(controller.status)}</p><pre className="tw-code" aria-live="polite">{controller.text || controller.output || 'Sin salida.'}</pre>{controller.outputFile && !controller.text && <p className="tw-muted">Esto es el final de la salida; el registro completo está en {controller.outputFile} dentro del directorio de datos.</p>}<ErrorNotice error={controller.error} /></>}<OperationState op={op} onOpenPanel={onOpenPanel} />
   </article>;
 }
 

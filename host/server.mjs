@@ -80,15 +80,21 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         const now=new Date().toISOString(),source=terminalExit?'terminal':event.result?.source==='phantom'?'phantom':'tool';
         const item={id:randomUUID(),eventKey,title:terminalExit?`Terminal finalizada (código ${event.exitCode??'desconocido'})`:`Proceso ${source==='phantom'?'Phantom':'de herramienta'} ${event.status==='failed'?'fallido':'finalizado'}`,source,ref:runId,...(terminalExit?{sessionId:runId,exitCode:event.exitCode}:{runId,status:event.status}),createdAt:now,observedAt:now};
         store.transaction(()=>{w.attention.push(item);if(w.attention.length>1000)w.attention.shift();});
-        broadcast({type:'attention.new',workspaceId:w.id,item});broadcast({type:'state.changed',workspaceId:w.id});
+        broadcast({type:'attention.new',workspaceId:w.id,item});markChanged(w.id);
       }
     }
     broadcast(event);
   };
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
   const mainEnv=w=>({...roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null}),PHANTOM_WORKSPACE_ID:w.id});
-  const persist=workspaceId=>{store.persist();emit({type:'state.changed',...(workspaceId?{workspaceId}:{})});};
-  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); emit({type:'state.changed',...(workspaceId?{workspaceId}:{})}); return value; };
+  // Coalesce state.changed: one event per workspace (plus one global) per tick.
+  const dirtyWorkspaces=new Set();let dirtyGlobal=false,dirtyTimer;
+  const markChanged=workspaceId=>{
+    if(workspaceId)dirtyWorkspaces.add(workspaceId);else dirtyGlobal=true;
+    dirtyTimer??=setImmediate(()=>{dirtyTimer=undefined;const ids=[...dirtyWorkspaces],global=dirtyGlobal;dirtyWorkspaces.clear();dirtyGlobal=false;for(const workspaceId of ids)broadcast({type:'state.changed',workspaceId});if(global)broadcast({type:'state.changed'});});
+  };
+  const persist=workspaceId=>{store.persist();markChanged(workspaceId);};
+  const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); markChanged(workspaceId); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;
   const inFlightIntegrations=new Set();
   const routeIntegration=async(method,payload)=>{
@@ -331,8 +337,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
           // production adapters solely to close a host using injected fixtures.
           await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
           try {if(shutdownIntegration)await bounded(Promise.resolve().then(()=>shutdownIntegration()),5000,'Integration shutdown');}
-          finally {await chats?.close();await terminals?.close();}
+          finally {try {await chats?.close();await terminals?.close();} finally {store?.close();}}
           await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Final integration drain').catch(()=>{});
+          store?.flush();
         }
       }finally {
         for(const c of clients)c.destroy();
