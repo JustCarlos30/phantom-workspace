@@ -74,7 +74,7 @@ export async function main(args = process.argv.slice(2), env = process.env, call
     need(1, false); const rows = (await overview()).branches, targets = ids.map(id => resolveBranch(rows, id)), out = [];
     for (const row of targets) {
       const r = await call('branch.integrate', { workspaceId, branch: row.name, ...(opt['no-checks'] ? { checks: false } : {}) }, LONG);
-      if (r.status === 'merged') { out.push(`✓ ${short(row.name)} integrada en ${r.base} (${r.mergedOid.slice(0, 7)})${r.checks ? ` · checks OK en ${Math.round(r.checks.durationMs / 1000)} s` : ' · sin checks'}`); continue; }
+      if (r.status === 'merged') { out.push(`✓ ${short(row.name)} integrada en ${r.base} (${r.mergedOid.slice(0, 7)})${r.checks ? ` · checks OK en ${Math.round(r.checks.durationMs / 1000)} s` : ' · sin checks'}${r.closedTasks?.length ? ` · ${r.closedTasks.length} tareas bloqueadas cerradas` : ''}`); continue; }
       if (r.status === 'conflict') out.push(`✗ ${short(row.name)}: conflicto en ${r.conflicts.join(', ')}. Merge deshecho; ${r.base} sin cambios. Resuélvelo con: update ${short(row.name)} --resolve`);
       else out.push(`✗ ${short(row.name)}: checks fallidos (${r.checks.command}, código ${r.checks.code}${r.checks.timedOut ? ', tiempo agotado' : ''}). Merge deshecho.\n--- salida (final) ---\n${r.checks.output.split('\n').slice(-40).join('\n')}`);
       const left = targets.slice(targets.indexOf(row) + 1).map(r => short(r.name));
