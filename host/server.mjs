@@ -20,10 +20,7 @@ import { MobileAccess } from './mobile.mjs';
 import { agentProjects, resolveHandoffProject, validateHandoff, handoffCommand, handoffPosition, createHandoffLimit } from './handoffs.mjs';
 import { validateLaunch, createProcessLimit, processList } from './processes.mjs';
 import { AndroidGateway } from './android-gateway.mjs';
-
-function publicSettings(settings) {
-  return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
-}
+import { publicSettings, portableSettings } from './public-settings.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
 // workspace. It states only what the host knows; it never claims live state.
@@ -280,7 +277,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='repo.file.write') { merges.polling.invalidate(); try { return await repo.handle(method,p); } finally { merges.polling.invalidate(); } }
     if(method.startsWith('repo.')) return repo.handle(method,p);
     if(method==='storage.export') { const data=structuredClone(store.state); // Runtime settings may contain credentials: export only portable presentation settings.
-      data.settings=Object.fromEntries(Object.entries(data.settings).filter(([k])=>['theme','fontSize','terminalFontSize','language'].includes(k)));
+      data.settings=portableSettings(data.settings);
        if(p.includeHistory) {await terminals.flush();data.terminalHistory=terminals.sessions.map(s=>({...terminals.descriptor(s),seq:s.snapshotSeq??s.seq,status:s.status==='running'?'lost':s.status,pid:null,snapshot:s.snapshot}));}return data; }
     if(method==='storage.import') {
       let input=p.data;if(typeof input==='string'){assert(Buffer.byteLength(input)<=16*1024*1024,'Import too large');input=JSON.parse(input);}
