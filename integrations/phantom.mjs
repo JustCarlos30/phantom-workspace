@@ -343,7 +343,10 @@ async function controlOwned(payload, context, c) {
   }
   const active = [...controllers.values()].find(p => p.descriptor.workspaceId === c.workspace.id && p.descriptor.backend === c.backend && p.descriptor.taskId === task.id && p.descriptor.status === 'running');
   if (active) return active.descriptor;
-  const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '', ...(payload.action === 'run' ? { requestedModel: payload.model, modelSource: payload.modelSource, engine: 'claude-code', client: 'claude' } : {}) };
+  const sid = payload.sessionId;
+  const nodeId = typeof sid === 'string' && sid.length > 0 && sid.length <= 200 && !/[\u0000-\u001f\u007f]/.test(sid)
+    ? (context.sessions ?? []).find(s => s.id === sid && s.status === 'running' && s.workspaceId === c.workspace.id)?.nodeId : undefined;
+  const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '', ...(typeof nodeId === 'string' && nodeId ? { origin: { nodeId } } : {}), ...(payload.action === 'run' ? { requestedModel: payload.model, modelSource: payload.modelSource, engine: 'claude-code', client: 'claude' } : {}) };
   c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';

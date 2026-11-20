@@ -13,6 +13,7 @@ import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
 import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
 import { phantomRunIds, turnRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
+import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
 import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
@@ -769,16 +770,38 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const { cwd, folder, branch, where } = locationOf(node, workspace);
   // Announce transitions only, never the state found on mount.
   const [announcement, setAnnouncement] = useState('');
-  const phase = waiting ? 'waiting' : running ? 'running' : 'idle', seenPhase = useRef(null);
+  const turnPhase = waiting ? 'waiting' : running ? 'running' : 'idle', seenPhase = useRef(null);
+  // Encargos Phantom lanzados desde este chat: consulta al terminar un turno y cada 3 s mientras haya vivos.
+  const [controllers, setControllers] = useState([]);
+  const runs = delegatedRuns(node.id, controllers);
+  const delegation = delegationState(turnPhase, runs);
+  const phase = delegation.phase, liveRuns = runs.live.length;
+  const refreshRuns = useRef(null);
+  refreshRuns.current = async () => {
+    try { const response = await api('phantom.controllers', { workspaceId: workspace.id }); if (Array.isArray(response?.items)) setControllers(response.items); } catch { /* Se reintenta en el siguiente ciclo. */ }
+  };
+  useEffect(() => { if (connected && turnPhase === 'idle' && typeof api === 'function') refreshRuns.current(); }, [connected, turnPhase, workspace.id]);
+  useEffect(() => {
+    if (!connected || !liveRuns || typeof api !== 'function') return;
+    const timer = setInterval(() => refreshRuns.current(), 3000);
+    return () => clearInterval(timer);
+  }, [connected, liveRuns, workspace.id]);
+  const delegatedSince = runs.live.map(item => item.createdAt).filter(Boolean).sort()[0];
+  const delegatedElapsed = useElapsed(delegatedSince, phase === 'delegating');
+  const [ackedRun, setAckedRun] = useState(null);
+  const finishedRun = delegation.outcome === 'attention' ? runs.latest : null;
+  useEffect(() => { if (seen && finishedRun) setAckedRun(finishedRun.id); }, [seen, finishedRun?.id]);
+  const delegating = phase === 'delegating', delegatingLabel = `Esperando ${liveRuns} ${liveRuns === 1 ? 'encargo' : 'encargos'} Phantom`;
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
     if (before === null || before === phase) return;
-    setAnnouncement(phase === 'running' ? `${label} está respondiendo` : phase === 'waiting' ? `${label} ${waiting.toLowerCase()}` : `${label} terminó de responder`);
+    setAnnouncement(phase === 'running' ? `${label} está respondiendo` : phase === 'waiting' ? `${label} ${waiting.toLowerCase()}` : phase === 'delegating' ? `${label} ${delegatingLabel.toLowerCase()}` : `${label} terminó de responder`);
   }, [phase, chat, label]);
   const last = messages.at(-1);
   const elapsed = useElapsed(last?.createdAt, running);
-  const pulse = useChatPulse({ nodeId: node.id, chat, running, waitingOn, last, seen });
+  const basePulse = useChatPulse({ nodeId: node.id, chat, running: running || delegating, waitingOn, last, seen });
+  const pulse = !chat || waitingOn || running || delegating ? basePulse : finishedRun && ackedRun !== finishedRun.id ? 'pulse-attention' : basePulse;
   useEffect(() => { onPulse?.(node.id, pulse); }, [onPulse, node.id, pulse]);
   useEffect(() => () => onPulse?.(node.id, ''), [onPulse, node.id]);
   // Follow the reply while the reader is at the end; never yank them back up.
@@ -819,6 +842,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
       {(running || waiting) && (waiting
         ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
         : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
+      {delegating && !running && !waiting && <span className="pt-state is-working"><i aria-hidden="true" />{delegatingLabel} · <span className="pc-num">{formatElapsed(delegatedElapsed)}</span></span>}
       <span className="pc-bar-space" />
       <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>
     </div>
