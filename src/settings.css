@@ -66,6 +66,7 @@
 .st .st-note { margin: 8px 6px 0; color: var(--muted); font: var(--t-support); }
 .st .st-error { margin: 8px 0 16px; padding: 10px 14px; border-radius: var(--r-ctl); background: var(--error-bg, var(--fill)); color: var(--danger); font: var(--t-support); overflow-wrap: anywhere; }
 .st-list > .st-error { margin: 0; border-radius: 0; }
+.st .st-error .st-btn { margin-left: 8px; }
 form > .st-group:has(+ .st-error), form > .st-group:has(+ .st-save) { margin-bottom: 8px; }
 .st-save { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 12px 0 24px; }
 

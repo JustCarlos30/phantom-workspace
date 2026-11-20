@@ -226,7 +226,7 @@ test('native browser identity is checked against the current canonical state, ty
 
 test('RPC exposes only contract methods with bounded, finite plain JSON payloads', () => {
   assert.doesNotThrow(() => validateInvocation('limits.read', {}));
-  for (const method of ['terminal.write', 'workspace.open', 'desktop.info', 'browser.capture', 'browser.inspect', 'voice.transcribe', 'host.shutdown']) {
+  for (const method of ['terminal.write', 'workspace.open', 'desktop.info', 'browser.capture', 'browser.inspect', 'voice.transcribe', 'host.shutdown', 'providers.list', 'providers.models', 'providers.configure']) {
     assert.doesNotThrow(() => validateInvocation(method, {}));
   }
   for (const method of ['shell.exec', 'fs.readFile', 'browser.executeJavaScript', 'desktop.spawn', '__proto__', null]) {

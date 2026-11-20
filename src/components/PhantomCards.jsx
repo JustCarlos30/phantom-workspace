@@ -4,6 +4,7 @@ import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from 
 import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions, executionFacts } from '../hooks/plugin-model.mjs';
 import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf, checkResult, eventLabel, eventDetails, phaseOf } from '../hooks/phantom-desk.mjs';
 import { cardLocations } from '../hooks/branches-model.mjs';
+import { useEnabledProviders } from './ChatCard';
 const unavailableReason = reason => reason?.replace(/^Phantom unavailable: /, '') || 'sin motivo informado';
 
 const POLL_MS = 4000;
@@ -94,7 +95,9 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
   const allControllers = itemsOf(controllers.data);
   const related = allControllers.filter(item => item.taskId === id);
   const actions = cardActions(value, allControllers);
-  const facts = executionFacts({ contract, typedModel: model, pluginModel: plugin?.config?.model, recordedRequest: events.data?.model });
+  const providers = useEnabledProviders(api), openCode = providers.enabled.includes('opencode');
+  const computed = executionFacts({ contract, typedModel: model, pluginModel: plugin?.config?.model, recordedRequest: events.data?.model, policy: providers.policy });
+  const facts = providers.error ? { ...computed, blocked: providers.error.message } : computed;
   const controlsBlocked = op.busy || detail.loading || Boolean(detail.error) || controllers.loading || Boolean(controllers.error) || controllers.data?.available === false || !Array.isArray(controllers.data?.items);
   const reload = () => { detail.reload(); events.reload(); controllers.reload(); onChanged?.(); };
   const control = action => op.run(async () => {
@@ -126,7 +129,7 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
       {(native.reason || catalog?.reason) && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />Motivo de tarea: {native.reason || catalog.reason}</p>}
       <section className="pc-next" aria-label="Siguiente paso">
         <div className="pc-next-copy"><strong>Siguiente paso</strong><span>{available.length ? 'Solo se muestran las acciones que Phantom admite ahora para esta Card.' : 'Phantom no admite acciones sobre esta Card en su estado actual.'}</span></div>
-        {actions.run && <div className="pc-model"><Field label="Modelo para ejecutar" hint={`Vacío: ${facts.requested} (${facts.requestedSource}). Solo Claude Code.`}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="claude-code/sonnet" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>Ver modelos Claude Code</Button></div>}
+        {actions.run && <div className="pc-model"><Field label="Modelo para ejecutar" hint={`Vacío: ${facts.requested} (${facts.requestedSource}). ${openCode ? 'Claude Code («claude-code/…») u OpenCode («proveedor/modelo»).' : 'Solo Claude Code.'}`}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="claude-code/sonnet" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>{openCode ? 'Ver modelos habilitados' : 'Ver modelos Claude Code'}</Button></div>}
         <dl className="pc-facts pc-execution" aria-label="Ejecución efectiva">
           <div><dt>Cliente</dt><dd>{facts.client}</dd></div>
           <div><dt>Motor</dt><dd>{facts.engine}</dd></div>
