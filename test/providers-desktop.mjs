@@ -110,12 +110,12 @@ else { console.error('stub: unsupported command ' + command); process.exit(2); }
   await cards.waitFor();
   const openCard = async () => {
     await cards.getByText('Contrato con modelo OpenCode', { exact: false }).first().click();
-    const sheet = page.locator('[aria-label="Detalle task_open_model"]');
+    const sheet = page.locator('article.pc-contract[aria-label^="Detalle "]');
     await sheet.waitFor();
     return sheet;
   };
   let sheet = await openCard();
-  const alert = await sheet.getByRole('alert').filter({ hasText: /no es Claude Code/ }).innerText();
+  const alert = await sheet.locator('.pc-next').getByRole('alert').filter({ hasText: /no es Claude Code/ }).innerText();
   assert.match(alert, /OpenCode no está habilitado/); assert.match(alert, /Configuración > Agentes/);
   assert.equal(await sheet.getByRole('button', { name: 'Ejecutar', exact: true }).isDisabled(), true);
   pass('contrato OpenCode con OpenCode deshabilitado: bloqueo accionable', alert);
@@ -164,9 +164,10 @@ else { console.error('stub: unsupported command ' + command); process.exit(2); }
   await page.getByRole('button', { name: 'Cerrar configuración' }).click();
   await palette('Trabajo');
   sheet = await openCard();
+  await sheet.locator('details.pc-tech > summary').click();
   const facts = await sheet.locator('.pc-execution').innerText();
   assert.match(facts, /Cliente\s*opencode/); assert.match(facts, /Motor\s*opencode/); assert.match(facts, /openai\/gpt-5/); assert.match(facts, /origen: contrato/);
-  assert.equal(await sheet.getByRole('alert').filter({ hasText: /no es Claude Code/ }).count(), 0);
+  assert.equal(await sheet.locator('.pc-next').getByRole('alert').filter({ hasText: /no es Claude Code/ }).count(), 0);
   assert.equal(await sheet.getByRole('button', { name: 'Ejecutar', exact: true }).isDisabled(), false);
   pass('card con OpenCode habilitado: motor opencode, sin bloqueo', facts);
   await shot('04-card-opencode-enabled');
