@@ -4,6 +4,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { validateAgent } from './agents.mjs';
 import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '../shared/plugins.mjs';
+import { validateUsage, recordUsage } from '../shared/project-usage.mjs';
 import { validateReference, validateComments } from './references.mjs';
 import { prunePhantomControllers } from '../integrations/phantom.mjs';
 
@@ -68,6 +69,7 @@ export function validateState(input, { clone = true } = {}) {
     let canonical = path.resolve(w.canonicalPath);
     try { canonical = canonicalFolder(w.path); } catch (e) { if (e.code !== 'ENOENT') throw e; }
     assert(!paths.has(canonical), 'Duplicate canonical workspace path'); paths.add(canonical); w.canonicalPath = canonical;
+    try { validateUsage(w.usage); } catch (e) { assert(false, e.message); }
     w.plugins = validatePluginPreferences(w.plugins);
     if (w.plugins.phantom.config.phantomData) assert(!insideFolder(w.canonicalPath, w.plugins.phantom.config.phantomData), 'Integration state must be outside workspace');
     object(w.camera); for (const key of ['x','y','zoom']) assert(Number.isFinite(w.camera[key]), 'Invalid camera'); assert(w.camera.zoom > 0 && w.camera.zoom <= 10, 'Invalid zoom');
@@ -132,11 +134,12 @@ export class Store {
   }
   close() { this.flush(); if (this.exitHook) { process.off('exit', this.exitHook); this.exitHook = undefined; } }
   getWorkspace(id) { const w = this.state.workspaces.find(w => w.id === id); assert(w, 'Workspace not found'); return w; }
+  activate(w) { recordUsage(this.state, w); this.state.activeWorkspaceId = w.id; return w; }
   open(folder) {
     const canonicalPath = canonicalFolder(folder);
     let w = this.state.workspaces.find(w => w.canonicalPath === canonicalPath);
     if (!w) { const now = new Date().toISOString(); w = {id:randomUUID(), name:path.basename(canonicalPath) || canonicalPath,path:canonicalPath,canonicalPath,createdAt:now,updatedAt:now,camera:{x:0,y:0,zoom:1}}; for (const key of arrays) w[key] = []; this.state.workspaces.push(w); }
-    w.plugins ??= defaultPlugins(); this.state.activeWorkspaceId = w.id; return w;
+    w.plugins ??= defaultPlugins(); return this.activate(w);
   }
   transaction(fn) { const before = structuredClone(this.state); try { const result = fn(); validateState(this.state, { clone: false }); this.persist(); return result; } catch (e) { this.state = before; throw e; } }
 }

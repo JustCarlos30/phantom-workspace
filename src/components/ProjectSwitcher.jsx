@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Folder, FolderOpen, Search } from 'lucide-react';
+import { sortProjects } from '../../shared/project-usage.mjs';
 import { accentColor, loadAppearance } from '../hooks/useAppearance';
 
 // Both context menus stay inside the rail, so they never cover native views.
@@ -62,7 +63,8 @@ export default function ProjectSwitcher({ projects, active, open, onOpenChange, 
   useEffect(() => { if (!open) setQuery(''); }, [open]);
   const filtered = projects.filter(w => `${w.name} ${w.path} ${w.canonicalPath || ''}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   // Keep the current context reachable even while filtering other projects.
-  const visible = active ? [active, ...filtered.filter(w => w.id !== active.id)] : filtered;
+  const sorted = sortProjects(filtered, active?.id);
+  const visible = active ? [active, ...sorted.filter(w => w.id !== active.id)] : sorted;
   return <details ref={menu.root} className="project-switcher context-switcher" open={open} onKeyDown={menu.onKeyDown} onBlur={menu.onBlur}>
     <summary ref={menu.trigger} aria-expanded={open} aria-controls="project-context-menu" title={active?.path || 'Elegir proyecto'} onClick={e => { e.preventDefault(); onOpenChange(!open); }}>
       <ProjectMark project={active} />
