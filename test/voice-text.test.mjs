@@ -188,6 +188,29 @@ test('Claude Code corrige en un solo proceso, sin herramientas ni llave de API',
   assert.throws(() => createClaudeCodeCleaner({ voiceCleanModel: 'x; rm -rf' }, spawnImpl), /inválido/);
 });
 
+test('keep_segment descarta alucinaciones según cada regla y conserva el habla confiada', () => {
+  assert.deepEqual(py(`print(json.dumps([
+  v.keep_segment("", 0, 0, 1), v.keep_segment("  ", 0, 0, 1),
+  v.keep_segment("algo raro", 0.7, -1.2, 1.0), v.keep_segment("Pues el deploy no sirve", 0.7, -0.3, 1.2),
+  v.keep_segment("bla bla", 0.1, -0.2, 2.6),
+  v.keep_segment("¡Gracias! ¡Gracias!", 0.5, -0.3, 1.0), v.keep_segment("Gracias.", 0.1, -0.8, 1.0),
+  v.keep_segment("Thanks for watching", 0.1, -0.2, 1.0), v.keep_segment("Gracias.", 0.02, -0.2, 1.0),
+  v.keep_segment("Gracias por la ayuda", 0.5, -0.9, 1.0)]))`),
+  [false, false, false, true, false, false, false, true, true, true]);
+});
+
+test('collapse_repeats une tres o más repeticiones y respeta dos', () => {
+  assert.deepEqual(py(`print(json.dumps([v.collapse_repeats("¡Gracias! ¡Gracias! ¡Gracias! ¡Gracias!"), v.collapse_repeats("no, no"), v.collapse_repeats("sí claro sí claro sí claro ok"), v.collapse_repeats("uno dos tres")]))`),
+  ['¡Gracias!', 'no, no', 'sí claro ok', 'uno dos tres']);
+});
+
+test('voice-stream.py filtra los segmentos con keep_segment', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(`${root}voice-stream.py`, 'utf8');
+  assert.match(source, /voice_text\.keep_segment\(/);
+  assert.match(source, /s\.no_speech_prob, s\.avg_logprob, s\.compression_ratio/);
+});
+
 test('Claude Code lento o caído no detiene el dictado y se reinicia', async () => {
   const { spawned, spawnImpl } = fakeClaude();
   const cleaner = createClaudeCodeCleaner({}, spawnImpl, 20);
