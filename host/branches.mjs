@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { git, hostGitEnv } from './merge-guard.mjs';
 import { checksFor, runChecks } from './checks.mjs';
+import { closeBlockedTasks } from '../integrations/phantom.mjs';
 
 const execute = promisify(execFile);
 
@@ -186,7 +187,7 @@ export class Branches {
       return { branch: p.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']), files: changes.length, ...(merging ? { concluded: 'merge' } : {}) };
     }
     if (method === 'branch.integrate') return this.exclusive(w, async () => {
-      const { base, branch, node } = await this.target(w, p.branch);
+      const { base, branch, node, tree, exists } = await this.target(w, p.branch);
       assert(branch.name !== base.branch, 'Esta es la rama de integración.');
       assert(Number(await git(base.source, ['rev-list', '--count', `${base.oid}..${branch.oid}`])) > 0, `${branch.name} no tiene commits nuevos respecto a ${base.branch}.`);
       assert(!await git(base.source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de integrar.');
@@ -208,7 +209,17 @@ export class Branches {
         const item = this.store.getWorkspace(w.id).integration?.queue?.find(item => item.branch === branch.name && ['queued', 'conflict', 'failed'].includes(item.status) && item.headOid === branch.oid);
         if (item) Object.assign(item, { status: 'merged', mergedOid, finishedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       });
-      return { status: 'merged', branch: branch.name, base: base.branch, mergedOid, checks };
+      // The work of that worktree is in the base now: its blocked Phantom tasks stop waiting. Never affects the merge.
+      const result = { status: 'merged', branch: branch.name, base: base.branch, mergedOid, checks };
+      if (tree && exists) {
+        try {
+          const context = { workspace: w, getWorkspace: id => this.store.getWorkspace(id), state: this.store.state, dataDir: this.store.dataDir, persist: async () => {} };
+          const { closed, failed } = await closeBlockedTasks(context, tree.path);
+          result.closedTasks = closed;
+          if (failed.length) result.closeErrors = failed;
+        } catch (error) { result.closedTasks = []; result.closeErrors = [{ error: error.message }]; }
+      }
+      return result;
     });
     if (method === 'branch.update') {
       const { base, branch, tree, exists, changes, node } = await this.target(w, p.branch);
@@ -233,6 +244,13 @@ export class Branches {
       const conflicts = await this.merge(tree.path, ahead ? ['--no-edit', '-m', `Actualizar desde ${base.branch}`, base.oid] : ['--ff-only', base.oid]);
       if (conflicts) return { status: 'conflict', branch: branch.name, base: base.branch, conflicts };
       return { status: 'updated', branch: branch.name, base: base.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']) };
+    }
+    // Where to work on a branch by hand: its own copy and the command to be on it.
+    if (method === 'branch.terminalTarget') {
+      const { base, branch, tree, exists } = await this.target(w, p.branch);
+      assert(branch.name !== base.branch, 'Esta es la rama de integración; trabaja en el checkout del proyecto.'); assert(exists, 'Esta rama no tiene una copia propia en disco.');
+      const quote = value => /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+      return { branch: branch.name, path: tree.path, command: `cd ${quote(tree.path)} && git switch ${quote(branch.name)}` };
     }
     if (method === 'branch.abort') {
       const { base, branch, tree, exists } = await this.target(w, p.branch);

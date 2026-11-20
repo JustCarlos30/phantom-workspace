@@ -10,6 +10,7 @@ import BrowserPanelContent from './BrowserPanel';
 import { ToolPanel as ToolPanelContent } from './ToolPanels';
 import { useInlineName } from '../hooks/useInlineName';
 import { useFitDensity } from '../hooks/useFitDensity';
+import { toolForKey } from '../hooks/canvas-tool-keys.mjs';
 import { isEditingTarget } from '../hooks/inputOwnership';
 import { canScroll, hasScrollable, createWheelGesture, isDiscreteWheel, wheelZoomFactor } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
@@ -373,11 +374,10 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       if (e.target.closest('button,.canvas-popover')) return;
       if (e.key === 'Escape' && (draft || openComment || tool === 'comment')) { e.preventDefault(); setDraft(null); setOpenComment(null); setTool('select'); return; }
       if (e.key === 'Escape') { setNavigationMenu(null); onFocus(null); onSelect([]); }
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'c') { setTool(current => current === 'comment' ? 'select' : 'comment'); return; }
+      const next = toolForKey(e, { tool, focused: !!focused });
+      if (next) { setTool(next); if (e.key.toLowerCase() !== 'h') return; }
       if (focused || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code === 'Space') { e.preventDefault(); space.current = true; setSpaceHeld(true); }
-      if (e.key.toLowerCase() === 'h') setTool('hand');
-      if (e.key.toLowerCase() === 'v') setTool('select');
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomAt(cameraRef.current.zoom * 1.2); }
       if (e.key === '-') { e.preventDefault(); zoomAt(cameraRef.current.zoom / 1.2); }
       if (e.key === '1') { e.preventDefault(); zoomAt(1); }
@@ -595,6 +595,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     focus: id => latest.current.onFocus(id),
     watchAudio: node => latest.current.watchAudio(node),
     chatPulse: (id, kind) => setChatPulses(current => (current[id] || '') === (kind || '') ? current : { ...current, [id]: kind || undefined }),
+    watchAudio: node => latest.current.watchAudio(node),
     select: ids => latest.current.onSelect(ids),
     press: (...args) => latest.current.press(...args),
     click: (...args) => latest.current.click(...args),

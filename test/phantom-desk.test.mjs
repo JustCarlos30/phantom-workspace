@@ -8,16 +8,76 @@ test('desk zones follow native status and controllers', () => {
   assert.equal(zoneOf('blocked'), 'decide');
   assert.equal(zoneOf('verifying'), 'live');
   assert.equal(zoneOf('ready', 'running'), 'live');
-  assert.equal(zoneOf('completed'), 'queue');
-  const items = [task('t1', 'ready', 'Lista'), task('t2', 'blocked', 'Bloqueada', { reason: 'Falta decisión' }), task('t3', 'running', 'Corre'), task('t4', 'completed', 'Hecha'), task('t5', 'ready', 'Con controlador')];
+  assert.equal(zoneOf('completed'), 'history');
+  assert.equal(zoneOf('ready'), 'queue');
+  assert.equal(zoneOf('blocked', undefined, true), 'resolved');
+  const items = [task('t1', 'ready', 'Lista'), task('t2', 'blocked', 'Bloqueada', { reason: 'Falta decisión' }), task('t3', 'running', 'Corre'), task('t4', 'completed', 'Hecha'), task('t5', 'ready', 'Con controlador'), task('t6', 'cancelled', 'Cancelada'), task('t7', 'mystery', 'Rara')];
   const desk = buildDesk(items, [{ id: 'c1', taskId: 't5', status: 'running', output: 'uno\n\x1b[32mdos\x1b[0m\n' }]);
   assert.deepEqual(desk.zones.decide.map(card => card.id), ['t2']);
   assert.equal(desk.zones.decide[0].reason, 'Falta decisión');
   assert.deepEqual(desk.zones.live.map(card => card.id).sort(), ['t3', 't5']);
-  assert.deepEqual(desk.zones.queue.map(card => card.id), ['t1', 't4']);
+  assert.deepEqual(desk.zones.queue.map(card => card.id), ['t1', 't7']);
+  assert.deepEqual(desk.zones.history.map(card => card.id).sort(), ['t4', 't6']);
   assert.equal(lastLine(desk.zones.live.find(card => card.id === 't5').controller.output), 'dos');
-  assert.equal(buildDesk(items, [], 'src/a.js').total, 5);
+  assert.equal(buildDesk(items, [], 'src/a.js').total, 7);
   assert.equal(buildDesk(items, [], 'corre').total, 1);
+});
+
+test('failed va a «Espera tu decisión», la más reciente primero', () => {
+  assert.equal(zoneOf('failed'), 'decide');
+  const desk = buildDesk([task('n', 'failed', 'Nueva', { updatedAt: '2026-11-12T10:00:00Z' }), task('b', 'blocked', 'Vieja', { updatedAt: '2026-11-10T10:00:00Z' }), task('o', 'failed', 'Media', { updatedAt: '2026-11-11T10:00:00Z' })]);
+  assert.deepEqual(desk.zones.decide.map(card => card.id), ['n', 'o', 'b']);
+});
+
+import { titleOf, sectionsOf, explainReason, resolutionOf, runSummary, groupByCause, tailOf } from '../src/hooks/phantom-desk.mjs';
+test('titles and sections read plain goals and contract markdown', () => {
+  const goal = '## Título\nRediseñar las Cards\n\n## Propósito\nMenos texto técnico.\nMás claro.';
+  assert.equal(titleOf(goal), 'Rediseñar las Cards');
+  assert.equal(titleOf('Arreglar el login. Luego documentar.'), 'Arreglar el login.');
+  assert.equal(titleOf('x'.repeat(200)).length, 90);
+  assert.equal(titleOf(''), '');
+  assert.deepEqual(sectionsOf(goal), [{ heading: 'Título', body: 'Rediseñar las Cards' }, { heading: 'Propósito', body: 'Menos texto técnico.\nMás claro.' }]);
+  assert.deepEqual(sectionsOf('Solo texto'), [{ heading: '', body: 'Solo texto' }]);
+});
+test('native reasons become plain causes, including child prefixes', () => {
+  assert.equal(explainReason('Verificación fallida; margen de reparación agotado').label, 'Tests en rojo');
+  assert.match(explainReason('Verificación fallida').next, /Abre Verificación/);
+  assert.equal(explainReason('No hay un cambio atribuible que satisfaga el encargo').label, 'El agente no hizo cambios');
+  assert.equal(explainReason('claude_code_refused: Presupuesto de tokens agotado').cause, 'budget');
+  assert.equal(explainReason('El motor reportó un error: Presupuesto de tiempo agotado').label, 'Se quedó sin tiempo/tokens');
+  assert.equal(explainReason('OpenCode x fetch failed').cause, 'engine');
+  assert.equal(explainReason('claude-x model is not supported').cause, 'engine');
+  const child = explainReason('Hijo ui: Hay una regresión previa al cambio');
+  assert.equal(child.cause, 'baseline'); assert.equal(child.child, 'ui');
+  for (const [reason, cause] of [['Los checks modificaron el artefacto', 'checks-mutate'], ['Las comprobaciones iniciales modificaron el workspace', 'baseline-dirty'], ['Snapshot no soporta directorios', 'snapshot'], ['EISDIR: illegal operation', 'snapshot'], ['git_dirty', 'git-dirty'], ['judge_rejected: no', 'judge'], ['Workspace desaparecido', 'workspace-gone'], ['Cambio fuera del mandato: a.js', 'out-of-scope'], ['Las comprobaciones no acreditan pruebas suficientes', 'weak-checks']]) assert.equal(explainReason(reason).cause, cause, reason);
+  const other = explainReason('Algo raro'); assert.equal(other.cause, 'other'); assert.equal(other.meaning, 'Algo raro');
+  assert.equal(explainReason('').cause, 'other');
+  const groups = groupByCause([{ reason: 'Verificación fallida' }, { reason: 'git_dirty' }, { reason: 'Verificación fallida' }]);
+  assert.deepEqual(groups.map(group => [group.label, group.cards.length]), [['Tests en rojo', 2], ['Hay cambios sin guardar', 1]]);
+});
+test('blocked cards resolved elsewhere leave the decision zone', () => {
+  assert.equal(resolutionOf({ resolution: { supersededBy: { id: 'b', status: 'completed' }, landed: 0 } }), 'superseded');
+  assert.equal(resolutionOf({ resolution: { supersededBy: null, landed: 3 } }), 'landed');
+  assert.equal(resolutionOf({ resolution: { supersededBy: null, landed: 0 } }), null);
+  assert.equal(resolutionOf({}), null);
+  const items = [
+    { ...task('a', 'blocked', 'Vieja', { reason: 'git_dirty' }), resolution: { supersededBy: { id: 'b', status: 'completed' }, landed: 0 } },
+    task('b', 'completed', 'Nueva versión'),
+    { ...task('c', 'blocked', 'Con commits'), resolution: { supersededBy: null, landed: 2 } },
+    { ...task('d', 'blocked', 'Pendiente'), resolution: { supersededBy: null, landed: 0 } },
+  ];
+  const desk = buildDesk(items);
+  assert.deepEqual(desk.zones.decide.map(card => card.id), ['d']);
+  assert.deepEqual(desk.zones.resolved.map(card => card.id).sort(), ['a', 'c']);
+  assert.equal(desk.cards.find(card => card.id === 'a').resolutionText, 'Sustituida por Nueva versión · Completada');
+  assert.equal(desk.cards.find(card => card.id === 'c').resolutionText, 'Sus archivos cambiaron en main después · 2 commits');
+});
+test('run summary counts files, lines, checks and attempts honestly', () => {
+  assert.deepEqual(runSummary(null), { files: 0, added: 0, removed: 0, checksPassed: 0, checksTotal: 0, attempts: 0 });
+  const run = { summary: { files: [{ path: 'a', added: 3, removed: 1 }, { path: 'b', added: 2, removed: 0 }] }, evidence: { verification: [{ round: 1, available: true, checks: [{ passed: false }] }, { round: 2, available: true, checks: [{ passed: true }, { passed: false }] }, { round: 3, available: false }] } };
+  assert.deepEqual(runSummary(run), { files: 2, added: 5, removed: 1, checksPassed: 1, checksTotal: 2, attempts: 3 });
+  assert.equal(tailOf('a\nb\nc\n', 2), 'b\nc');
+  assert.equal(tailOf(null), '');
 });
 
 test('status changes are news only after the first observation', () => {

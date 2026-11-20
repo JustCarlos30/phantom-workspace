@@ -72,6 +72,19 @@ test('Claude-only policy: no new OpenCode session binding, but stored identity s
   assert.equal((await f.host.invoke('terminal.agent.context',{sessionId:f.session.id})).providerSessionId,'');
 });
 
+test('with OpenCode enabled a session of this workspace binds; a foreign one never does',async t=>{
+  const f=await fixture(t);
+  await f.host.invoke('providers.configure',{providers:{opencode:{enabled:true}}});
+  await assert.rejects(f.update({providerSessionId:'ses_foreign'}),/no pertenece a este workspace/);
+  await f.update({providerSessionId:'ses_owned'});
+  let context=await f.host.invoke('terminal.agent.context',{sessionId:f.session.id});
+  assert.equal(context.providerSessionId,'ses_owned');assert.equal(context.provider,'opencode');
+  await f.host.invoke('providers.configure',{providers:{opencode:{enabled:false}}});
+  await assert.rejects(f.update({providerSessionId:'ses_owned'}),/Habilita OpenCode/);
+  await f.update({providerSessionId:''});
+  context=await f.host.invoke('terminal.agent.context',{sessionId:f.session.id});assert.equal(context.providerSessionId,'');
+});
+
 test('linking a card names a default-titled terminal but never overrides a manual name',async t=>{
   const f=await fixture(t);
   const title=async()=>(await f.host.invoke('state.get')).workspaces[0].nodes.find(n=>n.id===f.node.id).title;

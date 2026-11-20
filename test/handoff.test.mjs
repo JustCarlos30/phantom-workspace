@@ -112,10 +112,34 @@ test('comandos son constantes exactas y none no escribe; arranque explícito esc
   }
   const none=await f.handoff({agent:'none'});assert.equal(none.launched,false);assert.equal(f.writes.length,1);
   assert.equal(handoffCommand('none'),'');assert.throws(()=>handoffCommand('gemini'),/no admitido/);
-  // Claude-only policy: no OpenCode/Codex launch command exists in the catalog and an explicit request is refused before a node is created.
-  assert.deepEqual(Object.keys(HANDOFF_COMMANDS).sort(),['claude','none']);
-  for(const agent of ['codex','opencode']){assert.throws(()=>handoffCommand(agent),/Claude Code/);await assert.rejects(f.handoff({agent}),/Claude Code/);}
+  // Default policy: OpenCode/Codex are disabled, so an explicit request is refused before a node is created.
+  assert.deepEqual(Object.keys(HANDOFF_COMMANDS).sort(),['claude','codex','none','opencode']);
+  for(const agent of ['codex','opencode']){assert.throws(()=>handoffCommand(agent),/Configuración > Agentes.*Claude Code/);await assert.rejects(f.handoff({agent}),/Claude Code/);}
   assert.equal(f.writes.length,1);
+  assert.equal(f.host.store.getWorkspace(f.w.id).nodes.length,3);
+});
+
+test('con OpenCode y Codex habilitados el encargo los lanza; al deshabilitarlos vuelve a rechazarlos',async t=>{
+  const f=await fixture(t);
+  await f.host.invoke('providers.configure',{providers:{opencode:{enabled:true},codex:{enabled:true}}});
+  for(const agent of ['opencode','codex']){
+    const result=await f.handoff({agent});assert.equal(result.agent,agent);assert.equal(result.launched,true);
+    assert.deepEqual(f.writes.at(-1),{sessionId:result.sessionId,data:HANDOFF_COMMANDS[agent]});
+  }
+  assert.equal(HANDOFF_COMMANDS.opencode,`opencode --prompt "${HANDOFF_INSTRUCTION}"\r`);
+  // The handoff default client and model come from the policy, never from the sender.
+  await f.host.invoke('providers.configure',{defaults:{handoff:{client:'opencode',model:'openai/gpt-5'}}});
+  f.host.terminals.foreground=()=>({agent:'Claude Code'});
+  const byDefault=await f.handoff();assert.equal(byDefault.agent,'opencode');
+  assert.equal(f.writes.at(-1).data,`opencode --model openai/gpt-5 --prompt "${HANDOFF_INSTRUCTION}"\r`);
+  await assert.rejects(f.host.invoke('providers.configure',{defaults:{handoff:{client:'opencode',model:'anthropic/claude-sonnet-4'}}}),/nunca por OpenCode/);
+  // Disabling OpenCode while it is the handoff default is refused until the default changes.
+  await assert.rejects(f.host.invoke('providers.configure',{providers:{opencode:{enabled:false}}}),/Encargos.*Habilita OpenCode/);
+  await f.host.invoke('providers.configure',{providers:{opencode:{enabled:false},codex:{enabled:false}},defaults:{handoff:{client:'claude',model:null}}});
+  const before=f.writes.length;
+  for(const agent of ['codex','opencode'])await assert.rejects(f.handoff({agent}),/no está habilitado/);
+  assert.equal(f.writes.length,before);
+  const back=await f.handoff();assert.equal(back.agent,'claude');assert.equal(f.writes.at(-1).data,HANDOFF_COMMANDS.claude);
 });
 
 test('agente por defecto es Claude Code y no hereda el cliente del emisor',async t=>{
@@ -199,13 +223,13 @@ test('fallo de creación conserva launchState failed y no crea Atención ni escr
   assert.equal(f.writes.length,0);
 });
 
-test('Atención respeta el máximo de 1000 sin perder el nuevo aviso',async t=>{
+test('Atención respeta el máximo (ATTENTION_LIMIT) sin perder el nuevo aviso',async t=>{
   const f=await fixture(t);
   // Set up the existing cap using a single valid transaction and UUIDs.
-  const {randomUUID}=await import('node:crypto');
-  f.host.store.transaction(()=>{f.other.attention=Array.from({length:1000},()=>({id:randomUUID(),title:'Anterior',source:'terminal'}));});
+  const {randomUUID}=await import('node:crypto');const {ATTENTION_LIMIT}=await import('../host/store.mjs');
+  f.host.store.transaction(()=>{f.other.attention=Array.from({length:ATTENTION_LIMIT},()=>({id:randomUUID(),title:'Anterior',source:'terminal'}));});
   const first=f.other.attention[0].id,result=await f.handoff({project:f.other.id});
-  const items=await f.host.invoke('attention.list',{workspaceId:f.other.id});assert.equal(items.length,1000);
+  const items=await f.host.invoke('attention.list',{workspaceId:f.other.id});assert.equal(items.length,ATTENTION_LIMIT);
   assert.ok(!items.some(item=>item.id===first));assert.equal(items.at(-1).eventKey,`handoff:${result.handoffId}`);
 });
 

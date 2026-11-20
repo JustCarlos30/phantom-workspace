@@ -69,7 +69,8 @@ export function branchState(row, base = 'main') {
   if (row.error) detail = 'Git no pudo leer esta rama';
   else if (row.worktree && !row.worktree.exists && !row.isBase) detail = `${detail} · su carpeta ya no existe`;
   const meta = BRANCH_STATES[state];
-  return { state, stateLabel: stateLabel(state, base), tone: meta.tone, order: meta.order, detail, action };
+  const testsFailed = state === 'conflict' && row.request === 'failed' && !conflicts.length;
+  return { state, stateLabel: testsFailed ? 'Tests fallaron' : stateLabel(state, base), tone: meta.tone, order: meta.order, detail, action };
 }
 
 // The road to the base in a few steps, drawn the same way for every branch:
@@ -114,6 +115,13 @@ export function describeBranch(row, base) {
   const allowed = { save: can.commit, integrate: can.integrate, session: owned, remove: can.remove };
   return {
     ...row, changeCount, inBase, pendingCount: changeCount - inBase, changes, committed, committedCount: row.committedCount ?? committed.length,
+    // Hand work in the branch's own copy: a terminal there, resolving a clash, backing out a half-done update.
+    midMerge: changes.some(change => changeCode(change.status) === 'U'),
+    byHand: {
+      terminal: !row.isBase && !row.detached && exists,
+      resolve: !row.isBase && !row.detached && exists && row.behind > 0 && row.ahead > 0 && !changeCount && !(owned && running),
+      abort: !row.isBase && !row.detached && exists && changes.some(change => changeCode(change.status) === 'U'),
+    },
     id: row.name || `detached:${row.worktree?.path}`, title, group: row.isBase ? 'base' : 'sessions', exists, owned, running, conflicts,
     ...status, action: allowed[status.action] ? status.action : null, summary: status.detail, can,
   };

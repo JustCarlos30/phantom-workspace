@@ -16,16 +16,44 @@ import { phantomRunIds, turnRunIds, summarizePhantomRun, summarizePhantomActivit
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
 import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
+import { executionPolicy } from '../../shared/execution-policy.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 
-export const CARD_MODES = [
+const AGENT_MODES = [
   { id: 'claude', key: 'claude', label: 'Claude', hint: 'Conversar con Claude Code en esta carpeta' },
-  { id: null, key: 'shell', label: 'Terminal', hint: 'Usar la sesión de terminal de esta card' },
+  { id: 'opencode', key: 'opencode', label: 'OpenCode', hint: 'Conversar con OpenCode en esta carpeta' },
+  { id: 'codex', key: 'codex', label: 'Codex', hint: 'Conversar con Codex en esta carpeta' },
 ];
+const SHELL_MODE = { id: null, key: 'shell', label: 'Terminal', hint: 'Usar la sesión de terminal de esta card' };
+export const CARD_MODES = [AGENT_MODES[0], SHELL_MODE];
+// Enabled agents plus the card's own (a disabled one stays visible so its history reads), then the terminal.
+export const cardModes = (enabled, current) => [...AGENT_MODES.filter(mode => enabled.includes(mode.id) || mode.id === current), SHELL_MODE];
+
+// Enabled providers from the global policy (settings.providers). Without it, Claude Code only, as before.
+let policyCache = { enabled: ['claude'], chat: 'claude' }, policyRead = null, policyAt = 0;
+export function rememberPolicy(settings) {
+  try { const policy = executionPolicy(settings); policyCache = { enabled: Object.keys(policy.providers).filter(id => policy.providers[id].enabled), chat: policy.defaults.chat.client, policy }; policyAt = Date.now(); }
+  catch (error) { policyCache = { enabled: ['claude'], chat: 'claude', error }; }
+  return policyCache;
+}
+export function useEnabledProviders(api) {
+  const [value, setValue] = useState(policyCache);
+  useEffect(() => {
+    let live = true;
+    if (Date.now() - policyAt > 3000) policyRead ||= Promise.resolve().then(() => api('state.get', {})).then(state => rememberPolicy(state?.settings), () => policyCache).finally(() => { policyRead = null; });
+    Promise.resolve(policyRead || policyCache).then(next => { if (live) setValue(next); });
+    return () => { live = false; };
+  }, [api]);
+  return value;
+}
 const MODE_KEY = 'phantom.cardMode';
-// New cards open in the mode chosen last; chat with Claude until one is chosen.
+// New cards open in the mode chosen last if it is still enabled; otherwise the chats default (Claude Code unless configured).
 export function preferredCardMode() {
-  try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : 'claude'; } catch { return 'claude'; }
+  let saved = null;
+  try { saved = localStorage.getItem(MODE_KEY); } catch { /* per-viewer preference only */ }
+  if (saved === 'terminal') return null;
+  if (saved && saved !== 'claude' && policyCache.enabled.includes(saved)) return saved;
+  return saved === 'claude' && policyCache.enabled.includes('claude') ? 'claude' : policyCache.enabled.includes(policyCache.chat) ? policyCache.chat : 'claude';
 }
 const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
 // Branches Phantom creates per session are named after an id; show the project instead.
@@ -93,19 +121,20 @@ function useModeChoice({ node, workspace, api, notify, disabled }) {
 // An agent to chat with, or the plain terminal: the prominent choice.
 export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
   const { active, pending, choosing, choose } = useModeChoice({ node, workspace, api, notify, disabled });
+  const modes = cardModes(useEnabledProviders(api).enabled, active);
   const navigate = event => {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault(); event.stopPropagation();
     if (disabled || choosing.current) return;
-    const count = CARD_MODES.length;
-    const index = CARD_MODES.findIndex(mode => mode.id === active);
+    const count = modes.length;
+    const index = modes.findIndex(mode => mode.id === active);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? count - 1 : 1)) % count;
     event.currentTarget.querySelectorAll('button')[next]?.focus();
-    choose(CARD_MODES[next].id);
+    choose(modes[next].id);
   };
-  const activeMode = CARD_MODES.find(mode => mode.id === active) || CARD_MODES[0];
-  return <div className="pc-modes" data-active={activeMode.key} style={{ '--mode-index': CARD_MODES.indexOf(activeMode), '--mode-count': CARD_MODES.length }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
-    {CARD_MODES.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
+  const activeMode = modes.find(mode => mode.id === active) || modes[0];
+  return <div className="pc-modes" data-active={activeMode.key} style={{ '--mode-index': modes.indexOf(activeMode), '--mode-count': modes.length }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+    {modes.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
   </div>;
 }
 
@@ -114,7 +143,8 @@ function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
   const { active, choose } = useModeChoice({ node, workspace, api, notify, disabled });
   const [open, setOpen] = useState(false);
   const root = useRef(null), trigger = useRef(null), menu = useRef(null);
-  const mode = CARD_MODES.find(item => item.id === active) || CARD_MODES[0];
+  const modes = cardModes(useEnabledProviders(api).enabled, active);
+  const mode = modes.find(item => item.id === active) || modes[0];
   const items = () => [...(menu.current?.querySelectorAll('[role="menuitemradio"]') || [])];
   useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   useEffect(() => {
@@ -139,7 +169,7 @@ function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
       <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Quién responde en esta card">
-      {CARD_MODES.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
+      {modes.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
         <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={14} aria-hidden="true" />}
       </button>)}
     </div>}
@@ -739,7 +769,7 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
 }
 
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
-  const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
+  const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);

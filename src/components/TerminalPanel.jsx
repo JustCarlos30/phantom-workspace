@@ -5,7 +5,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { AlertCircle, ArrowDown, Folder, GitBranch, Mic, Minus, Plus, RotateCcw, Square } from 'lucide-react';
 import { useVoiceWorkspace } from './VoiceProvider';
 import '@xterm/xterm/css/xterm.css';
-import { subscribe } from '../hooks/useWorkspace';
+import { subscribeSession } from '../hooks/useWorkspace';
 import { createTerminalStream } from '../hooks/terminalStream';
 import { writeOwnedTerminalInput } from '../hooks/inputOwnership';
 import AgentIdentity from './AgentIdentity';
@@ -72,7 +72,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     let disposed = false, fitting, stream, wheelEvent = null, anchor = null, anchorFrame;
     setSetup(null);
     const acceptSetup = incoming => { if (incoming && !disposed) setSetup(previous => !previous || incoming.updatedAt >= previous.updatedAt ? incoming : previous); };
-    const offSetup = subscribe(event => { if (event.type === 'terminal.setup' && event.sessionId === sessionId) acceptSetup(event.setup); });
+    const offSetup = subscribeSession(sessionId, event => { if (event.type === 'terminal.setup' && event.sessionId === sessionId) acceptSetup(event.setup); });
     const cancelAnchor = () => { cancelAnimationFrame(anchorFrame); anchor?.dispose(); anchor = null; };
     cancelAnchorRef.current = cancelAnchor;
     setReadingHistory(false); setError(''); setStatus(sessionId ? 'connecting' : 'lost');
@@ -133,7 +133,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     };
     resizeRef.current = resize;
     if (sessionId) {
-      stream = createTerminalStream({ sessionId, invoke: api, subscribe, connected: connectedRef.current,
+      stream = createTerminalStream({ sessionId, invoke: api, subscribe: callback => subscribeSession(sessionId, callback), connected: connectedRef.current,
         snapshot: (text, current, session) => new Promise(resolve => {
           if (current()) acceptSetup(session?.setup);
           // Fence old queued xterm writes before reset. Invalidate stale attach

@@ -31,6 +31,7 @@ export function subagentOp(payload) {
 const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review] | run ID [MODELO] | runs\n'
   +'Encargos: projects | handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)\n'
   +'Procesos: launch [--title TÍTULO] "COMANDO" | processes | output ID [LÍNEAS] | stop ID\n'
+  +'Entorno (Docker compose): env list | env up SERVICIO|--profile P | env run JOB [--timeout S] | env down [SERVICIO]\n'
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
   +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"\n'
   +'Hooks: subagent (lee el evento de Claude Code por stdin)';
@@ -72,6 +73,17 @@ export async function main(args=process.argv.slice(2), env=process.env) {
       if(op&&env.PHANTOM_TERMINAL_SESSION_ID&&env.PHANTOM_WORKSPACE_SOCKET)await invokeAgent('terminal.agent.subagent',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,op},env.PHANTOM_WORKSPACE_SOCKET,3000);
     } catch {}
     return;
+  }
+  if(args[0]==='env') {
+    const [,sub,...rest]=args,word=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(value);
+    let payload={},wait=15000;
+    if(sub==='list'&&!rest.length){/* sin argumentos */}
+    else if(sub==='up'&&((rest.length===1&&word(rest[0]))||(rest.length===2&&rest[0]==='--profile'&&word(rest[1])))){payload=rest.length===1?{service:rest[0]}:{profile:rest[1]};wait=360000;}
+    else if(sub==='run'&&(rest.length===1||(rest.length===3&&rest[1]==='--timeout'&&/^\d+$/.test(rest[2])&&Number(rest[2])>=1&&Number(rest[2])<=3600))&&word(rest[0])){payload={job:rest[0],...(rest.length===3?{timeout:Number(rest[2])}:{})};wait=((payload.timeout??600)+60)*1000;}
+    else if(sub==='down'&&rest.length<=1&&(!rest.length||word(rest[0]))){payload=rest.length?{service:rest[0]}:{};wait=150000;}
+    else throw new Error(USAGE);
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    return invokeAgent(`terminal.agent.env.${sub}`,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...payload},env.PHANTOM_WORKSPACE_SOCKET,wait);
   }
   if(['launch','processes','output','stop'].includes(args[0])) {
     const [action,...rest]=args;
