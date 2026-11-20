@@ -23,7 +23,7 @@ export const ZONES = [
 ];
 
 export function zoneOf(status, controllerStatus) {
-  if (status === 'blocked') return 'decide';
+  if (status === 'blocked' || status === 'failed') return 'decide';
   if (['running', 'verifying', 'recovering'].includes(status) || controllerStatus === 'running') return 'live';
   return 'queue';
 }
@@ -47,7 +47,7 @@ export function buildDesk(items = [], controllers = [], query = '', location = '
   }).filter(card => !location || card.location === location).filter(card => !text || `${card.goal}\n${card.id}\n${(contractOf(card.item.raw).scope || []).join('\n')}`.toLowerCase().includes(text));
   const zones = Object.fromEntries(ZONES.map(zone => [zone.id, []]));
   for (const card of cards) zones[card.zone].push(card);
-  zones.decide.sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
+  zones.decide.sort((a, b) => (time(a.updatedAt) || Infinity) - (time(b.updatedAt) || Infinity));
   zones.live.sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
   zones.queue.sort((a, b) => queueRank(a.status) - queueRank(b.status) || time(b.updatedAt) - time(a.updatedAt));
   const counts = Object.fromEntries(Object.keys(STATUS).map(key => [key, cards.filter(card => card.status === key).length]));

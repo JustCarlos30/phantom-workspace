@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowLeft, Check, GitBranch, Clock, Columns3, ExternalLi
 import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from './PluginPrimitives';
 import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions, executionFacts } from '../hooks/plugin-model.mjs';
 import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf, checkResult, eventLabel, eventDetails, phaseOf } from '../hooks/phantom-desk.mjs';
+import { taskHelp, failedChecks } from '../hooks/task-help.mjs';
 import { cardLocations } from '../hooks/branches-model.mjs';
 const unavailableReason = reason => reason?.replace(/^Phantom unavailable: /, '') || 'sin motivo informado';
 
@@ -107,6 +108,10 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
   const runs = runsOf(value);
   const eventItems = itemsOf(events.data).slice().reverse();
   const depStatus = dep => catalog?.lookup?.get(dep);
+  const sessionNode = workspace.nodes?.find(n => n.type === 'terminal' && n.data?.agent?.cardId === id);
+  const help = ready ? taskHelp({ status, reason: native.reason || catalog?.reason || '', runs, controller: related.at(-1), actions, hasSession: Boolean(sessionNode) }) : null;
+  const failing = ready ? failedChecks(runs) : [];
+  const helpAct = ({ id: action }) => action === 'replace' ? setEditing({ ...native, id }) : action === 'session' ? onOpenPanel?.('terminal', { focusNodeId: sessionNode.id }, sessionNode.title) : control(action);
   return <article className="pc-sheet pc-contract" aria-label={`Detalle ${id}`}>
     <header className="pc-contract-head">
       <button type="button" className="pc-icon pc-back" aria-label="Volver a la mesa" onClick={onClose}><ArrowLeft size={15} /></button>
@@ -122,8 +127,14 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
     {value?.available === false && <p className="pc-notice">Phantom no está disponible: {unavailableReason(value.reason)}.</p>}
     {ready && <>
       <details className="pc-full-goal"><summary>Objetivo completo</summary><p>{goalOf(native)}</p></details>
-      <p className="pc-quiet">{phaseOf(native)}</p>
-      {(native.reason || catalog?.reason) && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />Motivo de tarea: {native.reason || catalog.reason}</p>}
+      {help ? <section className="pc-help" aria-label="Qué pasó y qué hacer">
+        <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" /><strong>{help.titulo}</strong></p>
+        <p><b>¿Qué pasó?</b> {help.queOcurrio}</p>
+        <p><b>¿Qué hago?</b> {help.queHago}</p>
+        <div className="pc-next-actions">{help.accionPrincipal && <Button tone="primary" disabled={controlsBlocked || (help.accionPrincipal.id === 'run' && Boolean(facts.blocked))} onClick={() => helpAct(help.accionPrincipal)}>{help.accionPrincipal.label}</Button>}
+          {help.acciones.filter(item => item.id !== help.accionPrincipal?.id && item.id !== 'replace').map(item => <Button key={item.id} disabled={controlsBlocked} onClick={() => helpAct(item)}>{item.label}</Button>)}</div>
+        {failing.map((check, index) => <details key={index} className="pc-check-evidence"><summary>{check.name} falló · {check.summary}</summary><pre>{check.excerpt.text || 'Sin salida registrada.'}</pre></details>)}
+      </section> : (native.reason || catalog?.reason) && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />Motivo de tarea: {native.reason || catalog.reason}</p>}
       <section className="pc-next" aria-label="Siguiente paso">
         <div className="pc-next-copy"><strong>Siguiente paso</strong><span>{available.length ? 'Solo se muestran las acciones que Phantom admite ahora para esta Card.' : 'Phantom no admite acciones sobre esta Card en su estado actual.'}</span></div>
         {actions.run && <div className="pc-model"><Field label="Modelo para ejecutar" hint={`Vacío: ${facts.requested} (${facts.requestedSource}). Solo Claude Code.`}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="claude-code/sonnet" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>Ver modelos Claude Code</Button></div>}
@@ -135,10 +146,12 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
         </dl>
         {facts.note && <p className="pc-quiet">{facts.note}</p>}
         {facts.blocked && <p className="pc-reason" role="alert"><AlertTriangle size={14} aria-hidden="true" />{facts.blocked}</p>}
-        {available.length > 0 && <div className="pc-next-actions">{available.map(([action, label, Icon], index) => <Button key={action} icon={Icon} tone={index === 0 ? 'primary' : undefined} disabled={controlsBlocked || (action === 'run' && Boolean(facts.blocked))} onClick={() => control(action)}>{label}</Button>)}</div>}
+        {available.length > 0 && !help && <div className="pc-next-actions">{available.map(([action, label, Icon], index) => <Button key={action} icon={Icon} tone={index === 0 ? 'primary' : undefined} disabled={controlsBlocked || (action === 'run' && Boolean(facts.blocked))} onClick={() => control(action)}>{label}</Button>)}</div>}
       </section>
       <ErrorNotice error={op.error} clear={op.clear} />{op.busy && <p role="status" className="pc-status">Enviando acción…</p>}
       {output && <DataView value={output} label="Ver respuesta real del control" />}
+      <details className="pc-details"><summary>Detalles</summary>
+      <p className="pc-quiet">{phaseOf(native)}</p>
       <dl className="pc-facts">
         {(native.revision ?? refOf(native)?.version) != null && <div><dt>Revisión</dt><dd>{native.revision ?? refOf(native)?.version}</dd></div>}
         <div><dt>Creada</dt><dd>{relative(native.createdAt) || 'No informada'}</dd></div>
@@ -164,6 +177,7 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
         {events.data?.truncated && <p className="pc-quiet">Se muestran los últimos 100 eventos; historial completo en la fuente nativa.</p>}
         {events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.seq ?? event.id ?? index}><span className="pc-num">{event.at ? new Date(event.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '··:··'}</span><div><strong>{eventLabel(event.type)}</strong> <code>{event.type}</code>{typeof event.data?.reason === 'string' && <p>{event.data.reason}</p>}<details className="pc-check-evidence"><summary>Detalles del evento</summary><p>{event.at} · Tarea: {event.task_id} · Ejecución: {event.run_id || 'No informada'}</p><pre>{eventDetails(event)}</pre></details></div></li>)}</ol> : events.loading ? <p className="pc-quiet" role="status">Leyendo eventos…</p> : events.data?.available === false ? <p className="pc-notice">{events.data.reason}</p> : <EmptyState className="pc-quiet" size="compact" description="Sin eventos observados." />}
       </section>
+      </details>
       <div className="pc-sheet-actions">
         <Button disabled={op.busy} aria-expanded={Boolean(editing)} onClick={() => setEditing(old => old ? null : { ...native, id })}>{editing ? 'Ocultar reemplazo' : 'Preparar reemplazo'}</Button>
         {onOpenPanel && <Button icon={ExternalLink} onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, ref: refOf(native) }, goalOf(native))}>Abrir referencia en otro panel</Button>}
@@ -219,13 +233,14 @@ function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy,
   const metaId = useId();
   const decide = card.zone === 'decide', live = card.zone === 'live';
   const line = live ? lastLine(card.controller?.output) : '';
+  const help = decide ? taskHelp({ status: card.status, reason: card.reason, controller: card.controller, actions: cardActions(card.item.raw || card.item, card.controller ? [card.controller] : []) }) : null;
   const className = `plugin-card pc-card pc-zone-${card.zone}${selected ? ' is-selected' : ''}${fresh ? ' is-fresh' : ''}`;
   const main = <>
     {live && <span className="pc-pulse" aria-hidden="true" />}
     <span className="pc-card-main">
       <span className="pc-card-goal">{card.goal}</span>
       <span className="pc-card-meta" id={metaId}><StatusPill status={card.status} /><code>{card.id}</code>{fresh && <span className="pc-new">Cambió de estado</span>}{card.updatedAt && <span>{relative(card.updatedAt, now)}</span>}{where && <span className="pc-where" title={where.branch || 'Carpeta del proyecto'}><GitBranch size={10} aria-hidden="true" />{where.label}</span>}</span>
-      {decide && <span className="pc-card-reason">{card.reason || 'Phantom bloqueó esta Card. Abre el contrato para ver qué admite ahora.'}</span>}
+      {decide && <span className="pc-card-reason">{help ? `${help.titulo}. ${card.reason || help.queHago}` : card.reason}</span>}
       {live && <span className="pc-card-line">{line || (card.controller ? 'Sin salida recibida todavía.' : 'Ejecución registrada por Phantom fuera de este host.')}</span>}
     </span>
     {live && card.controller?.createdAt && <span className="pc-num pc-elapsed"><Clock size={12} aria-hidden="true" />{duration(card.controller.createdAt, null, now)}</span>}
@@ -237,8 +252,8 @@ function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy,
   return <article className={className}>
     <button type="button" className="pc-card-hit" aria-pressed={selected} aria-label={card.goal} aria-describedby={metaId} onClick={() => onSelect(card.id)}>{main}</button>
     <div className="pc-card-actions">
-      {canRun && <Button tone="primary" icon={Play} disabled={busy} onClick={() => onRun(card)}>Ejecutar con {runModel}</Button>}
-      <Button tone={canRun ? undefined : 'primary'} onClick={() => onSelect(card.id)}>Ver contrato</Button>
+      {canRun && <Button tone="primary" icon={Play} disabled={busy} onClick={() => onRun(card)}>{card.status === 'failed' ? 'Reintentar' : 'Ejecutar'} con {runModel}</Button>}
+      <Button tone={canRun ? undefined : 'primary'} onClick={() => onSelect(card.id)}>Ver detalle</Button>
     </div>
   </article>;
 }

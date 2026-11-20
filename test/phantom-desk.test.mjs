@@ -20,6 +20,12 @@ test('desk zones follow native status and controllers', () => {
   assert.equal(buildDesk(items, [], 'corre').total, 1);
 });
 
+test('failed va a «Espera tu decisión», la más antigua primero', () => {
+  assert.equal(zoneOf('failed'), 'decide');
+  const desk = buildDesk([task('n', 'failed', 'Nueva', { updatedAt: '2026-11-12T10:00:00Z' }), task('b', 'blocked', 'Vieja', { updatedAt: '2026-11-10T10:00:00Z' }), task('o', 'failed', 'Media', { updatedAt: '2026-11-11T10:00:00Z' })]);
+  assert.deepEqual(desk.zones.decide.map(card => card.id), ['b', 'o', 'n']);
+});
+
 test('status changes are news only after the first observation', () => {
   const first = [task('t1', 'ready', 'A'), task('t2', 'running', 'B')];
   assert.deepEqual(changedStatuses(null, first), []);

@@ -77,9 +77,10 @@ export function cardActions(value, controllers = []) {
     || (run?.mode === 'verification' && run?.status === 'failed' && typeof run?.recoveryOf === 'string');
   const live = controllers.some(item => item.taskId === task?.id && ['running', 'starting'].includes(item.status));
   return {
-    run: !live && ['ready', 'blocked'].includes(state),
+    // failed: Reintentar/Cancelar se piden a Phantom, que decide si el estado lo admite; el error nativo se muestra tal cual.
+    run: !live && ['ready', 'blocked', 'failed'].includes(state),
     stop: live,
-    cancel: !live && ['ready', 'blocked'].includes(state),
+    cancel: !live && ['ready', 'blocked', 'failed'].includes(state),
     recover: !live && ['running', 'recovering'].includes(run?.status),
     verify: !live && state === 'blocked' && reconciliationOrigin,
   };

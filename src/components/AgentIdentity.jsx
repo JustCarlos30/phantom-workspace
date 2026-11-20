@@ -7,12 +7,13 @@ import './agent-identity.css';
 
 export const AGENT_LABELS = { idle: 'Sin iniciar', working: 'Trabajando', blocked: 'Bloqueado', review: 'Listo para revisión' };
 
-export function CardAgents({ cardId, workspace, onOpenPanel }) {
+// onRetry (opcional): solo lo pasa quien puede reintentar la Card; sin él no se muestra el botón.
+export function CardAgents({ cardId, workspace, onOpenPanel, onRetry }) {
   const nodes = workspace.nodes.filter(n => n.type === 'terminal' && n.data.agent?.cardId === cardId);
   if (!nodes.length) return <p className="tw-muted">Sin terminal vinculada. Asígnala desde «Identidad y card» en una terminal.</p>;
   return <ul className="card-agents" aria-label="Terminales de esta card">{nodes.map(node => {
-    const agent = node.data.agent;
-    return <li key={node.id}><div><strong>{node.title}</strong><span className={`agent-state agent-${agent.status || 'idle'}`}>{AGENT_LABELS[agent.status || 'idle']}</span><p>{agent.step || 'Sin paso declarado'}</p><small>{agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}{agent.updatedAt ? ` · ${new Date(agent.updatedAt).toLocaleString()}` : ''}</small></div><button type="button" className="tw-button" onClick={() => onOpenPanel?.('terminal', { focusNodeId: node.id }, node.title)}><ArrowUpRight size={14} />Ver terminal</button></li>;
+    const agent = node.data.agent, blocked = agent.status === 'blocked';
+    return <li key={node.id}><div><strong>{node.title}</strong><span className={`agent-state agent-${agent.status || 'idle'}`}>{AGENT_LABELS[agent.status || 'idle']}</span><p>{blocked ? `Motivo: ${agent.step || 'el agente no dijo por qué se bloqueó'}. Responde en su sesión para desbloquearlo.` : agent.step || 'Sin paso declarado'}</p><small>{agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}{agent.updatedAt ? ` · ${new Date(agent.updatedAt).toLocaleString()}` : ''}</small></div><div className="card-agent-actions"><button type="button" className="tw-button" onClick={() => onOpenPanel?.('terminal', { focusNodeId: node.id }, node.title)}><ArrowUpRight size={14} />{blocked ? 'Ir a la sesión' : 'Ver terminal'}</button>{blocked && onRetry && <button type="button" className="tw-button" onClick={() => onRetry(cardId)}><RefreshCw size={14} />Reintentar</button>}</div></li>;
   })}</ul>;
 }
 
