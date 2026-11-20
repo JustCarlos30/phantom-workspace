@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { assert, object, text, canonicalFolder } from './store.mjs';
+import { assert, object, text, canonicalFolder, pushAttention } from './store.mjs';
 import { mergeAgentConfig, terminalPolicy } from './agent-policy.mjs';
 import { git, guardState, installGuard, removeGuard, mergeToken, roleEnv, roleOf, integrationPolicy } from './merge-guard.mjs';
 import { checksFor, runChecks, validateChecks } from './checks.mjs';
@@ -213,7 +213,7 @@ export class Merges {
     const node = w.nodes.find(n => n.id === item.nodeId);
     if (node) node.data.agent = { ...node.data.agent, step: step.replace(/[\x00-\x1f\x7f]+/g, ' ').slice(0, 1000), status: 'blocked', source: 'agent', updatedAt: now() };
     const attention = { id: randomUUID(), title: `${item.title}: ${step}`.slice(0, 512), source: 'incorporaciones', ref: item.id, nodeId: item.nodeId, createdAt: now(), observedAt: now() };
-    w.attention.push(attention); if (w.attention.length > 1000) w.attention.shift();
+    pushAttention(w, attention);
     queueMicrotask(() => this.emit({ type: 'attention.new', workspaceId: w.id, item: attention }));
   }
 

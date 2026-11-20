@@ -88,6 +88,12 @@ export function nextScreenState(previous,signal,agent) {
   return previous?'awaiting_input':null;
 }
 const HIGH_WATER=256*1024,LOW_WATER=64*1024;
+// /proc reads are cheap but frequent: reuse one result per session for a second.
+function cachedForeground(entry) {
+  const now=Date.now();
+  if(!entry.fg||now-entry.fg.at>=1000) entry.fg={at:now,value:foregroundOf(entry.child.pid)};
+  return entry.fg.value;
+}
 export class Terminals {
   constructor(store, emit) {
     this.store = store; this.emit = emit; this.live = new Map(); this.sessions = []; this.dirty = false; this.closingNodes = new Map(); this.creating = new Map(); this.setupControllers = new Map(); this.setupJobs = new Map(); this.closed = false;
@@ -167,7 +173,7 @@ export class Terminals {
         entry.pumpQueued=true;
         // Coalesce tiny OS reads instead of creating a parser promise/timer per
         // character. One waiting batch plus one in-flight batch is byte-bounded.
-        entry.chain=entry.chain.then(()=>new Promise(r=>setTimeout(r,4))).then(async()=>{
+        entry.chain=entry.chain.then(()=>new Promise(r=>setTimeout(r,16))).then(async()=>{
           const batch=entry.pendingData;entry.pendingData='';entry.pumpQueued=false;
           await new Promise(resolve=>terminal.write(batch,resolve));
           entry.pending-=Buffer.byteLength(batch);s.seq++;entry.snapshotDirty=true;this.dirty=true;
@@ -229,7 +235,7 @@ export class Terminals {
   tail(id,count=12,maxCount=40) {
     assert(Number.isInteger(count)&&count>=1&&count<=maxCount,'Invalid tail line count');
     const s=this.get(id),e=this.live.get(id),base={status:e?s.status:s.status==='running'?'lost':s.status,seq:s.seq,cols:s.cols,rows:s.rows};
-    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:foregroundOf(e.child.pid),screenState:e.screenState??null};
+    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:cachedForeground(e),screenState:e.screenState??null};
     // Closed sessions: parse the persisted snapshot once per sequence.
     const key=s.snapshotSeq??s.seq,cached=this.tails?.get(id);
     if(cached?.key===key&&cached.count===count) return {...base,...cached.value,foreground:null};
@@ -250,7 +256,7 @@ export class Terminals {
       e.screenTimer=null; if(e.exited) return;
       const buffer=e.terminal.buffer.active,lines=[];
       for(let i=Math.max(0,buffer.viewportY);i<buffer.viewportY+e.terminal.rows;i++) lines.push(buffer.getLine(i)?.translateToString(true)??'');
-      const agent=foregroundOf(e.child.pid)?.agent??null;
+      const agent=cachedForeground(e)?.agent??null;
       this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent));
     },450);
     e.screenTimer.unref?.();
