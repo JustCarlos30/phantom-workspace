@@ -1204,6 +1204,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 /* A single translucent slab; children do not stack opaque full-size planes. */
 .canvas .canvas-node[data-type="terminal"] > .node-header,
 .canvas .canvas-node[data-type="terminal"] > .node-body { background: transparent; }
+.app-shell .canvas-node > .node-header .session-watch[aria-pressed="true"] { display: inline-flex; opacity: 1; color: var(--attention); background: color-mix(in srgb, var(--attention) 18%, transparent); }
+.canvas-node.overview > .node-header > .session-watch { display: inline-flex; }
 .app-shell .spinning { animation: none; }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
