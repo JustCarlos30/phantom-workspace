@@ -88,7 +88,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
   const [openKey, setOpenKey] = useState(''), [sent, setSent] = useState([]);
   const view = VIEWS.includes(filter) ? filter : 'needs';
   const { now, later } = activity.pending, count = now.length;
-  const opened = now.some(item => item.key === openKey) ? openKey : now[0]?.key;
+  const opened = now.some(item => item.key === openKey) ? openKey : '';
   useEffect(() => { setSent(keys => keys.filter(key => now.some(item => item.key === key))); }, [now]);
   const failing = Object.values(activity.sources).some(source => source?.error);
   useEffect(() => {
