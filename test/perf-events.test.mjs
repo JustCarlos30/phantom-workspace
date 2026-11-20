@@ -6,9 +6,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { createEventHub } from '../src/hooks/eventHub.js';
-import { createTailPoller } from '../src/hooks/tailPoller.js';
-import { Store, ATTENTION_LIMIT, pushAttention } from '../host/store.mjs';
+// Loaded lazily so each test reports its own failure before the modules exist.
+const hubModule = () => import('../src/hooks/eventHub.js');
+const pollerModule = () => import('../src/hooks/tailPoller.js');
+const storeModule = () => import('../host/store.mjs');
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -21,7 +22,8 @@ function fakeSource() {
   };
 }
 
-test('event hub registers one bridge listener for any number of subscribers', () => {
+test('event hub registers one bridge listener for any number of subscribers', async () => {
+  const { createEventHub } = await hubModule();
   const source = fakeSource(), hub = createEventHub(source.register);
   const offs = Array.from({ length: 50 }, () => hub.subscribe(() => {}));
   for (let i = 0; i < 50; i++) offs.push(hub.subscribeSession(`s${i}`, () => {}));
@@ -33,7 +35,8 @@ test('event hub registers one bridge listener for any number of subscribers', ()
   assert.equal(source.active, 1, 'bridge listener registered again on demand');
 });
 
-test('session subscribers only receive their session plus connection events', () => {
+test('session subscribers only receive their session plus connection events', async () => {
+  const { createEventHub } = await hubModule();
   const source = fakeSource(), hub = createEventHub(source.register);
   const a = [], b = [], all = [];
   hub.subscribeSession('a', event => a.push(event));
@@ -48,7 +51,8 @@ test('session subscribers only receive their session plus connection events', ()
   assert.equal(all.length, 4, 'generic subscribers still see every event');
 });
 
-test('a throwing subscriber does not starve the others', () => {
+test('a throwing subscriber does not starve the others', async () => {
+  const { createEventHub } = await hubModule();
   const source = fakeSource(), hub = createEventHub(source.register);
   const seen = [];
   hub.subscribe(() => { throw new Error('boom'); });
@@ -60,6 +64,7 @@ test('a throwing subscriber does not starve the others', () => {
 });
 
 test('tail poller shares one request stream across subscribers and stops when unused', async () => {
+  const { createEventHub } = await hubModule(); const { createTailPoller } = await pollerModule();
   const source = fakeSource(), hub = createEventHub(source.register);
   let calls = 0;
   const invoke = async (method, payload) => { assert.equal(method, 'terminal.tail'); calls++; return { lines: [`tail ${payload.sessionId} ${payload.lines}`], seq: calls }; };
@@ -83,6 +88,7 @@ test('tail poller shares one request stream across subscribers and stops when un
 });
 
 test('late subscriber gets the last tail immediately without a new request', async () => {
+  const { createEventHub } = await hubModule(); const { createTailPoller } = await pollerModule();
   const source = fakeSource(), hub = createEventHub(source.register);
   let calls = 0;
   const poller = createTailPoller({ sessionId: 'a', lines: 1, invoke: async () => ({ lines: [`v${++calls}`] }), subscribeSession: hub.subscribeSession, throttleMs: 40, heartbeatMs: 10_000 });
@@ -94,7 +100,8 @@ test('late subscriber gets the last tail immediately without a new request', asy
   off1(); off2();
 });
 
-test('attention history is bounded per workspace, newest kept, also on load', () => {
+test('attention history is bounded per workspace, newest kept, also on load', async () => {
+  const { Store, ATTENTION_LIMIT, pushAttention } = await storeModule();
   assert.ok(Number.isInteger(ATTENTION_LIMIT) && ATTENTION_LIMIT <= 300 && ATTENTION_LIMIT >= 100);
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-attention-')), dir = path.join(root, 'data'), folder = path.join(root, 'p');
   fs.mkdirSync(folder);
