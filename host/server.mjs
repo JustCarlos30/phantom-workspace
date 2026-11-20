@@ -4,7 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
-import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome } from './store.mjs';
+import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome, pushAttention } from './store.mjs';
 import { applySubagent, validateSubagentOp } from './subagents.mjs';
 import { Terminals } from './terminals.mjs';
 import { Chats, validateChat, validateModel, permissionPatch, applyPatch, assertNewChatPolicy } from './chats.mjs';
@@ -86,7 +86,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(w&&!w.attention.some(item=>item.eventKey===eventKey)) {
         const now=new Date().toISOString(),source=terminalExit?'terminal':event.result?.source==='phantom'?'phantom':'tool';
         const item={id:randomUUID(),eventKey,title:terminalExit?`Terminal finalizada (código ${event.exitCode??'desconocido'})`:`Proceso ${source==='phantom'?'Phantom':'de herramienta'} ${event.status==='failed'?'fallido':'finalizado'}`,source,ref:runId,...(terminalExit?{sessionId:runId,exitCode:event.exitCode}:{runId,status:event.status}),createdAt:now,observedAt:now};
-        store.transaction(()=>{w.attention.push(item);if(w.attention.length>1000)w.attention.shift();});
+        store.transaction(()=>{pushAttention(w,item);});
         broadcast({type:'attention.new',workspaceId:w.id,item});markChanged(w.id);
       }
     }
@@ -256,7 +256,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const command=handoffCommand(fields.agent,rules);
       if(command)terminals.write(session.id,command);
       const item={id:randomUUID(),eventKey:`handoff:${handoff.id}`,title:`Encargo recibido: ${fields.title}`,source:'terminal',ref:session.id,sessionId:session.id,workspaceId:target.id,createdAt,observedAt:createdAt};
-      mutate(target.id,()=>{const w=store.getWorkspace(target.id);w.attention.push(item);if(w.attention.length>1000)w.attention.shift();});
+      mutate(target.id,()=>{const w=store.getWorkspace(target.id);pushAttention(w,item);});
       emit({type:'attention.new',workspaceId:target.id,item});
       return {handoffId:handoff.id,workspaceId:target.id,workspaceName:target.name,nodeId:node.id,sessionId:session.id,title:fields.title,agent:fields.agent,launched:!!command};
     }
@@ -376,7 +376,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(action==='ack') {const item=items.find(v=>v.id===p.id);assert(item,'Attention not found');item.acknowledgedAt=new Date().toISOString();return item;}
       if(action==='update' || (action==='save' && p.id)) {const item=items.find(v=>v.id===p.id);assert(item,'Item not found');const patch=object(p.patch??Object.fromEntries(Object.entries(p).filter(([k])=>!['workspaceId','id'].includes(k))));assert(!('id' in patch),'Cannot change identity');Object.assign(item,patch);return item;}
       const {workspaceId,id,...fields}=p; const defaults={task:{kind:'draft',description:'',status:'todo',refs:[]},mission:{notes:'',nextAction:'',refs:[]},workflow:{description:'',steps:[],version:1},context:{kind:'file'},attention:{source:'local'}}[kind];text(fields.title,'title',512);
-      const item={...defaults,...fields,id:randomUUID(),createdAt:new Date().toISOString()};items.push(item);if(items.length>1000 && kind==='attention') items.shift();if(kind==='attention') queueMicrotask(()=>emit({type:'attention.new',workspaceId:w.id,item}));return item;
+      const item={...defaults,...fields,id:randomUUID(),createdAt:new Date().toISOString()};if(kind==='attention') pushAttention(w,item); else items.push(item);if(kind==='attention') queueMicrotask(()=>emit({type:'attention.new',workspaceId:w.id,item}));return item;
     });
     if(method==='host.shutdown') {setTimeout(()=>close().catch(error=>console.error(error.message)),30);return {ok:true};}
     const answer=await routeIntegration(method,p);assert(answer?.handled,`Unknown method: ${method}`);

@@ -223,13 +223,13 @@ test('fallo de creación conserva launchState failed y no crea Atención ni escr
   assert.equal(f.writes.length,0);
 });
 
-test('Atención respeta el máximo de 1000 sin perder el nuevo aviso',async t=>{
+test('Atención respeta el máximo (ATTENTION_LIMIT) sin perder el nuevo aviso',async t=>{
   const f=await fixture(t);
   // Set up the existing cap using a single valid transaction and UUIDs.
-  const {randomUUID}=await import('node:crypto');
-  f.host.store.transaction(()=>{f.other.attention=Array.from({length:1000},()=>({id:randomUUID(),title:'Anterior',source:'terminal'}));});
+  const {randomUUID}=await import('node:crypto');const {ATTENTION_LIMIT}=await import('../host/store.mjs');
+  f.host.store.transaction(()=>{f.other.attention=Array.from({length:ATTENTION_LIMIT},()=>({id:randomUUID(),title:'Anterior',source:'terminal'}));});
   const first=f.other.attention[0].id,result=await f.handoff({project:f.other.id});
-  const items=await f.host.invoke('attention.list',{workspaceId:f.other.id});assert.equal(items.length,1000);
+  const items=await f.host.invoke('attention.list',{workspaceId:f.other.id});assert.equal(items.length,ATTENTION_LIMIT);
   assert.ok(!items.some(item=>item.id===first));assert.equal(items.at(-1).eventKey,`handoff:${result.handoffId}`);
 });
 

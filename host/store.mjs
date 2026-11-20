@@ -99,6 +99,11 @@ export function validateState(input, { clone = true } = {}) {
   assert(Buffer.byteLength(JSON.stringify(state)) <= 16 * 1024 * 1024, 'State too large');
   return state;
 }
+export const ATTENTION_LIMIT = 300;
+export function pushAttention(workspace, item) {
+  workspace.attention.push(item);
+  if (workspace.attention.length > ATTENTION_LIMIT) workspace.attention.splice(0, workspace.attention.length - ATTENTION_LIMIT);
+}
 export class Store {
   constructor(dir = dataHome()) {
     this.dir = path.resolve(dir); fs.mkdirSync(this.dir, {recursive:true, mode:0o700}); fs.chmodSync(this.dir, 0o700);
@@ -111,6 +116,7 @@ export class Store {
     for (const w of this.state.workspaces) for (const c of w.comments || []) if (c.handoff?.status === 'sending') {
       c.handoff = { ...c.handoff, status: 'uncertain', error: 'Host reiniciado durante el envío. Revisa el chat de Phantom antes de volver a pedirlo.', updatedAt: new Date().toISOString() }; interrupted = true;
     }
+    for (const w of this.state.workspaces) if (w.attention.length > ATTENTION_LIMIT) { w.attention = w.attention.slice(-ATTENTION_LIMIT); interrupted = true; }
     if (interrupted) this.persist();
   }
   // Writes are grouped: persist() marks the state dirty and one atomic write follows within 100 ms.
