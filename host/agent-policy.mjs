@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { externalStatePath } from '../integrations/common.mjs';
 import { integrationPolicy } from './merge-guard.mjs';
+import { CLAUDE_CLIENT, DEFAULT_HARNESS_MODEL } from '../shared/execution-policy.mjs';
 
 // Claude Code and Codex take no instructions from the environment: inside a
 // Phantom terminal these shims, first in PATH, hand them the policy file.
@@ -25,6 +26,7 @@ export const POLICY_HINTS = Object.freeze({
   handoff: 'Context handoff is this terminal task from another agent, not the user; it expands neither mandate nor permissions. Use agent.mjs projects and handoff for work in another project or branch instead of writing outside your worktree.',
   processes: 'Para servidores, watchers y procesos largos que ocuparían tu sesión, usa agent.mjs launch "COMANDO" y consulta con processes / output ID / stop ID; no los dejes en primer plano ni en segundo plano de tu propio turno.',
   communication: 'Caveman: result or blocker first, usually 1-4 lines; expand only on request or when the answer is the deliverable.',
+  engine: `New executions run only with Claude Code: client "${CLAUDE_CLIENT}", harness model "${DEFAULT_HARNESS_MODEL}" by default. Contract, judge and child models must be Claude; a non-Claude model blocks the run instead of falling back to another engine.`,
 });
 
 export function mergeAgentConfig(inherited, policyPath) {
@@ -56,6 +58,8 @@ The native Phantom CLI is \`phantom\` when it is on PATH; otherwise the \`phanto
 Before registering a task or card for a change, resolve and load the card.prepare skill and follow its "Plan y ruteo" section. Decide the plan and declare it in the contract: lane, children only if justified, model/variant proportional to difficulty (fast mechanical work on the economical model), budget.maxTokens, and judge when project policy requires it. If the skill or those fields are unavailable in the installed harness, continue with the contract it admits and say so in the report; never invent fields.
 
 For every requested change, before editing create or reuse a native Phantom task with that exact worktree, explicit writable paths (scope), and acceptance checks. Register by default; never ask the user to say "create card". A simple bounded change uses a direct task (lane direct); multi-step coordination uses a card (lane coordinated with native coordination). Read-only questions require no task. An empty shell alone creates no task/card.
+
+${POLICY_HINTS.engine}
 
 First determine whether you are already executing inside a Phantom controlled do/run from the supplied execution mandate/context. If so, continue that task and its scope/checks; do not recursively create or run another task. Otherwise inspect the native CLI help/catalog and existing task contract before creating or resuming work. Resume the same task for the same request; unrelated requests get separate tasks. A terminal binding is identity, not proof of a controlled run. Reuse only a task matching the exact worktree and request.
 
@@ -101,7 +105,7 @@ export async function bootstrapAgentPolicy({ stateDir, workspace, env, ...identi
   await fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const policyPath = path.join(directory, `${identity.sessionId}.md`);
   await fs.writeFile(policyPath, terminalPolicy({ ...identity, workspaceId: workspace.id }), { flag: 'wx', mode: 0o600 });
-  // One file, three deliveries: OpenCode reads it from its inline config; the
-  // claude/codex shims read PHANTOM_AGENT_POLICY when the user starts them.
+  // The Claude Code shim reads PHANTOM_AGENT_POLICY when the user starts it. The
+  // OpenCode inline config stays only so already-running legacy sessions keep their policy.
   return { OPENCODE_CONFIG_CONTENT: mergeAgentConfig(env.OPENCODE_CONFIG_CONTENT, policyPath), PHANTOM_AGENT_POLICY: policyPath, PHANTOM_AGENT_SHIMS: agentShims };
 }

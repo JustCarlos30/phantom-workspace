@@ -34,7 +34,7 @@ export const HOST_METHODS = new Set([
   'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',
-  'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel',
+  'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel', 'voice.stream.warm',
   // Canvas board: references (image, video, link) and comment pins.
   'reference.add', 'reference.link', 'reference.identity', 'comment.add', 'comment.reply', 'comment.update', 'comment.remove', 'comment.retry',
 ]);

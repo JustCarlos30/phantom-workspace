@@ -5,14 +5,13 @@ import TitiGhost from './TitiGhost.jsx';
 // identity, chat avatar). Drawn on lucide's 24px grid so they sit with the rest.
 const base = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
 
-// Titi: the Phantom mark, drawn on canvas by the Titi core.
-export function PhantomGlyph({ size = 20, mood = 'calm', className = '', ...props }) {
-  return <TitiGhost {...props} size={size} mood={mood} className={className} />;
+// Phantom's mark is Titi, the procedural ghost.
+export function PhantomGlyph({ size = 20, mood = 'calm', ...props }) {
+  return <PhantomFace {...props} mood={mood} size={size} />;
 }
 
-// Shared identity API for the activity bar mark.
-export function PhantomFace({ mood = 'calm', size = 32, className = '', ...props }) {
-  return <TitiGhost {...props} size={size} mood={mood} className={className} />;
+export function PhantomFace({ mood = 'calm', size = 30, className = '', ...props }) {
+  return <TitiGhost {...props} mood={mood} size={size} className={`phantom-face titi-ghost is-${mood} ${className}`} data-mood={mood} />;
 }
 
 // An open circular C monogram with a filled dot.

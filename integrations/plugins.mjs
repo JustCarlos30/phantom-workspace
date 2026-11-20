@@ -1,7 +1,8 @@
 import { PLUGIN_MANIFESTS, validatePluginConfig, validatePluginPreferences } from '../shared/plugins.mjs';
 import { readVideoLog } from './video-log.mjs';
 import { readConvencions } from './convencions.mjs';
-import { workspaceRoot, externalStatePath, command, observedAt } from './common.mjs';
+import { workspaceRoot, externalStatePath, observedAt } from './common.mjs';
+import { assertClaudeModel, claudeModelCatalog, DEFAULT_HARNESS_MODEL } from '../shared/execution-policy.mjs';
 import { phantomStatus } from './phantom.mjs';
 
 function record(workspace, manifest) {
@@ -18,18 +19,16 @@ export async function plugins(method, payload, context) {
   if (method === 'plugins.status') return payload.id === 'convencions' ? readConvencions(workspace) : payload.id === 'video-log' ? readVideoLog(workspace) : phantomStatus(payload, context);
   if (method === 'plugins.models') {
     if (payload.id !== 'phantom') throw new Error('Este plugin no utiliza modelos');
-    try {
-      const { stdout } = await command(context, context.state?.settings?.opencodePath || 'opencode', ['models'], { cwd: root });
-      const models = [...new Set(stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean))];
-      if (!models.length || models.some(model => model.length > 200 || !/^[^\s\x00-\x1f\x7f/]+\/[^\s\x00-\x1f\x7f]+$/.test(model))) throw new Error('OpenCode returned an invalid model catalog');
-      return { available: true, models, observedAt: observedAt() };
-    } catch (error) { return { available: false, models: [], reason: `OpenCode unavailable: ${error.message}`, observedAt: observedAt() }; }
+    // Claude Code catalog is static: no external model-listing CLI is started.
+    return { available: true, models: claudeModelCatalog().map(item => item.id), defaultModel: DEFAULT_HARNESS_MODEL, engine: 'claude-code', observedAt: observedAt() };
   }
   const patch = payload.patch;
   if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(key => !['enabled', 'config'].includes(key))) throw new Error('Invalid plugin patch');
   if (patch.enabled !== undefined && typeof patch.enabled !== 'boolean') throw new Error('Invalid plugin enabled');
   if (patch.config !== undefined) {
     validatePluginConfig(patch.config, payload.id);
+    // New explicit configuration must name a Claude Code model; stored legacy values stay readable.
+    if (payload.id === 'phantom' && typeof patch.config.model === 'string' && patch.config.model) assertClaudeModel(patch.config.model, 'configuración del plugin Phantom');
     if (patch.config.phantomData) await externalStatePath(patch.config.phantomData, root);
   }
   // Re-read after asynchronous path validation; a concurrent update may have landed.

@@ -19,14 +19,12 @@ import { plainMarkdown } from '../hooks/markdownTable.mjs';
 
 export const CARD_MODES = [
   { id: 'claude', key: 'claude', label: 'Claude', hint: 'Conversar con Claude Code en esta carpeta' },
-  { id: 'opencode', key: 'opencode', label: 'OpenCode', hint: 'Conversar con OpenCode en esta carpeta' },
-  { id: 'codex', key: 'codex', label: 'Codex', hint: 'Conversar con Codex en esta carpeta' },
   { id: null, key: 'shell', label: 'Terminal', hint: 'Usar la sesión de terminal de esta card' },
 ];
 const MODE_KEY = 'phantom.cardMode';
 // New cards open in the mode chosen last; chat with Claude until one is chosen.
 export function preferredCardMode() {
-  try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : ['opencode', 'codex'].includes(saved) ? saved : 'claude'; } catch { return 'claude'; }
+  try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : 'claude'; } catch { return 'claude'; }
 }
 const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
 // Branches Phantom creates per session are named after an id; show the project instead.

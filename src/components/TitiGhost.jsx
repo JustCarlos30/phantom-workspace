@@ -1,79 +1,61 @@
 import React, { useEffect, useRef } from 'react';
 import { Rig, drawGhost, LOD } from './titi/ghost.js';
+import { STATES as BASE } from './titi/states-v4.js';
+import { STATES as EXT } from './titi/estados.js';
 import { P } from './titi/parameters.js';
-import { STATES as NEW_STATES } from './titi/estados.js';
-import { STATES as BASE_STATES } from './titi/states-v4.js';
+import { rng, withRandom } from './titi/motion.js';
+import { useSpriteMotion } from './GengarMascot.jsx';
 
-const STATES = { ...BASE_STATES, ...NEW_STATES };
-const MOOD_STATE = { calm: 'esperando', working: 'pensando', grin: 'necesita', unsure: 'fallo', asleep: 'idle' };
+const MOODS = { calm: 'esperando', working: 'pensando', grin: 'necesita', unsure: 'fallo', asleep: 'idle' };
 const STEP = 1 / 60;
 
-export default function TitiGhost({ size = 32, mood = 'calm', className = '', ...props }) {
+export default function TitiGhost({ mood = 'calm', size = 30, className = '', ...props }) {
   const canvasRef = useRef(null);
-  const moodRef = useRef(mood);
-  const apiRef = useRef(null);
-  moodRef.current = mood;
+  const simRef = useRef(null);
+  const moving = useSpriteMotion(canvasRef);
+  const state = MOODS[mood] || MOODS.calm;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const u = Math.max(2, Math.floor((size * dpr) / 8));
-    const lod = LOD[u] || {};
-    canvas.width = canvas.height = 8 * u;
-    const rig = new Rig(P, { states: STATES });
-    rig.setup();
-    let t = 0, shown = null, raf = 0, last = 0, visible = true;
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-
-    const apply = () => {
-      const k = MOOD_STATE[moodRef.current] || 'esperando';
-      if (k !== shown) { shown = k; rig.setState(k); }
+    if (!ctx) return undefined;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(44 * dpr);
+    canvas.height = Math.round(44 * dpr);
+    const random = rng(1000);
+    let sim = simRef.current;
+    if (!sim) {
+      const rig = new Rig(P, { states: { ...BASE, ...EXT } });
+      sim = simRef.current = { rig, random: rng(2000), t: 0 };
+      withRandom(random, () => { rig.setup(); rig.setState(state); });
+    } else withRandom(random, () => sim.rig.setState(state));
+    const { rig } = sim;
+    const step = dt => { sim.t += dt; withRandom(sim.random, () => rig.update(dt, sim.t)); };
+    const draw = () => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, 44, 44);
+      drawGhost(ctx, 4 + 6, 2 + 6, 4, rig.small || rig.G, LOD[4], P);
     };
-    const step = dt => { t += dt; apply(); rig.update(dt, t); };
-    const paint = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const G = lod.snap && u <= 4 ? rig.small || rig.G : rig.G;
-      drawGhost(ctx, u, u * 0.5, u, G, lod, P);
-    };
-    const still = () => { for (let i = 0; i < 90; i++) step(STEP); paint(); };
-    const frame = now => {
-      raf = 0;
-      if (!visible || reduce?.matches) return;
-      const dt = Math.min((now - (last || now)) / 1000, 0.05);
-      last = now;
-      step(dt); paint();
+    let raf = 0;
+    if (moving) {
+      draw();
+      let last = 0;
+      const frame = now => {
+        const dt = last ? Math.min((now - last) / 1000, 0.1) : 0;
+        last = now;
+        step(dt);
+        draw();
+        raf = requestAnimationFrame(frame);
+      };
       raf = requestAnimationFrame(frame);
-    };
-    const run = () => {
-      if (raf) return;
-      if (!visible || reduce?.matches) { still(); return; }
-      last = 0; raf = requestAnimationFrame(frame);
-    };
-    apiRef.current = { refresh: () => { if (!raf) { apply(); for (let i = 0; i < 90; i++) step(STEP); paint(); } else apply(); } };
+    } else {
+      if (sim.t === 0) step(0);
+      for (let i = 0; i < 120; i += 1) step(STEP);
+      draw();
+    }
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [state, moving]);
 
-    const io = typeof IntersectionObserver === 'function'
-      ? new IntersectionObserver(([e]) => {
-          visible = e.isIntersecting;
-          if (!visible && raf) { cancelAnimationFrame(raf); raf = 0; }
-          run();
-        })
-      : null;
-    io?.observe(canvas);
-    const onMotion = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } run(); };
-    reduce?.addEventListener?.('change', onMotion);
-    run();
-
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = 0;
-      io?.disconnect();
-      reduce?.removeEventListener?.('change', onMotion);
-      apiRef.current = null;
-    };
-  }, [size]);
-
-  useEffect(() => { apiRef.current?.refresh(); }, [mood]);
-
-  return <canvas ref={canvasRef} {...props} style={{ width: size, height: size, ...props.style }} aria-hidden="true" className={`phantom-face titi-ghost is-${mood} ${className}`.trim()} data-mood={mood} />;
+  return <canvas {...props} ref={canvasRef} width={44} height={44} style={{ width: size, height: size, ...props.style }} aria-hidden="true" className={className} data-motion={moving ? 'running' : 'stopped'} />;
 }

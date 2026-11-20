@@ -30,7 +30,7 @@ export async function handleIntegration(method, payload = {}, context) {
   else if (method === 'context.read') result = await contextRead(payload, context);
   else if (method === 'skills.catalog') result = await skillsCatalog(payload, context);
   else if (method === 'skills.read') result = await skillsRead(payload, context);
-   else if (['plugins.list', 'plugins.update', 'plugins.status', 'plugins.models'].includes(method)) result = await plugins(method, payload, context);
+  else if (['plugins.list', 'plugins.update', 'plugins.status', 'plugins.models'].includes(method)) result = await plugins(method, payload, context);
    else if (['phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control'].includes(method)) result = await phantom(method, payload, context);
   else {
     // Automation is supplied by its independent owner; do not hide missing dependencies inside that module.

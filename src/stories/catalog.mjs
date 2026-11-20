@@ -2,7 +2,7 @@ const groups = {
   Primitivas: [
     ['EmptyState', 'Panel', '.empty-state'], ['CopyButton', 'Controles', '.md-copy'], ['PluginPrimitives', 'Controles', '.st-switch'], ['Presence', 'Presencia', '.empty-state', 'Composición con Presence y PresenceGroup; providers de transición sin DOM propio.'],
   ],
-  Identidad: [['AgentIdentity', 'Agente', '.agent-identity'], ['Glyphs', 'Marcas', '#storybook-root svg'], ['ShellIcons', 'Iconos', '#storybook-root svg'], ['GengarMascot', 'Mascota', '.gengar-mascot']],
+  Identidad: [['AgentIdentity', 'Agente', '.agent-identity'], ['Glyphs', 'Marcas', '#storybook-root svg'], ['TitiGhost', 'Titi', 'canvas.titi-ghost'], ['ShellIcons', 'Iconos', '#storybook-root svg'], ['GengarMascot', 'Mascota', '.gengar-mascot']],
   Navegación: [['Canvas', 'Lienzo', '.canvas-node'], ['Minimap', 'Minimapa', '.canvas-minimap'], ['Spaces', 'Espacios', '#storybook-root button'], ['ProjectSwitcher', 'Proyectos', '#storybook-root button'], ['SidebarPanels', 'Paneles', '.rail-panels'], ['ToolPicker', 'Herramientas', '.tool-picker'], ['CommandPalette', 'Comandos', '.tw-palette'], ['Inspector', 'InspectorContextual', '.tw-inspector']],
   Actividad: [['ActivityNotch', 'Resumen', '.activity-notch'], ['ActivityTrace', 'Trazas', '.activity-trace']],
   Conversaciones: [['TerminalPanel', 'Terminal', '.xterm-rows', 'Motor xterm real; snapshot y callbacks sintéticos, sin PTY.'], ['TerminalCard', 'TarjetaTerminal', '.pt-card'], ['ChatCard', 'Chat', '.pc-thread'], ['PhantomChat', 'Dock', '.phantom-chat'], ['PhantomOrchestrator', 'Orquestador', '.pd-orchestrator']],
@@ -22,7 +22,6 @@ export const exclusions = [
   { source: 'scripts/remotion-template/Root.tsx', family: 'Plantillas', status: 'plantilla externa', limitation: 'Registro Remotion generado para proyectos de video; requiere runtime Remotion ajeno al renderer de Workspace.' },
   { source: 'scripts/remotion-template/Storyboard.tsx', family: 'Plantillas', status: 'plantilla externa', limitation: 'Composición Remotion con frames y assets del proyecto de video generado. No es una superficie de Workspace; VideoReview muestra su selector real.' },
   { source: 'src/App.jsx', family: 'Aplicación', status: 'integración excluida', limitation: 'App inicia useWorkspace y el ciclo de persistencia del escritorio. WorkspaceUI es privado y depende de ese modelo. Se inventarían sus símbolos, sin montar App; Canvas, Inspector, Settings y dock tienen composiciones reales independientes.' },
-  { source: 'src/components/TitiGhost.jsx', family: 'Identidad', status: 'cubierto por composición', limitation: 'Canvas de Titi; lo renderizan PhantomGlyph y PhantomFace.' },
   { source: 'src/main.jsx', family: 'Entrada', status: 'bootstrap no visual', limitation: 'createRoot monta App o MobileApp por ubicación; importarlo arrancaría la aplicación. MobileApp tiene una story directa.' },
 ];
 export const opportunities = [

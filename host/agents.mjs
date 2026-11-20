@@ -9,7 +9,7 @@ export function validateAgent(agent) {
     text(agent[key], `agent.${key}`, key === 'step' ? 1000 : 512);
     assert(!/[\x00-\x1f\x7f]/.test(agent[key]), 'Agent fields must be single-line text');
   }
-  if (agent.provider !== undefined) assert(agent.provider === 'opencode', 'Unsupported agent provider');
+  if (agent.provider !== undefined) assert(['claude-code','opencode'].includes(agent.provider), 'Unsupported agent provider');
   if (agent.status !== undefined) assert(AGENT_STATUSES.includes(agent.status), 'Invalid agent status');
   if (agent.source !== undefined) assert(['manual','agent'].includes(agent.source), 'Invalid progress source');
   return agent;

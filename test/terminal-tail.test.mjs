@@ -100,6 +100,7 @@ test('screenSignal reads whose turn it is from visible agent chrome', () => {
   assert.equal(screenSignal([' Bash command', ' Do you want to proceed?', ' ❯ 1. Yes', '   2. No']), 'awaiting_approval');
   assert.equal(screenSignal(['Overwrite config? [y/N]']), 'awaiting_approval');
   assert.equal(screenSignal(['Permission required', 'Allow once   Allow always   Reject']), 'awaiting_approval');
+  assert.equal(screenSignal(['Accessing workspace: /home/carlosj/project', '', 'Quick safety check: Is this a project you created or one you trust?', '', '❯ No, exit', '  Yes, I trust this folder', 'Enter to confirm · Esc to cancel']), 'awaiting_approval');
   assert.equal(screenSignal(['> ', '  ? for shortcuts']), null);
   // An old prompt scrolled far above the recent rows is not a live question.
   assert.equal(screenSignal(['Continue? (y/n)', ...Array.from({ length: 20 }, (_, i) => `line ${i}`)]), null);

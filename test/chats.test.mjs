@@ -72,40 +72,35 @@ test('Codex folds lifecycle events without duplicating updates and reports failu
   applyCodexEvent(t, { type: 'turn.failed', error: { message: 'sin crédito' } }); assert.equal(t.error, 'sin crédito');
 });
 
-test('Codex launches, resumes and persists independent effort settings through host API', async t => {
+test('Claude-only policy: new Codex/OpenCode chats are refused, a stored legacy chat stays readable but cannot run', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-'));
-  const bin = fixture(root, 'codex', `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'thread-1'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:JSON.stringify({input,args:process.argv.slice(2)})}});out({type:'turn.completed',usage:{input_tokens:10,output_tokens:2}});});`);
+  const ran = path.join(root, 'ran');
+  const bin = fixture(root, 'codex', `require('fs').writeFileSync(${JSON.stringify(ran)},'x');`);
   const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
   t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
   await host.invoke('settings.update', { patch: { codexPath: bin } });
   const w = await host.invoke('workspace.open', { path: root });
-  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
-  const ref = { workspaceId: w.id, nodeId: node.id };
-  await host.invoke('chat.configure', { ...ref, reasoning: 'high', model: 'gpt-test' });
-  await assert.rejects(host.invoke('chat.configure', { ...ref, reasoning: '--bad' }), /inválido/);
-  for (let i = 0; i < 2; i++) {
-    await host.invoke('chat.send', { ...ref, text: '-hello' });
-    await until(async () => !(await host.invoke('chat.get', ref)).running);
-    const chat = await host.invoke('chat.get', ref), reply = JSON.parse(chat.messages.at(-1).parts[0].text);
-    assert.equal(chat.sessionId, 'thread-1'); assert.equal(reply.input, '-hello');
-    assert.ok(reply.args.includes('model_reasoning_effort="high"')); assert.equal(reply.args.includes('resume'), i === 1);
-    assert.ok(reply.args.includes('sandbox_mode="read-only"'));
-  }
-  await host.invoke('chat.configure', { ...ref, provider: 'opencode', reasoning: 'custom-variant' });
-  await host.invoke('chat.configure', { ...ref, provider: 'codex' });
-  const state = await host.invoke('state.get');
-  assert.equal(state.workspaces.find(item => item.id === w.id).nodes.find(item => item.id === node.id).data.chat.reasoning.codex, 'high');
+  for (const provider of ['codex', 'opencode']) await assert.rejects(host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider } } }), /Claude Code/);
+  await assert.rejects(host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude', models: { claude: 'gpt-test' } } } }), /no es Claude Code/);
+  // A legacy node already stored with Codex: history is readable, new execution is blocked, nothing spawns.
+  const legacy = { id: 'legacy', type: 'terminal', title: 'old', x: 0, y: 0, width: 640, height: 640, groupId: null, data: { cwd: root, chat: { provider: 'codex' } } };
+  host.store.getWorkspace(w.id).nodes.push(legacy);
+  host.chats.thread('legacy', 'codex').messages.push({ id: 'm', role: 'user', parts: [{ type: 'text', text: 'antes' }], status: 'done' });
+  assert.equal((await host.invoke('chat.get', { workspaceId: w.id, nodeId: 'legacy' })).messages[0].parts[0].text, 'antes');
+  await assert.rejects(host.invoke('chat.send', { workspaceId: w.id, nodeId: 'legacy', text: 'hola' }), /Claude Code/);
+  await assert.rejects(host.invoke('chat.models', { workspaceId: w.id, nodeId: 'legacy' }), /Claude Code/);
+  assert.equal(fs.existsSync(ran), false, 'no legacy engine process was started');
+  assert.equal((await host.invoke('chat.get', { workspaceId: w.id, nodeId: 'legacy' })).messages.length, 1, 'history kept after the refusal');
   assert.ok(providerArgs('claude', { message: 'x', reasoning: 'max' }).includes('--effort'));
-  assert.equal(providerArgs('opencode', { message: 'x', reasoning: 'custom-variant' })[0], 'serve');
 });
 test('chat turns get the canvas browser bridge: stable per card, live only while the turn runs', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-chat-browser-'));
-  const bin = fixture(root, 'codex', `const fs=require('fs'),path=require('path');process.stdin.resume();process.stdin.on('end',()=>{const e=process.env,cred=path.join(path.dirname(e.PHANTOM_BROWSER_ENDPOINT||'/x'),'browser-terminals',(e.PHANTOM_BROWSER_SESSION||'x')+'.json');const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'thread-1'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:JSON.stringify({cli:e.PHANTOM_BROWSER_CLI,session:e.PHANTOM_BROWSER_SESSION,workspace:e.PHANTOM_BROWSER_WORKSPACE,token:Boolean(e.PHANTOM_BROWSER_TOKEN),shims:(e.PATH||'').split(':')[0]===e.PHANTOM_BROWSER_SHIMS,credential:fs.existsSync(cred),cred})}});setTimeout(()=>out({type:'turn.completed',usage:{input_tokens:1,output_tokens:1}}),300);});`);
+  const bin = fixture(root, 'claude', `const fs=require('fs'),path=require('path');process.stdin.resume();process.stdin.on('end',()=>{const e=process.env,cred=path.join(path.dirname(e.PHANTOM_BROWSER_ENDPOINT||'/x'),'browser-terminals',(e.PHANTOM_BROWSER_SESSION||'x')+'.json');const out=o=>console.log(JSON.stringify(o));out({type:'system',subtype:'init',session_id:'sid-b'});out({type:'assistant',message:{id:'m1',content:[{type:'text',text:JSON.stringify({cli:e.PHANTOM_BROWSER_CLI,session:e.PHANTOM_BROWSER_SESSION,workspace:e.PHANTOM_BROWSER_WORKSPACE,token:Boolean(e.PHANTOM_BROWSER_TOKEN),shims:(e.PATH||'').split(':')[0]===e.PHANTOM_BROWSER_SHIMS,credential:fs.existsSync(cred),cred})}]}});setTimeout(()=>out({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'sid-b',usage:{output_tokens:1}}),300);});`);
   const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
   t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
-  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  await host.invoke('settings.update', { patch: { claudePath: bin } });
   const w = await host.invoke('workspace.open', { path: root });
-  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude' } } });
   const ref = { workspaceId: w.id, nodeId: node.id };
   const sessions = [];
   for (let i = 0; i < 2; i++) {
@@ -125,7 +120,7 @@ test('chat turns get the canvas browser bridge: stable per card, live only while
 });
 
 // Stand-in agent CLIs: executables that print a recorded event stream.
-test('Codex persiste la medición real del rollout antes de cerrar el turno', async t => {
+test('Codex ya no arranca: la medición del rollout no se alcanza por una ejecución nueva', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-context-'));
   const home = path.join(root, 'codex-home'), dir = path.join(home, 'sessions', '2025', '02', '03');
   fs.mkdirSync(dir, { recursive: true });
@@ -136,15 +131,9 @@ test('Codex persiste la medición real del rollout antes de cerrar el turno', as
   host.chats.codexHome = home;
   await host.invoke('settings.update', { patch: { codexPath: bin } });
   const workspace = await host.invoke('workspace.open', { path: root });
-  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
-  const ref = { workspaceId: workspace.id, nodeId: node.id };
-  await host.invoke('chat.send', { ...ref, text: 'hola' });
-  await until(async () => !(await host.invoke('chat.get', ref)).running);
-  const { meta } = await host.invoke('chat.get', ref);
-  assert.equal(meta.contextSource, 'codex:request-v1');
-  assert.equal(meta.contextTokens, 144871);
-  assert.equal(meta.contextWindow, 258400);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'state', 'chats.json')))[node.id].threads.codex.meta.contextTokens, 144871);
+  // Claude-only policy: new Codex chats are refused before any process starts.
+  await assert.rejects(host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { chat: { provider: 'codex' } } }), /Claude Code/);
+  assert.equal(fs.existsSync(file), false, 'the Codex executable never ran');
 });
 
 function fixture(dir, name, body) {
@@ -245,6 +234,9 @@ test('OpenCode events become text and tool parts; arguments resume the right ses
   assert.doesNotThrow(() => validateChat({ permissionMode: 'full' })); assert.throws(() => validateChat({ permissionMode: 'yolo' }), /permisos/);
   assert.ok(!providerArgs('claude', { message: 'secreto' }).includes('secreto'));
   assert.deepEqual(providerArgs('claude', { model: 'opus', message: 'x' }).slice(-2), ['--model', 'opus']);
+  // A stored harness-qualified model reaches the CLI as a bare name; a non-Claude one is refused before any spawn.
+  assert.deepEqual(providerArgs('claude', { model: 'claude-code/haiku', message: 'x' }).slice(-2), ['--model', 'haiku']);
+  for (const bad of ['openai/gpt-5', 'opencode/free', 'provider/legacy']) assert.throws(() => providerArgs('claude', { model: bad, message: 'x' }), /no es Claude Code/);
   assert.throws(() => validateChat({ models: { claude: '--dangerously-skip-permissions' } }), /Modelo/); assert.throws(() => validateChat({ models: { gpt: 'x' } }), /provider/);
   assert.equal(toolDetail({ command: 'npm   test\n--watch' }), 'npm test --watch');
   assert.throws(() => validateChat({ provider: 'gpt' }), /provider/); assert.throws(() => validateChat({ shell: true }), /Unknown/);
@@ -308,20 +300,14 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   assert.match((await host.invoke('chat.get', ref)).messages.at(-1).parts[0].text, /resume:sid-1 modelo:opus modo:editar/);
   await host.invoke('chat.configure', { ...ref, model: null }); assert.equal((await host.invoke('chat.get', ref)).model, null);
   await host.invoke('chat.send', { ...ref, text: 'cuelga' });
-  await assert.rejects(host.invoke('chat.configure', { ...ref, provider: 'opencode' }), /Detén/);
+  await assert.rejects(host.invoke('chat.configure', { ...ref, model: 'sonnet' }), /Detén/);
   await host.invoke('chat.stop', ref); await idle();
   assert.equal((await host.invoke('chat.get', ref)).messages.at(-1).status, 'stopped');
 
-  // Each provider keeps its own thread; a failed turn reports the CLI's stderr.
-  await host.invoke('chat.configure', { ...ref, provider: 'opencode' });
-  assert.deepEqual((await host.invoke('chat.get', ref)).messages, []);
-  assert.deepEqual((await host.invoke('chat.models', ref)).items, [{ id: 'openai/gpt-x', group: 'openai' }, { id: 'opencode/free-y', group: 'opencode' }]);
-  assert.equal((await host.invoke('chat.get', ref)).model, null);
-  await host.invoke('chat.send', { ...ref, text: 'ping' }); await idle();
-  chat = await host.invoke('chat.get', ref);
-  assert.equal(chat.messages[1].parts.length, 0); assert.equal(chat.messages[1].status, 'error'); assert.match(chat.messages[1].error, /fallo del proveedor/);
-  await host.invoke('chat.clear', ref);
-  assert.deepEqual((await host.invoke('chat.get', ref)).messages, []);
+  // Claude-only policy: switching a card to another engine is refused with an actionable error and nothing changes.
+  for (const provider of ['opencode', 'codex']) await assert.rejects(host.invoke('chat.configure', { ...ref, provider }), /Claude Code/);
+  assert.equal((await host.invoke('chat.get', ref)).provider, 'claude');
+  assert.equal((await host.invoke('chat.get', ref)).messages.length, 8);
 
   await host.close(); host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
   await host.invoke('chat.configure', { ...ref, provider: 'claude' });
@@ -383,12 +369,12 @@ test('the project\'s Phantom chat runs in the project folder with its identity, 
   await host.invoke('chat.configure', { ...ref, reasoning: 'high' });
   assert.equal((await host.invoke('chat.get', ref)).reasoning.claude, 'high');
   await assert.rejects(host.invoke('chat.configure', { ...ref, reasoning: 'invalid' }), /Effort/);
-  await host.invoke('chat.configure', { ...ref, provider: 'codex', model: 'gpt-test', reasoning: 'xhigh' });
+  await assert.rejects(host.invoke('chat.configure', { ...ref, provider: 'codex', model: 'gpt-test', reasoning: 'xhigh' }), /Claude Code/);
+  await assert.rejects(host.invoke('chat.configure', { ...ref, model: 'gpt-test' }), /no es Claude Code/);
   chat = await host.invoke('chat.get', ref);
-  assert.equal(chat.provider, 'codex'); assert.equal(chat.model, 'gpt-test');
-  assert.equal(chat.reasoning.codex, 'xhigh');
+  assert.equal(chat.provider, 'claude'); assert.notEqual(chat.model, 'gpt-test');
   await host.invoke('chat.configure', { ...ref, reasoning: null });
-  assert.equal((await host.invoke('chat.get', ref)).reasoning.codex, undefined);
+  assert.equal((await host.invoke('chat.get', ref)).reasoning.claude, undefined);
   await host.invoke('chat.configure', { ...ref, provider: 'claude' });
   // The permission switch is stored with the thread.
   await host.invoke('chat.configure', { ...ref, autoApprove: true });

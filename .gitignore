@@ -7,3 +7,4 @@ out/
 .impeccable/review/*.png
 *.log
 Phantom Workspace.desktop
+__pycache__/
