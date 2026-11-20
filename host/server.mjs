@@ -18,7 +18,7 @@ import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 import { MobileAccess } from './mobile.mjs';
 import { agentProjects, resolveHandoffProject, validateHandoff, handoffCommand, handoffPosition, createHandoffLimit } from './handoffs.mjs';
-import { validateLaunch, createProcessLimit, processList } from './processes.mjs';
+import { validateLaunch, createProcessLimit, processList, validateEnv, createEnvLimit } from './processes.mjs';
 import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
 
@@ -37,7 +37,7 @@ Before registering a task or card for a change, resolve and load the card.prepar
 
 Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: both die when the turn ends. Register the task with \`phantom create\` (or \`phantom card\`), including its scope and checks, then use \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" run ID [MODEL]\`, which hands it to the host and survives your turn. Check its status with \`phantom show ID\` or \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" runs\`; do not relaunch a task already shown as running.
 
-This product's procedures are published as Phantom skills. Before integrating branches, verifying before publishing, preparing a release, organizing the canvas, or doing research, resolve the appropriate skill with the Phantom MCP \`skills_resolve\` tool and follow it: \`branch.integrate\`, \`verify.prepublish\`, \`release.build\`, \`canvas.organize\`, or \`research.collect\`. If the MCP or skill is unavailable, say so and use the CLI help instead. Each research belongs in its own space created with the canvas CLI \`research\` command, which the user reviews in the Reader panel.
+This product's procedures are published as Phantom skills. Before integrating branches, verifying before publishing, preparing a release, organizing the canvas, or doing research, resolve the appropriate skill with the Phantom MCP \`skills_resolve\` tool and follow it: \`branch.integrate\`, \`verify.prepublish\`, \`release.build\`, \`canvas.organize\`, or \`research.collect\`. If the MCP or skill is unavailable, say so and use the CLI help instead. For feedback services and jobs run through Docker compose (previews, long-running services, e2e or migration jobs, full dev environments by profile), resolve the skill actions \`env.service\`, \`env.job\` and \`env.up\` and write them as compose.yaml services with \`x-phantom\`. Each research belongs in its own space created with the canvas CLI \`research\` command, which the user reviews in the Reader panel.
 
 You can organize the user's canvas when they ask (order, group, move, resize, rename, hide panels): run \`"\${PHANTOM_AGENT_NODE:-node}" ${JSON.stringify(CANVAS_CLI)} help\` for usage. Start with \`list\`; prefer \`arrange --by type|branch|status --zones\` for "ordénalo"; hiding a panel never stops its session.
 
@@ -68,6 +68,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const limits=createLimits();
   const reserveHandoff=createHandoffLimit(handoffOptions);
   const reserveProcess=createProcessLimit(processOptions);
+  const reserveEnv=createEnvLimit(processOptions);
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
@@ -84,7 +85,27 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       }
     }
     broadcast(event);
+    // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
+    if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
   };
+  // Environment owners are registered in the workspace state; releases are serialized so racing triggers do not repeat work.
+  let envChain=Promise.resolve();
+  const envRelease=(workspaceId,sessionId,nodeId)=>envChain=envChain.then(async()=>{
+    let w;try{w=store.getWorkspace(workspaceId);}catch{return;}
+    if(!(w.envOwners||[]).some(e=>(sessionId&&e.ownerSessionId===sessionId)||(nodeId&&e.ownerNodeId===nodeId)))return;
+    try{const answer=await routeIntegration('env.release',{workspaceId,sessionId,nodeId});if(answer?.handled)closeEnvBrowsers(workspaceId,answer.result?.removed);}catch{}
+  });
+  const closeEnvBrowsers=(workspaceId,names)=>{
+    if(!names?.length)return;
+    const gone=n=>n.type==='browser'&&names.includes(n.data?.envService);
+    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);w.nodes=w.nodes.filter(n=>!gone(n));});
+  };
+  async function envBrowser(w,sender,service) {
+    const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name);
+    if(existing){if(existing.data.url!==service.url)await invoke('node.update',{workspaceId:w.id,id:existing.id,patch:{data:{...existing.data,url:service.url}}});return existing.id;}
+    const node=await invoke('node.create',{workspaceId:w.id,type:'browser',title:`Entorno: ${service.name}`,...handoffPosition(store.getWorkspace(w.id)),data:{url:service.url,agentTerminal:sender.id,envService:service.name}});
+    return node.id;
+  }
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
   const mainEnv=w=>({...roleEnv({stateDir:dataDir,workspace:w,node:{data:{role:'orchestrator'}},branch:null}),PHANTOM_WORKSPACE_ID:w.id});
   const persist=workspaceId=>{store.persist();emit({type:'state.changed',...(workspaceId?{workspaceId}:{})});};
@@ -136,7 +157,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
        w.nodes.push(node);return node;
     });
      if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='reference'&&patch.data){for(const key of ['file','hash','kind','mime','previousVersion']) assert(patch.data[key]===undefined||patch.data[key]===n.data[key],'La identidad de la referencia es inmutable; importa una nueva versión');patch.data={...patch.data};for(const key of ['file','hash','kind','mime','previousVersion']) if(n.data[key]!==undefined)patch.data[key]=n.data[key];}if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.handoff;if(n.data.handoff)patch.data.handoff=n.data.handoff;delete patch.data.process;if(n.data.process)patch.data.process=n.data.process;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
-    if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);return mutate(w.id,()=>{const current=store.getWorkspace(w.id),node=current.nodes.find(n=>n.id===p.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
+    if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);await envRelease(w.id,null,p.id);return mutate(w.id,()=>{const current=store.getWorkspace(w.id),node=current.nodes.find(n=>n.id===p.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
     if(method.startsWith('reference.')||method.startsWith('comment.')) return handleReference(method,p,{store,mutate,dataDir,brief:(w,comment)=>mentionBrief(w,comment,dataDir,CANVAS_CLI),mention:(w,comment,brief)=>chats.send(w,chats.mainNode(w),brief)});
     if(method==='terminal.create') {
       const w=store.getWorkspace(p.workspaceId); let node=p.nodeId?w.nodes.find(n=>n.id===p.nodeId):null; if(p.nodeId) assert(node?.type==='terminal','Terminal node not found');
@@ -171,6 +192,27 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(Number.isInteger(lines)&&lines>=1&&lines<=400,'Las líneas deben ser un entero entre 1 y 400');
       return terminals.tail(node.data.sessionId,lines,400);
     }
+    if(['terminal.agent.env.list','terminal.agent.env.up','terminal.agent.env.run','terminal.agent.env.down'].includes(method)) {
+      const action=method.slice('terminal.agent.env.'.length),sender=terminals.get(p.sessionId),w=store.getWorkspace(sender.workspaceId),from=w.nodes.find(n=>n.id===sender.nodeId);
+      assert(from?.type==='terminal','No se encuentra el panel emisor del entorno');
+      const fields=validateEnv(action,p),ask=async(name,extra)=>{const answer=await routeIntegration(name,{workspaceId:w.id,...extra});assert(answer?.handled,'El entorno no está disponible');return answer.result;};
+      if(action==='list'){const result=await ask('env.list');return {...result,services:result.services.map(s=>({...s,mine:s.owner?.ownerSessionId===sender.id}))};}
+      assert(sender.status==='running'&&from.data.sessionId===sender.id,'El entorno requiere la sesión viva actual del panel');
+      reserveEnv(sender.id);
+      const result=await ask(`env.${action}`,{owner:{sessionId:sender.id,nodeId:from.id},actor:'agent',...fields});
+      if(action==='up'){result.browsers=[];for(const s of result.services)if(s.url)result.browsers.push({service:s.name,nodeId:await envBrowser(w,sender,s)});}
+      if(action==='down')closeEnvBrowsers(w.id,result.down);
+      return result;
+    }
+    // UI: observe the environment and bring a service down (any lifecycle) from the Entorno panel.
+    if(method==='env.list'||method==='env.down') {
+      for(const key of Object.keys(p))assert(['workspaceId',...(method==='env.down'?['service']:[])].includes(key),`Clave de entorno desconocida: ${key}`);
+      store.getWorkspace(p.workspaceId);
+      const answer=await routeIntegration(method,{workspaceId:p.workspaceId,...(method==='env.down'?{service:p.service,actor:'ui'}:{})});assert(answer?.handled,'El entorno no está disponible');
+      if(method==='env.down')closeEnvBrowsers(p.workspaceId,answer.result.down);
+      return answer.result;
+    }
+    assert(!method.startsWith('env.'),`Unknown method: ${method}`);
     if(method==='terminal.agent.projects') {
       const session=terminals.get(p.sessionId);
       return agentProjects(store.state.workspaces,session.workspaceId);
@@ -240,7 +282,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='terminal.close') {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Terminal node not found');
-      await terminals.closeNode(node.id);chats.removeNode(node.id);
+      await terminals.closeNode(node.id);chats.removeNode(node.id);await envRelease(w.id,null,node.id);
       return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
     // Chat cards: a terminal node whose data.chat.provider selects an agent CLI

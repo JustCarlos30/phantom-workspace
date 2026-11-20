@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { phantomInstructions } from '../host/server.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const actions = ['branch.integrate', 'verify.prepublish', 'release.build', 'canvas.organize', 'research.collect'];
+const actions = ['branch.integrate', 'verify.prepublish', 'release.build', 'canvas.organize', 'research.collect', 'env.service'];
 
 test('instructions name the published skill actions', () => {
   const text = phantomInstructions({ name: 'p', canonicalPath: '/p', nodes: [] });
