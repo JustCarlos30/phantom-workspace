@@ -2,7 +2,7 @@ const groups = {
   Primitivas: [
     ['EmptyState', 'Panel', '.empty-state'], ['CopyButton', 'Controles', '.md-copy'], ['PluginPrimitives', 'Controles', '.st-switch'], ['Presence', 'Presencia', '.empty-state', 'Composición con Presence y PresenceGroup; providers de transición sin DOM propio.'],
   ],
-  Identidad: [['AgentIdentity', 'Agente', '.agent-identity'], ['Glyphs', 'Marcas', '#storybook-root svg'], ['ShellIcons', 'Iconos', '#storybook-root svg'], ['GengarMascot', 'Mascota', '.gengar-mascot']],
+  Identidad: [['AgentIdentity', 'Agente', '.agent-identity'], ['Glyphs', 'Marcas', '#storybook-root svg'], ['TitiGhost', 'Titi', 'canvas.titi-ghost'], ['ShellIcons', 'Iconos', '#storybook-root svg'], ['GengarMascot', 'Mascota', '.gengar-mascot']],
   Navegación: [['Canvas', 'Lienzo', '.canvas-node'], ['Minimap', 'Minimapa', '.canvas-minimap'], ['Spaces', 'Espacios', '#storybook-root button'], ['ProjectSwitcher', 'Proyectos', '#storybook-root button'], ['SidebarPanels', 'Paneles', '.rail-panels'], ['ToolPicker', 'Herramientas', '.tool-picker'], ['CommandPalette', 'Comandos', '.tw-palette'], ['Inspector', 'InspectorContextual', '.tw-inspector']],
   Actividad: [['ActivityNotch', 'Resumen', '.activity-notch'], ['ActivityTrace', 'Trazas', '.activity-trace']],
   Conversaciones: [['TerminalPanel', 'Terminal', '.xterm-rows', 'Motor xterm real; snapshot y callbacks sintéticos, sin PTY.'], ['TerminalCard', 'TarjetaTerminal', '.pt-card'], ['ChatCard', 'Chat', '.pc-thread'], ['PhantomChat', 'Dock', '.phantom-chat'], ['PhantomOrchestrator', 'Orquestador', '.pd-orchestrator']],
