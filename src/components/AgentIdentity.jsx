@@ -1,5 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ArrowUpRight, Copy, Link2, RefreshCw, X } from 'lucide-react';
+import { linkedRunBadge } from '../hooks/phantom-run-link.mjs';
+import { runsOf } from '../hooks/phantom-desk.mjs';
+import { stateOf } from '../hooks/plugin-model.mjs';
 import './agent-identity.css';
 
 export const AGENT_LABELS = { idle: 'Sin iniciar', working: 'Trabajando', blocked: 'Bloqueado', review: 'Listo para revisión' };
@@ -30,6 +33,30 @@ export default function AgentIdentity({ node, workspace, api, refresh, flush, on
     setCatalog({cards:value(results[0]),sessions:value(results[1])});setLoading(false);
   };
   useEffect(() => () => {request.current++;}, []);
+  // Real Phantom status of the linked card, polled; never the agent's self-report.
+  const [real, setReal] = useState(null), [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    setReal(null);
+    if (!agent.cardId || typeof api !== 'function') return;
+    let disposed = false, timer;
+    const poll = async () => {
+      try {
+        const detail = await api('phantom.detail', { workspaceId: workspace.id, topic: 'tasks', id: agent.cardId });
+        if (disposed) return;
+        const native = detail?.task || detail || {}, run = runsOf(detail)[0];
+        setReal(detail?.available === false ? null : { status: stateOf(native), startedAt: run?.startedAt });
+      } catch { if (!disposed) setReal(null); }
+      if (!disposed) timer = setTimeout(poll, 5000);
+    };
+    poll();
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [api, workspace.id, agent.cardId]);
+  const badge = real && linkedRunBadge(real.status, real.startedAt, now);
+  useEffect(() => {
+    if (!badge?.elapsed) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, [!!badge?.elapsed]);
   const toggle = () => {
     if(open){close();return;}
     setFeedback('');
@@ -53,7 +80,7 @@ export default function AgentIdentity({ node, workspace, api, refresh, flush, on
   });
   const change = key => e => setForm(old=>({...old,[key]:e.target.value,...(key==='cardId'&&e.target.value!==old.cardId?{step:'',status:'idle'}:{})}));
   return <div className="agent-identity" hidden={overview} inert={overview ? true : undefined}>
-    <div className="agent-identity-bar"><button ref={toggleRef} type="button" className="agent-identity-toggle" aria-expanded={open} aria-controls={`${id}-editor`} onClick={toggle}><Link2 size={14} /><span>{agent.cardTitle || 'Identidad y card'}</span></button>{agent.cardId && <button type="button" className="agent-card-link" title="Ver card vinculada" aria-label="Ver card vinculada" onClick={()=>onOpenPanel?.('tasks',{cardId:agent.cardId},agent.cardTitle)}><ArrowUpRight size={14}/></button>}{agent.status && <span className={`agent-state agent-${agent.status}`}>{AGENT_LABELS[agent.status]}</span>}</div>
+    <div className="agent-identity-bar"><button ref={toggleRef} type="button" className="agent-identity-toggle" aria-expanded={open} aria-controls={`${id}-editor`} onClick={toggle}><Link2 size={14} /><span>{agent.cardTitle || 'Identidad y card'}</span></button>{agent.cardId && <button type="button" className="agent-card-link" title="Ver card vinculada" aria-label="Ver card vinculada" onClick={()=>onOpenPanel?.('tasks',{cardId:agent.cardId},agent.cardTitle)}><ArrowUpRight size={14}/></button>}{badge && <span className={`agent-run-state is-${badge.tone}`} role="status" title="Estado real leído de Phantom">{badge.label}{badge.elapsed ? ` · ${badge.elapsed}` : ''}</span>}{agent.status && <span className={`agent-state agent-${agent.status}`}>{AGENT_LABELS[agent.status]}</span>}</div>
     {!open && agent.step && <p className="agent-current-step" title={`${agent.step}\n${agent.source==='agent'?'Reportado por agente':'Declarado manualmente'}${agent.updatedAt?` · ${new Date(agent.updatedAt).toLocaleString()}`:''}`}><span>{agent.step}</span><small>{agent.source==='agent'?'Agente':'Manual'}</small></p>}
     {open && form && <section id={`${id}-editor`} className="agent-editor" aria-labelledby={`${id}-heading`} onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();close();}}}><header><strong id={`${id}-heading`}>Identidad y asignación</strong><button type="button" aria-label="Cerrar identidad" onClick={close}><X size={15}/></button></header><form onSubmit={save}>
       <div className="agent-field"><label htmlFor={`${id}-name`}>Nombre del agente</label><input ref={nameRef} id={`${id}-name`} required maxLength={512} value={form.name} onChange={change('name')}/></div>

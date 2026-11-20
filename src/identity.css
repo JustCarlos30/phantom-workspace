@@ -1,3 +1,6 @@
+.agent-run-state { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.agent-run-state.is-live { color: var(--ink); }
+.agent-run-state.is-blocked { color: var(--pc-del, var(--ink)); }
 /* Pixel sprites keep integer dimensions, independently of typography. */
 .app-shell img.gengar-icon { width: 40px; height: 30px; max-width: none; flex-shrink: 0; image-rendering: pixelated; object-fit: contain; opacity: 1; animation: none; }
 .app-shell .gengar-icon.is-asleep { filter: grayscale(1); opacity: .5; }
