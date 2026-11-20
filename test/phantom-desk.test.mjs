@@ -23,6 +23,12 @@ test('desk zones follow native status and controllers', () => {
   assert.equal(buildDesk(items, [], 'corre').total, 1);
 });
 
+test('failed va a «Espera tu decisión», la más reciente primero', () => {
+  assert.equal(zoneOf('failed'), 'decide');
+  const desk = buildDesk([task('n', 'failed', 'Nueva', { updatedAt: '2026-11-12T10:00:00Z' }), task('b', 'blocked', 'Vieja', { updatedAt: '2026-11-10T10:00:00Z' }), task('o', 'failed', 'Media', { updatedAt: '2026-11-11T10:00:00Z' })]);
+  assert.deepEqual(desk.zones.decide.map(card => card.id), ['n', 'o', 'b']);
+});
+
 import { titleOf, sectionsOf, explainReason, resolutionOf, runSummary, groupByCause, tailOf } from '../src/hooks/phantom-desk.mjs';
 test('titles and sections read plain goals and contract markdown', () => {
   const goal = '## Título\nRediseñar las Cards\n\n## Propósito\nMenos texto técnico.\nMás claro.';

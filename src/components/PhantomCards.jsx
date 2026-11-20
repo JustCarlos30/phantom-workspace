@@ -310,8 +310,8 @@ function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy,
   return <article className={className}>
     <button type="button" className="pc-card-hit" aria-pressed={selected} aria-label={card.title} aria-describedby={metaId} onClick={() => onSelect(card.id)}>{main}</button>
     <div className="pc-card-actions">
-      {canRun && <Button tone="primary" icon={Play} disabled={busy} onClick={() => onRun(card)}>Ejecutar con {runModel}</Button>}
-      <Button tone={canRun ? undefined : 'primary'} onClick={() => onSelect(card.id)}>Ver contrato</Button>
+      {canRun && <Button tone="primary" icon={Play} disabled={busy} onClick={() => onRun(card)}>{card.status === 'failed' ? 'Reintentar' : 'Ejecutar'} con {runModel}</Button>}
+      <Button tone={canRun ? undefined : 'primary'} onClick={() => onSelect(card.id)}>Ver detalle</Button>
     </div>
   </article>;
 }

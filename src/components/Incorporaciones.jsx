@@ -4,12 +4,15 @@ import { ErrorNotice, OperationState, useOperation, useResource } from './Plugin
 import { preferredCardMode } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 import { IntegrationChanges } from './IntegrationReview.jsx';
+import { MergeMissing, FailureCard } from './MergePath.jsx';
+import { agentFixPrompt, failureHelp } from '../hooks/failure-help.mjs';
 import { buildCola, buildResumen, mergePath } from '../hooks/incorporaciones-model.mjs';
 import '../incorporaciones.css';
 
 const files = count => `${count} ${count === 1 ? 'archivo' : 'archivos'}`;
 
-function Row({ row, open, onToggle, onSession, children }) {
+// A returned item says why on top, always visible; "Ver cambios" keeps the technical rest.
+function Row({ row, open, onToggle, onSession, top, children }) {
   return <li className={`inc-item${open ? ' is-open' : ''}`} data-state={row.state}>
     <div className="inc-line">
       <div className="inc-main"><span className="inc-title">{row.item.title}</span>{row.detail && <span className="inc-sub">{row.detail}</span>}</div>
@@ -19,6 +22,7 @@ function Row({ row, open, onToggle, onSession, children }) {
         {onSession && <button type="button" className="inc-button" onClick={onSession}>Ir a la sesión</button>}
       </span>
     </div>
+    {top}
     {open && children}
   </li>;
 }
@@ -54,10 +58,46 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
   const cola = buildCola(data);
   const options = { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator), auto: data.auto };
   const hasSession = item => item.nodeId && onOpenPanel && workspace.nodes?.some(node => node.id === item.nodeId && node.type === 'terminal');
-  const rows = (list, { session = false, path = true } = {}) => <ul className="inc-group">{list.map(row => <Row key={row.key} row={row}
-    open={openId === row.key} onToggle={() => setOpenId(openId === row.key ? null : row.key)} onSession={session && hasSession(row.item) ? () => focus(row.item.nodeId) : undefined}>
-    <IntegrationChanges item={row.item} workspace={workspace} api={api} base={row.item.base || base} path={path ? mergePath(row.item, options) : undefined} />
-  </Row>)}</ul>;
+  const sessionOf = item => workspace.nodes?.find(node => node.id === item.nodeId && node.type === 'terminal');
+  const openCopy = async item => {
+    const target = await api('branch.terminalTarget', { workspaceId: workspace.id, branch: item.branch });
+    await onOpenPanel?.('terminal', { worktree: { path: target.path, branch: target.branch } }, `Copia · ${item.title}`);
+  };
+  // The failure goes to the worker's own session as one pasted message, then Enter.
+  const askAgent = async item => {
+    const sessionId = sessionOf(item)?.data?.sessionId;
+    if (!sessionId) throw new Error('La sesión de este trabajo ya no está abierta.');
+    await api('terminal.write', { sessionId, data: `\x1b[200~${agentFixPrompt(item, { base: item.base || base })}\x1b[201~` });
+    await new Promise(resolve => setTimeout(resolve, 80));
+    await api('terminal.write', { sessionId, data: '\r' });
+  };
+  const act = (row, id) => {
+    const item = row.item, ids = { workspaceId: workspace.id, id: item.id }, branch = { workspaceId: workspace.id, branch: item.branch };
+    if (id === 'session') return focus(item.nodeId);
+    if (id === 'terminal') return op.run(() => openCopy(item));
+    if (id === 'ask') return op.run(() => askAgent(item),'Se lo pedí al agente');
+    if (id === 'retry') return op.run(async () => { await api('merge.retry', ids); await reload(); }, 'Vuelve a la cola');
+    if (id === 'withdraw') return op.run(async () => { await api('merge.withdraw', ids); await reload(); }, 'Sacada de la cola');
+    if (id === 'update') return op.run(async () => {
+      const result = await api('branch.update', branch); await reload();
+      if (result.status === 'conflict') throw new Error(`Al ponerla al día chocan: ${result.conflicts.slice(0, 3).join(', ')}. Usa «Resolver conflictos en su copia».`);
+    }, `Al día con ${base}`);
+    if (id === 'resolve') return op.run(async () => {
+      const result = await api('branch.update', { ...branch, resolve: true }); await reload();
+      if (result.status === 'resolving') { await openCopy(item); notify?.('Abrí su copia: resuelve los conflictos y guarda', 'success'); }
+      else notify?.(`Ya quedó al día con ${base}`, 'success');
+    });
+    return undefined;
+  };
+  const rows = (list, { session = false, path = true, returned = false } = {}) => <ul className="inc-group">{list.map(row => {
+    const withSession = session && hasSession(row.item), item = row.item;
+    const help = returned ? failureHelp(item, { base: item.base || base, hasSession: Boolean(sessionOf(item) && onOpenPanel), queue: true }) : null;
+    return <Row key={row.key} row={row}
+      open={openId === row.key} onToggle={() => setOpenId(openId === row.key ? null : row.key)} onSession={withSession && !help ? () => focus(item.nodeId) : undefined}
+      top={help && <div className="inc-why"><FailureCard help={help} entry={item} busy={op.busy} onAction={id => act(row, id)} /><MergeMissing path={mergePath(item, options)} /></div>}>
+      <IntegrationChanges item={item} workspace={workspace} api={api} base={item.base || base} explained={Boolean(help)} path={path ? mergePath(item, options) : undefined} />
+    </Row>;
+  })}</ul>;
   const section = (title, list, props) => list.length > 0 && <section className="inc-section" aria-label={title}><h3 className="inc-heading">{title}</h3>{rows(list, props)}</section>;
   const closed = cola.today.length + cola.earlier.length;
 
@@ -82,7 +122,7 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
 
     {section('Ahora', cola.now)}
     {section('Siguen', cola.next)}
-    {section('Devueltas', cola.returned, { session: true })}
+    {section('Devueltas', cola.returned, { session: true, returned: true })}
     {!cola.counts.open && <EmptyState size="compact" title="Nada en cola" description="Las ramas listas aparecen en Ramas." />}
 
     {data.plan && <details className="inc-fold"><summary>Plan del orquestador</summary><p className="inc-plan">{data.plan}</p></details>}

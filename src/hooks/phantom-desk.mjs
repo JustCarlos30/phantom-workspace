@@ -82,6 +82,7 @@ export function resolutionOf(card) {
 
 export function zoneOf(status, controllerStatus, resolved = false) {
   if (status === 'blocked') return resolved ? 'resolved' : 'decide';
+  if (status === 'failed') return 'decide';
   if (['running', 'verifying', 'recovering'].includes(status) || controllerStatus === 'running') return 'live';
   if (status === 'completed' || status === 'cancelled') return 'history';
   return 'queue';
@@ -111,7 +112,7 @@ export function buildDesk(items = [], controllers = [], query = '', location = '
     const goal = goalOf(item);
     return {
       id: item.id, goal, title: titleOf(goal) || item.id, status, kind: item.kind || raw.kind || 'card', reason,
-      explain: status === 'blocked' ? explainReason(reason) : null, resolution,
+      explain: status === 'blocked' || status === 'failed' ? explainReason(reason) : null, resolution,
       updatedAt: raw.updatedAt || raw.createdAt || null, controller,
       dependencies: Array.isArray(contractOf(raw).dependencies) ? contractOf(raw).dependencies : [],
       zone: zoneOf(status, controller?.status, Boolean(resolution)), item, location: locationKey(item),

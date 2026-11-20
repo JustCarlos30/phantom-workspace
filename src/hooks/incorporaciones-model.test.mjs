@@ -122,7 +122,9 @@ test('Cola shows what is integrating now, what follows and what came back; unsen
   assert.equal(cola.orchestrator, 'El orquestador está integrando «Glifos»');
   assert.deepEqual(cola.now.map(row => [row.label, row.tone, row.detail]), [['Integrando', 'working', 'El orquestador la está integrando']]);
   assert.deepEqual(cola.next.map(row => [row.key, row.label, row.detail]), [['q1', 'En cola', 'Turno 1 · 5 archivos'], ['q2', 'En cola', 'Turno 2']]);
-  assert.deepEqual(cola.returned.map(row => [row.label, row.detail]), [['Conflicto', 'Canvas.jsx choca con main'], ['Conflicto', 'Los tests fallaron']]);
+  assert.deepEqual(cola.returned.map(row => [row.label, row.detail]), [['Conflicto', 'Canvas.jsx choca con main'], ['Tests fallaron', 'Los tests fallaron']]);
+  const withCode = buildCola({ queue: [request('failed', { checks: { code: 2, timedOut: true } })] }).returned[0];
+  assert.equal(withCode.detail, 'Los tests fallaron · código 2 · tiempo agotado');
   assert.deepEqual(cola.today.map(row => [row.label, row.detail]), [['En main', 'hace 30 min']]);
   assert.deepEqual(cola.earlier.map(row => [row.label, row.detail]), [['Rechazada', 'Fuera de alcance · hace 4 d'], ['Retirada', 'hace 4 d']]);
   assert.deepEqual(cola.counts, { now: 1, next: 2, returned: 2, open: 5 });

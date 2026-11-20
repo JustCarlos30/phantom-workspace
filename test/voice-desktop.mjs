@@ -59,7 +59,9 @@ async function captureBoth(name, surface) {
     await capture(`${label}-${name}`);
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  assert.equal(await surface.locator('.voice-waves i').first().evaluate(el => getComputedStyle(el).transitionDuration), '0s', `${name}: reduced-motion removes spatial transitions`);
+  const orb62 = surface.locator('.voice-waves').first();
+  await page.waitForFunction(el => el.dataset.motion === 'reduced', await orb62.elementHandle());
+  assert.equal(await orb62.evaluate(el => getComputedStyle(el).transitionDuration), '0s', `${name}: reduced-motion removes spatial transitions`);
   await capture(`narrow-${name}-reduced`);
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await size(1520, 980);
 }
@@ -182,12 +184,14 @@ try {
     assert.match(await dialog().textContent(), /SYNTHETIC Nota A/);
     await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' }));
     await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-activity')?.style.getPropertyValue('--voice-level')) > .1);
-    const liveTransform = await dialog().locator('.voice-waves i').nth(8).evaluate(el => getComputedStyle(el).transform);
+    const amp = () => dialog().locator('.voice-waves').evaluate(el => Number(el.dataset.amplitude));
+    await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-waves')?.dataset.amplitude) > .05);
+    const liveAmplitude = await amp();
     await captureBoth('global-listening', dialog());
     await page.evaluate(() => window.voiceAudio.gains.forEach(gain => { gain.gain.value = 0; }));
     await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-activity')?.style.getPropertyValue('--voice-level')) < .02);
-    await delay(150);
-    assert.notEqual(await dialog().locator('.voice-waves i').nth(8).evaluate(el => getComputedStyle(el).transform), liveTransform, 'Wave changes with REAL sample amplitude');
+    await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-waves')?.dataset.amplitude) < .05);
+    assert.notEqual(await amp(), liveAmplitude, 'Wave changes with REAL sample amplitude');
     const count = await countVoice(); await dialog().getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(count + 1);
     await capture('wide-global-transcribing');
     // A different field gains focus while transcription is pending; the target
@@ -268,9 +272,9 @@ try {
     const original = await input.inputValue();
     await recording(surface, surface.getByRole('button', { name: 'Dictar a Claude' }));
     const before = await countVoice(); await surface.getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(before + 1);
-    await invoke('chat.configure', { workspaceId: workspace.id, nodeId: card.id, provider: 'codex' });
-    await surface.getByLabel('Mensaje para Codex').waitFor(); await release(); await delay(100);
-    assert.equal(await surface.getByLabel('Mensaje para Codex').inputValue(), '');
+    await invoke('chat.configure', { workspaceId: workspace.id, nodeId: card.id, provider: null });
+    await input.waitFor({ state: 'detached' }); await release(); await delay(100);
+    assert.equal(await input.count(), 0);
     await invoke('chat.configure', { workspaceId: workspace.id, nodeId: card.id, provider: 'claude' });
     await input.waitFor(); assert.equal(await input.inputValue(), original);
   });
@@ -370,8 +374,9 @@ try {
     await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' }));
     await capture('narrow-field-listening');
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    const style = await dialog().locator('.voice-waves i').first().evaluate(el => ({ transform: getComputedStyle(el).transform, transition: getComputedStyle(el).transitionDuration }));
-    assert.equal(style.transition, '0s'); assert.match(style.transform, /0\.2/);
+    await page.waitForFunction(() => document.querySelector('.voice-dialog .voice-waves')?.dataset.motion === 'reduced');
+    const style = await dialog().locator('.voice-waves').evaluate(el => ({ motion: el.dataset.motion, transition: getComputedStyle(el).transitionDuration }));
+    assert.equal(style.transition, '0s'); assert.equal(style.motion, 'reduced');
     await capture('narrow-reduced-motion');
     const before = await countVoice(); await dialog().getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(before + 1);
     assert.equal(await dialog().locator('.voice-waves').evaluate(el => getComputedStyle(el).animationName), 'none');

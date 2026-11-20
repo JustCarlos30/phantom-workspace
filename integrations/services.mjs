@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile, readlink, realpath } from 'node:fs/promises';
-import { workspaceRoot, inside, observedAt } from './common.mjs';
+import path from 'node:path';
+import { workspaceRoot, inside, observedAt, readBounded } from './common.mjs';
 import { dockerList } from './docker.mjs';
 
 export function serviceURL(value) {
@@ -57,8 +58,28 @@ export async function managedPorts(context, workspace, root) {
   }
   return ports;
 }
+// package.json scripts of the project and of each session's own copy (worktree).
+// Only names that are safe to type into a shell line are offered as `npm run <name>`.
+export async function projectScripts(context, workspace, root) {
+  const folders = [{ cwd: root, origin: 'project' }], seen = new Set([root]);
+  for (const s of context.sessions ?? []) {
+    if (s.workspaceId !== workspace.id || !s.worktree || typeof s.cwd !== 'string' || seen.has(s.cwd)) continue;
+    seen.add(s.cwd); folders.push({ cwd: s.cwd, origin: 'session', sessionId: s.id, nodeId: s.nodeId });
+  }
+  const items = [];
+  for (const folder of folders.slice(0, 20)) {
+    let manifest;
+    try { manifest = JSON.parse((await readBounded(path.join(folder.cwd, 'package.json'))).text); } catch { continue; }
+    for (const [name, body] of Object.entries(manifest?.scripts ?? {}).slice(0, 100)) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9:._-]{0,80}$/.test(name) || typeof body !== 'string') continue;
+      items.push({ id: `script:${folder.cwd}:${name}`, name, command: `npm run ${name}`, body: body.slice(0, 500), ...folder });
+    }
+  }
+  return items;
+}
 export async function services(method, payload, context) {
   const { workspace, root } = await workspaceRoot(context, payload);
+  if (method === 'services.scripts') return { items: await projectScripts(context, workspace, root), observedAt: observedAt() };
   if (method === 'services.pin') {
     const url = serviceURL(payload.url);
     if (payload.title !== undefined && (typeof payload.title !== 'string' || payload.title.length > 200)) throw new Error('Invalid service title');
@@ -101,5 +122,7 @@ export async function services(method, payload, context) {
       await response.body?.cancel();
     } catch (error) { item.health = 'unreachable'; item.healthReason = error.message; }
   }
-  return { items, observedAt: at, dockerAvailable: docker.available, ...(docker.reason ? { dockerReason: docker.reason } : {}), ...(processReason ? { processReason } : {}) };
+  // `scripts: true` lets the panel read them through the already-exposed services.list.
+  const scripts = payload.scripts === true ? { scripts: await projectScripts(context, workspace, root) } : {};
+  return { items, observedAt: at, ...scripts, dockerAvailable: docker.available, ...(docker.reason ? { dockerReason: docker.reason } : {}), ...(processReason ? { processReason } : {}) };
 }

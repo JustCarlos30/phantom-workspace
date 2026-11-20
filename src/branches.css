@@ -114,6 +114,16 @@ button.br-main:focus-visible { outline-offset: -2px; border-radius: var(--r-ctl)
 .br-inline .br-detail-actions:empty { display: none; }
 .br-inline .br-button.is-wide { width: auto; min-height: 36px; }
 .br-inline .mp-steps, .br-inline .br-files { max-width: 460px; }
+.br-state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font: var(--t-support); color: var(--muted); }
+.br-state > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.br-halfway { display: grid; gap: 8px; }
+.br-inline .br-halfway { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.br-details > * + * { margin-top: 12px; }
+.br-details > summary + * { margin-top: 10px; }
+.br-detail-body .fh { padding: 12px; background: var(--fill-2); border-radius: var(--r-obj); }
+.br-detail-body .fh-pre { background: var(--well-terminal); }
+.br-details .br-detail-actions { display: grid; gap: 6px; }
+.br-inline .br-details .br-detail-actions { display: flex; flex-wrap: wrap; }
 .br-details summary { cursor: pointer; width: fit-content; }
 .br-details dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 8px 0 0; font: var(--t-support); }
 .br-details dt { color: var(--muted); }

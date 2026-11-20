@@ -117,6 +117,32 @@ test('Ramas: every branch and worktree is visible, and integration never loses w
   ({ data } = await read()); assert.deepEqual(data.branches.map(b => b.name).sort(), ['main', 'phantom/terminal-clash']);
 });
 
+test('Ramas: resolver deja el merge abierto, abortar lo deshace y terminalTarget da la copia propia y el comando', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-branches-'))), repository = path.join(root, 'repository');
+  fs.mkdirSync(repository);
+  const git = (...args) => run(repository, ...args);
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  fs.writeFileSync(path.join(repository, 'shared.txt'), 'base\n'); git('add', '.'); git('commit', '-m', 'Base');
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspaceId = (await host.invoke('workspace.open', { path: repository })).id, branch = 'phantom/terminal-clash', dir = path.join(root, 'clash tree');
+  git('worktree', 'add', '-b', branch, dir, 'HEAD');
+  fs.writeFileSync(path.join(dir, 'shared.txt'), 'clash\n'); run(dir, 'commit', '-am', 'Clash work');
+  fs.writeFileSync(path.join(repository, 'shared.txt'), 'main moved\n'); git('commit', '-am', 'Main moves');
+
+  const target = await host.invoke('branch.terminalTarget', { workspaceId, branch });
+  assert.deepEqual(target, { branch, path: dir, command: `cd '${dir}' && git switch ${branch}` });
+  await assert.rejects(host.invoke('branch.terminalTarget', { workspaceId, branch: 'main' }), /rama de integración/);
+  await assert.rejects(host.invoke('branch.terminalTarget', { workspaceId, branch: 'nope' }), /ya no existe/);
+
+  const resolving = await host.invoke('branch.update', { workspaceId, branch, resolve: true });
+  assert.equal(resolving.status, 'resolving'); assert.deepEqual(resolving.conflicts, ['shared.txt']);
+  assert.ok(run(dir, 'rev-parse', '-q', '--verify', 'MERGE_HEAD'));
+  assert.equal((await host.invoke('branch.abort', { workspaceId, branch })).status, 'aborted');
+  assert.equal(run(dir, 'status', '--porcelain'), '');
+  await assert.rejects(host.invoke('branch.abort', { workspaceId, branch }), /no tiene un merge sin terminar/);
+});
+
 test('Ramas: integrating closes the worktree\'s blocked tasks and a failure there never undoes the merge', async t => {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-branches-close-'))), repository = path.join(root, 'repository'), dataDir = path.join(root, 'state');
   fs.mkdirSync(repository);
