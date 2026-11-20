@@ -158,12 +158,10 @@ function trustedContents(wc) {
 }
 
 function configureUISession(ses) {
-  let microphoneGranted = false;
-  let microphonePrompt = null;
   ses.setPermissionCheckHandler((wc, permission, _origin, details) => {
     const local = trustedContents(wc) && details.isMainFrame && isLocalUIURL(details.requestingUrl, uiURL);
     if (!local) return false;
-    if (permission === 'media') return microphoneGranted && details.mediaType === 'audio';
+    if (permission === 'media') return details.mediaType === 'audio';
     return permission === 'clipboard-sanitized-write';
   });
   ses.setPermissionRequestHandler((wc, permission, callback, details) => {
@@ -171,17 +169,7 @@ function configureUISession(ses) {
     if (!local) return callback(false);
     if (permission === 'clipboard-sanitized-write') return callback(true);
     if (permission !== 'media' || !details.mediaTypes?.length || details.mediaTypes.some(type => type !== 'audio')) return callback(false);
-    if (microphoneGranted) return callback(true);
-    microphonePrompt ??= dialog.showMessageBox(mainWindow, {
-      type: 'question', title: 'Micrófono para voz',
-      message: '¿Permitir que Phantom Workspace use el micrófono?',
-      detail: 'Solo la interfaz local puede grabar voz. Los sitios del navegador interno no reciben este permiso.',
-      buttons: ['No permitir', 'Permitir micrófono'], defaultId: 0, cancelId: 0,
-    }).then(({ response }) => {
-      microphoneGranted = response === 1 && trustedContents(wc);
-      return microphoneGranted;
-    }).catch(() => false).finally(() => { microphonePrompt = null; });
-    microphonePrompt.then(allowed => callback(allowed && trustedContents(wc)));
+    callback(true);
   });
   ses.setDevicePermissionHandler(() => false);
   ses.setDisplayMediaRequestHandler((_request, callback) => callback(null));
