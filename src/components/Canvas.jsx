@@ -595,6 +595,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     focus: id => latest.current.onFocus(id),
     watchAudio: node => latest.current.watchAudio(node),
     chatPulse: (id, kind) => setChatPulses(current => (current[id] || '') === (kind || '') ? current : { ...current, [id]: kind || undefined }),
+    watchAudio: node => latest.current.watchAudio(node),
     select: ids => latest.current.onSelect(ids),
     press: (...args) => latest.current.press(...args),
     click: (...args) => latest.current.click(...args),
