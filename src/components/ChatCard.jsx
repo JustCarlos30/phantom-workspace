@@ -12,7 +12,7 @@ import { locationOf } from './TerminalCard';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
 import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
-import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
+import { phantomRunIds, turnRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
 import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
@@ -196,6 +196,7 @@ const ToolRow = React.memo(function ToolRow({ part }) {
 export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
   const [state, setState] = useState(null);
   const [chosen, setChosen] = useState(null);
+  const [attempt, setAttempt] = useState(0);
   const stepsRef = useRef(null);
   const open = chosen ?? state?.live ?? false;
   useEffect(() => {
@@ -227,9 +228,9 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
     };
     refresh();
     return () => { disposed = true; clearTimeout(timer); };
-  }, [api, workspaceId, id]);
+  }, [api, workspaceId, id, attempt]);
   if (!state) return null;
-  if (state.error) return <p className="pc-phantom-warning" role="status">Seguimiento Phantom no disponible.</p>;
+  if (state.error) return <p className="pc-phantom-warning" role="alert">Seguimiento Phantom no disponible para <code>{id.slice(0, 13)}</code>. <button type="button" className="pc-phantom-open" onClick={() => setAttempt(n => n + 1)}>Reintentar</button></p>;
   const stepList = (activity, latest = false) => <ol className="pc-subagent-steps" ref={latest ? stepsRef : undefined} aria-label="Pasos del encargo">
     {activity.hidden > 0 && <li className="pc-subagent-hidden">{activity.hidden} pasos anteriores</li>}
     {activity.steps.map(step => { const [, Icon] = toolKind(step.kind); return <li key={step.id} className={`is-${step.status}`}><Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.label}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} /></li>; })}
@@ -426,6 +427,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
+  const runIds = turnRunIds(message.parts);
   const delegated = streaming ? activeSubagents(message.parts) : 0;
   const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
   const stamp = [message.model || model, clock(message.createdAt), ...facts].filter(Boolean).join(' · ');
@@ -433,7 +435,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
     {groups.map((group, i) => group.type === 'tools'
       ? <ToolGroup key={i} items={group.items} />
       : group.type === 'phantom'
-        ? <div key={group.part.id} className="pc-phantom-link">{group.ids.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}<ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
+        ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -443,6 +445,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
+    {runIds.length > 0 && <div className="pc-phantom-final" role="group" aria-label="Estado actual en Phantom">{runIds.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}</div>}
     {streaming && !waiting && <p className="pc-working"><span className="pc-tool-mark" aria-hidden="true" />{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}

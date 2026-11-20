@@ -1,10 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity } from './phantom-run-link.mjs';
+import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity, turnRunIds, linkedRunBadge } from './phantom-run-link.mjs';
 
 const id = 'task_12345678-1234-1234-1234-123456789abc';
 const card = 'card_abcdef12-1234-1234-1234-123456789abc';
 const shell = detail => ({ type: 'tool', name: 'Bash', detail });
+
+test('turnRunIds une ids sin duplicar y conserva el orden', () => {
+  const parts = [shell(`node agent.mjs run ${id}`), { type: 'text', text: id }, shell(`node agent.mjs bind ${card}`), shell(`node agent.mjs show ${id}`)];
+  assert.deepEqual(turnRunIds(parts), [id, card]);
+  assert.deepEqual(turnRunIds([]), []);
+  assert.deepEqual(turnRunIds(undefined), []);
+});
+
+test('linkedRunBadge mapea el estado real con tiempo transcurrido', () => {
+  const now = Date.parse('2026-01-01T00:05:00Z'), start = '2026-01-01T00:02:30Z';
+  assert.deepEqual(linkedRunBadge('running', start, now), { label: 'En ejecución', tone: 'live', elapsed: '2 min 30 s' });
+  assert.equal(linkedRunBadge('review', start, now).label, 'En revisión');
+  assert.equal(linkedRunBadge('blocked', start, now).label, 'Bloqueada');
+  assert.equal(linkedRunBadge('failed', start, now).label, 'Fallida');
+  assert.equal(linkedRunBadge('completed', start, now), null);
+});
 
 test('resume modelo y contadores nativos', () => {
   const summary = summarizePhantomRun({ run: { requestedModel: 'openai/model', turns: 0, tools: 3 } });
