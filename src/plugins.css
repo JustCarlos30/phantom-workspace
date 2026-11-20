@@ -167,6 +167,8 @@
 .pc-root .pc-model { height: auto; padding: 0; gap: 12px; min-width: 0; }
 .pc-model .tw-field { flex: 1 1 220px; margin: 0; }
 .pc-next-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pc-details > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.card-agent-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .pc-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0; border-radius: var(--r-ctl); overflow: hidden; }
 .pc-facts div { padding: 9px 12px; background: var(--surface); min-width: 0; }
 .pc-facts dt, .pc-label { font-size: 12px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--muted); }

@@ -16,7 +16,7 @@ import { pinnedRef, readerKind, emptyMessage } from '../hooks/context-view.mjs';
 import Settings from './Settings.jsx';
 import GlobalSites from './GlobalSites.jsx';
 import { HUBS, hubTab } from '../hooks/hubs.mjs';
-import { processesView } from '../hooks/processes-view.mjs';
+import Environment from './Environment.jsx';
 import { envView } from '../hooks/env-view.mjs';
 import '../hubs.css';
 
@@ -307,63 +307,6 @@ function Git({ workspace, api }) {
   return <><form className="tw-search" onSubmit={e => { e.preventDefault(); setChosenBase(base); if (base === chosenBase) resource.reload(); }}><Field label="Base de comparación (vacío: base del adaptador)"><input value={base} onChange={e => setBase(e.target.value)} placeholder="Referencia Git opcional" /></Field><Button type="submit" icon={RefreshCw} disabled={resource.loading}>Inspeccionar</Button></form><ResourceState resource={resource} empty="" />{data?.available && <><Section title="Repositorio"><Identity value={data.root} /><p>Rama: <b>{data.branch || 'desconocida / HEAD separado'}</b> · base: {data.base || 'desconocida'}</p><p>Árbol: {data.dirty === true ? 'Con cambios' : data.dirty === false ? 'Limpio' : 'desconocido'} · observado: {data.observedAt || 'desconocido'}</p></Section><Section title="Ramas"><div className="tw-table-scroll"><table className="tw-table"><thead><tr><th>Rama</th><th>Adelante / detrás</th><th>Integración en base</th></tr></thead><tbody>{data.branches?.map(branch => <tr key={branch.name}><td><span title={branch.oid}>{branch.current ? 'Actual · ' : ''}{branch.name}</span></td><td>{branch.ahead ?? '?'} / {branch.behind ?? '?'}</td><td>{branch.merged === true ? 'Integrada' : branch.merged === false ? 'No integrada (no implica lista)' : 'Desconocida'}</td></tr>)}</tbody></table></div></Section><Section title="Cambios">{!data.changes?.length && <p className="tw-empty">No se observaron cambios.</p>}{data.changes?.map((change, i) => <div className="tw-list-row" key={i}><Identity value={typeof change === 'string' ? change : change.path || change.file} /><span className="tw-badge">{change.status || change.xy || '?'}</span><DataView value={change} label="Detalle" /></div>)}</Section><Section title="Worktrees">{data.worktrees?.map((tree, i) => <div className="tw-item" key={i}><Identity value={tree.path || tree.worktree} /><DataView value={tree} /></div>)}</Section></>}</>;
 }
 
-function ServiceOwner({ owner, workspace, onOpenPanel, op }) {
-  if (!owner || typeof owner !== 'object' || Array.isArray(owner)) return null;
-  const sessionId = typeof owner.sessionId === 'string' && owner.sessionId ? owner.sessionId : null;
-  const node = sessionId && workspace.nodes?.find(node => node.type === 'terminal' && node.data?.sessionId === sessionId);
-  if (node && onOpenPanel) return <Button icon={ArrowUpRight} disabled={op.busy} onClick={() => op.run(() => onOpenPanel('terminal', { focusNodeId: node.id }, textValue(node.title, 'Terminal')))}>Ir a la sesión</Button>;
-  return null;
-}
-
-function Services({ workspace, api, refresh, notify, onOpenPanel }) {
-  const resource = useResource(api, 'services.list', { workspaceId: workspace.id });
-  const [url, setUrl] = useState(''), [title, setTitle] = useState(''); const op = useOperation(notify);
-  const notes = [resource.data?.processReason, resource.data?.dockerReason].filter(value => typeof value === 'string' && value);
-  return <><Section title="Fijar un sitio"><form className="tw-form" onSubmit={e => { e.preventDefault(); op.run(async () => {
-    const parsed = new URL(url); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Usa una URL http o https.');
-    await api('services.pin', { workspaceId: workspace.id, url: parsed.href, title: title.trim() || parsed.host }); await refresh(); resource.reload(); setUrl(''); setTitle('');
-  }, 'Sitio fijado'); }}><Field label="URL"><input type="url" required value={url} onChange={e => setUrl(e.target.value)} placeholder="http://localhost:3000" /></Field><Field label="Nombre"><input value={title} onChange={e => setTitle(e.target.value)} placeholder="Opcional" /></Field><Button type="submit" tone="primary" disabled={op.busy}>Fijar</Button></form></Section>
-    <Section title="Servicios y sitios" action={<Refresh resource={resource} />}><ResourceState resource={resource} empty="Fija una URL o arranca un servidor en una sesión para verlo aquí." />
-      {notes.length > 0 && <DataView value={notes.join('\n')} />}
-      {itemsOf(resource.data).map((service, index) => {
-        const serviceURL = typeof service.url === 'string' ? service.url : null;
-        const label = textValue(service.title, serviceURL || 'Servicio');
-        return <article className="tw-item" key={textValue(service.id, `service-${index}`)}>
-          <div className="tw-heading"><strong>{label}</strong><span className="tw-badge">{statusLabel(service.status)}</span></div>
-          {serviceURL && serviceURL !== label && <small>{serviceURL}</small>}
-          <div className="tw-row"><Button icon={ArrowUpRight} disabled={op.busy || !serviceURL || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: serviceURL }, label))}>Abrir</Button>
-            <ServiceOwner owner={service.owner} workspace={workspace} onOpenPanel={onOpenPanel} op={op} />
-            {service.source === 'pinned' && typeof service.id === 'string' && <Button icon={Trash2} disabled={op.busy} onClick={() => op.run(async () => { await api('services.remove', { workspaceId: workspace.id, id: service.id }); await refresh(); resource.reload(); })}>Quitar</Button>}
-          </div><DataView value={service} />
-        </article>;
-      })}
-    </Section><OperationState op={op} /></>;
-}
-
-function Processes({ workspace, api, notify, onOpenPanel }) {
-  const sessions = useResource(api, 'terminal.list', { workspaceId: workspace.id });
-  const services = useResource(api, 'services.list', { workspaceId: workspace.id });
-  const op = useOperation(notify);
-  const reload = useCallback(() => { sessions.reload(); services.reload(); }, [sessions.reload, services.reload]);
-  useEffect(() => window.phantom?.onEvent?.(event => {
-    if (event.type === 'terminal.exit' && event.workspaceId === workspace.id) reload();
-  }), [workspace.id, reload]);
-  const rows = processesView(workspace.nodes, sessions.data || [], itemsOf(services.data));
-  return <><Section title="Procesos" action={<Button icon={RefreshCw} disabled={sessions.loading || services.loading} onClick={reload}>Actualizar</Button>}>
-    <ResourceState resource={sessions} empty="" /><ResourceState resource={services} empty="" />
-    {!rows.length && <EmptyState className="tw-empty" title="Aún no hay procesos" description="Los agentes envían aquí servidores y tareas largas para no dejar ocupada su sesión." />}
-    {rows.map(row => <article className="tw-item" key={row.processId}>
-      <div className="tw-heading"><strong>{row.title}</strong>{sessions.data && <span className="tw-badge">{row.status === 'running' ? 'En marcha' : 'Detenido'}</span>}</div>
-      <small className="tw-process-command">{row.command}</small>
-      {row.services.map(service => <div className="tw-row" key={service.id}><small>{service.url}</small><Button disabled={op.busy || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: service.url }, row.title))}>Abrir</Button></div>)}
-      <div className="tw-row"><Button disabled={op.busy || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('terminal', { focusNodeId: row.nodeId }, row.title))}>Ver sesión</Button>
-        {row.status === 'running' && <Button icon={Square} disabled={op.busy || sessions.loading || !!sessions.error} onClick={() => op.run(async () => { await api('terminal.stop', { sessionId: row.sessionId }); reload(); })}>Detener</Button>}
-      </div><DataView value={{ processId:row.processId, nodeId:row.nodeId, sessionId:row.sessionId, cwd:row.cwd, origen:row.from, createdAt:row.createdAt }} />
-    </article>)}
-    {services.data?.processReason && <DataView value={services.data.processReason} />}
-  </Section><OperationState op={op} /></>;
-}
-
 function ComposeServices({ workspace, api, notify, onOpenPanel }) {
   const env = useResource(api, 'env.list', { workspaceId: workspace.id });
   const op = useOperation(notify);
@@ -510,7 +453,7 @@ export function ToolContent({ type, bare, ...props }) {
   if (HUBS[type] && !bare && props.workspace) return <Hub type={type} {...props} />;
   if (PLUGIN_TITLES[type]) return <ToolErrorBoundary key={`${props.workspace?.id}:${type}:${props.node?.id || 'inspector'}`} title={PLUGIN_TITLES[type]}><PluginPanels type={type} {...props} /></ToolErrorBoundary>;
   if (!props.workspace && type !== 'settings') return <EmptyState className="tw-empty" description="Abre una carpeta para usar las herramientas del workspace." />;
-  const components = { review: VideoReview, 'command-center': CommandCenter, incorporaciones: Incorporaciones, branches: Branches, repo: Repository, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Services, processes: Processes, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
+  const components = { review: VideoReview, 'command-center': CommandCenter, incorporaciones: Incorporaciones, branches: Branches, repo: Repository, 'skills-catalog': SkillsCatalog, tasks: Tasks, context: Context, mission: Missions, sessions: Missions, git: Git, services: Environment, processes: Environment, docker: Docker, workflows: Workflows, playwright: Playwright, playground: Playground, settings: Settings };
   const Content = components[type];
   const identity = `${props.workspace?.id || 'host'}:${type}:${props.node?.id || 'inspector'}`;
   return <div className={`tw-content${type === 'skills-catalog' || type === 'branches' || type === 'repo' ? ' is-flush' : ''}`}><ToolErrorBoundary key={identity} title={TOOL_TITLES[type] || 'esta herramienta'}>{Content ? <Content {...props} /> : <p className="tw-warning" role="status">Esta herramienta no tiene contenido registrado: {type}. Elige una herramienta desde el inspector.</p>}</ToolErrorBoundary></div>;

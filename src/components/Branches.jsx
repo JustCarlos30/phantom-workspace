@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, RefreshCw, Save, Search, X } from 'lucide-react';
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
 import EmptyState from './EmptyState.jsx';
-import { MergeSteps } from './MergePath.jsx';
+import { FailureCard, MergeSteps } from './MergePath.jsx';
+import { failureHelp } from '../hooks/failure-help.mjs';
 import { branchPath, buildBranches, cardsOf, changeLabel, changeTone, commitsText, contentByBranch, filesText, plural } from '../hooks/branches-model.mjs';
 import { relativeTime } from '../hooks/repo-graph.mjs';
 import '../branches.css';
@@ -54,30 +55,53 @@ function Files({ row }) {
   </section>;
 }
 
+// Which rows get the «¿Qué pasó? / ¿Qué hago?» card: a clash, tests that failed just now,
+// a Git error or unsaved work. A branch that is merely behind is not a failure.
+const helpOf = (row, fail, base) => {
+  if (!(row.state === 'conflict' || fail || row.error || row.state === 'unsaved')) return null;
+  return failureHelp({ ...row, checks: fail?.checks, conflicts: fail?.conflicts?.length ? fail.conflicts : row.conflicts, request: fail?.checks ? 'failed' : row.request }, { base, hasSession: false, queue: false });
+};
+
 // `skip` is the action the row already offers when the detail opens under it.
-function Detail({ row, base, checks, cards, skills, busy, armed, setArmed, act, setMode, onOpenPanel, onClose, skip }) {
+// Compact: one state line, why, one main key and the files; the rest folds into Detalles.
+function Detail({ row, base, checks, cards, skills, busy, armed, setArmed, act, setMode, onOpenPanel, onClose, skip, fail }) {
   const path = branchPath(row, { base, checks });
   const armKey = `detail:${row.id}`, others = [...new Set((row.overlaps || []).flatMap(item => item.with))];
   const session = row.owned && onOpenPanel ? () => onOpenPanel('terminal', { focusNodeId: row.terminal.nodeId }) : null;
   const sub = [row.owned ? row.running ? 'Sesión activa' : 'Sesión en pausa' : 'Sesión cerrada', row.last?.at && `último guardado ${relativeTime(row.last.at)}`].filter(Boolean).join(' · ');
+  const help = helpOf(row, fail, base), inCard = id => help?.acciones.some(action => action.id === id);
+  const onAction = id => id === 'save' ? setMode({ id: row.id, kind: 'save' }) : act(row, id);
+  const button = (label, onClick, quiet = true) => <button type="button" className={`br-button is-wide${quiet ? ' is-quiet' : ''}`} disabled={busy} onClick={onClick}>{label}</button>;
+  const integrate = !help && row.can.integrate && skip !== 'integrate', save = !help && row.can.commit && skip !== 'save';
   return <div className="br-detail-body">
     <header className="br-detail-head">
-      <div><h3>{row.title}</h3><p className="br-quiet">{sub}</p></div>
+      <div><h3>{row.title}</h3></div>
       {onClose && <button type="button" className="br-icon" aria-label="Cerrar detalle" title="Cerrar" onClick={onClose}><X size={14} /></button>}
     </header>
-    <MergeSteps path={path} />
+    <p className="br-state"><Chip row={row} /><span>{row.detail}</span></p>
+    {help && <FailureCard help={help} entry={{ ...row, checks: fail?.checks, conflicts: fail?.conflicts?.length ? fail.conflicts : row.conflicts }} busy={busy} onAction={onAction} />}
+    {row.byHand.abort && <div className="br-halfway"><p className="br-quiet">Hay una puesta al día a medias en su copia.</p>{button('Abortar', () => act(row, 'abort'), false)}</div>}
+    {(integrate || save) && <div className="br-detail-actions">
+      {integrate && <IntegrateButton wide label={`Integrar en ${base}`} busy={busy} armed={armed === armKey} arm={() => setArmed(armKey)} disarm={() => setArmed(null)} confirm={() => act(row, 'integrate')} />}
+      {save && <button type="button" className={`br-button is-wide${integrate ? '' : ' is-primary'}`} disabled={busy} onClick={() => setMode({ id: row.id, kind: 'save' })}>Guardar {filesText(row.changeCount)}</button>}
+    </div>}
     <Files row={row} />
-    <div className="br-detail-actions">
-      {row.can.integrate && skip !== 'integrate' && <IntegrateButton wide label={`Integrar en ${base}`} busy={busy} armed={armed === armKey} arm={() => setArmed(armKey)} disarm={() => setArmed(null)} confirm={() => act(row, 'integrate')} />}
-      {row.can.commit && skip !== 'save' && <button type="button" className={`br-button is-wide${row.can.integrate ? '' : ' is-primary'}`} disabled={busy} onClick={() => setMode({ id: row.id, kind: 'save' })}>Guardar {filesText(row.changeCount)}</button>}
-      {(row.changeCount > 0 || row.committedCount > 0) && onOpenPanel && <button type="button" className="br-button is-wide" onClick={() => showHistory(onOpenPanel)}>Ver diferencias</button>}
-      {row.can.update && <button type="button" className="br-button is-wide" disabled={busy} onClick={() => act(row, 'update')}>Poner al día con {base}</button>}
-      {session && skip !== 'session' && <button type="button" className="br-button is-wide" onClick={session}>Ir a la sesión</button>}
-      {row.can.remove && skip !== 'remove' && <button type="button" className="br-button is-wide is-quiet" disabled={busy} onClick={() => setMode({ id: row.id, kind: 'remove' })}>Limpiar</button>}
-    </div>
-    {cards.length > 0 && onOpenPanel && <p className="br-links">{cards.slice(0, 2).map(card => <button key={card.id} type="button" className="br-link" title={card.title} onClick={() => onOpenPanel('phantom-cards', { cardId: card.id })}>Ver tarea{cards.length > 1 ? ` · ${card.title}` : ''}</button>)}</p>}
     <details className="br-details">
       <summary>Detalles</summary>
+      <MergeSteps path={path} />
+      <p className="br-quiet">{sub}</p>
+      <div className="br-detail-actions">
+        {(row.changeCount > 0 || row.committedCount > 0) && onOpenPanel && button('Ver diferencias', () => showHistory(onOpenPanel))}
+        {row.can.update && !inCard('update') && button(`Poner al día con ${base}`, () => act(row, 'update'))}
+        {row.byHand.resolve && !inCard('resolve') && button('Resolver conflictos en su copia', () => act(row, 'resolve'))}
+        {row.byHand.terminal && onOpenPanel && !inCard('terminal') && button('Abrir terminal en su copia', () => act(row, 'terminal'))}
+        {row.byHand.terminal && button('Copiar comando', () => act(row, 'copy'))}
+        {row.can.commit && !save && !inCard('save') && skip !== 'save' && button(`Guardar ${filesText(row.changeCount)}`, () => setMode({ id: row.id, kind: 'save' }))}
+        {row.can.integrate && !integrate && skip !== 'integrate' && <IntegrateButton wide label={`Integrar en ${base}`} busy={busy} armed={armed === armKey} arm={() => setArmed(armKey)} disarm={() => setArmed(null)} confirm={() => act(row, 'integrate')} />}
+        {session && skip !== 'session' && button('Ir a la sesión', session)}
+        {row.can.remove && skip !== 'remove' && button('Limpiar', () => setMode({ id: row.id, kind: 'remove' }))}
+      </div>
+      {cards.length > 0 && onOpenPanel && <p className="br-links">{cards.slice(0, 2).map(card => <button key={card.id} type="button" className="br-link" title={card.title} onClick={() => onOpenPanel('phantom-cards', { cardId: card.id })}>Ver tarea{cards.length > 1 ? ` · ${card.title}` : ''}</button>)}</p>}
       <dl>
         <dt>Rama</dt><dd><code>{row.name || 'Sin rama'}</code></dd>
         {row.worktree?.path && <><dt>Carpeta</dt><dd><code>{row.worktree.path}</code></dd></>}
@@ -123,7 +147,7 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
   const op = useOperation(notify);
   const [query, setQuery] = useState(''), [mode, setMode] = useState(null), [notices, setNotices] = useState({}), [bulk, setBulk] = useState(null);
   const [selectedId, setSelectedId] = useState(null), [armed, setArmed] = useState(null);
-  const [filter, setFilter] = useState(''), [foldOpen, setFoldOpen] = useState(null);
+  const [filter, setFilter] = useState(''), [foldOpen, setFoldOpen] = useState(null), [fails, setFails] = useState({});
   const timers = useRef(new Map());
   useEffect(() => () => { for (const timer of timers.current.values()) clearTimeout(timer); }, []);
   const [root, setRoot] = useState(null), [wide, setWide] = useState(false);
@@ -154,11 +178,19 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
     if (tone === 'ok') timers.current.set(row.id, setTimeout(() => dismiss(row.id), 6000));
   };
   const call = (method, row, extra = {}) => api(method, { workspaceId: workspace.id, branch: row.name, ...extra });
+  // What integrating just told us (clash, failed tests with their output) stays visible in the detail.
+  const keep = (row, value) => setFails(old => { const next = { ...old }; if (value) next[row.id] = value; else delete next[row.id]; return next; });
   const settle = (row, result, base, saved = false) => {
-    if (result.status === 'conflict') { note(row, 'warn', `${saved ? 'Guardada, pero no integrada' : 'No se integró'}: ${list(result.conflicts)} ${result.conflicts.length > 1 ? 'chocan' : 'choca'} con ${base}.`); return false; }
-    if (result.status === 'checks-failed') { note(row, 'warn', `${saved ? 'Guardada, pero no integrada' : 'No se integró'}: los tests fallaron.`); return false; }
-    note(row, 'ok', result.status === 'merged' ? `Integrada en ${base}.` : result.status === 'updated' ? `Al día con ${base}.` : 'Hecho.');
+    if (result.status === 'conflict') { keep(row, { conflicts: result.conflicts }); note(row, 'warn', `${saved ? 'Guardada, pero no integrada' : 'No se integró'}: ${list(result.conflicts)} ${result.conflicts.length > 1 ? 'chocan' : 'choca'} con ${base}.`); return false; }
+    if (result.status === 'checks-failed') { keep(row, { checks: result.checks }); note(row, 'warn', `${saved ? 'Guardada, pero no integrada' : 'No se integró'}: los tests fallaron${Number.isFinite(result.checks?.code) ? ` (código ${result.checks.code})` : ''}. Mira el porqué en el detalle.`); return false; }
+    if (result.status === 'resolving') { keep(row, { conflicts: result.conflicts }); note(row, 'warn', `Hay conflictos en ${list(result.conflicts)}: resuélvelos en su copia y guarda.`); return false; }
+    keep(row, null);
+    note(row, 'ok', result.status === 'merged' ? `Integrada en ${base}${result.checks?.ok ? ' · los tests pasaron' : ''}.` : result.status === 'updated' ? `Al día con ${base}.` : 'Hecho.');
     return true;
+  };
+  const openCopy = async row => {
+    const target = await call('branch.terminalTarget', row);
+    await onOpenPanel?.('terminal', { worktree: { path: target.path, branch: target.branch } }, `Copia · ${row.title}`);
   };
   const act = (row, kind, options = {}) => op.run(async () => {
     const base = model.base;
@@ -170,6 +202,13 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
         else note(row, 'ok', `${plural(saved.files, 'archivo guardado', 'archivos guardados')}.`);
       } else if (kind === 'integrate') settle(row, await call('branch.integrate', row), base);
       else if (kind === 'update') settle(row, await call('branch.update', row), base);
+      else if (kind === 'resolve') { const result = await call('branch.update', row, { resolve: true }); if (!settle(row, result, base) && result.status === 'resolving') await openCopy(row); }
+      else if (kind === 'abort') { await call('branch.abort', row); keep(row, null); note(row, 'ok', 'Puesta al día abortada: la rama quedó como estaba.'); }
+      else if (kind === 'terminal') await openCopy(row);
+      else if (kind === 'copy') {
+        const target = await call('branch.terminalTarget', row);
+        await navigator.clipboard.writeText(target.command); note(row, 'ok', 'Comando copiado.');
+      }
       else if (kind === 'remove') { await call('branch.remove', row); notify?.(`«${row.title}» limpiada`, 'success'); }
       setMode(null);
     } finally { await reload(); if (kind !== 'update') skills.reload(); }
@@ -199,7 +238,7 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
     <button type="button" className={`br-button ${kind === 'remove' ? 'is-danger' : 'is-primary'}`} disabled={op.busy} onClick={() => runBulk(kind)}>{kind === 'remove' ? 'Limpiar todas' : 'Poner todas al día'}</button><button type="button" className="br-button" onClick={() => setBulk(null)}>Cancelar</button>
   </div>;
   const rowsOf = rows => <ul className="br-group">{rows.map(row => <Row key={row.id} row={row} {...shared} selected={selected?.id === row.id} notice={notices[row.id]} detail={selected?.id === row.id && !wide ? detailOf(row) : null} />)}</ul>;
-  const detailOf = (row, onClose) => <Detail row={row} base={base} checks={shown.checks || ''} cards={cardsOf(row, content.get(row.name || row.worktree?.path), catalog)} skills={content.get(row.name)?.skills || []} busy={op.busy} armed={armed} setArmed={setArmed} act={act} setMode={setMode} onOpenPanel={onOpenPanel} onClose={onClose} skip={onClose ? null : row.action} />;
+  const detailOf = (row, onClose) => <Detail row={row} base={base} checks={shown.checks || ''} cards={cardsOf(row, content.get(row.name || row.worktree?.path), catalog)} skills={content.get(row.name)?.skills || []} busy={op.busy} armed={armed} setArmed={setArmed} act={act} setMode={setMode} onOpenPanel={onOpenPanel} onClose={onClose} skip={onClose ? null : row.action} fail={fails[row.id]} />;
   return <div className={`br-root${wide && selected ? ' has-detail' : ''}`} ref={setRoot}>
     <div className="br-list">
       <div className="br-tools">

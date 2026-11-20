@@ -179,9 +179,10 @@ test('un controlador activo de la misma Card determina stop e impide otra ejecuc
   }
   for (const controllers of [[{ taskId: 'other', status: 'running' }], [{ taskId: 'a', status: 'completed' }], []]) {
     assert.deepEqual(cardActions({ id: 'a', status: 'failed' }, controllers), {
-      run: false, stop: false, cancel: false, recover: false, verify: false,
+      run: true, stop: false, cancel: true, recover: false, verify: false,
     });
   }
+  assert.deepEqual(cardActions({ id: 'a', status: 'failed' }, [{ taskId: 'a', status: 'running' }]), { run: false, stop: true, cancel: false, recover: false, verify: false });
 });
 
 test('solo ready/blocked permiten run y cancel; recover requiere el último run activo', () => {
@@ -191,8 +192,8 @@ test('solo ready/blocked permiten run y cancel; recover requiere el último run 
   assert.equal(cardActions({ id: 'a', status: 'running', runs: [] }).recover, false);
   assert.equal(cardActions({ id: 'a', status: 'failed', runs: [{ status: 'running' }, { status: 'failed' }] }).recover, false);
   assert.deepEqual(cardActions({ id: 'a', status: 'completed' }), { run: false, stop: false, cancel: false, recover: false, verify: false });
-  for (const status of ['ready', 'blocked']) assert.deepEqual(cardActions({ status }), { run: true, stop: false, cancel: true, recover: false, verify: false });
-  for (const status of ['created', 'pending', 'queued', 'running', 'stopped', 'failed']) {
+  for (const status of ['ready', 'blocked', 'failed']) assert.deepEqual(cardActions({ status }), { run: true, stop: false, cancel: true, recover: false, verify: false });
+  for (const status of ['created', 'pending', 'queued', 'running', 'stopped']) {
     assert.equal(cardActions({ status }).cancel, false);
     assert.equal(cardActions({ status }).run, false);
   }

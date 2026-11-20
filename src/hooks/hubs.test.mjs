@@ -19,9 +19,10 @@ test('the dock and more menu partition every hub', () => {
   assert.deepEqual([...HUB_DOCK, ...HUB_MORE].sort(), Object.keys(HUBS).sort());
 });
 
-test('processes belongs only to the services hub', () => {
-  assert.deepEqual(Object.keys(HUBS).filter(id => HUBS[id].tabs.some(tab => tab[0] === 'processes' || tab[2] === 'processes')), ['services']);
-  assert.deepEqual(hubTab('services', 'processes'), ['processes', 'Procesos', 'processes']);
+test('Entorno tabs are Este proyecto, Docker and Todos los proyectos; processes opens Este proyecto', () => {
+  assert.deepEqual(HUBS.services.tabs.map(tab => tab[1]), ['Este proyecto', 'Docker', 'Todos los proyectos']);
+  assert.deepEqual(resolveHub('processes'), { type: 'services', tab: 'services' });
+  assert.equal(hubTab('services', 'processes')[0], 'services');
 });
 
 test('legacy panel types open their hub on the matching tab', () => {

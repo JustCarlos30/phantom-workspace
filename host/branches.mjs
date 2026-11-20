@@ -245,6 +245,13 @@ export class Branches {
       if (conflicts) return { status: 'conflict', branch: branch.name, base: base.branch, conflicts };
       return { status: 'updated', branch: branch.name, base: base.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']) };
     }
+    // Where to work on a branch by hand: its own copy and the command to be on it.
+    if (method === 'branch.terminalTarget') {
+      const { base, branch, tree, exists } = await this.target(w, p.branch);
+      assert(branch.name !== base.branch, 'Esta es la rama de integración; trabaja en el checkout del proyecto.'); assert(exists, 'Esta rama no tiene una copia propia en disco.');
+      const quote = value => /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+      return { branch: branch.name, path: tree.path, command: `cd ${quote(tree.path)} && git switch ${quote(branch.name)}` };
+    }
     if (method === 'branch.abort') {
       const { base, branch, tree, exists } = await this.target(w, p.branch);
       assert(branch.name !== base.branch, 'El merge del checkout del proyecto se aborta desde su terminal.'); assert(exists, 'Esta rama no tiene un worktree en disco.');
