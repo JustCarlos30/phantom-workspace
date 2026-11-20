@@ -106,9 +106,73 @@ def strip_fillers(text):
     return cleaned.strip()
 
 
+# Phrases Whisper invents over silence or noise (normalized form).
+HALLUCINATIONS = (
+    "gracias", "muchas gracias", "gracias por ver el video", "gracias por ver",
+    "subtítulos realizados por la comunidad de amara.org", "subtítulos por la comunidad de amara.org",
+    "suscríbete", "suscríbete al canal", "thank you", "thanks for watching", "you",
+)
+
+
+def _normalize(text):
+    text = re.sub(r"[^\w\s]", " ", (text or "").casefold(), flags=re.UNICODE)
+    return " ".join(text.split())
+
+
+_HALLUCINATIONS = {_normalize(p) for p in HALLUCINATIONS}
+
+
+def _is_hallucination(text):
+    norm = _normalize(text)
+    if norm in _HALLUCINATIONS:
+        return True
+    # The same phrase repeated several times counts as that phrase.
+    words = norm.split()
+    for size in range(1, len(words) // 2 + 1):
+        if len(words) % size == 0 and words == words[:size] * (len(words) // size):
+            return " ".join(words[:size]) in _HALLUCINATIONS
+    return False
+
+
+def keep_segment(text, no_speech_prob, avg_logprob, compression_ratio):
+    """False for empty or low-confidence segments and known noise hallucinations."""
+    if not _normalize(text):
+        return False
+    if no_speech_prob >= 0.6 and avg_logprob <= -1.0:
+        return False
+    if compression_ratio >= 2.4:
+        return False
+    if _is_hallucination(text) and (no_speech_prob >= 0.3 or avg_logprob <= -0.6):
+        return False
+    return True
+
+
+def collapse_repeats(text):
+    """Reduce a short phrase (<=4 words) repeated 3+ times in a row to one."""
+    words = (text or "").split()
+    out, i = [], 0
+    while i < len(words):
+        for size in range(1, 5):
+            chunk = words[i:i + size]
+            key = _normalize(" ".join(chunk))
+            count = 1
+            while key and len(chunk) == size and _normalize(" ".join(words[i + count * size:i + (count + 1) * size])) == key \
+                    and len(words[i + count * size:i + (count + 1) * size]) == size:
+                count += 1
+            if count >= 3:
+                out.extend(chunk)
+                i += count * size
+                break
+        else:
+            out.append(words[i])
+            i += 1
+    return " ".join(out)
+
+
 def postprocess(text, pairs, fillers="keep"):
     if fillers not in FILLER_MODES:
         raise ValueError("Modo de muletillas inválido")
+    text = collapse_repeats(text)
     if fillers in ("remove", "clean"):
         text = strip_fillers(text)
     return apply_corrections(text, pairs)
