@@ -17,6 +17,7 @@ import Settings from './Settings.jsx';
 import GlobalSites from './GlobalSites.jsx';
 import { HUBS, hubTab } from '../hooks/hubs.mjs';
 import { processesView } from '../hooks/processes-view.mjs';
+import { envView } from '../hooks/env-view.mjs';
 import '../hubs.css';
 
 export const TOOL_TITLES = { tasks: 'Trabajo', context: 'Contexto', sessions: 'Sesiones', mission: 'Misiones', git: 'Git', services: 'Entorno', docker: 'Docker', workflows: 'Automatizar', playwright: 'Navegador automático', playground: 'Código', settings: 'Configuración' };
@@ -363,10 +364,30 @@ function Processes({ workspace, api, notify, onOpenPanel }) {
   </Section><OperationState op={op} /></>;
 }
 
-function Docker({ workspace, api, notify }) {
+function ComposeServices({ workspace, api, notify, onOpenPanel }) {
+  const env = useResource(api, 'env.list', { workspaceId: workspace.id });
+  const op = useOperation(notify);
+  const view = envView({ data: env.data, loading: env.loading, error: env.error, nodes: workspace.nodes || [] });
+  return <Section title="Servicios del compose" action={<Refresh resource={env} />}>
+    {view.state !== 'ready' && <p className={view.state === 'error' ? 'tw-error' : 'tw-muted'} role={view.state === 'error' ? 'alert' : 'status'}>{view.message}</p>}
+    {view.groups.map(group => <div key={group.key}><h4 className="tw-muted">{group.title}</h4>{group.rows.map(row => <article className="tw-item" key={row.name}>
+      <div className="tw-heading"><strong>{row.name}</strong><span className="tw-badge">{row.lifecycleLabel}</span><span className="tw-badge">{row.status}</span></div>
+      <small>Dueño: {row.owner}{row.age ? ` · ${row.age}` : ''}</small>
+      {(row.purpose || row.card) && <small>{[row.purpose, row.card && `Card: ${row.card}`].filter(Boolean).join(' · ')}</small>}
+      {row.url && <small>{row.url}</small>}
+      <div className="tw-row">
+        <Button icon={ArrowUpRight} disabled={op.busy || !row.canOpen || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: row.url }, row.name))}>Abrir</Button>
+        <Button icon={Trash2} disabled={op.busy || !row.canDown} onClick={() => op.run(async () => { await api('env.down', { workspaceId: workspace.id, service: row.name }); env.reload(); }, `${row.name}: eliminado`)}>Detener y eliminar</Button>
+      </div>
+    </article>)}</div>)}
+    <OperationState op={op} />
+  </Section>;
+}
+
+function Docker({ workspace, api, notify, onOpenPanel }) {
   const resource = useResource(api, 'docker.list', { workspaceId: workspace.id });
   const [logs, setLogs] = useState(null); const op = useOperation(notify);
-  return <><Section title="Contenedores" action={<Refresh resource={resource} />}><ResourceState resource={resource} empty="No hay contenedores de este proyecto." />{itemsOf(resource.data).map(container => { const name = textValue(container.name || container.names, 'Contenedor'); return <article className="tw-item" key={container.id}><div className="tw-heading"><strong>{name}</strong><span className="tw-badge">{statusLabel(container.status || container.state)}</span></div><div className="tw-row">{[['start', 'Iniciar'], ['stop', 'Detener'], ['restart', 'Reiniciar']].map(([action, label]) => <Button key={action} disabled={op.busy} onClick={() => op.run(async () => { await api('docker.action', { workspaceId: workspace.id, id: container.id, action }); resource.reload(); }, `${name}: ${label.toLowerCase()}`)}>{label}</Button>)}<Button disabled={op.busy} onClick={() => op.run(async () => { const value = await api('docker.logs', { workspaceId: workspace.id, id: container.id, tail: 200 }); setLogs({ name, text: String(value.text || '').slice(-64000) }); })}>Ver registro</Button></div><DataView value={container} /></article>; })}</Section>{logs && <Section title={`Registro · ${logs.name}`}><pre className="tw-code" aria-live="polite">{logs.text || 'Sin salida.'}</pre></Section>}<OperationState op={op} /></>;
+  return <><ComposeServices workspace={workspace} api={api} notify={notify} onOpenPanel={onOpenPanel} /><Section title="Contenedores" action={<Refresh resource={resource} />}><ResourceState resource={resource} empty="No hay contenedores de este proyecto." />{itemsOf(resource.data).map(container => { const name = textValue(container.name || container.names, 'Contenedor'); return <article className="tw-item" key={container.id}><div className="tw-heading"><strong>{name}</strong><span className="tw-badge">{statusLabel(container.status || container.state)}</span></div><div className="tw-row">{[['start', 'Iniciar'], ['stop', 'Detener'], ['restart', 'Reiniciar']].map(([action, label]) => <Button key={action} disabled={op.busy} onClick={() => op.run(async () => { await api('docker.action', { workspaceId: workspace.id, id: container.id, action }); resource.reload(); }, `${name}: ${label.toLowerCase()}`)}>{label}</Button>)}<Button disabled={op.busy} onClick={() => op.run(async () => { const value = await api('docker.logs', { workspaceId: workspace.id, id: container.id, tail: 200 }); setLogs({ name, text: String(value.text || '').slice(-64000) }); })}>Ver registro</Button></div><DataView value={container} /></article>; })}</Section>{logs && <Section title={`Registro · ${logs.name}`}><pre className="tw-code" aria-live="polite">{logs.text || 'Sin salida.'}</pre></Section>}<OperationState op={op} /></>;
 }
 
 const simpleStep = step => typeof step === 'string' || (step && step.type === 'task' && typeof step.title === 'string' && Object.keys(step).every(key => ['type', 'title'].includes(key)));

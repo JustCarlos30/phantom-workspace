@@ -1,0 +1,7 @@
+{
+  "id": "phantom-entorno",
+  "version": "1.0.0",
+  "description": "Da feedback ejecutable con servicios de compose.yaml: preview visual, gateway o API, entorno dev completo por perfil y jobs e2e o de migración. Úsala cuando una card necesite ver o probar algo corriendo.",
+  "actions": ["env.service", "env.job", "env.up"],
+  "bodyFile": "SKILL.md"
+}

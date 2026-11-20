@@ -15,6 +15,40 @@ export function validateLaunch(payload, node) {
   return { command, title: title.trim() };
 }
 
+const ENV_KEYS = { list: ['sessionId'], up: ['sessionId', 'service', 'profile'], run: ['sessionId', 'job', 'timeout'], down: ['sessionId', 'service'] };
+const ENV_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+export function validateEnv(action, payload) {
+  assert(Object.hasOwn(ENV_KEYS, action), 'Acción de entorno desconocida');
+  object(payload);
+  for (const key of Object.keys(payload)) assert(ENV_KEYS[action].includes(key), `Clave de entorno desconocida: ${key}`);
+  const fields = {};
+  for (const key of ['service', 'profile', 'job']) if (payload[key] !== undefined) {
+    assert(typeof payload[key] === 'string' && ENV_NAME.test(payload[key]), `Nombre de ${key === 'service' ? 'servicio' : key === 'profile' ? 'perfil' : 'trabajo'} inválido`);
+    fields[key] = payload[key];
+  }
+  if (action === 'up') assert((fields.service === undefined) !== (fields.profile === undefined), 'Indica un servicio o un perfil');
+  if (action === 'run') {
+    assert(fields.job !== undefined, 'Indica el trabajo');
+    if (payload.timeout !== undefined) { assert(Number.isInteger(payload.timeout) && payload.timeout >= 1 && payload.timeout <= 3600, 'El tiempo límite debe ser un entero entre 1 y 3600 segundos'); fields.timeout = payload.timeout; }
+  }
+  return fields;
+}
+
+// Operaciones que cambian el entorno: máximo 60 por sesión emisora y hora.
+export function createEnvLimit({ now = Date.now } = {}) {
+  const sessions = new Map();
+  return sessionId => {
+    const time = now();
+    for (const [id, times] of sessions) {
+      const recent = times.filter(t => t > time - 3600000);
+      if (recent.length) sessions.set(id, recent); else sessions.delete(id);
+    }
+    const times = sessions.get(sessionId) ?? [];
+    assert(times.length < 60, 'Límite de entorno: máximo 60 operaciones por sesión emisora por hora');
+    times.push(time); sessions.set(sessionId, times);
+  };
+}
+
 export function createProcessLimit({ now = Date.now } = {}) {
   const sessions = new Map();
   return sessionId => {
