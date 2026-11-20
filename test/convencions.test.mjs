@@ -149,6 +149,7 @@ test('host and desktop allowed routes persist spatial panels, reject convention 
   assert.equal((await call('plugins.list', {}, b.id)).items.find(item => item.id === 'convencions').enabled, false);
   assert.equal((await call('plugins.list')).items.find(item => item.id === 'phantom').enabled, false);
   await call('plugins.update', { id: 'convencions', patch: { enabled: false } });
+  host.store.flush();
   const restored = new Store(path.join(home, 'host'));
   const saved = restored.getWorkspace(a.id);
   assert.equal(saved.plugins.convencions.enabled, false);

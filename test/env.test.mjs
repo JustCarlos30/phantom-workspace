@@ -245,7 +245,7 @@ test('host: al salir la terminal se bajan los ephemeral y el persistent solo se 
   assert.deepEqual(removed(f.docker).sort(), ['plain', 'web']);
   assert.deepEqual(f.docker.running(), ['db']);
   assert.deepEqual(f.owners().map(e => [e.service, e.ownerSessionId, e.ownerNodeId, e.lifecycle]), [['db', null, null, 'persistent']]);
-  await f.host.invoke('state.get'); assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.host.store.dir, 'state.json'), 'utf8')).workspaces[0].envOwners.map(e => e.service), ['db']);
+  await f.host.invoke('state.get'); await f.host.store.flush(); assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.host.store.dir, 'state.json'), 'utf8')).workspaces[0].envOwners.map(e => e.service), ['db']);
 });
 
 test('host: cerrar el panel dueño baja sus servicios ephemeral', async t => {

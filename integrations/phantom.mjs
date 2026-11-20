@@ -1,4 +1,5 @@
 import { realpath, readdir, stat, readFile, writeFile, mkdir, mkdtemp, rm, rename } from 'node:fs/promises';
+import { mkdirSync, chmodSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { homedir } from 'node:os';
@@ -11,7 +12,15 @@ const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 const controllers = new Map(), writes = new Map(), starts = new Map();
-export function prunePhantomControllers(workspace, live = controllers) {
+const OUTPUT_TAIL = 4096;
+const safeOutputId = id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/.test(id);
+function writeOutputFile(dataDir, id, output) {
+  const dir = path.join(dataDir, 'controller-output'), file = path.join(dir, `${id}.log`), tmp = `${file}.${randomUUID()}.tmp`;
+  mkdirSync(dir, { recursive: true, mode: 0o700 }); chmodSync(dir, 0o700);
+  try { writeFileSync(tmp, output, { mode: 0o600, flag: 'wx' }); renameSync(tmp, file); }
+  finally { rmSync(tmp, { force: true }); }
+}
+export function prunePhantomControllers(workspace, live = controllers, dataDir) {
   const items = workspace.phantomControllers;
   if (!Array.isArray(items)) return false;
   const active = item => item.status === 'running' || live.has(item.id);
@@ -19,10 +28,16 @@ export function prunePhantomControllers(workspace, live = controllers) {
     (Date.parse(b.endedAt ?? b.createdAt) || 0) - (Date.parse(a.endedAt ?? a.createdAt) || 0)).slice(0, 20));
   let changed = false;
   const retained = items.filter(item => active(item) || recent.has(item));
-  for (const item of retained) if (!active(item) && typeof item.output === 'string' && item.output.length > 16384) {
-    item.output = item.output.slice(-16384); item.truncated = true; changed = true;
+  for (const item of retained) if (!active(item) && typeof item.output === 'string' && item.output.length > OUTPUT_TAIL) {
+    if (dataDir && safeOutputId(item.id)) {
+      try { writeOutputFile(dataDir, item.id, item.output); item.outputFile = `controller-output/${item.id}.log`; } catch { /* Keep the tail even if the log cannot be written. */ }
+    }
+    item.output = item.output.slice(-OUTPUT_TAIL); item.truncated = true; changed = true;
   }
-  if (retained.length !== items.length) { workspace.phantomControllers = retained; changed = true; }
+  if (retained.length !== items.length) {
+    if (dataDir) for (const item of items) if (!retained.includes(item) && item.outputFile && safeOutputId(item.id)) rmSync(path.join(dataDir, 'controller-output', `${item.id}.log`), { force: true });
+    workspace.phantomControllers = retained; changed = true;
+  }
   return changed;
 }
 const stable = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
@@ -414,11 +429,11 @@ async function controlOwned(payload, context, c) {
   c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';
-  prunePhantomControllers(c.workspace);
+  prunePhantomControllers(c.workspace, controllers, context.dataDir);
   await context.persist();
   let child;
   try { child = spawnCommand(context, process.execPath, ['--import', controllerPreload, c.cli, payload.action, task.id, ...(payload.action === 'run' ? ['--model', payload.model] : []), ...c.flags], { cwd: c.root, stdio: ['ignore', 'pipe', 'pipe'] }); }
-  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; prunePhantomControllers(c.workspace); await context.persist(); throw error; }
+  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; prunePhantomControllers(c.workspace, controllers, context.dataDir); await context.persist(); throw error; }
   descriptor.pid = child.pid;
   controllers.set(descriptor.id, { descriptor, child });
   let bytes = 0, finished = false;
@@ -437,7 +452,7 @@ async function controlOwned(payload, context, c) {
     if (finished) return; finished = true; clearTimeout(timer); clearTimeout(hardTimer);
     Object.assign(descriptor, { status: error || code !== 0 ? 'failed' : 'completed', exitCode: code, signal, endedAt: observedAt(), ...(error ? { error: error.message } : {}) });
     controllers.delete(descriptor.id);
-    prunePhantomControllers(c.workspace);
+    prunePhantomControllers(c.workspace, controllers, context.dataDir);
     emit({ type: 'tool.status', status: descriptor.status, result: { ...descriptor } });
     Promise.resolve(context.persist()).catch(() => {});
   };
@@ -468,7 +483,7 @@ export async function phantom(method, payload, context) {
     let changed = false;
     let items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
     for (const item of items) if (item.status === 'running' && !controllers.has(item.id)) { item.status = 'lost'; changed = true; }
-    changed = prunePhantomControllers(c.workspace) || changed;
+    changed = prunePhantomControllers(c.workspace, controllers, context.dataDir) || changed;
     items = (c.workspace.phantomControllers ?? []).filter(item => item.backend === c.backend);
     if (changed) await context.persist();
     return { items: structuredClone(items), observedAt: observedAt() };
