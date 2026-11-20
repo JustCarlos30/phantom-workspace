@@ -1,5 +1,11 @@
 # Flujo exclusivo Claude Code
 
+> **Sustituida el 2026-11-20** por la política «solo proveedores habilitados»: Claude Code sigue siendo el
+> predeterminado y la única opción sin configuración, pero OpenCode y Codex pueden habilitarse en
+> Configuración > Agentes. Contrato vigente: [provider-engines.md](provider-engines.md). Este documento
+> queda como historial de la política anterior y de su verificación; `test/claude-only-desktop.mjs`
+> conserva la cobertura del comportamiento por defecto y `test/providers-desktop.mjs` cubre la UI de proveedores.
+
 Decisión de Carlos (2026-11-19): toda ejecución **nueva** de Phantom Workspace usa Claude Code.
 La política vive en un solo módulo compartido, `shared/execution-policy.mjs`, y el host la aplica
 en cada punto de entrada; la UI solo la refleja.

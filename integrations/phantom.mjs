@@ -6,7 +6,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
 import { validatePluginPreferences } from '../shared/plugins.mjs';
-import { assertContractClaudeOnly, resolveHarnessModel } from '../shared/execution-policy.mjs';
+import { assertContractAllowed, clientOfEngine, engineOf, executionPolicy, resolveHarnessModel } from '../shared/execution-policy.mjs';
 
 const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
@@ -306,7 +306,7 @@ async function detail(payload, context, c) {
   if (raw.ref?.sha256 !== match.ref.sha256) throw new Error('Phantom skill reference changed');
   return raw;
 }
-async function validateInput(payload, c) {
+async function validateInput(payload, c, context) {
   const input = payload.input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('input must be a native Phantom object');
   const source = path.resolve(path.dirname(c.cli), '../src');
@@ -315,7 +315,7 @@ async function validateInput(payload, c) {
     const { contract } = await import(pathToFileURL(path.join(source, 'contract.mjs')));
     const value = contract({ ...input, workspace: c.root });
     if (value.lane !== 'coordinated') throw new Error('A card requires native lane coordinated');
-    assertContractClaudeOnly(value);
+    assertContractAllowed(value, executionPolicy(context?.state?.settings));
     async function checkPaths(spec) {
       for (const file of spec.scope ?? []) await safePath(c.root, file, { missing: true });
       for (const check of spec.checks ?? []) {
@@ -343,7 +343,7 @@ async function validateInput(payload, c) {
   return { ...input, kind: 'decision' };
 }
 async function writeNative(method, payload, context, c) {
-  const value = await validateInput(payload, c), update = method === 'phantom.update';
+  const value = await validateInput(payload, c, context), update = method === 'phantom.update';
   if (update) {
     identifier(payload.id);
     if (payload.kind === 'card') {
@@ -418,14 +418,16 @@ async function controlOwned(payload, context, c) {
   const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
   if (payload.action === 'cancel') return c.call(['cancel', task.id]);
   if (payload.action === 'run') {
-    // Host-side policy: the immutable contract is never rewritten, but a non-Claude model anywhere in it blocks the run even when the payload is Claude.
-    assertContractClaudeOnly(task.contract ?? task.raw?.contract);
-    const resolved = resolveHarnessModel(payload.model, task.contract ?? task.raw?.contract, c.config.model);
+    // Host-side policy: the immutable contract is never rewritten, but a model of a disabled engine anywhere in it blocks the run even when the payload is allowed.
+    const policy = executionPolicy(context.state?.settings);
+    assertContractAllowed(task.contract ?? task.raw?.contract, policy);
+    const resolved = resolveHarnessModel(payload.model, task.contract ?? task.raw?.contract, c.config.model, policy);
     payload = { ...payload, model: resolved.model, modelSource: resolved.source }; text(payload.model, 'model', 200);
   }
+  const engine = payload.action === 'run' ? engineOf(payload.model) : null;
   const active = [...controllers.values()].find(p => p.descriptor.workspaceId === c.workspace.id && p.descriptor.backend === c.backend && p.descriptor.taskId === task.id && p.descriptor.status === 'running');
   if (active) return active.descriptor;
-  const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '', ...(payload.action === 'run' ? { requestedModel: payload.model, modelSource: payload.modelSource, engine: 'claude-code', client: 'claude' } : {}) };
+  const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '', ...(payload.action === 'run' ? { requestedModel: payload.model, modelSource: payload.modelSource, engine, client: clientOfEngine(engine) } : {}) };
   c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';
