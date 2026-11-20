@@ -399,7 +399,7 @@ El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el ra
 
 | Categoría | Contenido implementado |
 |---|---|
-| Agentes | Agente y shell de sesiones nuevas; activación de tareas y memoria de Phantom por proyecto, modelo, ejecutable y carpeta de datos; estado de las cuentas disponibles |
+| Agentes | «Proveedores»: una fila por proveedor detectado (Claude Code, OpenCode, Codex) con estado real de sesión, interruptor de habilitar (Claude no se deshabilita si es el único) y motivo si no está disponible, con «Detectar» y reintento. «Motor por área» (Chats, Encargos, Tareas, Juez): agente y modelo solo entre proveedores habilitados; el agente por defecto y el modelo de tareas viven aquí. Shell de sesiones nuevas; activación de tareas y memoria de Phantom por proyecto, ejecutable y carpeta de datos |
 | Git e integración | Integración automática y comando de pruebas antes de integrar, por proyecto |
 | Apariencia | Fondo, acento, escala de interfaz, ambiente, personaje, concentración y retícula |
 | Voz | Proveedor, modelo, URL de API, comando local y salida del motor; comando para instalar o actualizar el motor local |
@@ -408,7 +408,7 @@ El foco de teclado usa contorno de acento de 2 px, con ajustes locales; en el ra
 | Datos y respaldo | Exportación con historial opcional, selección y confirmación de importación JSON, carpeta de datos |
 | Avanzado | Cerrar solo la ventana o detener todo y salir, con confirmación si hay actividad; versión y detalles del equipo |
 
-Los campos de texto se editan como borradores con Guardar y Descartar; los selectores e interruptores guardan al cambiar. Shell y voz usan `settings.update`; el agente predeterminado se guarda en localStorage como `phantom.cardMode`. La configuración de Phantom actualiza valores propios del proyecto con `plugins.update` cuando ya existen y usa los ajustes generales para los demás. Conexiones usa `plugins.update` y Git `merge.configure`, ambos con el proyecto explícito; Git y Conexiones piden abrir un proyecto si falta. Los fallos de carga y guardado conservan mensajes visibles. Estas rutas de persistencia son distintas de las preferencias locales de Apariencia descritas a continuación.
+Los campos de texto se editan como borradores con Guardar y Descartar; los selectores e interruptores guardan al cambiar. Shell y voz usan `settings.update`; los proveedores habilitados y los motores por área se guardan en `settings.providers` y `settings.executionDefaults` (contrato en `docs/provider-engines.md`); la preferencia de card nueva sigue en localStorage como `phantom.cardMode`. La configuración de Phantom actualiza valores propios del proyecto con `plugins.update` cuando ya existen y usa los ajustes generales para los demás. Conexiones usa `plugins.update` y Git `merge.configure`, ambos con el proyecto explícito; Git y Conexiones piden abrir un proyecto si falta. Los fallos de carga y guardado conservan mensajes visibles. Estas rutas de persistencia son distintas de las preferencias locales de Apariencia descritas a continuación.
 
 Las opciones de fondo de Apariencia usan CSS y assets locales, con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos Azul, Naranja, Verde, Rojo y Marfil. «Intensidad ambiental» y «Presencia de Gengar» tienen salida numérica independiente; «Mostrar Gengar», «Pulso ambiental», «Concentración» y retícula son checkboxes etiquetados. Restablecer devuelve Grafito/Marfil/retícula ON/ambiente 55 %/personaje OFF al 55 %/pulso OFF/concentración OFF/sin imagen.
 

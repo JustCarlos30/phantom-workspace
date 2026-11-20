@@ -76,6 +76,23 @@ test('Claude-only: the main Phantom chat also refuses OpenCode', async t => {
   assert.equal(fs.existsSync(path.join(f.root, 'transport.json')), false);
 });
 
+test('OpenCode habilitado: el chat usa el transporte real con su modelo; deshabilitado se rechaza sin arrancar', async t => {
+  const f = await setup(t);
+  await f.host.invoke('providers.configure', { providers: { opencode: { enabled: true } } });
+  await assert.rejects(f.host.invoke('chat.configure', { ...f.ref, provider: 'opencode', model: 'anthropic/claude-sonnet-4' }), /solo con Claude Code/);
+  await f.host.invoke('chat.configure', { ...f.ref, provider: 'opencode' });
+  await f.host.invoke('chat.configure', { ...f.ref, model: 'openai/gpt-5' });
+  await f.send('main-recovered');
+  const chat = await f.idle();
+  assert.equal(chat.messages.at(-1).parts.find(p => p.type === 'text').text, 'Respuesta final del agente principal');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.root, 'transport.json'), 'utf8')).body.model, { providerID: 'openai', modelID: 'gpt-5' });
+  fs.rmSync(path.join(f.root, 'transport.json'));
+  await f.host.invoke('providers.configure', { providers: { opencode: { enabled: false } } });
+  await assert.rejects(f.send('otra'), /Habilita OpenCode/);
+  assert.equal(fs.existsSync(path.join(f.root, 'transport.json')), false);
+  assert.equal((await f.get()).messages.length, 2);
+});
+
 async function localServer(t, handler) {
   const server = http.createServer(handler);
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));

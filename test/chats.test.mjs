@@ -136,6 +136,33 @@ test('Codex ya no arranca: la medición del rollout no se alcanza por una ejecuc
   assert.equal(fs.existsSync(file), false, 'the Codex executable never ran');
 });
 
+test('Codex habilitado: el chat arranca y mide el rollout; al deshabilitarlo el hilo queda legible pero bloqueado', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-enabled-'));
+  const home = path.join(root, 'codex-home'), dir = path.join(home, 'sessions', '2025', '02', '03');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'rollout-date-session-12345678.jsonl');
+  const bin = fixture(root, 'codex', `const fs=require('fs');process.stdin.resume();process.stdin.on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'session-12345678'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:'Hola desde Codex'}});fs.writeFileSync(${JSON.stringify(file)},JSON.stringify({type:'event_msg',payload:{type:'token_count',info:{last_token_usage:{total_tokens:144871},model_context_window:258400}}})+'\\n');out({type:'turn.completed',usage:{input_tokens:999999,output_tokens:9}});});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  host.chats.codexHome = home;
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  const w = await host.invoke('workspace.open', { path: root });
+  await host.invoke('providers.configure', { providers: { codex: { enabled: true } } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { cwd: root, chat: { provider: 'codex' } } });
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  await assert.rejects(host.invoke('chat.configure', { ...ref, model: 'claude-sonnet-4' }), /solo con Claude Code/);
+  await host.invoke('chat.send', { ...ref, text: 'hola' });
+  await until(async () => !(await host.invoke('chat.get', ref)).running);
+  let chat = await host.invoke('chat.get', ref);
+  assert.equal(chat.sessionId, 'session-12345678'); assert.equal(chat.messages.at(-1).parts[0].text, 'Hola desde Codex');
+  assert.equal(chat.meta.contextTokens, 144871);
+  await host.invoke('providers.configure', { providers: { codex: { enabled: false } } });
+  await assert.rejects(host.invoke('chat.send', { ...ref, text: 'otra' }), /Habilita Codex/);
+  await assert.rejects(host.invoke('chat.models', ref), /Habilita Codex/);
+  chat = await host.invoke('chat.get', ref);
+  assert.equal(chat.messages.length, 2, 'history stays readable and the refused message is not recorded');
+});
+
 function fixture(dir, name, body) {
   const file = path.join(dir, name);
   fs.writeFileSync(file, `#!${process.execPath}\n${body}`, { mode: 0o755 });

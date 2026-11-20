@@ -33,6 +33,7 @@ export const HOST_METHODS = new Set([
   // Repositorio: graph, diffs and edits of existing text files inside the project's own worktrees.
   'repo.graph', 'repo.commit', 'repo.diff', 'repo.files', 'repo.file.read', 'repo.file.write',
   'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control',
+  'providers.list', 'providers.models', 'providers.configure',
   'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',
