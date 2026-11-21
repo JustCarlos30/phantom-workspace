@@ -35,6 +35,23 @@ try {
   await page.locator('.canvas-node').first().waitFor();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const canvas = page.locator('.canvas');
+  const segmented = page.getByRole('group', { name: 'Herramientas del canvas', exact: true });
+  const { height: segmentHeight, ...segmentStyle } = await segmented.evaluate(el => {
+    const css = getComputedStyle(el);
+    return { height: el.getBoundingClientRect().height, padding: css.padding, gap: css.gap, radius: css.borderRadius, shadow: css.boxShadow };
+  });
+  assert.ok(Math.abs(segmentHeight - 36) <= 1 / 64);
+  assert.deepEqual(segmentStyle, { padding: '4px', gap: '4px', radius: '999px', shadow: 'none' });
+  const selection = page.getByRole('button', { name: 'Herramienta de selección', exact: true });
+  assert.equal(await selection.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(236, 230, 216)');
+  const buttonBounds = await selection.boundingBox();
+  await selection.hover(); await page.mouse.down();
+  assert.deepEqual(await selection.boundingBox(), buttonBounds, 'Segment press is tonal, never spatial');
+  assert.equal(await selection.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(214, 208, 194)');
+  await page.mouse.up();
+  assert.ok(Math.abs((await page.locator('.activity-dock').boundingBox()).height - 64) <= 1 / 64);
+  assert.equal(await page.getByRole('button', { name: 'Nueva sesión', exact: true }).count(), 1);
+  checks.push('Flat segmented controls, ivory primary, stable press and 64px dock');
   // Mount/ResizeObserver can still reframe the initial camera after the first
   // card appears. Start input checks from a settled, fully visible fixture.
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();

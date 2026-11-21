@@ -5,7 +5,9 @@
      --r-pill for chips; neither is a surface. test/design-tokens.test.mjs
      fails on any other value. */
   --r-mark: 4px;
-  --r-ctl: 8px;
+  --r-ctl: 12px;
+  --r-row: 12px;
+  --row-air: 2px;
   --r-obj: 24px;
   --r-isle: 24px;
   --r-pill: 999px;
@@ -44,18 +46,53 @@
   --glass-filter: none;
   --ink-on-glass: #a8a6a0;
   --glass-sheen: var(--object-fill);
-  --on: #f2f0eb;
+  --on: #ece6d8;
   --on-ink: #141414;
+  --on-hover: #f6f1e6;
+  --on-press: #d6d0c2;
+  --control-size: 36px;
+  --dock-control-size: 40px;
+  --control-fill: #ffffff14;
+  --control-hover: #ffffff1f;
+  --control-press: #ffffff0a;
+  --seg-height: 36px;
+  --seg-pad: 4px;
+  --seg-gap: 4px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --row-hover: #ffffff0a;
+  --row-press: #00000040;
+  --row-selected: #1d1d20;
+  --row-selected-hover: color-mix(in srgb, var(--row-selected), #fff 4%);
+  --row-selected-press: color-mix(in srgb, var(--row-selected), #000 25%);
+  --badge-steel: oklch(0.64 0.11 250);
+  --badge-mint: oklch(0.64 0.10 165);
+  --badge-honey: oklch(0.64 0.11 85);
+  --badge-coral: oklch(0.64 0.11 30);
+  --badge-violet: oklch(0.64 0.10 300);
+  --badge-petrol: oklch(0.64 0.10 210);
+  --badge-neutral: oklch(0.36 0.008 260);
+  --badge-working: #5d7521;
+  --badge-attention: #b5872f;
+  --badge-size: 32px;
+  --badge-ink: #fff;
+  --box-pad: 12px;
+  --row-px: 16px;
+  --row-gap: 12px;
+  --icon-col: 32px;
+  --divider: #ffffff12;
+  --divider-width: 1px;
+  --rail-group-inset: 20px;
+  --rail-gap: 8px;
   --workplane: var(--surface);
   --workplane-wash: var(--object-fill);
   --well: #040405;
   --well-raised: #0b0b0d;
   --well-terminal: #040405;
-  /* One slight overshoot, then a monotonic settle. */
-  --ease-spring: linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1);
-  --dur-spring: 420ms;
+  --ease-spring: var(--ease-settle);
+  --dur-spring: var(--dur-open);
   --ease-out: cubic-bezier(.16, 1, .3, 1);
-  --dur-fast: 140ms;
+  --dur-fast: 120ms;
   --dur: 240ms;
   --island: var(--glass);
   --island-hover: var(--fill-3);
@@ -66,14 +103,18 @@
   --s-4: 16px;
   --s-5: 24px;
   --s-6: 32px;
-  --glyph-primary: 20px;
+  --glyph-primary: 18px;
   --glyph-secondary: 16px;
+  --glyph-stroke: 1.75;
   --target: 40px;
   --row-simple: 44px;
   --row-detail: 56px;
-  --gutter: var(--s-3);
-  --rail-width: 252px;
-  --dock-h: 56px;
+  --gutter: 12px;
+  --rail-width: 272px;
+  --dock-h: 64px;
+  --dock-clearance: 24px;
+  --dock-pad: 12px;
+  --dock-gap: 12px;
   --inspector-width: 360px;
   --dot: color-mix(in srgb, #f2f0eb 5%, transparent);
   /* Neutral planes keep identity and state accents local. */
@@ -235,7 +276,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 @media (min-width: 851px) {
   .project-rail {
     position: absolute; left: var(--gutter); top: var(--gutter); bottom: var(--gutter);
-    width: var(--rail-width); border-radius: var(--r-obj); padding: 12px 10px 10px;
+    width: var(--rail-width); border-radius: var(--r-obj); padding: var(--box-pad);
     transition: width var(--dur) var(--ease-out), bottom var(--dur) var(--ease-out), border-radius var(--dur) var(--ease-out);
     overflow: hidden;
   }
@@ -772,7 +813,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    lightest but highest. Supersedes the docked "Proporción y aire" layer.
    ===================================================================== */
 :root {
-  --gutter: 16px;
+  --gutter: 12px;
   --bar: 48px;                                   /* height of a top-row island */
   --top-clear: calc(var(--gutter) * 2 + var(--bar)); /* first free line under the top row */
 }
@@ -781,12 +822,12 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   /* Rail: an object, not a column. It grows with what the project holds and
      stops one gap short of the bottom edge; the canvas shows beneath it. */
   .app-shell:not(.rail-collapsed) .project-rail {
-    left: var(--gutter); top: var(--gutter); bottom: auto; height: auto; margin: 0;
+    left: var(--gutter); top: var(--gutter); bottom: var(--gutter); height: auto; margin: 0;
     max-height: calc(100% - var(--gutter) * 2); width: var(--rail-width);
-    padding: 4px 10px 10px; border: 0; border-radius: var(--r-isle);
+    padding: var(--box-pad); border: 0; border-radius: var(--r-isle);
     box-shadow: var(--shadow-chrome);
   }
-  .app-shell:not(.rail-collapsed) .brand { height: 48px; flex-shrink: 0; margin: 0 0 8px; padding: 0 2px 0 6px; border: 0; }
+  .app-shell:not(.rail-collapsed) .brand { height: 40px; flex-shrink: 0; margin: 0; padding: 0 var(--row-px); border: 0; }
 
   /* Collapsed: the rail folds into a pill that sits where the rail began. */
   .rail-collapsed .project-rail {
@@ -842,7 +883,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   .workspace-header > .rail-toggle { width: var(--bar); flex-shrink: 0; }
   .header-controls { padding: 0 6px; }
   .inspector-host { top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); left: var(--gutter); border-radius: var(--r-isle); }
-  .project-rail { top: var(--gutter); left: var(--gutter); height: calc(100% - var(--gutter) * 2); border-radius: var(--r-isle); }
+  .project-rail { top: var(--gutter); left: var(--gutter); width: var(--rail-width); padding: var(--box-pad); height: calc(100% - var(--gutter) * 2); border-radius: var(--r-isle); }
   .panel-index-button { top: var(--top-clear); left: var(--gutter); }
 }
 
@@ -926,10 +967,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out);
 }
 .activity-dock .dock-main .dock-action > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; line-height: 1; white-space: nowrap; }
-.activity-dock .dock-main .dock-action svg { transition: translate var(--dur) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.activity-dock .dock-main .dock-action svg { transition: color var(--dur-fast) linear; }
 .activity-dock .dock-main .dock-action:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); transform: none; }
-.activity-dock .dock-main .dock-action:hover:not(:disabled) svg { translate: 0 -1px; color: var(--accent); }
-.activity-dock .dock-main .dock-action:active:not(:disabled) { background: var(--fill-3); scale: .96; }
+.activity-dock .dock-main .dock-action:hover:not(:disabled) svg { color: inherit; }
+.activity-dock .dock-main .dock-action:active:not(:disabled) { background: var(--control-press); }
 .activity-dock .dock-main .dock-action.active { background: var(--fill-3); color: var(--ink); }
 .activity-dock .dock-main .dock-action.active svg { color: var(--accent); }
 .activity-dock .dock-main .dock-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -1118,16 +1159,16 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 /* Navigation has its own shelf, outside the clipped working stage. Its two
    rows share a column with creation; the map owns the neighbouring column.
    Panning can leave work offscreen, but can never put it under these islands. */
-.app-shell { --canvas-shelf: 148px; --shelf-left: 0px; --shelf-right: 0px; --map-column: 206px; }
+.app-shell { --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h) + 60px); --shelf-left: 0px; --shelf-right: 0px; --map-column: 206px; }
 @media (min-width: 851px) {
   .app-shell:not(.rail-collapsed) { --shelf-left: calc(var(--rail-width) + var(--gutter)); }
   .app-shell.studio-inspector-open { --shelf-right: calc(var(--inspector-width) + var(--gutter)); }
 }
-.app-shell.studio-focused { --canvas-shelf: 88px; --shelf-left: 0px; --shelf-right: 0px; --map-column: 0px; }
+.app-shell.studio-focused { --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h)); --shelf-left: 0px; --shelf-right: 0px; --map-column: 0px; }
 .canvas-stage { position: absolute; inset: 0 var(--shelf-right) var(--canvas-shelf) 0; overflow: clip; }
 .canvas-view-controls {
-  position: absolute; left: calc(var(--shelf-left) + var(--gutter)); right: calc(var(--shelf-right) + var(--gutter)); bottom: var(--gutter);
-  height: 116px; display: grid; grid-template-columns: minmax(0, 1fr) 190px; grid-template-rows: 48px var(--dock-h); gap: 12px 16px;
+  position: absolute; left: calc(var(--shelf-left) + var(--gutter)); right: calc(var(--shelf-right) + var(--gutter)); bottom: var(--dock-clearance);
+  height: calc(60px + var(--dock-h)); display: grid; grid-template-columns: minmax(0, 1fr) 190px; grid-template-rows: 48px var(--dock-h); gap: 12px 16px;
   pointer-events: none;
 }
 .app-shell .canvas .canvas-view-controls .canvas-navigation {
@@ -1140,7 +1181,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .app-shell .canvas .canvas-view-controls .canvas-popover { bottom: 128px; right: 206px; pointer-events: auto; }
 .app-shell .canvas-region .create-dock {
   left: calc(var(--shelf-left) + (100% - var(--shelf-left) - var(--shelf-right) - var(--map-column)) / 2);
-  bottom: var(--gutter); max-width: calc(100% - var(--shelf-left) - var(--shelf-right) - var(--map-column) - var(--gutter) * 2);
+  bottom: var(--dock-clearance); max-width: calc(100% - var(--shelf-left) - var(--shelf-right) - var(--map-column) - var(--dock-clearance) * 2);
 }
 .create-dock .dock-main { overflow-x: auto; justify-content: safe center; }
 .create-dock .dock-main > * { flex-shrink: 0; }
@@ -1149,8 +1190,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .dock-more-menu button:hover:not(:disabled) { background: var(--fill-2); }
 .app-shell .canvas-region :is(.zone-selection, .group-selection) { bottom: calc(var(--canvas-shelf) + 8px); }
 
-/* Tactile chrome: scale is independent of positioned surfaces' transforms.
-   Colour keeps its quick response; release has one small spring rebound. */
+/* Controls respond tonally; spatial motion belongs to the objects. */
 :is(.button, .icon-button, .tw-button, .activity-dock .dock-main .dock-action,
     .dock-main button, .dock-action, .canvas-navigation button, .project-rail button,
     .header-controls button, .workspace-identity button, .activity-strip button,
@@ -1160,9 +1200,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
     .inspector-host button, .app-dialog button, .tw-voice button,
     .pc-agent button, .pc-composer button, .pd-composer button,
     .pc-send, .pc-modes button, .pc-field button, .pd-tabs button) {
-  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out),
-    scale var(--dur-spring) var(--ease-spring);
+  transition: background-color var(--dur-fast) linear, color var(--dur-fast) linear, opacity var(--dur-fast) linear;
 }
 :is(.button, .icon-button, .tw-button, .activity-dock .dock-main .dock-action,
     .dock-main button, .dock-action, .canvas-navigation button, .project-rail button,
@@ -1173,9 +1211,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
     .inspector-host button, .app-dialog button, .tw-voice button,
     .pc-agent button, .pc-composer button, .pd-composer button,
     .pc-send, .pc-modes button, .pc-field button, .pd-tabs button):active:not(:disabled) {
-  scale: .96;
+  scale: none;
   transition-duration: var(--dur-fast);
-  transition-timing-function: var(--ease-out);
+  transition-timing-function: linear;
 }
 
 .button.primary, .tw-button.tw-primary, .pc-send:not(:disabled) { box-shadow: var(--shadow-key); }
@@ -1256,10 +1294,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .appearance-panel .interface-scale p, .accent-options button { font: var(--t-support); }
 .breadcrumb > button, .project-name-editor > button, .tool-item strong,
 .index-item strong, .tw-field > label { font: var(--t-control); }
-.app-shell .activity-dock .dock-main button.dock-action { font: var(--t-control); background: var(--fill-2); color: var(--ink); }
-.app-shell .activity-dock .dock-main button.dock-action:hover:not(:disabled) { background: var(--fill-3); color: var(--ink); }
-.app-shell .activity-dock .dock-main button.dock-action:is(.active, [aria-expanded="true"]),
-.app-shell .activity-dock .dock-main button.dock-action:is(.active, [aria-expanded="true"]):hover:not(:disabled) { background: var(--fill-3); color: var(--accent); }
+.app-shell .activity-dock .dock-main button.dock-action { font: var(--t-control); }
 .app-shell button.search-command { font: var(--t-control); }
 .activity-dock .activity-notch { font: var(--t-support); }
 .dock-main button:first-of-type { background: transparent; color: var(--muted); }

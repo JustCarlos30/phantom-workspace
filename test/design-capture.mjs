@@ -208,7 +208,7 @@ try {
 
   const create = page.getByRole('toolbar', { name: 'Crear panel' });
   const toMap = async () => { const back = page.getByRole('button', { name: /Volver al mapa/ }); if (await back.count()) await back.first().click(); await delay(500); };
-  await create.getByRole('button', { name: /Terminal/ }).first().click();
+   await create.locator('button[data-type="terminal"]').click();
   await page.locator('.canvas-node').first().waitFor();
   await page.waitForFunction(() => !document.querySelector('.create-dock button[data-type="terminal"]')?.disabled);
   if (!await page.locator('.canvas-node.focused').count()) await page.locator('.canvas-node').first().getByRole('button', { name: 'Enfocar panel', exact: true }).click();
@@ -271,15 +271,26 @@ try {
       if (!statusLabel) throw new Error('Missing current rail-session-status markup');
       statusLabel.textContent = status;
       const details = meta.querySelector('.rail-session-details');
-      if (!details) throw new Error('Missing current rail-session-details markup');
-      details.textContent = ' · Terminal · fixture de metadatos largos';
-      copy.querySelector('.rail-session-dot').className = `rail-session-dot ${tone}`;
+      if (details) details.textContent = ' · Terminal · fixture de metadatos largos';
+      else {
+        meta.querySelector('.rail-session-type').textContent = 'Terminal';
+        meta.querySelector('.rail-session-time')?.remove();
+        const time = document.createElement('span');
+        time.className = 'rail-session-time'; time.textContent = 'hace 2 min'; meta.append(time);
+        meta.id = `fixture-${title.replaceAll(' ', '-')}`;
+        button.setAttribute('aria-describedby', meta.id);
+        meta.title = `Terminal · ${status} · hace 2 min`;
+      }
+      const dot = copy.querySelector('.rail-session-dot');
+      if (dot) dot.className = `rail-session-dot ${tone}`;
+      else inner.dataset.state = needs ? 'attention' : tone === 'working' ? 'working' : 'rest';
       copy.querySelector('.rail-session-resources')?.remove();
       row.parentNode.append(copy);
     };
     variant('Trabajo', 'Trabajando', 'working', false);
     variant('Permiso', 'Pide permiso', 'warning', true);
     variant('Permiso seleccionado', 'Pide permiso', 'warning', true, true);
+    variant('Pregunta', 'Te hizo una pregunta', 'warning', true);
     const attention = document.querySelector('.rail-attention');
     attention.classList.add('needs-you');
     attention.querySelector('span').textContent = 'Te necesitan';
@@ -292,17 +303,136 @@ try {
     notch.querySelector('strong').textContent = 'Sintético: 2 te necesitan';
     document.querySelector('.attention-button').insertAdjacentHTML('beforeend', '<i></i>');
   });
-  await page.locator('.rail-session-status').evaluateAll(elements => {
-    for (const el of elements) {
-      if (getComputedStyle(el).fontSize !== '12px') throw new Error('Status must use 12px type');
-      const rect = el.getBoundingClientRect();
-      const parent = el.closest('.rail-panel-label').getBoundingClientRect();
-      if (el.scrollWidth > el.clientWidth || rect.right > parent.right + 1 || rect.bottom > parent.bottom + 1) throw new Error(`Clipped status: ${el.textContent}`);
-    }
-  });
+  const railStatuses = await page.locator('.rail-session-status').evaluateAll(elements => elements.map(el => {
+    const rect = el.getBoundingClientRect();
+    const parent = el.closest('.rail-panel-label').getBoundingClientRect();
+    return { text: el.textContent, fontSize: getComputedStyle(el).fontSize,
+      clipped: el.scrollWidth > el.clientWidth || rect.right > parent.right + 1 || rect.bottom > parent.bottom + 1 };
+  }));
+  observations.push({ scene: 'synthetic-rail-status', samples: railStatuses });
+  for (const status of railStatuses) {
+    assert.equal(status.fontSize, '12px', 'Status must use 12px type');
+    if (standardized) assert.equal(status.clipped, false, `Clipped status: ${status.text}`);
+  }
   await shot('synthetic-states');
   if (standardized) {
     await page.locator('[data-design-fixture="rail-state"]').evaluateAll(elements => elements.forEach(element => element.remove()));
+    const layoutUnit = 1 / 64;
+    const dimension = (actual, expected, name) => assert.ok(Math.abs(actual - expected) <= layoutUnit, `${name}: ${actual} vs ${expected}`);
+    const measureChrome = async scene => {
+      const measurement = await page.evaluate(() => {
+        const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
+        const rail = document.querySelector('.project-rail'), dock = document.querySelector('.activity-dock');
+        const rs = getComputedStyle(rail), ds = getComputedStyle(dock), coarse = matchMedia('(pointer: coarse)').matches;
+        const rows = [...rail.querySelectorAll('.rail-session-row')].map(row => {
+          const badge = row.querySelector('.rail-agent-mark'), glyph = badge.querySelector('svg');
+          const status = row.querySelector('.rail-session-status'), label = row.querySelector('.rail-panel-label');
+          const bs = getComputedStyle(badge), title = label.firstElementChild;
+          return { bounds: rect(row), badge: rect(badge), glyph: rect(glyph), ink: bs.color, fill: bs.backgroundColor, image: bs.backgroundImage, shadow: bs.boxShadow, radius: bs.borderRadius, stroke: getComputedStyle(glyph).strokeWidth, state: row.dataset.state,
+            titleLines: getComputedStyle(title).whiteSpace, clipped: status.scrollWidth > status.clientWidth || rect(status).right > rect(label).right + 1,
+            jump: rect(row.firstElementChild), focus: rect(row.querySelector('.rail-panel-focus')) };
+        });
+        const controls = [...document.querySelectorAll('.workspace-header button, .canvas-navigation button, .activity-dock button, .rail-panel-focus, .rail-heading button, .rail-system > button')].filter(el => el.getClientRects().length && getComputedStyle(el).display !== 'none').map(el => {
+          const s = getComputedStyle(el), hit = el.closest('.control-segmented') ? getComputedStyle(el, '::after') : null;
+          return { name: el.getAttribute('aria-label') || el.textContent, bounds: rect(el), border: ['Top', 'Right', 'Bottom', 'Left'].map(side => s[`border${side}Width`]), shadow: s.boxShadow, scale: s.scale, translate: s.translate, hitHeight: rect(el).height + (hit ? -parseFloat(hit.top) - parseFloat(hit.bottom) : 0) };
+        });
+        const stage = document.querySelector('.canvas-stage');
+        const seg = document.querySelector('.canvas-navigation .control-segmented');
+        return { rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), coarse, rows, controls,
+          tokens: Object.fromEntries(['rail-width', 'gutter', 'box-pad', 'row-detail', 'badge-size', 'glyph-primary', 'dock-h', 'dock-clearance', 'seg-height', 'seg-pad', 'seg-gap', 'focus-width'].map(name => [name, rs.getPropertyValue(`--${name}`).trim()])),
+          segment: seg && { height: rect(seg).height, padding: getComputedStyle(seg).padding, gap: getComputedStyle(seg).gap, children: [...seg.children].filter(el => getComputedStyle(el).display !== 'none').map(el => rect(el).height) } };
+      });
+      assert.deepEqual(measurement.tokens, { 'rail-width': '272px', gutter: '12px', 'box-pad': '12px', 'row-detail': '56px', 'badge-size': '32px', 'glyph-primary': '18px', 'dock-h': '64px', 'dock-clearance': '24px', 'seg-height': '36px', 'seg-pad': '4px', 'seg-gap': '4px', 'focus-width': '2px' });
+      dimension(measurement.rail.width, 272, 'Rail width'); dimension(measurement.rail.x, 12, 'Rail left'); dimension(measurement.rail.y, 12, 'Rail top');
+      for (const padding of measurement.padding) dimension(padding, 12, 'Rail padding');
+      assert.ok(Math.abs(measurement.window.height - measurement.rail.bottom - 12) <= 1);
+      dimension(measurement.dock.height, 64, 'Dock height'); assert.equal(measurement.dockRadius, '999px');
+      assert.ok(Math.abs(measurement.window.height - measurement.dock.bottom - 24) <= 1, 'Dock clears the window by 24px');
+      assert.ok(measurement.dock.y - measurement.stage.bottom >= 24 - layoutUnit, 'Clipped work stage clears dock by at least 24px');
+      assert.ok(measurement.dock.x - measurement.rail.right >= 24 - layoutUnit, 'Dock clears the rail');
+      for (const row of measurement.rows) {
+        dimension(row.bounds.height, 56, 'Row height'); dimension(row.badge.width, 32, 'Badge width'); dimension(row.badge.height, 32, 'Badge height');
+        dimension(row.glyph.width, 18, 'Glyph width'); dimension(row.glyph.height, 18, 'Glyph height'); assert.equal(row.stroke, '1.75px');
+        dimension(row.badge.x - row.bounds.x, 16, 'Badge inset'); assert.equal(row.ink, 'rgb(255, 255, 255)');
+        assert.equal(row.image, 'none'); assert.equal(row.shadow, 'none'); assert.equal(row.radius, '50%');
+        assert.equal(row.titleLines, 'nowrap'); assert.equal(row.clipped, false);
+        assert.ok(row.jump.height >= 44 - layoutUnit); assert.ok(row.focus.width >= (measurement.coarse ? 44 : 40) - layoutUnit);
+        assert.ok(Math.abs(row.focus.right - (row.focus.width - 36) / 2 - (row.bounds.right - 16)) <= 1, 'Actions share the right inset');
+        if (row.state === 'working') assert.equal(row.fill, 'rgb(93, 117, 33)');
+        else if (row.state === 'attention') assert.equal(row.fill, 'rgb(181, 135, 47)');
+        else assert.match(row.fill, /^oklch\(0\.36 0\.008 260\)$/);
+      }
+      for (const control of measurement.controls) {
+        assert.deepEqual(control.border, ['0px', '0px', '0px', '0px'], control.name);
+        assert.equal(control.shadow, 'none', control.name); assert.equal(control.scale, 'none', control.name); assert.equal(control.translate, 'none', control.name);
+        if (measurement.coarse) assert.ok(control.hitHeight >= 44 - layoutUnit, `${control.name}: coarse target ${control.hitHeight}`);
+      }
+      if (measurement.segment) {
+        assert.ok(measurement.segment.children.length >= 2);
+        dimension(measurement.segment.height, 36, 'Segmented height');
+        assert.equal(measurement.segment.padding, '4px'); assert.equal(measurement.segment.gap, '4px');
+        for (const height of measurement.segment.children) dimension(height, 28, 'Segment height');
+      }
+      observations.push({ scene, ...measurement });
+    };
+    await measureChrome('rail-state-desktop');
+    const attentionRow = page.getByRole('button', { name: `Ver ${stateNodes[1].title} en el mapa`, exact: true }).locator('..');
+    const badgeSnapshot = () => attentionRow.locator('.rail-agent-mark').evaluate(el => {
+      const s = getComputedStyle(el), r = el.getBoundingClientRect();
+      return { fill: s.backgroundColor, ink: s.color, shape: el.innerHTML, width: r.width, height: r.height, x: r.x, y: r.y };
+    });
+    await attentionRow.scrollIntoViewIfNeeded(); await page.mouse.move(900, 20); await delay(250);
+    const badgeBefore = await badgeSnapshot(), boundsBefore = await attentionRow.boundingBox();
+    const rowFill = async token => attentionRow.evaluate((el, token) => {
+      const probe = document.createElement('div'); probe.style.backgroundColor = `var(${token})`; el.append(probe);
+      const expected = getComputedStyle(probe).backgroundColor; probe.remove();
+      const s = getComputedStyle(el);
+      return { actual: s.backgroundColor, expected, radius: s.borderRadius, clip: s.backgroundClip, transform: s.transform, scale: s.scale };
+    }, token);
+    for (const pressed of [false, true]) {
+      await attentionRow.locator('button').first().hover(); if (pressed) await page.mouse.down();
+      await delay(150);
+      const fill = await rowFill(pressed ? '--row-press' : '--row-hover');
+      assert.equal(fill.actual, fill.expected); assert.equal(fill.radius, '12px'); assert.equal(fill.clip, 'padding-box');
+      assert.equal(fill.transform, 'none'); assert.equal(fill.scale, 'none');
+      assert.deepEqual(await attentionRow.boundingBox(), boundsBefore); assert.deepEqual(await badgeSnapshot(), badgeBefore);
+      await shot(pressed ? 'rail-pressed' : 'rail-hover');
+    }
+    await page.mouse.up(); await delay(250);
+    assert.equal(await attentionRow.locator('button').first().getAttribute('aria-current'), 'true');
+    assert.deepEqual(await badgeSnapshot(), badgeBefore, 'Selection preserves the badge');
+    const selectedFill = await rowFill('--row-selected-hover'); assert.equal(selectedFill.actual, selectedFill.expected);
+    await attentionRow.locator('button').first().focus(); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
+    const focus = await attentionRow.locator('button').first().evaluate(el => {
+      const style = getComputedStyle(el);
+      return { visible: el.matches(':focus-visible'), style: style.outlineStyle, width: parseFloat(style.outlineWidth), token: style.getPropertyValue('--focus-width').trim(), pixelRatio: devicePixelRatio };
+    });
+    assert.equal(focus.visible, true); assert.equal(focus.style, 'solid'); assert.equal(focus.token, '2px');
+    assert.ok(focus.width > 0 && Math.abs(focus.width - 2) < 1 / focus.pixelRatio, 'Focus outline retains 2 CSS px with device-pixel snapping');
+    observations.push({ scene: 'rail-keyboard-focus', ...focus });
+    await shot('rail-selected');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1100, 760)); await delay(400);
+    await measureChrome('rail-state-1100'); await shot('rail-narrow');
+    const dockActions = page.locator('.dock-main button');
+    assert.deepEqual(await page.locator('.dock-main [data-type]').evaluateAll(elements => elements.map(el => el.dataset.type)), ['terminal', 'browser', 'note', 'zone']);
+    for (let index = 0; index < await dockActions.count(); index++) {
+      await dockActions.nth(index).focus();
+      assert.equal(await dockActions.nth(index).evaluate(el => {
+        const r = el.getBoundingClientRect(), shelf = el.closest('.dock-main').getBoundingClientRect();
+        return r.left >= shelf.left - 1 && r.right <= shelf.right + 1 && (!!el.getAttribute('title') || el.getAttribute('aria-label') === 'Más');
+      }), true, 'Every dock tool remains reachable by keyboard');
+    }
+    await page.getByRole('button', { name: 'Más', exact: true }).click();
+    await page.getByRole('menu', { name: 'Más hubs', exact: true }).waitFor();
+    assert.ok(await page.locator('.dock-more-menu [role="menuitem"]').count() > 0);
+    await page.keyboard.press('Escape');
+    await page.locator('.dock-more-menu').waitFor({ state: 'detached' });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 }); await delay(400);
+    assert.equal(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), true);
+    await measureChrome('rail-state-coarse'); await shot('rail-coarse');
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false }); await cdp.detach();
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1520, 980)); await delay(400);
     const working = stateNodes[0], panel = page.locator(`[data-node-id="${working.id}"]`);
     for (const scene of ['map-flash', 'map-flash-selected']) {
       if (scene === 'map-flash-selected') assert.equal(await panel.getAttribute('aria-current'), 'true');
@@ -436,9 +566,9 @@ try {
       if (style.borderTopColor !== 'rgba(0, 0, 0, 0)') throw new Error('Attention well must have no coloured edge');
     }
     const action = getComputedStyle(fixture.querySelector('.pt-card-action'));
-    if (action.backgroundColor !== 'rgb(242, 240, 235)' || action.color !== 'rgb(20, 20, 20)') throw new Error('Attention action must be ivory/dark');
+    if (action.backgroundColor !== 'rgb(236, 230, 216)' || action.color !== 'rgb(20, 20, 20)') throw new Error('Attention action must be ivory/dark');
     const toggle = fixture.querySelector('.inc-switch');
-    if (getComputedStyle(toggle).backgroundColor !== 'rgb(242, 240, 235)' || getComputedStyle(toggle.querySelector('i')).backgroundColor !== 'rgb(20, 20, 20)') throw new Error('Incorporation switch must be ivory/dark');
+    if (getComputedStyle(toggle).backgroundColor !== 'rgb(236, 230, 216)' || getComputedStyle(toggle.querySelector('i')).backgroundColor !== 'rgb(20, 20, 20)') throw new Error('Incorporation switch must be ivory/dark');
   });
   await shot('attention');
   await page.locator('#color-fixture').evaluate(el => el.remove());
@@ -475,7 +605,7 @@ try {
   await gridSwitch.scrollIntoViewIfNeeded();
   if (standardized) await gridSwitch.evaluate(el => {
     if (el.getAttribute('aria-checked') !== 'true') throw new Error('Expected enabled grid in isolated profile');
-    if (getComputedStyle(el).backgroundColor !== 'rgb(242, 240, 235)' || getComputedStyle(el.querySelector('i')).backgroundColor !== 'rgb(20, 20, 20)') throw new Error('Active switch must be ivory/dark');
+    if (getComputedStyle(el).backgroundColor !== 'rgb(236, 230, 216)' || getComputedStyle(el.querySelector('i')).backgroundColor !== 'rgb(20, 20, 20)') throw new Error('Active switch must be ivory/dark');
   });
   await shot('settings-switches');
   await page.getByRole('button', { name: 'Cerrar configuración', exact: true }).click();

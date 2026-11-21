@@ -49,10 +49,11 @@ test('numera sesiones con el mismo título visible', async () => {
   assert.equal(titles['4'], 'Revisar navegación');
 });
 
-test('cada fila expone agente, estado, modelo y título completo', async () => {
+test('cada fila expone agente, estado, tiempo válido, modelo y título completo', async () => {
   const { providerOf, sessionTitle, buildSessionRows } = await model();
-  const sessions = { '1': { id: 's1', tone: 'working', label: 'Trabajando', needsYou: false } };
-  const [row] = buildSessionRows([term('1', 'Terminal', { chat: { provider: 'opencode', models: { opencode: 'openai/gpt-6-astra' } } })], sessions).rows;
+  const now = Date.parse('2026-11-21T12:00:00Z');
+  const sessions = { '1': { id: 's1', tone: 'working', label: 'Trabajando', needsYou: false, observedAt: now - 180000 } };
+  const [row] = buildSessionRows([term('1', 'Terminal', { chat: { provider: 'opencode', models: { opencode: 'openai/gpt-6-astra' } } })], sessions, now).rows;
   assert.equal(row.provider, 'opencode');
   assert.equal(row.providerLabel, 'OpenCode');
   assert.equal(row.tone, 'working');
@@ -60,9 +61,12 @@ test('cada fila expone agente, estado, modelo y título completo', async () => {
   assert.equal(row.model, 'gpt-6-astra');
   assert.equal(row.fullTitle, 'Terminal');
   assert.equal(row.needsYou, false);
+  assert.equal(row.time, 'hace 3 min');
   const [unknown] = buildSessionRows([term('9', 'Terminal')], {}).rows;
   assert.equal(unknown.tone, 'unknown');
   assert.equal(unknown.model, '');
+  assert.equal(unknown.time, '');
+  assert.equal(buildSessionRows([term('9', 'Terminal')], { 9: { updatedAt: 'sin fecha' } }, now).rows[0].time, '');
 });
 
 test('las que necesitan de ti suben, luego las que trabajan, sin romper el orden', async () => {

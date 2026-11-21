@@ -1,14 +1,5 @@
-/* Shell controls: the single owner of how the top bar, the canvas navigation
-   and the dock look. Each island is one matte plane; the controls inside
-   rest on nothing. Island position and size live in canvas-ui.css.
-
-   Hierarchy, the same in every island:
-   1. Solid light (--on): the one current choice — the active tool, the
-      selected panel. Never more than one per island.
-   2. Neutral fill with a thin rim: something that is open or switched on.
-   3. Nothing: everything at rest.
-   Panel kinds share a neutral --type. Colour means state:
-   lime working, amber needs you, red failed, green done. */
+/* Shell controls: primary ivory, secondary one-step fill, ghost until hover.
+   Object geometry and material live in canvas-ui.css. */
 
 /* ---------- Panel kinds ---------- */
 .app-shell [data-type="terminal"] { --type: var(--c-lilac); }
@@ -20,9 +11,9 @@
 .app-shell :is(.workspace-identity, .header-controls, .focus-return, .workspace-header > .rail-toggle) { border-radius: var(--r-isle); }
 .app-shell .workspace-identity { padding: 0 20px; }
 .app-shell .header-controls { padding: 0 8px 0 14px; gap: 4px; }
-.app-shell .header-controls .icon-button { width: 32px; height: 32px; border-radius: 50%; background: none; color: var(--muted); }
-.app-shell .header-controls .icon-button:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
-.app-shell .header-controls .icon-button:is(.active, [aria-pressed="true"], [aria-expanded="true"]) { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
+.app-shell .header-controls .icon-button { width: var(--target); height: var(--target); border-radius: 50%; background: var(--control-fill); color: var(--ink); }
+.app-shell .header-controls .icon-button:hover:not(:disabled) { background-color: var(--control-hover); color: var(--ink); }
+.app-shell .header-controls .icon-button:is(.active, [aria-pressed="true"], [aria-expanded="true"]) { background-color: var(--control-fill); color: var(--ink); box-shadow: none; }
 .app-shell .search-command { height: 32px; margin: 0 4px 0 8px; padding: 0 6px 0 12px; gap: 8px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); box-shadow: var(--shadow-rim); color: var(--muted); font: var(--t-support); }
 .app-shell .search-command:hover { background: var(--fill-3); color: var(--ink); }
 .app-shell .search-command kbd { height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--fill-2); color: inherit; font: var(--t-micro); }
@@ -31,34 +22,34 @@
 
 /* ---------- Canvas navigation: one pill of round controls ---------- */
 .app-shell .canvas-navigation { height: 48px; padding: 0 8px; gap: 2px; border-radius: var(--r-isle); }
-.app-shell .canvas-navigation button { display: grid; place-items: center; width: 32px; min-width: 32px; height: 32px; padding: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--muted); }
-.app-shell .canvas-navigation button:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.app-shell .canvas-navigation button { display: grid; place-items: center; width: var(--target); min-width: var(--target); height: var(--target); padding: 0; border-radius: 50%; background: var(--control-fill); box-shadow: none; color: var(--ink); }
+.app-shell .canvas-navigation button:hover:not(:disabled) { background-color: var(--control-hover); color: var(--ink); }
 /* The tool is the one choice; the minimap, the menus and Phantom are switches. */
-.app-shell .canvas-navigation button[aria-pressed="true"] { background: var(--on); color: var(--on-ink); }
-.app-shell .canvas-navigation button:is([aria-expanded="true"], .view-toggle[aria-pressed="true"], .phantom-launcher[aria-pressed="true"]) { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
+.app-shell .canvas-navigation button[aria-pressed="true"] { background-color: var(--on); color: var(--on-ink); }
+.app-shell .canvas-navigation button:is([aria-expanded="true"], .view-toggle[aria-pressed="true"], .phantom-launcher[aria-pressed="true"]) { background-color: var(--control-fill); color: var(--ink); box-shadow: none; }
 .app-shell .canvas-navigation button:disabled { opacity: .4; }
 .app-shell .canvas-navigation .zoom-value { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 60px; padding: 0 10px; border-radius: var(--r-pill); font: var(--t-support); font-weight: 500; font-variant-numeric: tabular-nums; }
 /* Groups are separated by space; a rule would be one more edge in the pill. */
 .app-shell .canvas-navigation > i { width: 8px; height: 0; margin: 0; background: none; }
 
 /* ---------- Dock: one row. Activity reads on the left, creation on the right ---------- */
-.app-shell .activity-dock { flex-direction: row; align-items: center; gap: 12px; height: var(--dock-h); padding: 0 8px; border-radius: var(--r-pill); overflow-x: auto; }
+.app-shell .activity-dock { flex-direction: row; align-items: center; gap: var(--dock-gap); height: var(--dock-h); padding: var(--dock-pad); border-radius: var(--r-pill); overflow: visible; }
 .app-shell .activity-dock .activity-strip { min-height: 0; padding: 0; gap: 2px; }
-.app-shell .activity-dock .activity-strip button { height: 36px; min-height: 36px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-support); }
+.app-shell .activity-dock .activity-strip button { height: var(--dock-control-size); min-height: var(--dock-control-size); padding: 0 12px; border-radius: var(--r-pill); font: var(--t-support); }
 .app-shell .activity-dock .activity-strip button[aria-expanded="true"] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
-.app-shell .activity-dock .dock-main { height: auto; padding: 0; gap: 6px; overflow: visible; }
+.app-shell .activity-dock .dock-main { height: auto; min-width: 0; padding: 0; gap: 6px; overflow-x: auto; justify-content: safe center; scrollbar-width: none; }
 /* Creation discs are neutral keys, round like every other control in a pill,
    and stand apart from the readings as their own group. */
-.app-shell .activity-dock .dock-main { margin-left: 4px; gap: 8px; }
+.app-shell .activity-dock .dock-main { margin-left: 0; gap: var(--dock-gap); }
 .app-shell .activity-dock .dock-main .dock-action {
-  width: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 50%;
-  background: var(--fill-2); color: var(--ink); box-shadow: var(--shadow-rim);
+  width: var(--dock-control-size); min-width: var(--dock-control-size); height: var(--dock-control-size); padding: 0; border-radius: 50%;
+  background: var(--control-fill); color: var(--ink); box-shadow: none;
 }
 .app-shell .activity-dock .dock-main .dock-action svg { width: 18px; height: 18px; color: inherit; }
 .app-shell .activity-dock .dock-main .dock-action > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.app-shell .activity-dock .dock-main .dock-action:hover:not(:disabled) { background: var(--fill-3); color: var(--ink); }
+.app-shell .activity-dock .dock-main .dock-action:hover:not(:disabled) { background-color: var(--control-hover); background-clip: content-box; color: var(--ink); }
 .app-shell .activity-dock .dock-main .dock-action:hover:not(:disabled) svg { color: inherit; }
-.app-shell .activity-dock .dock-main .dock-action:disabled { opacity: .45; }
+.app-shell .activity-dock .dock-main .dock-action:disabled { background: var(--control-fill); color: var(--ink-3); opacity: 1; }
 .app-shell .activity-dock .dock-main .dock-action:is(.active, [aria-expanded="true"]),
 .app-shell .activity-dock .dock-main .dock-action:is(.active, [aria-expanded="true"]):hover:not(:disabled) { background: var(--on); color: var(--on-ink); }
 .app-shell .activity-dock .dock-main > i { display: none; }
@@ -94,7 +85,7 @@
 .app-shell .canvas .canvas-view-controls .canvas-navigation { scrollbar-width: none; }
 .app-shell .activity-dock::-webkit-scrollbar,
 .app-shell .canvas .canvas-view-controls .canvas-navigation::-webkit-scrollbar { display: none; }
-.app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main .dock-action.dock-hub { width: 36px; padding: 0; justify-content: center; }
+.app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main .dock-action.dock-hub { width: var(--dock-control-size); padding: 0; justify-content: center; }
 .app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main .dock-action.dock-hub > span,
 .app-shell .activity-dock[data-fit="tight"] .activity-notch strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .activity-summary-action > span { display: none; }
@@ -107,3 +98,59 @@
 .app-shell .canvas .canvas-view-controls .canvas-navigation:is([data-fit="compact"], [data-fit="tight"]) > i { width: 4px; }
 .app-shell .canvas .canvas-view-controls .canvas-navigation[data-fit="tight"] button:is([aria-label="Herramienta de mano"], [aria-label="Gestos y atajos del canvas"]),
 .app-shell .canvas .canvas-view-controls .canvas-navigation[data-fit="tight"] > i { display: none; }
+
+.app-shell :is(.workspace-header, .canvas-navigation, .focus-return, .activity-dock) :is(button, input, kbd) { border: 0; box-shadow: none; }
+.app-shell :is(.workspace-header, .canvas-navigation, .focus-return, .activity-dock) button { transition: background-color var(--dur-fast) linear, color var(--dur-fast) linear; }
+.app-shell :is(.workspace-header, .canvas-navigation, .focus-return, .activity-dock) button:focus-visible { outline: var(--focus-width) solid var(--on); outline-offset: var(--focus-offset); }
+.app-shell :is(.header-controls .icon-button, .canvas-navigation > button, .workspace-header > .rail-toggle) {
+  width: var(--target); height: var(--target); min-width: var(--target); min-height: var(--target);
+  padding: calc((var(--target) - var(--control-size)) / 2); background-color: var(--control-fill); background-clip: content-box; border-radius: 50%; color: var(--ink);
+}
+.app-shell :is(.header-controls .icon-button, .canvas-navigation > button, .workspace-header > .rail-toggle):hover:not(:disabled) { background-color: var(--control-hover); }
+.app-shell :is(.header-controls .icon-button, .canvas-navigation > button, .workspace-header > .rail-toggle):active:not(:disabled) { background-color: var(--control-press); }
+.app-shell .canvas-navigation > .zoom-value { width: auto; padding-inline: 10px; border-radius: var(--r-pill); }
+.app-shell .search-command { min-height: var(--control-size); background: var(--control-fill); }
+.app-shell .search-command:hover:not(:disabled) { background: var(--control-hover); }
+.app-shell .search-command:active:not(:disabled) { background: var(--control-press); }
+.app-shell :is(.workspace-identity, .focus-return) button { border-radius: var(--r-row); background: transparent; }
+.app-shell :is(.workspace-identity, .focus-return) button:hover:not(:disabled) { background: var(--row-hover); }
+.app-shell :is(.workspace-identity, .focus-return) button:active:not(:disabled) { background: var(--row-press); }
+.app-shell .activity-dock .dock-main .dock-action:active:not(:disabled) { background-color: var(--control-press); background-clip: content-box; scale: none; }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary { width: auto; padding: 0 18px; gap: 8px; border-radius: var(--r-pill); background: var(--on); color: var(--on-ink); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary > span { display: inline; position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:hover:not(:disabled) { background-color: var(--on-hover); color: var(--on-ink); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:active:not(:disabled) { background-color: var(--on-press); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:disabled,
+.app-shell :is(.workspace-header, .canvas-navigation, .focus-return) button:disabled { background-color: var(--control-fill); color: var(--ink-3); opacity: 1; }
+.app-shell .activity-dock .dock-main button.dock-action.dock-hub { width: var(--dock-control-size); min-width: var(--dock-control-size); height: var(--dock-control-size); padding: 0; border-radius: 50%; background: var(--control-fill); color: var(--ink); justify-content: center; }
+.app-shell .activity-dock .dock-main button.dock-action.dock-hub > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.app-shell .activity-dock .dock-main button.dock-action.dock-hub svg { width: var(--glyph-primary); height: var(--glyph-primary); color: inherit; }
+.app-shell .activity-dock .dock-main button.dock-action.dock-hub:hover:not(:disabled) { background-color: var(--control-hover); background-clip: content-box; }
+.app-shell .activity-dock .dock-main button.dock-action.dock-hub:active:not(:disabled) { background-color: var(--control-press); background-clip: content-box; }
+.app-shell .activity-dock .dock-main button.dock-action.dock-hub:disabled { color: var(--ink-3); }
+.app-shell .activity-dock .dock-main button:focus-visible { outline-offset: calc(-1 * var(--focus-offset)); }
+.app-shell .activity-dock .dock-main > i { display: none; }
+
+.app-shell .control-segmented { display: inline-flex; align-items: center; flex-wrap: nowrap; height: var(--seg-height); padding: var(--seg-pad); gap: var(--seg-gap); border: 0; border-radius: var(--r-pill); background: var(--control-fill); box-shadow: none; }
+.app-shell .control-segmented > button { position: relative; display: grid; place-items: center; height: calc(var(--seg-height) - 2 * var(--seg-pad)); min-height: 0; min-width: 28px; width: auto; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: transparent; box-shadow: none; color: var(--muted); transition: background-color var(--dur-fast) linear; }
+.app-shell .control-segmented > button::after { content: ""; position: absolute; inset: calc((28px - var(--target)) / 2) 0; }
+.app-shell .control-segmented > button:hover:not(:disabled) { background: var(--row-hover); }
+.app-shell .control-segmented > button:active:not(:disabled) { background: var(--row-press); }
+.app-shell .control-segmented > button:is([aria-checked="true"], [aria-pressed="true"]):not(:disabled) { background: var(--on); color: var(--on-ink); }
+.app-shell .control-segmented > button:is([aria-checked="true"], [aria-pressed="true"]):active:not(:disabled) { background: var(--on-press); }
+.app-shell .control-segmented > button:disabled { background: var(--control-fill); color: var(--ink-3); opacity: 1; }
+
+@media (pointer: coarse) {
+  .app-shell { --target: 44px; }
+  .app-shell :is(.workspace-header, .focus-return) button { min-height: var(--target); }
+  .app-shell .control-segmented > button { min-width: var(--target); }
+  .app-shell .activity-dock { padding-block: 10px; }
+  .app-shell .activity-dock .activity-strip button { min-height: var(--target); }
+  .app-shell .activity-dock .dock-main .dock-action,
+  .app-shell .activity-dock .dock-main button.dock-action.dock-hub { min-width: var(--target); height: var(--target); padding: 2px; background-clip: content-box; }
+  .app-shell .activity-dock .dock-main .dock-action.dock-primary { padding: 2px 18px; background-clip: content-box; }
+  .app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main button.dock-action.dock-hub { padding: 2px; background-clip: content-box; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :is(.workspace-header, .canvas-navigation, .focus-return, .activity-dock, .control-segmented) button { transition: none !important; }
+}

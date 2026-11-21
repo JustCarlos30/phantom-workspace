@@ -28,3 +28,21 @@ test('each provider keeps a distinct silhouette', () => {
   const bodies = ['ClaudeGlyph', 'OpenCodeGlyph', 'CodexGlyph', 'ShellGlyph', 'AgentGlyph'].map(glyphBody);
   assert.equal(new Set(bodies.map(b => b.replace(/export function \w+/, ''))).size, bodies.length);
 });
+
+test('rail badges keep their shared 18px line glyph on selection and use flat state colour', () => {
+  const css = read('src/sidebar.css');
+  assert.match(glyphs, /strokeWidth: 1\.75/);
+  assert.match(read('src/components/ShellIcons.jsx'), /strokeWidth="1\.75"/);
+  assert.match(sidebar, /ProviderGlyph[^>]*size=\{18\}/);
+  assert.match(sidebar, /<Icon size=\{18\} variant="line"/);
+  assert.doesNotMatch(sidebar, /rail-session-dot|active=\{active\}/);
+  assert.match(sidebar, /data-state=\{row.needsYou \? 'attention' : row.tone === 'working' \? 'working' : 'rest'\}/);
+  assert.match(css, /\.rail-panel-row > button > \.rail-agent-mark\s*\{[^}]*width: var\(--badge-size\); height: var\(--badge-size\);[^}]*border-radius: 50%; background: var\(--badge-neutral\); color: var\(--badge-ink\); box-shadow: none/);
+  assert.match(css, /\.rail-session-row\[data-state="working"\] > button > \.rail-agent-mark \{ background: var\(--badge-working\)/);
+  assert.match(css, /\.rail-session-row\[data-state="attention"\] > button > \.rail-agent-mark \{ background: var\(--badge-attention\)/);
+  for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!selector.includes('rail-agent-mark')) continue;
+    assert.doesNotMatch(selector, /:hover|:active|\.selected|aria-current/);
+    assert.doesNotMatch(body, /gradient|drop-shadow|scale\(/);
+  }
+});

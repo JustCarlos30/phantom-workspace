@@ -46,6 +46,14 @@ try {
   const panel = page.locator(`[data-node-id="${session.nodeId}"]`);
   const mapGeometry = await panel.evaluate(el => [el.style.left, el.style.top, el.style.width, el.style.height]);
   await page.waitForTimeout(800);
+  const railRow = page.locator('.rail-session-row').first(), badge = railRow.locator('.rail-agent-mark');
+  const rowBounds = await railRow.boundingBox();
+  const badgeStyle = await badge.evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, glyph: el.innerHTML }));
+  await railRow.locator('button').first().hover(); await page.mouse.down(); await page.waitForTimeout(160);
+  assert.deepEqual(await railRow.boundingBox(), rowBounds, 'Rail press has no scale or displacement');
+  assert.equal(await railRow.evaluate(el => getComputedStyle(el).borderRadius), '12px');
+  assert.deepEqual(await badge.evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, glyph: el.innerHTML })), badgeStyle);
+  await page.mouse.move(900, 20); await page.mouse.up();
   const origin = await panel.boundingBox();
   await page.evaluate(() => {
     window.flipLog = [];

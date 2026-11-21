@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import './appearance-preferences.test.mjs';
 import { ACCENTS, accentColor, defaults, normalizeAppearance } from '../src/hooks/useAppearance.js';
 
-// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E2).
+// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E3).
 // Shared opaque material, one masked ring and an exact per-file edge budget.
 // A failure names the file and the value; fix the CSS, or if the
 // rule itself should change, change it here and in DESIGN.md together.
@@ -31,7 +31,7 @@ const split = (value, separator) => {
 };
 
 test('radii come from the three shapes', () => {
-  const allowed = /^(var\(--r-(mark|ctl|obj|isle|pill)\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
+  const allowed = /^(var\(--r-(mark|ctl|row|obj|isle|pill)\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
   const bad = [];
   for (const { name, css } of sheets)
     for (const value of declarations(css, 'border(?:-[a-z]+)*-radius'))
@@ -40,6 +40,7 @@ test('radii come from the three shapes', () => {
   assert.deepEqual(bad, [], 'Use --r-ctl (control), --r-obj (object) or --r-isle (island); --r-mark and --r-pill for marks and chips.');
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   for (const name of ['obj', 'isle']) assert.equal(rootDeclarations(canvas, `--r-${name}`)[0], '24px');
+  for (const name of ['ctl', 'row']) assert.equal(rootDeclarations(canvas, `--r-${name}`)[0], '12px');
 });
 
 test('shadows use chrome or matte workplane elevations, or a state ring', () => {
@@ -96,7 +97,7 @@ test('retired tokens stay retired', () => {
 
 // One box per object: an edge is drawn by the thing you can move, not by what
 // is inside it. The budget is the number of border declarations per sheet; it
-// may only go down. When you remove edges, lower the number in the same change.
+// is exact. Every delta needs its selector and reason recorded in DESIGN.md.
 const drawnEdges = css => [...css.matchAll(/(?<![-\w])border(?:-(?:top|right|bottom|left|inline|block)(?:-(?:start|end))?)?\s*:\s*([^;}]+)/g)]
   .filter(match => !/^(0|none)\b/.test(match[1].trim())).length;
 test('drawn edges stay within budget', () => {
@@ -126,16 +127,19 @@ test('sidebar keeps neutral selection, compact status and consistent control siz
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
   const source = readFileSync(path.join(root, 'src/components/SidebarPanels.jsx'), 'utf8');
-  for (const [name, value] of Object.entries({ bg: '#020203', surface: '#0b0b0c', 'surface-2': '#111113', 'surface-3': '#1d1d20', 'glyph-primary': '20px', 'glyph-secondary': '16px', target: '40px', 'row-simple': '44px', 'row-detail': '56px' })) {
+  for (const [name, value] of Object.entries({ bg: '#020203', surface: '#0b0b0c', 'surface-2': '#111113', 'surface-3': '#1d1d20', 'glyph-primary': '18px', 'glyph-secondary': '16px', 'glyph-stroke': '1.75', target: '40px', 'row-simple': '44px', 'row-detail': '56px', 'rail-width': '272px', 'badge-size': '32px', gutter: '12px', 'rail-group-inset': '20px', 'rail-gap': '8px', 'row-selected': '#1d1d20' })) {
     assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
   }
   assert.doesNotMatch(rootDeclarations(canvas, '--glass-tint')[0], /--accent/);
-  assert.match(sidebar, /\.rail-panel-row\.selected\s*\{[^}]*background: var\(--surface-3\);[^}]*color: var\(--ink\)/);
-  assert.match(sidebar, /\.rail-session-row:has\(\.rail-session-dot\.warning\) \.rail-session-status\s*\{\s*color: var\(--attention\)/);
+  assert.match(sidebar, /\.rail-panel-row\.selected\s*\{[^}]*background-color: var\(--row-selected\);[^}]*color: var\(--ink\)/);
+  assert.match(sidebar, /\.rail-session-meta\s*\{[^}]*color: var\(--muted\)/);
+  assert.doesNotMatch(sidebar, /rail-session-dot|\.rail-session-status\s*\{[^}]*color: var\(--(?:attention|working)\)/);
   assert.doesNotMatch(sidebar, /box-shadow: 0 0 0 2px var\(--(?:attention|working)\)/);
   assert.match(sidebar, /@media \(pointer: coarse\)[\s\S]*--target: 44px/);
   assert.match(source, /className="rail-session-status">\{row.statusLabel\}/);
   assert.match(source, /aria-current=\{active \? 'true' : undefined\}/);
+  assert.match(source, /row\.providerLabel[\s\S]*className="rail-session-status">\{row.statusLabel\}[\s\S]*row\.time &&/);
+  assert.match(source, /aria-describedby=\{`rail-meta-\$\{row.id\}`\}/);
 });
 
 test('sidebar status text retains AA over its selected neutral surface', () => {
@@ -152,13 +156,36 @@ test('sidebar status text retains AA over its selected neutral surface', () => {
   const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
   assert.match(sidebar, /background-color: var\(--surface\)/);
   assert.match(sidebar, /background-image: var\(--object-fill\)/);
-  assert.match(sidebar, /\.rail-panel-row\.selected\s*\{[^}]*background: var\(--surface-3\)/);
-  for (const plane of ['object-top', 'object-bottom', 'surface-3']) {
-    for (const ink of ['ink', 'ink-on-glass', 'working', 'attention']) {
-      const a = luminance(rgb(ink)), b = luminance(rgb(plane));
+  assert.match(sidebar, /\.rail-panel-row\.selected\s*\{[^}]*background-color: var\(--row-selected\)/);
+  const planes = ['object-top', 'object-bottom', 'row-selected'].map(name => [name, rgb(name)]);
+  planes.push(['selected-hover', rgb('row-selected').map(value => value * .96 + .04)], ['selected-press', rgb('row-selected').map(value => value * .75)]);
+  for (const [plane, values] of planes) {
+    for (const ink of ['ink', 'muted', 'ink-on-glass', 'working', 'attention']) {
+      const a = luminance(rgb(ink)), b = luminance(values);
       assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${ink} on sidebar ${plane}`);
     }
   }
+});
+
+test('E3 controls share flat levels, a single segmented recipe and tonal row feedback', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const shell = sheets.find(sheet => sheet.name === 'src/shell.css').css;
+  const sidebar = sheets.find(sheet => sheet.name === 'src/sidebar.css').css;
+  for (const [name, value] of Object.entries({ on: '#ece6d8', 'on-hover': '#f6f1e6', 'on-press': '#d6d0c2', 'control-size': '36px', 'dock-control-size': '40px', 'control-fill': '#ffffff14', 'control-hover': '#ffffff1f', 'control-press': '#ffffff0a', 'seg-height': '36px', 'seg-pad': '4px', 'seg-gap': '4px', 'row-hover': '#ffffff0a', 'row-press': '#00000040', 'row-air': '2px', 'row-selected-hover': 'color-mix(in srgb, var(--row-selected), #fff 4%)', 'row-selected-press': 'color-mix(in srgb, var(--row-selected), #000 25%)', 'dur-fast': '120ms', 'dock-h': '64px', 'dock-clearance': '24px', 'dock-pad': '12px', 'dock-gap': '12px', 'focus-width': '2px', 'focus-offset': '2px', divider: '#ffffff12' }))
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value, name);
+  assert.match(shell, /\.control-segmented\s*\{[^}]*height: var\(--seg-height\); padding: var\(--seg-pad\); gap: var\(--seg-gap\); border: 0; border-radius: var\(--r-pill\); background: var\(--control-fill\)/);
+  assert.match(shell, /\.control-segmented > button\s*\{[^}]*height: calc\(var\(--seg-height\) - 2 \* var\(--seg-pad\)\)/);
+  assert.match(shell, /\.dock-action\.dock-primary\s*\{[^}]*padding: 0 18px; gap: 8px;[^}]*background: var\(--on\); color: var\(--on-ink\)/);
+  assert.match(sidebar, /border-block: var\(--row-air\) solid transparent; background-clip: padding-box; border-radius: var\(--r-row\)/);
+  assert.match(sidebar, /\.rail-panel-group[^{}]*::before\s*\{[^}]*height: var\(--divider-width\); background: var\(--divider\)/);
+  for (const value of declarations(sidebar + shell, '(?:scale|translate)')) assert.equal(value, 'none');
+  assert.match(canvas, /\.pc-send, \.pc-modes button, \.pc-field button, \.pd-tabs button\):active:not\(:disabled\)\s*\{\s*scale: none/);
+  assert.match(shell, /@media \(pointer: coarse\)[\s\S]*--target: 44px/);
+  assert.match(shell, /@media \(prefers-reduced-motion: reduce\)[\s\S]*transition: none !important/);
+  const luminance = hex => hex.slice(1).match(/../g).map(value => parseInt(value, 16) / 255)
+    .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+    .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+  for (const state of ['working', 'attention']) assert.ok(1.05 / (luminance(rootDeclarations(canvas, `--badge-${state}`)[0]) + .05) >= 3, `White glyph on ${state} badge retains 3:1`);
 });
 
 test('object chrome has a vertical fill, one ring and accessible opaque material', () => {
@@ -171,11 +198,11 @@ test('object chrome has a vertical fill, one ring and accessible opaque material
   assert.equal(declarations(tokens, '--glass-sheen')[0], 'var(--object-fill)');
   for (const [name, value] of Object.entries({ 'object-top': '#0f0f11', 'object-bottom': '#070708', 'object-fill': 'linear-gradient(var(--object-top), var(--object-bottom))', 'object-ring-width': '1px', 'object-edge-top': 'color-mix(in srgb, #fff 22%, transparent)', 'object-edge-bottom': 'color-mix(in srgb, #fff 6%, transparent)', 'object-ring': 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))', 'selected-edge-top': 'color-mix(in srgb, #fff 36%, transparent)', 'selected-edge-bottom': 'color-mix(in srgb, #fff 10%, transparent)' }))
     assert.equal(declarations(tokens, `--${name}`)[0], value);
-  assert.equal(declarations(tokens, '--on')[0], '#f2f0eb');
+  assert.equal(declarations(tokens, '--on')[0], '#ece6d8');
   assert.equal(declarations(tokens, '--on-ink')[0], '#141414');
   const chrome = declarations(tokens, '--shadow-chrome')[0];
   assert.doesNotMatch(chrome, /\binset\b/);
-  assert.match(declarations(tokens, '--ease-spring')[0], /^linear\(/);
+  assert.equal(declarations(tokens, '--ease-spring')[0], 'var(--ease-settle)');
   assert.match(canvas, /@media\s*\(prefers-contrast:\s*more\)/);
   for (const preference of ['prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
     const block = canvas.slice(canvas.indexOf(`@media (${preference})`)).match(/:root\s*\{([^}]+)\}/)?.[1];
@@ -400,7 +427,18 @@ test('deep black planes step up in order and menus share the object material', (
   assert.doesNotMatch(menus, /outline:\s*2px/);
 });
 
-test('categories are decorative neutrals and active switches are ivory with dark indicators', () => {
+test('stable badge palette is defined, rail uses state and active switches stay ivory with dark indicators', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  for (const [name, value] of Object.entries({ steel: 'oklch(0.64 0.11 250)', mint: 'oklch(0.64 0.10 165)', honey: 'oklch(0.64 0.11 85)', coral: 'oklch(0.64 0.11 30)', violet: 'oklch(0.64 0.10 300)', petrol: 'oklch(0.64 0.10 210)', neutral: 'oklch(0.36 0.008 260)', working: '#5d7521', attention: '#b5872f', ink: '#fff' }))
+    assert.equal(rootDeclarations(canvas, `--badge-${name}`)[0], value);
+  for (const { name, css } of sheets) for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const value of declarations(body, 'background(?:-color|-image)?')) {
+      if (!/var\(--badge-/.test(value)) continue;
+      assert.equal(name, 'src/sidebar.css');
+      assert.match(selectors.trim(), /(?:\.rail-agent-mark|\.project-initials)$/);
+      assert.doesNotMatch(value, /--badge-(?:steel|mint|honey|coral|violet|petrol)/, 'Type mode is not enabled');
+    }
+  }
   const source = readFileSync(path.join(root, 'src/components/Settings.jsx'), 'utf8');
   const categories = source.match(/const CATEGORIES = \[([\s\S]*?)\n\];/)[1];
   assert.equal([...categories.matchAll(/\['[^']+', '[^']+', \w+\]/g)].length, 8);
@@ -424,9 +462,9 @@ test('categories are decorative neutrals and active switches are ivory with dark
 });
 
 test('attention aliases colour only the masked panel ring and compact marks, never surfaces or wells', () => {
-  const aliases = new Set(['--attention', '--warning', '--tone', '--pc-tone']);
+  const aliases = new Set(['--attention', '--warning', '--tone', '--pc-tone', '--badge-attention']);
   const references = value => [...value.matchAll(/var\((--[\w-]+)/g)].map(match => match[1]);
-  const usesAttention = value => /#f5c04a\b|rgba?\(\s*245[, ]+192[, ]+74\b/i.test(value) || references(value).some(name => aliases.has(name));
+  const usesAttention = value => /#(?:f5c04a|b5872f)\b|rgba?\(\s*245[, ]+192[, ]+74\b/i.test(value) || references(value).some(name => aliases.has(name));
   let changed;
   do {
     changed = false;
@@ -445,6 +483,7 @@ test('attention aliases colour only the masked panel ring and compact marks, nev
       for (const selector of split(selectors.trim(), ',')) {
         if (/^background(?:-color)?$/.test(property) && marks.test(selector)) continue;
         if (property === 'stroke' && selector.includes('.phantom-face')) continue;
+        if (name === 'src/sidebar.css' && property === 'background' && value.trim() === 'var(--badge-attention)' && selector === '.rail-session-row[data-state="attention"] > button > .rail-agent-mark') continue;
         if (name === 'src/canvas-ui.css' && property === 'background' && value.trim() === 'var(--attention-ring)' && /^\.canvas-node\[data-panel-state="attention"\]::(?:before|after)$/.test(selector)) continue;
         bad.push(`${name}: ${selector}: ${property}: ${value}`);
       }
