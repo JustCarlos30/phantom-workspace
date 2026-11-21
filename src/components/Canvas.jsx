@@ -218,7 +218,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       last.world = el;
     }
     if (root.current) {
-      for (const [key, value] of Object.entries(gridStyle(c))) put(root.current, 'root', key, value);
+      for (const [key, value] of Object.entries(gridStyle({ ...c, x: c.x + (stage.current?.offsetLeft || 0) }))) put(root.current, 'root', key, value);
       last.root = root.current;
     }
     const label = zoomLabel.current, percent = `${Math.round(c.zoom * 100)}`;
@@ -378,7 +378,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       stopInertia();
       e.preventDefault();
       if (zooming) e.stopPropagation();
-      const r = el.getBoundingClientRect();
+      const r = stage.current.getBoundingClientRect();
       if (zooming) zoomAt(cameraRef.current.zoom * wheelZoomFactor(dy, { discrete: isDiscreteWheel(e), pinch: e.ctrlKey }), e.clientX - r.left, e.clientY - r.top, false);
       else updateCamera({ ...cameraRef.current, x: cameraRef.current.x - (e.shiftKey && !dx ? dy : dx), y: cameraRef.current.y - (e.shiftKey && !dx ? 0 : dy) });
     };
@@ -405,7 +405,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       if (e.key === '?') setNavigationMenu(menu => menu === 'help' ? null : 'help');
       if (e.key === 'Enter' && selected[0]) { e.preventDefault(); onFocus(selected[0]); }
       if (e.key === '0' && !e.ctrlKey && !e.metaKey) fitRef.current();
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selected[0]) { e.preventDefault(); const r = root.current.getBoundingClientRect(); onMenu(selected[0], r.x + size.width / 2, r.y + 100); }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selected[0]) { e.preventDefault(); const r = stage.current.getBoundingClientRect(); onMenu(selected[0], r.x + size.width / 2, r.y + 100); }
       if (e.key === 'Tab' && e.target === root.current && nodes.length) { e.preventDefault(); const index = nodes.findIndex(n => n.id === selected[0]); const n = nodes[(index + (e.shiftKey ? nodes.length - 1 : 1)) % nodes.length]; onSelect([n.id]); }
     };
     const release = e => { if (!e || e.type === 'blur' || e.code === 'Space') { space.current = false; setSpaceHeld(false); } if (e?.type === 'blur') finishRef.current?.(); };
@@ -438,7 +438,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     const w = Math.round(Math.max(node.type === 'terminal' ? 400 : node.type === 'zone' ? 240 : node.type === 'reference' ? 180 : 320, width));
     return { width: w, height: media ? Math.round(REFERENCE_CHROME + w / node.data.aspect) : Math.round(Math.max(node.type === 'zone' ? 160 : node.type === 'reference' ? 150 : 240, height)) };
   };
-  const worldPoint = (clientX, clientY) => { const r = root.current.getBoundingClientRect(), c = cameraRef.current; return { x: (clientX - r.left - c.x) / c.zoom, y: (clientY - r.top - c.y) / c.zoom }; };
+  const worldPoint = (clientX, clientY) => { const r = stage.current.getBoundingClientRect(), c = cameraRef.current; return { x: (clientX - r.left - c.x) / c.zoom, y: (clientY - r.top - c.y) / c.zoom }; };
   // A paste or drop becomes panels: files and image URLs as references, links
   // as link cards, anything else as a note. Each lands where the pointer is.
   const addItems = async (items, point) => {
@@ -470,7 +470,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       if (owner && owner !== document.body && !root.current?.contains(owner)) return;
       const items = readTransfer(e.clipboardData); if (!items.length) return;
       e.preventDefault();
-      const r = root.current.getBoundingClientRect(), p = pointer.current && pointer.current.x >= r.left && pointer.current.x <= r.right && pointer.current.y >= r.top && pointer.current.y <= r.bottom ? pointer.current : { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      const r = stage.current.getBoundingClientRect(), p = pointer.current && pointer.current.x >= r.left && pointer.current.x <= r.right && pointer.current.y >= r.top && pointer.current.y <= r.bottom ? pointer.current : { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       addItemsRef.current(items, worldPoint(p.x, p.y));
     };
     window.addEventListener('paste', paste); return () => window.removeEventListener('paste', paste);
@@ -527,7 +527,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     const { clientX, clientY } = g.last;
     const dx = clientX - g.startX, dy = clientY - g.startY;
     if (g.kind === 'select') {
-      const r = root.current.getBoundingClientRect();
+      const r = stage.current.getBoundingClientRect();
       const box = { x: Math.min(g.startX, clientX) - r.left, y: Math.min(g.startY, clientY) - r.top, width: Math.abs(dx), height: Math.abs(dy) };
       setMarquee(box);
       const c = g.camera;
@@ -615,7 +615,6 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     focus: id => latest.current.onFocus(id),
     watchAudio: node => latest.current.watchAudio(node),
     chatPulse: (id, pulse, state = 'rest') => setChatPulses(current => current[id]?.pulse === pulse && current[id]?.state === state ? current : { ...current, [id]: { pulse, state } }),
-    watchAudio: node => latest.current.watchAudio(node),
     select: ids => latest.current.onSelect(ids),
     press: (...args) => latest.current.press(...args),
     click: (...args) => latest.current.click(...args),

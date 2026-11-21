@@ -56,7 +56,7 @@ try {
   // card appears. Start input checks from a settled, fully visible fixture.
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();
   await page.waitForTimeout(850);
-  let bounds = await canvas.boundingBox();
+  let bounds = await page.locator('.canvas-stage').boundingBox();
 
   // Bursts must accumulate from the latest input, not from the last React render.
   const beforeBurst = await matrix();
@@ -74,7 +74,7 @@ try {
   const note = page.locator('.note-editor').first();
   const noteBounds = await note.boundingBox();
   const px = noteBounds.x + 100, py = noteBounds.y + 100;
-  bounds = await canvas.boundingBox();
+  bounds = await page.locator('.canvas-stage').boundingBox();
   const old = await matrix();
   await page.mouse.move(px, py); await page.keyboard.down('Control'); await page.mouse.wheel(0, -45); await page.keyboard.up('Control');
   await page.waitForTimeout(100);
@@ -104,7 +104,7 @@ try {
   assert.equal(await transform(), fitted);
   await canvas.focus(); await page.keyboard.down('Space');
   // Empty stage below the fitted cards; the top-left corner belongs to the project rail.
-  await page.mouse.move(bounds.x + 760, bounds.y + 650); await page.mouse.down(); await page.mouse.move(bounds.x + 800, bounds.y + 675); await page.mouse.up(); await page.keyboard.up('Space');
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height - 60); await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width / 2 + 40, bounds.y + bounds.height - 35); await page.mouse.up(); await page.keyboard.up('Space');
   assert.notEqual(await transform(), fitted);
   assert.ok(!(await canvas.getAttribute('class')).includes('hand-tool'));
   checks.push('Space temporarily pans; editor keystrokes retain ownership');
@@ -261,7 +261,7 @@ try {
   assert.deepEqual(await matrix(), framed);
   checks.push('Normal-motion zoom, fit and card framing interrupt active inertia, settle exactly and persist through reload');
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click(); await page.waitForTimeout(250);
-  bounds = await canvas.boundingBox();
+  bounds = await page.locator('.canvas-stage').boundingBox();
   await page.mouse.move(bounds.x + 15, bounds.y + 80); await page.mouse.down();
   await page.mouse.move(bounds.x + bounds.width - 15, bounds.y + bounds.height - 100, { steps: 10 }); await page.mouse.up();
   assert.equal(await page.locator('.canvas-node.selected').count(), 2);

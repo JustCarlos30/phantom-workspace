@@ -33,7 +33,7 @@
   transition: background-color var(--dur-fast) linear;
 }
 .project-switcher > summary::-webkit-details-marker { display: none; }
-.project-switcher > summary > .project-initials { display: none; }
+.project-switcher > summary > .project-initials { --project-mark-size: var(--badge-size); }
 .project-switcher > summary:hover, .project-switcher[open] > summary { background: var(--row-hover); }
 .project-switcher > summary:active { background: var(--row-press); }
 .project-initials {
@@ -131,6 +131,7 @@
 .rail-attention.needs-you b { color: var(--attention); }
 
 /* Selection and attention retain independent, readable signals. */
+.rail-panel-row, .rail-panel-row > button:not(:focus-visible) { outline: 0; }
 .project-rail .rail-panel-row.selected { background-color: var(--row-selected); color: var(--ink); }
 .project-rail .rail-panel-row.selected:hover { background-color: var(--row-selected-hover); }
 .project-rail .rail-panel-row.selected:has(> button:active:not(:disabled)) { background-color: var(--row-selected-press); }
@@ -182,16 +183,16 @@
 /* Tools you reach for, not places you read: one row of round glass toggles
    (named by tooltip and for assistive tech) instead of four more list rows.
    The list above keeps the height for sessions. */
-.project-rail .rail-bottom { display: flex; flex-flow: row wrap; align-items: center; gap: var(--rail-gap); flex-shrink: 0; margin-top: auto; padding: 0 calc(var(--row-px) - (var(--target) - var(--control-size)) / 2) 0 var(--row-px); border: 0; }
+.project-rail .rail-bottom { display: flex; flex-flow: row wrap; align-items: center; gap: var(--rail-gap); flex-shrink: 0; margin-top: auto; padding: 0 0 0 var(--row-px); border: 0; }
 .project-rail .rail-bottom > button { position: relative; display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; background: var(--fill-2); box-shadow: var(--shadow-rim); color: var(--ink); }
 .project-rail .rail-bottom > button:hover:not(:disabled) { background: var(--fill-3); }
 .project-rail .rail-bottom > button:disabled { opacity: .45; }
 .project-rail .rail-bottom > button > svg { width: 20px; height: 20px; }
 .project-rail .rail-bottom > button > :is(span, kbd) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .project-rail .rail-bottom > button[aria-pressed=true] { background: var(--on); color: var(--on-ink); box-shadow: none; }
-.rail-system { display: flex; align-items: center; gap: var(--rail-gap); flex: 1 0 100%; min-height: 36px; min-width: 0; }
+.rail-system { display: flex; align-items: center; gap: var(--s-1); flex: 1 0 100%; min-height: 36px; min-width: 0; }
 .rail-system .host-indicator { display: block; flex: 1; min-width: 0; padding: 0; font: var(--t-micro); font-weight: 400; color: var(--ink-3); opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
-.rail-system .host-indicator i { display: inline-block; width: 6px; height: 6px; margin-right: 10px; vertical-align: middle; border-radius: 50%; }
+.rail-system .host-indicator i { display: inline-block; width: 6px; height: 6px; margin-right: var(--s-1); vertical-align: middle; border-radius: 50%; }
 .rail-system > button { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: none; color: var(--muted); }
 .rail-system > button:hover { background-color: var(--control-hover); color: var(--ink); }
 .rail-system > button.active { background-color: var(--control-fill); color: var(--ink); box-shadow: none; }

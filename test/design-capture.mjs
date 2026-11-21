@@ -338,7 +338,12 @@ try {
         });
         const stage = document.querySelector('.canvas-stage');
         const seg = document.querySelector('.canvas-navigation .control-segmented');
+        const primary = dock.querySelector('.dock-primary'), ps = getComputedStyle(primary);
+        const host = rail.querySelector('.host-indicator'), mark = rail.querySelector('.project-switcher > summary > .project-initials');
         return { rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), coarse, rows, controls,
+          primary: { bounds: rect(primary), icon: rect(primary.querySelector('svg')), label: rect(primary.querySelector('span')), direction: ps.flexDirection, padding: [ps.paddingLeft, ps.paddingRight], gap: ps.gap },
+          host: { text: host.textContent, clipped: host.scrollWidth > host.clientWidth, bounds: rect(host), next: rect(host.nextElementSibling) },
+          projectMark: { bounds: rect(mark), text: mark.textContent, radius: getComputedStyle(mark).borderRadius },
           tokens: Object.fromEntries(['rail-width', 'gutter', 'box-pad', 'row-detail', 'badge-size', 'glyph-primary', 'dock-h', 'dock-clearance', 'seg-height', 'seg-pad', 'seg-gap', 'focus-width'].map(name => [name, rs.getPropertyValue(`--${name}`).trim()])),
           segment: seg && { height: rect(seg).height, padding: getComputedStyle(seg).padding, gap: getComputedStyle(seg).gap, children: [...seg.children].filter(el => getComputedStyle(el).display !== 'none').map(el => rect(el).height) } };
       });
@@ -350,6 +355,18 @@ try {
       assert.ok(Math.abs(measurement.window.height - measurement.dock.bottom - 24) <= 1, 'Dock clears the window by 24px');
       assert.ok(measurement.dock.y - measurement.stage.bottom >= 24 - layoutUnit, 'Clipped work stage clears dock by at least 24px');
       assert.ok(measurement.dock.x - measurement.rail.right >= 24 - layoutUnit, 'Dock clears the rail');
+      dimension(measurement.stage.x, measurement.rail.right, 'Working stage excludes the expanded rail');
+      assert.equal(measurement.primary.direction, 'row'); assert.deepEqual(measurement.primary.padding, ['18px', '18px']); assert.equal(measurement.primary.gap, '8px');
+      dimension(measurement.primary.bounds.height, measurement.coarse ? 44 : 40, 'Primary height');
+      const { bounds, icon, label } = measurement.primary;
+      dimension(label.x - icon.right, 8, 'Primary icon-label gap');
+      dimension(icon.y + icon.height / 2, label.y + label.height / 2, 'Primary contents share a centre line');
+      dimension(icon.x - bounds.x, bounds.right - label.right, 'Primary contents are centred');
+      assert.ok(icon.y >= bounds.y && icon.bottom <= bounds.bottom && label.y >= bounds.y && label.bottom <= bounds.bottom, 'Primary contents fit inside the pill');
+      assert.equal(measurement.host.text, 'Host local conectado'); assert.equal(measurement.host.clipped, false, 'Host status is complete');
+      assert.ok(measurement.host.bounds.right <= measurement.host.next.x, 'Host status does not overlap the controls');
+      dimension(measurement.projectMark.bounds.width, 32, 'ProjectMark width'); dimension(measurement.projectMark.bounds.height, 32, 'ProjectMark height');
+      assert.equal(measurement.projectMark.text, 'TF'); assert.equal(measurement.projectMark.radius, '50%');
       for (const row of measurement.rows) {
         dimension(row.bounds.height, 56, 'Row height'); dimension(row.badge.width, 32, 'Badge width'); dimension(row.badge.height, 32, 'Badge height');
         dimension(row.glyph.width, 18, 'Glyph width'); dimension(row.glyph.height, 18, 'Glyph height'); assert.equal(row.stroke, '1.75px');
@@ -376,6 +393,11 @@ try {
       observations.push({ scene, ...measurement });
     };
     await measureChrome('rail-state-desktop');
+    const framedPanels = await page.locator('.canvas-node').evaluateAll(elements => elements.map(el => {
+      const panel = el.getBoundingClientRect(), stage = el.closest('.canvas-stage').getBoundingClientRect();
+      return { id: el.dataset.nodeId, left: panel.left, right: panel.right, stageLeft: stage.left, stageRight: stage.right };
+    }));
+    for (const panel of framedPanels) assert.ok(panel.left >= panel.stageLeft && panel.right <= panel.stageRight, `Fit keeps ${panel.id} clear of the rail: ${JSON.stringify(panel)}`);
     const attentionRow = page.getByRole('button', { name: `Ver ${stateNodes[1].title} en el mapa`, exact: true }).locator('..');
     const badgeSnapshot = () => attentionRow.locator('.rail-agent-mark').evaluate(el => {
       const s = getComputedStyle(el), r = el.getBoundingClientRect();
@@ -402,6 +424,10 @@ try {
     assert.equal(await attentionRow.locator('button').first().getAttribute('aria-current'), 'true');
     assert.deepEqual(await badgeSnapshot(), badgeBefore, 'Selection preserves the badge');
     const selectedFill = await rowFill('--row-selected-hover'); assert.equal(selectedFill.actual, selectedFill.expected);
+    const selection = await attentionRow.evaluate(row => [row, ...row.querySelectorAll('button')].map(el => ({ outline: getComputedStyle(el).outlineWidth, shadow: getComputedStyle(el).boxShadow, keyboardFocus: el.matches(':focus-visible') })));
+    for (const item of selection) assert.deepEqual(item, { outline: '0px', shadow: 'none', keyboardFocus: false }, 'Pointer selection has no extra contour');
+    observations.push({ scene: 'rail-selected', selection });
+    await shot('rail-selected');
     await attentionRow.locator('button').first().focus(); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
     const focus = await attentionRow.locator('button').first().evaluate(el => {
       const style = getComputedStyle(el);
@@ -410,23 +436,45 @@ try {
     assert.equal(focus.visible, true); assert.equal(focus.style, 'solid'); assert.equal(focus.token, '2px');
     assert.ok(focus.width > 0 && Math.abs(focus.width - 2) < 1 / focus.pixelRatio, 'Focus outline retains 2 CSS px with device-pixel snapping');
     observations.push({ scene: 'rail-keyboard-focus', ...focus });
-    await shot('rail-selected');
+    await shot('rail-keyboard-focus');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1100, 760)); await delay(400);
     await measureChrome('rail-state-1100'); await shot('rail-narrow');
     const dockActions = page.locator('.dock-main button');
     assert.deepEqual(await page.locator('.dock-main [data-type]').evaluateAll(elements => elements.map(el => el.dataset.type)), ['terminal', 'browser', 'note', 'zone']);
-    for (let index = 0; index < await dockActions.count(); index++) {
-      await dockActions.nth(index).focus();
-      assert.equal(await dockActions.nth(index).evaluate(el => {
+    const dockNames = ['Nueva sesión', 'Navegador', 'Nota', 'Zona', 'Trabajo', 'Git', 'Entorno', 'Más'];
+    assert.equal(await dockActions.count(), dockNames.length);
+    await dockActions.first().focus(); await page.keyboard.press('Shift+Tab');
+    for (const name of dockNames) {
+      await page.keyboard.press('Tab');
+      const action = create.getByRole('button', { name, exact: true });
+      assert.equal(await action.count(), 1, `Dock tool has an accessible name: ${name}`);
+      const reachability = await action.evaluate(el => {
         const r = el.getBoundingClientRect(), shelf = el.closest('.dock-main').getBoundingClientRect();
-        return r.left >= shelf.left - 1 && r.right <= shelf.right + 1 && (!!el.getAttribute('title') || el.getAttribute('aria-label') === 'Más');
-      }), true, 'Every dock tool remains reachable by keyboard');
+        return { focused: document.activeElement === el, tabbable: el.tabIndex >= 0 && !el.disabled, visible: el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }),
+          contained: r.width > 0 && r.height > 0 && r.left >= shelf.left - 1 && r.right <= shelf.right + 1 && r.top >= shelf.top - 1 && r.bottom <= shelf.bottom + 1 && r.left >= 0 && r.right <= innerWidth,
+          named: !!el.getAttribute('title') || el.getAttribute('aria-label') === 'Más' };
+      });
+      assert.deepEqual(reachability, { focused: true, tabbable: true, visible: true, contained: true, named: true }, `Every dock tool remains reachable by keyboard: ${name}`);
+      observations.push({ scene: 'dock-keyboard', name, ...reachability });
     }
-    await page.getByRole('button', { name: 'Más', exact: true }).click();
+    await page.keyboard.press('Enter');
     await page.getByRole('menu', { name: 'Más hubs', exact: true }).waitFor();
-    assert.ok(await page.locator('.dock-more-menu [role="menuitem"]').count() > 0);
+    for (const name of ['Contexto', 'Automatizar', 'Todas las herramientas']) {
+      await page.keyboard.press('Tab');
+      assert.equal(await page.getByRole('menuitem', { name, exact: true }).evaluate(el => document.activeElement === el), true, `Menu item reachable by Tab: ${name}`);
+    }
     await page.keyboard.press('Escape');
     await page.locator('.dock-more-menu').waitFor({ state: 'detached' });
+    assert.equal(await page.getByRole('button', { name: 'Más', exact: true }).evaluate(el => document.activeElement === el), true);
+    await page.keyboard.press('Enter');
+    for (let index = 0; index < 3; index++) await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    const catalogue = page.getByRole('dialog', { name: 'Añadir a la mesa', exact: true });
+    await catalogue.waitFor();
+    assert.deepEqual((await catalogue.locator('.tool-item strong').allTextContents()).sort(), ['Terminal', 'Navegador', 'Nota', 'Zona', 'Trabajo', 'Git', 'Entorno', 'Contexto', 'Automatizar', 'Revisión de video', 'Bitácora de videos'].sort());
+    assert.equal(await catalogue.getByRole('textbox', { name: 'Buscar herramienta' }).evaluate(el => document.activeElement === el), true);
+    await shot('dock-catalogue');
+    await page.keyboard.press('Escape'); await catalogue.waitFor({ state: 'detached' });
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 }); await delay(400);
     assert.equal(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), true);
