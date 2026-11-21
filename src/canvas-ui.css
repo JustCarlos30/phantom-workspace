@@ -1,7 +1,4 @@
-/* Canvas UI: the canvas is the whole window and every piece of chrome floats
-    over it as a matte charcoal island. Loaded after studio.css,
-   so this file is also the system layer: one radius scale, one elevation
-     ladder and shared motion tokens. Workplanes transmit colour without blur. */
+/* Canvas UI: shared opaque object material, geometry and motion tokens. */
 :root {
   /* Radius: three shapes. A control, an object you can move, an island that
      floats. --r-mark is for marks under 20px (kbd, checkbox, scrollbar) and
@@ -9,39 +6,42 @@
      fails on any other value. */
   --r-mark: 4px;
   --r-ctl: 8px;
-  --r-obj: 14px;
-  --r-isle: 26px;
+  --r-obj: 24px;
+  --r-isle: 24px;
   --r-pill: 999px;
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
   --hairline: color-mix(in srgb, #fff 10%, transparent);
-   /* One edge (the border hairline) and a contact shadow;
-      shadows never animate their blur. */
-  --shadow-chrome: 0 1px 2px #00000066, 0 18px 40px -20px #000000cc;
-  /* The matte rim: a faint ring. It is the edge of every
-     capsule that sits inside an island; it never adds a second fill. */
-  --shadow-rim: inset 0 0 0 1px #ffffff0a;
-  --shadow-key: 0 1px 2px #00000073;
-  --shadow-well: inset 0 1px 2px #0000008c, inset 0 0 0 1px #00000033;
-  --shadow-rest: 0 1px 2px #00000080, 0 14px 30px -16px #000000d9;
-  --shadow-float: 0 2px 6px #00000073, 0 30px 68px -24px #000000f2;
-  /* Matte workplanes: offset contact depth, without a coloured halo. */
-  --shadow-workplane-rest: 0 2px 4px #00000066, 0 10px 20px -12px #00000099;
-  --shadow-workplane-lift: 0 3px 6px #00000073, 0 16px 28px -14px #000000b3;
-  /* Matte chrome planes. Workplanes and wells use real alpha. */
-  --glass-tint: #0d0d0d;
+  --object-top: #0f0f11;
+  --object-bottom: #070708;
+  --object-fill: linear-gradient(var(--object-top), var(--object-bottom));
+  --object-ring-width: 1px;
+  --object-edge-top: color-mix(in srgb, #fff 22%, transparent);
+  --object-edge-bottom: color-mix(in srgb, #fff 6%, transparent);
+  --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
+  --selected-edge-top: color-mix(in srgb, #fff 36%, transparent);
+  --selected-edge-bottom: color-mix(in srgb, #fff 10%, transparent);
+  --shadow-chrome: 0 1px 2px #000, 0 16px 32px -16px #000;
+  --shadow-rim: none;
+  --shadow-key: none;
+  --shadow-well: none;
+  --shadow-rest: var(--shadow-chrome);
+  --shadow-float: var(--shadow-chrome);
+  --shadow-workplane-rest: var(--shadow-chrome);
+  --shadow-workplane-lift: var(--shadow-chrome);
+  --glass-tint: #0b0b0c;
   --glass: var(--surface);
-  --glass-thick: color-mix(in srgb, var(--surface) 60%, var(--surface-2));
+  --glass-thick: var(--surface);
   --glass-filter: none;
   --ink-on-glass: #a8a6a0;
-  --glass-sheen: none;
+  --glass-sheen: var(--object-fill);
   --on: #f2f0eb;
   --on-ink: #141414;
-  --workplane: color-mix(in srgb, var(--surface) 80%, transparent);
-  --workplane-wash: linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent);
-  --well: color-mix(in srgb, var(--surface) 92%, transparent);
-  --well-raised: color-mix(in srgb, var(--surface-2) 96%, transparent);
-  --well-terminal: color-mix(in srgb, var(--terminal-bg) 90%, transparent);
+  --workplane: var(--surface);
+  --workplane-wash: var(--object-fill);
+  --well: #040405;
+  --well-raised: #0b0b0d;
+  --well-terminal: #040405;
   /* One slight overshoot, then a monotonic settle. */
   --ease-spring: linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1);
   --dur-spring: 420ms;
@@ -66,24 +66,23 @@
   --rail-width: 252px;
   --dock-h: 56px;
   --inspector-width: 360px;
-  --dot: color-mix(in srgb, var(--ink) 16%, transparent);
-  --dot-major: color-mix(in srgb, var(--ink) 26%, transparent);
+  --dot: color-mix(in srgb, #f2f0eb 5%, transparent);
   /* Neutral planes keep identity and state accents local. */
-  --bg: #050505;
-  --surface: #0d0d0d;
-  --surface-2: #151515;
-  --surface-3: #1d1d1d;
-  --menu: #161616; /* Lo que se abre encima: el único plano elevado. */
+  --bg: #020203;
+  --surface: #0b0b0c;
+  --surface-2: #111113;
+  --surface-3: #1d1d20;
+  --menu: var(--surface);
   --menu-edge: color-mix(in srgb, #fff 13%, transparent);
   --ink: #f2f0eb;
   --muted: #a8a6a0;
   --ink-3: #8b8983;
-  --terminal-bg: #080808;
+  --terminal-bg: #040405;
   --terminal-ink: #e1dfda;
   --scroll-thumb: color-mix(in srgb, #fff 16%, transparent);
   /* Type: seven roles, three weights (400, 500, 600). */
   --t-display: 600 24px/30px var(--sans);
-  --t-title: 600 17px/22px var(--sans);
+  --t-title: 600 15px/20px var(--sans);
   --t-headline: 600 14px/22px var(--sans);
   --t-body: 400 14px/22px var(--sans);
   --t-control: 500 14px/20px var(--sans);
@@ -200,11 +199,27 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
 .context-menu, .toast, .canvas-busy, .connection-error {
-  background: var(--island);
-  border: 1px solid var(--hairline);
+  background: var(--object-fill) var(--surface);
+  border: 0;
   box-shadow: var(--shadow-chrome);
 }
 .canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-chrome); }
+
+.workspace-identity, .header-controls, .activity-notch, .dock-main, .toast,
+.workspace-header > .rail-toggle { position: relative; }
+:is(.canvas-node, .project-rail, .workspace-identity, .header-controls, .activity-notch,
+    .dock-main, .activity-dock, .canvas-navigation, .canvas-minimap, .inspector-host,
+    .focus-return, .toast, .canvas-busy, .connection-error, .zone-selection,
+    .group-selection, .activity-tray, .attention-tray, .tw-palette, .tw-voice,
+    .app-dialog, .phantom-chat, .agent-editor, .workspace-header > .rail-toggle)::before {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
+  background: var(--object-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.activity-dock .dock-main::before, .activity-dock .activity-notch::before { content: none; }
 
 /* ---------- Left rail: floating island ---------- */
 @media (min-width: 851px) {
@@ -265,9 +280,9 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 @property --grid-y { syntax: '<length>'; inherits: false; initial-value: 0px; }
 .canvas {
   background-color: transparent;
-  background-image: radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px), radial-gradient(circle, var(--dot) .9px, transparent 1.2px);
-  background-size: var(--grid-major, 96px) var(--grid-major, 96px), var(--grid-size, 24px) var(--grid-size, 24px);
-  background-position: var(--grid-x, 0) var(--grid-y, 0), var(--grid-x, 0) var(--grid-y, 0);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
+  background-size: var(--grid-size, 24px) var(--grid-size, 24px);
+  background-position: var(--grid-x, 0) var(--grid-y, 0);
 }
 .studio-no-grid .canvas, .canvas.focus-mode { background-image: none; }
 .canvas:focus-visible { outline: 0 !important; }
@@ -275,20 +290,19 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 
 /* ---------- Panels: soft, rounded, lift on drag ---------- */
 .canvas-node {
-  border-radius: var(--r-obj); border: 1px solid var(--hairline); background: var(--surface);
+  border-radius: var(--r-obj); border: 0; background: var(--object-fill) var(--surface);
   box-shadow: var(--shadow-rest);
   transition: box-shadow var(--dur) var(--ease-out), border-color var(--dur-fast) var(--ease-out), outline-color var(--dur-fast) var(--ease-out);
-  outline: 2px solid transparent; outline-offset: 3px;
 }
 .canvas-node:hover:not(.focused) { border-color: color-mix(in srgb, var(--ink) 18%, transparent); }
-.canvas-node.selected { border-color: color-mix(in srgb, var(--accent) 70%, transparent); outline: 2px solid var(--accent); outline-offset: 3px; }
+.canvas-node.selected { --object-ring: linear-gradient(var(--selected-edge-top), var(--selected-edge-bottom)); }
 .canvas-node.is-dragging { box-shadow: var(--shadow-float); border-color: var(--hairline); z-index: 6; }
 .canvas-node.focused { border-radius: var(--r-obj); outline: 0; box-shadow: var(--shadow-float); }
 .node-header { height: 40px; min-height: 40px; padding: 0 8px 0 16px; gap: 8px; background: transparent; border-bottom: 1px solid transparent; }
 .node-header .title-button { font-weight: 600; letter-spacing: -.01em; }
 .node-header .icon-button { border-radius: var(--r-ctl); opacity: .7; transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
 .canvas-node:hover .node-header .icon-button, .canvas-node.selected .node-header .icon-button, .node-header .icon-button:focus-visible { opacity: 1; }
-.node-body { background: var(--surface); }
+.node-body { background: transparent; }
 .resize-handle { width: 22px; height: 22px; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 .canvas-node:hover .resize-handle, .canvas-node.selected .resize-handle, .resize-handle:focus-visible { opacity: .85; }
 .note-editor { background: transparent; padding: 16px 18px; line-height: 1.65; font-size: 13px; }
@@ -420,12 +434,12 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 /* Selection actions float as one island just above the dock, like Figma's selection bar. */
 .zone-selection, .group-selection {
   position: absolute; top: auto; bottom: 84px; z-index: 12; height: 36px; padding: 0 12px; gap: 8px;
-  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-chrome); color: var(--ink);
+  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--object-fill) var(--surface); border: 0; box-shadow: var(--shadow-chrome); color: var(--ink);
   animation: materialize var(--dur) var(--ease-out);
 }
 .zone-selection { left: calc(var(--dock-x) - 4px); transform: translateX(-100%); }
 .group-selection { left: calc(var(--dock-x) + 4px); }
-.zone-selection:hover, .group-selection:hover { background: var(--surface-2); border-color: var(--hairline); }
+.zone-selection:hover, .group-selection:hover { background-color: var(--surface-2); }
 .zone-selection > svg, .group-selection > svg { color: var(--accent); }
 
 /* State colours are shared with the separately owned activity trace. */
@@ -482,10 +496,9 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas-node:not(.focused):not(.is-dragging) { box-shadow: var(--shadow-rest); }
 
 /* =====================================================================
-   Matte charcoal chrome (2026-11-16)
-   The chrome uses opaque planes over the canvas:
-   a thin hairline and contact shadow, without blur or sheen.
-   Working planes keep their own material. Quiet controls
+   Opaque object material
+   Chrome and working planes share a vertical gradient, masked ring and
+   black contact shadow. Quiet controls
    share one white-alpha ladder (--fill…); radii are concentric: an island's radius
    is its inner control radius plus its padding.
    ===================================================================== */
@@ -514,13 +527,13 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   background-color: var(--glass);
   background-image: var(--glass-sheen);
   -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
-  border: 1px solid var(--hairline);
+  border: 0;
   box-shadow: var(--shadow-chrome);
 }
 /* Reading chrome uses a slightly raised opaque charcoal plane. */
 .inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background-color: var(--glass-thick); }
 .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-chrome); }
-.connection-error { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); background-color: color-mix(in srgb, var(--error-bg) 86%, transparent); background-image: var(--glass-sheen); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+.connection-error { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: var(--surface); background-image: var(--object-fill); }
 
 /* ---------- Buttons ---------- */
 .button { height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); font-weight: 550; transition: background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
@@ -551,10 +564,9 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .canvas-node { border-radius: var(--r-obj); border-color: var(--hairline); }
 .canvas-node:not(.focused):not(.is-dragging) { border-top-color: var(--hairline); box-shadow: var(--shadow-rest); }
 .canvas-node:hover:not(.focused):not(.selected) { border-color: color-mix(in srgb, #fff 22%, transparent); }
-.canvas-node.selected { border-color: var(--accent); outline: 3px solid color-mix(in srgb, var(--accent) 26%, transparent); outline-offset: 0; }
 .canvas-node.selected:not(.focused):not(.is-dragging) { box-shadow: var(--shadow-float); }
 .canvas-node.focused { border-color: var(--hairline); outline: 0; }
-.canvas-node > .node-header { height: 44px; min-height: 44px; padding: 0 8px 0 12px; gap: 10px; background: var(--surface); border-bottom-color: transparent; border-radius: calc(var(--r-obj) - 1px) calc(var(--r-obj) - 1px) 0 0; }
+.canvas-node > .node-header { height: 44px; min-height: 44px; padding: 0 8px 0 12px; gap: 10px; background: transparent; border-bottom-color: transparent; border-radius: calc(var(--r-obj) - 1px) calc(var(--r-obj) - 1px) 0 0; }
 .node-header .title-button { font-size: calc(13px * var(--map-label-scale, 1)); font-weight: 600; letter-spacing: -.01em; }
 .node-glyph { display: grid; place-items: center; flex-shrink: 0; width: calc(24px * var(--map-label-scale, 1)); height: calc(24px * var(--map-label-scale, 1)); color: var(--muted); }
 .node-glyph > svg { width: calc(14px * var(--map-label-scale, 1)); height: calc(14px * var(--map-label-scale, 1)); }
@@ -634,7 +646,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 
 /* ---------- Command palette: spotlight ---------- */
 .app-modal-backdrop, .tw-overlay { background: #10101099; }
-.tw-palette, .tw-voice, .app-dialog { background-color: var(--glass-thick); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); }
+.tw-palette, .tw-voice, .app-dialog { position: relative; background-color: var(--glass-thick); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 0; border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); }
 .tw-palette { width: min(640px, 100%); }
 .tw-palette-search { gap: 12px; padding: 8px 12px 8px 20px; min-height: 60px; border-bottom-color: var(--hairline); }
 .tw-palette-search > svg { color: var(--muted); }
@@ -653,7 +665,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .inspector-switcher { border-bottom-color: var(--hairline); padding: 10px 10px 10px 12px; }
 .inspector-switcher select { height: 32px; padding: 0 10px; border-radius: var(--r-ctl); background: var(--fill); font-size: 13px; }
 .tw-inspector, .tw-tool-panel { background: transparent; scrollbar-color: var(--scroll-thumb) transparent; }
-.canvas-node .tw-tool-panel { background: var(--surface); }
+.canvas-node .tw-tool-panel { background: transparent; }
 .tw-inspector { border-inline-start: 0; }
 .tw-section + .tw-section, .tw-item, .tw-list-row, .tw-table th, .tw-table td, .tw-target, .inc-section, .inc-item, .activity-row, .activity-tray-scroll > section, .activity-footer, .cc-task, .cc-events li, .cc-detail, .plugin-entry { border-color: var(--hairline); }
 .tw-inspector-header h2, .tw-section h3, .tw-voice h2 { font-weight: 600; letter-spacing: -.015em; }
@@ -705,13 +717,13 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .desktop-required .app-mark { border-radius: var(--r-obj); }
 
 /* ---------- Agent identity editor ---------- */
-.agent-editor { background: var(--surface-2); border: 1px solid var(--hairline); }
+.agent-editor { --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom)); background: var(--object-fill) var(--surface); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: none; }
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: var(--object-fill); }
 }
 @media (prefers-contrast: more) {
-  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: none; --hairline: color-mix(in srgb, #fff 22%, transparent); }
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: var(--object-fill); --hairline: color-mix(in srgb, #fff 22%, transparent); --object-edge-top: color-mix(in srgb, #fff 32%, transparent); --object-edge-bottom: color-mix(in srgb, #fff 12%, transparent); --selected-edge-top: color-mix(in srgb, #fff 44%, transparent); --selected-edge-bottom: color-mix(in srgb, #fff 20%, transparent); }
 }
 
 /* Focus bar and activity pill never wrap or clip their leading icon. */
@@ -745,7 +757,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   .app-shell:not(.rail-collapsed) .project-rail {
     left: var(--gutter); top: var(--gutter); bottom: auto; height: auto; margin: 0;
     max-height: calc(100% - var(--gutter) * 2); width: var(--rail-width);
-    padding: 4px 10px 10px; border: 1px solid var(--hairline); border-radius: var(--r-isle);
+    padding: 4px 10px 10px; border: 0; border-radius: var(--r-isle);
     box-shadow: var(--shadow-chrome);
   }
   .app-shell:not(.rail-collapsed) .brand { height: 48px; flex-shrink: 0; margin: 0 0 8px; padding: 0 2px 0 6px; border: 0; }
@@ -753,7 +765,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   /* Collapsed: the rail folds into a pill that sits where the rail began. */
   .rail-collapsed .project-rail {
     left: var(--gutter); top: var(--gutter); bottom: auto; height: var(--bar); width: auto; max-width: 340px; margin: 0;
-    padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
+    padding: 0 8px; border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
 
   /* Top row: no strip. Title and controls are two separate objects; the space
@@ -765,7 +777,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   }
   .rail-collapsed .workspace-header { left: var(--gutter); }
   .workspace-identity, .header-controls {
-    height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
+    height: var(--bar); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
   .workspace-identity { padding: 0 18px; max-width: min(44%, 520px); }
   .header-controls { padding: 0 8px; }
@@ -775,13 +787,13 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   /* Focus mode: the stage starts one gap after the rail and stops before the inspector. */
   .studio-focused:not(.rail-collapsed) .canvas-region { left: calc(var(--gutter) * 2 + var(--rail-width) - 12px); }
   .studio-focused.studio-inspector-open .canvas-region { right: calc(var(--gutter) * 2 + var(--inspector-width) - 12px); }
-  .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); z-index: 29; }
+   .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); z-index: 29; }
 
   /* Inspector: the rail's counterweight. It hangs under the controls it was
      opened from, inset on every side. */
   .inspector-host {
     top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); width: var(--inspector-width);
-    border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome);
+    border: 0; border-radius: var(--r-isle); box-shadow: var(--shadow-chrome);
   }
   .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--inspector-width) + var(--gutter) * 2); }
   .studio-focused.studio-inspector-open :is(.canvas-navigation, .canvas-popover) { right: var(--gutter); }
@@ -800,7 +812,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 }
 @media (max-width: 850px) {
   .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0; background: transparent; border: 0; pointer-events: none; }
-   .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); background-color: var(--island); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+   .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); background-color: var(--island); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
   .workspace-header > .rail-toggle { width: var(--bar); flex-shrink: 0; }
   .header-controls { padding: 0 6px; }
   .inspector-host { top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); left: var(--gutter); border-radius: var(--r-isle); }
@@ -827,7 +839,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .activity-dock {
   display: flex; flex-direction: column; max-width: calc(100% - 24px);
   background-color: var(--glass); background-image: var(--glass-sheen); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
-  border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
+  border: 0; border-radius: var(--r-pill); box-shadow: var(--shadow-chrome);
 }
 .activity-dock.activity-open { z-index: 46; }
 @media (min-width: 851px) {
@@ -936,7 +948,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    Focus ladder: background and cards (2026-11-11)
    Attention has three steps, and background and cards move together:
    · Map — the atmosphere sits behind the work; cards are slabs lifted off it.
-   · Selection — the chosen card gains an outline; all reading stays stable.
+    · Selection — the chosen card brightens its ring; all reading stays stable.
      Only atmosphere steps back.
    · Focus mode — the panel alone (unchanged: atmosphere at 12 %).
    ===================================================================== */
@@ -947,11 +959,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   z-index: 1;
   background-image:
     radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%),
-    radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px),
-    radial-gradient(circle, var(--dot) .9px, transparent 1.2px);
-  background-size: 100% 100%, var(--grid-major, 96px) var(--grid-major, 96px), var(--grid-size, 24px) var(--grid-size, 24px);
-  background-position: 0 0, var(--grid-x, 0) var(--grid-y, 0), var(--grid-x, 0) var(--grid-y, 0);
-  background-repeat: no-repeat, repeat, repeat;
+    radial-gradient(var(--dot) 1px, transparent 1.2px);
+  background-size: 100% 100%, var(--grid-size, 24px) var(--grid-size, 24px);
+  background-position: 0 0, var(--grid-x, 0) var(--grid-y, 0);
+  background-repeat: no-repeat, repeat;
 }
 .studio-no-grid .canvas { background-image: radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%); }
 .app-shell.studio-concentration .canvas { background-image: none; }
@@ -991,7 +1002,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   --shadow-rest: var(--shadow-workplane-rest);
   --shadow-float: var(--shadow-workplane-lift);
   background-color: var(--workplane); background-image: var(--workplane-wash); opacity: 1; filter: none;
-  -webkit-backdrop-filter: none; backdrop-filter: none;
+  -webkit-backdrop-filter:none; backdrop-filter:none;
   box-shadow: var(--shadow-workplane-rest);
 }
 .canvas .canvas-node[data-type="terminal"]:is(.selected, .focused, .is-dragging) {
@@ -1028,12 +1039,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* Legacy one-offs collapse onto the tokens. */
 .rail-panel-focus { transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 
-/* Selection: one clear ring instead of a faint one. The outline always
-   exists at the same width and offset, so selecting only fades its colour
-   in (no jump of width or offset), and the full border goes accent rather
-   than lighting just the top edge. */
-.canvas .canvas-node { outline: 2px solid transparent; outline-offset: 3px; }
-.canvas .canvas-node.selected { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 3px; }
+.canvas .canvas-node { border: 0; outline: 0; }
+.canvas .canvas-node.selected { outline: 0; }
 .canvas-node.selected .title-button { color: var(--ink); }
 /* Focus mode is the stage itself: no selection chrome, a calm even edge.
    (A coloured top border on a 16px radius fades into the corners and reads
@@ -1079,7 +1086,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .canvas-node[data-role="orchestrator"] .node-title { display: flex; align-items: center; }
 .canvas-node[data-role="orchestrator"] .title-button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The detached solid selection outline retains its meaning in every state. */
 @media (prefers-reduced-transparency: reduce) {
   .canvas-region::before { display: none; }
 }
@@ -1201,16 +1207,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .tw-tabs .tw-button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--fill-3); }
 .inspector-host .tw-inspector, .inspector-host .appearance-panel { background: transparent; }
 
-/* A single translucent slab; children do not stack opaque full-size planes. */
-.canvas .canvas-node[data-type="terminal"] > .node-header,
-.canvas .canvas-node[data-type="terminal"] > .node-body { background: transparent; }
+/* Children expose the object's material; reading wells remain opaque. */
+.canvas .canvas-node > .node-header,
+.canvas .canvas-node > .node-body { background: transparent; }
 .app-shell .canvas-node > .node-header .session-watch[aria-pressed="true"] { display: inline-flex; opacity: 1; color: var(--attention); background: var(--fill-2); }
 .canvas-node.overview > .node-header > .session-watch { display: inline-flex; }
 .app-shell .spinning { animation: none; }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :root { --workplane: var(--surface); --workplane-wash: none; --well: var(--surface); --well-raised: var(--surface-2); --well-terminal: var(--terminal-bg); }
-  .connection-error { background-color: var(--error-bg); }
+  :root { --workplane: var(--surface); --workplane-wash: var(--object-fill); --well: #040405; --well-raised: #0b0b0d; --well-terminal: #040405; }
 }
 
 .app-shell { font: var(--t-body); }

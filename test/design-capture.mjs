@@ -43,7 +43,7 @@ let paintFailed = false;
 // Electron screenshots are non-interlaced, 8-bit RGB/RGBA PNGs. Reconstruct
 // every row before measuring the rail, including pixels outside the crop
 // that the PNG predictors depend on.
-function railLuminanceDeviation(png) {
+function railLuminanceDeviation(png, rail) {
   if (!png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error('Invalid PNG signature');
   let width, height, channels;
   const chunks = [];
@@ -66,6 +66,10 @@ function railLuminanceDeviation(png) {
     if (type === 'IEND') break;
   }
   if (!width || !height || !channels || !chunks.length) throw new Error('Missing PNG image data');
+  const left = Math.max(0, Math.ceil(rail.left * width / rail.viewportWidth));
+  const right = Math.min(width, Math.floor(rail.right * width / rail.viewportWidth));
+  const top = Math.max(0, Math.ceil(rail.top * height / rail.viewportHeight));
+  const bottom = Math.min(height, Math.floor(rail.bottom * height / rail.viewportHeight));
   const stride = width * channels;
   const raw = inflateSync(Buffer.concat(chunks));
   if (raw.length !== (stride + 1) * height) throw new Error('Unexpected PNG scanline length');
@@ -90,8 +94,8 @@ function railLuminanceDeviation(png) {
       }
       row[x] = (raw[start + 1 + x] + predictor) & 255;
     }
-    if (y >= 100 && y < Math.min(640, height)) {
-      for (let x = 30; x < Math.min(300, width); x++) {
+    if (y >= top && y < bottom) {
+      for (let x = left; x < right; x++) {
         const i = x * channels;
         const luminance = 0.2126 * row[i] + 0.7152 * row[i + 1] + 0.0722 * row[i + 2];
         const delta = luminance - mean;
@@ -109,6 +113,20 @@ let app, appProcess, page, host;
 const invoke = (method, payload = {}) => page.evaluate(([m, p]) => window.phantom.invoke(m, p), [method, payload]);
 const shot = async scene => {
   await delay(700);
+  if (standardized) await page.evaluate(() => {
+    for (const el of document.querySelectorAll('.project-rail,.canvas-node,.inspector-host,.activity-dock,.canvas-navigation,.context-menu-panel,.pc-models')) {
+      if (!el.getClientRects().length) continue;
+      const style = getComputedStyle(el), ring = getComputedStyle(el, '::before');
+      if (style.backgroundColor !== 'rgb(11, 11, 12)' || style.backgroundImage !== 'linear-gradient(rgb(15, 15, 17), rgb(7, 7, 8))') throw new Error(`Missing object material: ${el.className}`);
+      if (style.backdropFilter !== 'none' || ['Top', 'Right', 'Bottom', 'Left'].some(side => style[`border${side}Width`] !== '0px')) throw new Error(`Blur or extra edge: ${el.className}`);
+      if (ring.content === 'none' || ring.maskComposite !== 'exclude' || ring.pointerEvents !== 'none' || ring.zIndex !== '3') throw new Error(`Missing non-interactive masked ring: ${el.className}`);
+      if (el.matches('.canvas-node.selected') && style.outlineWidth !== '0px') throw new Error('Selection has a second contour');
+    }
+  });
+  const rail = await page.locator('.project-rail').evaluate(el => {
+    const { left, right, top, bottom } = el.getBoundingClientRect();
+    return { left, right, top, bottom, viewportWidth: innerWidth, viewportHeight: innerHeight };
+  });
   const file = path.join(evidence, `design-${label}-${scene}.png`);
   // The desktop applies an interface zoom; a Playwright screenshot would crop
   // the window to its unzoomed size and lose the dock. Capture what Electron paints.
@@ -116,7 +134,7 @@ const shot = async scene => {
   await writeFile(file, Buffer.from(png, 'base64'));
   captures.push(file);
   try {
-    const deviation = railLuminanceDeviation(await readFile(file));
+    const deviation = railLuminanceDeviation(await readFile(file), rail);
     if (!(deviation >= 8)) throw new Error(`rail luminance standard deviation ${deviation.toFixed(3)} < 8`);
   } catch (error) {
     if (scene === 'space-menu' || scene === 'model-menu') {
@@ -251,7 +269,7 @@ try {
     for (const el of fixture.querySelectorAll('.pt-state, .br-chip, .rp-pill, .inc-chip, .activity-item-icon')) {
       const style = getComputedStyle(el);
       assertNeutral(style.backgroundColor);
-      if (style.color !== 'rgb(198, 241, 53)') throw new Error(`Missing attention ink: ${el.className} ${style.color}`);
+      if (style.color !== 'rgb(245, 192, 74)') throw new Error(`Missing attention ink: ${el.className} ${style.color}`);
       if (style.boxShadow !== 'none') throw new Error(`State ring: ${el.className}`);
     }
     for (const el of fixture.querySelectorAll('.pt-card-screen')) {

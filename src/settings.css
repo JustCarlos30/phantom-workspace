@@ -20,7 +20,7 @@
   width: min(960px, calc(100% - var(--gutter) * 2)); min-width: 0;
   height: min(720px, calc(100% - var(--top-clear, 72px) - var(--gutter)));
   z-index: 32; border-radius: var(--r-isle);
-  box-shadow: var(--shadow-chrome); background: var(--surface);
+  box-shadow: var(--shadow-chrome); background: var(--object-fill) var(--surface);
 }
 .tw-inspector.is-settings { width: 100%; }
 .inspector-host > .tw-inspector > .tw-inspector-header { display: flex; background: transparent; }

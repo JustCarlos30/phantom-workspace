@@ -10,7 +10,7 @@
   display: flex; flex-direction: column; flex-shrink: 0; z-index: 30;
   color: var(--ink); min-height: 0;
   background-color: var(--surface);
-  background-image: none;
+  background-image: var(--object-fill);
 }
 .project-rail button:focus-visible, .project-rail summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
@@ -65,9 +65,8 @@
 .context-menu-panel {
   position: absolute; top: calc(100% + var(--s-2)); left: 0; right: 0; z-index: 5; display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-2);
   max-height: min(380px, var(--context-menu-height, calc(100dvh - 290px))); min-height: 0;
-  border: 1px solid var(--hairline); border-radius: var(--r-obj);
-  /* Nested menus use a solid charcoal plane darker than their container. */
-  background-color: var(--menu); background-image: none; box-shadow: var(--shadow-float);
+  border: 0; border-radius: var(--r-obj);
+  background-color: var(--menu); background-image: var(--object-fill); box-shadow: var(--shadow-chrome);
   --ink-3: var(--ink-on-glass); --muted: var(--ink-on-glass);
 }
 .context-search { display: flex; align-items: center; gap: var(--s-2); min-width: 0; flex-shrink: 0; padding: var(--s-1) var(--row-pad); color: var(--muted); border-radius: var(--r-ctl); background: var(--fill); }
@@ -128,7 +127,7 @@
 .rail-attention.needs-you b { color: var(--attention); }
 
 /* Selection and attention retain independent, readable signals. */
-.project-rail .rail-panel-row.selected { background: var(--fill-2); color: var(--ink); }
+.project-rail .rail-panel-row.selected { background: var(--surface-3); color: var(--ink); }
 .project-rail .rail-panel-row.selected .shell-icon { color: var(--accent); }
 .project-rail .rail-attention[aria-expanded=true] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
 

@@ -42,7 +42,7 @@
 .app-shell .canvas-navigation > i { width: 8px; height: 0; margin: 0; background: none; }
 
 /* ---------- Dock: one row. Activity reads on the left, creation on the right ---------- */
-.app-shell .activity-dock { flex-direction: row; align-items: center; gap: 12px; height: var(--dock-h); padding: 0 8px; border-radius: var(--r-isle); overflow-x: auto; }
+.app-shell .activity-dock { flex-direction: row; align-items: center; gap: 12px; height: var(--dock-h); padding: 0 8px; border-radius: var(--r-pill); overflow-x: auto; }
 .app-shell .activity-dock .activity-strip { min-height: 0; padding: 0; gap: 2px; }
 .app-shell .activity-dock .activity-strip button { height: 36px; min-height: 36px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-support); }
 .app-shell .activity-dock .activity-strip button[aria-expanded="true"] { background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim); }
