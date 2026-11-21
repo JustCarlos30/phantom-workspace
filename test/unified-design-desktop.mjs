@@ -4,10 +4,12 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { killElectronGroup } from './support/electron-process.mjs';
+import { build } from 'vite';
 
 // Real production renderer/Electron and an isolated host. The only chat executable
 // is this deterministic Node fixture: no model, external agent or nested task.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+await build({ root });
 await mkdir('/tmp/opencode', { recursive: true });
 const temp = await mkdtemp('/tmp/opencode/unified-design-');
 const profile = path.join(temp, 'profile');
@@ -65,7 +67,7 @@ async function geometry(input) {
 async function exercise(input, resize, label) {
   await input.fill('');
   const initial = await geometry(input);
-  assert.equal(initial.height, 38, `${label}: common initial height`);
+  assert.equal(initial.height, 40, `${label}: common initial height`);
   await input.fill('Una línea para probar el ajuste de ancho. '.repeat(8));
   const wide = await geometry(input);
   await capture(`${label}-tall`);
@@ -77,7 +79,7 @@ async function exercise(input, resize, label) {
   const limited = await geometry(input);
   assert.ok(limited.scroll > limited.client, `${label}: text scrolls internally`);
   assert.equal(limited.overflow, 'auto');
-  assert.ok(limited.height <= Math.max(38, Math.floor(limited.available * .45)), `${label}: space budget`);
+  assert.ok(limited.height <= Math.max(40, Math.floor(limited.available * .45)), `${label}: space budget`);
   assert.ok(limited.controlVisible && !limited.horizontal, `${label}: controls fit`);
   assert.ok(limited.thread >= 40, `${label}: conversation keeps reading space`);
   assert.equal(limited.transition, 'none', `${label}: typing has no height animation`);
@@ -118,6 +120,17 @@ try {
   await invoke('node.create', { workspaceId: workspace.id, type: 'terminal', title: 'Compositor sintético', x: 340, y: 80, width: 660, height: 760, data: { chat: { provider: 'claude' } } });
   await page.reload(); await size(1520, 980);
   const card = page.getByLabel('Mensaje para Claude', { exact: true }); await card.waitFor();
+  const composerRecipe = input => input.evaluate(el => {
+    const style = element => { const s = getComputedStyle(element); return { padding: s.padding, gap: s.gap, background: s.backgroundColor, radius: s.borderRadius, shadow: s.boxShadow, minHeight: s.minHeight }; };
+    const composer = el.closest('.pc-composer');
+    return { composer: style(composer), field: style(composer.querySelector('.pc-field')), input: style(el), controls: style(composer.querySelector('.pc-controls')), send: style(composer.querySelector('.pc-send')) };
+  });
+  const recipe = await composerRecipe(card);
+  assert.equal(recipe.composer.padding, '12px 24px 24px 28px');
+  assert.equal(recipe.field.background, 'rgba(0, 0, 0, 0)'); assert.equal(recipe.field.shadow, 'none');
+  const providers = page.locator('.canvas-node .pc-providers');
+  assert.deepEqual(await providers.getByRole('radio').allTextContents(), ['ClaudeConversar con Claude Code en esta carpeta']);
+  assert.deepEqual(await page.locator('.canvas-node .pc-modes').getByRole('radio').allTextContents(), ['Chat', 'Terminal']);
   const resizeCard = async mode => {
     const dimensions = mode === 'narrow' ? [340, 760] : [340, 400];
     await page.locator('.canvas-node').filter({ has: card }).evaluate((el, [width, height]) => {
@@ -128,7 +141,8 @@ try {
   await exercise(card, resizeCard, 'card');
   await page.locator('.canvas-node').getByRole('button', { name: 'Enfocar panel', exact: true }).click();
   await page.locator('.canvas-node.focused').waitFor();
-  assert.equal((await geometry(card)).height, 38, 'focus retains the common initial height');
+   assert.equal((await geometry(card)).height, 40, 'focus retains the common initial height');
+   assert.deepEqual(await composerRecipe(card), recipe, 'focus uses the canvas composer recipe');
   await card.fill('Línea sintética en foco\n'.repeat(100));
   const focused = await geometry(card);
   assert.ok(focused.height <= Math.floor(focused.available * .45));
@@ -138,15 +152,17 @@ try {
   checks.push({ focused });
   await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
   const side = page.getByLabel('Mensaje para Phantom', { exact: true }); await side.waitFor();
+  assert.deepEqual(await composerRecipe(side), recipe, 'side chat uses the canvas composer recipe');
   await exercise(side, mode => mode === 'narrow' ? size(1100, 980) : size(1100, 560), 'phantom');
   const materials = await page.evaluate(() => {
     const style = selector => { const css = getComputedStyle(document.querySelector(selector)); return { background: css.backgroundColor, backdrop: css.backdropFilter }; };
-    return { side: style('.phantom-chat'), thread: style('.phantom-chat-thread'), field: style('.phantom-chat .pc-field'), rail: style('.project-rail') };
+    return { side: style('.phantom-chat'), thread: style('.phantom-chat-thread'), composer: style('.phantom-chat .pc-composer'), field: style('.phantom-chat .pc-field'), rail: style('.project-rail') };
   });
-  for (const key of ['side', 'thread', 'field']) {
+  for (const key of ['side', 'thread', 'composer']) {
     assert.match(materials[key].background, /^rgb\(/, `${key}: opaque working surface`);
     assert.equal(materials[key].backdrop, 'none', `${key}: no working-plane glass`);
   }
+  assert.equal(materials.field.background, 'rgba(0, 0, 0, 0)', 'field does not add a third surface');
   assert.equal(materials.rail.backdrop, 'none', 'navigation uses opaque object material');
   checks.push({ materials });
   await page.getByRole('complementary', { name: 'Phantom', exact: true }).getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();

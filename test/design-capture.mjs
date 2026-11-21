@@ -183,7 +183,7 @@ const shot = async scene => {
 };
 
 try {
-  app = await electron.launch({ args: [root, '--ozone-platform=headless'], cwd: root, env, timeout: 20000 });
+  app = await electron.launch({ args: [root, '--ozone-platform=headless', '--autoplay-policy=no-user-gesture-required'], cwd: root, env, timeout: 20000 });
   activeProcess = appProcess = app.process();
   page = await app.firstWindow({ timeout: 10000 });
   page.setDefaultTimeout(10000);
@@ -754,9 +754,147 @@ try {
    await shot('model-menu');
    await page.keyboard.press('Escape');
    await toMap();
-   const notch = page.locator('.activity-notch').first();
-   await notch.click(); await shot('tray');
-   if (paintFailed || errors.length) throw new Error(`Design capture failed: ${errors.join('; ')}`);
+    const notch = page.locator('.activity-notch').first();
+    await notch.click(); await shot('tray');
+    await notch.click();
+    if (standardized) {
+      const session = await invoke('node.create', { workspaceId, type: 'terminal', title: 'SYNTHETIC · Sesión v2', x: 40, y: 40, width: 484, height: 804, data: { chat: { provider: 'claude' } } });
+      const runId = 'task_55555555-5555-4555-8555-555555555555';
+      await app.evaluate(({ ipcMain }, { nodeId, workspaceId, runId }) => {
+        const original = ipcMain._invokeHandlers.get('phantom:invoke');
+        const f = globalThis.sessionDesignFixture = { original, nodeId, workspaceId, runId, pending: [], sent: [], total: 2, sequence: 0,
+          chat: { provider: 'claude', running: false, messages: [], queue: [], meta: { model: 'SYNTHETIC modelo' } } };
+        ipcMain.removeHandler('phantom:invoke');
+        ipcMain.handle('phantom:invoke', async (event, method, payload = {}) => {
+          if (method === 'chat.get' && [nodeId, `phantom:${workspaceId}`].includes(payload.nodeId)) return f.chat;
+          if (method === 'chat.models') return { items: [], note: 'SYNTHETIC · sin proveedor' };
+          if (method === 'chat.send') { f.sent.push(payload); return {}; }
+          if (method === 'voice.stream.warm') return { available: true };
+          if (method === 'voice.stream.start') return { sessionId: `synthetic-e5-${++f.sequence}` };
+          if (method === 'voice.stream.push') return { confirmed: 'SYNTHETIC confirmado.', partial: 'Texto parcial' };
+          if (method === 'voice.stream.cancel') return {};
+          if (method === 'voice.stream.finish') { await new Promise(resolve => f.pending.push(resolve)); return { confirmed: 'SYNTHETIC dictado final.', partial: '' }; }
+          if (method === 'phantom.controllers') return { available: true, items: [] };
+          if (method === 'phantom.detail' && payload.id === runId) return { task: { id: runId, status: 'running', contract: { goal: 'SYNTHETIC · checks medidos', checks: [] } }, runs: [{ evidence: { verification: [{ available: true, checks: Array.from({ length: f.total }, (_, i) => ({ name: `SYNTHETIC check ${i + 1}`, passed: i === 0, executed: i === 0 })) }] } }] };
+          if (method === 'phantom.events' && payload.id === runId) return { steps: [], total: 0 };
+          if (payload.nodeId === nodeId && method.startsWith('chat.') && method !== 'chat.configure') throw new Error(`Session visual fixture cannot execute ${method}`);
+          return original(event, method, payload);
+        });
+      }, { nodeId: session.id, workspaceId, runId });
+      await page.addInitScript(() => {
+        window.sessionDesignAudio = { gains: [], tracks: [] };
+        if (!navigator.mediaDevices) Object.defineProperty(navigator, 'mediaDevices', { value: {} });
+        Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
+          const context = new AudioContext(), oscillator = context.createOscillator(), gain = context.createGain(), destination = context.createMediaStreamDestination();
+          gain.gain.value = .4; oscillator.connect(gain).connect(destination); oscillator.start(); await context.resume();
+          window.sessionDesignAudio.gains.push(gain);
+          for (const track of destination.stream.getTracks()) {
+            const stop = track.stop.bind(track);
+            track.stop = () => { stop(); oscillator.stop(); context.close(); };
+            window.sessionDesignAudio.tracks.push(track);
+          }
+          return destination.stream;
+        } });
+      });
+      await page.reload();
+      const panel = page.locator(`[data-node-id="${session.id}"]`);
+      await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+      await panel.locator('.pc-providers').waitFor();
+      const input = panel.getByLabel('Mensaje para Claude', { exact: true });
+      const recipe = async surface => surface.locator('.pc-composer').evaluate(el => {
+        const s = getComputedStyle(el), field = getComputedStyle(el.querySelector('.pc-field')), input = getComputedStyle(el.querySelector('textarea')), controls = getComputedStyle(el.querySelector('.pc-controls'));
+        return { padding: s.padding, gap: s.gap, background: s.backgroundColor, field: field.backgroundColor, radius: field.borderRadius, border: field.borderTopWidth, shadow: field.boxShadow, input: { padding: input.padding, minimum: input.minHeight, font: input.font, transition: input.transitionProperty }, controls: { padding: controls.padding, gap: controls.gap } };
+      });
+      const common = await recipe(panel);
+      assert.equal(common.padding, '12px 24px 24px 28px'); assert.equal(common.gap, '12px');
+      assert.equal(common.background, 'rgb(11, 11, 13)'); assert.equal(common.field, 'rgba(0, 0, 0, 0)');
+      assert.equal(common.radius, '0px'); assert.equal(common.shadow, 'none'); assert.equal(common.border, '0px');
+      assert.equal(common.input.minimum, '40px'); assert.equal(common.input.transition, 'none'); assert.equal(common.controls.gap, '8px');
+      assert.equal(await panel.locator('.pc-providers [role="radio"]').count(), 1, 'Only the enabled Claude provider is offered');
+      assert.deepEqual(await panel.locator('.pc-modes [role="radio"]').allTextContents(), ['Chat', 'Terminal']);
+      const provider = panel.locator('.pc-providers [role="radio"]');
+      await provider.focus(); await page.keyboard.press('End'); await page.keyboard.press('Home');
+      assert.equal(await provider.getAttribute('aria-checked'), 'true');
+      const scenes = async name => {
+        for (const [suffix, width, height] of [['', 1520, 980], ['-narrow', 1100, 760]]) {
+          await app.evaluate(({ BrowserWindow }, [width, height]) => BrowserWindow.getAllWindows()[0].setContentSize(width, height), [width, height]);
+          await delay(300);
+          assert.deepEqual(await recipe(panel), common, `${name}${suffix}: same composer`);
+          assert.equal(await panel.locator('.pc-controls').evaluate(el => {
+            const bounds = el.closest('.pc').getBoundingClientRect(), r = el.getBoundingClientRect();
+            return el.scrollWidth <= el.clientWidth && r.left >= bounds.left - .001 && r.right <= bounds.right + .001 && r.bottom <= bounds.bottom + .001;
+          }), true, 'Composer controls stay contained');
+          await shot(`${name}${suffix}`);
+        }
+        await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1520, 980));
+      };
+      await scenes('session-new');
+      const update = async (messages, running = false) => {
+        await app.evaluate(({ BrowserWindow }, { messages, running }) => {
+          const f = globalThis.sessionDesignFixture; f.chat.messages = messages; f.chat.running = running;
+          BrowserWindow.getAllWindows()[0].webContents.send('phantom:event', { type: 'chat.update', reset: true, workspaceId: f.workspaceId, nodeId: f.nodeId });
+        }, { messages, running });
+      };
+      const user = { id: 'e5-user', role: 'user', status: 'done', parts: [{ type: 'text', text: 'SYNTHETIC · Revisa la sesión y conserva los detalles.' }] };
+      const working = { id: 'e5-agent', role: 'assistant', status: 'streaming', createdAt: new Date().toISOString(), parts: [
+        { type: 'text', text: 'SYNTHETIC · Leo el contexto y reviso el cambio. Esta escena no ejecuta un proveedor.' },
+        { id: 'e5-read', type: 'tool', name: 'Read', detail: 'src/components/ChatCard.jsx', status: 'done', output: 'SYNTHETIC · detalle expandible' },
+        { id: 'e5-phantom', type: 'tool', name: 'phantom_context', detail: 'Contexto de la sesión', status: 'done', output: 'SYNTHETIC · contexto' },
+        { id: 'e5-subagent', type: 'tool', name: 'Agent', detail: 'SYNTHETIC · revisión delegada', status: 'running', agent: { type: 'review', total: 1, steps: [{ id: 'e5-step', name: 'Read', detail: 'test/design-tokens.test.mjs', status: 'running' }], prompt: 'SYNTHETIC · conservar contención y estado' } },
+      ] };
+      await update([user, working], true); await panel.locator('.pc-working').waitFor();
+      assert.equal(await panel.locator('progress').count(), 0, 'No measured total means no progress bar');
+      assert.equal(await panel.locator('.pc-message.is-user').evaluate(el => el.tagName), 'BLOCKQUOTE');
+      assert.equal(await panel.locator('.pc-subagent').evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)');
+      assert.equal(await panel.locator('[data-operation-glyph="titi"]').count(), 1);
+      const detail = panel.locator('summary.pc-tool-row').first(); await detail.focus(); await page.keyboard.press('Enter');
+      await panel.getByText('SYNTHETIC · detalle expandible', { exact: true }).waitFor(); await page.keyboard.press('Enter');
+      await panel.locator('.pc-thread').evaluate(el => { el.scrollTop = 0; });
+      await scenes('session-working');
+      const linked = { ...working, id: 'e5-measured', parts: [{ id: 'e5-run', type: 'tool', name: 'Bash', status: 'done', input: `phantom run ${runId}`, detail: `SYNTHETIC · ${runId}`, output: 'SYNTHETIC · enlace de seguimiento' }] };
+      await update([user, linked], true); await panel.locator('progress').waitFor();
+      assert.deepEqual(await panel.locator('progress').evaluate(el => [el.value, el.max]), [1, 2]);
+      await shot('session-working-measured');
+      await app.evaluate(() => { globalThis.sessionDesignFixture.total = 0; });
+      await update([user, { ...linked, id: 'e5-unmeasured' }], true);
+      await panel.locator('progress').waitFor({ state: 'hidden' });
+      await panel.locator('.pc-phantom-run').waitFor();
+      assert.equal(await panel.locator('progress').count(), 0, 'Phantom tracking without checks has no invented total');
+      await update([user, { ...working, id: 'e5-dictation-reply', status: 'done', parts: [{ type: 'text', text: 'SYNTHETIC · Puedes dictar el siguiente mensaje.' }], usage: { durationMs: 1400, costUsd: .03 } }]);
+      await panel.locator('.pc-working').waitFor({ state: 'hidden' });
+      await input.fill('Borrador previo.'); await panel.getByRole('button', { name: 'Dictar a Claude', exact: true }).click();
+      await panel.locator('.pc-input .voice-live-partial').waitFor();
+      assert.equal(await panel.locator('.voice-live-confirmed').textContent(), 'Borrador previo. SYNTHETIC confirmado.');
+      assert.equal(await panel.locator('.voice-live-partial').textContent(), ' Texto parcial');
+      assert.equal(await panel.locator('.voice-aura,.voice-waves').count(), 0);
+      await scenes('session-dictating');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      assert.deepEqual(await panel.locator('.voice-bars i').evaluateAll(elements => elements.map(el => [getComputedStyle(el).animationName, getComputedStyle(el).transitionDuration])), Array.from({ length: 6 }, () => ['none', '0s']));
+      await page.evaluate(() => window.sessionDesignAudio.gains.forEach(gain => { gain.gain.value = 0; }));
+      await page.waitForFunction(() => [...document.querySelectorAll('.voice-bars i')].every(el => parseFloat(getComputedStyle(el).height) <= 2.1));
+      await shot('session-dictating-reduced');
+      await input.press('Escape'); assert.equal(await input.inputValue(), 'Borrador previo.');
+      assert.equal(await app.evaluate(() => globalThis.sessionDesignFixture.sent.length), 0);
+      await panel.getByRole('button', { name: 'Dictar a Claude', exact: true }).click();
+      await panel.locator('.voice-activity[data-state="recording"]').waitFor();
+      await input.press('Enter'); await panel.locator('.voice-activity[data-state="transcribing"]').waitFor(); await input.press('Enter');
+      await page.waitForFunction(() => window.sessionDesignAudio.tracks.every(track => track.readyState === 'ended'));
+      await app.evaluate(async () => { const f = globalThis.sessionDesignFixture; for (let i = 0; i < 100 && !f.pending.length; i++) await new Promise(resolve => setTimeout(resolve, 20)); if (!f.pending.length) throw new Error('No synthetic final transcription pending'); f.pending.splice(0).forEach(resolve => resolve()); });
+      await page.waitForFunction(() => document.querySelector('textarea[aria-label="Mensaje para Claude"]')?.value === '');
+      assert.deepEqual(await app.evaluate(() => globalThis.sessionDesignFixture.sent.map(call => call.text)), ['Borrador previo. SYNTHETIC dictado final.']);
+      await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
+      await page.locator('.phantom-chat .pc-field').waitFor();
+      assert.deepEqual(await recipe(page.locator('.phantom-chat')), common, 'Side composer shares the session recipe');
+      await page.locator('.phantom-chat').getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();
+      await toMap();
+      await page.locator('.canvas').focus(); await page.keyboard.press('1');
+      await panel.locator('.pc-composer').waitFor();
+      assert.deepEqual(await recipe(panel), common, 'Map composer shares the focus recipe');
+      observations.push({ scene: 'session-v2', fixture: 'SYNTHETIC chat, delegation and ASR; WebAudio oscillator, no provider or microphone', composer: common, explicitSends: 1 });
+      await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler('phantom:invoke'); ipcMain.handle('phantom:invoke', globalThis.sessionDesignFixture.original); delete globalThis.sessionDesignFixture; });
+      await invoke('node.remove', { workspaceId, id: session.id });
+    }
+    if (paintFailed || errors.length) throw new Error(`Design capture failed: ${errors.join('; ')}`);
   console.log(JSON.stringify({ label, captures, observations, errors }, null, 2));
 } catch (error) {
   await page?.screenshot({ path: path.join(evidence, `design-${label}-failure.png`), timeout: 2500 }).catch(() => {});
@@ -806,3 +944,8 @@ try {
 } finally {
   clearTimeout(deadline);
 }
+await Promise.all([
+  new Promise(resolve => process.stdout.write('', resolve)),
+  new Promise(resolve => process.stderr.write('', resolve)),
+]);
+process.exit(process.exitCode || 0);

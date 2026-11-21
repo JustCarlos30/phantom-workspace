@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import './appearance-preferences.test.mjs';
 import { ACCENTS, accentColor, defaults, normalizeAppearance } from '../src/hooks/useAppearance.js';
 
-// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E4).
+// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E5).
 // Shared opaque material, one masked ring and an exact per-file edge budget.
 // A failure names the file and the value; fix the CSS, or if the
 // rule itself should change, change it here and in DESIGN.md together.
@@ -31,7 +31,7 @@ const split = (value, separator) => {
 };
 
 test('radii come from the three shapes', () => {
-  const allowed = /^(var\(--r-(mark|ctl|row|group|obj|isle|pill)\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
+  const allowed = /^(var\(--r-(mark|ctl|row|group|obj|isle|pill)\)|var\(--voice-bar-radius\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
   const bad = [];
   for (const { name, css } of sheets)
     for (const value of declarations(css, 'border(?:-[a-z]+)*-radius'))
@@ -119,7 +119,7 @@ export { drawnEdges, sheets };
 
 test('approved type roles use local families and three weights', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
-  for (const [role, value] of Object.entries({ display: '600 24px/30px', title: '600 15px/20px', headline: '600 14px/22px', body: '400 14px/22px', control: '500 14px/20px', support: '400 12px/16px', micro: '500 12px/16px' })) {
+  for (const [role, value] of Object.entries({ display: '600 24px/30px', title: '600 15px/20px', headline: '600 14px/22px', body: '400 14px/20px', control: '500 14px/20px', support: '400 12px/16px', micro: '500 12px/16px' })) {
     assert.equal(rootDeclarations(canvas, `--t-${role}`)[0], `${value} var(--sans)`);
   }
   for (const { name, css } of sheets) assert.doesNotMatch(css, /@import\s+url\([^)]*https?:|@font-face[^}]*https?:/i, name);
@@ -267,7 +267,7 @@ test('neutral reading and state inks retain AA contrast on opaque planes', () =>
   const planes = ['bg', 'surface', 'surface-2', 'surface-3', 'terminal-bg', 'well', 'well-raised', 'well-terminal', 'object-top', 'object-bottom'].map(name => [name, rgb(name)]);
   for (const t of [.25, .5, .75]) planes.push([`gradient ${t}`, rgb('object-top').map((v, i) => v * (1 - t) + rgb('object-bottom')[i] * t)]);
   for (const [plane, values] of planes) {
-    for (const ink of ['ink', 'muted', 'ink-3', 'terminal-ink', 'working', 'attention', 'action', 'success', 'danger', 'idle']) {
+    for (const ink of ['ink', 'muted', 'ink-3', 'prose-ink', 'terminal-ink', 'working', 'attention', 'action', 'success', 'danger', 'idle']) {
       const a = luminance(values), b = luminance(rgb(ink)), ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
       const minimum = ink === 'idle' ? 3 : 4.5;
       assert.ok(ratio >= minimum, `--${ink} on --${plane}: ${ratio.toFixed(2)} < ${minimum}`);
@@ -290,7 +290,8 @@ test('workplanes and wells are opaque without blur and composer height never ani
   assert.match(side, /\.phantom-chat\s*\{[^}]*background-color:\s*var\(--workplane\);[^}]*background-image:\s*var\(--workplane-wash\)/);
   assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--well\)/);
   assert.match(chat, /\.pc-thread\s*\{[^}]*background:\s*var\(--well-terminal\)/);
-  assert.match(chat, /\.pc-field\s*\{[^}]*background:\s*var\(--well-raised\)/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*background:\s*var\(--well-raised\)/);
+  assert.match(chat, /\.pc-field\s*\{[^}]*background:\s*transparent;[^}]*box-shadow: none/);
   assert.match(terminal, /\.pt-card-screen,[^{]+\{[^}]*background:\s*var\(--well-terminal\)/);
   const plane = /(?:^|[\s>+~])(?:\.pc|\.pc-thread|\.pc-composer|\.phantom-chat|\.pt-card|\.pt-card-screen|\.terminal-panel|\.terminal-host|\.canvas-node\[data-type="terminal"\])(?=[:.\[#]|$)(?:[^\s>+~]*)$/;
   for (const { name, css } of sheets) {
@@ -300,10 +301,65 @@ test('workplanes and wells are opaque without blur and composer height never ani
     }
   }
   assert.match(chat, /\.pc-field textarea\s*\{[^}]*transition:\s*none/);
-  for (const file of ['ChatCard', 'PhantomChat']) {
+  for (const file of ['ChatCard', 'PhantomChat', 'PhantomOrchestrator']) {
     const source = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
-    assert.match(source, /useComposerSize\(input, draft/);
+    assert.match(source, /useComposerSize\(input, preview/);
+    assert.match(source, /const preview = dictationPreview\(voice, draft\)/);
     assert.doesNotMatch(source, /Math\.min\(el\.scrollHeight/);
+  }
+});
+
+test('E5 session rows, quote and activity use two surface levels and measured progress only', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const source = readFileSync(path.join(root, 'src/components/ChatCard.jsx'), 'utf8');
+  for (const [name, value] of Object.entries({ 'session-row-height': '64px', 'choice-col': '20px', 'radio-dot': '8px', 'activity-row-height': '40px', 'activity-row-py': '8px', 'progress-height': '4px', 'progress-track': '#2c2c2d', 'quote-width': '2px', 'quote-inset': '12px', 'quote-gap': '8px', 'composer-field-min': '40px', 'composer-gap': '12px', 'prose-ink': '#d9d6cf', 't-code': '400 12px/16px var(--mono)' }))
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
+  assert.match(source, /AGENT_MODES\.filter\(mode => enabled\.includes\(mode.id\)\)/);
+  assert.equal(rootDeclarations(canvas, '--panel-header-session')[0], '56px');
+  assert.equal(rootDeclarations(canvas, '--t-terminal-preview')[0], '400 12px/18px var(--mono)');
+  assert.match(chat, /\.activity-trace\s*\{ --trace-duration: 7s/);
+  for (const [index, length] of ['14px', '10px', '6px', '3px', '1.2px'].entries()) assert.ok(chat.includes(`rect:nth-child(${index + 1}) { --L: ${length} !important; }`));
+  assert.match(source, /className="pc-modes control-segmented"/);
+  assert.match(source, /role="radio" aria-checked=\{active === mode.id\}/);
+  assert.match(source, /'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'/);
+  assert.match(source, /<blockquote className="pc-message is-user">/);
+  assert.match(source, /phantom \? <PhantomGlyph size=\{16\}/);
+  assert.match(source, /state.live && state.total > 0 && <progress[^>]+max=\{state.total\} value=\{state.passed\}/);
+  assert.doesNotMatch(source, /<progress(?![^>]*max=\{state.total\})/);
+  assert.match(chat, /\.pc-message.is-user\s*\{[^}]*border-left: var\(--quote-width\) solid var\(--on\);[^}]*background: none/);
+  assert.match(chat, /\.pc-tools::before\s*\{[^}]*left: 32px; top: 10px; bottom: 18px;[^}]*background: var\(--divider\)/);
+  assert.match(chat, /\.pc-subagent\s*\{[^}]*background: none/);
+  assert.match(chat, /\.pc-session-row\s*\{[^}]*border-radius: var\(--r-row\)/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*padding: 12px 24px 24px 28px;[^}]*border-top: var\(--divider-width\) solid var\(--divider\)/);
+  for (const css of [chat, sheets.find(sheet => sheet.name === 'src/phantom-chat.css').css]) {
+    assert.doesNotMatch(css, /\.pc-field(?::hover|:focus-within|\.is-listening)\s*\{/);
+    assert.doesNotMatch(css, /\.pc\.is-focused \.pc-(?:composer|controls|field textarea)\s*\{/);
+  }
+});
+
+test('E5 dictation is a field preview and a real-level meter without decorative loops', () => {
+  const css = sheets.find(sheet => sheet.name === 'src/voice.css').css;
+  const source = readFileSync(path.join(root, 'src/components/VoiceActivity.jsx'), 'utf8');
+  for (const [name, value] of Object.entries({ 'meter-height': '36px', 'meter-px': '12px', 'meter-gap': '8px', 'meter-fill': '#ffffff14', 'bar-width': '3px', 'bar-gap': '3px', 'bar-radius': '2px', 'bars-height': '16px', 'composer-divider': '#ffffff26' }))
+    assert.equal(rootDeclarations(css, `--voice-${name}`)[0], value);
+  assert.doesNotMatch(source + css, /requestAnimationFrame|VoiceOrb|voice-aura|Te escucho|te escucho|Cancelar audio/);
+  assert.match(source, /voice.status === 'recording' && Number.isFinite\(voice.level\)/);
+  assert.match(source, /'--bar-level': level \* weight/);
+  assert.match(source, /if \(voice.status === 'idle'\) return draft/);
+  assert.match(source, /if \(voice.status === 'idle'\) return null/);
+  assert.match(source, /aria-label="Descartar dictado"/);
+  assert.match(source, /aria-label="Terminar dictado"/);
+  assert.match(css, /\.voice-live-confirmed\s*\{ color: var\(--ink\)/);
+  assert.match(css, /\.voice-live-partial\s*\{ color: var\(--muted\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none !important; transition: none !important/);
+  for (const file of ['ChatCard', 'PhantomChat', 'PhantomOrchestrator']) {
+    const component = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
+    assert.match(component, /<VoiceTranscript voice=\{voice\} draft=\{draft\}/);
+    assert.match(component, /hint="Esc descarta · Enter envía"/);
+    assert.match(component, /value=\{preview\} readOnly=\{voice.status !== 'idle'\}/);
+    assert.match(component, /sendAction\(/);
+    assert.match(component, /canSubmit\(/);
   }
 });
 
@@ -441,6 +497,9 @@ test('stable badge palette is defined, rail uses state and active switches stay 
       if (name === 'src/settings.css') {
         assert.match(selectors.trim(), /^\.st-ico(?:\[data-tone="(?:steel|violet)"\])?$/);
         assert.match(value, /^var\(--badge-(?:neutral|steel|violet)\)$/);
+      } else if (name === 'src/chat.css') {
+        for (const selector of split(selectors.trim(), ',')) assert.match(selector, /^\.pc-session-badge(?:\[data-provider="(?:claude|opencode|codex)"\]|\.is-(?:permission|folder|model))?$/);
+        assert.match(value, /^var\(--badge-(?:neutral|coral|mint|steel|violet)\)$/);
       } else {
         assert.equal(name, 'src/sidebar.css');
         assert.match(selectors.trim(), /(?:\.rail-agent-mark|\.project-initials)$/);

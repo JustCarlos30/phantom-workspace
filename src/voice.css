@@ -1,40 +1,54 @@
-.voice-activity { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; color: var(--working); font-size: 12px; min-width: 0; }
-.voice-activity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.voice-activity button { border: 0; background: transparent; color: var(--ink); cursor: pointer; padding: 6px 8px; border-radius: var(--r-ctl); }
-.voice-activity button:hover { background: var(--fill-2); }
-.voice-live-text { flex: 1 0 100%; min-width: 0; max-height: 6em; overflow-y: auto; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.5; color: var(--ink); }
-.voice-live-text:empty { display: none; }
-.voice-waves { display: block; width: 40px; height: 40px; flex: 0 0 auto; }
-.voice-activity[data-state="requesting"] { color: var(--attention); }
-/* Live transcript: committed words in ink, the tentative tail still forming. */
-.voice-live { margin: 0; max-height: 7.5em; overflow-y: auto; color: var(--ink); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+:root {
+  --voice-meter-height: 36px;
+  --voice-meter-px: 12px;
+  --voice-meter-gap: 8px;
+  --voice-meter-fill: #ffffff14;
+  --voice-bar-width: 3px;
+  --voice-bar-gap: 3px;
+  --voice-bar-radius: 2px;
+  --voice-bars-height: 16px;
+  --voice-composer-divider: #ffffff26;
+}
+.voice-activity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; flex: 1; color: var(--ink); font: var(--t-support); }
+.voice-meter { display: inline-flex; align-items: center; flex-shrink: 0; gap: var(--voice-meter-gap); height: var(--voice-meter-height); padding: 0 var(--voice-meter-px); background: var(--voice-meter-fill); border-radius: var(--r-pill); }
+.voice-meter > svg { color: var(--working); }
+.voice-meter time { color: var(--ink); font: var(--t-code); font-variant-numeric: tabular-nums; }
+.voice-bars { display: inline-flex; align-items: center; gap: var(--voice-bar-gap); height: var(--voice-bars-height); }
+.voice-bars i { width: var(--voice-bar-width); height: calc(2px + 14px * var(--bar-level)); border-radius: var(--voice-bar-radius); background: var(--working); transition: height 80ms linear; }
+.voice-activity:not([data-state="recording"]) .voice-meter > svg, .voice-activity:not([data-state="recording"]) .voice-bars i { color: var(--muted); }
+.voice-activity:not([data-state="recording"]) .voice-bars i { background: var(--muted); }
+.voice-activity button { display: grid; place-items: center; flex-shrink: 0; width: var(--control-size); height: var(--control-size); padding: 0; border: 0; border-radius: 50%; background: var(--control-fill); color: var(--ink); cursor: pointer; }
+.voice-activity .voice-discard { margin-left: auto; }
+.voice-activity button:hover:not(:disabled) { background: var(--control-hover); }
+.voice-activity button:active:not(:disabled) { background: var(--control-press); }
+.voice-activity .voice-finish { background: var(--on); color: var(--on-ink); }
+.voice-activity .voice-finish:hover:not(:disabled) { background: var(--on-hover); }
+.voice-activity .voice-finish:active:not(:disabled) { background: var(--on-press); }
+.voice-activity button:disabled { background: var(--control-fill); color: var(--ink-3); cursor: default; }
+.voice-activity button:focus-visible { outline: var(--focus-width) solid var(--on); outline-offset: var(--focus-offset); }
+.voice-hint, .voice-status { color: var(--muted); }
+.voice-hint { flex: 1 0 100%; order: 1; }
+.voice-live { position: absolute; inset: 0; margin: 0; overflow-y: auto; color: var(--ink); font: var(--t-control); overflow-wrap: anywhere; white-space: pre-wrap; pointer-events: none; }
 .voice-live-confirmed { color: var(--ink); }
-.voice-live-partial { color: var(--muted); animation: voice-partial-in 180ms ease-out; }
-.voice-notice { margin: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
-@keyframes voice-thinking { from { opacity: .4; } to { opacity: 1; } }
-@keyframes voice-partial-in { from { opacity: .4; } to { opacity: 1; } }
-
-/* ---------- Aura: the whole surface that owns the microphone glows ----------
-   Mounted only while dictating. A still 1px border; its opacity follows the
-   real mic level written to --voice-level on the surface. */
-[data-voice-aura] { isolation: isolate; }
-.voice-aura { position: absolute; inset: 0; z-index: 60; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1px var(--working); opacity: calc(.28 + var(--voice-level, 0) * .42); transition: opacity 180ms ease-out; }
-.voice-aura[data-state="requesting"] { display: none; }
-.voice-aura[data-state="transcribing"] { opacity: .22; }
+.voice-live-partial { color: var(--muted); }
+.voice-notice { flex-basis: 100%; margin: 0; color: var(--muted); font: var(--t-support); overflow-wrap: anywhere; }
 
 .voice-dialog { box-sizing: border-box; width: min(540px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); color: var(--ink); border-radius: var(--r-obj); box-shadow: var(--shadow-float); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .app-modal-backdrop.voice-backdrop { z-index: 1100; }
 .voice-dialog h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
 .voice-dialog p { margin: 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
-.voice-dialog .voice-live { color: var(--ink); font-size: 15px; }
-.voice-dialog .voice-live-partial { color: var(--muted); }
 .voice-dialog label { display: grid; gap: 8px; font-size: 12px; color: var(--muted); }
 .voice-dialog textarea { width: 100%; box-sizing: border-box; min-height: 120px; resize: vertical; background: var(--surface-2); color: var(--ink); border: 0; border-radius: var(--r-ctl); padding: 12px; font: inherit; font-size: 13px; caret-color: var(--accent); }
 .voice-dialog .voice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .voice-dialog .voice-error { color: var(--danger); }
 .voice-launcher { display: inline-flex; align-items: center; gap: 6px; }
 .voice-inline-error { margin: 4px 12px; color: var(--danger); font-size: 12px; }
+.voice-review { display: flex; flex-direction: column; gap: var(--composer-gap); padding: 12px 24px 24px 28px; background: var(--well-raised); }
+.voice-review .pc-input { position: relative; min-width: 0; }
+.voice-review textarea { width: 100%; min-height: 120px; padding: 0; background: transparent; border: 0; border-radius: 0; color: var(--ink); font: var(--t-control); resize: vertical; }
+.voice-review .pc-input[data-preview] textarea { color: transparent; caret-color: transparent; }
+.voice-review .pc-input[data-preview] textarea::placeholder { color: transparent; }
+@media (pointer: coarse) { .voice-activity button { min-width: 44px; min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) {
-  .voice-waves, .voice-live-partial { animation: none !important; transition: none !important; }
-  .voice-aura { transition: none !important; }
+  .voice-bars i, .voice-live { animation: none !important; transition: none !important; }
 }

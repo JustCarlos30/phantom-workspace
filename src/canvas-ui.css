@@ -149,7 +149,23 @@
   --t-display: 600 24px/30px var(--sans);
   --t-title: 600 15px/20px var(--sans);
   --t-headline: 600 14px/22px var(--sans);
-  --t-body: 400 14px/22px var(--sans);
+  --t-body: 400 14px/20px var(--sans);
+  --t-code: 400 12px/16px var(--mono);
+  --t-terminal-preview: 400 12px/18px var(--mono);
+  --session-row-height: 64px;
+  --panel-header-session: 56px;
+  --choice-col: 20px;
+  --radio-dot: 8px;
+  --activity-row-height: 40px;
+  --activity-row-py: 8px;
+  --progress-height: 4px;
+  --progress-track: #2c2c2d;
+  --quote-width: 2px;
+  --quote-inset: 12px;
+  --quote-gap: 8px;
+  --prose-ink: #d9d6cf;
+  --composer-field-min: 40px;
+  --composer-gap: 12px;
   --t-control: 500 14px/20px var(--sans);
   --t-support: 400 12px/16px var(--sans);
   --t-micro: 500 12px/16px var(--sans);
@@ -592,7 +608,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .pc-title > svg, .sk-title > svg, .rp-brand > svg { width: 18px; height: 18px; }
 /* Terminal preview shares the reading rhythm; alternate screens retain their
    row/column fit and semantic overview keeps its compact scale. */
-.pt-card:not(.is-overview) .pt-card-screen:not(.is-alternate) pre { font: var(--t-body); font-family: var(--mono); }
+.pt-card:not(.is-overview) .pt-card-screen:not(.is-alternate) pre { font: var(--t-terminal-preview); }
 .pt-card:not(.is-overview) .pt-card-footer { font: var(--t-support); }
 .pt-card:not(.is-overview) .pt-card-action { font: var(--t-control); }
 * { scrollbar-color: var(--scroll-thumb) transparent; }

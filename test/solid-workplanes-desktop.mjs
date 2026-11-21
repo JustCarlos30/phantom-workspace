@@ -4,10 +4,12 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { killElectronGroup } from './support/electron-process.mjs';
+import { build } from 'vite';
 
 // Controller-owned execution. Built renderer, isolated real host and PTYs;
 // only conversation responses are synthetic, with no provider invocation.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+await build({ root });
 await mkdir('/tmp/opencode', { recursive: true });
 const evidence = await mkdtemp('/tmp/opencode/solid-workplanes-');
 const temp = await mkdtemp('/tmp/phantom-solid-');
@@ -187,9 +189,14 @@ const materials = async () => {
         const style = getComputedStyle(el);
         if (style.backdropFilter !== 'none') bad.push(`blur ${el.className}`);
       }
-      for (const well of panel.querySelectorAll('.pc-thread,.pc-field,.pt-card-screen,.terminal-host')) {
+      for (const well of panel.querySelectorAll('.pc-thread:not(:has(.pc-session-new)),.pc-composer,.pt-card-screen,.terminal-host')) {
         const style = getComputedStyle(well);
         if (alpha(style.backgroundColor) !== 255) bad.push(`translucent reading/writing well: ${well.className}`);
+      }
+      for (const field of panel.querySelectorAll('.pc-field')) {
+        const style = getComputedStyle(field);
+        if (alpha(style.backgroundColor) !== 0 || style.boxShadow !== 'none' || style.borderTopWidth !== '0px') bad.push('field adds a third surface or halo');
+        if (getComputedStyle(field.closest('.pc-composer')).padding !== '12px 24px 24px 28px') bad.push('composer is not full-bleed');
       }
       const text = panel.querySelector('.pc-message.is-agent,.pt-output,.terminal-wrap') || panel.querySelector('.node-body');
       const chain = [];
@@ -202,8 +209,9 @@ const materials = async () => {
     }
     const canvas = document.querySelector('.canvas');
     if (alpha(getComputedStyle(canvas).backgroundColor) !== 0) bad.push('canvas hides environmental art');
-    const art = getComputedStyle(document.querySelector('.canvas-region'), '::after');
-    if (art.backgroundImage === 'none' || Number(art.opacity) <= 0 || Number(getComputedStyle(canvas).zIndex) <= Number(art.zIndex)) bad.push('art missing or above workplanes');
+    const art = getComputedStyle(document.querySelector('.canvas-region'), '::before');
+    if (art.backgroundImage === 'none' || Number(art.opacity) <= 0 || Number(getComputedStyle(canvas).zIndex) <= Number(art.zIndex)) bad.push('environmental art missing or above workplanes');
+    if (document.querySelectorAll('[data-identity]').length !== 1) bad.push('scene identity must appear once');
     for (const el of document.querySelectorAll('.project-rail,.canvas-navigation,.activity-dock,.inspector-host,.phantom-chat,.context-menu-panel,.pc-models')) {
       if (el.getClientRects().length) objectMaterial(el);
     }
@@ -222,9 +230,9 @@ const materials = async () => {
       if (style.backgroundColor !== expected.backgroundColor || style.color !== expected.color) bad.push(`active key lost solid light fill/dark ink: ${el.className}`);
       probe.remove();
     }
-    for (const el of document.querySelectorAll('.pc-modes')) {
+    for (const el of document.querySelectorAll('.pc-modes button[aria-checked="true"]')) {
       const probe = document.createElement('span'); el.append(probe); probe.style.backgroundColor = 'var(--on)';
-      if (getComputedStyle(el, '::before').backgroundColor !== getComputedStyle(probe).backgroundColor) bad.push('provider segment lost solid light fill');
+      if (getComputedStyle(el).backgroundColor !== getComputedStyle(probe).backgroundColor) bad.push('interface segment lost solid light fill');
       probe.remove();
     }
     return { bad, reading, focusGeometry };
