@@ -132,7 +132,7 @@ p, h1 { margin: 0; }
 .bar { height: 56px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 calc(var(--box-pad) + var(--row-px)); }
 .bar .name { font: var(--t-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bar .tag { margin-left: auto; font: var(--t-sup); color: var(--ink-2); white-space: nowrap; }
-.stack { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--group-gap); overflow: hidden; padding: 0 var(--box-pad) var(--box-pad); }
+.stack { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--group-gap); overflow: hidden; padding: 0 var(--box-pad); }
 /* Hilo: pozo a sangre hasta los bordes laterales e inferior, recortado por el radio del panel */
 .stack.well { background: var(--well); padding-top: var(--row-px); padding-bottom: 0; }
 
@@ -157,11 +157,10 @@ p, h1 { margin: 0; }
 .segm button[aria-checked="true"]:active { background: var(--ivory-press); }
 
 /* Compositor */
-.composer { margin-top: auto; flex: none; padding: var(--row-py) var(--row-py) var(--row-py) var(--row-px); display: flex; flex-direction: column; gap: 12px; border-radius: var(--r-group); background: var(--flat); }
-/* Dentro del hilo el compositor no es otra caja: paso tonal y divisor, a sangre */
-.well .composer { margin: auto calc(-1 * var(--box-pad)) 0; padding: var(--row-py) calc(var(--box-pad) + var(--row-py)) calc(var(--box-pad) + var(--row-py)) calc(var(--box-pad) + var(--row-px)); border-radius: 0; background: var(--step); border-top: 1px solid var(--divider); }
-.well .composer.dict { border-top-color: #ffffff26; }
-.field { min-height: 40px; font: var(--t-row); color: var(--ink-3); }
+/* Igual en las tres escenas: a sangre en la base del panel, paso tonal y divisor, sin otra caja */
+.composer { margin: auto calc(-1 * var(--box-pad)) 0; flex: none; padding: var(--row-py) calc(var(--box-pad) + var(--row-py)) calc(var(--box-pad) + var(--row-py)) calc(var(--box-pad) + var(--row-px)); display: flex; flex-direction: column; gap: 12px; background: var(--step); border-top: 1px solid var(--divider); }
+.composer.dict { border-top-color: #ffffff26; }
+.field { height: 40px; overflow: hidden; font: var(--t-row); color: var(--ink-3); }
 .field.on { color: var(--ink); }
 .field .partial { color: var(--ink-2); }
 .tools { display: flex; align-items: center; gap: 8px; }
@@ -177,10 +176,10 @@ p, h1 { margin: 0; }
 .push { margin-left: auto; }
 
 /* ---------- Hilo ---------- */
-/* Tu mensaje: sin burbuja (sería un nivel 2 dentro del hilo); alineado a la derecha con etiqueta */
-.you { align-self: flex-end; max-width: 84%; padding: 0 var(--row-px); text-align: right; font: var(--t-row); color: var(--ink); }
-.you::before { content: "Tú"; display: block; font: var(--t-sup); color: var(--ink-3); margin-bottom: 4px; }
-.prose { padding: 0 var(--row-px); font: var(--t-row); color: #d9d6cf; }
+/* Tu mensaje: sin burbuja (sería un nivel 2 dentro del hilo); cita en la columna del hilo, tinta plena y 500.
+   12 px de hueco de pila + 8 px = 20 px hasta la respuesta */
+.you { margin: 0 var(--row-px) 8px; padding-left: 12px; border-left: 2px solid var(--ivory); font: var(--t-row); color: var(--ink); }
+.prose { padding: 0 var(--row-px); font: var(--t-row); font-weight: 400; color: #d9d6cf; }
 .prose ol { margin: 8px 0 0; padding-left: 20px; }
 
 /* Actividad: líneas sobre el hilo con una guía vertical de 1 px, sin tarjeta */
@@ -281,8 +280,8 @@ p, h1 { margin: 0; }
       <summary>Qué cambia y por qué</summary>
       <ol>
         <li><b>Dos niveles de superficie, nunca más</b>: el panel y el dock son los únicos con degradado, aro de 1 px y radio 24; dentro, como mucho un relleno plano donde se lee o se escribe.</li>
-        <li><b>Sin tarjetas que solo agrupan</b>: «Quién responde» y «Contexto» son filas sobre el panel con divisores de 1 px al 7 %; el segmentado conserva su pista porque es un control y el compositor es el único relleno.</li>
-        <li><b>Hilo a sangre</b>: la cabecera no tiene fondo propio; el hilo es un único plano oscuro hasta los bordes y el compositor se distingue por un paso tonal y un divisor, sin otra caja.</li>
+        <li><b>Sin tarjetas que solo agrupan</b>: «Quién responde» y «Contexto» son filas sobre el panel con divisores de 1 px al 7 %; el segmentado conserva su pista porque es un control y el compositor va a sangre en la base, idéntico en las tres escenas.</li>
+        <li><b>Hilo a sangre</b>: la cabecera no tiene fondo propio; el hilo es un único plano oscuro hasta los bordes y el compositor se distingue por un paso tonal y un divisor, sin otra caja. Tu turno es una cita a la izquierda: barra marfil de 2 px, tinta plena y peso 500.</li>
         <li><b>Actividad sin tarjeta</b>: líneas sobre el hilo unidas por una guía vertical de 1 px; glifo, verbo, destino y cifra, Titi en las llamadas a Phantom y una sola fila viva con barra fina.</li>
         <li><b>Dictado silencioso</b>: la respuesta del agente es prosa; la transcripción vive en el campo y el micrófono se vuelve píldora con barras y tiempo.</li>
         <li><b>Interacción</b>: hover sube la fila un paso en 120 ms, presionado baja uno, la insignia no cambia; foco marfil de 2 px. El estado se dice con palabras y la cometa del aro; con movimiento reducido todo queda fijo.</li>

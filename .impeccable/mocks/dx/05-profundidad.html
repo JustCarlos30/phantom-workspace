@@ -64,7 +64,7 @@
   --dur-open: 320ms; --dur-press: 120ms;
 
   /* Área del lienzo para maximizar */
-  --canvas-l: 300px; --canvas-t: 72px; --canvas-w: 864px; --canvas-h: 820px;
+  --canvas-l: 312px; --canvas-t: 72px; --canvas-w: 852px; --canvas-h: 820px;
 }
 
 /* HOY: tokens del producto actual */
@@ -161,7 +161,7 @@ p, h1, h2, h3 { margin: 0; }
 .mockbar h1 { font: var(--t-title); margin-right: 4px; }
 
 /* ---------- Rail ---------- */
-.rail { left: 12px; top: 12px; bottom: 12px; width: 248px; padding: var(--box-pad); display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+.rail { left: 12px; top: 12px; bottom: 12px; width: 272px; padding: var(--box-pad); display: flex; flex-direction: column; gap: 8px; z-index: 10; }
 /* Filas directamente sobre el rail: 52 px, una línea de título y una de apoyo; divisores solo entre grupos */
 .rail .row { height: 52px; min-height: 52px; padding: 0 var(--row-px); border-radius: 10px; }
 .rail .list > li + li::before { content: none; }
@@ -188,11 +188,11 @@ p, h1, h2, h3 { margin: 0; }
 
 /* ---------- Paneles ---------- */
 /* Cabecera sobre el material del panel; el pozo va a sangre y se recorta con el radio */
-.pane { width: 424px; height: 248px; padding: 0; overflow: hidden; display: flex; flex-direction: column; z-index: 5; transition: opacity var(--dur-open) linear; }
+.pane { width: 418px; height: 248px; padding: 0; overflow: hidden; display: flex; flex-direction: column; z-index: 5; transition: opacity var(--dur-open) linear; }
 .trace { z-index: 4; }
-#p1 { left: 300px; top: 72px; } #p2 { left: 740px; top: 72px; }
-#p3 { left: 300px; top: 336px; } #p4 { left: 740px; top: 336px; }
-#p5 { left: 300px; top: 600px; width: 640px; height: 152px; }
+#p1 { left: 312px; top: 72px; } #p2 { left: 746px; top: 72px; }
+#p3 { left: 312px; top: 336px; } #p4 { left: 746px; top: 336px; }
+#p5 { left: 312px; top: 600px; width: 628px; height: 152px; }
 .bar { height: 52px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 var(--box-pad) 0 calc(var(--box-pad) + var(--row-px)); }
 .bar .name { font: var(--t-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bar .tag { margin-left: auto; font: var(--t-sup); color: var(--ink-2); white-space: nowrap; }
@@ -250,7 +250,7 @@ p, h1, h2, h3 { margin: 0; }
 
 /* ---------- Dock ---------- */
 /* 64 px de alto, 24 px libres hasta el borde y cualquier panel */
-.dock { left: 732px; bottom: 24px; transform: translateX(-50%); height: 64px; padding: 0 12px; display: flex; gap: 12px; align-items: center; border-radius: var(--r-pill); z-index: 20; }
+.dock { left: 738px; bottom: 24px; transform: translateX(-50%); height: 64px; padding: 0 12px; display: flex; gap: 12px; align-items: center; border-radius: var(--r-pill); z-index: 20; }
 .titi { width: 28px; height: 28px; margin-left: 4px; flex: none; color: var(--ivory); }
 .dprim { height: 40px; padding: 0 18px; border-radius: var(--r-pill); background: var(--ivory); color: var(--on-ink); font: var(--t-row); display: inline-flex; gap: 8px; align-items: center; transition: background-color var(--dur-press) linear; }
 .dprim:hover { background: #f6f1e6; }
@@ -326,7 +326,7 @@ p, h1, h2, h3 { margin: 0; }
     <ol>
       <li><b>Dos niveles de superficie, nunca más</b>: el objeto (rail, panel, inspector, dock) es el único con degradado, aro de 1 px y radio 24; dentro, como mucho un relleno plano donde se lee o se escribe.</li>
       <li><b>Sin tarjetas que solo agrupan</b>: lo demás se separa con espacio, tipografía y divisores de 1 px al 7 % alineados al texto. El hover sigue siendo un paso tonal temporal.</li>
-      <li><b>Rail directo</b>: 248 px, filas de 52 px sobre el rail con título y apoyo en una línea cada uno; etiquetas de grupo con 20 px de aire y divisores solo entre grupos. «Estado» colorea lo activo; «Tipo», por agente.</li>
+      <li><b>Rail directo</b>: 272 px, filas de 52 px sobre el rail; el título usa todo el ancho y el apoyo reúne tipo, estado y tiempo; etiquetas de grupo con 20 px de aire y divisores solo entre grupos. «Estado» colorea lo activo; «Tipo», por agente.</li>
       <li><b>Paneles</b>: la cabecera no tiene fondo propio y el pozo de salida va a sangre, recortado por el radio. El inspector conserva sus grupos como un único paso tonal plano.</li>
       <li><b>Trazo de trabajando</b>: cometa continua de 1.5 px sobre el aro, sin resplandor.</li>
       <li><b>Interacción</b>: hover sube la fila un paso en 120 ms, presionado baja uno, la insignia no cambia; foco con contorno marfil de 2 px. Maximizar abre el panel desde su sitio (FLIP de 320 ms) y Esc lo devuelve; con movimiento reducido todo es inmediato.</li>
@@ -354,12 +354,12 @@ p, h1, h2, h3 { margin: 0; }
     <section class="sect rgrp">
       <p class="cap">Sesiones</p>
       <ul class="list">
-        <li><button class="row sess" type="button" data-target="p1" data-state="working" data-kind="claude" aria-current="true"><span class="badge"><svg class="ic"><use href="#i-claude"/></svg></span><span class="tx"><b>Ordenar repositorios</b><small>Claude · <em class="st">trabajando</em></small></span><span class="val sup">4 min</span></button></li>
-        <li><button class="row sess" type="button" data-target="p2" data-state="attention" data-kind="claude"><span class="badge"><svg class="ic"><use href="#i-claude"/></svg></span><span class="tx"><b>Migración de tokens</b><small>Claude · <em class="st">te necesita</em></small></span><span class="val sup">1 min</span></button></li>
-        <li><button class="row sess" type="button" data-target="p3" data-state="done" data-kind="opencode"><span class="badge"><svg class="ic"><use href="#i-opencode"/></svg></span><span class="tx"><b>Dictado: puntuación</b><small>OpenCode · <em class="st">terminó</em></small></span><span class="val sup">12 min</span></button></li>
-        <li><button class="row sess" type="button" data-target="p4" data-state="error" data-kind="term"><span class="badge"><svg class="ic"><use href="#i-term"/></svg></span><span class="tx"><b>Smoke de escritorio</b><small>Terminal · <em class="st">error</em></small></span><span class="val sup">18 min</span></button></li>
-        <li><button class="row sess" type="button" data-target="p5" data-state="idle" data-kind="codex"><span class="badge"><svg class="ic"><use href="#i-codex"/></svg></span><span class="tx"><b>Revisar CONTRACT.md</b><small>Codex · <em class="st">en reposo</em></small></span><span class="val sup">32 min</span></button></li>
-        <li><button class="row sess" type="button" data-target="cue" data-state="attention" data-kind="voz"><span class="badge"><svg class="ic"><use href="#i-mic"/></svg></span><span class="tx"><b>Notas de lanzamiento</b><small>Encargo de voz · <em class="st">te necesita</em></small></span><span class="val sup">3 min</span></button></li>
+        <li><button class="row sess" type="button" data-target="p1" data-state="working" data-kind="claude" aria-current="true"><span class="badge"><svg class="ic"><use href="#i-claude"/></svg></span><span class="tx"><b>Ordenar repositorios</b><small>Claude · <em class="st">trabajando</em> · 4 min</small></span></button></li>
+        <li><button class="row sess" type="button" data-target="p2" data-state="attention" data-kind="claude"><span class="badge"><svg class="ic"><use href="#i-claude"/></svg></span><span class="tx"><b>Migración de tokens</b><small>Claude · <em class="st">te necesita</em> · 1 min</small></span></button></li>
+        <li><button class="row sess" type="button" data-target="p3" data-state="done" data-kind="opencode"><span class="badge"><svg class="ic"><use href="#i-opencode"/></svg></span><span class="tx"><b>Dictado: puntuación</b><small>OpenCode · <em class="st">terminó</em> · 12 min</small></span></button></li>
+        <li><button class="row sess" type="button" data-target="p4" data-state="error" data-kind="term"><span class="badge"><svg class="ic"><use href="#i-term"/></svg></span><span class="tx"><b>Smoke de escritorio</b><small>Terminal · <em class="st">error</em> · 18 min</small></span></button></li>
+        <li><button class="row sess" type="button" data-target="p5" data-state="idle" data-kind="codex"><span class="badge"><svg class="ic"><use href="#i-codex"/></svg></span><span class="tx"><b>Revisar CONTRACT.md</b><small>Codex · <em class="st">en reposo</em> · 32 min</small></span></button></li>
+        <li><button class="row sess" type="button" data-target="cue" data-state="attention" data-kind="voz"><span class="badge"><svg class="ic"><use href="#i-mic"/></svg></span><span class="tx"><b>Notas de lanzamiento</b><small>Encargo de voz · <em class="st">te necesita</em> · 3 min</small></span></button></li>
       </ul>
     </section>
 
