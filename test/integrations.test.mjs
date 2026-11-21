@@ -14,6 +14,7 @@ import { runTimeoutMs, closeBlockedTasks } from '../integrations/phantom.mjs';
 import { services } from '../integrations/services.mjs';
 
 const exec = promisify(execFile);
+await mkdir('/tmp/opencode', { recursive: true });
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 async function fixture(t, git = false) {
   const home = await mkdtemp('/tmp/opencode/adapters-');
