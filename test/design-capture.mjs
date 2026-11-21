@@ -803,12 +803,14 @@ try {
       const input = panel.getByLabel('Mensaje para Claude', { exact: true });
       const recipe = async surface => surface.locator('.pc-composer').evaluate(el => {
         const s = getComputedStyle(el), field = getComputedStyle(el.querySelector('.pc-field')), input = getComputedStyle(el.querySelector('textarea')), controls = getComputedStyle(el.querySelector('.pc-controls'));
-        return { padding: s.padding, gap: s.gap, background: s.backgroundColor, field: field.backgroundColor, radius: field.borderRadius, border: field.borderTopWidth, shadow: field.boxShadow, input: { padding: input.padding, minimum: input.minHeight, font: input.font, transition: input.transitionProperty }, controls: { padding: controls.padding, gap: controls.gap } };
+        return { padding: s.padding, gap: s.gap, background: s.backgroundColor, field: field.backgroundColor, radius: field.borderRadius, border: field.borderTopWidth, shadow: field.boxShadow, input: { padding: input.padding, radius: input.borderRadius, background: input.backgroundColor, border: input.borderWidth, shadow: input.boxShadow, minimum: input.minHeight, font: input.font, transition: input.transitionProperty }, controls: { padding: controls.padding, gap: controls.gap } };
       });
       const common = await recipe(panel);
       assert.equal(common.padding, '12px 24px 24px 28px'); assert.equal(common.gap, '12px');
       assert.equal(common.background, 'rgb(11, 11, 13)'); assert.equal(common.field, 'rgba(0, 0, 0, 0)');
       assert.equal(common.radius, '0px'); assert.equal(common.shadow, 'none'); assert.equal(common.border, '0px');
+      assert.equal(common.input.padding, '8px 12px'); assert.equal(common.input.radius, '12px');
+      assert.equal(common.input.background, 'rgba(0, 0, 0, 0)'); assert.equal(common.input.border, '0px'); assert.equal(common.input.shadow, 'none');
       assert.equal(common.input.minimum, '40px'); assert.equal(common.input.transition, 'none'); assert.equal(common.controls.gap, '8px');
       assert.equal(await panel.locator('.pc-providers [role="radio"]').count(), 1, 'Only the enabled Claude provider is offered');
       assert.deepEqual(await panel.locator('.pc-modes [role="radio"]').allTextContents(), ['Chat', 'Terminal']);
@@ -824,6 +826,35 @@ try {
             const bounds = el.closest('.pc').getBoundingClientRect(), r = el.getBoundingClientRect();
             return el.scrollWidth <= el.clientWidth && r.left >= bounds.left - .001 && r.right <= bounds.right + .001 && r.bottom <= bounds.bottom + .001;
           }), true, 'Composer controls stay contained');
+          if (await panel.locator('.pc-message.is-user').count()) {
+            const quote = await panel.locator('.pc-message.is-user').evaluate(el => {
+              const bar = el.getBoundingClientRect(), text = el.querySelector('.md').getBoundingClientRect(), next = el.nextElementSibling.getBoundingClientRect();
+              const style = getComputedStyle(el);
+              return { height: bar.height, textHeight: text.height, textTop: text.top - bar.top, nextTurnGap: next.top - bar.bottom, width: parseFloat(style.borderLeftWidth), token: style.getPropertyValue('--quote-width').trim(), pixelRatio: devicePixelRatio };
+            });
+            assert.ok(quote.textHeight > 0, `${name}${suffix}: quote has text`);
+            assert.ok(Math.abs(quote.height - quote.textHeight) <= .5, `${name}${suffix}: quote bar follows text height ${JSON.stringify(quote)}`);
+            assert.ok(Math.abs(quote.textTop) <= .5, `${name}${suffix}: quote bar starts with text`);
+            assert.ok(Math.abs(quote.nextTurnGap - 20) <= .5, `${name}${suffix}: next turn is 20px after quote ${JSON.stringify(quote)}`);
+            assert.equal(quote.token, '2px');
+            assert.ok(quote.width > 0 && Math.abs(quote.width - 2) < 1 / quote.pixelRatio, 'Quote bar retains 2 CSS px with device-pixel snapping');
+            observations.push({ scene: `${name}${suffix}`, quote });
+          }
+          if (name === 'session-dictating') {
+            await input.press('ArrowLeft');
+            const field = await input.evaluate(el => {
+              const s = getComputedStyle(el), preview = getComputedStyle(el.parentElement.querySelector('.voice-live'));
+              return { focused: el.matches(':focus-visible'), padding: s.padding, radius: s.borderRadius, pixelRatio: devicePixelRatio, outline: { width: parseFloat(s.outlineWidth), widthToken: s.getPropertyValue('--focus-width').trim(), style: s.outlineStyle, color: s.outlineColor, offset: parseFloat(s.outlineOffset), offsetToken: s.getPropertyValue('--focus-offset').trim() }, preview: { padding: preview.padding, radius: preview.borderRadius, font: preview.font } };
+            });
+            assert.equal(field.focused, true, 'Dictation retains visible keyboard focus');
+            assert.equal(field.padding, common.input.padding); assert.equal(field.radius, common.input.radius);
+            assert.equal(field.outline.widthToken, '2px'); assert.equal(field.outline.offsetToken, '2px');
+            assert.equal(field.outline.style, 'solid'); assert.equal(field.outline.color, 'rgb(236, 230, 216)');
+            assert.ok(field.outline.width > 0 && Math.abs(field.outline.width - 2) < 1 / field.pixelRatio, 'Dictation focus retains 2 CSS px with device-pixel snapping');
+            assert.ok(field.outline.offset > 0 && Math.abs(field.outline.offset - 2) < 1 / field.pixelRatio, 'Dictation focus offset retains 2 CSS px with device-pixel snapping');
+            assert.deepEqual(field.preview, { padding: common.input.padding, radius: common.input.radius, font: common.input.font });
+            observations.push({ scene: `${name}${suffix}`, dictationField: field });
+          }
           await shot(`${name}${suffix}`);
         }
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1520, 980));
