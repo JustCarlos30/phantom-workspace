@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1520">
-<title>Phantom · Profundidad y estados (v4)</title>
+<title>Phantom · Profundidad y estados (v5)</title>
 <style>
 :root {
   /* Tipografía: como mucho tres estilos por panel; mono solo para rutas, comandos y cifras */
@@ -21,15 +21,30 @@
 
   /* Superficies: negro profundo */
   --bg: #020203; --obj: #0b0b0c; --obj-top: #0f0f11; --obj-bot: #070708;
-  --group: #141416; --group-hover: #18181a; --group-sel: #1d1d20; --group-press: #222225;
+  --group: #141416; --group-top: #19191c; --group-bot: #0f0f11; --group-sel: #1d1d20;
+  --row-hover: #ffffff0a; --row-press: #00000040;
   --well: #050506; --divider: #262627; --track: #2c2c2d; --off: #4e4e50;
   --glass: #ffffff14; --glass-hover: #ffffff1c; --glass-press: #ffffff26;
+  --pill-top: #1c1c1f; --pill-bot: #0e0e10;
   --edge-top: color-mix(in srgb, #fff 22%, transparent);
   --edge-bot: color-mix(in srgb, #fff 6%, transparent);
   --shadow: 0 1px 2px #000, 0 16px 32px -16px #000;
 
-  /* Insignias por tipo (apagadas) y por estado */
-  --k-claude: #9b5c46; --k-codex: #48649d; --k-opencode: #4b7e69; --k-term: #5c5c63; --k-voz: #7b5b97;
+  /* Paleta DX de insignias: misma L y C en OKLCH, matices repartidos (editor/terminal apagado).
+     Lima y ámbar quedan reservados al estado; nunca se usan como color decorativo.
+     Asignación estable (igual en 05 y 06):
+       acero   → Codex · Carpeta/repositorio · Retícula del lienzo  (estructura y archivos)
+       menta   → OpenCode · Permisos                                 (abierto, seguro)
+       miel    → Notas y documentos · Avisar cuando te necesiten    (texto y avisos)
+       coral   → Claude · Sonido en error                            (Claude, errores)
+       violeta → Voz y dictado · Modelo · Sonido al terminar         (voz, audio, inferencia)
+       petróleo→ Terminal · Navegador · Animar sesiones activas      (ejecución)
+       vidrio  → inactivo / sin clasificar */
+  --p-steel: oklch(0.64 0.11 250); --p-mint: oklch(0.64 0.10 165); --p-honey: oklch(0.64 0.11 85);
+  --p-coral: oklch(0.64 0.11 30);  --p-violet: oklch(0.64 0.10 300); --p-petrol: oklch(0.64 0.10 210);
+  --p-glass: oklch(0.36 0.008 260);
+  --k-claude: var(--p-coral); --k-codex: var(--p-steel); --k-opencode: var(--p-mint); --k-term: var(--p-petrol); --k-voz: var(--p-violet);
+  /* Insignias por estado: derivadas de lima y ámbar, solo para estado */
   --s-working: #5d7521; --s-attention: #b5872f;
 
   /* Sistema de cajas: caja exterior con aro → grupos → filas */
@@ -46,7 +61,7 @@
 
   /* Movimiento */
   --ease-settle: cubic-bezier(.22, 1, .36, 1);
-  --dur-open: 320ms; --dur-press: 90ms;
+  --dur-open: 320ms; --dur-press: 120ms;
 
   /* Área del lienzo para maximizar */
   --canvas-l: 300px; --canvas-t: 72px; --canvas-w: 864px; --canvas-h: 820px;
@@ -55,7 +70,8 @@
 /* HOY: tokens del producto actual */
 [data-variant="hoy"] {
   --bg: #050505; --obj: #0d0d0d; --obj-top: #0d0d0d; --obj-bot: #0d0d0d;
-  --group: transparent; --group-hover: #1d1d1d; --group-sel: #1d1d1d; --group-press: #242424;
+  --group: transparent; --group-top: transparent; --group-bot: transparent; --group-sel: #1d1d1d;
+  --pill-top: #0d0d0d; --pill-bot: #0d0d0d;
   --well: #080808; --divider: #ffffff1a;
   --edge-top: #ffffff1a; --edge-bot: #ffffff1a;
   --shadow: 0 1px 2px #00000080, 0 14px 30px -16px #000000d9;
@@ -79,10 +95,6 @@ p, h1, h2, h3 { margin: 0; }
 .scene {
   position: relative; width: 1520px; height: 980px; margin: 0 auto; overflow: hidden;
   background-color: var(--bg);
-  background-image: radial-gradient(color-mix(in srgb, #f2f0eb 5%, transparent) 1px, transparent 1.2px);
-  background-size: 24px 24px;
-}
-[data-surface="degradado"] .scene {
   background-image:
     radial-gradient(color-mix(in srgb, #f2f0eb 5%, transparent) 1px, transparent 1.2px),
     radial-gradient(ellipse 900px 640px at 48% 40%, #0e0e11, transparent 72%);
@@ -91,10 +103,10 @@ p, h1, h2, h3 { margin: 0; }
 }
 [data-variant="hoy"] .scene { background-image: radial-gradient(color-mix(in srgb, #f2f0eb 16%, transparent) 1px, transparent 1.2px); background-size: 24px 24px; }
 
-/* Caja exterior con aro de 1 px */
-.box { position: absolute; background: var(--obj); border-radius: var(--r-outer); box-shadow: var(--shadow); }
-[data-surface="degradado"] .box { background: linear-gradient(var(--obj-top), var(--obj-bot)); }
-.box::before, .pane::after {
+/* Material único: degradado vertical (un paso más claro arriba, casi negro abajo) + aro de 1 px.
+   Nivel 1 caja (.box) · nivel 2 grupo (.group) · nivel 3 píldora (.seg, .ibtn, .legend summary) */
+.box { position: absolute; background: linear-gradient(var(--obj-top), var(--obj-bot)); border-radius: var(--r-outer); box-shadow: var(--shadow); }
+.box::before, .group::before, .pane::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; padding: var(--ring); pointer-events: none;
   background: linear-gradient(var(--edge-top), var(--edge-bot));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -102,8 +114,9 @@ p, h1, h2, h3 { margin: 0; }
 }
 
 /* Grupos y filas */
-.group { border-radius: var(--r-group); background: var(--group); overflow: hidden; }
-[data-variant="hoy"] .group { box-shadow: inset 0 0 0 1px var(--divider); }
+.group { position: relative; border-radius: var(--r-group); background: linear-gradient(var(--group-top), var(--group-bot)); overflow: hidden; }
+.group::before { --edge-top: color-mix(in srgb, #fff 12%, transparent); --edge-bot: color-mix(in srgb, #fff 3%, transparent); z-index: 2; }
+[data-variant="hoy"] .group::before { --edge-top: var(--divider); --edge-bot: var(--divider); }
 .sect { display: flex; flex-direction: column; gap: 8px; }
 .cap { padding: 0 var(--row-px); font: var(--t-sup); color: var(--ink-3); }
 .list > li { position: relative; }
@@ -113,24 +126,29 @@ p, h1, h2, h3 { margin: 0; }
   padding: var(--row-py) var(--row-px); text-align: left; color: var(--ink);
   transition: background-color var(--dur-press) linear;
 }
-button.row:hover { background: var(--group-hover); }
-button.row:active { background: var(--group-press); }
+/* Regla única de interacción: hover sube la fila un paso, presionado baja uno; la insignia no cambia */
+.list .row:hover { background: var(--row-hover); }
+.list .row:active { background: var(--row-press); }
+.row:focus-visible { outline-offset: -2px; }
 .row[aria-current="true"] { background: var(--group-sel); }
+.row[aria-current="true"]:hover { background: color-mix(in srgb, var(--group-sel), #fff 4%); }
 .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.tx b { font: var(--t-row); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tx small { font: var(--t-sup); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx b, .tx small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.tx b { font: var(--t-row); }
+.tx small { font: var(--t-sup); color: var(--ink-2); }
 .tx em { font-style: normal; }
 .val { flex: none; font: var(--t-row); color: var(--ink-2); white-space: nowrap; }
 .val.sup { font: var(--t-sup); color: var(--ink-3); }
-.badge { width: var(--icon-col); height: var(--icon-col); border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--b, var(--glass)); color: #fff; }
+.badge { width: var(--icon-col); height: var(--icon-col); border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--b, var(--p-glass)); color: #fff; }
 .badge .ic { display: block; }
 .ncol { width: var(--icon-col); flex: none; text-align: center; font: var(--t-title); color: var(--attention); }
 
 /* Botones de icono y segmentados */
-.ibtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); background: var(--glass); transition: background-color var(--dur-press) linear; }
-.ibtn:hover { background: var(--glass-hover); }
-.ibtn:active { background: var(--glass-press); }
-.seg { display: inline-flex; align-items: center; height: 32px; padding: 2px; gap: 2px; border-radius: var(--r-pill); background: var(--obj); box-shadow: inset 0 0 0 1px #ffffff1a; }
+.ibtn, .seg, .legend summary { background: linear-gradient(var(--pill-top), var(--pill-bot)); box-shadow: inset 0 1px 0 #ffffff1c, inset 0 0 0 1px #ffffff12; }
+.ibtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); transition: background-color var(--dur-press) linear; }
+.ibtn:hover, .legend summary:hover { background: linear-gradient(#242428, #151517); }
+.ibtn:active, .legend summary:active { background: var(--well); }
+.seg { display: inline-flex; align-items: center; height: 32px; padding: 2px; gap: 2px; border-radius: var(--r-pill); }
 .seg .lbl { padding: 0 8px 0 12px; font: var(--t-sup); color: var(--ink-3); }
 .seg button { height: 28px; min-width: 28px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-sup); color: var(--ink-2); transition: background-color var(--dur-press) linear; }
 .seg button:hover { background: var(--glass); }
@@ -138,7 +156,7 @@ button.row:active { background: var(--group-press); }
 .seg button[aria-pressed="true"]:active { background: var(--ivory-press); }
 
 /* ---------- Barra del mock ---------- */
-.mockbar { position: absolute; z-index: 50; left: var(--canvas-l); top: 12px; height: 48px; display: flex; align-items: center; gap: 12px; }
+.mockbar { position: absolute; z-index: 50; left: calc(var(--canvas-l) + var(--box-pad) + var(--row-px)); top: 12px; height: 48px; display: flex; align-items: center; gap: 12px; }
 .mockbar h1 { font: var(--t-title); margin-right: 4px; }
 
 /* ---------- Rail ---------- */
@@ -206,12 +224,6 @@ button.row:active { background: var(--group-press); }
 [data-trace="a"] .trace .ta { display: inline; stroke-dasharray: var(--L) calc(100px - var(--L)); animation: comet 5.6s linear infinite; }
 .trace .head { stroke: var(--working-head); stroke-linecap: round; }
 @keyframes comet { from { stroke-dashoffset: var(--L); } to { stroke-dashoffset: calc(var(--L) - 100px); } }
-/* B · respiración: todo el aro late muy tenue, sin cabeza */
-[data-trace="b"] .trace .tb { display: inline; animation: breathe 2.8s ease-in-out infinite alternate; }
-@keyframes breathe { from { opacity: .12; } to { opacity: .5; } }
-/* C · guiones cortos y regulares que avanzan a pasos */
-[data-trace="c"] .trace .tc { display: inline; opacity: .85; stroke-dasharray: .6px 1.4px; animation: dashes 1.2s steps(4) infinite; }
-@keyframes dashes { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -2px; } }
 
 /* Aviso de fuera de vista */
 .edge-cue { right: 356px; top: 768px; height: 32px; padding: 0 8px 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: var(--r-pill); font: var(--t-sup); color: var(--ink); z-index: 12; }
@@ -229,9 +241,11 @@ button.row:active { background: var(--group-press); }
 .mini .vp { position: absolute; left: 20px; top: 24px; width: 124px; height: 104px; border: 1px solid #ffffff2e; border-radius: 6px; }
 
 /* ---------- Dock ---------- */
-.dock { left: 732px; bottom: 16px; transform: translateX(-50%); height: 56px; padding: 8px; display: flex; gap: 8px; align-items: center; border-radius: var(--r-pill); z-index: 20; }
-.titi { width: 28px; height: 28px; margin: 0 4px 0 6px; flex: none; color: var(--ivory); }
-.dprim { height: 40px; padding: 0 16px 0 12px; border-radius: var(--r-pill); background: var(--ivory); color: var(--on-ink); font: var(--t-row); display: inline-flex; gap: 8px; align-items: center; transition: background-color var(--dur-press) linear; }
+/* 64 px de alto, 24 px libres hasta el borde y cualquier panel */
+.dock { left: 732px; bottom: 24px; transform: translateX(-50%); height: 64px; padding: 0 12px; display: flex; gap: 12px; align-items: center; border-radius: var(--r-pill); z-index: 20; }
+.titi { width: 28px; height: 28px; margin-left: 4px; flex: none; color: var(--ivory); }
+.dprim { height: 40px; padding: 0 18px; border-radius: var(--r-pill); background: var(--ivory); color: var(--on-ink); font: var(--t-row); display: inline-flex; gap: 8px; align-items: center; transition: background-color var(--dur-press) linear; }
+.dprim:hover { background: #f6f1e6; }
 .dprim:active { background: var(--ivory-press); }
 .dbtn { width: 40px; height: 40px; }
 
@@ -247,15 +261,17 @@ button.row:active { background: var(--group-press); }
 .srow + .srow::before { content: ""; position: absolute; top: 0; left: var(--row-px); right: var(--row-px); height: 1px; background: var(--divider); }
 .shead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .shead b { font: var(--t-row); }
-.pill { position: relative; height: 32px; border-radius: var(--r-pill); background: var(--track); overflow: hidden; }
-.pill .fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--ivory-dim); }
+.pill { position: relative; height: 32px; border-radius: var(--r-pill); background: linear-gradient(#323234, #222224); box-shadow: inset 0 1px 0 #ffffff14; overflow: hidden; }
+.pill .fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(var(--ivory), var(--ivory-dim)); }
 .pill .ic { position: absolute; left: 8px; top: 8px; width: 16px; height: 16px; color: #1a1a1a; stroke-width: 2; }
 
 /* ---------- Pie ---------- */
-.legend { width: 1520px; margin: 0 auto; padding: 16px 24px 40px; color: var(--ink-2); font: var(--t-sup); line-height: 20px; }
-.legend summary { cursor: pointer; font: var(--t-row); color: var(--ink); }
+/* La leyenda vive dentro de la escena: la página cabe en 1520 × 980 sin scroll */
+.legend { position: relative; color: var(--ink-2); font: var(--t-sup); line-height: 20px; }
+.legend summary { list-style: none; height: 32px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: var(--r-pill); cursor: pointer; font: var(--t-sup); color: var(--ink-2); transition: background-color var(--dur-press) linear; }
+.legend summary::-webkit-details-marker { display: none; }
 .legend b { color: var(--ink); font-weight: 600; }
-.legend ol { margin: 8px 0 0; padding-left: 20px; max-width: 1080px; }
+.legend ol { position: absolute; top: 40px; left: 0; width: 560px; margin: 0; padding: 16px 20px 16px 36px; border-radius: var(--r-outer); background: linear-gradient(var(--obj-top), var(--obj-bot)); box-shadow: inset 0 0 0 1px #ffffff1f, var(--shadow); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -297,16 +313,17 @@ button.row:active { background: var(--group-press); }
     <button type="button" data-attr="variant" data-val="hoy" aria-pressed="false">Hoy</button>
     <button type="button" data-attr="variant" data-val="propuesta" aria-pressed="true">Propuesta</button>
   </div>
-  <div class="seg" role="group" aria-label="Trazo de trabajando">
-    <span class="lbl">Trazo</span>
-    <button type="button" data-attr="trace" data-val="a" aria-pressed="true" aria-label="Trazo A, cometa">A</button>
-    <button type="button" data-attr="trace" data-val="b" aria-pressed="false" aria-label="Trazo B, respiración">B</button>
-    <button type="button" data-attr="trace" data-val="c" aria-pressed="false" aria-label="Trazo C, guiones">C</button>
-  </div>
-  <div class="seg" role="group" aria-label="Superficie">
-    <button type="button" data-attr="surface" data-val="plano" aria-pressed="false">Plano</button>
-    <button type="button" data-attr="surface" data-val="degradado" aria-pressed="true">Degradado</button>
-  </div>
+  <details class="legend">
+    <summary>Qué cambia y por qué</summary>
+    <ol>
+      <li><b>Un solo sistema de cajas</b>: caja exterior con aro de 1 px (radio 24, relleno 12) → grupos en tarjeta (radio 12, separación 12) → filas de 12 × 16 con columna de icono fija de 32 px.</li>
+      <li><b>Un solo material</b>: rail, paneles, grupos, inspector, dock y píldoras comparten el degradado vertical (un paso más claro arriba, casi negro abajo) y el aro de 1 px, proporcional a su nivel.</li>
+      <li><b>Rail como Apariencia</b>: «Estado» solo colorea lo activo (lima apagado si trabaja, ámbar si te necesita); «Tipo» colorea por agente y dice el estado en palabra. Los títulos pasan a dos líneas antes de cortarse.</li>
+      <li><b>Paleta DX</b>: seis tonos con la misma luminosidad y croma en OKLCH más vidrio para lo inactivo; lima y ámbar solo dicen estado.</li>
+      <li><b>Trazo de trabajando</b>: cometa continua de 1.5 px sobre el aro, sin resplandor.</li>
+      <li><b>Interacción</b>: hover sube la fila un paso en 120 ms, presionado baja uno, la insignia no cambia; foco con contorno marfil de 2 px. Maximizar abre el panel desde su sitio (FLIP de 320 ms) y Esc lo devuelve; con movimiento reducido todo es inmediato.</li>
+    </ol>
+  </details>
 </div>
 
 <main class="scene" aria-label="Escena de Phantom Workspace">
@@ -341,8 +358,8 @@ button.row:active { background: var(--group-press); }
     <section class="sect map">
       <p class="cap">En el mapa</p>
       <ul class="group list">
-        <li><button class="row" type="button"><span class="badge"><svg class="ic"><use href="#i-note"/></svg></span><span class="tx"><b>Nota de release</b></span><svg class="ic sm" style="color:var(--ink-3)"><use href="#i-chev"/></svg></button></li>
-        <li><button class="row" type="button"><span class="badge"><svg class="ic"><use href="#i-globe"/></svg></span><span class="tx"><b>Navegador</b></span><svg class="ic sm" style="color:var(--ink-3)"><use href="#i-chev"/></svg></button></li>
+        <li><button class="row" type="button"><span class="badge" style="--b:var(--p-honey)"><svg class="ic"><use href="#i-note"/></svg></span><span class="tx"><b>Nota de release</b></span><svg class="ic sm" style="color:var(--ink-3)"><use href="#i-chev"/></svg></button></li>
+        <li><button class="row" type="button"><span class="badge" style="--b:var(--p-petrol)"><svg class="ic"><use href="#i-globe"/></svg></span><span class="tx"><b>Navegador</b></span><svg class="ic sm" style="color:var(--ink-3)"><use href="#i-chev"/></svg></button></li>
       </ul>
     </section>
 
@@ -355,7 +372,7 @@ button.row:active { background: var(--group-press); }
 
   <!-- Paneles -->
   <section id="p1" class="pane box sel" data-state="working" aria-label="Sesión trabajando">
-    <svg class="trace" aria-hidden="true"><rect class="ta" pathLength="100" style="--L:26px;opacity:.06"/><rect class="ta" pathLength="100" style="--L:18px;opacity:.14"/><rect class="ta" pathLength="100" style="--L:11px;opacity:.28"/><rect class="ta" pathLength="100" style="--L:6px;opacity:.55"/><rect class="ta head" pathLength="100" style="--L:2.5px"/><rect class="tb" pathLength="100"/><rect class="tc" pathLength="100"/></svg>
+    <svg class="trace" aria-hidden="true"><rect class="ta" pathLength="100" style="--L:26px;opacity:.06"/><rect class="ta" pathLength="100" style="--L:18px;opacity:.14"/><rect class="ta" pathLength="100" style="--L:11px;opacity:.28"/><rect class="ta" pathLength="100" style="--L:6px;opacity:.55"/><rect class="ta head" pathLength="100" style="--L:2.5px"/></svg>
     <header class="bar"><span class="name">Ordenar repositorios recientes</span><span class="tag">trabajando</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
     <div class="body"><span class="d">claude · opus · src/hooks/useRepos.mjs</span>
 <span class="p">›</span> Ordeno por frecuencia y acceso reciente.
@@ -451,33 +468,21 @@ button.row:active { background: var(--group-press); }
     <section class="sect">
       <p class="cap">Lienzo y estados</p>
       <ul class="group list">
-        <li><div class="row"><span class="badge" style="--b:#4f9a6e"><svg class="ic"><use href="#i-pulse"/></svg></span><span class="tx"><b>Animar sesiones activas</b><small>Solo se mueve lo que trabaja</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Animar sesiones activas"></button></div></li>
-        <li><div class="row"><span class="badge" style="--b:#c4803f"><svg class="ic"><use href="#i-bell"/></svg></span><span class="tx"><b>Avisar cuando te necesiten</b><small>Aro ámbar fino y fila en el rail</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Avisar cuando te necesiten"></button></div></li>
-        <li><div class="row"><span class="badge" style="--b:#6e6e75"><svg class="ic"><use href="#i-grid"/></svg></span><span class="tx"><b>Retícula del lienzo</b><small>Puntos cada 24 px</small></span><button class="toggle" type="button" role="switch" aria-checked="false" aria-label="Retícula del lienzo"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:var(--p-petrol)"><svg class="ic"><use href="#i-pulse"/></svg></span><span class="tx"><b>Animar sesiones activas</b><small>Solo se mueve lo que trabaja</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Animar sesiones activas"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:var(--p-honey)"><svg class="ic"><use href="#i-bell"/></svg></span><span class="tx"><b>Avisar cuando te necesiten</b><small>Aro ámbar fino y fila en el rail</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Avisar cuando te necesiten"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:var(--p-steel)"><svg class="ic"><use href="#i-grid"/></svg></span><span class="tx"><b>Retícula del lienzo</b><small>Puntos cada 24 px</small></span><button class="toggle" type="button" role="switch" aria-checked="false" aria-label="Retícula del lienzo"></button></div></li>
       </ul>
     </section>
 
     <section class="sect">
       <p class="cap">Sonido</p>
       <ul class="group list">
-        <li><div class="row"><span class="badge" style="--b:#4f74c2"><svg class="ic"><use href="#i-volume"/></svg></span><span class="tx"><b>Sonido al terminar</b><small>Tono corto, volumen 30 %</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Sonido al terminar"></button></div></li>
-        <li><div class="row"><span class="badge" style="--b:#bf6684"><svg class="ic"><use href="#i-alert"/></svg></span><span class="tx"><b>Sonido en error</b><small>Solo si la ventana no tiene foco</small></span><button class="toggle" type="button" role="switch" aria-checked="false" aria-label="Sonido en error"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:var(--p-violet)"><svg class="ic"><use href="#i-volume"/></svg></span><span class="tx"><b>Sonido al terminar</b><small>Tono corto, volumen 30 %</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Sonido al terminar"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:var(--p-coral)"><svg class="ic"><use href="#i-alert"/></svg></span><span class="tx"><b>Sonido en error</b><small>Solo si la ventana no tiene foco</small></span><button class="toggle" type="button" role="switch" aria-checked="false" aria-label="Sonido en error"></button></div></li>
       </ul>
     </section>
   </aside>
 </main>
-
-<details class="legend">
-  <summary>Qué cambia y por qué</summary>
-  <ol>
-    <li><b>Un solo sistema de cajas</b>: caja exterior con aro de 1 px (radio 24, relleno 12) → grupos en tarjeta (radio 12, separación 12) → filas de 12 × 16 con columna de icono fija de 32 px. Los valores viven en variables CSS (<code>--box-pad</code>, <code>--r-group</code>, <code>--icon-col</code>…).</li>
-    <li><b>Tres estilos de texto</b>: título 15/600, fila 14/500 y apoyo 12/400; mono solo en rutas, comandos y cifras del terminal.</li>
-    <li><b>Rail como Apariencia</b>: sesiones en tarjeta con insignia, título, línea de apoyo y tiempo. «Estado»: solo lo activo lleva color (lima apagado si trabaja, ámbar si te necesita). «Tipo»: color apagado por agente y el estado en palabra, con ámbar solo en «te necesita».</li>
-    <li><b>Trazo de trabajando</b>: A cometa continua, B respiración del aro, C guiones a pasos; los tres de 1.5 px sobre el aro, sin resplandor.</li>
-    <li><b>Superficie</b>: «Degradado» lleva cada objeto de #0f0f11 a #070708 y un radial contenido en el lienzo; «Plano» conserva #0b0b0c.</li>
-    <li><b>Interacción</b>: clic en una sesión la selecciona y realza el aro de su panel; maximizar (o doble clic en la cabecera) lo abre desde su sitio con FLIP de 320 ms y Esc lo devuelve. Pulsar solo cambia el relleno un paso; con movimiento reducido todo es inmediato.</li>
-  </ol>
-</details>
 
 <script>
   const root = document.documentElement;
