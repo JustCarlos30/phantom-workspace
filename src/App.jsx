@@ -38,6 +38,7 @@ import './terminal.css';
 import './chat.css';
 import { preferredCardMode } from './components/ChatCard';
 import ToolPicker from './components/ToolPicker';
+import { localStorageOrNull, updateUsage, recordOpen } from './hooks/tool-usage.mjs';
 import { HUBS, HUB_DOCK, HUB_MORE, resolveHub } from './hooks/hubs.mjs';
 import SidebarPanels from './components/SidebarPanels';
 import './sidebar.css';
@@ -283,9 +284,11 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     launching.current.set(key, promise);
     try { return await promise; } finally { launching.current.delete(key); }
   }, []);
-  const onOpenPanel = useCallback(async (type, data = {}, title) => {
+  const onOpenPanel = useCallback(async (type, data = {}, title, meta) => {
     const w = current.current; if (!w) { notify('Abre una carpeta para crear un panel.'); return null; }
     if (!TYPES.some(t => t[0] === type)) { notify(`Tipo de panel desconocido: ${type}`, 'error'); return null; }
+    const requestedType = type;
+    const recordUse = () => { try { updateUsage(localStorageOrNull(), w.id, usage => recordOpen(usage, requestedType, { fromFrequent: meta?.source === 'frequent' })); } catch {} };
     const hub = resolveHub(type, data);
     if (hub.tab) { data = { ...data, hubTab: hub.tab }; window.dispatchEvent(new CustomEvent('phantom:hub-tab', { detail: hub })); }
     type = hub.type;
@@ -293,7 +296,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     const panel = PLUGIN_PANELS.find(item => item.nodeType === type);
     if (panel) data = { ...data, pluginId: panel.pluginId, panelId: panel.id };
     const existing = w.nodes?.find(n => data.focusNodeId ? n.id === data.focusNodeId : n.type === type && (HUBS[type] && !data.cardId || type === 'plugins' || type === 'command-center' || type === 'incorporaciones' || type === 'branches' || type === 'repo' || type === 'skills-catalog' || panel && (data.cardId ? n.data?.cardId === data.cardId : data.ref ? JSON.stringify(n.data?.ref) === JSON.stringify(data.ref) : !n.data?.cardId && !n.data?.ref) || type === 'tasks' && data.cardId && n.data?.cardId === data.cardId));
-    if (existing) { focusPanel(existing.id); return existing; }
+    if (existing) { focusPanel(existing.id); recordUse(); return existing; }
     setBusy(type);
     let reservationId, created = false;
     try {
@@ -319,6 +322,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           setJumpRequest({ id: node.id, nonce: crypto.randomUUID() });
         } else focusPanel(node.id);
       }
+      recordUse();
       return node;
     } catch (e) { notify(`No se pudo crear ${label(type).toLowerCase()}: ${e.message}`, 'error'); await refresh().catch(() => {}); return null; }
     finally { if (!created && reservationId) placements.current.delete(reservationId); setBusy(''); }
@@ -555,7 +559,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {workspace && !focused && <button key="panel-index-button" className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
           {selected.length > 1 && !focused && <button key="zone-selection" className="zone-selection button" onClick={zoneFromSelection}><Frame size={15} /> Crear zona</button>}
           {selected.length > 1 && !focused && <button key="group-selection" className="group-selection button" onClick={groupSelection}><Target size={15} /> Agrupar en misión</button>}
-          {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker types={LAUNCH_TYPES} disabled={!!busy} onPick={onOpenPanel} onClose={() => setTools(false)} /></>}
+          {tools && <><button className="popover-dismiss" aria-label="Cerrar herramientas" onClick={() => setTools(false)} /><ToolPicker key={workspace.id} workspaceId={workspace.id} types={LAUNCH_TYPES} disabled={!!busy} onPick={(type, source) => onOpenPanel(type, {}, undefined, { source })} onClose={() => setTools(false)} /></>}
           {list && <div className="panel-index"><div className="popover-heading"><strong>Paneles del proyecto</strong><button className="icon-button" aria-label="Cerrar lista" onClick={() => setList(false)}><X size={15} /></button></div><label className="index-search"><Search size={15} /><input autoFocus aria-label="Buscar panel por nombre, tipo o misión" placeholder="Buscar nombre, tipo o misión…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="panel-index-items">{filteredNodes.map(n => <div className="index-item" key={n.id}><button onClick={() => jump(n.id)}><span className="index-type">{label(n.type)}{n.data?.hidden ? ' · Vista oculta · clic para recuperar' : ''}</span><strong>{n.title}</strong>{n.groupId && <small>{workspace.missions?.find(m => m.id === n.groupId)?.title}</small>}</button><button className="icon-button" title="Enfocar" aria-label={`Enfocar ${n.title}`} onClick={() => { focusPanel(n.id); setList(false); }}><ExternalLink size={14} /></button></div>)}{!filteredNodes.length && <EmptyState className="small-empty" size="compact" description={query ? 'No hay paneles con ese nombre, tipo o misión.' : 'Aún no hay paneles. Crea uno desde la barra inferior.'} />}</div><div className="index-footer"><button onClick={() => { setFocused(null); setFitRequest(n => n + 1); setList(false); }}>Ver todo el mapa</button><kbd>Ctrl ⇧ F</kbd></div></div>}
           </div>
           {sitesOpen && <GlobalSites key="global-sites" api={api} onClose={closeSites} />}

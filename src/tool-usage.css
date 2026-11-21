@@ -1,0 +1,11 @@
+.tool-frequent-row { display: flex; align-items: center; gap: 6px; }
+.tool-frequent-row .tool-item { flex: 1; min-width: 0; }
+.tool-frequent-hide, .tool-frequent-controls button { background: var(--fill-2); border: 0; border-radius: var(--r-ctl); color: var(--muted, #a8a6a0); font: inherit; font-size: 12px; padding: 3px 8px; cursor: pointer; }
+.tool-frequent-hide:hover, .tool-frequent-controls button:hover { color: inherit; }
+.tool-frequent-hide:focus-visible, .tool-frequent-controls button:focus-visible, .tool-frequent-details summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.tool-frequent-empty, .tool-frequent-note, .tool-frequent-details small { color: var(--ink-3, #8b8983); font-size: 12px; margin: 4px 0; }
+.tool-frequent-details { margin-top: 6px; font-size: 12px; color: var(--muted, #a8a6a0); }
+.tool-frequent-details summary { cursor: pointer; }
+.tool-frequent-controls { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.tool-frequent-stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; margin: 6px 0; }
+.tool-frequent-stats dt, .tool-frequent-stats dd { margin: 0; }

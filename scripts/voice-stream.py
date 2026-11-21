@@ -28,7 +28,8 @@ MAX_SECONDS = 25
 STABLE_TAIL_SECONDS = 1.5
 # Skip re-decoding the partial until this much new audio arrived (laptop GPU budget).
 MIN_NEW_SECONDS = 0.5
-MAX_TEXT = 32768
+# Sanity bound on the cumulative transcript, not on dictation length (hours of speech).
+MAX_TEXT = 1_000_000
 
 
 class Dictation:
@@ -116,7 +117,7 @@ class Dictation:
         partial = voice_text.postprocess(self.partial, self.corrections, self.fillers)
         text = " ".join(filter(None, (confirmed, partial)))
         if len(text) > MAX_TEXT:
-            raise ValueError("Transcript exceeds 32768 characters")
+            raise ValueError("Transcript exceeds %d characters" % MAX_TEXT)
         return {"text": text, "confirmed": confirmed, "partial": partial,
                 "inferenceMs": round((time.monotonic() - started) * 1000)}
 
