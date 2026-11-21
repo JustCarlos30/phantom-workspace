@@ -1,6 +1,6 @@
 /* Menus, selects and popovers: the only owner of what opens above a surface.
    Loaded last. One voice per menu:
-   1. The plane is --menu, the only raised tone, with its own edge.
+   1. The plane shares the opaque object gradient and masked ring.
    2. Options rest in secondary ink on nothing. The single fill is the row
       under the pointer or the keyboard.
    3. The current value is primary ink, medium weight and a mark. Never a fill.
@@ -8,12 +8,22 @@
    Separators are 1px gradients, not borders: no new drawn edges. */
 
 /* ---------- Plane ---------- */
-.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index),
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index),
 ::picker(select) {
-  background-color: var(--menu); background-image: none;
-  border-color: var(--menu-edge);
+  --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
+  background-color: var(--menu); background-image: var(--object-fill);
+  border: 0;
   box-shadow: var(--shadow-chrome);
   --muted: #a8a6a0; --ink-3: #8b8983;
+}
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index)::before,
+::picker(select)::before {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
+  background: var(--object-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
 }
 .app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-effort-menu) { gap: 0; padding: 6px; border-radius: var(--r-obj); }
 .app-shell .context-menu { width: 264px; }
@@ -104,7 +114,7 @@ select:not([multiple]):not([size])::picker-icon { display: none; }
 ::picker(select) {
   appearance: base-select;
   margin: var(--s-1) 0; padding: 6px; min-width: max(anchor-size(width), 160px); max-height: min(320px, 60vh);
-  border: 1px solid var(--menu-edge); border-radius: var(--r-obj);
+  border: 0; border-radius: var(--r-obj);
   color: var(--muted); font: var(--t-control); font-weight: 400;
 }
 select option {
@@ -121,6 +131,5 @@ select option::checkmark {
 }
 select option:not(:checked)::checkmark { visibility: hidden; }
 
-/* ---------- Selection on black: one line and a faint halo ---------- */
-.app-shell .canvas-node.selected { border-color: color-mix(in srgb, var(--accent) 64%, transparent); outline-color: color-mix(in srgb, var(--accent) 14%, transparent); }
+/* ---------- Selection on the minimap ---------- */
 .app-shell .minimap-node.selected { fill: color-mix(in srgb, var(--accent) 36%, transparent); }

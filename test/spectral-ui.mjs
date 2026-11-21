@@ -107,7 +107,7 @@ try {
     const chat = { provider: 'claude', running, queue: [], meta: { model: 'synthetic/review', contextTokens: 4200, contextWindow: 200000 }, messages: [
       { id: 'user', role: 'user', status: 'done', createdAt, parts: [{ type: 'text', text: 'SYNTHETIC · Refina la jerarquía del workspace sin distraer de la conversación.' }] },
       { id: 'reply', role: 'assistant', status: state === 'rest' ? 'done' : 'streaming', createdAt, parts: [
-        { type: 'text', text: '## Un espacio para concentrarse\n\nEl contenido conserva su plano opaco. La actividad vive en el perímetro y la selección mantiene un contorno separado.\n\n- Cabecera clara\n- Lectura tranquila\n- Compositor accesible por teclado' },
+        { type: 'text', text: '## Un espacio para concentrarse\n\nEl contenido conserva su plano opaco. La actividad vive en el perímetro y la selección aclara el mismo aro.\n\n- Cabecera clara\n- Lectura tranquila\n- Compositor accesible por teclado' },
         ...(state === 'attention' ? [{ id: 'permission', type: 'permission', status: 'pending', tool: 'Edit', input: { file_path: 'src/synthetic-example.css' }, reason: 'SYNTHETIC · Confirmar el cambio visual' }] : []),
       ] },
     ] };
@@ -170,6 +170,11 @@ try {
         return node && (state === 'rest' ? !/pulse-/.test(node.className) : node.classList.contains(`pulse-${state}`));
       }, { id: node.id, state });
       await delay(300);
+      assert.equal(await page.locator('.pixel-field').count(), 0, 'No exterior waves or panel halos');
+      assert.equal(await card.locator('.panel-state').innerText(), state === 'rest' ? 'Terminó' : state === 'working' ? 'Trabajando' : 'Te necesita');
+      const ring = await card.evaluate(el => ({ image: getComputedStyle(el, '::before').backgroundImage, mask: getComputedStyle(el, '::before').maskComposite, outline: getComputedStyle(el).outlineWidth }));
+      assert.deepEqual(ring.mask.split(',').map(value => value.trim()), ['exclude', 'exclude']); assert.equal(ring.outline, '0px');
+      assert.equal(ring.image === 'none', state === 'attention');
       assert.equal(await card.evaluate(el => el.classList.contains('focused')), mode === 'focus');
       assert.equal(await card.evaluate(el => el.classList.contains('selected')), mode !== 'map');
       if (mode !== 'focus') assert.deepEqual(await card.evaluate(el => [el.style.left, el.style.top, el.style.width, el.style.height]), ['0px', '0px', '680px', '560px'], 'Map panel geometry is unchanged');
@@ -196,10 +201,10 @@ try {
             tails: el.querySelector('.activity-trace__tail').getAttribute('pathLength'), pointer: getComputedStyle(head).pointerEvents };
         });
         assert.ok(trace, 'Working mounts the perimeter trace');
-        assert.equal(trace.start, 0); assert.equal(trace.quarter, -50, 'Clockwise quarter turn');
-        assert.equal(trace.duration, 5600); assert.equal(trace.easing, 'steps(100)');
-        assert.deepEqual(trace.dash.match(/[\d.]+/g).map(Number), [8, 192]); assert.equal(trace.width, '2px');
-        assert.equal(trace.tails, '200'); assert.equal(trace.pointer, 'none');
+        assert.equal(trace.start, 2.5); assert.equal(trace.quarter, -22.5, 'Clockwise quarter turn');
+        assert.equal(trace.duration, 5600); assert.equal(trace.easing, 'linear');
+        assert.deepEqual(trace.dash.match(/[\d.]+/g).map(Number), [2.5, 97.5]); assert.equal(trace.width, '1.5px');
+        assert.equal(trace.tails, '100'); assert.equal(trace.pointer, 'none');
         assert.equal(await card.locator('.pc-column').evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.effect?.getComputedTiming().iterations === Infinity).length), 0, 'Thread remains still');
       }
       if (state === 'rest') assert.equal(await card.locator('.activity-trace').count(), 0, 'Rest has no activity layer');
@@ -235,8 +240,8 @@ try {
   await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('pulse-working'), node.id);
   await card.locator('.node-glyph').click();
   await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('selected'), node.id);
-  const selection = await card.evaluate(el => ({ offset: getComputedStyle(el).outlineOffset, animation: getComputedStyle(el.querySelector('.activity-trace__head')).animationName }));
-  assert.ok(Math.abs(parseFloat(selection.offset) - 3 / zoom) < .01, `Selection outline offset: ${selection.offset}, zoom: ${zoom}`);
+   const selection = await card.evaluate(el => ({ width: getComputedStyle(el).outlineWidth, animation: getComputedStyle(el.querySelector('.activity-trace__head')).animationName }));
+   assert.equal(selection.width, '0px', 'Selection brightens the single ring');
   assert.equal(selection.animation, 'trace-orbit');
   const pauses = await card.evaluate(async el => {
     const trace = el.querySelector('.activity-trace'), head = trace.querySelector('.activity-trace__head');
@@ -285,27 +290,23 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const state of ['working', 'attention']) {
     await setState(state);
-    const opacity = '1';
-    // A chat reset, the parent pulse and its computed SVG style
-    // settle separately. Observe the requested state, not the preceding edge.
-    await page.waitForFunction(({ id, state, opacity }) => {
+    await page.waitForFunction(({ id, state }) => {
       const panel = document.querySelector(`.canvas-node[data-node-id="${id}"]`);
-      if (!panel?.classList.contains(`pulse-${state}`)) return false;
-      const contour = panel.querySelector('.activity-trace__contour');
-      if (!contour) return false;
-      const edge = getComputedStyle(contour);
-      return panel.querySelector('.pc')?.dataset.agent === (state === 'attention' ? 'approval' : 'working') && edge.animationName === 'none' && edge.opacity === opacity;
-    }, { id: node.id, state, opacity });
-    const unstable = await card.evaluate((el, { state, opacity }) => new Promise(resolve => {
+      if (panel?.dataset.panelState !== state) return false;
+      const head = panel.querySelector('.activity-trace__head');
+      return state === 'working' ? head && getComputedStyle(head).animationName === 'none' : !head;
+    }, { id: node.id, state });
+    const unstable = await card.evaluate((el, state) => new Promise(resolve => {
       const start = performance.now(), failures = [];
+      const head = el.querySelector('.activity-trace__head');
+      const offset = head && getComputedStyle(head).strokeDashoffset;
       const sample = now => {
-        const edge = getComputedStyle(el.querySelector('.activity-trace__contour'));
-        if (!el.classList.contains(`pulse-${state}`) || edge.animationName !== 'none' || edge.opacity !== opacity) failures.push({ state: el.className, animation: edge.animationName, opacity: edge.opacity });
+        if (el.dataset.panelState !== state || (head && (getComputedStyle(head).animationName !== 'none' || getComputedStyle(head).strokeDashoffset !== offset))) failures.push(el.dataset.panelState);
         if (now - start >= 350) resolve(failures);
         else requestAnimationFrame(sample);
       };
       requestAnimationFrame(sample);
-    }), { state, opacity });
+    }), state);
     assert.deepEqual(unstable, [], 'Reduced motion keeps the expected state steady on every frame');
     await overflow(); await shot(`reduced-motion-${state}`);
   }

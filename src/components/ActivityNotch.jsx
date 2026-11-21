@@ -5,7 +5,8 @@ import EmptyState from './EmptyState.jsx';
 import { ago, excerptLines, freshness, leadNeed, waiting } from '../hooks/activityModel.mjs';
 import { useTerminalTail } from '../hooks/useTerminalTail';
 
-export function TerminalActivityStatus({ session, compact = false }) {
+export function TerminalActivityStatus({ session, compact = false, panelState }) {
+  if (panelState) return <span className="panel-state" data-state={panelState}>{({ attention: 'Te necesita', working: 'Trabajando', finished: 'Terminó', error: 'Error', rest: 'En reposo' })[panelState]}</span>;
   const label = session?.label || 'Sin datos';
   return <span className={`terminal-activity-status ${session?.tone || 'unknown'} ${compact ? 'compact' : ''}`} title={label}><i />{label}</span>;
 }

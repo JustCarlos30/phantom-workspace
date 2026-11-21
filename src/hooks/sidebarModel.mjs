@@ -1,3 +1,5 @@
+import { timeOf, ago } from './activityModel.mjs';
+
 const providerLabels = { claude: 'Claude', opencode: 'OpenCode', codex: 'Codex', terminal: 'Terminal' };
 
 export function providerOf(node) {
@@ -23,7 +25,7 @@ export function sessionTitle(node) {
   return title;
 }
 
-export function buildSessionRows(nodes = [], sessions = {}) {
+export function buildSessionRows(nodes = [], sessions = {}, now = Date.now()) {
   const visible = nodes.filter(node => !node.data?.hidden);
   const rows = visible.filter(node => node.type === 'terminal').map(node => {
     const provider = providerOf(node);
@@ -33,6 +35,7 @@ export function buildSessionRows(nodes = [], sessions = {}) {
       title: sessionTitle(node), fullTitle: node.title,
       tone: session?.tone || 'unknown', statusLabel: session?.label || 'Estado desconocido',
       needsYou: Boolean(session?.needsYou),
+      time: ago(timeOf(session), now),
       model: node.data?.chat?.models?.[provider]?.split('/').pop() || '',
       resources: [],
     };

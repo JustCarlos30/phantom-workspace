@@ -72,7 +72,10 @@ class Dictation:
             segments = list(self.model.transcribe(self.audio, language=self.language, beam_size=CONFIRMED_BEAM_SIZE if ended else PARTIAL_BEAM_SIZE,
                 condition_on_previous_text=False, vad_filter=True, vad_parameters=options,
                 initial_prompt=voice_text.build_prompt(self.profile, self.vocabulary, context))[0])
-            self.partial = " ".join(s.text.strip() for s in segments).strip()
+            # Drop low-confidence segments (noise hallucinations) from text only; cuts use all segments.
+            joined = lambda items: " ".join(s.text.strip() for s in items if voice_text.keep_segment(
+                s.text, getattr(s, "no_speech_prob", 0.0), getattr(s, "avg_logprob", 0.0), getattr(s, "compression_ratio", 1.0)))
+            self.partial = joined(segments).strip()
             if ended:
                 self.confirmed = " ".join(filter(None, (self.confirmed, self.partial)))
                 self.partial = ""
@@ -83,8 +86,8 @@ class Dictation:
                 stable = [s for s in segments if s.end <= self.audio.size / RATE - STABLE_TAIL_SECONDS]
                 if stable:
                     self.confirmed = " ".join(filter(None, (self.confirmed,
-                        " ".join(s.text.strip() for s in stable))))
-                    self.partial = " ".join(s.text.strip() for s in segments[len(stable):])
+                        joined(stable))))
+                    self.partial = joined(segments[len(stable):])
                     self.audio = self.audio[int(stable[-1].end * RATE):]
                     self.decoded = 0
                 elif self.audio.size >= RATE * MAX_SECONDS:
@@ -92,8 +95,8 @@ class Dictation:
                     # Keep the last segment when there are several (it may be unfinished).
                     forced = segments[:-1] or segments
                     self.confirmed = " ".join(filter(None, (self.confirmed,
-                        " ".join(s.text.strip() for s in forced))))
-                    self.partial = " ".join(s.text.strip() for s in segments[len(forced):])
+                        joined(forced))))
+                    self.partial = joined(segments[len(forced):])
                     self.audio = self.audio[int(forced[-1].end * RATE):] if len(forced) < len(segments) \
                         else self.audio[-RATE:]
                     self.decoded = 0

@@ -41,9 +41,9 @@ const nativeViews = () => app.evaluate(({ BrowserWindow }) => {
 const overlap = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 async function layout(drawer = false) {
   const rail = await page.locator('.project-rail').boundingBox();
-  // Lienzo: the rail is an object on a full-bleed canvas, inset 16px and never taller than the free height.
-  assert.equal(rail.x, 16); assert.equal(rail.y, 16);
-  assert.ok(rail.height <= (await page.evaluate(() => innerHeight)) - 32, 'Rail stops one gap short of the bottom edge');
+  // The expanded rail fills the available height with a 12px window inset.
+  assert.ok(Math.abs(rail.x - 12) <= 1 / 64); assert.ok(Math.abs(rail.y - 12) <= 1 / 64); assert.ok(Math.abs(rail.width - 272) <= 1 / 64);
+  assert.ok(Math.abs(rail.height - ((await page.evaluate(() => innerHeight)) - 24)) <= 1, 'Rail stops one gap short of the bottom edge');
   if (!drawer) {
     const canvas = await page.locator('.canvas').boundingBox();
     assert.equal(canvas.x, 0, 'Canvas runs under the rail, edge to edge');
@@ -60,7 +60,7 @@ async function layout(drawer = false) {
       horizontal: [projects, panels].some(list => list.scrollWidth > list.clientWidth + 1) };
   });
   assert.deepEqual(overflow, { rail: false, projects: true, panels: true, rows: true, truncatedNames: true, horizontal: false });
-  assert.equal(await page.locator('.project-initials').count(), 0);
+  assert.equal(await page.locator('.project-switcher > summary > .project-initials').isVisible(), false, 'Project heading starts at the shared text inset');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Long names do not widen the document');
 }
 
@@ -140,10 +140,27 @@ try {
   const noHover = await page.evaluate(() => matchMedia('(hover: none)').matches);
   await until(async () => await focusTerminal.evaluate(el => getComputedStyle(el).opacity) === (noHover ? '1' : '0'), 'Secondary action respects the real hover capability');
   await mapTerminal.hover();
+  const row = mapTerminal.locator('..'), badge = row.locator('.rail-agent-mark');
+  const bounds = await row.boundingBox(), badgeFill = await badge.evaluate(el => getComputedStyle(el).backgroundColor);
+  assert.ok(Math.abs(bounds.height - 56) <= 1 / 64); assert.ok(Math.abs((await badge.boundingBox()).width - 32) <= 1 / 64);
+  assert.ok(Math.abs((await badge.locator('svg').boundingBox()).width - 18) <= 1 / 64);
+  assert.equal(await row.evaluate(el => getComputedStyle(el).borderRadius), '12px');
+  assert.equal(await row.locator('.rail-session-dot').count(), 0);
+  await page.mouse.down();
+  assert.deepEqual(await row.boundingBox(), bounds, 'Press never scales or displaces the row');
+  assert.equal(await badge.evaluate(el => getComputedStyle(el).backgroundColor), badgeFill);
+  await page.mouse.up();
   await until(async () => await focusTerminal.evaluate(el => getComputedStyle(el).opacity) === '1', 'Hover exposes secondary action');
   await mapTerminal.focus(); await page.keyboard.press('Enter');
   await page.locator('.canvas-node.selected').waitFor();
   assert.equal(await mapTerminal.getAttribute('aria-current'), 'true');
+  assert.equal(await badge.evaluate(el => getComputedStyle(el).backgroundColor), badgeFill, 'Selection keeps badge identity');
+  assert.equal(await mapTerminal.evaluate(el => {
+    const style = getComputedStyle(el), width = parseFloat(style.outlineWidth);
+    return el.matches(':focus-visible') && style.outlineStyle === 'solid' && style.getPropertyValue('--focus-width').trim() === '2px'
+      && width > 0 && Math.abs(width - 2) < 1 / devicePixelRatio;
+  }), true, 'Keyboard focus remains visible at the desktop zoom');
+  assert.equal(await row.locator('.rail-session-status').evaluate(el => el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().right <= el.closest('.rail-panel-label').getBoundingClientRect().right + 1), true);
   await page.mouse.move(700, 20);
   await until(async () => await focusTerminal.evaluate(el => getComputedStyle(el).opacity) === '1', 'Focus-within exposes secondary action');
   assert.equal(await mapTerminal.evaluate(el => document.activeElement === el), true, 'Terminal selection preserves keyboard ownership in the rail');

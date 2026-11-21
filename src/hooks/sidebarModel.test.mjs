@@ -53,7 +53,7 @@ test('rows expose defaults, original node and title, status and model basename',
   assert.deepEqual(rows, [{
     id: 'a', node, provider: 'opencode', providerLabel: 'OpenCode', title: 'Una tarea',
     fullTitle: 'Una tarea. Detalle', tone: 'unknown', statusLabel: 'Estado desconocido',
-    needsYou: false, model: 'model', resources: [],
+    needsYou: false, time: '', model: 'model', resources: [],
   }]);
   assert.deepEqual(resources, []);
   const row = buildSessionRows([node], { a: { tone: 'warning', label: 'Necesita permiso', needsYou: true } }).rows[0];
@@ -61,13 +61,23 @@ test('rows expose defaults, original node and title, status and model basename',
   assert.equal(row.statusLabel, 'Necesita permiso');
   assert.equal(row.needsYou, true);
   assert.equal(buildSessionRows([terminal('b')]).rows[0].model, '');
+  const now = Date.parse('2026-11-21T12:00:00Z');
+  for (const [timestamp, expected] of [[now - 120000, 'hace 2 min'], ['2026-11-21T10:00:00Z', 'hace 2 h'], ['invalid', ''], [undefined, ''], [null, '']]) {
+    const sessions = { a: { tone: 'working', label: 'Trabajando', updatedAt: timestamp } };
+    const timed = buildSessionRows([node], sessions, now).rows[0];
+    assert.equal(timed.time, expected);
+    assert.equal(timed.node, node);
+    assert.equal(timed.statusLabel, 'Trabajando');
+  }
+  assert.equal(buildSessionRows([node], { a: { updatedAt: 'invalid', createdAt: now - 60000 } }, now).rows[0].time, 'hace 1 min');
+  assert.equal(buildSessionRows([{ ...node, createdAt: now - 60000 }], {}, now).rows[0].time, '', 'Node age is not session activity');
 });
 
 test('duplicates are numbered in source order before stable priority sorting', () => {
   const nodes = ['a', 'b', 'c', 'd', 'e', 'f'].map(id => terminal(id));
   nodes.push(terminal('unique', 'codex'));
   const { rows } = buildSessionRows(nodes, {
-    b: { tone: 'working' }, c: { needsYou: true }, d: { tone: 'working' },
+    b: { tone: 'working', updatedAt: 1000 }, c: { needsYou: true }, d: { tone: 'working', updatedAt: 2000 },
     e: { needsYou: true, tone: 'working' },
   });
   assert.deepEqual(rows.map(row => row.id), ['c', 'e', 'b', 'd', 'a', 'f', 'unique']);

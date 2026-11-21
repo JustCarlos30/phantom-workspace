@@ -150,23 +150,46 @@ const materials = async () => {
       const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1);
       return ctx.getImageData(0, 0, 1, 1).data[3];
     };
-    for (const panel of document.querySelectorAll('.canvas-node[data-type="terminal"]')) {
-      const s = getComputedStyle(panel);
-      const planeAlpha = alpha(s.backgroundColor) / 255;
-      if (planeAlpha < .76 || planeAlpha > .82) bad.push(`panel alpha outside 76–82%: ${planeAlpha}`);
-      if (!s.backgroundImage.startsWith('linear-gradient(135deg')) bad.push('missing diagonal accent wash');
-      const token = panel.matches('.selected,.focused,.is-dragging') ? '--shadow-workplane-lift' : '--shadow-workplane-rest';
-      const probe = document.createElement('div'); panel.append(probe);
-      probe.style.boxShadow = `var(${token})`;
-      if (s.boxShadow !== getComputedStyle(probe).boxShadow) bad.push(`incorrect elevation ${panel.dataset.nodeId}`);
+    const objectMaterial = el => {
+      const s = getComputedStyle(el), ring = getComputedStyle(el, '::before');
+      const probe = document.createElement('div'); el.append(probe);
+      probe.style.backgroundImage = 'var(--object-fill)';
+      probe.style.boxShadow = 'var(--shadow-chrome)';
+      const expected = getComputedStyle(probe);
+      if (alpha(s.backgroundColor) !== 255) bad.push(`translucent object ${el.className}`);
+      if (!s.backgroundImage.startsWith('linear-gradient(') || s.backgroundImage !== expected.backgroundImage) bad.push(`incorrect vertical material ${el.className}`);
+      if (s.boxShadow !== expected.boxShadow) bad.push(`incorrect contact shadow ${el.className}`);
+      if (s.backdropFilter !== 'none') bad.push(`blurred object ${el.className}`);
+      if (['Top', 'Right', 'Bottom', 'Left'].some(side => s[`border${side}Width`] !== '0px')) bad.push(`second object edge ${el.className}`);
+      if (el.matches('.canvas-node') && s.outlineWidth !== '0px') bad.push('selection has a second contour');
+      probe.style.backgroundImage = el.matches('.canvas-node.selected')
+        ? 'linear-gradient(var(--selected-edge-top), var(--selected-edge-bottom))'
+        : 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))';
+      probe.style.mask = 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)';
+      probe.style.maskComposite = 'exclude';
+      if (ring.backgroundImage !== getComputedStyle(probe).backgroundImage) bad.push(`incorrect ring gradient ${el.className}`);
+      const maskProperties = ['maskImage', 'maskClip', 'maskOrigin', 'maskComposite'];
+      const mask = Object.fromEntries(maskProperties.map(property => [property, { actual: ring[property], expected: expected[property] }]));
+      if (['none', 'normal'].includes(ring.content) || ring.display === 'none' || ring.visibility !== 'visible' || ring.opacity !== '1'
+        || ring.position !== 'absolute' || ring.zIndex !== '3' || ring.pointerEvents !== 'none'
+        || maskProperties.some(property => ring[property] !== expected[property])
+        || ring.borderRadius !== s.borderRadius
+        || ['top', 'right', 'bottom', 'left'].some(side => ring[side] !== '0px')
+        || ['Top', 'Right', 'Bottom', 'Left'].some(side => !(Math.abs(parseFloat(ring[`padding${side}`]) - (el.matches('.overview') ? Number(s.getPropertyValue('--ov')) : 1)) <= .01))) bad.push(`invalid masked ring ${el.className} ${JSON.stringify(mask)}`);
       probe.remove();
+    };
+    for (const panel of document.querySelectorAll('.canvas-node[data-type="terminal"]')) {
+      objectMaterial(panel);
+      for (const child of panel.querySelectorAll(':scope > .node-header,:scope > .node-body')) {
+        if (alpha(getComputedStyle(child).backgroundColor) !== 0) bad.push(`object material covered by ${child.className}`);
+      }
       for (const el of [panel, ...panel.querySelectorAll('.node-body,.pc,.pc-thread,.pc-composer,.pc-field,.pt-card,.pt-card-screen,.pt-output,.terminal-wrap,.terminal-host')]) {
         const style = getComputedStyle(el);
         if (style.backdropFilter !== 'none') bad.push(`blur ${el.className}`);
       }
       for (const well of panel.querySelectorAll('.pc-thread,.pc-field,.pt-card-screen,.terminal-host')) {
         const style = getComputedStyle(well);
-        if (alpha(style.backgroundColor) / 255 < .86) bad.push(`reading/writing well below 86%: ${well.className}`);
+        if (alpha(style.backgroundColor) !== 255) bad.push(`translucent reading/writing well: ${well.className}`);
       }
       const text = panel.querySelector('.pc-message.is-agent,.pt-output,.terminal-wrap') || panel.querySelector('.node-body');
       const chain = [];
@@ -181,14 +204,16 @@ const materials = async () => {
     if (alpha(getComputedStyle(canvas).backgroundColor) !== 0) bad.push('canvas hides environmental art');
     const art = getComputedStyle(document.querySelector('.canvas-region'), '::after');
     if (art.backgroundImage === 'none' || Number(art.opacity) <= 0 || Number(getComputedStyle(canvas).zIndex) <= Number(art.zIndex)) bad.push('art missing or above workplanes');
-    for (const el of document.querySelectorAll('.project-rail,.canvas-navigation,.activity-dock')) {
-      const s = getComputedStyle(el);
-      const opacity = alpha(s.backgroundColor) / 255;
-      const minimum = el.matches('.project-rail') ? .60 : .44;
-      const blur = Number(s.backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]);
-      if (blur < 34 || !blur || opacity < minimum || opacity >= 1) bad.push(`chrome lost light glass ${el.className}`);
+    for (const el of document.querySelectorAll('.project-rail,.canvas-navigation,.activity-dock,.inspector-host,.phantom-chat,.context-menu-panel,.pc-models')) {
+      if (el.getClientRects().length) objectMaterial(el);
     }
-    for (const el of document.querySelectorAll('.rail-panel-row.selected,.project-item.active,.space-row.active,.dock-action.active,.canvas-navigation button[aria-pressed="true"],.pc-send:not(:disabled):not(.is-stop),.pd-tabs button[aria-selected="true"]')) {
+    for (const el of document.querySelectorAll('.rail-panel-row.selected')) {
+      const style = getComputedStyle(el), probe = document.createElement('span'); el.append(probe);
+      probe.style.backgroundColor = 'var(--surface-3)'; probe.style.color = 'var(--ink)';
+      if (style.backgroundColor !== getComputedStyle(probe).backgroundColor || style.color !== getComputedStyle(probe).color) bad.push('rail selection lost neutral plane/ink');
+      probe.remove();
+    }
+    for (const el of document.querySelectorAll('.dock-action.active,.canvas-navigation button[aria-pressed="true"]:not(.view-toggle,.phantom-launcher),.pc-send:not(:disabled):not(.is-stop),.pd-tabs button[aria-selected="true"]')) {
       if (!el.getClientRects().length) continue;
       const style = getComputedStyle(el);
       const probe = document.createElement('span'); el.append(probe);
@@ -233,7 +258,7 @@ try {
     if (!original) throw new Error('Electron IPC fixture seam unavailable');
     const chats = Object.fromEntries(ids.map(id => [id, { provider: 'claude', running: false, queue: [], meta: {}, messages: [
       { id: 'question', role: 'user', status: 'done', parts: [{ type: 'text', text: 'SYNTHETIC · Revisa la legibilidad del plano de trabajo.' }] },
-      { id: 'reply', role: 'assistant', status: 'done', parts: [{ type: 'text', text: '## Lectura estable\n\nPlanos translúcidos, pozos de lectura densos y controles claros. Seleccionar un vecino conserva esta lectura.' }] },
+      { id: 'reply', role: 'assistant', status: 'done', parts: [{ type: 'text', text: '## Lectura estable\n\nObjetos degradados, pozos opacos y controles claros. Seleccionar un vecino conserva esta lectura.' }] },
     ] }]));
     globalThis.solidFixture = { calls: [] };
     ipcMain.removeHandler('phantom:invoke');
@@ -251,7 +276,10 @@ try {
       return original(event, method, payload);
     });
   }, nodes.slice(0, 2).map(node => node.id));
-  await page.evaluate(ids => ids.forEach(id => localStorage.setItem(`phantom.chatSeen.${id}`, 'reply')), nodes.slice(0, 2).map(node => node.id));
+  await page.evaluate(({ ids, workspaceId }) => {
+    localStorage.setItem(`phantom:studio:${workspaceId}`, JSON.stringify({ v: 4, gengar: true }));
+    ids.forEach(id => localStorage.setItem(`phantom.chatSeen.${id}`, 'reply'));
+  }, { ids: nodes.slice(0, 2).map(node => node.id), workspaceId: workspace.id });
   await page.reload();
   await page.locator('.pc-message.is-agent').first().waitFor();
   const card = i => page.locator(`.canvas-node[data-node-id="${nodes[i].id}"]`);
@@ -294,6 +322,7 @@ try {
     assert.equal(await card(1).evaluate(el => el.classList.contains('selected')), true);
     assert.deepEqual(await materials(), before, 'Selecting a neighbour leaves text color and ancestor compositing stable');
     await shot(`${width}-selected`);
+    await map();
     await card(0).locator('.node-glyph').click();
     await page.locator('.canvas').focus(); await page.keyboard.press('Control+Shift+Enter');
     await card(0).and(page.locator('.focused')).waitFor(); await delay(350);
@@ -313,10 +342,25 @@ try {
     await page.waitForFunction(async ({ sessionId, marker }) => (await window.phantom.invoke('terminal.attach', { sessionId })).data.includes(marker), { sessionId: sessions[0].id, marker: `SOLID_${width}` });
     await materials(); await shot(`${width}-focus-terminal`);
   }
+  await map();
+  await page.evaluate(() => {
+    const region = document.querySelector('.canvas-region');
+    region.style.setProperty('--personal-background', 'linear-gradient(#fff, #fff)');
+    region.style.setProperty('--background-intensity', '1');
+  });
+  await materials(); await shot('white-image');
+  const media = await page.context().newCDPSession(page);
+  for (const [name, value] of [['prefers-contrast', 'more'], ['prefers-reduced-transparency', 'reduce']]) {
+    await media.send('Emulation.setEmulatedMedia', { features: [{ name, value }] });
+    assert.equal(await page.evaluate(query => matchMedia(query).matches, `(${name}: ${value})`), true);
+    await materials(); await shot(name);
+  }
+  await media.send('Emulation.setEmulatedMedia', { features: [] });
+  await media.detach();
   const calls = await app.evaluate(() => globalThis.solidFixture.calls);
   assert.deepEqual(calls.map(call => call.method), ['chat.send', 'chat.stop', 'chat.send', 'chat.stop']);
   assert.deepEqual(errors, [], 'No renderer errors');
-  console.log(JSON.stringify({ captures, errors, fixture: 'Two synthetic conversations and two isolated real terminals', checks: ['76–82% workplanes with diagonal wash and no backdrop blur', 'reading/writing wells at least 86% opaque', 'stable neighbour reading', 'local contact elevations', 'environmental art below transparent canvas', 'light chrome glass with blur at least 34px', 'send/stop pointer and keyboard', 'real PTY input', 'two sizes, map/selection/chat focus/terminal focus'] }, null, 2));
+  console.log(JSON.stringify({ captures, errors, fixture: 'Two synthetic conversations and two isolated real terminals', checks: ['opaque vertical object material without backdrop blur', 'opaque reading/writing wells', 'single masked ring with brighter selection', 'stable neighbour reading', 'shared black contact shadow', 'environmental art below transparent canvas', 'white image, increased contrast and reduced transparency', 'send/stop pointer and keyboard', 'real PTY input', 'two sizes, map/selection/chat focus/terminal focus'] }, null, 2));
 } catch (error) {
   const failure = path.join(evidence, 'failure.png');
   await page?.screenshot({ path: failure }).then(() => captures.push(failure)).catch(() => {});

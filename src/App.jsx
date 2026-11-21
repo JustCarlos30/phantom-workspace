@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Bell, Blocks, Braces, ChevronDown, ChevronRight, Command, ExternalLink, Folder, FolderOpen, GitBranch, Globe, Layers, List, LoaderCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings2, Square, StickyNote, TerminalSquare, Trash2, Workflow, X, Check, AlertCircle, Box, FileText, Play, Target, EyeOff, Pencil, RotateCcw } from 'lucide-react';
 import Canvas from './components/Canvas';
 import AsciiField from './components/AsciiField.jsx';
@@ -210,6 +210,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const selectionRef = useRef(selected); selectionRef.current = selected;
   const focusedRef = useRef(focused); focusedRef.current = focused;
   const returnSelection = useRef([]);
+  const focusOrigin = useRef(null), focusAnimation = useRef(null), returnFocus = useRef(null);
+  const [focusMoving, setFocusMoving] = useState(false);
   const operation = useCallback(async fn => { try { return await fn(); } catch (e) { notify(e.message, 'error'); return null; } }, [notify]);
   const onChange = useCallback((id, change) => { if (current.current) patch(current.current.id, id, change); }, [patch]);
   const onCamera = useCallback((camera, workspaceId) => { if (workspaceId || current.current) patch(workspaceId || current.current.id, null, { camera }); }, [patch]);
@@ -218,6 +220,15 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const [closingIds, setClosingIds] = useState(() => new Set());
   const view = useMemo(() => closingIds.size && spaces.view?.nodes ? { ...spaces.view, nodes: spaces.view.nodes.filter(n => !closingIds.has(n.id)) } : spaces.view, [spaces.view, closingIds]);
   const focusPanel = useCallback(id => {
+    const target = id || focusedRef.current;
+    if (target && id !== focusedRef.current) {
+      const element = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(target)}"]`);
+      const rect = element?.getBoundingClientRect();
+      focusOrigin.current = rect?.width && rect?.height ? { id: target, rect } : null;
+      focusAnimation.current?.cancel();
+      if (id && !focusedRef.current) returnFocus.current = document.activeElement;
+      setFocusMoving(!!focusOrigin.current);
+    }
     if (id) spacesRef.current.reveal(id);
     const node = current.current?.nodes?.find(n => n.id === id);
     if (node?.data?.hidden) onChange(id, { data: { ...node.data, hidden: false } });
@@ -225,6 +236,39 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     if (!id && focusedRef.current) setSelected(returnSelection.current.filter(id => current.current?.nodes?.some(n => n.id === id && !n.data?.hidden)));
     setFocused(id || null); if (id) setSelected([id]);
   }, [onChange]);
+  useLayoutEffect(() => {
+    const origin = focusOrigin.current;
+    if (!origin) { setFocusMoving(false); return; }
+    focusOrigin.current = null;
+    let animation, observer;
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const finish = () => { observer?.disconnect(); motion.removeEventListener('change', finish); animation?.cancel(); setFocusMoving(false); };
+    const frame = requestAnimationFrame(() => {
+      const element = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(origin.id)}"]`);
+      if (!element) { finish(); return; }
+      const destination = element.getBoundingClientRect();
+      if (!focused) {
+        const previous = returnFocus.current;
+        (previous?.isConnected && !previous.closest('[inert]') ? previous : element.querySelector('[aria-label="Enfocar panel"]'))?.focus({ preventScroll: true });
+      }
+      if (motion.matches || !destination.width || !destination.height) { finish(); return; }
+      const css = getComputedStyle(element), scale = destination.width / element.offsetWidth;
+      const duration = css.getPropertyValue('--dur-open').trim();
+      animation = element.animate([
+        { transform: `translate(${(origin.rect.x - destination.x) / scale}px, ${(origin.rect.y - destination.y) / scale}px) scale(${origin.rect.width / destination.width}, ${origin.rect.height / destination.height})` },
+        { transform: 'none' },
+      ], { duration: parseFloat(duration) * (duration.endsWith('ms') ? 1 : 1000), easing: css.getPropertyValue('--ease-settle').trim(), id: 'focus-flip' });
+      focusAnimation.current = animation;
+      motion.addEventListener('change', finish);
+      animation.finished.then(finish, () => {});
+      observer = new ResizeObserver(() => {
+        if (element.offsetWidth !== width || element.offsetHeight !== height) finish();
+      });
+      const width = element.offsetWidth, height = element.offsetHeight;
+      observer.observe(element);
+    });
+    return () => { cancelAnimationFrame(frame); observer?.disconnect(); motion.removeEventListener('change', finish); animation?.cancel(); };
+  }, [focused]);
   const openMenu = useCallback((id, x, y) => { if (id && !selectionRef.current.includes(id)) setSelected([id]); setMenu({ id, x, y }); }, []);
   const launching = useRef(new Map());
   const placements = useRef(new Map());
@@ -256,7 +300,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
     setBusy(type);
     let reservationId, created = false;
     try {
-      const region = document.querySelector('.canvas')?.getBoundingClientRect();
+      const region = document.querySelector('.canvas-stage')?.getBoundingClientRect();
       const camera = spacesRef.current.view?.camera || w.camera || { x: 64, y: 64, zoom: 1 };
       const width = panel?.pluginId === 'convencions' ? 880 : type === 'browser' ? 800 : type === 'note' ? 420 : type === 'zone' ? 720 : type === 'skills-catalog' ? 920 : type === 'branches' ? 820 : type === 'repo' ? 1320 : type === 'terminal' ? 960 : HUBS[type] ? 920 : 640;
       const height = panel?.pluginId === 'convencions' ? 640 : type === 'terminal' ? 720 : type === 'browser' ? 520 : type === 'note' ? 340 : type === 'zone' ? 440 : type === 'skills-catalog' || type === 'branches' ? 600 : type === 'repo' ? 800 : HUBS[type] ? 640 : 400;
@@ -320,7 +364,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   const addReferenceFile = () => operation(async () => {
     const w = current.current, at = menu; setMenu(null); if (!w) return;
     const file = await api('dialog.openFile'); if (!file) return;
-    const region = document.querySelector('.canvas')?.getBoundingClientRect(), camera = spacesRef.current.view?.camera || w.camera || { x: 0, y: 0, zoom: 1 };
+    const region = document.querySelector('.canvas-stage')?.getBoundingClientRect(), camera = spacesRef.current.view?.camera || w.camera || { x: 0, y: 0, zoom: 1 };
     const x = ((at?.x ?? (region?.left || 0) + (region?.width || 1000) / 2) - (region?.left || 0) - camera.x) / camera.zoom, y = ((at?.y ?? (region?.top || 0) + (region?.height || 700) / 2) - (region?.top || 0) - camera.y) / camera.zoom;
     const node = await api('reference.add', { workspaceId: w.id, path: file, center: true, x, y, ...(spaces.active ? { spaceId: spaces.active } : {}) });
     await refresh(); setSelected([node.id]);
@@ -381,11 +425,12 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
         else if (tools) setTools(false);
         else if (tray) setTray(false);
         else if (list) setList(false);
-        else if (inspector && !e.target.closest('.xterm')) setInspector(null);
+         else if (inspector && !e.target.closest('.xterm')) setInspector(null);
+         else if (focusedRef.current && !e.defaultPrevented && !e.target.closest('input,textarea,select,[contenteditable="true"],.xterm,.canvas-popover')) { e.preventDefault(); focusPanel(null); }
       }
     };
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
-  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat, sitesOpen, contextMenu, closeSites, onOpenPanel]);
+  }, [palette, voice, menu, tools, tray, list, inspector, edit, phantomChat, openPhantomChat, sitesOpen, contextMenu, closeSites, onOpenPanel, focusPanel]);
   useEffect(() => { if (workspace && focused && !workspace.nodes?.some(n => n.id === focused)) setFocused(null); }, [workspace, focused]);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 850px)');
@@ -479,7 +524,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
 
   if (!window.phantom?.invoke) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div><h1>Abre la aplicación de escritorio</h1><p>Phantom Workspace necesita su host local para abrir carpetas,<br />recuperar terminales y navegar dentro del proyecto.</p><div className="desktop-required-note"><TerminalSquare size={16} /> Esta vista web no está conectada al escritorio.</div></div>;
   if (!state) return <div className="desktop-required"><div className="app-mark"><Blocks size={23} /></div>{error ? <><h1>No pudimos conectar con el host</h1><p>{error}</p><button className="button primary" onClick={() => refresh().catch(() => {})}>Reintentar conexión</button></> : <><LoaderCircle className="spinning" size={23} /><h1>Recuperando tu espacio…</h1><p>Conectando con el host local.</p></>}</div>;
-  return <div className={`app-shell studio-${appearance.background} ${appearance.image ? 'studio-personal' : ''} ${appearance.gengar ? 'studio-character' : ''} ${appearance.pulse ? 'studio-pulse' : ''} ${appearance.concentration ? 'studio-concentration' : ''} ${focused ? 'studio-focused' : ''} ${inspector && !settingsOpen ? 'studio-inspector-open' : ''} ${settingsOpen ? 'studio-settings-open' : ''} ${appearance.grid ? '' : 'studio-no-grid'} ${railCollapsed ? 'rail-collapsed' : ''} ${chatOpen ? 'phantom-chat-open' : ''}`} style={{ '--gengar-art': `url("${gengarArtwork}")`, '--gengar-intensity': appearance.gengarIntensity / 100, '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
+  return <div data-focus-moving={focusMoving || undefined} className={`app-shell studio-${appearance.background} ${appearance.image ? 'studio-personal' : ''} ${appearance.gengar ? 'studio-character' : ''} ${appearance.pulse ? 'studio-pulse' : ''} ${appearance.concentration ? 'studio-concentration' : ''} ${focused ? 'studio-focused' : ''} ${inspector && !settingsOpen ? 'studio-inspector-open' : ''} ${settingsOpen ? 'studio-settings-open' : ''} ${appearance.grid ? '' : 'studio-no-grid'} ${railCollapsed ? 'rail-collapsed' : ''} ${chatOpen ? 'phantom-chat-open' : ''}`} style={{ '--gengar-art': `url("${gengarArtwork}")`, '--gengar-intensity': appearance.gengarIntensity / 100, '--background-intensity': appearance.intensity / 100, '--personal-background': appearance.image ? `url("${appearance.image}")` : 'none' }}>
     <PresenceGroup>
     {sidebar && <button key="rail-scrim" className="rail-scrim" aria-label="Cerrar proyectos" onClick={() => setSidebar(false)} />}
     <aside key="project-rail" id="project-rail" ref={railRef} aria-label="Navegación del espacio" role={compactRail && sidebar ? 'dialog' : undefined} aria-modal={compactRail && sidebar ? true : undefined} inert={compactRail && !sidebar} onKeyDown={navigateRailList} onFocusCapture={() => setRailOwnsFocus(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setRailOwnsFocus(false); }} className={`project-rail ${sidebar ? 'rail-open' : ''}`}>
@@ -504,12 +549,12 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {appearance.background === 'ascii' && !appearance.image && <AsciiField paused={!!focused || appearance.concentration} />}
           <PresenceGroup>
           <div key="canvas-content" className="sites-canvas-content" inert={sitesOpen}>
-          {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked || sitesOpen} navigationBlocked={overlayNavigationBlocked || railOwnsFocus || (chatOpen && chatOwnsFocus) || sitesOpen} obscured={sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <GengarMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
+          {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={spaces.onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} inputBlocked={inputBlocked || sitesOpen} navigationBlocked={overlayNavigationBlocked || railOwnsFocus || (chatOpen && chatOwnsFocus) || sitesOpen} obscured={focusMoving || sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} phantomLauncher={phantomLauncher} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <GengarMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
           {workspace && <div key="create-dock" ref={dockFit} className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} />
-            <div className="dock-main" role="toolbar" aria-label="Crear panel">{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className="dock-action" data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>; })}<i aria-hidden="true" />{HUB_ACTIONS.map(([type, name, Icon, hint]) => <button key={type} className="dock-action dock-hub" data-hub={type} disabled={!!busy} title={hint} onClick={() => onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>)}<button ref={dockMoreButton} className="dock-action dock-hub dock-more" disabled={!!busy} aria-label="Más" aria-haspopup="menu" aria-expanded={dockMore} onClick={() => setDockMore(value => !value)}><MoreHorizontal size={18} aria-hidden="true" /><span>Más</span></button></div>
-            {dockMore && <div ref={dockMoreMenu} className="dock-more-menu" role="menu" aria-label="Más hubs">{HUB_MORE.map(type => { const Icon = TYPES.find(item => item[0] === type)[2]; return <button key={type} role="menuitem" disabled={!!busy} title={HUBS[type].hint} onClick={() => { onOpenPanel(type); setDockMore(false); }}><Icon size={18} aria-hidden="true" /><span>{HUBS[type].name}</span></button>; })}</div>}
+            <div className="dock-main" role="toolbar" aria-label="Crear panel" onFocusCapture={event => event.target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })}>{DOCK_ACTIONS.map(([type, name, hint]) => { const Icon = PANEL_ICONS[type], around = type === 'zone' && selected.length > 1; return <button key={type} className={`dock-action${type === 'terminal' ? ' dock-primary' : ''}`} data-type={type} disabled={!!busy} title={around ? 'Crear zona alrededor de la selección' : hint} onClick={() => around ? zoneFromSelection() : onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{type === 'terminal' ? 'Nueva sesión' : name}</span></button>; })}<i aria-hidden="true" />{HUB_ACTIONS.map(([type, name, Icon, hint]) => <button key={type} className="dock-action dock-hub" data-hub={type} disabled={!!busy} title={hint} onClick={() => onOpenPanel(type)}><Icon size={18} aria-hidden="true" /><span>{name}</span></button>)}<button ref={dockMoreButton} className="dock-action dock-hub dock-more" disabled={!!busy} aria-label="Más" aria-haspopup="menu" aria-expanded={dockMore} onClick={() => setDockMore(value => !value)}><MoreHorizontal size={18} aria-hidden="true" /><span>Más</span></button></div>
+            {dockMore && <div ref={dockMoreMenu} className="dock-more-menu" role="menu" aria-label="Más hubs">{HUB_MORE.map(type => { const Icon = TYPES.find(item => item[0] === type)[2]; return <button key={type} role="menuitem" disabled={!!busy} title={HUBS[type].hint} onClick={() => { onOpenPanel(type); setDockMore(false); }}><Icon size={18} aria-hidden="true" /><span>{HUBS[type].name}</span></button>; })}<button role="menuitem" disabled={!!busy} onClick={() => { setDockMore(false); setTools(true); }}><Layers size={18} aria-hidden="true" /><span>Todas las herramientas</span></button></div>}
           </div>}
           {workspace && !focused && <button key="panel-index-button" className={`panel-index-button ${list ? 'active' : ''}`} title="Buscar paneles (Ctrl Mayús F)" onClick={() => { setList(v => !v); setTools(false); }}><List size={15} /><span>{workspace.nodes?.length || 0} paneles</span>{selected.length > 1 && <b>{selected.length} seleccionados</b>}</button>}
           {selected.length > 1 && !focused && <button key="zone-selection" className="zone-selection button" onClick={zoneFromSelection}><Frame size={15} /> Crear zona</button>}

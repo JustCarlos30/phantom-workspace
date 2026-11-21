@@ -94,7 +94,7 @@ export function Switch({ checked, onChange, label, disabled }) {
   return <button type="button" role="switch" className="st-switch" aria-checked={!!checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)}><i aria-hidden="true" /></button>;
 }
 export function Segmented({ label, value, options, onChange, disabled }) {
-  return <div className="st-seg" role="radiogroup" aria-label={label}>{options.map(([id, name]) => <button key={String(id)} type="button" role="radio" aria-checked={value === id} disabled={disabled} onClick={() => onChange(id)}>{name}</button>)}</div>;
+  return <div className="st-seg control-segmented" role="radiogroup" aria-label={label}>{options.map(([id, name]) => <button key={String(id)} type="button" role="radio" aria-checked={value === id} disabled={disabled} onClick={() => onChange(id)}>{name}</button>)}</div>;
 }
 export function TextRow({ label, hint, value, onChange, placeholder, type = 'text', mono, disabled, list, onFocus, readOnly, children }) {
   const id = useId();

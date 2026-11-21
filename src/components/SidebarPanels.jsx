@@ -12,7 +12,7 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
     const Icon = types.find(t => t[0] === node.type)?.[2] || Layers;
     const active = selected.includes(node.id);
     return <div key={node.id} className={`rail-panel-row rail-resource-row ${active ? 'selected' : ''}`}>
-      <button onClick={() => onJump(node.id)} title={`${node.title} · Ver en el mapa`} aria-label={`Ver ${node.title} en el mapa`} aria-current={active ? 'true' : undefined}><Icon size={20} active={active} /><span>{node.title}</span></button>
+      <button onClick={() => onJump(node.id)} title={`${node.title} · Ver en el mapa`} aria-label={`Ver ${node.title} en el mapa`} aria-current={active ? 'true' : undefined}><span className="rail-agent-mark" aria-hidden="true"><Icon size={18} variant="line" /></span><span>{node.title}</span></button>
       {focusButton(node)}
     </div>;
   };
@@ -23,10 +23,10 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
         <nav aria-label="Sesiones">{rows.map(row => {
           const active = selected.includes(row.id);
           return <div key={row.id} className="rail-session">
-            <div className={`rail-panel-row rail-session-row ${active ? 'selected' : ''} ${row.needsYou ? 'needs-you' : ''}`}>
-              <button onClick={() => onJump(row.id)} aria-label={`Ver ${row.fullTitle} en el mapa`} aria-current={active ? 'true' : undefined}>
-                <span className="rail-agent-mark" aria-hidden="true"><ProviderGlyph provider={row.provider === 'terminal' ? 'shell' : row.provider} size={20} /><span className={`rail-session-dot ${row.tone}`} /></span>
-                <span className="rail-panel-label"><span title={row.fullTitle}>{row.title}</span><span className="rail-session-meta"><span className="rail-session-status">{row.statusLabel}</span><span className="rail-session-details">{[row.providerLabel, row.model].filter(Boolean).map((detail, index) => <React.Fragment key={index}> · {detail}</React.Fragment>)}</span></span></span>
+            <div className={`rail-panel-row rail-session-row ${active ? 'selected' : ''} ${row.needsYou ? 'needs-you' : ''}`} data-state={row.needsYou ? 'attention' : row.tone === 'working' ? 'working' : 'rest'}>
+              <button onClick={() => onJump(row.id)} title={`${row.fullTitle} · Ver en el mapa`} aria-label={`Ver ${row.fullTitle} en el mapa`} aria-describedby={`rail-meta-${row.id}`} aria-current={active ? 'true' : undefined}>
+                <span className="rail-agent-mark" aria-hidden="true"><ProviderGlyph provider={row.provider === 'terminal' ? 'shell' : row.provider} size={18} /></span>
+                <span className="rail-panel-label"><span title={row.fullTitle}>{row.title}</span><span id={`rail-meta-${row.id}`} className="rail-session-meta" title={[row.providerLabel, row.statusLabel, row.time].filter(Boolean).join(' · ')}><span className="rail-session-type">{row.providerLabel}</span><span className="rail-session-status">{row.statusLabel}</span>{row.time && <span className="rail-session-time">{row.time}</span>}</span></span>
               </button>
               {focusButton(row.node)}
             </div>
