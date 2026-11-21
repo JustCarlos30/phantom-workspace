@@ -73,7 +73,7 @@ class Dictation:
                 initial_prompt=voice_text.build_prompt(self.profile, self.vocabulary, context))[0])
             # Drop low-confidence segments (noise hallucinations) from text only; cuts use all segments.
             joined = lambda items: " ".join(s.text.strip() for s in items if voice_text.keep_segment(
-                s.text, s.no_speech_prob, s.avg_logprob, s.compression_ratio))
+                s.text, getattr(s, "no_speech_prob", 0.0), getattr(s, "avg_logprob", 0.0), getattr(s, "compression_ratio", 1.0)))
             self.partial = joined(segments).strip()
             if ended:
                 self.confirmed = " ".join(filter(None, (self.confirmed, self.partial)))

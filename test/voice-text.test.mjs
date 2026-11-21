@@ -208,7 +208,9 @@ test('voice-stream.py filtra los segmentos con keep_segment', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(`${root}voice-stream.py`, 'utf8');
   assert.match(source, /voice_text\.keep_segment\(/);
-  assert.match(source, /s\.no_speech_prob, s\.avg_logprob, s\.compression_ratio/);
+  assert.match(source, /voice_text\.keep_segment\((?:[^()]|\([^()]*\))*(?:\([^()]*)?\bno_speech_prob\b/);
+  assert.match(source, /voice_text\.keep_segment\((?:[^()]|\([^()]*\))*(?:\([^()]*)?\bavg_logprob\b/);
+  assert.match(source, /voice_text\.keep_segment\((?:[^()]|\([^()]*\))*(?:\([^()]*)?\bcompression_ratio\b/);
 });
 
 test('Claude Code lento o caído no detiene el dictado y se reinicia', async () => {
