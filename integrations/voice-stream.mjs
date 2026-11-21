@@ -5,12 +5,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireWorkspace, stateDirectory, executableOnPath } from './run-manager.mjs';
+import { createSpool, appendSpool, readSegment, commitSegment, destroySpool } from './voice-upload.mjs';
 
 const engines = new Map();
 const sessions = new Map();
-const METHODS = new Set(['voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel', 'voice.stream.warm']);
+const METHODS = new Set(['voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel', 'voice.stream.warm', 'voice.stream.recover']);
 // A loaded model stays resident this long after the last dictation.
 const IDLE_MS = 1_800_000;
+// A session expires only after this long without any request, never by total age.
+export const streamTiming = { sessionIdleMs: 180_000 };
+const MAX_SESSIONS = 4;
+// Per-message sanity bounds, not a dictation length limit (1M characters is hours of speech).
+export const MAX_TRANSCRIPT = 1_000_000;
+const MAX_ENGINE_LINE = 4 * 1024 * 1024;
 
 export function resolveStreamScript(argv, bundledScript) {
   return argv.map(arg => path.basename(arg) === 'voice-stream.py' ? bundledScript : arg);
@@ -216,7 +223,7 @@ class Engine {
     this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data', chunk => {
       buffer += chunk;
-      if (Buffer.byteLength(buffer) > 256 * 1024) return this.close(new Error('Salida del motor demasiado grande'));
+      if (buffer.length > MAX_ENGINE_LINE) return this.close(new Error('Salida del motor demasiado grande'));
       let index;
       while ((index = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, index); buffer = buffer.slice(index + 1);
@@ -257,13 +264,34 @@ class Engine {
   }
 }
 
+// Frees every resource of a session: timers, cleaner, engine lease and the temporary audio.
 function release(session) {
   clearTimeout(session.timer);
   session.cleaner?.close();
   sessions.delete(session.id);
-  session.engine.session = null;
-  idle(session.engine);
+  if (session.engine) { session.engine.session = null; idle(session.engine); }
+  const spool = session.spool; session.spool = null;
+  return destroySpool(spool);
 }
+
+// Real activity renews the lease; an abandoned session expires after sessionIdleMs.
+function touch(session) {
+  clearTimeout(session.timer);
+  session.timer = setTimeout(() => { session.engine?.close(new Error('Sesión de dictado caducada por inactividad')); release(session); }, streamTiming.sessionIdleMs);
+  session.timer.unref();
+}
+
+// The live engine failed but its audio is safe on disk: keep the session as a
+// spool-only one so the whole dictation can be transcribed in segments.
+function degrade(session, error) {
+  const engine = session.engine;
+  session.engine = null; session.live = false; session.degradedReason = error.message;
+  session.cleaner?.close(); session.cleaner = null; session.corrector = null;
+  if (engine) { engine.session = null; engine.close(error); }
+}
+
+const canRecover = session => Boolean(session.spool && !session.spool.full);
+const emptyResult = extra => ({ text: '', confirmed: '', partial: '', ...extra });
 
 function idle(engine) {
   clearTimeout(engine.idleTimer);
@@ -301,14 +329,15 @@ async function acquireEngine(context, settings) {
 }
 
 export async function shutdownVoiceStreams() {
-  for (const session of [...sessions.values()]) release(session);
+  await Promise.all([...sessions.values()].map(release));
   const owned = [...engines.values()];
   for (const engine of owned) engine.close();
   await Promise.all(owned.map(engine => engine.exited));
   engines.clear();
 }
 
-export async function handleVoiceStream(method, payload, context) {
+// transcribeSegment(wavBuffer) → text is supplied by voice.mjs for voice.stream.recover.
+export async function handleVoiceStream(method, payload, context, transcribeSegment) {
   if (!METHODS.has(method)) return { handled: false };
   const { workspace } = await requireWorkspace(payload, context);
   const settings = context.state?.settings ?? context.state?.data?.settings ?? {};
@@ -318,11 +347,24 @@ export async function handleVoiceStream(method, payload, context) {
     if (!busy) { idle(engine); await engine.ready; }
     return { handled: true, result: { ready: true } };
   }
+  if (method === 'voice.stream.start' && payload.spool === true) {
+    // No live engine: the audio is kept on disk and transcribed in segments at the end.
+    if (sessions.size >= MAX_SESSIONS) throw new Error('Demasiados dictados activos');
+    const root = stateDirectory(context);
+    const session = { id: randomUUID(), workspaceId: workspace.id, root, engine: null, live: false, sequence: 0, busy: false, cleaner: null, corrector: null, spool: null, recovered: 0 };
+    session.spool = await createSpool(path.join(root, 'voice-spool')).catch(() => { throw new Error('No se pudo preparar el audio temporal del dictado'); });
+    sessions.set(session.id, session);
+    touch(session);
+    return { handled: true, result: { sessionId: session.id, provider: 'spool', live: false, sampleRate: 16000 } };
+  }
   if (method === 'voice.stream.start') {
+    if (sessions.size >= MAX_SESSIONS) throw new Error('Demasiados dictados activos');
     const { root, config, engine, busy } = await acquireEngine(context, settings);
     if (busy) throw new Error('Ya hay un dictado activo. Detén o cancela la otra captura.');
     clearTimeout(engine.idleTimer);
-    const session = { id: randomUUID(), workspaceId: workspace.id, root, engine, sequence: 0, samples: 0, busy: false, cleaner: null, corrector: null };
+    const session = { id: randomUUID(), workspaceId: workspace.id, root, engine, live: true, sequence: 0, busy: false, cleaner: null, corrector: null, spool: null, recovered: 0 };
+    // Without a disk copy a failure cannot be recovered, but live dictation still works.
+    session.spool = await createSpool(path.join(root, 'voice-spool')).catch(() => null);
     if (fillerMode(settings) === 'clean') {
       // Prefer the Claude Code login (no key to configure); fall back to the API key.
       if (await executableOnPath('claude')) {
@@ -335,37 +377,69 @@ export async function handleVoiceStream(method, payload, context) {
     }
     engine.session = session;
     sessions.set(session.id, session);
-    session.timer = setTimeout(() => { engine.close(new Error('Sesión de dictado caducada')); release(session); }, 180_000);
-    session.timer.unref();
+    touch(session);
     try {
       await engine.request('reset');
-      return { handled: true, result: { sessionId: session.id, provider: 'local', model: config.model, device: config.device, computeType: config.computeType, sampleRate: 16000 } };
-    } catch (error) { release(session); throw error; }
+      return { handled: true, result: { sessionId: session.id, provider: 'local', live: true, model: config.model, device: config.device, computeType: config.computeType, sampleRate: 16000 } };
+    } catch (error) { session.engine?.close(error); await release(session); throw error; }
   }
   const session = sessions.get(payload.sessionId);
   if (!session || session.workspaceId !== workspace.id || session.root !== stateDirectory(context)) throw new Error('Sesión de voz no encontrada para este workspace');
   if (method === 'voice.stream.cancel') {
-    session.engine.close(); release(session);
+    session.engine?.close(); await release(session);
     return { handled: true, result: { cancelled: true } };
   }
   if (session.busy) throw new Error('Espera la transcripción anterior antes de enviar más audio');
-  let encoded;
+  touch(session);
+  if (method === 'voice.stream.recover') {
+    if (session.live || !session.finished || !session.spool) throw new Error('Esta sesión no tiene audio pendiente de recuperar');
+    if (payload.index !== session.recovered) throw new Error('Segmento de recuperación fuera de orden');
+    if (typeof transcribeSegment !== 'function') throw new Error('Recuperación de audio no disponible');
+    session.busy = true;
+    try {
+      const segment = await readSegment(session.spool);
+      if (!segment) { await release(session); return { handled: true, result: { index: payload.index, text: '', done: true } }; }
+      const text = String(await transcribeSegment(segment.wav) ?? '').trim();
+      commitSegment(session.spool, segment); session.recovered++;
+      if (segment.last) await release(session);
+      return { handled: true, result: { index: payload.index, text, done: segment.last, provider: 'local' } };
+    } finally { session.busy = false; }
+  }
+  const finishing = method === 'voice.stream.finish';
+  let encoded, bytes;
   if (method === 'voice.stream.push') {
     encoded = payload.audioBase64;
-    if (payload.sequence !== session.sequence || typeof encoded !== 'string' || !encoded.length || encoded.length > 85336) throw new Error('Fragmento de voz fuera de orden o demasiado grande');
-    const bytes = Buffer.from(encoded, 'base64');
+    if (session.finished || payload.sequence !== session.sequence || typeof encoded !== 'string' || !encoded.length || encoded.length > 85336) throw new Error('Fragmento de voz fuera de orden o demasiado grande');
+    bytes = Buffer.from(encoded, 'base64');
     if (bytes.length > 64000 || bytes.length % 2 || bytes.toString('base64') !== encoded) throw new Error('Se requiere PCM16 mono a 16000 Hz');
-    if (session.samples + bytes.length / 2 > 16000 * 120) throw new Error('Dictado supera dos minutos');
-    session.samples += bytes.length / 2; session.sequence++;
+    session.sequence++;
   }
   session.busy = true;
   try {
-    const result = await session.engine.request(method.endsWith('finish') ? 'finish' : 'push', encoded);
-    if (typeof result?.text !== 'string' || result.text.length > 32768 || typeof result.confirmed !== 'string' || typeof result.partial !== 'string') throw new Error('Respuesta de transcripción inválida');
-    if (!session.corrector) return { handled: true, result: { ...result, provider: 'local' } };
-    session.corrector.track(result.confirmed);
-    if (method.endsWith('finish')) await session.corrector.settle(6_000);
-    return { handled: true, result: { ...session.corrector.compose(result), provider: 'local' } };
-  } catch (error) { session.engine.close(); release(session); throw error; }
-  finally { session.busy = false; if (method.endsWith('finish') && sessions.has(session.id)) release(session); }
+    // The disk copy is written before the engine hears it, so a failure never loses this chunk.
+    if (bytes && session.spool) {
+      const spool = session.spool;
+      // appendSpool marks the copy incomplete and keeps the disk error; live dictation goes on without it.
+      await appendSpool(spool, bytes).catch(() => {});
+      if (spool.full && !session.live) throw new Error(`El audio temporal del dictado no se pudo guardar completo${spool.error ? `: ${spool.error}` : ''}`);
+    }
+    if (session.live) {
+      try {
+        const result = await session.engine.request(finishing ? 'finish' : 'push', encoded);
+        if (typeof result?.text !== 'string' || result.text.length > MAX_TRANSCRIPT || typeof result.confirmed !== 'string' || typeof result.partial !== 'string') throw new Error('Respuesta de transcripción inválida');
+        if (!session.corrector) { if (finishing) await release(session); return { handled: true, result: { ...result, provider: 'local' } }; }
+        session.corrector.track(result.confirmed);
+        if (finishing) await session.corrector.settle(6_000);
+        const composed = { ...session.corrector.compose(result), provider: 'local' };
+        if (finishing) await release(session);
+        return { handled: true, result: composed };
+      } catch (error) {
+        // Keep the audio: the session continues without the live engine and is recovered at the end.
+        if (!canRecover(session)) { session.engine?.close(error); await release(session); throw error; }
+        degrade(session, error);
+      }
+    }
+    if (finishing) session.finished = true;
+    return { handled: true, result: emptyResult({ provider: 'spool', degraded: true, reason: session.degradedReason, complete: !session.spool?.full, ...(session.spool?.error ? { diskError: session.spool.error } : {}), bytes: session.spool?.bytes ?? 0 }) };
+  } finally { session.busy = false; }
 }

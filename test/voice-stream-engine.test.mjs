@@ -90,6 +90,16 @@ elif case == "final":
     state.audio = np.zeros(rate, dtype=np.float32)
     assert state.push(final=True)["text"] == result["text"]
     assert state.audio.size == 0
+elif case == "long":
+    # A long dictation keeps its whole transcript: no 32768-character cut.
+    state.confirmed = " ".join("w%d" % i for i in range(8000))
+    assert len(state.confirmed) > 32768
+    state.audio = np.zeros(rate, dtype=np.float32)
+    speech = [{"start": 0, "end": rate}]
+    result = state.push(final=True)
+    assert len(result["text"]) > 32768
+    assert result["confirmed"].startswith("w0 w1 w2") and result["confirmed"].endswith("w7999 nueva frase")
+    assert result["text"] == result["confirmed"]
 `;
 
 for (const [name, scenario] of [
@@ -98,6 +108,7 @@ for (const [name, scenario] of [
   ['Idioma automático y ajustes de vocabulario y VAD llegan al modelo', 'auto'],
   ['El prompt conserva contexto confirmado en límite de palabra', 'context'],
   ['Final devuelve el texto y vacía el audio', 'final'],
+  ['Una transcripción de más de 32768 caracteres no se trunca ni se rechaza', 'long'],
 ]) test(name, t => {
   const result = spawnSync('python3', ['-B', '-c', script, new URL('../scripts/voice-stream.py', import.meta.url).pathname, scenario], { encoding: 'utf8', timeout: 20000, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
   if (result.error?.code === 'ENOENT' || result.status === 77) return t.skip('python3 o numpy no disponibles');
