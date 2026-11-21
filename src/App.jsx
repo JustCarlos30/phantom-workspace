@@ -42,6 +42,8 @@ import { localStorageOrNull, updateUsage, recordOpen } from './hooks/tool-usage.
 import { HUBS, HUB_DOCK, HUB_MORE, resolveHub } from './hooks/hubs.mjs';
 import SidebarPanels from './components/SidebarPanels';
 import './sidebar.css';
+import './limits.css';
+import RailUsage from './components/RailUsage.jsx';
 import './shell.css';
 import PhantomChat from './components/PhantomChat';
 import { DOCK_TABS, dockStatus } from './hooks/phantom-dock.mjs';
@@ -533,6 +535,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       {workspace && <Spaces key={workspace.id} spaces={spaces.spaces} active={spaces.active} nodes={workspace.nodes || []} open={contextMenu === 'space'} onOpenChange={value => setContextMenu(value ? 'space' : null)} onSelect={id => { setFocused(null); setSelected([]); spaces.select(id); }} onCreate={spaces.create} onRename={spaces.rename} onRemove={spaces.remove} />}
       {workspace && <button className={`rail-attention ${activity.needs.length ? 'needs-you' : ''}`} aria-expanded={!!tray} aria-controls="activity-tray" onClick={() => { setSidebar(false); setTray(v => !v); setTools(false); setList(false); setMenu(null); }}><ActivityIcon size={20} /><span>{activity.needs.length ? 'Te necesitan' : 'Todo en orden'}</span>{activity.needs.length > 0 ? <b>{activity.needs.length}</b> : <ChevronRight size={13} />}</button>}
       {workspace && <SidebarPanels nodes={view.nodes} types={TYPES} selected={selected} focused={focused} sessions={terminalActivity} onJump={id => { setSitesOpen(false); jump(id); }} onFocus={id => { setSitesOpen(false); setSidebar(false); focusPanel(id); }} onSearch={() => { setSitesOpen(false); setSidebar(false); setList(v => !v); }} onMap={() => { setSitesOpen(false); setSidebar(false); focusPanel(null); setFitRequest(n => n + 1); }} />}
+      <RailUsage data={activity.sources.limits?.data} loading={activity.sources.limits?.loading} error={activity.sources.limits?.error} onRefresh={async () => { await api('limits.read', { workspaceId: workspace?.id, force: true }); activity.retry(); }} />
       <div className="rail-bottom">
         <div className="rail-system"><span className={`host-indicator ${connection.status}`} title={connection.message || connectionLabel} role="status"><i />{connectionLabel}</span><VoiceLauncher disabled={!workspace || connection.status !== 'connected'} /><button className={`icon-button ${['settings', 'appearance'].includes(inspector) ? 'active' : ''}`} title="Configuración" aria-label="Configuración" onClick={() => { setSidebar(false); setInspector(['settings', 'appearance'].includes(inspector) ? null : 'settings'); }}><Settings2 size={15} /></button></div>
       </div>
