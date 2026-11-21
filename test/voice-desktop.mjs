@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from 'vite';
 
 // Production Electron/renderer and isolated host. Audio is a WebAudio oscillator
-// recorded by Chromium's REAL MediaRecorder. ASR, chats and terminal transport
+// sampled by Chromium's real AudioContext. ASR, chats and terminal transport
 // are explicitly synthetic IPC fixtures: no microphone, model or shell runs.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+await build({ root });
 await mkdir('/tmp/opencode', { recursive: true });
 const evidence = await mkdtemp('/tmp/opencode/voice-desktop-');
 const profile = path.join(evidence, 'profile');
@@ -22,7 +24,7 @@ const fixture = fn => app.evaluate(fn);
 const dialog = () => page.getByRole('dialog', { name: 'Dictado por voz', exact: true });
 const calls = () => fixture(() => globalThis.voiceFixture.calls);
 const release = () => fixture(() => { for (const resolve of globalThis.voiceFixture.pending.splice(0)) resolve(); });
-const countVoice = () => fixture(() => globalThis.voiceFixture.calls.filter(call => call.method === 'voice.transcribe').length);
+const countVoice = () => fixture(() => globalThis.voiceFixture.calls.filter(call => call.method === 'voice.stream.finish').length);
 async function waitVoice(count) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) { if (await countVoice() >= count) return; await delay(30); }
@@ -43,7 +45,7 @@ async function captureBoth(name, surface) {
     await size(width, height); await delay(300);
     const overflow = await surface.locator('.voice-activity').evaluate(el => el.scrollWidth > el.clientWidth);
     assert.equal(overflow, false, `${name}: activity fits ${label}`);
-    for (const button of await surface.getByRole('button', { name: /^(Detener y transcribir|Cancelar audio)$/ }).all()) {
+    for (const button of await surface.getByRole('button', { name: /^(Terminar dictado|Descartar dictado)$/ }).all()) {
       const exposure = await button.evaluate(el => {
         const rect = element => {
           const r = element.getBoundingClientRect(), css = getComputedStyle(element);
@@ -59,9 +61,11 @@ async function captureBoth(name, surface) {
     await capture(`${label}-${name}`);
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const orb62 = surface.locator('.voice-waves').first();
-  await page.waitForFunction(el => el.dataset.motion === 'reduced', await orb62.elementHandle());
-  assert.equal(await orb62.evaluate(el => getComputedStyle(el).transitionDuration), '0s', `${name}: reduced-motion removes spatial transitions`);
+  const bars = surface.locator('.voice-bars i');
+  assert.equal(await bars.count(), 6);
+  assert.deepEqual(await bars.evaluateAll(elements => elements.map(el => getComputedStyle(el).transitionDuration)), Array(6).fill('0s'), `${name}: reduced-motion removes interpolation`);
+  assert.equal(await surface.locator('.voice-waves,.voice-aura,canvas.voice-waves').count(), 0);
+  assert.doesNotMatch(await surface.locator('.voice-activity').textContent(), /Te escucho|Cancelar audio/);
   await capture(`narrow-${name}-reduced`);
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await size(1520, 980);
 }
@@ -84,7 +88,7 @@ async function recording(surface, button) {
 }
 async function transcribe(surface) {
   const count = await countVoice();
-  await surface.getByRole('button', { name: 'Detener y transcribir', exact: true }).click();
+  await surface.getByRole('button', { name: 'Terminar dictado', exact: true }).click();
   await waitVoice(count + 1);
   await surface.locator('.voice-activity[data-state="transcribing"]').waitFor();
   assert.equal(await page.evaluate(() => window.voiceAudio.tracks.filter(track => track.readyState === 'live').length), 0, 'Tracks end before ASR resolves');
@@ -111,15 +115,19 @@ try {
   await app.evaluate(({ ipcMain }, { terminalId, orchestratorId, workspaceId, transcript }) => {
     const original = ipcMain._invokeHandlers?.get('phantom:invoke');
     if (!original) throw new Error('Electron IPC test seam unavailable');
-    globalThis.voiceFixture = { original, terminalId, orchestratorId, workspaceId, transcript, sessionId: 'synthetic-voice-session', terminalStatus: 'running', calls: [], pending: [], fail: false };
+    globalThis.voiceFixture = { original, terminalId, orchestratorId, workspaceId, transcript, sessionId: 'synthetic-voice-session', terminalStatus: 'running', calls: [], pending: [], fail: false, sequence: 0 };
     ipcMain.removeHandler('phantom:invoke');
     ipcMain.handle('phantom:invoke', async (event, method, payload = {}) => {
       const f = globalThis.voiceFixture;
-      if (method === 'voice.transcribe') {
+      if (method === 'voice.stream.warm') return { available: true };
+      if (method === 'voice.stream.start') return { sessionId: `synthetic-asr-${++f.sequence}` };
+      if (method === 'voice.stream.push') { f.calls.push({ method, payload }); return { confirmed: 'SYNTHETIC · confirmado', partial: 'cola provisional' }; }
+      if (method === 'voice.stream.cancel') { f.calls.push({ method, payload }); return {}; }
+      if (method === 'voice.stream.finish') {
         f.calls.push({ method, payload });
         const fail = f.fail; await new Promise(resolve => f.pending.push(resolve));
         if (fail) throw new Error('SYNTHETIC · proveedor de voz no disponible');
-        return { text: f.transcript, provider: 'synthetic-fixture-no-ASR' };
+        return { confirmed: f.transcript, partial: '', provider: 'synthetic-fixture-no-ASR' };
       }
       if (method === 'voice.intent') return { action: 'task', title: 'SYNTHETIC borrador', text: payload.text };
       if (method === 'chat.get') return { provider: 'claude', running: false, messages: [], queue: [], meta: {} };
@@ -184,15 +192,15 @@ try {
     assert.match(await dialog().textContent(), /SYNTHETIC Nota A/);
     await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' }));
     await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-activity')?.style.getPropertyValue('--voice-level')) > .1);
-    const amp = () => dialog().locator('.voice-waves').evaluate(el => Number(el.dataset.amplitude));
-    await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-waves')?.dataset.amplitude) > .05);
+    const amp = () => dialog().locator('.voice-bars i').nth(2).evaluate(el => parseFloat(getComputedStyle(el).height));
+    await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.voice-dialog .voice-bars i:nth-child(3)')).height) > 3);
     const liveAmplitude = await amp();
     await captureBoth('global-listening', dialog());
     await page.evaluate(() => window.voiceAudio.gains.forEach(gain => { gain.gain.value = 0; }));
     await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-activity')?.style.getPropertyValue('--voice-level')) < .02);
-    await page.waitForFunction(() => Number(document.querySelector('.voice-dialog .voice-waves')?.dataset.amplitude) < .05);
-    assert.notEqual(await amp(), liveAmplitude, 'Wave changes with REAL sample amplitude');
-    const count = await countVoice(); await dialog().getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(count + 1);
+    await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.voice-dialog .voice-bars i:nth-child(3)')).height) < 2.3);
+    assert.notEqual(await amp(), liveAmplitude, 'Bars change with REAL sample amplitude');
+    const count = await countVoice(); await dialog().getByRole('button', { name: 'Terminar dictado' }).click(); await waitVoice(count + 1);
     await capture('wide-global-transcribing');
     // A different field gains focus while transcription is pending; the target
     // remains the original DOM field and original range, never "last focused".
@@ -216,7 +224,7 @@ try {
     await dialog().locator('[data-state="requesting"]').waitFor();
     assert.equal(await page.evaluate(() => window.voiceAudio.requests), before + 1);
     const priorTracks = await page.evaluate(() => window.voiceAudio.tracks.length);
-    await dialog().getByRole('button', { name: 'Cancelar audio', exact: true }).click();
+    await dialog().getByRole('button', { name: 'Descartar dictado', exact: true }).click();
     await page.evaluate(() => { window.voiceAudio.defer = false; window.voiceAudio.grants.splice(0).forEach(resolve => resolve()); });
     await page.waitForFunction(prior => window.voiceAudio.tracks.length > prior && window.voiceAudio.tracks.every(track => track.readyState === 'ended'), priorTracks);
     await page.evaluate(() => { window.voiceAudio.denied = true; });
@@ -228,37 +236,70 @@ try {
     await page.waitForFunction(() => window.voiceAudio.tracks.every(track => track.readyState === 'ended'));
   });
 
-  await check('ChatCard and Phantom: append to drafts, mutual exclusion, cancellation and retained drafts', async () => {
+  await check('ChatCard and Phantom: field preview, explicit send, mutual exclusion and retained drafts', async () => {
     await focusNode(card.title, card.id);
     const surface = page.locator(`[data-node-id="${card.id}"]`), input = surface.getByLabel('Mensaje para Claude');
     await input.fill('Borrador card');
     await recording(surface, surface.getByRole('button', { name: 'Dictar a Claude' }));
+    await surface.locator('.pc-input .voice-live-partial').waitFor();
+    assert.equal(await surface.locator('.voice-live-confirmed').textContent(), 'Borrador card SYNTHETIC · confirmado');
+    assert.equal(await surface.locator('.voice-live-partial').textContent(), ' cola provisional');
+    assert.equal((await calls()).filter(call => call.method === 'chat.send').length, 0, 'Preview alone never sends');
     await captureBoth('chatcard-listening', surface);
     await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
     const side = page.locator('.phantom-chat');
     assert.equal(await side.getByRole('button', { name: 'Dictar por voz', exact: true }).isDisabled(), true);
     await transcribe(surface);
-    assert.equal(await input.inputValue(), `Borrador card ${transcript}`);
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="Mensaje para Claude"]')?.value === '');
+    assert.equal((await calls()).filter(call => call.method === 'chat.send').at(-1).payload.text, `Borrador card ${transcript}`, 'Only the final transcript is merged once');
     const sideInput = side.getByLabel('Mensaje para Phantom'); await sideInput.fill('Borrador Phantom');
     await recording(side, side.getByRole('button', { name: 'Dictar por voz', exact: true }));
     await captureBoth('phantom-listening', side);
-    await transcribe(side); assert.equal(await sideInput.inputValue(), `Borrador Phantom ${transcript}`);
+    await transcribe(side);
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="Mensaje para Phantom"]')?.value === '');
+    assert.equal((await calls()).filter(call => call.method === 'chat.send').at(-1).payload.text, `Borrador Phantom ${transcript}`);
+    await sideInput.fill(`Borrador Phantom ${transcript}`);
     await recording(side, side.getByRole('button', { name: 'Dictar por voz', exact: true }));
-    await side.getByRole('button', { name: 'Cancelar audio', exact: true }).click();
+    await side.getByRole('button', { name: 'Descartar dictado', exact: true }).click();
     assert.equal(await sideInput.inputValue(), `Borrador Phantom ${transcript}`);
     await side.getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();
     await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
     assert.equal(await sideInput.inputValue(), `Borrador Phantom ${transcript}`);
-    assert.equal((await calls()).filter(call => call.method === 'chat.send').length, 0, 'Dictation never sends a chat');
+    assert.equal((await calls()).filter(call => call.method === 'chat.send').length, 2, 'Only the two explicit confirmations send');
   });
 
-  await check('Orchestrator: shared activity, append, cancel on tab change and preserve its draft', async () => {
+  await check('X, Escape and project changes disarm a late chat delivery without losing the draft', async () => {
+    const side = page.locator('.phantom-chat');
+    await side.getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();
+    const surface = page.locator(`[data-node-id="${card.id}"]`), input = surface.getByLabel('Mensaje para Claude');
+    for (const cancel of ['X', 'Escape', 'project']) {
+      await input.fill(`SYNTHETIC borrador ${cancel}`);
+      const sent = (await calls()).filter(call => call.method === 'chat.send').length;
+      await recording(surface, surface.getByRole('button', { name: 'Dictar a Claude' }));
+      const before = await countVoice();
+      await input.press('Enter'); await waitVoice(before + 1);
+      await input.press('Enter'); await input.press('Enter');
+      if (cancel === 'X') await surface.getByRole('button', { name: 'Descartar dictado', exact: true }).click();
+      else if (cancel === 'Escape') await input.press('Escape');
+      else { await invoke('workspace.select', { id: workspaceB.id }); await input.waitFor({ state: 'detached' }); }
+      await release(); await delay(100);
+      if (cancel === 'project') { await invoke('workspace.select', { id: workspace.id }); await focusNode(card.title, card.id); }
+      assert.equal(await input.inputValue(), `SYNTHETIC borrador ${cancel}`);
+      assert.equal((await calls()).filter(call => call.method === 'chat.send').length, sent);
+    }
+    await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
+  });
+
+  await check('Orchestrator: shared activity, explicit send, cancel on tab change and preserve its draft', async () => {
     const side = page.locator('.phantom-chat');
     await side.getByRole('tab', { name: /^Orquestador/ }).click();
     const input = side.getByLabel(`Mensaje para ${orchestrator.title}`); await input.fill('Borrador orquestador');
     await recording(side, side.getByRole('button', { name: 'Dictar al orquestador' }));
     await captureBoth('orchestrator-listening', side);
-    await transcribe(side); assert.equal(await input.inputValue(), `Borrador orquestador ${transcript}`);
+    await transcribe(side);
+    await page.waitForFunction(title => document.querySelector(`textarea[aria-label="Mensaje para ${title}"]`)?.value === '', orchestrator.title);
+    assert.equal((await calls()).filter(call => call.method === 'chat.send').at(-1).payload.text, `Borrador orquestador ${transcript}`);
+    await input.fill(`Borrador orquestador ${transcript}`);
     await recording(side, side.getByRole('button', { name: 'Dictar al orquestador' }));
     await side.getByRole('tab', { name: 'Chat', exact: true }).click();
     await page.waitForFunction(() => window.voiceAudio.tracks.every(track => track.readyState === 'ended'));
@@ -271,15 +312,17 @@ try {
     const surface = page.locator(`[data-node-id="${card.id}"]`), input = surface.getByLabel('Mensaje para Claude');
     const original = await input.inputValue();
     await recording(surface, surface.getByRole('button', { name: 'Dictar a Claude' }));
-    const before = await countVoice(); await surface.getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(before + 1);
+    const sent = (await calls()).filter(call => call.method === 'chat.send').length;
+    const before = await countVoice(); await surface.getByRole('button', { name: 'Terminar dictado' }).click(); await waitVoice(before + 1);
     await invoke('chat.configure', { workspaceId: workspace.id, nodeId: card.id, provider: null });
     await input.waitFor({ state: 'detached' }); await release(); await delay(100);
     assert.equal(await input.count(), 0);
     await invoke('chat.configure', { workspaceId: workspace.id, nodeId: card.id, provider: 'claude' });
     await input.waitFor(); assert.equal(await input.inputValue(), original);
+    assert.equal((await calls()).filter(call => call.method === 'chat.send').length, sent);
   });
 
-  await check('Voice/intention modal uses the same recorder, waves and editable draft', async () => {
+  await check('Voice/intention modal uses the same recorder, meter and editable draft', async () => {
     await page.keyboard.press('Control+k'); await page.getByRole('combobox', { name: 'Buscar paneles y herramientas' }).fill('Capturar voz');
     await page.locator('.tw-palette-results button').filter({ hasText: 'Capturar voz' }).click();
     const modal = page.getByRole('dialog', { name: 'Voz e intención', exact: true });
@@ -317,7 +360,7 @@ try {
   await check('Late terminal result cannot follow a replaced session; session exit stops capture and blocks its shortcut', async () => {
     await page.getByRole('button', { name: 'Dictar en esta terminal' }).click();
     await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' }));
-    const before = await countVoice(); await dialog().getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(before + 1);
+    const before = await countVoice(); await dialog().getByRole('button', { name: 'Terminar dictado' }).click(); await waitVoice(before + 1);
     await fixture(({ BrowserWindow }) => { globalThis.voiceFixture.sessionId = 'synthetic-voice-replacement'; BrowserWindow.getAllWindows()[0].webContents.send('phantom:event', { type: 'state.changed' }); });
     await dialog().waitFor({ state: 'hidden' }); await release();
     assert.equal((await calls()).filter(call => call.method === 'terminal.write').length, 1);
@@ -357,13 +400,13 @@ try {
     await focusNode(noteA.title, noteA.id);
     await page.getByLabel(`Nota: ${noteA.title}`, { exact: true }).focus();
     await page.keyboard.press('Control+Shift+m'); await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' }));
-    const before = await countVoice(); await dialog().getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(before + 1);
-    assert.equal(await dialog().getByRole('button', { name: 'Grabar dictado' }).isDisabled(), true);
-    await dialog().getByRole('button', { name: 'Cancelar audio', exact: true }).click(); await release(); await delay(100);
+    const before = await countVoice(); await dialog().getByRole('button', { name: 'Terminar dictado' }).click(); await waitVoice(before + 1);
+    assert.equal(await dialog().getByRole('button', { name: 'Terminar dictado' }).isDisabled(), true);
+    await dialog().getByRole('button', { name: 'Descartar dictado', exact: true }).click(); await release(); await delay(100);
     assert.equal(await dialog().getByLabel('Transcripción editable').inputValue(), '');
     await fixture(() => { globalThis.voiceFixture.fail = true; });
     await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' })); await transcribe(dialog());
-    await dialog().getByRole('alert').filter({ hasText: 'setup:voice' }).waitFor();
+    await dialog().getByRole('alert').filter({ hasText: 'SYNTHETIC · proveedor de voz no disponible' }).waitFor();
     await fixture(() => { globalThis.voiceFixture.fail = false; });
     await dialog().getByRole('button', { name: 'Cerrar dictado' }).click();
   });
@@ -374,14 +417,13 @@ try {
     await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' }));
     await capture('narrow-field-listening');
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForFunction(() => document.querySelector('.voice-dialog .voice-waves')?.dataset.motion === 'reduced');
-    const style = await dialog().locator('.voice-waves').evaluate(el => ({ motion: el.dataset.motion, transition: getComputedStyle(el).transitionDuration }));
-    assert.equal(style.transition, '0s'); assert.equal(style.motion, 'reduced');
+    const style = await dialog().locator('.voice-bars i').first().evaluate(el => ({ animation: getComputedStyle(el).animationName, transition: getComputedStyle(el).transitionDuration }));
+    assert.equal(style.transition, '0s'); assert.equal(style.animation, 'none');
     await capture('narrow-reduced-motion');
-    const before = await countVoice(); await dialog().getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(before + 1);
-    assert.equal(await dialog().locator('.voice-waves').evaluate(el => getComputedStyle(el).animationName), 'none');
+    const before = await countVoice(); await dialog().getByRole('button', { name: 'Terminar dictado' }).click(); await waitVoice(before + 1);
+    assert.deepEqual(await dialog().locator('.voice-bars i').evaluateAll(elements => elements.map(el => getComputedStyle(el).height)), Array(6).fill('2px'));
     await capture('narrow-transcribing'); await release(); await dialog().locator('.voice-activity').waitFor({ state: 'hidden' });
-    await dialog().getByRole('button', { name: 'Cancelar', exact: true }).focus(); await page.keyboard.press('Tab');
+    await dialog().getByRole('button', { name: 'Insertar en campo', exact: true }).focus(); await page.keyboard.press('Tab');
     assert.equal(await dialog().getByRole('button', { name: 'Cerrar dictado' }).evaluate(el => el === document.activeElement), true);
     await page.keyboard.press('Escape'); await dialog().waitFor({ state: 'hidden' });
     await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -441,7 +483,7 @@ try {
   await check('Project change cancels pending ASR and active audio without retargeting', async () => {
     const input = page.getByLabel(`Nota: ${noteA.title}`, { exact: true }); const original = await input.inputValue(); await input.focus();
     await page.keyboard.press('Control+Shift+m'); await recording(dialog(), dialog().getByRole('button', { name: 'Grabar dictado' }));
-    const before = await countVoice(); await dialog().getByRole('button', { name: 'Detener y transcribir' }).click(); await waitVoice(before + 1);
+    const before = await countVoice(); await dialog().getByRole('button', { name: 'Terminar dictado' }).click(); await waitVoice(before + 1);
     await invoke('workspace.select', { id: workspaceB.id }); await dialog().waitFor({ state: 'hidden' }); await release();
     await page.getByRole('button', { name: workspaceB.name, exact: true }).first().waitFor();
     assert.equal((await calls()).filter(call => call.method === 'terminal.write').length, 1);
@@ -452,11 +494,14 @@ try {
     await page.waitForFunction(() => window.voiceAudio.tracks.every(track => track.readyState === 'ended'));
   });
 
-  const transcriptionCalls = (await calls()).filter(call => call.method === 'voice.transcribe');
+  const transcriptionCalls = (await calls()).filter(call => call.method === 'voice.stream.finish');
   assert.ok(transcriptionCalls.length >= 10);
-  for (const call of transcriptionCalls) {
-    assert.equal(call.payload.workspaceId, workspace.id); assert.match(call.payload.mimeType, /^audio\//);
-    assert.ok(Buffer.from(call.payload.audioBase64, 'base64').length > 32, 'Actual encoded synthetic audio crosses IPC');
+  const pushes = (await calls()).filter(call => call.method === 'voice.stream.push');
+  assert.ok(pushes.length > 0);
+  for (const call of pushes) {
+    assert.equal(call.payload.workspaceId, workspace.id);
+    const pcm = Buffer.from(call.payload.audioBase64, 'base64');
+    assert.ok(pcm.length > 32 && pcm.length % 2 === 0, 'Actual synthetic PCM16 crosses IPC');
   }
   assert.deepEqual(errors, [], 'No renderer errors');
   const report = { passed: true, fixture: 'SYNTHETIC audio + SYNTHETIC transcription, no recognition quality claim', checks, captures, errors };

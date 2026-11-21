@@ -10,10 +10,12 @@ test('subagent card and its children shrink within the available width', () => {
   assert.match(card, /(?:^|;)\s*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*(?:;|$)/);
   assert.match(card, /(?:^|;)\s*min-width:\s*0\s*(?:;|$)/);
   assert.match(card, /(?:^|;)\s*max-width:\s*100%\s*(?:;|$)/);
+  assert.match(card, /(?:^|;)\s*background:\s*none\s*(?:;|$)/, 'delegation remains a line on the thread, not another card');
 
   const children = chat.match(/(?:^|\n)\.pc-subagent\s*>\s*\*\s*\{([^}]*)\}/)?.[1];
   assert.ok(children, '.pc-subagent > * rule exists');
   assert.match(children, /(?:^|;)\s*min-width:\s*0\s*(?:;|$)/);
+  assert.match(chat, /\.pc-subagent-head\s*\{[^}]*flex-wrap:\s*wrap/, 'state remains visible on narrow sessions');
 });
 
 test('phantom link and its children shrink within the available width', () => {

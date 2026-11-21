@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Sun } from 'lucide-react';
 import { ACCENTS, BACKGROUNDS } from '../hooks/useAppearance';
 import { INTERFACE_SCALES } from '../hooks/interfaceScale';
 import { Group, Row, Switch } from './PluginPrimitives';
-import gengarArtwork from '../../assets/gengar.png';
 
 // Apariencia, as a category of Configuración: every change applies at once.
 export function Appearance({ appearance, update, reset, workspace, interfaceScale }) {
@@ -36,24 +35,24 @@ export function Appearance({ appearance, update, reset, workspace, interfaceScal
       {interfaceScale.error && <p className="st-error" role="alert">{interfaceScale.error}</p>}
     </Group>}
     <Group title="Fondo">
-      <div className="st-block"><div className="background-options" role="group" aria-label="Fondo del lienzo">{BACKGROUNDS.map(([key, name, description]) => <button type="button" key={key} className={`background-option ${key}`} aria-pressed={!appearance.image && appearance.background === key} title={description} onClick={() => update({ background: key, image: '' })}><span className="background-preview" aria-hidden="true">{key === 'gengar' && <img src={gengarArtwork} alt="" />}</span><span>{name}</span>{!appearance.image && appearance.background === key && <Check size={13} />}</button>)}</div></div>
+      <div className="st-block"><div className="background-options" role="group" aria-label="Fondo del lienzo">{BACKGROUNDS.map(([key, name, description]) => <button type="button" key={key} className={`background-option ${key}`} aria-pressed={!appearance.image && appearance.background === key} title={description} onClick={() => update({ background: key, image: '' })}><span className="background-preview" aria-hidden="true" /><span>{name}</span>{!appearance.image && appearance.background === key && <Check size={13} />}</button>)}</div></div>
       <Row label="Tu imagen" hint="PNG, JPG o WebP · hasta 2 MB">
         {appearance.image && <><img className="st-thumb" src={appearance.image} alt="Fondo personal seleccionado" /><button type="button" className="st-btn" aria-label="Quitar imagen de fondo" onClick={() => update({ image: '' })}>Quitar</button></>}
         <label className="st-btn st-file">{loading ? 'Leyendo…' : 'Elegir…'}<input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Elegir imagen de fondo" onChange={upload} disabled={loading} /></label>
       </Row>
       {error && <p className="st-error" role="alert">{error}</p>}
-      <Row label="Intensidad" htmlFor="background-intensity"><input id="background-intensity" className="st-range" type="range" min="0" max="100" value={appearance.intensity} onChange={e => update({ intensity: Number(e.target.value) })} /><output htmlFor="background-intensity">{appearance.intensity}%</output></Row>
+      <div className="st-row st-slider-row"><label htmlFor="background-intensity">Intensidad</label><output htmlFor="background-intensity">{appearance.intensity}%</output><div className="st-slider" style={{ '--range-value': `${appearance.intensity}%` }}><span className="st-slider-fill" /><Sun size={16} aria-hidden="true" /><input id="background-intensity" className="st-range" type="range" min="0" max="100" value={appearance.intensity} onChange={e => update({ intensity: Number(e.target.value) })} /></div></div>
     </Group>
     <Group title="Color de acento">
       <div className="st-block"><div className="accent-options" role="group" aria-label="Color de acento">{ACCENTS.map(([key, name, color]) => <button type="button" key={key} aria-label={`Acento ${name}`} aria-pressed={appearance.accent === key} style={{ '--swatch': color }} onClick={() => update({ accent: key })}><span>{appearance.accent === key && <Check size={14} />}</span>{name}</button>)}</div></div>
     </Group>
-    <Group title="Gengar">
-      <Row label="Mostrar Gengar"><Switch label="Mostrar Gengar" checked={appearance.gengar} onChange={gengar => update({ gengar })} /></Row>
-      <Row label="Presencia" htmlFor="gengar-intensity"><input id="gengar-intensity" className="st-range" type="range" min="0" max="100" disabled={!appearance.gengar} value={appearance.gengarIntensity} onChange={e => update({ gengarIntensity: Number(e.target.value) })} /><output htmlFor="gengar-intensity">{appearance.gengarIntensity}%</output></Row>
+    <Group title="Titi">
+      <Row label="Mostrar Titi"><Switch label="Mostrar Titi" checked={appearance.gengar} onChange={gengar => update({ gengar })} /></Row>
+      <div className="st-row st-slider-row"><label htmlFor="gengar-intensity">Presencia</label><output htmlFor="gengar-intensity">{appearance.gengarIntensity}%</output><div className="st-slider" style={{ '--range-value': `${appearance.gengarIntensity}%` }}><span className="st-slider-fill" /><Sun size={16} aria-hidden="true" /><input id="gengar-intensity" className="st-range" type="range" min="0" max="100" disabled={!appearance.gengar} value={appearance.gengarIntensity} onChange={e => update({ gengarIntensity: Number(e.target.value) })} /></div></div>
     </Group>
     <Group title="Lienzo">
       <Row label="Pulso ambiental" hint="Animación lenta del fondo"><Switch label="Pulso ambiental" checked={appearance.pulse} onChange={pulse => update({ pulse })} /></Row>
-      <Row label="Concentración" hint="Atenúa el fondo y a Gengar"><Switch label="Concentración" checked={appearance.concentration} onChange={concentration => update({ concentration })} /></Row>
+      <Row label="Concentración" hint="Atenúa el fondo y a Titi"><Switch label="Concentración" checked={appearance.concentration} onChange={concentration => update({ concentration })} /></Row>
       <Row label="Retícula de puntos"><Switch label="Retícula de puntos" checked={appearance.grid} onChange={grid => update({ grid })} /></Row>
     </Group>
     <Group>

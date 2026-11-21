@@ -26,7 +26,7 @@ const workingCount = activity => activity.current ? activity.current.filter(row 
   : activity.inProgress.filter(item => item.tone === 'working').length + activity.activeSessions.length + activity.integrations.active.filter(item => WORKING.includes(item.status)).length;
 
 // One control: what is waiting on you, or that nothing is.
-export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
+export default function ActivityNotch({ activity, open, onToggle, buttonRef, identity = false }) {
   const fresh = freshness(activity);
   const count = activity.needs.length, working = workingCount(activity);
   const status = fresh.state === 'offline' ? 'Sin conexión' : fresh.state === 'loading' && !count ? 'Cargando…' : count ? 'Te necesitan' : working ? `${working} en curso` : 'Todo en orden';
@@ -34,7 +34,7 @@ export default function ActivityNotch({ activity, open, onToggle, buttonRef }) {
   const lead = leadNeed(activity), leadText = lead ? `${lead.where && lead.where !== lead.headline ? `${lead.where}: ` : ''}${lead.headline}${lead.at ? ` · ${ago(lead.at, activity.now)}` : ''}` : '';
   return <div className="activity-strip" role="group" aria-label="Te necesitan">
     <button ref={buttonRef} className={`activity-notch ${shown ? 'needs-you' : ''}`} aria-label={shown ? `Te necesitan, ${count} ${count === 1 ? 'pendiente' : 'pendientes'}, ${leadText}` : status} aria-expanded={!!open} aria-controls="activity-tray" onClick={() => onToggle('needs')}>
-      <PhantomFace mood={activityMood(activity)} /><CircleDot className="notch-state-fallback" size={14} aria-hidden="true" />
+      {identity ? <PhantomFace mood={activityMood(activity)} size={28} data-identity="dock" /> : <CircleDot className="notch-state-fallback" size={16} aria-hidden="true" />}
       <strong>{status}</strong>
       {shown && <b className="notch-count">{count}</b>}
       {fresh.failing.length > 0 && <i className="notch-dot" role="img" aria-label={STALE} title={STALE} />}

@@ -77,11 +77,26 @@
   --badge-size: 32px;
   --badge-ink: #fff;
   --box-pad: 12px;
+  --interior-flat: #111113;
+  --r-group: calc(var(--r-obj) - var(--box-pad));
+  --section-gap: 8px;
+  --group-gap: 12px;
+  --row-py: 12px;
   --row-px: 16px;
   --row-gap: 12px;
   --icon-col: 32px;
   --divider: #ffffff12;
   --divider-width: 1px;
+  --divider-inset: calc(var(--row-px) + var(--icon-col) + var(--row-gap));
+  --control-off: #4e4e50;
+  --settings-switch-width: 44px;
+  --settings-switch-height: 26px;
+  --settings-switch-thumb: 20px;
+  --settings-slider-height: 32px;
+  --identity-size: 40px;
+  --identity-inset: 4px;
+  --identity-glyph-size: 16px;
+  --identity-ink: var(--on);
   --rail-group-inset: 20px;
   --rail-gap: 8px;
   --workplane: var(--surface);
@@ -115,7 +130,7 @@
   --dock-clearance: 24px;
   --dock-pad: 12px;
   --dock-gap: 12px;
-  --inspector-width: 360px;
+  --inspector-width: 320px;
   --dot: color-mix(in srgb, #f2f0eb 5%, transparent);
   /* Neutral planes keep identity and state accents local. */
   --bg: #020203;
@@ -134,7 +149,23 @@
   --t-display: 600 24px/30px var(--sans);
   --t-title: 600 15px/20px var(--sans);
   --t-headline: 600 14px/22px var(--sans);
-  --t-body: 400 14px/22px var(--sans);
+  --t-body: 400 14px/20px var(--sans);
+  --t-code: 400 12px/16px var(--mono);
+  --t-terminal-preview: 400 12px/18px var(--mono);
+  --session-row-height: 64px;
+  --panel-header-session: 56px;
+  --choice-col: 20px;
+  --radio-dot: 8px;
+  --activity-row-height: 40px;
+  --activity-row-py: 8px;
+  --progress-height: 4px;
+  --progress-track: #2c2c2d;
+  --quote-width: 2px;
+  --quote-inset: 12px;
+  --quote-gap: 8px;
+  --prose-ink: #d9d6cf;
+  --composer-field-min: 40px;
+  --composer-gap: 12px;
   --t-control: 500 14px/20px var(--sans);
   --t-support: 400 12px/16px var(--sans);
   --t-micro: 500 12px/16px var(--sans);
@@ -577,7 +608,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .pc-title > svg, .sk-title > svg, .rp-brand > svg { width: 18px; height: 18px; }
 /* Terminal preview shares the reading rhythm; alternate screens retain their
    row/column fit and semantic overview keeps its compact scale. */
-.pt-card:not(.is-overview) .pt-card-screen:not(.is-alternate) pre { font: var(--t-body); font-family: var(--mono); }
+.pt-card:not(.is-overview) .pt-card-screen:not(.is-alternate) pre { font: var(--t-terminal-preview); }
 .pt-card:not(.is-overview) .pt-card-footer { font: var(--t-support); }
 .pt-card:not(.is-overview) .pt-card-action { font: var(--t-control); }
 * { scrollbar-color: var(--scroll-thumb) transparent; }
@@ -1001,11 +1032,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* The ghost in the notch: the brand mark with a mood. Its eyes and grin are
    the only things that change, and only with real state (Glyphs.jsx). */
 .phantom-face { flex-shrink: 0; overflow: visible; }
-.phantom-face-eyes { transform-box: fill-box; transform-origin: center; }
-.phantom-face.is-asleep { opacity: .55; }
-.phantom-face.is-grin { color: var(--attention); }
-.phantom-face.is-working { color: var(--working); }
-.phantom-face.is-working .phantom-face-shell { stroke: var(--working); }
 /* Expressions are still: source changes, never a timer, drive the face.
    This also keeps concentration and reduced-motion equally quiet. */
 /* The dock is a little taller with labels; what opens above it clears it. */
@@ -1036,19 +1062,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .app-shell.studio-concentration .canvas { background-image: none; }
 .canvas.focus-mode { background-image: none; }
 
-/* Gengar is atmosphere, not a subject: smaller, anchored in the corner, toned
-   down and dissolved into the plum haze toward the centre of the map. */
-.canvas-region::after {
-  filter: saturate(.85) brightness(.92);
-  -webkit-mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
-  mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
-}
-
 /* Selection quiets the atmosphere one step; focus mode keeps its own value. */
 .app-shell:not(.studio-focused) .canvas-region:has(.canvas-node.selected)::before {
   opacity: calc(var(--background-intensity, .55) * .55);
 }
-.app-shell:not(.studio-focused):not(.studio-concentration).studio-character .canvas-region:has(.canvas-node.selected)::after { opacity: calc(var(--gengar-intensity, .55) * .55); }
 .app-shell.studio-concentration .canvas-region:has(.canvas-node.selected)::before { opacity: calc(var(--background-intensity, .55) * .12); }
 
 /* Cards: an opaque slab with one hairline and one shadow. At rest it lies on

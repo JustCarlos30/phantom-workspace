@@ -55,7 +55,7 @@ export const environment = {
   ],
   checks: { available: true, checks: { configured: true, command: 'npm test' } },
 };
-export const appearance ={ background: 'gengar', accent: 'ivory', intensity: 35, gengar: true, gengarIntensity: 60, pulse: false, concentration: false, grid: true, image: '' };
+export const appearance ={ background: 'plain', accent: 'ivory', intensity: 35, gengar: true, gengarIntensity: 60, pulse: false, concentration: false, grid: true, image: '' };
 export const need = { key: 'permission-demo', need: 'permission', headline: '¿Permitir la lectura de ejemplo?', title: 'Sesión de ejemplo', context: 'Catálogo sintético', at: Date.parse(date), code: 'Leer src/example.jsx', chatId: chatNode.id, requestId: 'permission-demo', target: 'terminal', nodeId: chatNode.id };
 export const activity = { connected: true, now: Date.parse(date), sources: {}, needs: [need], pending: { now: [need], later: [] }, inProgress: [], activeSessions: [], integrations: { active: [] }, current: [], today: [], retry: noop };
 export const plugin = { id: 'phantom', name: 'Phantom', enabled: true, version: '1.0.0', refreshMs: 4000, config: {}, panels: [], actions: [] };

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Mic, Square, X } from 'lucide-react';
+import { Mic, X } from 'lucide-react';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
-import { VoiceActivity } from './VoiceActivity';
+import { VoiceActivity, VoiceTranscript, dictationPreview } from './VoiceActivity';
 
 export function VoiceDictation({ target, api, connected, onClose }) {
   const [text, setText] = useState(''), [error, setError] = useState(''), [inserting, setInserting] = useState(false);
@@ -33,7 +33,7 @@ export function VoiceDictation({ target, api, connected, onClose }) {
   };
   return createPortal(<div className="app-modal-backdrop voice-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
     <section ref={dialog} className="voice-dialog" role="dialog" aria-modal="true" aria-labelledby="voice-dictation-title" onKeyDown={event => {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (voice.status !== 'idle') voice.cancel(); else close(); }
       if (event.key === 'Tab') {
         event.stopPropagation();
         const controls = [...dialog.current.querySelectorAll('button:not(:disabled),textarea')];
@@ -45,12 +45,14 @@ export function VoiceDictation({ target, api, connected, onClose }) {
       <header className="popover-heading"><h2 id="voice-dictation-title">Dictado por voz</h2><button type="button" className="icon-button" aria-label="Cerrar dictado" onClick={close}><X size={17} /></button></header>
       <p>Destino fijado: <strong>{target.label}</strong></p>
       <p>{target.kind === 'terminal' ? 'Revisa el texto antes de insertarlo en esta sesión. Los saltos de línea se convierten en espacios; Enter lo pulsas tú en la terminal.' : target.kind === 'none' ? 'Enfoca un campo de texto o una terminal y vuelve a abrir el dictado. Puedes preparar o copiar texto aquí.' : 'La transcripción se inserta en la selección original. Tu borrador se conserva hasta que pulses Insertar.'}</p>
-      <VoiceActivity voice={voice} surface={target.surface} />
       {(voice.error || error) && <p className="voice-error" role="alert">{voice.error || error}</p>}
       {voice.busyElsewhere && <p role="status">Otro dictado está usando el micrófono. Detén o cancela su audio para grabar aquí.</p>}
-      <div className="voice-actions"><button type="button" className="button" disabled={!connected || voice.busyElsewhere || ['requesting', 'transcribing'].includes(voice.status)} onClick={voice.status === 'recording' ? voice.stop : voice.start}>{voice.status === 'recording' ? <Square size={14} /> : <Mic size={16} />}{voice.status === 'recording' ? 'Detener y transcribir' : 'Grabar dictado'}</button></div>
-      <label>Transcripción editable<textarea rows={5} maxLength={32768} value={text} onChange={event => setText(event.target.value)} /></label>
-      <div className="voice-actions"><button type="button" className="button primary" disabled={!text.trim() || target.kind === 'none' || voice.status !== 'idle' || !connected || inserting} onClick={insert}>{inserting ? 'Insertando…' : target.kind === 'terminal' ? 'Insertar en terminal' : 'Insertar en campo'}</button><button type="button" className="button" onClick={close}>Cancelar</button></div>
+      <div className="voice-review">
+        <label>Transcripción editable<div className="pc-input" data-preview={voice.status !== 'idle' || undefined}><VoiceTranscript voice={voice} draft={text} /><textarea rows={5} maxLength={32768} value={dictationPreview(voice, text)} readOnly={voice.status !== 'idle'} onChange={event => setText(event.target.value)} /></div></label>
+        <VoiceActivity voice={voice} onFinish={voice.stop} hint="Esc descarta · Revisa antes de insertar" />
+        {voice.status === 'idle' && <div className="voice-actions"><button type="button" className="button" disabled={!connected || voice.busyElsewhere} onClick={voice.start}><Mic size={16} />Grabar dictado</button></div>}
+      </div>
+      <div className="voice-actions"><button type="button" className="button primary" disabled={!text.trim() || target.kind === 'none' || voice.status !== 'idle' || !connected || inserting} onClick={insert}>{inserting ? 'Insertando…' : target.kind === 'terminal' ? 'Insertar en terminal' : 'Insertar en campo'}</button></div>
     </section>
   </div>, document.body);
 }

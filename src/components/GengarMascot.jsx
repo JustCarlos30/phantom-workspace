@@ -1,15 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import gengarIcon from '../../assets/gengar-icon.png';
-import gengarIdle from '../../assets/gengar-idle.gif';
+import React, { useEffect, useState } from 'react';
+import { PhantomFace } from './Glyphs.jsx';
 import '../identity.css';
 
-// GIFs cannot be paused with CSS. Remove their source whenever motion is
-// suspended, including when an ancestor hides the sprite or the rail is inert.
-export function useSpriteMotion(ref) {
+export function useSpriteMotion(ref, enabled = true) {
   const [moving, setMoving] = useState(false);
   useEffect(() => {
     const element = ref.current;
-    if (!element) return undefined;
+    if (!element || !enabled) { setMoving(false); return undefined; }
     const shell = element.closest('.app-shell');
     const media = matchMedia('(prefers-reduced-motion: reduce)');
     let intersecting = false;
@@ -25,15 +22,11 @@ export function useSpriteMotion(ref) {
     document.addEventListener('visibilitychange', update);
     media.addEventListener('change', update);
     return () => { intersection.disconnect(); mutations.disconnect(); document.removeEventListener('visibilitychange', update); media.removeEventListener('change', update); };
-  }, [ref]);
-  return moving;
+  }, [ref, enabled]);
+  return enabled && moving;
 }
 
 /** Decorative identity; the surrounding EmptyState always supplies the text. */
-export default function GengarMascot() {
-  const ref = useRef(null);
-  const moving = useSpriteMotion(ref);
-  return <span ref={ref} className="gengar-mascot" data-motion={moving ? 'running' : 'stopped'} aria-hidden="true">
-    <img className={moving ? 'gengar-idle' : 'gengar-static'} src={moving ? gengarIdle : gengarIcon} width={moving ? 148 : 80} height={moving ? 126 : 60} alt="" draggable="false" />
-  </span>;
+export default function TitiMascot() {
+  return <PhantomFace className="titi-mascot" data-identity="hero" size={88} />;
 }

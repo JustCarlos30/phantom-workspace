@@ -22,7 +22,7 @@ export async function assertFormGeometry(page, context) {
     }
     const label = el.getAttribute('aria-label') || [...(el.labels || [])].map(l => l.textContent.trim()).join(' ');
     const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d'); ctx.font = getComputedStyle(el, '::placeholder').font;
-    return { label, tag: el.tagName, type: el.type, search: Boolean(search), width: b.width, height: b.height, left: b.left, right: b.right, clips,
+    return { label, tag: el.tagName, type: el.type, settings: Boolean(el.closest('.st')), search: Boolean(search), width: b.width, height: b.height, left: b.left, right: b.right, clips,
       background: bs.backgroundColor, borderWidth: bs.borderTopWidth, borderColor: bs.borderTopColor, radius: bs.borderRadius,
       padding: bs.padding, fontSize: s.fontSize, align: s.textAlign, shadow: bs.boxShadow,
       innerBackground: s.backgroundColor, innerBorder: s.borderTopWidth,
@@ -40,9 +40,9 @@ export async function assertFormGeometry(page, context) {
     assert.deepEqual(control.clips, [], `${name}: recorte horizontal`);
     assert.ok(control.left >= 0 && control.right <= viewport.width + 1, `${name}: fuera del viewport`);
     assert.ok(control.width >= 70 && control.height >= 38, `${name}: tamaño insuficiente ${control.width}×${control.height}`);
-    assert.equal(control.background, 'rgb(21, 21, 21)', `${name}: superficie`);
-    assert.equal(control.borderWidth, '1px', `${name}: borde`);
-    assert.equal(control.radius, '8px', `${name}: radio`);
+    assert.equal(control.background, control.settings ? 'rgba(255, 255, 255, 0.08)' : 'rgb(17, 17, 19)', `${name}: superficie`);
+    assert.equal(control.borderWidth, control.settings ? '0px' : '1px', `${name}: borde`);
+    assert.equal(control.radius, '12px', `${name}: radio`);
     assert.equal(control.shadow, 'none', `${name}: relieve decorativo`);
     assert.ok(['12px', '14px'].includes(control.fontSize), `${name}: tipo`);
     assert.ok(['left', 'start', ...(control.type === 'number' ? ['right'] : [])].includes(control.align), `${name}: alineación`);
@@ -54,7 +54,7 @@ export async function assertFormGeometry(page, context) {
   const rhythm = await page.locator('.pc-form .tw-field').evaluateAll(els => els.filter(el => el.checkVisibility()).map(el => ({ gap: getComputedStyle(el).gap, width: el.getBoundingClientRect().width })));
   for (const field of rhythm) { assert.equal(field.gap, '8px', `${context}: ritmo label/campo/ayuda`); assert.ok(field.width <= 641, `${context}: columna de lectura demasiado ancha`); }
   const corners = await page.locator('.st-list > .st-row:first-child, .st-list > .st-row:last-child, .st-list > .st-details:last-child > :last-child').evaluateAll(els => els.filter(el => el.checkVisibility()).map(el => ({ name: el.className, radius: getComputedStyle(el).borderRadius })));
-  for (const corner of corners) assert.ok(corner.radius.includes('14px'), `${context}: extremos sin redondear (${corner.name}: ${corner.radius})`);
+   for (const corner of corners) assert.ok(corner.radius.includes('12px'), `${context}: extremos sin redondear (${corner.name}: ${corner.radius})`);
   return report;
 }
 
@@ -112,7 +112,8 @@ async function checkNativeStates(page, control, name, screenshot) {
   await control.hover();
   await page.waitForTimeout(180);
   const hover = await style();
-  assert.notEqual(hover.border, normal.border, `${name}: falta hover`);
+  const feedback = await control.evaluate(el => el.closest('.st') ? 'background' : 'border');
+  assert.notEqual(hover[feedback], normal[feedback], `${name}: falta hover`);
   await assertVisibleFocus(page, control, name);
   await page.screenshot({ path: `${screenshot}-focus.png` });
   // Native attributes on the real mounted control isolate CSS states from host timing.

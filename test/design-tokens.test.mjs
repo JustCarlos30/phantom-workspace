@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import './appearance-preferences.test.mjs';
 import { ACCENTS, accentColor, defaults, normalizeAppearance } from '../src/hooks/useAppearance.js';
 
-// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E3).
+// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E5).
 // Shared opaque material, one masked ring and an exact per-file edge budget.
 // A failure names the file and the value; fix the CSS, or if the
 // rule itself should change, change it here and in DESIGN.md together.
@@ -31,7 +31,7 @@ const split = (value, separator) => {
 };
 
 test('radii come from the three shapes', () => {
-  const allowed = /^(var\(--r-(mark|ctl|row|obj|isle|pill)\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
+  const allowed = /^(var\(--r-(mark|ctl|row|group|obj|isle|pill)\)|var\(--voice-bar-radius\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
   const bad = [];
   for (const { name, css } of sheets)
     for (const value of declarations(css, 'border(?:-[a-z]+)*-radius'))
@@ -49,10 +49,14 @@ test('shadows use chrome or matte workplane elevations, or a state ring', () => 
   for (const { name, css } of sheets)
     for (const value of declarations(css, 'box-shadow')) {
       if (/^(none|inherit|initial|unset)$/.test(value)) continue;
+      if (name === 'src/settings.css' && value === 'inset 0 1px 0 #ffffff14') continue;
       for (const layer of split(value, ','))
         if (!/^var\(--shadow-(chrome|rest|float|workplane-rest|workplane-lift|key|well|rim)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
     }
   assert.deepEqual(bad, [], 'Use shared object elevation tokens. Zero-offset, zero-blur rings are allowed for state only.');
+  const settings = sheets.find(sheet => sheet.name === 'src/settings.css').css;
+  const contacts = [...settings.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, , body]) => declarations(body, 'box-shadow').includes('inset 0 1px 0 #ffffff14'));
+  assert.deepEqual(contacts.map(([, selector]) => selector.trim()), ['.st-slider'], 'Only the approved slider has inner contact');
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   assert.equal(rootDeclarations(canvas, '--shadow-chrome')[0], '0 1px 2px #000, 0 16px 32px -16px #000');
   for (const name of ['rest', 'float', 'workplane-rest', 'workplane-lift'])
@@ -115,7 +119,7 @@ export { drawnEdges, sheets };
 
 test('approved type roles use local families and three weights', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
-  for (const [role, value] of Object.entries({ display: '600 24px/30px', title: '600 15px/20px', headline: '600 14px/22px', body: '400 14px/22px', control: '500 14px/20px', support: '400 12px/16px', micro: '500 12px/16px' })) {
+  for (const [role, value] of Object.entries({ display: '600 24px/30px', title: '600 15px/20px', headline: '600 14px/22px', body: '400 14px/20px', control: '500 14px/20px', support: '400 12px/16px', micro: '500 12px/16px' })) {
     assert.equal(rootDeclarations(canvas, `--t-${role}`)[0], `${value} var(--sans)`);
   }
   for (const { name, css } of sheets) assert.doesNotMatch(css, /@import\s+url\([^)]*https?:|@font-face[^}]*https?:/i, name);
@@ -263,7 +267,7 @@ test('neutral reading and state inks retain AA contrast on opaque planes', () =>
   const planes = ['bg', 'surface', 'surface-2', 'surface-3', 'terminal-bg', 'well', 'well-raised', 'well-terminal', 'object-top', 'object-bottom'].map(name => [name, rgb(name)]);
   for (const t of [.25, .5, .75]) planes.push([`gradient ${t}`, rgb('object-top').map((v, i) => v * (1 - t) + rgb('object-bottom')[i] * t)]);
   for (const [plane, values] of planes) {
-    for (const ink of ['ink', 'muted', 'ink-3', 'terminal-ink', 'working', 'attention', 'action', 'success', 'danger', 'idle']) {
+    for (const ink of ['ink', 'muted', 'ink-3', 'prose-ink', 'terminal-ink', 'working', 'attention', 'action', 'success', 'danger', 'idle']) {
       const a = luminance(values), b = luminance(rgb(ink)), ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
       const minimum = ink === 'idle' ? 3 : 4.5;
       assert.ok(ratio >= minimum, `--${ink} on --${plane}: ${ratio.toFixed(2)} < ${minimum}`);
@@ -286,7 +290,8 @@ test('workplanes and wells are opaque without blur and composer height never ani
   assert.match(side, /\.phantom-chat\s*\{[^}]*background-color:\s*var\(--workplane\);[^}]*background-image:\s*var\(--workplane-wash\)/);
   assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--well\)/);
   assert.match(chat, /\.pc-thread\s*\{[^}]*background:\s*var\(--well-terminal\)/);
-  assert.match(chat, /\.pc-field\s*\{[^}]*background:\s*var\(--well-raised\)/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*background:\s*var\(--well-raised\)/);
+  assert.match(chat, /\.pc-field\s*\{[^}]*background:\s*transparent;[^}]*box-shadow: none/);
   assert.match(terminal, /\.pt-card-screen,[^{]+\{[^}]*background:\s*var\(--well-terminal\)/);
   const plane = /(?:^|[\s>+~])(?:\.pc|\.pc-thread|\.pc-composer|\.phantom-chat|\.pt-card|\.pt-card-screen|\.terminal-panel|\.terminal-host|\.canvas-node\[data-type="terminal"\])(?=[:.\[#]|$)(?:[^\s>+~]*)$/;
   for (const { name, css } of sheets) {
@@ -296,10 +301,65 @@ test('workplanes and wells are opaque without blur and composer height never ani
     }
   }
   assert.match(chat, /\.pc-field textarea\s*\{[^}]*transition:\s*none/);
-  for (const file of ['ChatCard', 'PhantomChat']) {
+  for (const file of ['ChatCard', 'PhantomChat', 'PhantomOrchestrator']) {
     const source = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
-    assert.match(source, /useComposerSize\(input, draft/);
+    assert.match(source, /useComposerSize\(input, preview/);
+    assert.match(source, /const preview = dictationPreview\(voice, draft\)/);
     assert.doesNotMatch(source, /Math\.min\(el\.scrollHeight/);
+  }
+});
+
+test('E5 session rows, quote and activity use two surface levels and measured progress only', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const source = readFileSync(path.join(root, 'src/components/ChatCard.jsx'), 'utf8');
+  for (const [name, value] of Object.entries({ 'session-row-height': '64px', 'choice-col': '20px', 'radio-dot': '8px', 'activity-row-height': '40px', 'activity-row-py': '8px', 'progress-height': '4px', 'progress-track': '#2c2c2d', 'quote-width': '2px', 'quote-inset': '12px', 'quote-gap': '8px', 'composer-field-min': '40px', 'composer-gap': '12px', 'prose-ink': '#d9d6cf', 't-code': '400 12px/16px var(--mono)' }))
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
+  assert.match(source, /AGENT_MODES\.filter\(mode => enabled\.includes\(mode.id\)\)/);
+  assert.equal(rootDeclarations(canvas, '--panel-header-session')[0], '56px');
+  assert.equal(rootDeclarations(canvas, '--t-terminal-preview')[0], '400 12px/18px var(--mono)');
+  assert.match(chat, /\.activity-trace\s*\{ --trace-duration: 7s/);
+  for (const [index, length] of ['14px', '10px', '6px', '3px', '1.2px'].entries()) assert.ok(chat.includes(`rect:nth-child(${index + 1}) { --L: ${length} !important; }`));
+  assert.match(source, /className="pc-modes control-segmented"/);
+  assert.match(source, /role="radio" aria-checked=\{active === mode.id\}/);
+  assert.match(source, /'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'/);
+  assert.match(source, /<blockquote className="pc-message is-user">/);
+  assert.match(source, /phantom \? <PhantomGlyph size=\{16\}/);
+  assert.match(source, /state.live && state.total > 0 && <progress[^>]+max=\{state.total\} value=\{state.passed\}/);
+  assert.doesNotMatch(source, /<progress(?![^>]*max=\{state.total\})/);
+  assert.match(chat, /\.pc-message.is-user\s*\{[^}]*border-left: var\(--quote-width\) solid var\(--on\);[^}]*background: none/);
+  assert.match(chat, /\.pc-tools::before\s*\{[^}]*left: 32px; top: 10px; bottom: 18px;[^}]*background: var\(--divider\)/);
+  assert.match(chat, /\.pc-subagent\s*\{[^}]*background: none/);
+  assert.match(chat, /\.pc-session-row\s*\{[^}]*border-radius: var\(--r-row\)/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*padding: 12px 24px 24px 28px;[^}]*border-top: var\(--divider-width\) solid var\(--divider\)/);
+  for (const css of [chat, sheets.find(sheet => sheet.name === 'src/phantom-chat.css').css]) {
+    assert.doesNotMatch(css, /\.pc-field(?::hover|:focus-within|\.is-listening)\s*\{/);
+    assert.doesNotMatch(css, /\.pc\.is-focused \.pc-(?:composer|controls|field textarea)\s*\{/);
+  }
+});
+
+test('E5 dictation is a field preview and a real-level meter without decorative loops', () => {
+  const css = sheets.find(sheet => sheet.name === 'src/voice.css').css;
+  const source = readFileSync(path.join(root, 'src/components/VoiceActivity.jsx'), 'utf8');
+  for (const [name, value] of Object.entries({ 'meter-height': '36px', 'meter-px': '12px', 'meter-gap': '8px', 'meter-fill': '#ffffff14', 'bar-width': '3px', 'bar-gap': '3px', 'bar-radius': '2px', 'bars-height': '16px', 'composer-divider': '#ffffff26' }))
+    assert.equal(rootDeclarations(css, `--voice-${name}`)[0], value);
+  assert.doesNotMatch(source + css, /requestAnimationFrame|VoiceOrb|voice-aura|Te escucho|te escucho|Cancelar audio/);
+  assert.match(source, /voice.status === 'recording' && Number.isFinite\(voice.level\)/);
+  assert.match(source, /'--bar-level': level \* weight/);
+  assert.match(source, /if \(voice.status === 'idle'\) return draft/);
+  assert.match(source, /if \(voice.status === 'idle'\) return null/);
+  assert.match(source, /aria-label="Descartar dictado"/);
+  assert.match(source, /aria-label="Terminar dictado"/);
+  assert.match(css, /\.voice-live-confirmed\s*\{ color: var\(--ink\)/);
+  assert.match(css, /\.voice-live-partial\s*\{ color: var\(--muted\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none !important; transition: none !important/);
+  for (const file of ['ChatCard', 'PhantomChat', 'PhantomOrchestrator']) {
+    const component = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
+    assert.match(component, /<VoiceTranscript voice=\{voice\} draft=\{draft\}/);
+    assert.match(component, /hint="Esc descarta · Enter envía"/);
+    assert.match(component, /value=\{preview\} readOnly=\{voice.status !== 'idle'\}/);
+    assert.match(component, /sendAction\(/);
+    assert.match(component, /canSubmit\(/);
   }
 });
 
@@ -434,19 +494,28 @@ test('stable badge palette is defined, rail uses state and active switches stay 
   for (const { name, css } of sheets) for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     for (const value of declarations(body, 'background(?:-color|-image)?')) {
       if (!/var\(--badge-/.test(value)) continue;
-      assert.equal(name, 'src/sidebar.css');
-      assert.match(selectors.trim(), /(?:\.rail-agent-mark|\.project-initials)$/);
-      assert.doesNotMatch(value, /--badge-(?:steel|mint|honey|coral|violet|petrol)/, 'Type mode is not enabled');
+      if (name === 'src/settings.css') {
+        assert.match(selectors.trim(), /^\.st-ico(?:\[data-tone="(?:steel|violet)"\])?$/);
+        assert.match(value, /^var\(--badge-(?:neutral|steel|violet)\)$/);
+      } else if (name === 'src/chat.css') {
+        for (const selector of split(selectors.trim(), ',')) assert.match(selector, /^\.pc-session-badge(?:\[data-provider="(?:claude|opencode|codex)"\]|\.is-(?:permission|folder|model))?$/);
+        assert.match(value, /^var\(--badge-(?:neutral|coral|mint|steel|violet)\)$/);
+      } else {
+        assert.equal(name, 'src/sidebar.css');
+        assert.match(selectors.trim(), /(?:\.rail-agent-mark|\.project-initials)$/);
+        assert.doesNotMatch(value, /--badge-(?:steel|mint|honey|coral|violet|petrol)/, 'Type mode is not enabled');
+      }
     }
   }
   const source = readFileSync(path.join(root, 'src/components/Settings.jsx'), 'utf8');
   const categories = source.match(/const CATEGORIES = \[([\s\S]*?)\n\];/)[1];
-  assert.equal([...categories.matchAll(/\['[^']+', '[^']+', \w+\]/g)].length, 8);
+  assert.equal([...categories.matchAll(/\['[^']+', '[^']+', \w+, '(?:neutral|steel|violet)'\]/g)].length, 8);
+  for (const [id, tone] of [['git', 'steel'], ['data', 'steel'], ['voice', 'violet']]) assert.match(categories, new RegExp(`\\['${id}', '[^']+', \\w+, '${tone}'\\]`));
   assert.doesNotMatch(categories, /'working'|'success'|'attention'|'danger'|'accent'/);
-  assert.doesNotMatch(source, /className="st-ico"[^>]*data-tone/);
+  assert.match(source, /className="st-ico" data-tone=\{tone\}/);
   const css = sheets.find(sheet => sheet.name === 'src/settings.css').css;
-  assert.doesNotMatch(css, /\.st-ico\[data-tone/);
-  assert.match(css, /\.st-ico\s*\{[^}]*background: var\(--fill-3\);[^}]*color: var\(--ink\)/);
+  assert.match(css, /\.st-ico\s*\{[^}]*width: var\(--badge-size\); height: var\(--badge-size\); border-radius: 50%; background: var\(--badge-neutral\); color: var\(--badge-ink\)/);
+  assert.doesNotMatch(css, /(?:hover|active|aria-current)[^{]*\.st-ico\s*\{/);
   assert.match(css, /\.st-switch\[aria-checked="true"\]\s*\{\s*background: var\(--on\)/);
   assert.match(css, /\.st-switch\[aria-checked="true"\] > i\s*\{[^}]*background: var\(--on-ink\)/);
   assert.match(css, /\.st :is\(button, input, select, textarea, summary\):focus-visible\s*\{\s*outline: 2px solid var\(--accent\)/);
@@ -459,6 +528,45 @@ test('stable badge palette is defined, rail uses state and active switches stay 
   for (const provider of ['claude', 'opencode', 'codex', 'agent']) {
     assert.equal(declarations(terminal, `--hue-${provider}`)[0], 'var(--ink)', `${provider} chrome is decorative, not a state`);
   }
+});
+
+test('E4 settings use flat groups, inset dividers and borderless aligned controls', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const css = sheets.find(sheet => sheet.name === 'src/settings.css').css;
+  for (const [name, value] of Object.entries({ 'inspector-width': '320px', 'interior-flat': '#111113', 'r-group': 'calc(var(--r-obj) - var(--box-pad))', 'section-gap': '8px', 'group-gap': '12px', 'row-py': '12px', 'divider-inset': 'calc(var(--row-px) + var(--icon-col) + var(--row-gap))', 'settings-switch-width': '44px', 'settings-switch-height': '26px', 'settings-switch-thumb': '20px', 'settings-slider-height': '32px', 'control-off': '#4e4e50' }))
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value, name);
+  assert.match(css, /\.inspector-host\.settings-sheet\s*\{[^}]*inset: var\(--gutter\) var\(--gutter\) var\(--gutter\) auto;[^}]*width: min\(var\(--inspector-width\)/);
+  assert.match(css, /\.st-list\s*\{[^}]*border: 0; border-radius: var\(--r-group\); background: var\(--interior-flat\); box-shadow: none/);
+  assert.match(css, /\.st-nav li \+ li::before\s*\{ left: var\(--divider-inset\)/);
+  assert.match(css, /:is\(:hover, :active\) \+ \*::before/);
+  assert.match(css, /\.st-row:hover\s*\{ background-color: var\(--row-hover\)/);
+  assert.match(css, /\.st-row:active\s*\{ background-color: var\(--row-press\)/);
+  assert.match(css, /\.st :is\(\.st-input, \.st-select\)\s*\{[^}]*border: 0; background: var\(--control-fill\); box-shadow: none/);
+  assert.match(css, /\.st-switch > i\s*\{[^}]*transition: transform 200ms var\(--ease-settle\)/);
+  assert.match(css, /\.st-switch\[aria-checked="true"\] > i\s*\{ transform: translateX\(18px\)/);
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (selectors.includes('.settings-sheet') || selectors.trim() === '.st-slider' || selectors.trim() === '.st-slider-fill') continue;
+    for (const value of declarations(body, 'background(?:-image)?')) assert.doesNotMatch(value, /gradient\(|--object-(?:fill|ring)/, selectors);
+    for (const value of declarations(body, '(?:scale|translate)')) assert.equal(value, 'none');
+    for (const value of declarations(body, 'border')) assert.match(value, /^(0|none)\b/);
+  }
+  assert.match(css, /@media \(pointer: coarse\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[^}]*transition: none !important/);
+});
+
+test('E4 identity reuses Titi, preserves legacy preference keys and stops decorative rest', () => {
+  const source = file => readFileSync(path.join(root, file), 'utf8');
+  for (const file of ['src/App.jsx', 'src/components/Appearance.jsx', 'src/components/GengarMascot.jsx']) assert.doesNotMatch(source(file), /assets\/gengar|Mostrar Gengar|title="Gengar"/);
+  assert.match(source('src/components/Appearance.jsx'), /label="Mostrar Titi" checked=\{appearance.gengar\}/);
+  assert.match(source('src/components/Appearance.jsx'), /update\(\{ gengarIntensity: Number\(e.target.value\) \}\)/);
+  assert.match(source('src/App.jsx'), /identity=\{appearance.gengar && view.nodes.some\(node => !node.data\?\.hidden\)\}/);
+  assert.doesNotMatch(source('src/App.jsx'), /<PhantomFace|--gengar-art/);
+  assert.doesNotMatch(source('src/components/PhantomChat.jsx'), /PhantomGlyph|PhantomFace/);
+  assert.match(source('src/components/Glyphs.jsx'), /still data-operation-glyph="titi"/);
+  assert.match(source('src/components/TitiGhost.jsx'), /useSpriteMotion\(canvasRef, !still && !\['calm', 'asleep'\].includes\(mood\)\)/);
+  assert.match(source('src/components/TitiGhost.jsx'), /cancelAnimationFrame\(raf\)/);
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  for (const [name, value] of Object.entries({ 'identity-size': '40px', 'identity-inset': '4px', 'identity-glyph-size': '16px', 'identity-ink': 'var(--on)' })) assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
 });
 
 test('attention aliases colour only the masked panel ring and compact marks, never surfaces or wells', () => {

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
 
-// Isolated component journey: local pixel sprites, notch and empty-state anatomy/CSS.
+// Isolated component journey: shared Titi rig, notch and empty-state anatomy/CSS.
 // Synthetic source readings only; no host, PTY, user profile or network assets.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const evidence = '/tmp/phantom-gengar-identity';
@@ -14,7 +14,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { FolderOpen, Layers, StickyNote, TerminalSquare } from 'lucide-react';
 import EmptyState from '/src/components/EmptyState.jsx';
-import GengarMascot from '/src/components/GengarMascot.jsx';
+import TitiMascot from '/src/components/GengarMascot.jsx';
 import ActivityNotch from '/src/components/ActivityNotch.jsx';
 import '/src/styles.css';
 import '/src/empty-state.css';
@@ -28,13 +28,13 @@ window.renderFixture = ({ screen = 'welcome', state = 'calm', gengar = true, int
   const activity = { connected: state !== 'offline', now, sources, needs: state === 'grin' ? [{ id: 'approval' }] : [], inProgress: state === 'working' ? [{ tone: 'working' }] : [], activeSessions: [], integrations: { active: [] }, unread: 0 };
   const welcome = screen === 'welcome';
   const action = label => React.createElement('button', { className: 'button primary', onClick: () => { window.fixtureAction = label; } }, label);
-  root.render(React.createElement('div', { className: 'app-shell studio-gengar ' + (gengar ? 'studio-character ' : '') + (concentration ? 'studio-concentration' : ''), style: { '--gengar-intensity': intensity } },
+  root.render(React.createElement('div', { className: 'app-shell ' + (gengar ? 'studio-character ' : '') + (concentration ? 'studio-concentration' : ''), style: { '--identity-opacity': intensity } },
     React.createElement('main', { className: 'workspace-main', style: { width: '100%', height: '100vh' } },
-      React.createElement('header', { className: 'workspace-header' }, React.createElement(ActivityNotch, { activity, open: false, onToggle: () => { window.fixtureAction = 'needs'; } })),
+      React.createElement('div', { className: 'create-dock activity-dock' }, React.createElement(ActivityNotch, { activity, identity: gengar && screen === 'populated', open: false, onToggle: () => { window.fixtureAction = 'needs'; } })),
       React.createElement('div', { className: 'canvas-region', style: { flex: 1 } },
         React.createElement('section', { className: 'canvas ' + (welcome ? 'welcome-canvas' : ''), style: { height: '100%' } },
-          React.createElement(EmptyState, { className: 'canvas-empty', size: 'hero', heading: welcome ? 'h1' : 'h2',
-            icon: gengar ? React.createElement(GengarMascot) : (welcome ? FolderOpen : Layers),
+          screen !== 'populated' && React.createElement(EmptyState, { className: 'canvas-empty', size: 'hero', heading: welcome ? 'h1' : 'h2',
+            icon: gengar ? React.createElement(TitiMascot) : (welcome ? FolderOpen : Layers),
             title: welcome ? 'Un espacio para cada proyecto' : 'Tu mesa de trabajo, en un lugar',
             description: welcome ? 'Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver.' : 'Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto.',
             actions: welcome ? action('Abrir carpeta') : React.createElement(React.Fragment, null, action('Crear terminal'), action('Escribir nota')),
@@ -59,7 +59,7 @@ const server = await createServer({ root, server: { host: '127.0.0.1', port: 0, 
     });
     server.middlewares.use('/__gengar', (_req, res) => {
       res.setHeader('Content-Type', 'text/html');
-      res.end('<!doctype html><html lang="es"><title>Gengar · isolated journey</title><div id="root"></div><script type="module" src="/__gengar.jsx"></script></html>');
+      res.end('<!doctype html><html lang="es"><title>Titi · isolated journey</title><div id="root"></div><script type="module" src="/__gengar.jsx"></script></html>');
     });
   },
   resolveId(id) { if (id === '/__gengar-entry.jsx') return '\0gengar-entry.jsx'; },
@@ -103,34 +103,33 @@ try {
     await page.screenshot({ path: path.join(evidence, filename) });
     captures.push(filename);
   };
-  const sprite = page.locator('.gengar-mascot img');
-  const assertSprite = async (file, width, height) => {
-    await page.waitForFunction(({ file, width, height }) => {
-      const img = document.querySelector('.gengar-mascot img');
-      return img?.src.includes(file) && img.complete && img.naturalWidth > 0
-        && img.getBoundingClientRect().width === width && img.getBoundingClientRect().height === height;
-    }, { file, width, height });
-    assert.equal(await sprite.evaluate(el => getComputedStyle(el).imageRendering), 'pixelated');
-  };
+   const sprite = page.locator('[data-identity]');
+   const assertSprite = async (motion, size) => {
+     await page.waitForFunction(({ motion, size }) => {
+       const canvas = document.querySelector('canvas[data-identity]');
+       return canvas?.dataset.motion === motion && canvas.getBoundingClientRect().width === size && canvas.getBoundingClientRect().height === size
+         && canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data.some((value, index) => index % 4 === 3 && value > 0);
+     }, { motion, size });
+     assert.equal(await sprite.count(), 1, 'One identity placement per scene');
+     assert.equal(await sprite.evaluate(el => getComputedStyle(el).imageRendering), 'pixelated');
+     assert.equal(await page.locator('img[src*="gengar"]').count(), 0);
+   };
   for (const screen of ['welcome', 'empty']) {
     await render({ screen });
-    assert.equal(await page.locator('.gengar-mascot').count(), 1);
-    assert.equal(await page.locator('.gengar-mascot').isVisible(), true);
-    await assertSprite('gengar-icon.png', 80, 60);
-    assert.equal(await page.locator('.gengar-mascot svg').count(), 0);
+     assert.equal(await sprite.isVisible(), true);
+     await assertSprite('stopped', 88);
+     assert.equal(await page.locator('.activity-notch .phantom-face').count(), 0);
     await capture(screen);
     await page.getByRole('button', { name: screen === 'welcome' ? 'Abrir carpeta' : 'Crear terminal', exact: true }).click();
     assert.equal(await page.evaluate(() => window.fixtureAction), screen === 'welcome' ? 'Abrir carpeta' : 'Crear terminal');
   }
   for (const [state, mood] of [['offline', 'asleep'], ['loading', 'unsure'], ['stale', 'unsure'], ['error', 'unsure'], ['grin', 'grin'], ['working', 'working'], ['calm', 'calm']]) {
-    await render({ screen: 'empty', state });
+     await render({ screen: 'populated', state });
     assert.equal(await page.locator('.activity-notch .phantom-face').getAttribute('data-mood'), mood);
     const face = await page.locator('.activity-notch .phantom-face').evaluate(el => ({ tag: el.tagName, width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, src: el.src, opacity: getComputedStyle(el).opacity, filter: getComputedStyle(el).filter, animation: getComputedStyle(el).animationName }));
-    assert.equal(face.tag, 'IMG'); assert.equal(face.width, 40); assert.equal(face.height, 30);
-    assert.ok(face.src.includes('gengar-icon.png')); assert.equal(face.animation, 'none');
-    assert.equal(Number(face.opacity), mood === 'asleep' ? .5 : mood === 'unsure' ? .7 : 1);
-    if (mood === 'asleep') assert.match(face.filter, /grayscale\(1\)/);
-    if (mood === 'grin') assert.match(face.filter, /drop-shadow/);
+     assert.equal(face.tag, 'CANVAS'); assert.equal(face.width, 28); assert.equal(face.height, 28);
+     assert.equal(face.animation, 'none'); assert.equal(face.filter, 'none');
+     await assertSprite('stopped', 28);
     const label = await page.locator('.activity-notch').getAttribute('aria-label');
     assert.ok(label.includes(await page.locator('.activity-notch strong').innerText()));
     await capture(`face-${state}`);
@@ -139,43 +138,45 @@ try {
   await page.keyboard.press('Enter');
   assert.equal(await page.evaluate(() => window.fixtureAction), 'needs');
   await render({ gengar: false });
-  assert.equal(await page.locator('.gengar-mascot').count(), 0);
-  assert.equal(await page.locator('.activity-notch .phantom-face').isVisible(), false);
+   assert.equal(await sprite.count(), 0);
+   assert.equal(await page.locator('.activity-notch .phantom-face').count(), 0);
   assert.equal(await page.locator('.notch-state-fallback').isVisible(), true);
   await capture('hidden');
   await render({ intensity: 0 });
-  assert.equal(await page.locator('.gengar-mascot').evaluate(el => getComputedStyle(el).opacity), '0');
-  assert.equal(await page.locator('.activity-notch .phantom-face').evaluate(el => getComputedStyle(el).opacity), '1');
+   assert.equal(await sprite.evaluate(el => getComputedStyle(el).opacity), '0');
+   await assertSprite('stopped', 88);
   await render({ concentration: true, intensity: 1 });
-  assert.equal(await page.locator('.gengar-mascot').evaluate(el => getComputedStyle(el).opacity), '0.12');
-  await assertSprite('gengar-icon.png', 80, 60);
+   assert.equal(await sprite.evaluate(el => getComputedStyle(el).opacity), '0.12');
+   await assertSprite('stopped', 88);
   assert.equal(await page.locator('.phantom-face').first().evaluate(el => getComputedStyle(el).animationName), 'none');
   await capture('concentration');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await render({ screen: 'empty', state: 'working' });
-  await assertSprite('gengar-idle.gif', 148, 126);
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('.phantom-face')).animationName === 'gengar-hop');
-  await render({ screen: 'empty', state: 'calm' });
-  assert.equal(await page.locator('.phantom-face').evaluate(el => getComputedStyle(el).animationName), 'none', 'rest has no state animation');
-  await render({ screen: 'empty', state: 'grin' });
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('.phantom-face')).animationDuration === '2.4s');
-  await render({ screen: 'empty', concentration: true });
-  await assertSprite('gengar-icon.png', 80, 60);
-  await render({ screen: 'empty' });
-  await assertSprite('gengar-idle.gif', 148, 126);
+   await render({ screen: 'populated', state: 'working' });
+   await assertSprite('running', 28);
+   await render({ screen: 'populated', state: 'calm' });
+   await assertSprite('stopped', 28);
+   const rest = await sprite.evaluate(el => el.toDataURL());
+   await page.waitForTimeout(500);
+   assert.equal(await sprite.evaluate(el => el.toDataURL()), rest, 'rest has no decorative loop');
+   await render({ screen: 'populated', state: 'grin' });
+   await assertSprite('running', 28);
+   await render({ screen: 'populated', state: 'working', concentration: true });
+   await assertSprite('stopped', 28);
+   await render({ screen: 'populated', state: 'working' });
+   await assertSprite('running', 28);
   // Visibility lifecycle without moving focus to a real user's window.
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
-  await assertSprite('gengar-icon.png', 80, 60);
+   await assertSprite('stopped', 28);
   await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
-  await assertSprite('gengar-idle.gif', 148, 126);
-  await page.locator('.gengar-mascot').evaluate(el => { el.style.transform = 'translateX(3000px)'; });
-  await assertSprite('gengar-icon.png', 80, 60);
-  await page.locator('.gengar-mascot').evaluate(el => { el.style.transform = ''; });
-  await assertSprite('gengar-idle.gif', 148, 126);
+   await assertSprite('running', 28);
+   await sprite.evaluate(el => { el.style.transform = 'translateX(3000px)'; });
+   await assertSprite('stopped', 28);
+   await sprite.evaluate(el => { el.style.transform = ''; });
+   await assertSprite('running', 28);
   await page.setViewportSize({ width: 1100, height: 699 });
   await render({ screen: 'empty' });
-  await assertSprite('gengar-idle.gif', 74, 63);
-  const bounds = await page.locator('.gengar-mascot').boundingBox();
+   await assertSprite('stopped', 66);
+   const bounds = await sprite.boundingBox();
   assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 1100 && bounds.y + bounds.height <= 699);
   await capture('compact');
   assert.deepEqual(errors, []);

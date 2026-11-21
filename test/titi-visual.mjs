@@ -47,7 +47,7 @@ try {
 
   await page.goto(`${base}/iframe.html?id=identidad--titi&viewMode=story`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.documentElement.dataset.catalogRendered === 'identidad--titi');
-  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="calm"]')?.dataset.motion === 'running');
+  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="working"]')?.dataset.motion === 'running');
 
   // Lee los píxeles reales del canvas: hash del buffer RGBA y cantidad de píxeles con alfa > 0.
   const probe = selector => page.locator(selector).evaluate(canvas => {
@@ -85,20 +85,23 @@ try {
   await page.locator('[data-titi-shell] .catalog-grid').screenshot({ path: join(evidence, 'moods-running.png') });
 
   // 2. Con movimiento habilitado el rAF cambia píxeles.
-  const before = (await probe(moodSel('calm'))).hash;
+  const rest = await probe(moodSel('calm'));
+  assert.equal(rest.motion, 'stopped', 'Reposo no mantiene un bucle decorativo');
+  const before = (await probe(moodSel('working'))).hash;
   let after = before;
   for (let waited = 0; waited < 4000 && after === before; waited += 200) {
     await page.waitForTimeout(200);
-    after = (await probe(moodSel('calm'))).hash;
+    after = (await probe(moodSel('working'))).hash;
   }
-  const afterProbe = await probe(moodSel('calm'));
+  const afterProbe = await probe(moodSel('working'));
+  assert.equal((await probe(moodSel('calm'))).hash, rest.hash, 'Reposo conserva píxeles');
   assert.equal(afterProbe.motion, 'running');
   assert.notEqual(after, before, 'Con movimiento el canvas debe cambiar de píxeles en 4 s');
   record('motion-running-changes-pixels', { before, after });
 
   // 3. Movimiento reducido: se detiene y los píxeles se mantienen.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="calm"]')?.dataset.motion === 'stopped');
+  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="working"]')?.dataset.motion === 'stopped');
   for (const mood of MOODS) {
     await waitLit(moodSel(mood));
     const h1 = await probe(moodSel(mood));
@@ -129,42 +132,42 @@ try {
 
   // 5. Concentración detiene el movimiento aunque reduced motion esté apagado.
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="calm"]')?.dataset.motion === 'running');
+  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="working"]')?.dataset.motion === 'running');
   await page.evaluate(stageSel => document.querySelector(stageSel).classList.add('studio-concentration'), stage);
-  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="calm"]')?.dataset.motion === 'stopped');
-  await waitLit(moodSel('calm'));
-  const c1 = await probe(moodSel('calm'));
+  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="working"]')?.dataset.motion === 'stopped');
+  await waitLit(moodSel('working'));
+  const c1 = await probe(moodSel('working'));
   await page.waitForTimeout(800);
-  const c2 = await probe(moodSel('calm'));
+  const c2 = await probe(moodSel('working'));
   assert.equal(c2.hash, c1.hash, 'Concentración debe mantener píxeles estáticos');
   record('concentration-stops', { hash: c2.hash, lit: c2.lit });
   await page.evaluate(stageSel => document.querySelector(stageSel).classList.remove('studio-concentration'), stage);
-  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="calm"]')?.dataset.motion === 'running');
-  await waitLit(moodSel('calm'));
+  await page.waitForFunction(() => document.querySelector('canvas[data-mood-sample="working"]')?.dataset.motion === 'running');
+  await waitLit(moodSel('working'));
 
-  // 6. Marca, notch y chat con contenedores reales, con studio-character apagado, encendido y apagado de nuevo.
-  assert.equal(await page.locator('.gengar-mascot, .studio-character').count(), 0, 'No debe haber studio-character al inicio de la historia');
-  const slots = [['marca', '.brand-mark', 32], ['notch', '.activity-notch', 28], ['chat', '.phantom-chat-toggle', 28]];
-  const checkSlots = async label => {
-    for (const [slot, container, size] of slots) {
-      const sel = `[data-titi-slot="${slot}"] ${container} canvas.titi-ghost:not(.brand-state-fallback)`;
-      await waitLit(sel);
-      assert.ok(await page.locator(sel).isVisible(), `${label} ${slot}: visible`);
-      const p = await probe(sel);
-      assert.ok(p.lit >= 40, `${label} ${slot}: canvas vacío (lit=${p.lit})`);
-      assert.equal(p.cssWidth, size, `${label} ${slot}: ancho ${size}px`);
-      assert.equal(p.cssHeight, size, `${label} ${slot}: alto ${size}px`);
-      const fallbackHidden = await page.locator(`[data-titi-slot="${slot}"] ${container} .brand-state-fallback, [data-titi-slot="${slot}"] ${container} .notch-state-fallback`).evaluateAll(els => els.every(el => getComputedStyle(el).display === 'none'));
-      assert.ok(fallbackHidden, `${label} ${slot}: fallback debe estar oculto`);
-      record(`slot-${label}-${slot}`, { ...p, fallbackHidden });
-    }
-  };
-  await checkSlots('off');
-  await page.locator(stage).evaluate(el => el.classList.add('studio-character'));
-  await checkSlots('on');
-  await page.locator(stage).evaluate(el => el.classList.remove('studio-character'));
-  await checkSlots('off-again');
-  await page.locator('[data-titi-shell] .catalog-grid').screenshot({ path: join(evidence, 'marca-notch-chat.png') });
+  // 6. Una identidad por escena; el glifo de operación permanece quieto.
+  const scene = page.locator('[data-titi-scene]');
+  for (const [slot, size] of [['dock', 28], ['hero', 88]]) {
+    if (slot === 'hero') await scene.getByRole('button', { name: 'Cambiar escena' }).click();
+    assert.equal(await scene.locator('[data-identity]').count(), 1);
+    const sel = `[data-titi-scene] [data-identity="${slot}"]`;
+    await waitLit(sel);
+    const p = await probe(sel);
+    assert.equal(p.cssWidth, size); assert.equal(p.cssHeight, size);
+    assert.ok(await page.locator(sel).isVisible());
+    await scene.getByRole('button', { name: 'Mostrar u ocultar Titi' }).click();
+    assert.equal(await scene.locator('[data-identity]').count(), 0);
+    assert.ok(await scene.locator('.notch-state-fallback').isVisible());
+    await scene.getByRole('button', { name: 'Mostrar u ocultar Titi' }).click();
+    assert.equal(await scene.locator('[data-identity]').count(), 1);
+    record(`single-identity-${slot}`, p);
+  }
+  const operation = '[data-titi-scene] [data-operation-glyph="titi"]';
+  const op = await probe(operation);
+  await page.waitForTimeout(800);
+  assert.equal(op.motion, 'stopped'); assert.equal((await probe(operation)).hash, op.hash);
+  assert.equal(await page.locator('img[src*="gengar"]').count(), 0);
+  await scene.screenshot({ path: join(evidence, 'single-identity.png') });
 
   assert.deepEqual(results.pageErrors, [], 'Errores de página o consola');
   assert.deepEqual(results.externalRequests, [], 'La historia no debe pedir servicios externos');

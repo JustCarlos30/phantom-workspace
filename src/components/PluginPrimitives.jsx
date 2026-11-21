@@ -82,8 +82,7 @@ export function ResourceState({ resource, empty = 'No hay elementos.' }) {
   return null;
 }
 
-// Grouped-list primitives for Configuración (styles in settings.css): a group
-// is one rounded object, a row is a label with its value or control on the right.
+// Flat settings groups; each row aligns its label and control to the same edges.
 export function Group({ title, note, children }) {
   return <section className="st-group">{title && <h3>{title}</h3>}<div className="st-list">{children}</div>{note && <p className="st-note">{note}</p>}</section>;
 }

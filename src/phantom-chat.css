@@ -29,7 +29,7 @@
 
 /* Head: the title carries the panel. No tile, no seam; the project (or what
    Phantom is doing) sits beside it in support type. */
-.phantom-chat-head { display: flex; align-items: center; gap: 8px; height: 56px; flex-shrink: 0; padding: 0 12px 0 20px; }
+.phantom-chat-head { display: flex; align-items: center; gap: 8px; height: var(--panel-header-session); flex-shrink: 0; padding: 0 12px 0 20px; }
 .phantom-chat-mark { display: grid; place-items: center; color: var(--accent); flex-shrink: 0; }
 .phantom-chat-mark svg { stroke-width: 1.5px; }
 .phantom-chat-title { margin: 0; font: var(--t-title); letter-spacing: -.015em; color: var(--ink); flex-shrink: 0; }
@@ -42,11 +42,6 @@
 .phantom-chat .pc-icon { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 
 .phantom-chat .pc-thread { background: var(--well); }
-.phantom-chat .pc-composer::before { background: var(--well); }
-.phantom-chat .pc-column { padding: 12px 20px 20px; gap: 20px; }
-.phantom-chat .pc-tool-row { gap: 6px; }
-.phantom-chat .pc-tool-output { margin-left: 26px; }
-.phantom-chat .pc-message.is-user { max-width: 90%; }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
 
@@ -63,22 +58,13 @@
 .phantom-chat .pc-agent-trigger { height: 28px; padding: 0 6px; background: none; box-shadow: none; font: var(--t-support); font-weight: 500; }
 .phantom-chat .pc-agent-trigger:hover:not(:disabled), .phantom-chat .pc-agent-trigger[aria-expanded="true"] { background: var(--fill-2); }
 .phantom-chat .pc-agent-trigger > svg:first-child { color: var(--pc-hue); }
-.phantom-chat .pc-model > svg:first-child { display: none; }
-.phantom-chat .pc-model { padding: 0 6px; border-radius: var(--r-ctl); color: var(--muted); }
-.phantom-chat .pc-send:not(:disabled):not(.is-stop) { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
-.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) { background: var(--on); }
-.phantom-chat .pc-meta { padding: 4px 4px 0; }
-.phantom-chat .pc-meta .pc-permission { height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-ctl); font: var(--t-micro); }
-.phantom-chat .pc-meta .pc-permission > span { display: inline; }
 
 .phantom-chat .pc-error { display: flex; align-items: center; gap: 8px; }
 .phantom-chat .pc-error > span { flex: 1; min-width: 0; }
-.phantom-chat-composer { max-width: none; padding: 0 12px 8px; }
 
 /* Voice: the field itself shows that the microphone is live. */
-.phantom-chat-mic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-pill); color: var(--muted); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.phantom-chat-mic { display: grid; place-items: center; width: var(--control-size); height: var(--control-size); border-radius: 50%; background: var(--control-fill); color: var(--ink); flex-shrink: 0; transition: background-color var(--dur-fast) linear; }
 .phantom-chat-mic:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
-.phantom-chat-mic.is-live { background: color-mix(in srgb, var(--working) 18%, var(--surface)); color: var(--working); }
 .phantom-chat-mic:disabled { opacity: .4; cursor: not-allowed; }
 .phantom-chat-mic:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -98,11 +84,12 @@
 .phantom-chat-toggle[data-tone="attention"]::after { background: var(--danger); }
 
 /* Tabs: Chat and Orquestador share the dock. */
-.pd-tabs { display: flex; gap: 2px; margin: 8px 12px 0; padding: 3px; border-radius: var(--r-obj); background: var(--fill); flex-shrink: 0; }
-.pd-tabs button { position: relative; flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--muted); font-size: 12px; font-weight: 550; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.pd-tabs { margin: 8px 12px 0; flex-shrink: 0; }
+.pd-tabs button { position: relative; flex: 1; min-width: 0; }
+.app-shell .pd-tabs.control-segmented > button { display: flex; justify-content: center; gap: 8px; }
+.app-shell .pd-tabs.control-segmented > button[aria-selected="true"] { background: var(--on); color: var(--on-ink); }
+.app-shell .pd-tabs.control-segmented > button[aria-selected="true"]:active { background: var(--on-press); }
 .pd-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pd-tabs button:hover { background: var(--fill-3); color: var(--ink); }
-.pd-tabs button[aria-selected="true"] { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
 .pd-tabs button[aria-selected="true"] > svg { color: inherit; }
 .pd-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pd-tabs b { display: inline-grid; place-items: center; flex-shrink: 0; box-sizing: border-box; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -123,7 +110,7 @@
 .pd-deleg small, .pd-deleg code { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .pd-deleg-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pd-deleg-row { min-width: 0; padding-inline-start: min(calc(var(--deleg-depth) * 12px), 40%); }
-.pd-deleg-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 0; border-radius: var(--r-obj); background: var(--fill); color: var(--ink); font: inherit; text-align: start; }
+.pd-deleg-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 0; border-radius: var(--r-row); background: none; color: var(--ink); font: inherit; text-align: start; }
 button.pd-deleg-item { cursor: pointer; }
 button.pd-deleg-item:hover { background: var(--fill-2); }
 button.pd-deleg-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -140,7 +127,7 @@ button.pd-deleg-item:focus-visible { outline: 2px solid var(--accent); outline-o
 .pd-deleg-plan { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pd-deleg-child { display: flex; flex-direction: column; min-width: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; color: var(--ink); }
 .pd-deleg-cards, .pd-deleg-cards > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
-.pd-session { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--r-obj); background: var(--fill); }
+.pd-session { display: flex; flex-direction: column; gap: 10px; padding: 0; background: none; }
 .pd-session-head { display: flex; align-items: center; gap: 10px; }
 .pd-open-session { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; max-width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
 .pd-open-session:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -158,17 +145,10 @@ button.pd-deleg-item:focus-visible { outline: 2px solid var(--accent); outline-o
 .pd-session-title strong { font-size: 13px; font-weight: 600; color: var(--ink); }
 .pd-session-title small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pd-muted { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
-.pd-composer { display: flex; flex-direction: column; gap: 6px; margin: 0; }
-.pd-composer .voice-activity { padding: 4px 2px; }
+.pd-composer { display: flex; flex-direction: column; gap: var(--composer-gap); margin: 0; }
 .pd-composer .pc-error { display: flex; align-items: center; gap: 8px; margin: 0; }
 .pd-composer .pc-error > span { flex: 1; min-width: 0; }
-.pd-field { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 10px; border-radius: var(--r-ctl); background: var(--well-raised); transition: box-shadow var(--dur-fast) var(--ease-out); }
-.pd-field:focus-within { box-shadow: 0 0 0 1px color-mix(in srgb, var(--pc-hue-line, var(--accent)) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--pc-hue-line, var(--accent)) 13%, transparent); }
-.pd-field.is-listening { box-shadow: 0 0 0 1px color-mix(in srgb, var(--working) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--working) 16%, transparent); }
-.pd-field textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 140px; resize: none; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.45; outline: none; field-sizing: content; }
-.pd-field textarea::placeholder { color: var(--muted); }
 .phantom-chat-task:disabled { opacity: .4; cursor: not-allowed; }
-/* The side composer is narrow: its controls sit closer so agent, model, effort
-   and actions fit in two rows instead of three. */
-.phantom-chat .pc-controls { gap: 2px; }
-.phantom-chat .pc-model, .phantom-chat .pc-reasoning-value { font: var(--t-micro); font-weight: 400; }
+.phantom-chat-starters { padding: 0 var(--row-px); color: var(--muted); font: var(--t-support); }
+.phantom-chat-starters > summary { cursor: pointer; }
+.phantom-chat .pc-thread:has(.pc-session-new) { background: transparent; }

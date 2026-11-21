@@ -7,7 +7,7 @@ const base = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strok
 
 // Phantom's mark is Titi, the procedural ghost.
 export function PhantomGlyph({ size = 20, mood = 'calm', ...props }) {
-  return <PhantomFace {...props} mood={mood} size={size} />;
+  return <PhantomFace {...props} mood={mood} size={size} still data-operation-glyph="titi" />;
 }
 
 export function PhantomFace({ mood = 'calm', size = 30, className = '', ...props }) {
