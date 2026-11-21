@@ -17,7 +17,7 @@ class WhisperModel:
         self.text = "nueva frase"
     def transcribe(self, audio, **kwargs):
         self.calls.append(kwargs)
-        return iter([types.SimpleNamespace(text=self.text, end=0.2)]), None
+        return iter([types.SimpleNamespace(text=self.text, end=0.2, no_speech_prob=0, avg_logprob=0, compression_ratio=1)]), None
 speech = []
 whisper = types.ModuleType("faster_whisper")
 whisper.WhisperModel = WhisperModel

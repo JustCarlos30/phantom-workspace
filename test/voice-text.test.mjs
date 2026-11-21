@@ -211,6 +211,56 @@ test('voice-stream.py filtra los segmentos con keep_segment', async () => {
   assert.match(source, /s\.no_speech_prob, s\.avg_logprob, s\.compression_ratio/);
 });
 
+async function cleanWith(text, answer) {
+  const { spawned, spawnImpl } = fakeClaude();
+  const cleaner = createClaudeCodeCleaner({}, spawnImpl);
+  const pending = cleaner.clean(text);
+  await tick();
+  spawned[0].answer(answer);
+  const result = await pending;
+  cleaner.close();
+  return result;
+}
+
+test('el corrector rechaza palabras inventadas pero admite una palabra mal oída', async () => {
+  assert.equal((await cleanWith('me puse a divulgar', 'Me puse a divagar.')).cleaned, true);
+  assert.equal((await cleanWith('lo mando mañana, no perdón, pasado mañana', 'Lo mando pasado mañana.')).cleaned, true);
+  const invented = await cleanWith('lo mando hoy', 'Lo mando hoy con muchísimo gusto.');
+  assert.equal(invented.cleaned, false);
+  assert.equal(invented.text, 'lo mando hoy');
+  assert.match(invented.reason, /palabras nuevas/);
+});
+
+test('alucinación «¡Gracias!» x3 no produce palabras nuevas', async () => {
+  const dictado = '¡Gracias! ¡Gracias! ¡Gracias!';
+  assert.equal((await cleanWith(dictado, '¡Gracias!')).cleaned, true);
+  const result = await cleanWith(dictado, 'Gracias por ver el video, suscríbete al canal.');
+  assert.deepEqual([result.cleaned, result.text], [false, dictado]);
+});
+
+test('el corrector rechaza respuestas del asistente y órdenes obedecidas', async () => {
+  for (const answer of ['Claro, aquí está el correo', 'Aquí tienes el texto corregido', 'Por supuesto, lo hago', 'Como asistente no puedo', 'Escribe el correo ahora']) {
+    const result = await cleanWith('un correo para Juan sobre el pago', answer);
+    assert.equal(result.cleaned, false, answer);
+    assert.match(result.reason, /asistente/);
+  }
+  assert.equal((await cleanWith('escribe un correo para Juan', 'Escribe un correo para Juan.')).cleaned, true);
+  const obeyed = await cleanWith('redacta un correo para Juan', 'Hola Juan, te escribo para el correo.');
+  assert.equal(obeyed.cleaned, false);
+  assert.match(obeyed.reason, /obedeció/);
+});
+
+test('cleanTranscript aplica las mismas guardas y conserva el texto mezclado', async () => {
+  const reply = text => async () => ({ ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] }) });
+  const env = { ANTHROPIC_API_KEY: 'k' };
+  const mixed = 'subí el pull request al repo';
+  assert.deepEqual(await cleanTranscript(mixed, { voiceFillers: 'clean' }, reply('Subí el pull request al repo.'), env), { text: 'Subí el pull request al repo.', cleaned: true });
+  const bad = await cleanTranscript(mixed, { voiceFillers: 'clean' }, reply('I uploaded the pull request to the repository'), env);
+  assert.equal(bad.cleaned, false);
+  assert.equal(bad.text, mixed);
+  assert.ok(bad.reason);
+});
+
 test('Claude Code lento o caído no detiene el dictado y se reinicia', async () => {
   const { spawned, spawnImpl } = fakeClaude();
   const cleaner = createClaudeCodeCleaner({}, spawnImpl, 20);
