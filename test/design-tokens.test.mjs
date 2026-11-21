@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import './appearance-preferences.test.mjs';
 import { ACCENTS, accentColor, defaults, normalizeAppearance } from '../src/hooks/useAppearance.js';
 
-// The design system as constraints (DESIGN.md and docs/design-v2.md, E1).
+// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E2).
 // Shared opaque material, one masked ring and an exact per-file edge budget.
 // A failure names the file and the value; fix the CSS, or if the
 // rule itself should change, change it here and in DESIGN.md together.
@@ -347,7 +347,26 @@ test('chrome reading inks retain AA across the existing CSS atmospheres and proj
 test('materials retire the old activity glint and keep auxiliary status indicators still', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   assert.doesNotMatch(canvas, /--filo-|@keyframes\s+filo-/);
-  assert.doesNotMatch(canvas, /\.canvas-node::after\s*\{/);
+  const flash = canvas.match(/\.canvas-node::after\s*\{([^}]+)\}/)[1];
+  assert.equal(declarations(flash, 'padding')[0], 'var(--object-ring-width)');
+  assert.equal(declarations(flash, 'inset')[0], '0');
+  assert.equal(declarations(flash, 'mask-composite')[0], 'exclude');
+  assert.equal(declarations(flash, 'pointer-events')[0], 'none');
+  assert.match(canvas, /\.canvas-node\.map-flash::after\s*\{\s*animation: map-flash var\(--map-flash-duration\) var\(--ease-settle\)/);
+  assert.equal(rootDeclarations(canvas, '--map-flash-duration')[0], '900ms');
+  assert.equal(rootDeclarations(canvas, '--dur-open')[0], '320ms');
+  const trace = sheets.find(sheet => sheet.name === 'src/activity-trace.css').css;
+  assert.equal(rootDeclarations(canvas, '--trace-width')[0], '1.5px');
+  assert.equal(rootDeclarations(canvas, '--trace-duration')[0], '5.6s');
+  assert.equal(rootDeclarations(canvas, '--working-head')[0], '#e2ff7a');
+  assert.match(trace, /animation: trace-orbit var\(--trace-duration\) linear infinite/);
+  assert.doesNotMatch(trace, /drop-shadow|trace-error|steps\(|pulse-success|pulse-attention|pulse-turn/);
+  assert.match(trace, /stroke-dasharray: var\(--L\) calc\(100px - var\(--L\)\)/);
+  assert.match(trace, /\.studio-concentration[\s\S]*animation-play-state: paused/);
+  assert.match(trace, /prefers-reduced-motion: reduce[\s\S]*animation: none !important/);
+  const source = readFileSync(path.join(root, 'src/components/Canvas.jsx'), 'utf8');
+  assert.doesNotMatch(source, /PixelField|PIXEL_KIND/);
+  assert.match(source, /state === 'working' && <ActivityTrace/);
   for (const state of ['working', 'error', 'success']) assert.match(canvas, new RegExp(`\\.canvas-node\\.pulse-${state}\\s*\\{\\s*--pulse:`));
   for (const name of ['canvas-ui', 'terminal', 'chat', 'phantom-chat', 'sidebar', 'studio']) {
     const css = sheets.find(sheet => sheet.name === `src/${name}.css`).css;
@@ -404,7 +423,7 @@ test('categories are decorative neutrals and active switches are ivory with dark
   }
 });
 
-test('attention aliases cannot colour surfaces, wells or rings in any src stylesheet', () => {
+test('attention aliases colour only the masked panel ring and compact marks, never surfaces or wells', () => {
   const aliases = new Set(['--attention', '--warning', '--tone', '--pc-tone']);
   const references = value => [...value.matchAll(/var\((--[\w-]+)/g)].map(match => match[1]);
   const usesAttention = value => /#f5c04a\b|rgba?\(\s*245[, ]+192[, ]+74\b/i.test(value) || references(value).some(name => aliases.has(name));
@@ -426,19 +445,18 @@ test('attention aliases cannot colour surfaces, wells or rings in any src styles
       for (const selector of split(selectors.trim(), ',')) {
         if (/^background(?:-color)?$/.test(property) && marks.test(selector)) continue;
         if (property === 'stroke' && selector.includes('.phantom-face')) continue;
-        if (property === 'stroke' && selector === '.canvas-node > .activity-trace > rect') continue;
+        if (name === 'src/canvas-ui.css' && property === 'background' && value.trim() === 'var(--attention-ring)' && /^\.canvas-node\[data-panel-state="attention"\]::(?:before|after)$/.test(selector)) continue;
         bad.push(`${name}: ${selector}: ${property}: ${value}`);
       }
     }
   }
-  assert.deepEqual(bad, [], 'Attention is ink or a compact mark, never a tinted surface or ring');
+  assert.deepEqual(bad, [], 'Attention is ink, a compact mark or the masked panel ring, never a tinted surface');
   const terminal = sheets.find(sheet => sheet.name === 'src/terminal.css').css;
   assert.match(terminal, /\.pt-state\s*\{[^}]*background: var\(--fill-2\)/);
   assert.doesNotMatch(terminal, /\.pt-state\s*\{[^}]*background:[^;}]*currentColor/);
-  const trace = sheets.find(sheet => sheet.name === 'src/activity-trace.css').css;
-  assert.match(trace, /\.canvas-node > \.activity-trace:is\(\[data-state="pulse-attention"\], \[data-state="pulse-turn"\]\)\s*\{\s*display: none/);
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
-  assert.match(canvas, /\.pixel-field\s*\{\s*--attention: transparent/);
+  assert.equal(rootDeclarations(canvas, '--attention-ring')[0], 'color-mix(in srgb, var(--attention) 80%, transparent)');
+  assert.match(canvas, /\.canvas-node\[data-panel-state="attention"\]::before\s*\{\s*background: var\(--attention-ring\)/);
 });
 
 test('ivory fallback agrees across CSS, preferences and terminal without losing saved accents or ANSI', () => {

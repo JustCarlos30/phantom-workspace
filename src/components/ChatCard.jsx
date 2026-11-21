@@ -832,7 +832,8 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const elapsed = useElapsed(last?.createdAt, running);
   const basePulse = useChatPulse({ nodeId: node.id, chat, running: running || delegating, waitingOn, last, seen });
   const pulse = !chat || waitingOn || running || delegating ? basePulse : finishedRun && ackedRun !== finishedRun.id ? 'pulse-attention' : basePulse;
-  useEffect(() => { onPulse?.(node.id, pulse); }, [onPulse, node.id, pulse]);
+  const panelState = waitingOn ? 'attention' : running || delegating ? 'working' : error || last?.status === 'error' || finishedRun ? 'error' : last?.role === 'assistant' && last.status === 'done' || delegation.outcome === 'turn' ? 'finished' : 'rest';
+  useEffect(() => { onPulse?.(node.id, pulse, panelState); }, [onPulse, node.id, pulse, panelState]);
   useEffect(() => () => onPulse?.(node.id, ''), [onPulse, node.id]);
   // Follow the reply while the reader is at the end; never yank them back up.
   useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, overview, focused, pendingAsks.length]);

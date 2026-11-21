@@ -21,6 +21,15 @@
   --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
   --selected-edge-top: color-mix(in srgb, #fff 36%, transparent);
   --selected-edge-bottom: color-mix(in srgb, #fff 10%, transparent);
+  --working-head: #e2ff7a;
+  --attention-ring: color-mix(in srgb, var(--attention) 80%, transparent);
+  --trace-width: 1.5px;
+  --trace-duration: 5.6s;
+  --dur-open: 320ms;
+  --ease-settle: cubic-bezier(.22, 1, .36, 1);
+  --map-flash-duration: 900ms;
+  --map-flash-ink: #ffffffb3;
+  --motion-reduced-duration: 0ms;
   --shadow-chrome: 0 1px 2px #000, 0 16px 32px -16px #000;
   --shadow-rim: none;
   --shadow-key: none;
@@ -195,6 +204,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .app-shell .main-workspace { position: absolute; inset: 0; }
 .app-shell .workspace-body { position: absolute; inset: 0; }
 .app-shell .canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
+.app-shell[data-focus-moving] .canvas-region { transition: none; }
 
 .project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
@@ -296,6 +306,21 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 }
 .canvas-node:hover:not(.focused) { border-color: color-mix(in srgb, var(--ink) 18%, transparent); }
 .canvas-node.selected { --object-ring: linear-gradient(var(--selected-edge-top), var(--selected-edge-bottom)); }
+.canvas-node[data-panel-state="attention"]::before { background: var(--attention-ring); }
+.canvas-node::after {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
+  background: var(--map-flash-ink); opacity: 0;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.canvas-node[data-panel-state="attention"]::after { background: var(--attention-ring); }
+.canvas-node.map-flash::after { animation: map-flash var(--map-flash-duration) var(--ease-settle); }
+@keyframes map-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+.canvas-node > .node-header > .panel-state { flex: none; color: var(--muted); font: var(--t-support); white-space: nowrap; }
+.canvas-node > .node-header > .panel-state[data-state="attention"] { color: var(--attention); }
+.canvas-node > .node-header > .panel-state[data-state="error"] { color: var(--danger); }
 .canvas-node.is-dragging { box-shadow: var(--shadow-float); border-color: var(--hairline); z-index: 6; }
 .canvas-node.focused { border-radius: var(--r-obj); outline: 0; box-shadow: var(--shadow-float); }
 .node-header { height: 40px; min-height: 40px; padding: 0 8px 0 16px; gap: 8px; background: transparent; border-bottom: 1px solid transparent; }
@@ -1047,11 +1072,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    (A coloured top border on a 16px radius fades into the corners and reads
    as a rendering fault.) */
 .canvas .canvas-node.focused { border-color: var(--hairline); outline-color: transparent; }
-/* The arrival clip follows the card's real radius, so corners never square
-   off and snap back when the animation ends. */
-@keyframes focus-return {
-  from { clip-path: inset(0 0 3% 0 round var(--r-obj)); }
-  to { clip-path: inset(0 round var(--r-obj)); }
+.canvas .canvas-node.focused { animation: none; }
+.canvas-node { transform-origin: 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .canvas .canvas-node.map-flash::after { animation: none !important; }
 }
 
 /* Writing surfaces inside a card: the caret is the focus signal. A square

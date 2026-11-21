@@ -1,4 +1,5 @@
 import { _electron as electron } from 'playwright';
+import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,7 +38,7 @@ Object.assign(env, {
   XDG_CACHE_HOME: path.join(temp, 'cache'), SHELL: '/bin/sh',
 });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const errors = [], captures = [];
+const errors = [], captures = [], observations = [];
 let paintFailed = false;
 
 // Electron screenshots are non-interlaced, 8-bit RGB/RGBA PNGs. Reconstruct
@@ -124,6 +125,7 @@ const shot = async scene => {
       probe.style.backgroundImage = el.matches('.canvas-node.selected')
         ? 'linear-gradient(var(--selected-edge-top), var(--selected-edge-bottom))'
         : 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))';
+      if (el.matches('.canvas-node[data-panel-state="attention"]')) probe.style.background = 'var(--attention-ring)';
       probe.style.mask = 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)';
       probe.style.maskComposite = 'exclude';
       const expected = getComputedStyle(probe);
@@ -131,7 +133,7 @@ const shot = async scene => {
       const invalidRing = ['none', 'normal'].includes(ring.content) || ring.display === 'none'
         || ring.visibility !== 'visible' || ring.opacity !== '1'
         || ring.position !== 'absolute' || ring.pointerEvents !== 'none' || ring.zIndex !== '3'
-        || ring.backgroundImage !== expected.backgroundImage || ring.borderRadius !== style.borderRadius
+         || ring.backgroundImage !== expected.backgroundImage || ring.backgroundColor !== expected.backgroundColor || ring.borderRadius !== style.borderRadius
         || maskProperties.some(property => ring[property] !== expected[property])
         || ['top', 'right', 'bottom', 'left'].some(side => ring[side] !== '0px')
         || ['Top', 'Right', 'Bottom', 'Left'].some(side => !(Math.abs(parseFloat(ring[`padding${side}`]) - (el.matches('.overview') ? Number(style.getPropertyValue('--ov')) : 1)) <= .01));
@@ -139,7 +141,16 @@ const shot = async scene => {
       probe.remove();
       if (invalidRing) throw new Error(`Missing non-interactive masked ring: ${el.className} ${JSON.stringify(mask)}`);
       if (el.matches('.canvas-node.selected') && style.outlineWidth !== '0px') throw new Error('Selection has a second contour');
+      if (el.matches('.canvas-node')) {
+        const label = el.querySelector('.node-header > .panel-state');
+        if (!label?.getClientRects().length || !label.textContent) throw new Error('Missing header state');
+        if (el.dataset.panelState === 'working') {
+          const rects = [...el.querySelectorAll('.activity-trace rect')];
+          if (rects.length !== 5 || rects.some(rect => rect.getAttribute('pathLength') !== '100' || getComputedStyle(rect).strokeWidth !== '1.5px' || getComputedStyle(rect).filter !== 'none')) throw new Error('Invalid comet A');
+        } else if (el.querySelector('.activity-trace')) throw new Error('Only work has a comet');
+      }
     }
+    if (document.querySelector('.pixel-field')) throw new Error('Exterior panel waves are mounted');
   });
   const rail = await page.locator('.project-rail').evaluate(el => {
     const { left, right, top, bottom } = el.getBoundingClientRect();
@@ -171,6 +182,7 @@ try {
   activeProcess = appProcess = app.process();
   page = await app.firstWindow({ timeout: 10000 });
   page.setDefaultTimeout(10000);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForLoadState('domcontentloaded');
   if (await page.locator('body').innerText() === 'Not found') {
@@ -198,6 +210,8 @@ try {
   const toMap = async () => { const back = page.getByRole('button', { name: /Volver al mapa/ }); if (await back.count()) await back.first().click(); await delay(500); };
   await create.getByRole('button', { name: /Terminal/ }).first().click();
   await page.locator('.canvas-node').first().waitFor();
+  await page.waitForFunction(() => !document.querySelector('.create-dock button[data-type="terminal"]')?.disabled);
+  if (!await page.locator('.canvas-node.focused').count()) await page.locator('.canvas-node').first().getByRole('button', { name: 'Enfocar panel', exact: true }).click();
   await shot('focus');
   await toMap();
   await create.getByRole('button', { name: /Nota/ }).first().click();
@@ -207,6 +221,35 @@ try {
   await shot('map-selected');
   await page.mouse.click(1440, 300);
   await shot('map-rest');
+  const state = await invoke('state.get'), workspaceId = state.activeWorkspaceId;
+  const originalNodes = state.workspaces.find(workspace => workspace.id === workspaceId).nodes;
+  const stateNodes = [], chats = {};
+  for (const [index, panelState] of ['working', 'attention', 'finished', 'error', 'rest'].entries()) {
+    const node = await invoke('node.create', { workspaceId, type: 'terminal', title: `Sintético · ${panelState}`, x: index % 3 * 450, y: Math.floor(index / 3) * 310, width: 418, height: 280, data: { chat: { provider: 'claude' } } });
+    stateNodes.push({ ...node, panelState });
+    chats[node.id] = { provider: 'claude', running: ['working', 'attention'].includes(panelState), queue: [], meta: {}, messages: panelState === 'rest' ? [] : [
+      { id: `${node.id}-reply`, role: 'assistant', status: panelState === 'error' ? 'error' : panelState === 'finished' ? 'done' : 'streaming', createdAt: new Date().toISOString(), parts: [
+        { type: 'text', text: `SYNTHETIC · ${panelState}. Fixture visual sin ejecutar proveedor.` },
+        ...(panelState === 'attention' ? [{ id: 'permission', type: 'permission', status: 'pending', tool: 'Edit', input: { file_path: 'synthetic.txt' } }] : []),
+      ] },
+    ] };
+  }
+  await app.evaluate(({ ipcMain }, chats) => {
+    const original = ipcMain._invokeHandlers?.get('phantom:invoke');
+    if (!original) throw new Error('Electron IPC fixture seam unavailable');
+    globalThis.designFixture = { original, chats };
+    ipcMain.removeHandler('phantom:invoke');
+    ipcMain.handle('phantom:invoke', (event, method, payload = {}) => {
+      if (method === 'chat.get' && chats[payload.nodeId]) return chats[payload.nodeId];
+      if (method === 'chat.models') return { items: [], note: 'SYNTHETIC' };
+      if (chats[payload.nodeId] && method.startsWith('chat.')) throw new Error(`Visual fixture cannot execute ${method}`);
+      return original(event, method, payload);
+    });
+  }, chats);
+  for (const node of originalNodes) await invoke('node.update', { workspaceId, id: node.id, patch: { data: { ...node.data, hidden: true } } });
+  await page.reload(); await page.locator('.canvas-node').first().waitFor();
+  await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();
+  if (standardized) for (const node of stateNodes) await page.waitForFunction(({ id, state }) => document.querySelector(`[data-node-id="${id}"]`)?.dataset.panelState === state, { id: node.id, state: node.panelState });
   // State language on one screen. The classes are the ones the app sets from
   // real activity; here they are forced so the colours can be reviewed without
   // waiting for an agent to work, ask or fail.
@@ -214,6 +257,7 @@ try {
     const row = document.querySelector('.rail-session');
     const variant = (title, status, tone, needs, selected = false) => {
       const copy = row.cloneNode(true), inner = copy.querySelector('.rail-session-row');
+      copy.dataset.designFixture = 'rail-state';
       inner.classList.toggle('selected', selected); inner.classList.toggle('needs-you', needs);
       const button = inner.querySelector('button');
       if (selected) button.setAttribute('aria-current', 'true');
@@ -257,6 +301,84 @@ try {
     }
   });
   await shot('synthetic-states');
+  if (standardized) {
+    await page.locator('[data-design-fixture="rail-state"]').evaluateAll(elements => elements.forEach(element => element.remove()));
+    const working = stateNodes[0], panel = page.locator(`[data-node-id="${working.id}"]`);
+    await panel.evaluate(el => {
+      window.mapFlashObservation = null;
+      const observe = event => {
+        if (event.target !== el || event.pseudoElement !== '::after' || event.animationName !== 'map-flash') return;
+        el.removeEventListener('animationstart', observe);
+        const animation = document.getAnimations().find(animation => animation.animationName === 'map-flash');
+        if (!animation) { window.mapFlashObservation = { error: 'The ring animation started without an observable timeline' }; return; }
+        animation.pause();
+        const opacity = [0, 162, 900].map(time => { animation.currentTime = time; return Number(getComputedStyle(el, '::after').opacity); });
+        const timing = animation.effect.getTiming();
+        window.mapFlashObservation = { opacity, duration: timing.duration, iterations: timing.iterations };
+        animation.currentTime = 0; animation.play();
+      };
+      el.addEventListener('animationstart', observe);
+    });
+    await page.getByRole('button', { name: `Ver ${working.title} en el mapa`, exact: true }).click();
+    await page.waitForFunction(() => window.mapFlashObservation !== null);
+    const flash = await page.evaluate(() => window.mapFlashObservation);
+    assert.deepEqual(flash, { opacity: [0, 1, 0], duration: 900, iterations: 1 });
+    observations.push({ scene: 'map-flash', ...flash });
+    assert.equal(await page.locator('.canvas-node.focused').count(), 0);
+    await shot('map-flash');
+    await page.waitForFunction(id => !document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('map-flash'), working.id);
+    await delay(400);
+    const mapRect = await panel.boundingBox();
+    const mapGeometry = await panel.evaluate(el => [el.style.left, el.style.top, el.style.width, el.style.height]);
+    await page.evaluate(() => {
+      window.focusObservations = [];
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function(frames, options) {
+        const animation = animate.call(this, frames, options);
+        if (options?.id === 'focus-flip') {
+          animation.pause();
+          const rects = [0, 160, 320].map(time => { animation.currentTime = time; const r = this.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+          window.focusObservations.push({ id: this.dataset.nodeId, duration: options.duration, rects });
+          animation.currentTime = 0; animation.play();
+        }
+        return animation;
+      };
+    });
+    const near = (a, b) => { for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(a[key] - b[key]) <= 2, `${key}: ${a[key]} vs ${b[key]}`); };
+    await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+    await page.waitForFunction(() => window.focusObservations.length === 1);
+    await shot('focus-flip');
+    const open = await page.evaluate(() => window.focusObservations[0]);
+    assert.equal(open.id, working.id); assert.equal(open.duration, 320);
+    near(open.rects[0], mapRect); near(open.rects[2], await panel.boundingBox());
+    assert.notDeepEqual(open.rects[1], open.rects[0]); assert.notDeepEqual(open.rects[1], open.rects[2]);
+    await page.locator('.canvas').focus(); await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.focusObservations.length === 2);
+    await shot('focus-flip-return');
+    const back = await page.evaluate(() => window.focusObservations[1]);
+    near(back.rects[0], open.rects[2]); near(back.rects[2], mapRect);
+    assert.deepEqual(await panel.evaluate(el => [el.style.left, el.style.top, el.style.width, el.style.height]), mapGeometry);
+    assert.equal(await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).evaluate(el => el === document.activeElement), true);
+    observations.push({ scene: 'focus-flip', open, back });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.getByRole('button', { name: `Ver ${working.title} en el mapa`, exact: true }).click();
+    await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+    await shot('focus-flip-reduced');
+    await page.locator('.focus-return button').click(); await delay(400);
+    assert.equal(await page.evaluate(() => window.focusObservations.length), 2, 'Reduced motion applies layout without FLIP');
+    assert.equal(await panel.evaluate(el => el.getAnimations({ subtree: true }).filter(animation => ['map-flash', 'trace-orbit'].includes(animation.animationName)).length), 0);
+    observations.push({ scene: 'focus-flip-reduced', animations: 0 });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    // A new unread reply keeps its canonical pulse-turn, but never asks for intervention.
+    const finished = stateNodes[2];
+    await app.evaluate(({ BrowserWindow }, { id, workspaceId }) => {
+      globalThis.designFixture.chats[id].messages[0].id += '-unread';
+      BrowserWindow.getAllWindows()[0].webContents.send('phantom:event', { type: 'chat.update', reset: true, workspaceId, nodeId: id });
+    }, { id: finished.id, workspaceId });
+    await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('pulse-turn'), finished.id);
+    assert.equal(await page.locator(`[data-node-id="${finished.id}"]`).getAttribute('data-panel-state'), 'finished');
+    await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();
+  }
   await page.evaluate(() => {
     const fixture = document.createElement('section');
     fixture.id = 'color-fixture';
@@ -304,6 +426,13 @@ try {
   });
   await shot('attention');
   await page.locator('#color-fixture').evaluate(el => el.remove());
+  for (const node of stateNodes) await invoke('node.remove', { workspaceId, id: node.id });
+  for (const node of originalNodes) await invoke('node.update', { workspaceId, id: node.id, patch: { data: node.data } });
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('phantom:invoke');
+    ipcMain.handle('phantom:invoke', globalThis.designFixture.original);
+    delete globalThis.designFixture;
+  });
   await page.reload();
   await page.locator('.canvas-node').first().waitFor();
   await page.getByRole('button', { name: 'Configuración', exact: true }).click();
@@ -347,7 +476,7 @@ try {
    const notch = page.locator('.activity-notch').first();
    await notch.click(); await shot('tray');
    if (paintFailed || errors.length) throw new Error(`Design capture failed: ${errors.join('; ')}`);
-  console.log(JSON.stringify({ label, captures, errors }, null, 2));
+  console.log(JSON.stringify({ label, captures, observations, errors }, null, 2));
 } catch (error) {
   await page?.screenshot({ path: path.join(evidence, `design-${label}-failure.png`), timeout: 2500 }).catch(() => {});
   console.error(JSON.stringify({ label, captures, errors, error: error.message }));
@@ -375,7 +504,7 @@ try {
   console.log(JSON.stringify({ label: requestedLabel, beforeRevision: revision, root }));
   const rendererSources = new Map();
   const files = execFileSync('git', ['ls-tree', '-r', '--name-only', revision, '--', 'src'], { cwd: root, encoding: 'utf8', timeout: 10000 }).trim().split('\n')
-    .filter(file => file.endsWith('.css') || ['src/components/Settings.jsx', 'src/components/TerminalPanel.jsx', 'src/hooks/useAppearance.js'].includes(file));
+    .filter(file => /\.(css|jsx|js|mjs)$/.test(file));
   for (const file of files) rendererSources.set(path.join(root, file), execFileSync('git', ['show', `${revision}:${file}`], { cwd: root, encoding: 'utf8', timeout: 10000 }));
   const localBuild = async plugins => {
     const result = await build({ root, configFile: path.join(root, 'vite.config.mjs'), plugins, build: { outDir: path.join(root, 'dist'), emptyOutDir: true, write: true } });

@@ -1,62 +1,42 @@
-/* A local 2px light trace, never a new panel surface or backdrop layer. */
+/* Cometa A, on the object's ring. */
 .canvas-node > .activity-trace {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
-  z-index: 5;
+  z-index: 4;
   pointer-events: none;
 }
 .canvas-node > .activity-trace > rect {
-  x: 1px;
-  y: 1px;
-  width: calc(100% - 2px);
-  height: calc(100% - 2px);
-  rx: calc(var(--r-obj) - 1px);
+  x: calc(var(--trace-width) / 2);
+  y: calc(var(--trace-width) / 2);
+  width: calc(100% - var(--trace-width));
+  height: calc(100% - var(--trace-width));
+  rx: calc(var(--r-obj) * var(--ov, 1) - var(--trace-width) / 2);
+  ry: calc(var(--r-obj) * var(--ov, 1) - var(--trace-width) / 2);
   fill: none;
-  stroke: var(--pulse);
-  stroke-width: 2px;
+  stroke: var(--working);
+  stroke-width: var(--trace-width);
   stroke-linecap: butt;
   pointer-events: none;
-}
-.activity-trace__contour { opacity: 0; }
-.activity-trace__head { stroke-dasharray: 8 192; }
-.activity-trace__tail {
-  /* One continuous 14% trail behind the clockwise head. */
-  stroke-dasharray: 0 172 28 0;
-  opacity: .42;
+  stroke-dasharray: var(--L) calc(100px - var(--L));
+  stroke-dashoffset: var(--L);
 }
 /* Important, scoped animation shorthands preserve the timeline under the
    studio-wide concentration reset. The separate play-state pauses it. */
-.canvas-node > .activity-trace[data-state="pulse-working"] > :is(.activity-trace__head, .activity-trace__tail) {
-  animation: trace-orbit 5.6s steps(100) infinite !important;
+.canvas-node > .activity-trace[data-state="pulse-working"] > rect {
+  animation: trace-orbit var(--trace-duration) linear infinite !important;
 }
 .canvas-node > .activity-trace[data-state="pulse-working"] > .activity-trace__head {
-  stroke: var(--ink);
-  filter: drop-shadow(0 0 3px var(--working));
-}
-.canvas-node > .activity-trace:is([data-state="pulse-attention"], [data-state="pulse-turn"]) { display: none; }
-.canvas-node > .activity-trace[data-state="pulse-error"] > .activity-trace__head { display: none; }
-.canvas-node > .activity-trace[data-state="pulse-error"] > .activity-trace__contour {
-  opacity: 1;
-  animation: trace-error .5s steps(2, end) 3 forwards !important;
-}
-.canvas-node > .activity-trace[data-state="pulse-success"] > .activity-trace__head {
-  animation: trace-orbit 5.6s steps(100) 1 forwards !important;
-}
-.canvas-node > .activity-trace[data-settled="true"] > .activity-trace__head {
-  animation: none !important;
-  display: none;
+  stroke: var(--working-head);
+  stroke-linecap: round;
 }
 .studio-concentration .canvas-node > .activity-trace[data-state] > rect,
 .canvas-node > .activity-trace[data-state]:is([data-hidden="true"], [data-visible="false"]) > rect {
   animation-play-state: paused !important;
 }
-@keyframes trace-orbit { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -200; } }
-@keyframes trace-error { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes trace-orbit { from { stroke-dashoffset: var(--L); } to { stroke-dashoffset: calc(var(--L) - 100px); } }
 @media (prefers-reduced-motion: reduce) {
-  .canvas-node > .activity-trace[data-state][data-settled] > rect { animation: none !important; filter: none; }
-  .canvas-node > .activity-trace > :is(.activity-trace__head, .activity-trace__tail) { display: none; }
-  .canvas-node > .activity-trace > .activity-trace__contour { opacity: 1; }
+  .canvas-node > .activity-trace[data-state] > rect { animation: none !important; }
 }

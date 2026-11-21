@@ -115,6 +115,64 @@ try {
   await page.waitForTimeout(250);
   assert.equal((await matrix()).zoom, 1);
   checks.push('Zoom presets animate to exact scale; reduced motion is supported');
+  const panel = page.locator('.canvas-node').first();
+  const panelId = await panel.getAttribute('data-node-id');
+  const panelTitle = await panel.locator('.title-button').innerText();
+  const geometry = node => [node.x, node.y, node.width, node.height];
+  const savedGeometry = geometry((await invoke('state.get')).workspaces.find(w => w.id === workspace.id).nodes.find(node => node.id === panelId));
+  await page.evaluate(() => {
+    window.canvasFlips = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function(frames, options) {
+      const animation = animate.call(this, frames, options);
+      if (options?.id === 'focus-flip') {
+        animation.pause();
+        const rects = [0, 160, 320].map(time => { animation.currentTime = time; const r = this.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+        window.canvasFlips.push({ duration: options.duration, rects });
+        animation.currentTime = 0; animation.play();
+      }
+      return animation;
+    };
+  });
+  for (const reduced of [false, true]) {
+    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+    await page.getByRole('button', { name: `Ver ${panelTitle} en el mapa`, exact: true }).click();
+    assert.equal(await page.locator('.canvas-node.focused').count(), 0, 'Map navigation never maximizes');
+    if (!reduced) {
+      await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.getAnimations({ subtree: true }).some(a => a.animationName === 'map-flash'), panelId);
+      const flash = await panel.evaluate(el => {
+        const animation = el.getAnimations({ subtree: true }).find(a => a.animationName === 'map-flash');
+        animation.pause();
+        const opacity = [0, 162, 900].map(time => { animation.currentTime = time; return Number(getComputedStyle(el, '::after').opacity); });
+        animation.finish();
+        return { opacity, duration: animation.effect.getTiming().duration, iterations: animation.effect.getTiming().iterations };
+      });
+      assert.deepEqual(flash, { opacity: [0, 1, 0], duration: 900, iterations: 1 });
+    }
+    await page.waitForTimeout(1000);
+    assert.equal(await panel.evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.animationName === 'map-flash').length), 0, 'The ring highlight is finite');
+    const origin = await panel.boundingBox(), before = await page.evaluate(() => window.canvasFlips.length);
+    await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+    await page.locator('.canvas-node.focused').waitFor(); await page.waitForTimeout(400);
+    const destination = await panel.boundingBox();
+    await panel.locator('.note-editor').focus(); await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.canvas-node.focused').count(), 1, 'Editor keeps keyboard ownership');
+    await canvas.focus(); await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+    const flips = await page.evaluate(before => window.canvasFlips.slice(before), before);
+    assert.equal(flips.length, reduced ? 0 : 2);
+    const near = (a, b) => { for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(a[key] - b[key]) <= 2, `${key}: ${a[key]} vs ${b[key]}`); };
+    near(await panel.boundingBox(), origin);
+    if (!reduced) {
+      assert.ok(flips.every(flip => flip.duration === 320));
+      near(flips[0].rects[0], origin); near(flips[0].rects[2], destination);
+      near(flips[1].rects[0], destination); near(flips[1].rects[2], origin);
+      assert.notDeepEqual(flips[0].rects[1], flips[0].rects[0]);
+    }
+    assert.equal(await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).evaluate(el => document.activeElement === el), true);
+    assert.deepEqual(geometry((await invoke('state.get')).workspaces.find(w => w.id === workspace.id).nodes.find(node => node.id === panelId)), savedGeometry, 'FLIP never persists animated geometry');
+  }
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  checks.push('Finite map ring highlight, FLIP origin/destination/return, focus restoration, reduced motion and persisted geometry');
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click(); await page.waitForTimeout(250);
   const fitDestination = await matrix();
 

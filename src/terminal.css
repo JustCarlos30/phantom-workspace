@@ -43,8 +43,6 @@
 /* Header joins the identity block for terminal nodes. */
 .canvas-node:has(> .node-body > .pt-card) > .node-header,
 .canvas-node:has(> .node-body > .pt-focus) > .node-header { border-bottom-color: transparent; }
-/* Agent state lives in the card identity; the header copy would repeat it. */
-.canvas-node:has(> .node-body > :is(.pt-card, .pt-focus)) > .node-header > .terminal-activity-status { display: none; }
 
 /* ---------- Map card ---------- */
 .pt-card, .terminal-panel.pt-focus, .terminal-host { -webkit-backdrop-filter: none; backdrop-filter: none; }
