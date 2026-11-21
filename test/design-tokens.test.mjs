@@ -507,7 +507,7 @@ test('E4 identity reuses Titi, preserves legacy preference keys and stops decora
   assert.match(source('src/components/TitiGhost.jsx'), /useSpriteMotion\(canvasRef, !still && !\['calm', 'asleep'\].includes\(mood\)\)/);
   assert.match(source('src/components/TitiGhost.jsx'), /cancelAnimationFrame\(raf\)/);
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
-  for (const [name, value] of Object.entries({ 'identity-size': '28px', 'identity-inset': '4px', 'identity-glyph-size': '16px', 'identity-ink': 'var(--on)' })) assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
+  for (const [name, value] of Object.entries({ 'identity-size': '40px', 'identity-inset': '4px', 'identity-glyph-size': '16px', 'identity-ink': 'var(--on)' })) assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
 });
 
 test('attention aliases colour only the masked panel ring and compact marks, never surfaces or wells', () => {
