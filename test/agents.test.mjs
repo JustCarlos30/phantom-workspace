@@ -7,6 +7,8 @@ import { opencodeSessions } from '../integrations/opencode.mjs';
 import { main as agentCLI } from '../scripts/agent.mjs';
 import { autoBindings, validateAgent } from '../host/agents.mjs';
 
+fs.mkdirSync('/tmp/opencode', { recursive: true });
+
 async function fixture(t) {
   const root=fs.mkdtempSync('/tmp/opencode/phantom-agents-'),dataDir=path.join(root,'state');
   const handleIntegration=async(method,p)=>{

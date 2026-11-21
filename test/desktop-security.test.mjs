@@ -10,6 +10,8 @@ import {
   isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds, validateCloseReady, validateInvocation, validateJSON,
 } from '../desktop/security.mjs';
 
+await mkdir('/tmp/opencode', { recursive: true });
+
 const workspaceId = 'e080ca45-0510-41c0-a861-c735db9ca2a5';
 const id = '8955a666-b72a-410d-bf23-02740ac48212';
 const ui = 'file:///opt/phantom/dist/index.html';
