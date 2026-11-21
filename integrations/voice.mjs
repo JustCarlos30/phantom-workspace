@@ -132,7 +132,7 @@ async function localTemplate(settings) {
     : 'Transcripción local no disponible. Ejecuta npm run setup:voice para instalar el motor aislado sin credenciales; también puedes configurar localWhisperCommand (argv JSON)');
 }
 
-async function transcribeLocal(audio, settings, directory, cwd, signal) {
+async function transcribeLocal(audio, settings, directory, cwd, signal, allowEmpty = false) {
   const template = await localTemplate(settings);
   let input = path.join(directory, `audio.${audio.extension}`);
   await writeFile(input, audio.bytes, { mode: 0o600 });
@@ -141,7 +141,7 @@ async function transcribeLocal(audio, settings, directory, cwd, signal) {
     const ffmpeg = await executableOnPath('ffmpeg');
     if (!ffmpeg) throw new Error('Este formato requiere ffmpeg en el host para convertirlo a WAV');
     const wav = path.join(directory, 'audio.wav');
-    const converted = await runCommand(ffmpeg, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-protocol_whitelist', 'file,pipe', '-y', '-i', input, '-t', '120', '-ar', '16000', '-ac', '1', '-fs', '8000000', wav], { cwd, signal, timeoutMs: 20_000, outputLimit: 8192 });
+    const converted = await runCommand(ffmpeg, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-protocol_whitelist', 'file,pipe', '-y', '-i', input, '-ar', '16000', '-ac', '1', '-fs', '64000000', wav], { cwd, signal, timeoutMs: 20_000, outputLimit: 8192 });
     if (converted.code !== 0) throw new Error(`ffmpeg no pudo convertir el audio (código ${converted.code})`);
     input = wav;
   }
@@ -172,11 +172,15 @@ async function transcribeLocal(audio, settings, directory, cwd, signal) {
     }
     text = chunks.join('\n');
   }
-  return { text: validateText(text), provider: 'local' };
+  return { text: validateText(text, allowEmpty), provider: 'local' };
 }
 
-function validateText(text) {
-  if (typeof text !== 'string' || !text.trim()) throw new Error('El motor no produjo texto de transcripción');
+// A silent dictation segment legitimately has no text; a whole request without text is an error.
+function validateText(text, allowEmpty = false) {
+  if (typeof text !== 'string' || !text.trim()) {
+    if (allowEmpty && typeof text === 'string') return '';
+    throw new Error('El motor no produjo texto de transcripción');
+  }
   if (text.length > MAX_TEXT) throw new Error('Transcripción supera 32768 caracteres');
   return text.trim();
 }
@@ -191,7 +195,7 @@ function apiURL(settings) {
   return url;
 }
 
-async function transcribeAPI(audio, settings, signal) {
+async function transcribeAPI(audio, settings, signal, allowEmpty = false) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('Transcripción API no disponible: falta OPENAI_API_KEY en el entorno del host');
   const url = apiURL(settings);
@@ -219,15 +223,26 @@ async function transcribeAPI(audio, settings, signal) {
   } finally { await reader.cancel().catch(() => {}); }
   let data;
   try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('Proveedor no devolvió JSON válido'); }
-  return { text: validateText(data.text), provider: 'openai' };
+  return { text: validateText(data.text, allowEmpty), provider: 'openai' };
 }
 
 export async function handleVoice(method, payload = {}, context = {}) {
+  if (method === 'voice.stream.recover') {
+    // One bounded segment per call; the spool (not the renderer) holds the audio.
+    const { workspace, cwd } = await requireWorkspace(payload, context);
+    const transcribeSegment = async wav => (await transcribe({ bytes: wav, mime: 'audio/wav', extension: 'wav' }, context, workspace, cwd, { quiet: true, allowEmpty: true })).text;
+    return handleVoiceStream(method, payload, context, transcribeSegment);
+  }
   if (method.startsWith('voice.stream.')) return handleVoiceStream(method, payload, context);
   if (!['voice.transcribe', 'voice.intent'].includes(method)) return { handled: false };
   const { workspace, cwd } = await requireWorkspace(payload, context);
   if (method === 'voice.intent') return { handled: true, result: await classifyIntent(payload.text, workspace.id, context.state?.settings ?? context.state?.data?.settings ?? {}) };
   const audio = decodeAudio(payload);
+  return { handled: true, result: await transcribe(audio, context, workspace, cwd) };
+}
+
+// One owned, abortable transcription of already-validated audio.
+async function transcribe(audio, context, workspace, cwd, { quiet = false, allowEmpty = false } = {}) {
   if (active.size >= 4) throw new Error('Demasiadas transcripciones activas (máximo 4)');
   const settings = context.state?.settings ?? context.state?.data?.settings ?? {};
   const provider = settings.voiceProvider || 'auto';
@@ -239,7 +254,7 @@ export async function handleVoice(method, payload = {}, context = {}) {
   const timer = setTimeout(() => abort.abort(), 90_000);
   job.done = (async () => {
     let directory, manager;
-    const emit = event => manager?.emit(context, { ...event, id, workspaceId: workspace.id, source: 'voice' });
+    const emit = event => { if (!quiet) manager?.emit(context, { ...event, id, workspaceId: workspace.id, source: 'voice' }); };
     try {
       manager = await getRunManager(context, cwd, workspace.id);
       if (abort.signal.aborted) throw new Error('Transcripción detenida');
@@ -249,9 +264,9 @@ export async function handleVoice(method, payload = {}, context = {}) {
       const useAPI = provider === 'openai' || (provider === 'auto' && !settings.localWhisperCommand && !discovered && process.env.OPENAI_API_KEY);
       emit({ type: 'tool.output', data: `Transcripción ${useAPI ? 'API' : 'local'} iniciada\n` });
       const localSettings = discovered ? { ...settings, ...discovered } : settings;
-      const result = useAPI ? await transcribeAPI(audio, settings, abort.signal) : await transcribeLocal(audio, localSettings, directory, cwd, abort.signal);
+      const result = useAPI ? await transcribeAPI(audio, settings, abort.signal, allowEmpty) : await transcribeLocal(audio, localSettings, directory, cwd, abort.signal, allowEmpty);
       emit({ type: 'tool.status', status: 'completed', result: { provider: result.provider } });
-      return { handled: true, result: { ...result, workspaceId: workspace.id } };
+      return { ...result, workspaceId: workspace.id };
     } catch (error) {
       emit({ type: 'tool.status', status: abort.signal.aborted ? 'stopped' : 'failed', error: error.message });
       throw error;
