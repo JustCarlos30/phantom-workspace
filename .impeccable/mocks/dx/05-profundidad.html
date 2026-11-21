@@ -59,6 +59,10 @@
   --divider-inset: calc(var(--row-px) + var(--icon-col) + var(--row-gap));
   --ring: 1px; --trace-w: 1.5px;
 
+  /* Controles: el aro es solo para objetos; tres niveles, ninguno con borde */
+  --ctl: 36px; --ctl-dock: 40px; --seg-h: 36px; --seg-pad: 4px; --r-row: 12px;
+  --ctl-fill: #ffffff14; --ctl-fill-hover: #ffffff1f; --ctl-fill-press: #ffffff0a;
+
   /* Movimiento */
   --ease-settle: cubic-bezier(.22, 1, .36, 1);
   --dur-open: 320ms; --dur-press: 120ms;
@@ -125,14 +129,19 @@ p, h1, h2, h3 { margin: 0; }
 .row {
   display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 44px;
   padding: var(--row-py) var(--row-px); text-align: left; color: var(--ink);
+  border-block: 2px solid transparent; border-radius: var(--r-row); background-clip: padding-box;
   transition: background-color var(--dur-press) linear;
 }
-/* Regla única de interacción: hover sube la fila un paso, presionado baja uno; la insignia no cambia */
-.list .row:hover { background: var(--row-hover); }
-.list .row:active { background: var(--row-press); }
+/* Regla única de interacción: realce rectangular de radio 12 a todo el ancho, 4 px de aire entre filas;
+   hover sube un paso, presionado baja uno sin desplazar; los divisores vecinos se ocultan */
+.list .row:hover { background-color: var(--row-hover); }
+.list .row:active { background-color: var(--row-press); }
+.list > li::before { transition: opacity var(--dur-press) linear; }
+.list > li:hover::before, .list > li:hover + li::before { opacity: 0; }
 .row:focus-visible { outline-offset: -2px; }
-.row[aria-current="true"] { background: var(--group-sel); }
-.row[aria-current="true"]:hover { background: color-mix(in srgb, var(--group-sel), #fff 4%); }
+.row[aria-current="true"] { background-color: var(--group-sel); }
+.row[aria-current="true"]:hover { background-color: color-mix(in srgb, var(--group-sel), #fff 4%); }
+.row[aria-current="true"]:active { background-color: color-mix(in srgb, var(--group-sel), #000 25%); }
 .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .tx b, .tx small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tx b { font: var(--t-row); }
@@ -145,13 +154,18 @@ p, h1, h2, h3 { margin: 0; }
 .ncol { width: var(--icon-col); flex: none; text-align: center; font: var(--t-title); color: var(--attention); }
 
 /* Botones de icono y segmentados */
-.ibtn, .seg, .legend summary { background: linear-gradient(var(--pill-top), var(--pill-bot)); box-shadow: inset 0 1px 0 #ffffff1c, inset 0 0 0 1px #ffffff12; }
-.ibtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); transition: background-color var(--dur-press) linear; }
-.ibtn:hover, .legend summary:hover { background: linear-gradient(#242428, #151517); }
-.ibtn:active, .legend summary:active { background: var(--well); }
-.seg { display: inline-flex; align-items: center; height: 32px; padding: 2px; gap: 2px; border-radius: var(--r-pill); }
+/* Secundario: círculo con un paso tonal, sin borde. Fantasma: sin relleno hasta el hover. Primario: marfil (.dprim) */
+.ibtn, .seg, .legend summary { background: var(--ctl-fill); }
+.ibtn { width: var(--ctl); height: var(--ctl); border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); transition: background-color var(--dur-press) linear; }
+.ibtn .ic { display: block; }
+.ibtn:hover, .legend summary:hover { background: var(--ctl-fill-hover); }
+.ibtn:active, .legend summary:active { background: var(--ctl-fill-press); }
+.ibtn.ghost { background: transparent; color: var(--ink-2); }
+.ibtn.ghost:hover { background: var(--ctl-fill); color: var(--ink); }
+.ibtn.ghost:active { background: var(--ctl-fill-press); }
+.seg { display: inline-flex; align-items: center; height: var(--seg-h); padding: var(--seg-pad); gap: 2px; border-radius: var(--r-pill); }
 .seg .lbl { padding: 0 8px 0 12px; font: var(--t-sup); color: var(--ink-3); }
-.seg button { height: 28px; min-width: 28px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-sup); color: var(--ink-2); transition: background-color var(--dur-press) linear; }
+.seg button { height: calc(var(--seg-h) - 2 * var(--seg-pad)); min-width: 28px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-sup); color: var(--ink-2); transition: background-color var(--dur-press) linear; }
 .seg button:hover { background: var(--glass); }
 .seg button[aria-pressed="true"] { background: var(--ivory); color: var(--on-ink); }
 .seg button[aria-pressed="true"]:active { background: var(--ivory-press); }
@@ -163,7 +177,7 @@ p, h1, h2, h3 { margin: 0; }
 /* ---------- Rail ---------- */
 .rail { left: 12px; top: 12px; bottom: 12px; width: 272px; padding: var(--box-pad); display: flex; flex-direction: column; gap: 8px; z-index: 10; }
 /* Filas directamente sobre el rail: 52 px, una línea de título y una de apoyo; divisores solo entre grupos */
-.rail .row { height: 52px; min-height: 52px; padding: 0 var(--row-px); border-radius: 10px; }
+.rail .row { height: 56px; min-height: 56px; padding: 0 var(--row-px); }
 .rail .list > li + li::before { content: none; }
 .rgrp { position: relative; padding-top: 20px; }
 .rgrp::before { content: ""; position: absolute; top: 0; left: var(--row-px); right: var(--row-px); height: 1px; background: var(--divider); }
@@ -321,12 +335,18 @@ p, h1, h2, h3 { margin: 0; }
     <button type="button" data-attr="variant" data-val="hoy" aria-pressed="false">Hoy</button>
     <button type="button" data-attr="variant" data-val="propuesta" aria-pressed="true">Propuesta</button>
   </div>
+  <div class="seg" role="group" aria-label="Insignias del rail por">
+    <span class="lbl">Insignias por</span>
+    <button type="button" data-attr="rail" data-val="estado" aria-pressed="true">Estado</button>
+    <button type="button" data-attr="rail" data-val="tipo" aria-pressed="false">Tipo</button>
+  </div>
   <details class="legend">
     <summary>Qué cambia y por qué</summary>
     <ol>
       <li><b>Dos niveles de superficie, nunca más</b>: el objeto (rail, panel, inspector, dock) es el único con degradado, aro de 1 px y radio 24; dentro, como mucho un relleno plano donde se lee o se escribe.</li>
       <li><b>Sin tarjetas que solo agrupan</b>: lo demás se separa con espacio, tipografía y divisores de 1 px al 7 % alineados al texto. El hover sigue siendo un paso tonal temporal.</li>
       <li><b>Rail directo</b>: 272 px, filas de 52 px sobre el rail; el título usa todo el ancho y el apoyo reúne tipo, estado y tiempo; etiquetas de grupo con 20 px de aire y divisores solo entre grupos. «Estado» colorea lo activo; «Tipo», por agente.</li>
+      <li><b>Aro solo en objetos, tres niveles de control</b>: primario marfil, secundario de 36 px con un paso tonal y fantasma que solo se rellena en hover; ningún control lleva aro ni borde, glifos de 18 px y trazo 1.75. Las filas se realzan como rectángulo de radio 12 y ocultan sus divisores.</li>
       <li><b>Paneles</b>: la cabecera no tiene fondo propio y el pozo de salida va a sangre, recortado por el radio. El inspector conserva sus grupos como un único paso tonal plano.</li>
       <li><b>Trazo de trabajando</b>: cometa continua de 1.5 px sobre el aro, sin resplandor.</li>
       <li><b>Interacción</b>: hover sube la fila un paso en 120 ms, presionado baja uno, la insignia no cambia; foco con contorno marfil de 2 px. Maximizar abre el panel desde su sitio (FLIP de 320 ms) y Esc lo devuelve; con movimiento reducido todo es inmediato.</li>
@@ -339,13 +359,6 @@ p, h1, h2, h3 { margin: 0; }
   <!-- Rail -->
   <nav class="rail box" aria-label="Sesiones">
     <div class="rhead"><b>phantom-workspace</b><span>main · 6 sesiones</span></div>
-    <div class="rseg">
-      <span>Insignias por</span>
-      <div class="seg" role="group" aria-label="Clasificar sesiones por">
-        <button type="button" data-attr="rail" data-val="estado" aria-pressed="true">Estado</button>
-        <button type="button" data-attr="rail" data-val="tipo" aria-pressed="false">Tipo</button>
-      </div>
-    </div>
 
     <div class="rgrp">
       <div class="row"><span class="ncol">2</span><span class="tx"><b>Te necesitan</b><small>Migración de tokens · Notas de lanzamiento</small></span></div>
@@ -359,7 +372,7 @@ p, h1, h2, h3 { margin: 0; }
         <li><button class="row sess" type="button" data-target="p3" data-state="done" data-kind="opencode"><span class="badge"><svg class="ic"><use href="#i-opencode"/></svg></span><span class="tx"><b>Dictado: puntuación</b><small>OpenCode · <em class="st">terminó</em> · 12 min</small></span></button></li>
         <li><button class="row sess" type="button" data-target="p4" data-state="error" data-kind="term"><span class="badge"><svg class="ic"><use href="#i-term"/></svg></span><span class="tx"><b>Smoke de escritorio</b><small>Terminal · <em class="st">error</em> · 18 min</small></span></button></li>
         <li><button class="row sess" type="button" data-target="p5" data-state="idle" data-kind="codex"><span class="badge"><svg class="ic"><use href="#i-codex"/></svg></span><span class="tx"><b>Revisar CONTRACT.md</b><small>Codex · <em class="st">en reposo</em> · 32 min</small></span></button></li>
-        <li><button class="row sess" type="button" data-target="cue" data-state="attention" data-kind="voz"><span class="badge"><svg class="ic"><use href="#i-mic"/></svg></span><span class="tx"><b>Notas de lanzamiento</b><small>Encargo de voz · <em class="st">te necesita</em> · 3 min</small></span></button></li>
+        <li><button class="row sess" type="button" data-target="cue" data-state="attention" data-kind="voz"><span class="badge"><svg class="ic"><use href="#i-mic"/></svg></span><span class="tx"><b>Notas de lanzamiento</b><small>Voz · <em class="st">te necesita</em> · 3 min</small></span></button></li>
       </ul>
     </section>
 
@@ -373,15 +386,15 @@ p, h1, h2, h3 { margin: 0; }
 
     <div class="rfoot">
       <span class="host">Host local conectado</span>
-      <button class="ibtn" type="button" aria-label="Configuración"><svg class="ic sm"><use href="#i-sliders"/></svg></button>
-      <button class="ibtn" type="button" aria-label="Dictar"><svg class="ic sm"><use href="#i-mic"/></svg></button>
+      <button class="ibtn" type="button" aria-label="Configuración" title="Configuración"><svg class="ic"><use href="#i-sliders"/></svg></button>
+      <button class="ibtn" type="button" aria-label="Dictar" title="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
     </div>
   </nav>
 
   <!-- Paneles -->
   <section id="p1" class="pane box sel" data-state="working" aria-label="Sesión trabajando">
     <svg class="trace" aria-hidden="true"><rect class="ta" pathLength="100" style="--L:26px;opacity:.06"/><rect class="ta" pathLength="100" style="--L:18px;opacity:.14"/><rect class="ta" pathLength="100" style="--L:11px;opacity:.28"/><rect class="ta" pathLength="100" style="--L:6px;opacity:.55"/><rect class="ta head" pathLength="100" style="--L:2.5px"/></svg>
-    <header class="bar"><span class="name">Ordenar repositorios recientes</span><span class="tag">trabajando</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <header class="bar"><span class="name">Ordenar repositorios recientes</span><span class="tag">trabajando</span><button class="ibtn ghost max" type="button" aria-label="Maximizar" title="Maximizar" aria-pressed="false"><svg class="ic"><use href="#i-max"/></svg></button></header>
     <div class="body"><span class="d">claude · opus · src/hooks/useRepos.mjs</span>
 <span class="p">›</span> Ordeno por frecuencia y acceso reciente.
 <span class="d">  Edit  src/hooks/useRepos.mjs</span>
@@ -393,7 +406,7 @@ p, h1, h2, h3 { margin: 0; }
   </section>
 
   <section id="p2" class="pane box" data-state="attention" aria-label="Sesión que te necesita">
-    <header class="bar"><span class="name">Migración de tokens</span><span class="tag">te necesita</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <header class="bar"><span class="name">Migración de tokens</span><span class="tag">te necesita</span><button class="ibtn ghost max" type="button" aria-label="Maximizar" title="Maximizar" aria-pressed="false"><svg class="ic"><use href="#i-max"/></svg></button></header>
     <div class="body"><span class="d">claude · opus · DESIGN.md</span>
 <span class="p">›</span> --surface pasa de #0d0d0d a #131315.
   Afecta a 23 reglas en canvas-ui.css.
@@ -405,7 +418,7 @@ p, h1, h2, h3 { margin: 0; }
   </section>
 
   <section id="p3" class="pane box" data-state="done" aria-label="Sesión terminada">
-    <header class="bar"><span class="name">Dictado por voz: puntuación</span><span class="tag">terminó</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <header class="bar"><span class="name">Dictado por voz: puntuación</span><span class="tag">terminó</span><button class="ibtn ghost max" type="button" aria-label="Maximizar" title="Maximizar" aria-pressed="false"><svg class="ic"><use href="#i-max"/></svg></button></header>
     <div class="body"><span class="d">opencode · scripts/voice_text.py</span>
 <span class="p">›</span> Comas y signos de apertura en español.
 <span class="add">+  text = add_inverted_marks(text)</span>
@@ -416,7 +429,7 @@ p, h1, h2, h3 { margin: 0; }
   </section>
 
   <section id="p4" class="pane box" data-state="error" aria-label="Sesión con error">
-    <header class="bar"><span class="name">Smoke de escritorio</span><span class="tag">error</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <header class="bar"><span class="name">Smoke de escritorio</span><span class="tag">error</span><button class="ibtn ghost max" type="button" aria-label="Maximizar" title="Maximizar" aria-pressed="false"><svg class="ic"><use href="#i-max"/></svg></button></header>
     <div class="body"><span class="d">terminal · ~/phantom-workspace (main)</span>
 <span class="p">›</span> npm run test:desktop
 <span class="del">  ✖ ventana principal no respondió</span>
@@ -427,7 +440,7 @@ p, h1, h2, h3 { margin: 0; }
   </section>
 
   <section id="p5" class="pane box" data-state="idle" aria-label="Sesión en reposo">
-    <header class="bar"><span class="name">Revisar CONTRACT.md</span><span class="tag">en reposo · 32 min</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <header class="bar"><span class="name">Revisar CONTRACT.md</span><span class="tag">en reposo · 32 min</span><button class="ibtn ghost max" type="button" aria-label="Maximizar" title="Maximizar" aria-pressed="false"><svg class="ic"><use href="#i-max"/></svg></button></header>
     <div class="body"><span class="d">codex · ~/phantom-workspace (main)</span>
 <span class="p">$</span> git log --oneline -1
 7714048 Incorporar Repositorios habituales primero</div>
@@ -459,7 +472,7 @@ p, h1, h2, h3 { margin: 0; }
   <aside class="settings box" aria-label="Apariencia">
     <header class="phead">
       <h3>Apariencia</h3>
-      <button class="ibtn" type="button" aria-label="Cerrar"><svg class="ic sm"><use href="#i-x"/></svg></button>
+      <button class="ibtn ghost" type="button" aria-label="Cerrar" title="Cerrar"><svg class="ic"><use href="#i-x"/></svg></button>
     </header>
 
     <div class="group">

@@ -59,6 +59,10 @@
   --ctl: 20px;                /* columna de control a la derecha (radio, chevrón) */
   --ring: 1px; --trace-w: 1.5px;
 
+  /* Controles: el aro es solo para objetos; tres niveles, ninguno con borde */
+  --btn: 36px; --btn-dock: 40px; --seg-h: 36px; --r-row: 12px;
+  --ctl-fill: #ffffff14; --ctl-fill-hover: #ffffff1f; --ctl-fill-press: #ffffff0a;
+
   --ease-settle: cubic-bezier(.22, 1, .36, 1);
   --dur-press: 120ms;
 }
@@ -104,10 +108,13 @@ p, h1 { margin: 0; }
 .cap { padding: 0 var(--row-px); font: var(--t-sup); color: var(--ink-3); }
 .list > li { position: relative; }
 .list > li + li::before { content: ""; position: absolute; top: 0; left: var(--divider-inset); right: var(--row-px); height: 1px; background: var(--divider); z-index: 1; }
-.row { display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 44px; border-radius: 10px; padding: var(--row-py) var(--row-px); text-align: left; color: var(--ink); transition: background-color var(--dur-press) linear; }
-/* Regla única de interacción: hover sube la fila un paso, presionado baja uno; la insignia no cambia */
-.list .row:hover, .act:hover { background: var(--row-hover); }
-.list .row:active, .act:active { background: var(--row-press); }
+.row { display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 64px; border-block: 2px solid transparent; border-radius: var(--r-row); background-clip: padding-box; padding: var(--row-py) var(--row-px); text-align: left; color: var(--ink); transition: background-color var(--dur-press) linear; }
+/* Regla única de interacción: realce rectangular de radio 12 a todo el ancho, 4 px de aire entre filas;
+   hover sube un paso, presionado baja uno sin desplazar; los divisores vecinos se ocultan */
+.list .row:hover, .act:hover { background-color: var(--row-hover); }
+.list .row:active, .act:active { background-color: var(--row-press); }
+.list > li::before { transition: opacity var(--dur-press) linear; }
+.list > li:hover::before, .list > li:hover + li::before { opacity: 0; }
 .row:focus-visible { outline-offset: -2px; }
 .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .lab { font: var(--t-row); white-space: nowrap; }
@@ -149,8 +156,8 @@ p, h1 { margin: 0; }
 @keyframes comet { from { stroke-dashoffset: var(--L); } to { stroke-dashoffset: calc(var(--L) - 100px); } }
 
 /* Segmentado */
-.segm { display: grid; grid-template-columns: 1fr 1fr; gap: var(--seg-pad); padding: var(--seg-pad); border-radius: var(--r-group); background: var(--flat); }
-.segm button { height: 40px; border-radius: var(--r-seg); display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--ink-2); transition: background-color var(--dur-press) linear; }
+.segm { display: grid; grid-template-columns: 1fr 1fr; gap: var(--seg-pad); height: var(--seg-h); padding: var(--seg-pad); border-radius: var(--r-pill); background: var(--ctl-fill); }
+.segm button { height: calc(var(--seg-h) - 2 * var(--seg-pad)); border-radius: var(--r-pill); display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--ink-2); transition: background-color var(--dur-press) linear; }
 .segm button:hover { background: var(--row-hover); }
 .segm button:active { background: var(--row-press); }
 .segm button[aria-checked="true"] { background: var(--ivory); color: var(--on-ink); }
@@ -164,15 +171,19 @@ p, h1 { margin: 0; }
 .field.on { color: var(--ink); }
 .field .partial { color: var(--ink-2); }
 .tools { display: flex; align-items: center; gap: 8px; }
-.chip, .ibtn, .legend summary { background: linear-gradient(var(--pill-top), var(--pill-bot)); box-shadow: inset 0 1px 0 #ffffff1c, inset 0 0 0 1px #ffffff12; }
-.chip { height: 28px; padding: 0 12px; border-radius: var(--r-pill); color: var(--ink-2); font: var(--t-sup); display: inline-flex; align-items: center; white-space: nowrap; transition: background-color var(--dur-press) linear; }
-.ibtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); transition: background-color var(--dur-press) linear; }
-.chip:hover, .ibtn:hover, .legend summary:hover { background: linear-gradient(#242428, #151517); }
-.chip:active, .ibtn:active, .legend summary:active { background: var(--well); }
+/* Secundario: círculo con un paso tonal, sin borde. Primario (.send, .dprim): marfil con tinta oscura */
+.ibtn, .legend summary { background: var(--ctl-fill); }
+.ibtn { width: var(--btn); height: var(--btn); border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); transition: background-color var(--dur-press) linear; }
+.ibtn .ic { display: block; }
+.ibtn:hover, .legend summary:hover { background: var(--ctl-fill-hover); }
+.ibtn:active, .legend summary:active { background: var(--ctl-fill-press); }
+.ibtn.ghost { background: transparent; color: var(--ink-2); }
+.ibtn.ghost:hover { background: var(--ctl-fill); color: var(--ink); }
+.ibtn.ghost:active { background: var(--ctl-fill-press); }
 .send { background: var(--ivory); color: var(--on-ink); }
 .send:hover { background: #f6f1e6; }
 .send:active { background: var(--ivory-press); }
-.send[disabled] { background: linear-gradient(var(--pill-top), var(--pill-bot)); color: var(--ink-3); cursor: default; }
+.send[disabled] { background: var(--ctl-fill); color: var(--ink-3); cursor: default; }
 .push { margin-left: auto; }
 
 /* ---------- Hilo ---------- */
@@ -189,7 +200,7 @@ p, h1 { margin: 0; }
 .ahead { display: flex; align-items: center; gap: var(--row-gap); padding: 0 var(--row-px) 4px; }
 .ahead b { flex: 1; font: var(--t-row); }
 .ahead span { font: var(--t-sup); color: var(--ink-3); }
-.act { display: flex; align-items: center; gap: var(--row-gap); min-height: 36px; padding: 8px var(--row-px); border-radius: 10px; transition: background-color var(--dur-press) linear; }
+.act { display: flex; align-items: center; gap: var(--row-gap); min-height: 40px; padding: 8px var(--row-px); border-block: 2px solid transparent; border-radius: var(--r-row); background-clip: padding-box; transition: background-color var(--dur-press) linear; }
 .gcol { width: var(--icon-col); height: 20px; flex: none; display: grid; place-items: center; color: var(--ink-2); }
 .gcol .titi-mini { width: 16px; height: 16px; color: var(--ivory); }
 .act .verb { flex: none; font: var(--t-row); }
@@ -206,7 +217,7 @@ p, h1 { margin: 0; }
 /* ---------- Dictando ---------- */
 .caret { display: inline-block; width: 2px; height: 16px; border-radius: 1px; background: var(--ivory); margin-left: 2px; vertical-align: -3px; animation: blink 1.1s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-.meter { height: 32px; padding: 0 12px; border-radius: var(--r-pill); background: var(--glass); display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.meter { height: var(--btn); padding: 0 12px; border-radius: var(--r-pill); background: var(--glass); display: inline-flex; align-items: center; gap: 8px; flex: none; }
 .meter .ic { color: var(--working); }
 .bars { display: inline-flex; align-items: center; gap: 3px; height: 16px; }
 .bars i { width: 3px; border-radius: 2px; background: var(--working); transform-origin: center; animation: lvl .9s ease-in-out infinite alternate; }
@@ -227,7 +238,7 @@ p, h1 { margin: 0; }
 .dprim { height: 40px; padding: 0 18px; border-radius: var(--r-pill); background: var(--ivory); color: var(--on-ink); font: var(--t-row); display: inline-flex; gap: 8px; align-items: center; transition: background-color var(--dur-press) linear; }
 .dprim:hover { background: #f6f1e6; }
 .dprim:active { background: var(--ivory-press); }
-.dbtn { width: 40px; height: 40px; }
+.dbtn { width: var(--btn-dock); height: var(--btn-dock); }
 
 /* ---------- Leyenda dentro de la escena: la página cabe en 1520 × 980 sin scroll ---------- */
 .legend { position: relative; color: var(--ink-2); font: var(--t-sup); line-height: 20px; }
@@ -264,7 +275,9 @@ p, h1 { margin: 0; }
     <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M6.5 9.5L12 15l5.5-5.5"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4 4 9-9"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><path d="M19 11.5l-7.1 7.1a4.6 4.6 0 01-6.5-6.5l7.4-7.4a3.1 3.1 0 014.4 4.4l-7.3 7.3a1.55 1.55 0 01-2.2-2.2l6.7-6.7"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M7.5 10h9M7.5 14h5"/></symbol>
+    <symbol id="i-check"viewBox="0 0 24 24"><path d="M5.5 12.5l4 4 9-9"/></symbol>
     <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 18.5v-13M6.5 11L12 5.5l5.5 5.5"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4.5 8h9M17.5 8h2M4.5 16h2M10.5 16h9"/><circle cx="15.5" cy="8" r="2"/><circle cx="8.5" cy="16" r="2"/></symbol>
@@ -281,6 +294,7 @@ p, h1 { margin: 0; }
       <ol>
         <li><b>Dos niveles de superficie, nunca más</b>: el panel y el dock son los únicos con degradado, aro de 1 px y radio 24; dentro, como mucho un relleno plano donde se lee o se escribe.</li>
         <li><b>Sin tarjetas que solo agrupan</b>: «Quién responde» y «Contexto» son filas sobre el panel con divisores de 1 px al 7 %; el segmentado conserva su pista porque es un control y el compositor va a sangre en la base, idéntico en las tres escenas.</li>
+        <li><b>Aro solo en objetos, tres niveles de control</b>: primario marfil (enviar, confirmar), secundario de 36 px con un paso tonal (adjuntar, card, micrófono, descartar) y fantasma que solo se rellena en hover; ningún control lleva aro ni borde. Las filas se realzan como rectángulo de radio 12 y ocultan sus divisores.</li>
         <li><b>Hilo a sangre</b>: la cabecera no tiene fondo propio; el hilo es un único plano oscuro hasta los bordes y el compositor se distingue por un paso tonal y un divisor, sin otra caja. Tu turno es una cita a la izquierda: barra marfil de 2 px, tinta plena y peso 500.</li>
         <li><b>Actividad sin tarjeta</b>: líneas sobre el hilo unidas por una guía vertical de 1 px; glifo, verbo, destino y cifra, Titi en las llamadas a Phantom y una sola fila viva con barra fina.</li>
         <li><b>Dictado silencioso</b>: la respuesta del agente es prosa; la transcripción vive en el campo y el micrófono se vuelve píldora con barras y tiempo.</li>
@@ -322,10 +336,10 @@ p, h1 { margin: 0; }
       <div class="composer">
         <div class="field">¿Qué hacemos en phantom-workspace?</div>
         <div class="tools">
-          <button class="chip" type="button">Adjuntar archivo</button>
-          <button class="chip" type="button">Usar card</button>
-          <button class="ibtn push" type="button" aria-label="Dictar"><svg class="ic sm"><use href="#i-mic"/></svg></button>
-          <button class="ibtn send" type="button" aria-label="Enviar" disabled><svg class="ic sm"><use href="#i-up"/></svg></button>
+          <button class="ibtn" type="button" aria-label="Adjuntar archivo" title="Adjuntar archivo"><svg class="ic"><use href="#i-clip"/></svg></button>
+          <button class="ibtn" type="button" aria-label="Usar card" title="Usar card"><svg class="ic"><use href="#i-card"/></svg></button>
+          <button class="ibtn push" type="button" aria-label="Dictar" title="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
+          <button class="ibtn send" type="button" aria-label="Enviar" title="Enviar" disabled><svg class="ic"><use href="#i-up"/></svg></button>
         </div>
       </div>
     </div>
@@ -358,9 +372,9 @@ p, h1 { margin: 0; }
       <div class="composer">
         <div class="field">Responde o añade contexto…</div>
         <div class="tools">
-          <button class="chip" type="button">Adjuntar archivo</button>
-          <button class="ibtn push" type="button" aria-label="Dictar"><svg class="ic sm"><use href="#i-mic"/></svg></button>
-          <button class="ibtn send" type="button" aria-label="Detener"><svg class="ic sm"><use href="#i-stop"/></svg></button>
+          <button class="ibtn" type="button" aria-label="Adjuntar archivo" title="Adjuntar archivo"><svg class="ic"><use href="#i-clip"/></svg></button>
+          <button class="ibtn push" type="button" aria-label="Dictar" title="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
+          <button class="ibtn send" type="button" aria-label="Detener" title="Detener"><svg class="ic"><use href="#i-stop"/></svg></button>
         </div>
       </div>
     </div>
@@ -390,8 +404,8 @@ p, h1 { margin: 0; }
             <time datetime="PT7S">00:07</time>
           </div>
           <span class="hint">Esc descarta · Enter envía</span>
-          <button class="ibtn push" type="button" aria-label="Descartar dictado"><svg class="ic sm"><use href="#i-x"/></svg></button>
-          <button class="ibtn send" type="button" aria-label="Terminar dictado"><svg class="ic sm"><use href="#i-check"/></svg></button>
+          <button class="ibtn push" type="button" aria-label="Descartar dictado" title="Descartar dictado"><svg class="ic"><use href="#i-x"/></svg></button>
+          <button class="ibtn send" type="button" aria-label="Terminar dictado" title="Terminar dictado"><svg class="ic"><use href="#i-check"/></svg></button>
         </div>
       </div>
     </div>
