@@ -18,6 +18,7 @@
     "inventory:storybook": "node scripts/storybook-inventory.mjs",
     "start": "electron .",
     "test": "node --test test/*.test.mjs src/hooks/*.test.mjs",
+    "bench:core": "node test/perf-core.mjs",
     "test:desktop": "node test/desktop-smoke.mjs",
     "setup:voice": "node scripts/setup-voice.mjs",
     "package": "node scripts/package.mjs",
