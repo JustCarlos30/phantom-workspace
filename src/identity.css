@@ -14,7 +14,7 @@
 .app-shell .brand-mark:has(.titi-ghost) { width: 32px; height: 32px; padding: 0; background: none; box-shadow: none; }
 .app-shell canvas.titi-ghost:not(.brand-state-fallback) { display: block; flex-shrink: 0; image-rendering: pixelated; }
 .app-shell .brand-mark canvas.titi-ghost { width: 32px !important; height: 32px !important; }
-.app-shell .activity-notch canvas.phantom-face.titi-ghost { display: block; width: 28px !important; height: 28px !important; }
+.app-shell .activity-notch canvas.phantom-face.titi-ghost { display: block; width: 40px !important; height: 40px !important; }
 .app-shell .phantom-chat-toggle canvas.titi-ghost { width: 28px !important; height: 28px !important; }
 .app-shell .brand-state-fallback,
 .app-shell .notch-state-fallback { display: none; }
