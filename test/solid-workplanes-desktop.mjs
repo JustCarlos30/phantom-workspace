@@ -165,13 +165,17 @@ const materials = async () => {
       probe.style.backgroundImage = el.matches('.canvas-node.selected')
         ? 'linear-gradient(var(--selected-edge-top), var(--selected-edge-bottom))'
         : 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))';
+      probe.style.mask = 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)';
+      probe.style.maskComposite = 'exclude';
       if (ring.backgroundImage !== getComputedStyle(probe).backgroundImage) bad.push(`incorrect ring gradient ${el.className}`);
-      if (ring.content === 'none' || ring.position !== 'absolute' || ring.zIndex !== '3'
-        || ring.pointerEvents !== 'none' || ring.maskComposite !== 'exclude'
-        || ring.maskImage.split('linear-gradient(').length !== 3
+      const maskProperties = ['maskImage', 'maskClip', 'maskOrigin', 'maskComposite'];
+      const mask = Object.fromEntries(maskProperties.map(property => [property, { actual: ring[property], expected: expected[property] }]));
+      if (['none', 'normal'].includes(ring.content) || ring.display === 'none' || ring.visibility !== 'visible' || ring.opacity !== '1'
+        || ring.position !== 'absolute' || ring.zIndex !== '3' || ring.pointerEvents !== 'none'
+        || maskProperties.some(property => ring[property] !== expected[property])
         || ring.borderRadius !== s.borderRadius
         || ['top', 'right', 'bottom', 'left'].some(side => ring[side] !== '0px')
-        || Math.abs(parseFloat(ring.paddingTop) - (el.matches('.overview') ? Number(s.getPropertyValue('--ov')) : 1)) > .01) bad.push(`invalid masked ring ${el.className}`);
+        || ['Top', 'Right', 'Bottom', 'Left'].some(side => !(Math.abs(parseFloat(ring[`padding${side}`]) - (el.matches('.overview') ? Number(s.getPropertyValue('--ov')) : 1)) <= .01))) bad.push(`invalid masked ring ${el.className} ${JSON.stringify(mask)}`);
       probe.remove();
     };
     for (const panel of document.querySelectorAll('.canvas-node[data-type="terminal"]')) {
@@ -200,7 +204,7 @@ const materials = async () => {
     if (alpha(getComputedStyle(canvas).backgroundColor) !== 0) bad.push('canvas hides environmental art');
     const art = getComputedStyle(document.querySelector('.canvas-region'), '::after');
     if (art.backgroundImage === 'none' || Number(art.opacity) <= 0 || Number(getComputedStyle(canvas).zIndex) <= Number(art.zIndex)) bad.push('art missing or above workplanes');
-    for (const el of document.querySelectorAll('.project-rail,.canvas-navigation,.activity-dock,.inspector-host,.phantom-chat,.context-menu-panel')) {
+    for (const el of document.querySelectorAll('.project-rail,.canvas-navigation,.activity-dock,.inspector-host,.phantom-chat,.context-menu-panel,.pc-models')) {
       if (el.getClientRects().length) objectMaterial(el);
     }
     for (const el of document.querySelectorAll('.rail-panel-row.selected')) {
@@ -272,7 +276,10 @@ try {
       return original(event, method, payload);
     });
   }, nodes.slice(0, 2).map(node => node.id));
-  await page.evaluate(ids => ids.forEach(id => localStorage.setItem(`phantom.chatSeen.${id}`, 'reply')), nodes.slice(0, 2).map(node => node.id));
+  await page.evaluate(({ ids, workspaceId }) => {
+    localStorage.setItem(`phantom:studio:${workspaceId}`, JSON.stringify({ v: 4, gengar: true }));
+    ids.forEach(id => localStorage.setItem(`phantom.chatSeen.${id}`, 'reply'));
+  }, { ids: nodes.slice(0, 2).map(node => node.id), workspaceId: workspace.id });
   await page.reload();
   await page.locator('.pc-message.is-agent').first().waitFor();
   const card = i => page.locator(`.canvas-node[data-node-id="${nodes[i].id}"]`);
@@ -315,6 +322,7 @@ try {
     assert.equal(await card(1).evaluate(el => el.classList.contains('selected')), true);
     assert.deepEqual(await materials(), before, 'Selecting a neighbour leaves text color and ancestor compositing stable');
     await shot(`${width}-selected`);
+    await map();
     await card(0).locator('.node-glyph').click();
     await page.locator('.canvas').focus(); await page.keyboard.press('Control+Shift+Enter');
     await card(0).and(page.locator('.focused')).waitFor(); await delay(350);

@@ -119,7 +119,25 @@ const shot = async scene => {
       const style = getComputedStyle(el), ring = getComputedStyle(el, '::before');
       if (style.backgroundColor !== 'rgb(11, 11, 12)' || style.backgroundImage !== 'linear-gradient(rgb(15, 15, 17), rgb(7, 7, 8))') throw new Error(`Missing object material: ${el.className}`);
       if (style.backdropFilter !== 'none' || ['Top', 'Right', 'Bottom', 'Left'].some(side => style[`border${side}Width`] !== '0px')) throw new Error(`Blur or extra edge: ${el.className}`);
-      if (ring.content === 'none' || ring.maskComposite !== 'exclude' || ring.pointerEvents !== 'none' || ring.zIndex !== '3') throw new Error(`Missing non-interactive masked ring: ${el.className}`);
+      const probe = document.createElement('div'); el.append(probe);
+      probe.style.position = 'absolute';
+      probe.style.backgroundImage = el.matches('.canvas-node.selected')
+        ? 'linear-gradient(var(--selected-edge-top), var(--selected-edge-bottom))'
+        : 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))';
+      probe.style.mask = 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)';
+      probe.style.maskComposite = 'exclude';
+      const expected = getComputedStyle(probe);
+      const maskProperties = ['maskImage', 'maskClip', 'maskOrigin', 'maskComposite'];
+      const invalidRing = ['none', 'normal'].includes(ring.content) || ring.display === 'none'
+        || ring.visibility !== 'visible' || ring.opacity !== '1'
+        || ring.position !== 'absolute' || ring.pointerEvents !== 'none' || ring.zIndex !== '3'
+        || ring.backgroundImage !== expected.backgroundImage || ring.borderRadius !== style.borderRadius
+        || maskProperties.some(property => ring[property] !== expected[property])
+        || ['top', 'right', 'bottom', 'left'].some(side => ring[side] !== '0px')
+        || ['Top', 'Right', 'Bottom', 'Left'].some(side => !(Math.abs(parseFloat(ring[`padding${side}`]) - (el.matches('.overview') ? Number(style.getPropertyValue('--ov')) : 1)) <= .01));
+      const mask = Object.fromEntries(maskProperties.map(property => [property, { actual: ring[property], expected: expected[property] }]));
+      probe.remove();
+      if (invalidRing) throw new Error(`Missing non-interactive masked ring: ${el.className} ${JSON.stringify(mask)}`);
       if (el.matches('.canvas-node.selected') && style.outlineWidth !== '0px') throw new Error('Selection has a second contour');
     }
   });
@@ -316,20 +334,18 @@ try {
   });
   await shot('settings-switches');
   await page.getByRole('button', { name: 'Cerrar configuración', exact: true }).click();
-  try {
-    await page.locator('.space-switcher-trigger').click();
-    await page.waitForTimeout(450);
-    await shot('space-menu');
-    await page.keyboard.press('Escape');
-  } catch (error) { console.log('space-menu:', error.message); }
-  try {
-    await page.locator('.pc-model').first().click({ force: true });
-    await page.waitForTimeout(450);
-    await shot('model-menu');
-    await page.keyboard.press('Escape');
-  } catch (error) { console.log('model-menu:', error.message); }
-  const notch = page.locator('.activity-notch').first();
-  if (await notch.count()) { await notch.click(); await shot('tray'); }
+   await page.locator('.space-switcher-trigger').click();
+   await page.locator('.context-menu-panel').waitFor({ state: 'visible' });
+   await shot('space-menu');
+   await page.keyboard.press('Escape');
+   await page.locator('.canvas-node[data-type="terminal"] .node-glyph').first().dblclick();
+   await page.locator('.canvas-node.focused .pc-model').first().click();
+   await page.locator('.pc-models').waitFor({ state: 'visible' });
+   await shot('model-menu');
+   await page.keyboard.press('Escape');
+   await toMap();
+   const notch = page.locator('.activity-notch').first();
+   await notch.click(); await shot('tray');
    if (paintFailed || errors.length) throw new Error(`Design capture failed: ${errors.join('; ')}`);
   console.log(JSON.stringify({ label, captures, errors }, null, 2));
 } catch (error) {

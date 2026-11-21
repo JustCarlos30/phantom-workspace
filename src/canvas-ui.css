@@ -360,6 +360,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   width: var(--inspector-width); min-width: 0; border-radius: var(--r-obj); overflow: hidden;
   animation: materialize var(--dur) var(--ease-out);
 }
+.app-shell .inspector-host { border: 0; }
 .inspector-switcher { border-bottom: 1px solid var(--hairline); }
 .inspector-host .tw-inspector, .inspector-host .appearance-panel { background: var(--surface); }
 @media (max-width: 850px) { .inspector-host { left: var(--gutter); width: auto; } }
