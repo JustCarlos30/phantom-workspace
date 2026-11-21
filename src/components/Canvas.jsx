@@ -82,14 +82,20 @@ function ChatAlertWatcher({ node, workspaceId, api, connected, notify }) {
 
 // One panel on the map. Memoized: camera movement, other panels' edits and
 // selection changes elsewhere must not re-render this panel or its terminal.
-const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, anyFocused, selected, flash, small, compact, magnified, missionTitle, activity, chatPulse, editing, anyEditing, workspace, handlers, api, refresh, flush, notify, onOpenPanel, onChange, onRelaunch, connected, active, inputBlocked, obscured, comments, commenting, commentCount }) {
+const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, anyFocused, selected, flash, onFlashEnd, small, compact, magnified, missionTitle, activity, chatPulse, editing, anyEditing, workspace, handlers, api, refresh, flush, notify, onOpenPanel, onChange, onRelaunch, connected, active, inputBlocked, obscured, comments, commenting, commentCount }) {
   const panel = useRef(null);
   useLayoutEffect(() => {
     if (!flash) return;
     panel.current.classList.remove('map-flash');
     void panel.current.offsetWidth;
     panel.current.classList.add('map-flash');
-  }, [flash]);
+    const animation = panel.current.getAnimations({ subtree: true }).find(animation => animation.animationName === 'map-flash');
+    let cancelled = false;
+    const finish = () => { if (!cancelled) onFlashEnd(current => current === flash ? null : current); };
+    if (animation) animation.finished.then(finish, finish);
+    else finish();
+    return () => { cancelled = true; };
+  }, [flash, onFlashEnd]);
   const Icon = icons[node.type] || Layers, isFocused = !!focusSize;
   const geometry = isFocused ? { x: 12, y: 72, width: Math.max(320, focusSize.width - 24), height: Math.max(240, focusSize.height - 88) } : preview ? { ...node, ...preview } : node;
   const titleRef = useCallback(element => handlers.titleButton(node.id, element), [handlers, node.id]);
@@ -126,9 +132,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const gestureFrame = useRef(null);
   const finishRef = useRef(null);
   const handledJump = useRef(new WeakSet());
-  const flashTimer = useRef(null);
   const [flash, setFlash] = useState(null);
-  useEffect(() => () => clearTimeout(flashTimer.current), []);
   // The panel most recently framed: a stage resize right after a jump (the
   // sidebar or list closing) re-frames it instead of drifting off target.
   const framed = useRef(null);
@@ -338,9 +342,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       stopInertia();
       navigate(next);
       if (request === jumpRequest && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        clearTimeout(flashTimer.current);
         setFlash(request);
-        flashTimer.current = setTimeout(() => setFlash(null), parseFloat(getComputedStyle(root.current).getPropertyValue('--map-flash-duration')));
       }
     }
   }, [jumpRequest, frameRequest, frameCamera, focused, nodes, navigate, stopInertia]);
@@ -661,7 +663,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
         }
         const editing = rename.editing?.id === node.id ? rename.editing : null;
         const sharedWorkspace = node.type === 'terminal' || node.type === 'browser' || node.type === 'note' || node.type === 'reference' ? panelWorkspace : workspace;
-        return <CanvasNode key={node.id} node={node} preview={preview[node.id]} focusSize={isFocused ? size : null} anyFocused={!!focused} selected={selected.includes(node.id)} flash={flash?.id === node.id ? flash : null} small={tier > 0} compact={tier > 1} magnified={tier < 0} missionTitle={node.groupId ? workspace.missions?.find(m => m.id === node.groupId)?.title : undefined} activity={node.type === 'terminal' ? terminalActivity[node.id] : undefined} chatPulse={chatPulses[node.id]} editing={editing} anyEditing={!!rename.editing} workspace={sharedWorkspace} handlers={handlers} api={api} refresh={refresh} flush={flush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onRelaunch={onRelaunch} connected={connected} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} obscured={obscured} comments={node.type === 'reference' ? commentsByNode.get(node.id) || NO_COMMENTS : undefined} commenting={node.type === 'browser' && isFocused && (tool === 'comment' || draft?.nodeId === node.id || (!!openComment && commentsByNode.get(node.id)?.some(c => c.id === openComment)))} commentCount={node.type === 'browser' ? (commentsByNode.get(node.id) || NO_COMMENTS).filter(c => !c.resolved).length : undefined} />;
+        return <CanvasNode key={node.id} node={node} preview={preview[node.id]} focusSize={isFocused ? size : null} anyFocused={!!focused} selected={selected.includes(node.id)} flash={flash?.id === node.id ? flash : null} onFlashEnd={setFlash} small={tier > 0} compact={tier > 1} magnified={tier < 0} missionTitle={node.groupId ? workspace.missions?.find(m => m.id === node.groupId)?.title : undefined} activity={node.type === 'terminal' ? terminalActivity[node.id] : undefined} chatPulse={chatPulses[node.id]} editing={editing} anyEditing={!!rename.editing} workspace={sharedWorkspace} handlers={handlers} api={api} refresh={refresh} flush={flush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onRelaunch={onRelaunch} connected={connected} active={!inputBlocked && (isFocused || (!focused && selected.length === 1 && selected[0] === node.id))} inputBlocked={inputBlocked} obscured={obscured} comments={node.type === 'reference' ? commentsByNode.get(node.id) || NO_COMMENTS : undefined} commenting={node.type === 'browser' && isFocused && (tool === 'comment' || draft?.nodeId === node.id || (!!openComment && commentsByNode.get(node.id)?.some(c => c.id === openComment)))} commentCount={node.type === 'browser' ? (commentsByNode.get(node.id) || NO_COMMENTS).filter(c => !c.resolved).length : undefined} />;
       })}</PresenceGroup></ReviewContext.Provider>
       <CommentLayer comments={comments} draft={draft} open={openComment} active={tool === 'comment'} geometryOf={geometryOf} nodeOf={id => nodes.find(n => n.id === id)} pathOf={node => node.data?.file && dataDir ? `${dataDir}/references/${workspace.id}/${node.data.file}` : null} api={api} workspaceId={workspace.id} notify={notify} onOpen={openThread} onDraft={writeDraft} seek={seek} />
     </div>

@@ -304,29 +304,45 @@ try {
   if (standardized) {
     await page.locator('[data-design-fixture="rail-state"]').evaluateAll(elements => elements.forEach(element => element.remove()));
     const working = stateNodes[0], panel = page.locator(`[data-node-id="${working.id}"]`);
-    await panel.evaluate(el => {
-      window.mapFlashObservation = null;
-      const observe = event => {
-        if (event.target !== el || event.pseudoElement !== '::after' || event.animationName !== 'map-flash') return;
-        el.removeEventListener('animationstart', observe);
-        const animation = document.getAnimations().find(animation => animation.animationName === 'map-flash');
-        if (!animation) { window.mapFlashObservation = { error: 'The ring animation started without an observable timeline' }; return; }
-        animation.pause();
-        const opacity = [0, 162, 900].map(time => { animation.currentTime = time; return Number(getComputedStyle(el, '::after').opacity); });
-        const timing = animation.effect.getTiming();
-        window.mapFlashObservation = { opacity, duration: timing.duration, iterations: timing.iterations };
-        animation.currentTime = 0; animation.play();
-      };
-      el.addEventListener('animationstart', observe);
-    });
-    await page.getByRole('button', { name: `Ver ${working.title} en el mapa`, exact: true }).click();
-    await page.waitForFunction(() => window.mapFlashObservation !== null);
-    const flash = await page.evaluate(() => window.mapFlashObservation);
-    assert.deepEqual(flash, { opacity: [0, 1, 0], duration: 900, iterations: 1 });
-    observations.push({ scene: 'map-flash', ...flash });
-    assert.equal(await page.locator('.canvas-node.focused').count(), 0);
-    await shot('map-flash');
-    await page.waitForFunction(id => !document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('map-flash'), working.id);
+    for (const scene of ['map-flash', 'map-flash-selected']) {
+      if (scene === 'map-flash-selected') assert.equal(await panel.getAttribute('aria-current'), 'true');
+      await panel.evaluate(el => {
+        window.mapFlashObservation = null;
+        const observe = async event => {
+          if (event.target !== el || event.pseudoElement !== '::after' || event.animationName !== 'map-flash') return;
+          el.removeEventListener('animationstart', observe);
+          try {
+            const animations = el.getAnimations({ subtree: true }).filter(animation => animation.animationName === 'map-flash');
+            if (animations.length !== 1) throw new Error(`Expected one observable ring timeline, found ${animations.length}`);
+            const [animation] = animations;
+            animation.pause();
+            await animation.ready;
+            const ring = getComputedStyle(el, '::before'), flash = getComputedStyle(el, '::after');
+            for (const property of ['position', 'top', 'right', 'bottom', 'left', 'width', 'height', 'borderRadius', 'padding', 'maskImage', 'maskClip', 'maskOrigin', 'maskComposite', 'pointerEvents', 'zIndex']) {
+              if (flash[property] !== ring[property]) throw new Error(`Flash differs from the panel ring: ${property}`);
+            }
+            if (flash.content === 'none' || flash.display === 'none' || flash.visibility !== 'visible' || flash.transform !== 'none') throw new Error('Flash ring is hidden or displaced');
+            const opacity = [0, 162].map(time => { animation.currentTime = time; return Number(getComputedStyle(el, '::after').opacity); });
+            const timing = animation.effect.getTiming();
+            const observation = { id: el.dataset.nodeId, state: el.dataset.panelState, trace: el.querySelectorAll('.activity-trace rect').length,
+              targets: [...document.querySelectorAll('.canvas-node.map-flash')].map(panel => panel.dataset.nodeId), opacity, duration: timing.duration, iterations: timing.iterations };
+            animation.currentTime = 0; animation.play();
+            await animation.finished;
+            opacity.push(Number(getComputedStyle(el, '::after').opacity));
+            window.mapFlashObservation = observation;
+          } catch (error) { window.mapFlashObservation = { error: error.message }; }
+        };
+        el.addEventListener('animationstart', observe);
+      });
+      await page.getByRole('button', { name: `Ver ${working.title} en el mapa`, exact: true }).click();
+      await page.waitForFunction(() => window.mapFlashObservation !== null);
+      const flash = await page.evaluate(() => window.mapFlashObservation);
+      assert.deepEqual(flash, { id: working.id, state: 'working', trace: 5, targets: [working.id], opacity: [0, 1, 0], duration: 900, iterations: 1 });
+      observations.push({ scene, ...flash });
+      assert.equal(await page.locator('.canvas-node.focused').count(), 0);
+      await page.waitForFunction(id => !document.querySelector(`[data-node-id="${id}"]`)?.classList.contains('map-flash'), working.id);
+      await shot(scene);
+    }
     await delay(400);
     const mapRect = await panel.boundingBox();
     const mapGeometry = await panel.evaluate(el => [el.style.left, el.style.top, el.style.width, el.style.height]);

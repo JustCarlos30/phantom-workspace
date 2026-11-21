@@ -252,10 +252,11 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       }
       if (motion.matches || !destination.width || !destination.height) { finish(); return; }
       const css = getComputedStyle(element), scale = destination.width / element.offsetWidth;
+      const duration = css.getPropertyValue('--dur-open').trim();
       animation = element.animate([
         { transform: `translate(${(origin.rect.x - destination.x) / scale}px, ${(origin.rect.y - destination.y) / scale}px) scale(${origin.rect.width / destination.width}, ${origin.rect.height / destination.height})` },
         { transform: 'none' },
-      ], { duration: parseFloat(css.getPropertyValue('--dur-open')), easing: css.getPropertyValue('--ease-settle').trim(), id: 'focus-flip' });
+      ], { duration: parseFloat(duration) * (duration.endsWith('ms') ? 1 : 1000), easing: css.getPropertyValue('--ease-settle').trim(), id: 'focus-flip' });
       focusAnimation.current = animation;
       motion.addEventListener('change', finish);
       animation.finished.then(finish, () => {});

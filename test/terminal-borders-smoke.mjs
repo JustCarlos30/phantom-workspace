@@ -33,6 +33,17 @@ const capture = async name => {
   const filename = path.join(temp, `${name}.png`);
   await page.screenshot({ path: filename }); captures.push(filename);
 };
+const settled = () => page.waitForFunction(async () => {
+  const world = document.querySelector('.canvas-world');
+  if (!world || document.fonts.status !== 'loaded') return false;
+  const transform = world.style.transform;
+  await new Promise(requestAnimationFrame);
+  const scale = new DOMMatrix(getComputedStyle(world).transform).a;
+  return world.style.transform === transform
+    && Math.abs(scale * Number(getComputedStyle(world).getPropertyValue('--overview-scale')) - 1) < .000001
+    && !document.querySelector('.app-shell[data-focus-moving], .canvas[data-sliding]')
+    && !document.getAnimations().some(animation => animation.effect?.getTiming().iterations !== Infinity && (animation.pending || animation.playState === 'running'));
+});
 const style = panel => panel.evaluate(el => {
   const css = getComputedStyle(el), trace = el.querySelector('.activity-trace');
   const head = trace?.querySelector('.activity-trace__head');
@@ -59,7 +70,7 @@ const style = panel => panel.evaluate(el => {
   return { colors, neutral, expectedShadow: shadow, state: el.dataset.panelState, label: label?.textContent, labelVisible: !!label?.getClientRects().length, labelColor: label && getComputedStyle(label).color,
     ring: { background: ring.backgroundColor, image: ring.backgroundImage, padding: ring.paddingTop, mask: ring.maskComposite, radius: ring.borderRadius, pointer: ring.pointerEvents, inset: [ring.top, ring.right, ring.bottom, ring.left] },
     widths: ['Top', 'Right', 'Bottom', 'Left'].map(side => css[`border${side}Width`]),
-    radius: css.borderRadius, edgeRadius: edge?.rx, stroke: edge?.stroke, strokeWidth: edge?.strokeWidth,
+    radius: css.borderRadius, overviewScale: el.matches('.overview') ? Number(css.getPropertyValue('--ov')) : 1, edgeRadius: edge?.rx, stroke: edge?.stroke, strokeWidth: edge?.strokeWidth,
     dash: edge?.strokeDasharray, filter: edge?.filter,
     rects: trace ? [...trace.children].map(rect => { const s = getComputedStyle(rect), box = rect.getBBox(); return { path: rect.getAttribute('pathLength'), length: s.getPropertyValue('--L').trim(), opacity: Number(s.opacity), x: s.x, y: s.y, ry: s.ry, width: box.width, height: box.height, cap: s.strokeLinecap, stroke: s.stroke, filter: s.filter, fill: s.fill }; }) : [],
     traceSize: trace && { width: trace.clientWidth, height: trace.clientHeight, zIndex: getComputedStyle(trace).zIndex },
@@ -69,7 +80,9 @@ const style = panel => panel.evaluate(el => {
     running: trace?.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length || 0 };
 });
 const assertEdge = async (panel, fixture) => {
-  await page.waitForTimeout(220);
+  const state = ({ attention: 'attention', turn: 'attention', success: 'finished', working: 'working', error: 'error' })[fixture.pulse] || 'rest';
+  await page.waitForFunction(({ id, state }) => document.querySelector(`[data-node-id="${id}"]`)?.dataset.panelState === state, { id: await panel.getAttribute('data-node-id'), state });
+  await settled();
   const css = await style(panel);
   assert.deepEqual(css.widths, ['0px', '0px', '0px', '0px'], 'The mask replaces the CSS border');
   assert.equal(css.outlineWidth, '0px', 'No second selection contour');
@@ -78,10 +91,8 @@ const assertEdge = async (panel, fixture) => {
   assert.equal(css.ring.radius, css.radius);
   assert.deepEqual(css.ring.inset, ['0px', '0px', '0px', '0px']);
   assert.equal(css.ring.pointer, 'none');
-  const overviewScale = await panel.evaluate(el => el.matches('.overview') ? Number(getComputedStyle(el).getPropertyValue('--ov')) : 1);
-  assert.ok(Math.abs(parseFloat(css.ring.padding) - overviewScale) < .01, 'One pixel ring, including semantic zoom');
+  assert.ok(Math.abs(parseFloat(css.ring.padding) - css.overviewScale) < .01, 'One pixel ring, including semantic zoom');
   assert.ok(css.labelVisible, `${fixture.title}: header state remains visible`);
-  const state = ({ attention: 'attention', turn: 'attention', success: 'finished', working: 'working', error: 'error' })[fixture.pulse] || 'rest';
   assert.equal(css.state, state);
   assert.equal(css.label, ({ attention: 'Te necesita', finished: 'Terminó', working: 'Trabajando', error: 'Error', rest: 'En reposo' })[state]);
   assert.equal(css.labelColor, css.colors[state === 'attention' ? '--attention' : state === 'error' ? '--danger' : '--muted']);
@@ -129,15 +140,22 @@ try {
   appProcess = app.process();
   page = await app.firstWindow(); page.setDefaultTimeout(10000);
   page.on('pageerror', error => errors.push(error.message));
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1840, 1200));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForLoadState('load');
+  await app.evaluate(async ({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win.isVisible()) await new Promise(resolve => win.once('show', resolve));
+    win.setContentSize(1840, 1200);
+  });
   await page.locator('.canvas-node').first().waitFor();
   const zoom = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
   assert.ok(Number.isFinite(zoom) && zoom > 0, 'Native interface zoom is valid');
+  await page.waitForFunction(zoom => Math.abs(innerWidth - 1840 / zoom) <= 1 && Math.abs(innerHeight - 1200 / zoom) <= 1, zoom);
   const connectedHost = await page.evaluate(() => window.phantom.invoke('system.info', {}));
   assert.equal(connectedHost.dataDir, dataDir, 'Electron uses only the temporary fixture profile');
   assert.equal(connectedHost.pid, process.pid, 'Electron connects to the owned synthetic host');
-  const canvas = page.locator('.canvas');
-  await canvas.focus(); await page.keyboard.press('0'); await page.waitForTimeout(300);
+  await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();
+  await settled();
   for (const fixture of fixtures) {
     const panel = page.locator(`[data-node-id="${fixture.nodeId}"]`);
     if (!fixture.pulse) {
@@ -162,6 +180,7 @@ try {
   for (const fixture of fixtures.filter(f => ['success', 'error', 'attention'].includes(f.pulse)).slice(0, 3)) {
     const panel = page.locator(`[data-node-id="${fixture.nodeId}"]`);
     await panel.locator('.node-glyph').click();
+    await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"]`)?.getAttribute('aria-current') === 'true', fixture.nodeId);
     assert.ok((await panel.getAttribute('class')).includes('selected'));
     await panel.hover();
     await panel.locator('.title-button').focus();
@@ -184,6 +203,7 @@ try {
     // Focus mode has a dedicated return control outside the clipped stage.
     await page.locator('.focus-return').getByRole('button', { name: 'Volver al mapa', exact: true }).click();
     await page.locator('.canvas.focus-mode').waitFor({ state: 'hidden' });
+    await settled();
   }
   checks.push('State survives selection on the same ring, hover, keyboard focus, real drag and focus mode');
 
@@ -198,7 +218,7 @@ try {
   assert.equal(await page.locator('.pixel-field').count(), 0, 'No exterior wave field');
   const workingPanel = page.locator(`[data-node-id="${fixtures.at(-1).nodeId}"]`);
   await page.getByRole('button', { name: `Ver ${fixtures.at(-1).title} en el mapa`, exact: true }).click();
-  await page.waitForTimeout(1000);
+  await settled();
   await page.waitForFunction(id => document.querySelector(`[data-node-id="${id}"] .activity-trace`)?.dataset.visible === 'true', fixtures.at(-1).nodeId);
   for (const reason of ['concentration', 'document', 'offscreen', 'panel']) {
     await workingPanel.evaluate((el, reason) => {
@@ -207,10 +227,16 @@ try {
       if (reason === 'offscreen') el.style.transform = 'translateX(-100000px)';
       if (reason === 'panel') el.style.display = 'none';
     }, reason);
-    await page.waitForFunction(id => getComputedStyle(document.querySelector(`[data-node-id="${id}"] .activity-trace__head`)).animationPlayState === 'paused', fixtures.at(-1).nodeId);
+    await page.waitForFunction(({ id, reason }) => {
+      const head = document.querySelector(`[data-node-id="${id}"] .activity-trace__head`);
+      const animations = head.getAnimations();
+      return getComputedStyle(head).animationPlayState === 'paused'
+        && animations.length === (reason === 'panel' ? 0 : 1)
+        && animations.every(animation => !animation.pending && animation.playState === 'paused');
+    }, { id: fixtures.at(-1).nodeId, reason });
     const offsets = await workingPanel.locator('.activity-trace__head').evaluate(async el => {
       const before = getComputedStyle(el).strokeDashoffset;
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       return [before, getComputedStyle(el).strokeDashoffset];
     });
     assert.equal(offsets[0], offsets[1], `${reason}: paused phase is stable`);
@@ -219,7 +245,12 @@ try {
       delete document.hidden; document.dispatchEvent(new Event('visibilitychange'));
       el.style.removeProperty('transform'); el.style.removeProperty('display');
     });
-    await page.waitForFunction(id => getComputedStyle(document.querySelector(`[data-node-id="${id}"] .activity-trace__head`)).animationPlayState === 'running', fixtures.at(-1).nodeId);
+    await page.waitForFunction(id => {
+      const head = document.querySelector(`[data-node-id="${id}"] .activity-trace__head`);
+      const animations = head.getAnimations();
+      return getComputedStyle(head).animationPlayState === 'running' && animations.length === 1
+        && animations.every(animation => !animation.pending && animation.playState === 'running');
+    }, fixtures.at(-1).nodeId);
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const fixture of fixtures.filter(f => f.token)) {
@@ -229,6 +260,7 @@ try {
   }
   await capture('05-reduced-motion');
   await page.getByRole('button', { name: 'Ajustar todos los paneles', exact: true }).click();
+  await settled();
   const success = fixtures[0], successPanel = page.locator(`[data-node-id="${success.nodeId}"]`);
   await successPanel.locator('.node-glyph').click();
   await successPanel.hover();
@@ -268,7 +300,7 @@ try {
       const css = await assertEdge(successPanel, { title: `${status}: ${String(exitCode)}`, pulse, token });
       assert.equal(css.animation, 'none');
     } else {
-      await page.waitForTimeout(220);
+      await settled();
       const css = await style(successPanel);
       assert.equal(css.ring.image, css.neutral, 'Unknown exit retains the neutral ring');
       assert.equal(css.rects.length, 0, 'Unknown exit leaves no stale trace');
