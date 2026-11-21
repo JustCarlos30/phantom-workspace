@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import './appearance-preferences.test.mjs';
 import { ACCENTS, accentColor, defaults, normalizeAppearance } from '../src/hooks/useAppearance.js';
 
-// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E3).
+// The design system as constraints (DESIGN.md and docs/design-v2.md, E1–E4).
 // Shared opaque material, one masked ring and an exact per-file edge budget.
 // A failure names the file and the value; fix the CSS, or if the
 // rule itself should change, change it here and in DESIGN.md together.
@@ -31,7 +31,7 @@ const split = (value, separator) => {
 };
 
 test('radii come from the three shapes', () => {
-  const allowed = /^(var\(--r-(mark|ctl|row|obj|isle|pill)\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
+  const allowed = /^(var\(--r-(mark|ctl|row|group|obj|isle|pill)\)|0|50%|inherit|\d*\.?\d+em|calc\(var\(--r-(mark|ctl|obj|isle)\) (- 1px|\* var\(--ov(, 1)?\))\))$/;
   const bad = [];
   for (const { name, css } of sheets)
     for (const value of declarations(css, 'border(?:-[a-z]+)*-radius'))
@@ -49,10 +49,14 @@ test('shadows use chrome or matte workplane elevations, or a state ring', () => 
   for (const { name, css } of sheets)
     for (const value of declarations(css, 'box-shadow')) {
       if (/^(none|inherit|initial|unset)$/.test(value)) continue;
+      if (name === 'src/settings.css' && value === 'inset 0 1px 0 #ffffff14') continue;
       for (const layer of split(value, ','))
         if (!/^var\(--shadow-(chrome|rest|float|workplane-rest|workplane-lift|key|well|rim)\)$/.test(layer) && !ring.test(layer)) bad.push(`${name}: box-shadow ${value}`);
     }
   assert.deepEqual(bad, [], 'Use shared object elevation tokens. Zero-offset, zero-blur rings are allowed for state only.');
+  const settings = sheets.find(sheet => sheet.name === 'src/settings.css').css;
+  const contacts = [...settings.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, , body]) => declarations(body, 'box-shadow').includes('inset 0 1px 0 #ffffff14'));
+  assert.deepEqual(contacts.map(([, selector]) => selector.trim()), ['.st-slider'], 'Only the approved slider has inner contact');
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   assert.equal(rootDeclarations(canvas, '--shadow-chrome')[0], '0 1px 2px #000, 0 16px 32px -16px #000');
   for (const name of ['rest', 'float', 'workplane-rest', 'workplane-lift'])
@@ -434,19 +438,25 @@ test('stable badge palette is defined, rail uses state and active switches stay 
   for (const { name, css } of sheets) for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     for (const value of declarations(body, 'background(?:-color|-image)?')) {
       if (!/var\(--badge-/.test(value)) continue;
-      assert.equal(name, 'src/sidebar.css');
-      assert.match(selectors.trim(), /(?:\.rail-agent-mark|\.project-initials)$/);
-      assert.doesNotMatch(value, /--badge-(?:steel|mint|honey|coral|violet|petrol)/, 'Type mode is not enabled');
+      if (name === 'src/settings.css') {
+        assert.match(selectors.trim(), /^\.st-ico(?:\[data-tone="(?:steel|violet)"\])?$/);
+        assert.match(value, /^var\(--badge-(?:neutral|steel|violet)\)$/);
+      } else {
+        assert.equal(name, 'src/sidebar.css');
+        assert.match(selectors.trim(), /(?:\.rail-agent-mark|\.project-initials)$/);
+        assert.doesNotMatch(value, /--badge-(?:steel|mint|honey|coral|violet|petrol)/, 'Type mode is not enabled');
+      }
     }
   }
   const source = readFileSync(path.join(root, 'src/components/Settings.jsx'), 'utf8');
   const categories = source.match(/const CATEGORIES = \[([\s\S]*?)\n\];/)[1];
-  assert.equal([...categories.matchAll(/\['[^']+', '[^']+', \w+\]/g)].length, 8);
+  assert.equal([...categories.matchAll(/\['[^']+', '[^']+', \w+, '(?:neutral|steel|violet)'\]/g)].length, 8);
+  for (const [id, tone] of [['git', 'steel'], ['data', 'steel'], ['voice', 'violet']]) assert.match(categories, new RegExp(`\\['${id}', '[^']+', \\w+, '${tone}'\\]`));
   assert.doesNotMatch(categories, /'working'|'success'|'attention'|'danger'|'accent'/);
-  assert.doesNotMatch(source, /className="st-ico"[^>]*data-tone/);
+  assert.match(source, /className="st-ico" data-tone=\{tone\}/);
   const css = sheets.find(sheet => sheet.name === 'src/settings.css').css;
-  assert.doesNotMatch(css, /\.st-ico\[data-tone/);
-  assert.match(css, /\.st-ico\s*\{[^}]*background: var\(--fill-3\);[^}]*color: var\(--ink\)/);
+  assert.match(css, /\.st-ico\s*\{[^}]*width: var\(--badge-size\); height: var\(--badge-size\); border-radius: 50%; background: var\(--badge-neutral\); color: var\(--badge-ink\)/);
+  assert.doesNotMatch(css, /(?:hover|active|aria-current)[^{]*\.st-ico\s*\{/);
   assert.match(css, /\.st-switch\[aria-checked="true"\]\s*\{\s*background: var\(--on\)/);
   assert.match(css, /\.st-switch\[aria-checked="true"\] > i\s*\{[^}]*background: var\(--on-ink\)/);
   assert.match(css, /\.st :is\(button, input, select, textarea, summary\):focus-visible\s*\{\s*outline: 2px solid var\(--accent\)/);
@@ -459,6 +469,45 @@ test('stable badge palette is defined, rail uses state and active switches stay 
   for (const provider of ['claude', 'opencode', 'codex', 'agent']) {
     assert.equal(declarations(terminal, `--hue-${provider}`)[0], 'var(--ink)', `${provider} chrome is decorative, not a state`);
   }
+});
+
+test('E4 settings use flat groups, inset dividers and borderless aligned controls', () => {
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  const css = sheets.find(sheet => sheet.name === 'src/settings.css').css;
+  for (const [name, value] of Object.entries({ 'inspector-width': '320px', 'interior-flat': '#111113', 'r-group': 'calc(var(--r-obj) - var(--box-pad))', 'section-gap': '8px', 'group-gap': '12px', 'row-py': '12px', 'divider-inset': 'calc(var(--row-px) + var(--icon-col) + var(--row-gap))', 'settings-switch-width': '44px', 'settings-switch-height': '26px', 'settings-switch-thumb': '20px', 'settings-slider-height': '32px', 'control-off': '#4e4e50' }))
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value, name);
+  assert.match(css, /\.inspector-host\.settings-sheet\s*\{[^}]*inset: var\(--gutter\) var\(--gutter\) var\(--gutter\) auto;[^}]*width: min\(var\(--inspector-width\)/);
+  assert.match(css, /\.st-list\s*\{[^}]*border: 0; border-radius: var\(--r-group\); background: var\(--interior-flat\); box-shadow: none/);
+  assert.match(css, /\.st-nav li \+ li::before\s*\{ left: var\(--divider-inset\)/);
+  assert.match(css, /:is\(:hover, :active\) \+ \*::before/);
+  assert.match(css, /\.st-row:hover\s*\{ background-color: var\(--row-hover\)/);
+  assert.match(css, /\.st-row:active\s*\{ background-color: var\(--row-press\)/);
+  assert.match(css, /\.st :is\(\.st-input, \.st-select\)\s*\{[^}]*border: 0; background: var\(--control-fill\); box-shadow: none/);
+  assert.match(css, /\.st-switch > i\s*\{[^}]*transition: transform 200ms var\(--ease-settle\)/);
+  assert.match(css, /\.st-switch\[aria-checked="true"\] > i\s*\{ transform: translateX\(18px\)/);
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (selectors.includes('.settings-sheet') || selectors.trim() === '.st-slider' || selectors.trim() === '.st-slider-fill') continue;
+    for (const value of declarations(body, 'background(?:-image)?')) assert.doesNotMatch(value, /gradient\(|--object-(?:fill|ring)/, selectors);
+    for (const value of declarations(body, '(?:scale|translate)')) assert.equal(value, 'none');
+    for (const value of declarations(body, 'border')) assert.match(value, /^(0|none)\b/);
+  }
+  assert.match(css, /@media \(pointer: coarse\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[^}]*transition: none !important/);
+});
+
+test('E4 identity reuses Titi, preserves legacy preference keys and stops decorative rest', () => {
+  const source = file => readFileSync(path.join(root, file), 'utf8');
+  for (const file of ['src/App.jsx', 'src/components/Appearance.jsx', 'src/components/GengarMascot.jsx']) assert.doesNotMatch(source(file), /assets\/gengar|Mostrar Gengar|title="Gengar"/);
+  assert.match(source('src/components/Appearance.jsx'), /label="Mostrar Titi" checked=\{appearance.gengar\}/);
+  assert.match(source('src/components/Appearance.jsx'), /update\(\{ gengarIntensity: Number\(e.target.value\) \}\)/);
+  assert.match(source('src/App.jsx'), /identity=\{appearance.gengar && view.nodes.some\(node => !node.data\?\.hidden\)\}/);
+  assert.doesNotMatch(source('src/App.jsx'), /<PhantomFace|--gengar-art/);
+  assert.doesNotMatch(source('src/components/PhantomChat.jsx'), /PhantomGlyph|PhantomFace/);
+  assert.match(source('src/components/Glyphs.jsx'), /still data-operation-glyph="titi"/);
+  assert.match(source('src/components/TitiGhost.jsx'), /useSpriteMotion\(canvasRef, !still && !\['calm', 'asleep'\].includes\(mood\)\)/);
+  assert.match(source('src/components/TitiGhost.jsx'), /cancelAnimationFrame\(raf\)/);
+  const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
+  for (const [name, value] of Object.entries({ 'identity-size': '28px', 'identity-inset': '4px', 'identity-glyph-size': '16px', 'identity-ink': 'var(--on)' })) assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
 });
 
 test('attention aliases colour only the masked panel ring and compact marks, never surfaces or wells', () => {

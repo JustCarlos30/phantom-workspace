@@ -41,6 +41,7 @@ async function range(selector, value) {
 async function size(w, h) {
   await app.evaluate(({ BrowserWindow }, [width, height]) => {
     const win = BrowserWindow.getAllWindows()[0];
+    win.webContents.setZoomFactor(1);
     win.setMinimumSize(580, 500); win.setContentSize(width, height);
   }, [w, h]);
   await page.waitForFunction(([width, height]) => innerWidth === width && innerHeight === height, [w, h]);
@@ -135,7 +136,7 @@ try {
   await capture('card-focused'); await card.fill('');
   await page.locator('.canvas-node.focused').getByRole('button', { name: 'Volver al mapa', exact: true }).click();
   checks.push({ focused });
-  await page.getByRole('button', { name: 'Abrir chat con Phantom', exact: true }).click();
+  await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
   const side = page.getByLabel('Mensaje para Phantom', { exact: true }); await side.waitFor();
   await exercise(side, mode => mode === 'narrow' ? size(1100, 980) : size(1100, 560), 'phantom');
   const materials = await page.evaluate(() => {
@@ -146,66 +147,75 @@ try {
     assert.match(materials[key].background, /^rgb\(/, `${key}: opaque working surface`);
     assert.equal(materials[key].backdrop, 'none', `${key}: no working-plane glass`);
   }
-  assert.notEqual(materials.rail.backdrop, 'none', 'navigation retains glass');
+  assert.equal(materials.rail.backdrop, 'none', 'navigation uses opaque object material');
   checks.push({ materials });
-  await page.getByRole('complementary', { name: 'Chat con Phantom', exact: true }).getByRole('button', { name: 'Cerrar chat con Phantom', exact: true }).click();
+  await page.getByRole('complementary', { name: 'Phantom', exact: true }).getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();
   await size(1520, 980);
 
   // Migration and actual UI persistence, including a project switch without reload.
-  await page.evaluate(id => localStorage.setItem(`phantom:studio:${id}`, JSON.stringify({ v: 2, background: 'gengar', accent: 'iris', grid: false, intensity: 31, image: '' })), workspace.id);
-  await page.reload(); await page.getByRole('button', { name: 'Personalizar espacio', exact: true }).click();
-  const appearance = page.getByRole('region', { name: 'Apariencia del workspace' });
-  // <section aria-label> is a region; controls are native labelled inputs.
+  const openAppearance = async () => {
+    await page.keyboard.press('Control+k');
+    await page.getByRole('combobox', { name: 'Buscar paneles y herramientas' }).fill('Apariencia');
+    await page.getByRole('combobox', { name: 'Buscar paneles y herramientas' }).press('Enter');
+    await page.locator('.st-appearance').waitFor();
+  };
+  await page.evaluate(id => localStorage.setItem(`phantom:studio:${id}`, JSON.stringify({ v: 2, background: 'gengar', accent: 'iris', grid: false, intensity: 31, gengar: true, image: '' })), workspace.id);
+  await page.reload(); await openAppearance();
+  const appearance = page.locator('.st-appearance');
   await appearance.waitFor();
-  const art = appearance.getByRole('checkbox', { name: /^Mostrar Gengar/ });
-  const pulse = appearance.getByRole('checkbox', { name: /^Pulso ambiental/ });
-  const concentration = appearance.getByRole('checkbox', { name: /^Concentración/ });
-  assert.equal(await pulse.isChecked(), false);
-  assert.equal(await appearance.getByRole('button', { name: 'Acento Iris', exact: true }).getAttribute('aria-pressed'), 'true');
+  const art = appearance.getByRole('switch', { name: 'Mostrar Titi', exact: true });
+  const pulse = appearance.getByRole('switch', { name: 'Pulso ambiental', exact: true });
+  const concentration = appearance.getByRole('switch', { name: 'Concentración', exact: true });
+  assert.equal(await pulse.getAttribute('aria-checked'), 'false');
+  assert.equal(await appearance.getByRole('button', { name: 'Acento Azul', exact: true }).getAttribute('aria-pressed'), 'true');
   assert.equal(await page.locator('#gengar-intensity').inputValue(), '31');
-  await art.uncheck();
-  assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::after').opacity), '0');
-  assert.equal(await page.locator('.brand-mark .gengar-icon').isVisible(), false);
-  assert.equal(await page.locator('.brand-state-fallback').isVisible(), true);
-  await art.check();
-  const brandSprite = await page.locator('.brand-mark .gengar-icon').evaluate(el => ({ tag: el.tagName, src: el.src, width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, rendering: getComputedStyle(el).imageRendering }));
-  assert.equal(brandSprite.tag, 'IMG'); assert.match(brandSprite.src, /gengar-icon/);
-  assert.equal(brandSprite.width, 40); assert.equal(brandSprite.height, 30); assert.equal(brandSprite.rendering, 'pixelated');
-  assert.equal(await page.locator('.brand-state-fallback').isVisible(), false);
+  await art.click();
+  assert.equal(await page.locator('[data-identity]').count(), 0);
+  assert.equal(await page.locator('.notch-state-fallback').isVisible(), true);
+  assert.equal(await page.locator('#gengar-intensity').isDisabled(), true);
+  await art.click();
+  assert.equal(await page.locator('[data-identity]').count(), 1);
+  const mascot = page.locator('[data-identity="dock"]');
+  const sprite = await mascot.evaluate(el => ({ tag: el.tagName, width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, rendering: getComputedStyle(el).imageRendering }));
+  assert.deepEqual(sprite, { tag: 'CANVAS', width: 28, height: 28, rendering: 'pixelated' });
+  assert.equal(await page.locator('img[src*="gengar"]').count(), 0);
+  assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::after').backgroundImage), 'none');
   await range('#background-intensity', 0);
   await range('#gengar-intensity', 70);
-  assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::after').opacity), '0.7', 'art independent of zero ambient intensity');
-  await pulse.check();
+  assert.equal(await mascot.evaluate(el => getComputedStyle(el).opacity), '0.7', 'identity independent of zero ambient intensity');
+  await pulse.click();
   assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::before').animationName), 'none', 'reduced-motion suppresses pulse');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::before').animationDuration), '16s');
-  await concentration.check();
-  const quiet = await page.locator('.canvas-region').evaluate(el => ({ art: Number(getComputedStyle(el, '::after').opacity), pulse: getComputedStyle(el, '::before').animationName }));
+  assert.equal(await page.locator('.canvas-region').evaluate(el => getComputedStyle(el, '::before').animationName), 'none', 'ambient preference retains the still material');
+  await concentration.click();
+  const quiet = await page.locator('.canvas-region').evaluate(el => ({ art: Number(getComputedStyle(el.querySelector('[data-identity]')).opacity), pulse: getComputedStyle(el, '::before').animationName }));
   assert.ok(Math.abs(quiet.art - .084) < .001); assert.equal(quiet.pulse, 'none');
-  for (const sprite of await page.locator('.gengar-icon').all())
-    assert.equal(await sprite.evaluate(el => getComputedStyle(el).animationName), 'none', 'Concentración suspende los sprites de estado');
+  await page.waitForFunction(() => [...document.querySelectorAll('.titi-ghost')].every(el => el.dataset.motion === 'stopped'));
+  const still = await mascot.evaluate(el => el.toDataURL()); await delay(500);
+  assert.equal(await mascot.evaluate(el => el.toDataURL()), still, 'Concentración keeps identity pixels still');
   await capture('concentration');
   const key = `phantom:studio:${workspace.id}`;
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), key);
-  assert.equal(saved.v, 3); assert.equal(saved.accent, 'iris'); assert.equal(saved.grid, false);
+  assert.equal(saved.v, 4); assert.equal(saved.accent, 'blue'); assert.equal(saved.grid, false);
   assert.equal(saved.pulse, true); assert.equal(saved.concentration, true); assert.equal(saved.gengarIntensity, 70);
-  await page.reload(); await page.getByRole('button', { name: 'Personalizar espacio', exact: true }).click();
-  assert.equal(await concentration.isChecked(), true); assert.equal(await art.isChecked(), true);
+  await page.reload(); await openAppearance();
+  assert.equal(await concentration.getAttribute('aria-checked'), 'true'); assert.equal(await art.getAttribute('aria-checked'), 'true');
   const folderB = path.join(temp, 'Proyecto B'); await mkdir(folderB);
   const other = await invoke('workspace.open', { path: folderB }); await page.reload();
-  await page.getByRole('button', { name: 'Personalizar espacio', exact: true }).click();
-  assert.equal(await pulse.isChecked(), false); assert.equal(await concentration.isChecked(), false);
+  await openAppearance();
+  assert.equal(await pulse.getAttribute('aria-checked'), 'false'); assert.equal(await concentration.getAttribute('aria-checked'), 'false');
   await page.locator('.project-switcher > summary').click();
   await page.getByRole('navigation', { name: 'Proyectos recientes', exact: true }).getByRole('button').filter({ has: page.getByText(workspace.name, { exact: true }) }).click();
   await page.waitForFunction(() => document.querySelector('.app-shell.studio-concentration'));
   // Selecting a project closes the contextual inspector; reopen it through its UI route.
   await appearance.waitFor({ state: 'hidden' });
-  await page.getByRole('button', { name: 'Personalizar espacio', exact: true }).click();
+  await openAppearance();
   await appearance.waitFor();
-  assert.equal(await concentration.isChecked(), true);
+  assert.equal(await concentration.getAttribute('aria-checked'), 'true');
   assert.equal(await page.evaluate(id => localStorage.getItem(`phantom:studio:${id}`), other.id), null, 'reading a new project does not copy or write preferences');
-  await appearance.getByRole('button', { name: 'Restablecer apariencia' }).click();
-  assert.equal(await concentration.isChecked(), false); assert.equal(await pulse.isChecked(), false);
+  await appearance.getByRole('button', { name: 'Restablecer', exact: true }).click();
+  assert.equal(await concentration.getAttribute('aria-checked'), 'false'); assert.equal(await pulse.getAttribute('aria-checked'), 'false');
+  assert.equal(await art.getAttribute('aria-checked'), 'false'); assert.equal(await page.locator('[data-identity]').count(), 0);
   assert.equal(await page.locator('#gengar-intensity').inputValue(), '55');
   // A real failed write must keep the UI and persisted preferences intact.
   const beforeFailure = await page.evaluate(key => localStorage.getItem(key), key);
@@ -219,7 +229,7 @@ try {
   try {
     await pulse.click();
     await settle();
-    assert.equal(await pulse.isChecked(), false, 'failed preference write does not apply');
+    assert.equal(await pulse.getAttribute('aria-checked'), 'false', 'failed preference write does not apply');
     assert.equal(await page.evaluate(key => localStorage.getItem(key), key), beforeFailure);
     await page.getByText('No se pudo guardar la apariencia local. Libera espacio y vuelve a intentarlo.', { exact: true }).waitFor();
   } finally {

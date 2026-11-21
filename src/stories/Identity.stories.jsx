@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { CircleDot } from 'lucide-react';
+import { Layers } from 'lucide-react';
 import AgentIdentity, { CardAgents } from '../components/AgentIdentity';
-import GengarMascot from '../components/GengarMascot';
+import TitiMascot from '../components/GengarMascot';
+import ActivityNotch from '../components/ActivityNotch';
 import * as Glyphs from '../components/Glyphs';
 import TitiGhost from '../components/TitiGhost';
 import { SHELL_ICONS } from '../components/ShellIcons';
 import { ProjectMark } from '../components/ProjectSwitcher';
 import { demo } from './decorators';
-import { terminalNode, workspace } from './fixtures';
+import { activity, terminalNode, workspace } from './fixtures';
 
 export default { title: 'Identidad' };
 export const Agente = { render: () => <div className="catalog-page"><AgentIdentity {...demo} node={terminalNode} /><CardAgents cardId="task-demo" workspace={{ ...workspace, nodes: [terminalNode] }} onOpenPanel={demo.onOpenPanel} /></div> };
@@ -25,5 +26,15 @@ function TitiLive() {
   </div>;
 }
 
-export const Titi = { render: () => <div className="catalog-page" data-titi-shell><div className="catalog-grid">{TITI_MOODS.map(mood => <div className="catalog-sample" key={mood}><TitiGhost className="titi-ghost" mood={mood} size={32} data-mood-sample={mood} /><p>{mood}</p></div>)}<TitiLive /><div className="catalog-sample" data-titi-slot="marca"><span className="brand-mark"><Glyphs.PhantomFace mood="calm" /><Glyphs.PhantomGlyph className="brand-state-fallback" size={17} /></span><p>marca</p></div><div className="catalog-sample" data-titi-slot="notch"><button className="activity-notch" type="button" aria-expanded="false"><Glyphs.PhantomFace mood="working" /><CircleDot className="notch-state-fallback" size={14} aria-hidden="true" /></button><p>notch</p></div><div className="catalog-sample" data-titi-slot="chat"><button className="icon-button phantom-chat-toggle" type="button" aria-label="Abrir Phantom"><Glyphs.PhantomGlyph mood="calm" size={17} /></button><p>chat</p></div></div></div> };
-export const Mascota ={ render: () => <div className="catalog-background" data-gengar="true"><GengarMascot /><p>Asset local original · Gengar</p></div> };
+function TitiScene() {
+  const [empty, setEmpty] = useState(false), [shown, setShown] = useState(true);
+  return <div className="catalog-sample" data-titi-scene>
+    <button type="button" onClick={() => setEmpty(value => !value)}>Cambiar escena</button>
+    <button type="button" onClick={() => setShown(value => !value)}>Mostrar u ocultar Titi</button>
+    {empty && (shown ? <TitiMascot /> : <Layers aria-hidden="true" />)}
+    <ActivityNotch activity={activity} identity={shown && !empty} onToggle={() => {}} />
+    <button className="icon-button" type="button" aria-label="Operación Phantom"><Glyphs.PhantomGlyph size={16} /></button>
+  </div>;
+}
+export const Titi = { render: () => <div className="catalog-page" data-titi-shell><div className="catalog-grid">{TITI_MOODS.map(mood => <div className="catalog-sample" key={mood}><TitiGhost className="titi-ghost" mood={mood} size={32} data-mood-sample={mood} /><p>{mood}</p></div>)}<TitiLive /><TitiScene /></div></div> };
+export const Mascota ={ render: () => <div className="catalog-background"><TitiMascot /><p>Titi · rig compartido de Phantom</p></div> };

@@ -22,7 +22,7 @@ import { pulseState } from '../hooks/terminalBorderState.mjs';
 import { useSessionAlerts } from '../hooks/useSessionAlerts';
 import { useChat } from '../hooks/useChat';
 import { PhantomGlyph } from './Glyphs';
-import GengarMascot from './GengarMascot.jsx';
+import TitiMascot from './GengarMascot.jsx';
 import ReferencePanelContent, { CommentLayer } from './References';
 import { INLINE_LIMIT, readTransfer, toBase64, visibleComments } from '../hooks/references.mjs';
 import { fitCapture } from '../hooks/pageCapture';
@@ -120,7 +120,7 @@ const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, an
   </article>;
 });
 
-export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null }) {
+export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null, showCharacter = false }) {
   const navFit = useFitDensity(NAV_FIT);
   const root = useRef(null);
   const stage = useRef(null);
@@ -644,7 +644,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       const id = panel.dataset.nodeId, node = live.current.nodes.find(n => n.id === id), target = frameCamera(id)?.zoom;
       if (node && needsFraming({ clipped: clipped(panel), zoom: cameraRef.current.zoom, target, type: node.type })) frameNode(id);
     }}>
-    {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={<><GengarMascot /><Layers className="gengar-mascot-fallback" /></>} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
+    {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={showCharacter ? <TitiMascot /> : Layers} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
     <div ref={world} className="canvas-world">
       <ReviewContext.Provider value={reviewContext}><PresenceGroup>{nodes.map(node => {
         const isFocused = focused === node.id;

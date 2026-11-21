@@ -9,10 +9,10 @@ import { useSpriteMotion } from './GengarMascot.jsx';
 const MOODS = { calm: 'esperando', working: 'pensando', grin: 'necesita', unsure: 'fallo', asleep: 'idle' };
 const STEP = 1 / 60;
 
-export default function TitiGhost({ mood = 'calm', size = 30, className = '', ...props }) {
+export default function TitiGhost({ mood = 'calm', size = 30, still = false, className = '', ...props }) {
   const canvasRef = useRef(null);
   const simRef = useRef(null);
-  const moving = useSpriteMotion(canvasRef);
+  const moving = useSpriteMotion(canvasRef, !still && !['calm', 'asleep'].includes(mood));
   const state = MOODS[mood] || MOODS.calm;
 
   useEffect(() => {
@@ -20,6 +20,7 @@ export default function TitiGhost({ mood = 'calm', size = 30, className = '', ..
     const ctx = canvas.getContext('2d');
     if (!ctx) return undefined;
     const dpr = window.devicePixelRatio || 1;
+    const body = getComputedStyle(canvas).getPropertyValue('--identity-ink').trim() || '#ece6d8';
     canvas.width = Math.round(44 * dpr);
     canvas.height = Math.round(44 * dpr);
     const random = rng(1000);
@@ -35,7 +36,7 @@ export default function TitiGhost({ mood = 'calm', size = 30, className = '', ..
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, 44, 44);
-      drawGhost(ctx, 4 + 6, 2 + 6, 4, rig.small || rig.G, LOD[4], P);
+      drawGhost(ctx, 4 + 6, 2 + 6, 4, rig.small || rig.G, { ...LOD[4], body }, P);
     };
     let raf = 0;
     if (moving) {

@@ -5,7 +5,7 @@ import Settings from './Settings.jsx';
 import '../tools.css';
 import { PLUGIN_TITLES } from './PluginPanels';
 
-// Configuración and its categories open as one wide sheet; every other tab is a tool with a title.
+// Configuración shares the inspector; embedded panels adapt by container width.
 const SETTINGS = { settings: undefined, appearance: 'appearance', plugins: 'connections' };
 export function Inspector({ tab, workspace, state, api, refresh, onClose, onOpenPanel, notify, appearance }) {
   if (tab in SETTINGS) return <aside className="tw-inspector is-settings" aria-label="Configuración"><Settings key={tab} category={SETTINGS[tab]} workspace={workspace} state={state} api={api} refresh={refresh} onClose={onClose} onOpenPanel={onOpenPanel} notify={notify} appearance={appearance} /></aside>;

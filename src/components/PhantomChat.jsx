@@ -8,7 +8,7 @@ import { VoiceActivity } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
 import { formatCost, formatElapsed } from '../hooks/chatState';
 import { ContextMeter, Message, ModelPicker, PermissionRow, PermissionSwitch, QueuedMessages, ReasoningPicker, useElapsed, useEnabledProviders, withEdited } from './ChatCard';
-import { PhantomGlyph, ProviderGlyph } from './Glyphs';
+import { ProviderGlyph } from './Glyphs';
 import PhantomOrchestrator from './PhantomOrchestrator';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude', hint: 'Claude Code en la carpeta del proyecto' }, { id: 'opencode', label: 'OpenCode', hint: 'OpenCode en la carpeta del proyecto' }, { id: 'codex', label: 'Codex', hint: 'Codex en la carpeta del proyecto' }];
@@ -140,7 +140,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   return <aside className="phantom-chat pc" onFocusCapture={() => onFocusOwnership?.(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) onFocusOwnership?.(false); }} data-provider={active} data-agent={running ? 'working' : 'idle'} aria-label="Phantom"
     onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
     <header className="phantom-chat-head">
-      <span className="phantom-chat-mark" aria-hidden="true"><PhantomGlyph size={20} /></span>
+      <span className="phantom-chat-mark" aria-hidden="true"><MessageSquare size={20} /></span>
       <h2 className="phantom-chat-title">Phantom</h2>
       {running && tab === 'chat'
         ? <span className={`phantom-chat-live ${waiting ? 'is-waiting' : ''}`} role="status">{waiting ? 'Te necesita' : 'Respondiendo'} · {formatElapsed(elapsed)}</span>
@@ -157,7 +157,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
     <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{!connected ? 'Sin conexión con el host' : 'Cargando la conversación…'}</p>}
-        {!messages.length && connected && chat && <EmptyState className="phantom-chat-empty" icon={PhantomGlyph} title="Pregúntale a Phantom" description={<>Da instrucciones, pregunta por el proyecto o dicta con el micrófono. Phantom trabaja en <span className="pc-mono" title={workspace.canonicalPath}>{workspace.name}</span> con {label}.</>} actions={<div className="phantom-chat-suggestions">{SUGGESTIONS.map(({ icon: Icon, text }) => <button key={text} type="button" disabled={running || sending} onClick={() => submit(text)}><Icon size={16} aria-hidden="true" /><span>{text}</span></button>)}</div>} />}
+        {!messages.length && connected && chat && <EmptyState className="phantom-chat-empty" icon={MessageSquare} title="Pregúntale a Phantom" description={<>Da instrucciones, pregunta por el proyecto o dicta con el micrófono. Phantom trabaja en <span className="pc-mono" title={workspace.canonicalPath}>{workspace.name}</span> con {label}.</>} actions={<div className="phantom-chat-suggestions">{SUGGESTIONS.map(({ icon: Icon, text }) => <button key={text} type="button" disabled={running || sending} onClick={() => submit(text)}><Icon size={16} aria-hidden="true" /><span>{text}</span></button>)}</div>} />}
         {messages.map(message => <Message key={message.id} message={message} label="Phantom" provider={active} model={meta.model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
       </div>
     </div>

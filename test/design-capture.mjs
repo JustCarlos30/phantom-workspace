@@ -151,6 +151,11 @@ const shot = async scene => {
       }
     }
     if (document.querySelector('.pixel-field')) throw new Error('Exterior panel waves are mounted');
+    const identities = [...document.querySelectorAll('[data-identity]')];
+    if (identities.length > 1) throw new Error('Repeated scene identity');
+    if (document.querySelector('img[src*="gengar"], .brand .titi-ghost, .phantom-chat-mark .titi-ghost, .phantom-chat-empty .titi-ghost')) throw new Error('Retired or duplicate identity');
+    if (getComputedStyle(document.querySelector('.canvas-region'), '::after').backgroundImage !== 'none') throw new Error('Repeated background identity');
+    for (const glyph of document.querySelectorAll('[data-operation-glyph="titi"]')) if (glyph.dataset.motion !== 'stopped') throw new Error('Operational glyph has a decorative loop');
   });
   const rail = await page.locator('.project-rail').evaluate(el => {
     const { left, right, top, bottom } = el.getBoundingClientRect();
@@ -204,6 +209,15 @@ try {
   await invoke('workspace.open', { path: project });
   await page.reload();
   await page.locator('.canvas:not(.welcome-canvas)').waitFor();
+  if (standardized) {
+    await page.getByRole('button', { name: 'Configuración', exact: true }).click();
+    await page.getByRole('button', { name: 'Apariencia', exact: true }).click();
+    await page.getByRole('switch', { name: 'Mostrar Titi', exact: true }).click();
+    await page.getByRole('button', { name: 'Cerrar configuración', exact: true }).click();
+    assert.equal(await page.locator('[data-identity="hero"]').count(), 1);
+    assert.equal(await page.locator('[data-identity]').count(), 1);
+    await page.waitForFunction(() => document.querySelector('[data-identity]')?.dataset.motion === 'stopped');
+  }
   await shot('empty');
 
   const create = page.getByRole('toolbar', { name: 'Crear panel' });
@@ -221,6 +235,10 @@ try {
   await shot('map-selected');
   await page.mouse.click(1440, 300);
   await shot('map-rest');
+  if (standardized) {
+    assert.equal(await page.locator('[data-identity]').count(), 1);
+    assert.equal(await page.locator('.activity-dock [data-identity="dock"]').count(), 1);
+  }
   const state = await invoke('state.get'), workspaceId = state.activeWorkspaceId;
   const originalNodes = state.workspaces.find(workspace => workspace.id === workspaceId).nodes;
   const stateNodes = [], chats = {};
@@ -631,31 +649,100 @@ try {
   await page.locator('.canvas-node').first().waitFor();
   await page.getByRole('button', { name: 'Configuración', exact: true }).click();
   await page.getByRole('navigation', { name: 'Categorías de configuración' }).waitFor();
-  if (standardized) await page.locator('.st-ico').evaluateAll(icons => {
-    if (icons.length !== 8) throw new Error('Expected all eight settings categories');
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 1;
-    const context = canvas.getContext('2d');
-    for (const icon of icons) {
-      const style = getComputedStyle(icon);
-      for (const value of [style.backgroundColor, style.color]) {
-        context.clearRect(0, 0, 1, 1);
-        context.fillStyle = value;
-        context.fillRect(0, 0, 1, 1);
-        const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
-        if (Math.max(...rgb) - Math.min(...rgb) > 8) throw new Error(`Non-neutral category: ${value}`);
+  if (standardized) {
+    await page.locator('.st-ico').evaluateAll(icons => {
+      if (icons.length !== 8) throw new Error('Expected all eight settings categories');
+      const tones = ['neutral', 'steel', 'neutral', 'violet', 'neutral', 'neutral', 'steel', 'neutral'];
+      for (const [index, icon] of icons.entries()) {
+        const style = getComputedStyle(icon), glyph = getComputedStyle(icon.querySelector('svg'));
+        const probe = document.createElement('i'); icon.append(probe); probe.style.background = `var(--badge-${tones[index]})`;
+        const expected = getComputedStyle(probe).backgroundColor; probe.remove();
+        if (icon.dataset.tone !== tones[index] || style.backgroundColor !== expected || style.color !== 'rgb(255, 255, 255)' || style.backgroundImage !== 'none') throw new Error('Unstable category palette');
+        const dimension = (value, expected) => Math.abs(parseFloat(value) - expected) <= 1 / 64;
+        if (!dimension(style.width, 32) || !dimension(style.height, 32) || style.borderRadius !== '50%' || !dimension(glyph.width, 18) || glyph.strokeWidth !== '1.75px') throw new Error('Invalid settings badge geometry');
       }
-    }
-  });
+    });
+    const category = page.getByRole('button', { name: 'Apariencia', exact: true });
+    await category.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => document.querySelector('.settings-sheet').getAnimations().every(animation => animation.playState !== 'running' && !animation.pending));
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const rest = await category.evaluate(el => ({ rect: el.getBoundingClientRect().toJSON(), badge: getComputedStyle(el.querySelector('.st-ico')).backgroundColor }));
+    await category.hover(); await delay(150);
+    await page.mouse.down();
+    try {
+      const pressed = await category.evaluate(el => ({ rect: el.getBoundingClientRect().toJSON(), badge: getComputedStyle(el.querySelector('.st-ico')).backgroundColor, radius: getComputedStyle(el).borderRadius, scale: getComputedStyle(el).scale,
+        dividers: [getComputedStyle(el.parentElement, '::before').opacity, getComputedStyle(el.parentElement.nextElementSibling, '::before').opacity] }));
+      assert.deepEqual(pressed.rect, rest.rect); assert.equal(pressed.badge, rest.badge);
+      assert.equal(pressed.radius, '12px'); assert.equal(pressed.scale, 'none'); assert.deepEqual(pressed.dividers, ['0', '0']);
+      observations.push({ scene: 'settings-row-press', ...pressed });
+    } finally { await page.mouse.move(0, 0); await page.mouse.up(); }
+  }
   await shot('settings-categories');
   await page.getByRole('button', { name: 'Apariencia', exact: true }).click();
+  if (standardized) {
+    await delay(350);
+    const settings = await page.locator('.settings-sheet').evaluate(el => {
+      const s = getComputedStyle(el), r = el.getBoundingClientRect(), parent = el.offsetParent.getBoundingClientRect();
+      const pane = el.querySelector('.st-pane');
+      const groups = [...el.querySelectorAll('.st-list')].filter(group => group.checkVisibility()).map(group => {
+        const style = getComputedStyle(group); return { fill: style.backgroundColor, image: style.backgroundImage, border: style.borderTopWidth, radius: style.borderRadius, shadow: style.boxShadow };
+      });
+      const controls = [...el.querySelectorAll('button, input, select')].filter(control => control.checkVisibility()).map(control => ({ border: getComputedStyle(control).borderLeftWidth, right: control.getBoundingClientRect().right }));
+      const rows = [...el.querySelectorAll('.st-row:has(.st-switch)')].map(row => {
+        const box = row.getBoundingClientRect(), control = row.querySelector('.st-row-control').getBoundingClientRect();
+        return { height: box.height, rightInset: box.right - control.right };
+      });
+      return { width: s.width, right: parent.right - r.right, top: r.top - parent.top, groups, controls, rows, pane: { width: pane.clientWidth, scrollWidth: pane.scrollWidth, height: pane.clientHeight, scrollHeight: pane.scrollHeight } };
+    });
+    assert.ok(Math.abs(parseFloat(settings.width) - 320) <= 1 / 64); assert.ok(Math.abs(settings.right - 12) <= 1); assert.ok(Math.abs(settings.top - 12) <= 1);
+    assert.ok(settings.groups.length >= 5);
+    for (const group of settings.groups) assert.deepEqual(group, { fill: 'rgb(17, 17, 19)', image: 'none', border: '0px', radius: '12px', shadow: 'none' });
+    for (const control of settings.controls) assert.equal(control.border, '0px');
+    for (const row of settings.rows) { assert.ok(row.height >= 60 - 1 / 64); assert.ok(Math.abs(row.rightInset - 16) <= 1 / 64, 'Settings controls share the right edge'); }
+    assert.ok(settings.pane.scrollWidth <= settings.pane.width); assert.ok(settings.pane.scrollHeight > settings.pane.height);
+    const slider = page.locator('#background-intensity');
+    const previous = Number(await slider.inputValue());
+    await slider.focus(); await page.keyboard.press('ArrowLeft');
+    assert.equal(Number(await slider.inputValue()), previous - 1);
+    await page.keyboard.press('ArrowRight'); assert.equal(Number(await slider.inputValue()), previous);
+    const pill = await page.locator('.st-slider').first().evaluate(el => ({ height: getComputedStyle(el).height, border: getComputedStyle(el).borderTopWidth, shadow: getComputedStyle(el).boxShadow }));
+    assert.ok(Math.abs(parseFloat(pill.height) - 32) <= 1 / 64); assert.equal(pill.border, '0px'); assert.equal(pill.shadow, 'rgba(255, 255, 255, 0.08) 0px 1px 0px 0px inset');
+    observations.push({ scene: 'settings-inspector', ...settings, pill });
+    await page.locator('.st-pane').evaluate(el => { el.scrollTop = 0; });
+    await shot('settings-appearance');
+  }
   const gridSwitch = page.getByRole('switch', { name: 'Retícula de puntos', exact: true });
   await gridSwitch.scrollIntoViewIfNeeded();
   if (standardized) await gridSwitch.evaluate(el => {
     if (el.getAttribute('aria-checked') !== 'true') throw new Error('Expected enabled grid in isolated profile');
     if (getComputedStyle(el).backgroundColor !== 'rgb(236, 230, 216)' || getComputedStyle(el.querySelector('i')).backgroundColor !== 'rgb(20, 20, 20)') throw new Error('Active switch must be ivory/dark');
+    const style = getComputedStyle(el), thumb = getComputedStyle(el.querySelector('i'));
+    const dimension = (value, expected) => Math.abs(parseFloat(value) - expected) <= 1 / 64;
+    if (!dimension(style.width, 44) || !dimension(style.height, 26) || !dimension(thumb.width, 20) || thumb.transform !== 'matrix(1, 0, 0, 1, 18, 0)' || style.borderTopWidth !== '0px') throw new Error('Switch geometry differs from Appearance');
   });
   await shot('settings-switches');
+  if (standardized) {
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1100, 760)); await delay(400);
+    assert.equal(await page.locator('.st-pane').evaluate(el => el.scrollWidth <= el.clientWidth), true, 'Compact inspector contains controls');
+    await gridSwitch.scrollIntoViewIfNeeded(); await shot('settings-switches-compact');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1520, 980)); await delay(400);
+    await page.getByRole('switch', { name: 'Mostrar Titi', exact: true }).click();
+    assert.equal(await page.locator('[data-identity]').count(), 0);
+    assert.equal(await page.locator('#gengar-intensity').isDisabled(), true);
+    await page.getByRole('switch', { name: 'Mostrar Titi', exact: true }).click();
+    assert.equal(await page.locator('[data-identity]').count(), 1);
+    await page.locator('.st-back').click();
+    for (const name of ['Agentes', 'Git e integración', 'Voz', 'Teléfono', 'Conexiones', 'Datos y respaldo', 'Avanzado']) {
+      await page.getByRole('button', { name, exact: true }).click();
+      assert.equal(await page.locator('#st-pane-title').innerText(), name);
+      const containment = await page.locator('.st-pane').evaluate(el => ({
+        width: el.clientWidth, scrollWidth: el.scrollWidth,
+        overflowing: [...el.querySelectorAll('.st-list, .st-row, .st-row-control, .st-input, .st-select, .st-command')].filter(child => child.checkVisibility() && child.getBoundingClientRect().right > el.getBoundingClientRect().right).map(child => ({ className: child.className, width: child.clientWidth, scrollWidth: child.scrollWidth })),
+      }));
+      assert.ok(containment.scrollWidth <= containment.width, `${name}: contained settings ${JSON.stringify(containment)}`);
+      await page.locator('.st-back').click();
+    }
+  }
   await page.getByRole('button', { name: 'Cerrar configuración', exact: true }).click();
    await page.locator('.space-switcher-trigger').click();
    await page.locator('.context-menu-panel').waitFor({ state: 'visible' });
