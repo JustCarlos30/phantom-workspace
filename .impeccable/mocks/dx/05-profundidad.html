@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=1520">
 <title>Phantom · Profundidad y estados (Hoy / Propuesta)</title>
 <style>
-@property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
-
 :root {
   --sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
@@ -27,21 +25,22 @@
   --dot: color-mix(in srgb, #f2f0eb 16%, transparent);
   --shadow: 0 1px 2px #00000080, 0 14px 30px -16px #000000d9;
   --panel-fill: #0d0d0d;
-  --group-r: 14px; --panel-r: 14px;
+  --group-r: 14px; --panel-r: 14px; --ring-w: 1px;
 }
 
-/* ---------- PROPUESTA: escalera tonal + vidrio falso ---------- */
+/* ---------- PROPUESTA v2: objetos oscuros con aro sobre luz ambiental ---------- */
 [data-variant="propuesta"] {
-  --bg: #070708; --panel: #131315; --card: #1b1b1e; --raised: #232327; --active: #2c2c31;
-  --term: #0e0e10; --menu: #1b1b1e;
+  --bg: #030304; --panel: #131316; --card: #1c1c1f; --raised: #1c1c1f; --active: #232327;
+  --term: #0a0a0b; --menu: #1c1c1f;
   --edge: color-mix(in srgb, #fff 9%, transparent);
-  --edge-top: color-mix(in srgb, #fff 14%, transparent);
-  --edge-bot: color-mix(in srgb, #fff 2%, transparent);
-  --rim: inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent);
-  --dot: color-mix(in srgb, #f2f0eb 11%, transparent);
-  --shadow: 0 2px 4px #000000a0, 0 24px 48px -20px #000;
-  --panel-fill: color-mix(in srgb, #131315 92%, transparent);
-  --group-r: 22px; --panel-r: 20px;
+  --edge-top: color-mix(in srgb, #fff 26%, transparent);
+  --edge-bot: color-mix(in srgb, #fff 7%, transparent);
+  --rim: 0 0 0 transparent;
+  --dot: color-mix(in srgb, #f2f0eb 6%, transparent);
+  --shadow: 0 2px 4px #00000099, 0 28px 56px -24px #000;
+  --panel-fill: color-mix(in srgb, #131316 90%, transparent);
+  --group-r: 20px; --panel-r: 24px; --ring-w: 1.75px;
+  --track: #3a3a3c; --off: #636267; --divider: #3b3b3d; --ivory-dim: #cfcac0;
 }
 
 * { box-sizing: border-box; }
@@ -75,8 +74,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
   background-size: 24px 24px;
 }
+/* Luz ambiental estática: dos campos fríos apagados y uno cálido tenue, retícula encima */
+[data-variant="propuesta"] .scene {
+  background-image:
+    radial-gradient(var(--dot) 1px, transparent 1.2px),
+    radial-gradient(ellipse 620px 480px at 34% 22%, #1d3b3e8c, transparent 70%),
+    radial-gradient(ellipse 560px 520px at 62% 74%, #1c263a80, transparent 70%),
+    radial-gradient(ellipse 520px 420px at 82% 18%, #33281c59, transparent 70%);
+  background-size: 24px 24px, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+}
 .grain { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; opacity: 0; mix-blend-mode: overlay; }
-[data-variant="propuesta"] .grain { opacity: .045; }
+[data-variant="propuesta"] .grain { opacity: .03; }
 
 /* Superficie base reutilizada (rail, paneles, ajustes) */
 .glass {
@@ -85,8 +94,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   box-shadow: var(--rim), var(--shadow);
   position: absolute;
 }
-.glass::before { /* borde en degradado vertical */
-  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+.glass::before, [data-variant="propuesta"] .dock::before { /* aro en degradado vertical */
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: var(--ring-w); pointer-events: none;
   background: linear-gradient(var(--edge-top), var(--edge-bot));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
@@ -98,14 +107,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .proj img { width: 32px; height: 32px; }
 .proj b { display: block; font: 600 14px/20px var(--sans); }
 .proj span { font-size: 12px; color: var(--muted); }
+[data-variant="propuesta"] .proj img { display: none; }
+[data-variant="propuesta"] .proj { padding: 4px 12px; }
 .need {
   border-radius: 16px; padding: 12px; background: var(--card); display: flex; align-items: center; gap: 12px;
 }
-[data-variant="propuesta"] .need { background: color-mix(in srgb, var(--attention) 10%, var(--card)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 28%, transparent); }
+[data-variant="propuesta"] .need { background: transparent; border-radius: 12px; padding: 8px 12px; }
+[data-variant="propuesta"] .need b { font: 500 14px/20px var(--sans); }
 .need .num { font: 700 24px/28px var(--mono); color: var(--attention); }
+[data-variant="propuesta"] .need .num { font: 700 20px/24px var(--mono); letter-spacing: .04em; }
 [data-variant="hoy"] .need .num { font: 600 14px/20px var(--sans); color: var(--ink); }
 .need small { display: block; color: var(--muted); font-size: 12px; }
 .rail h2 { margin: 4px 4px 0; font: 500 12px/16px var(--sans); color: var(--ink-3); }
+[data-variant="propuesta"] .rail h2 { margin: 4px 12px 0; }
 .sessions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .sessions li { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 12px; color: var(--muted); }
 .sessions li.sel { background: var(--active); color: var(--ink); }
@@ -115,91 +129,101 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* Marca de estado: punto en Hoy, cuadrado pixelado en Propuesta */
 .mark { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
-[data-variant="propuesta"] .mark { border-radius: 1px; width: 8px; height: 8px; box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 0%, transparent); }
 .mark.working { background: var(--working); }
 .mark.attention { background: var(--attention); }
 .mark.done { background: var(--ink); }
 .mark.error { background: var(--danger); }
-[data-variant="propuesta"] .mark.done { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); }
-[data-variant="propuesta"] .mark.error { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); background: linear-gradient(45deg, transparent 37%, var(--danger) 37% 63%, transparent 63%), linear-gradient(-45deg, var(--danger) 37%, transparent 37% 63%, var(--danger) 63%); }
+[data-variant="propuesta"] .mark { border-radius: 1px; width: 6px; height: 6px; }
+[data-variant="propuesta"] .mark:not([class*=" "]) { background: #4a4a4f; }
 
 /* ---------- Paneles del canvas ---------- */
 .pane { width: 380px; height: 300px; display: flex; flex-direction: column; overflow: visible; z-index: 5; }
+#p1 { left: 366px; top: 70px; } #p2 { left: 750px; top: 70px; }
+#p3 { left: 366px; top: 394px; } #p4 { left: 750px; top: 394px; }
+#p5 { left: 366px; top: 718px; width: 572px; height: 168px; }
+[data-variant="propuesta"] .pane { width: 392px; height: 280px; }
+[data-variant="propuesta"] #p1 { left: 300px; top: 72px; } [data-variant="propuesta"] #p2 { left: 716px; top: 72px; }
+[data-variant="propuesta"] #p3 { left: 300px; top: 376px; } [data-variant="propuesta"] #p4 { left: 716px; top: 376px; }
+[data-variant="propuesta"] #p5 { left: 300px; top: 680px; width: 592px; height: 160px; }
 .pane > .bar { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; flex: none; }
+[data-variant="propuesta"] .pane > .bar { height: 48px; padding: 0 20px; gap: 10px; }
 .pane .name { font: 600 14px/20px var(--sans); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-variant="propuesta"] .pane .name { flex: 0 1 auto; font-weight: 500; }
 .pane .meta { font: 500 11px/16px var(--mono); color: var(--ink-3); }
+[data-variant="propuesta"] .pane .meta, [data-variant="propuesta"] .tag { margin-left: auto; }
 .pane .body {
   flex: 1; margin: 0 6px 6px; padding: 12px; border-radius: calc(var(--panel-r) - 6px);
   background: var(--term); font: 400 12px/18px var(--mono); color: #e1dfda; overflow: hidden; white-space: pre-wrap;
 }
+[data-variant="propuesta"] .pane .body { margin: 0 8px 8px; padding: 12px 16px; border-radius: calc(var(--panel-r) - 8px); }
 [data-variant="hoy"] .pane .body { margin: 0; border-radius: 0 0 var(--panel-r) var(--panel-r); }
 .body .p { color: var(--working); } .body .d { color: var(--ink-3); }
 .body .add { color: var(--success); } .body .del { color: var(--danger); } .body .q { color: var(--attention); }
 
+/* Etiqueta: oculta en Hoy; en Propuesta solo texto pequeño, sin píldora */
 .tag { display: none; height: 24px; padding: 0 8px; border-radius: 8px; font: 600 12px/24px var(--sans); align-items: center; gap: 6px; }
-[data-variant="propuesta"] [data-state="attention"] .tag { display: inline-flex; background: var(--attention); color: #1a1406; }
-[data-variant="propuesta"] [data-state="done"] .tag { display: inline-flex; background: var(--raised); color: var(--ink); box-shadow: inset 0 0 0 1px #ffffff1f; }
-[data-variant="propuesta"] [data-state="error"] .tag { display: inline-flex; color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
-[data-variant="propuesta"] [data-state="working"] .tag { display: inline-flex; color: var(--working); background: color-mix(in srgb, var(--working) 10%, transparent); }
+[data-variant="propuesta"] .tag { padding: 0; height: auto; font: 500 12px/16px var(--sans); }
+[data-variant="propuesta"] [data-state="working"] .tag { display: inline-flex; color: var(--muted); }
+[data-variant="propuesta"] [data-state="attention"] .tag { display: inline-flex; color: var(--attention); font-weight: 600; }
+[data-variant="propuesta"] [data-state="error"] .tag { display: inline-flex; color: var(--danger); }
+[data-variant="propuesta"] [data-state="working"] .bar .mark,
+[data-variant="propuesta"] [data-state="idle"] .bar .mark { display: none; }
 
 /* Estado en Hoy: solo trazo de 2 px para trabajando; nada para te necesita */
 [data-variant="hoy"] [data-state="working"]::before { background: var(--working); padding: 2px; }
 [data-variant="hoy"] .pane.sel { outline: 1px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 1px var(--ink), var(--shadow); }
 
-/* Estado en Propuesta */
-.ring { position: absolute; inset: -1px; border-radius: calc(var(--panel-r) + 1px); pointer-events: none; }
-[data-variant="hoy"] .ring { display: none; }
-[data-variant="propuesta"] [data-state="working"]::before { background: color-mix(in srgb, var(--working) 30%, transparent); animation: breathe 2.8s ease-in-out infinite; }
-[data-variant="propuesta"] [data-state="working"] .ring {
-  padding: 2px;
-  background: conic-gradient(from var(--sweep), transparent 0 72%, color-mix(in srgb, var(--working) 40%, transparent) 84%, var(--working) 92%, transparent 93%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  animation: sweep 3.2s linear infinite;
+/* Estado en Propuesta: solo «te necesita» colorea su aro; la selección solo lo aviva */
+[data-variant="propuesta"] .pane.sel {
+  --edge-top: color-mix(in srgb, #fff 40%, transparent);
+  --edge-bot: color-mix(in srgb, #fff 12%, transparent);
 }
-[data-variant="propuesta"] [data-state="attention"]::before { background: var(--attention); padding: 1.5px; }
-[data-variant="propuesta"] [data-state="attention"] { box-shadow: var(--rim), var(--shadow), 0 0 24px -4px color-mix(in srgb, var(--attention) 45%, transparent); animation: alert 1.2s var(--ease-out) 2; }
-[data-variant="propuesta"] [data-state="error"]::before { background: var(--danger); padding: 1.5px; }
-[data-variant="propuesta"] .pane.sel .ring { outline: 1px solid color-mix(in srgb, var(--ink) 55%, transparent); outline-offset: 3px; }
-
-@keyframes sweep { to { --sweep: 360deg; } }
-@keyframes breathe { 50% { opacity: .35; } }
-@keyframes alert {
-  0% { box-shadow: var(--rim), var(--shadow), 0 0 0 0 color-mix(in srgb, var(--attention) 70%, transparent); }
-  50% { box-shadow: var(--rim), var(--shadow), 0 0 0 10px transparent; }
-  100% { box-shadow: var(--rim), var(--shadow), 0 0 24px -4px color-mix(in srgb, var(--attention) 45%, transparent); }
+[data-variant="propuesta"] [data-state="attention"]::before {
+  padding: 1.5px; background: color-mix(in srgb, var(--attention) 70%, transparent);
 }
 
-/* Halo de retícula alrededor del panel que trabaja */
-.halo { position: absolute; width: 640px; height: 560px; pointer-events: none; z-index: 1; opacity: 0;
-  background-image: radial-gradient(color-mix(in srgb, var(--working) 55%, transparent) 1px, transparent 1.3px);
-  background-size: 24px 24px;
-  -webkit-mask: radial-gradient(closest-side, #000 30%, transparent);
-  mask: radial-gradient(closest-side, #000 30%, transparent);
+/* Trabajando: pixeles lima que marchan por el perímetro, cabeza brillante y cola que se apaga */
+.trail { display: none; position: absolute; inset: 0; pointer-events: none; }
+[data-variant="propuesta"] .trail { display: block; }
+.trail i {
+  position: absolute; left: 0; top: 0; width: 4px; height: 4px; background: var(--working);
+  offset-path: inset(1px round 23px); offset-rotate: 0deg;
+  offset-distance: calc(14% - var(--k) * .556%);
+  opacity: calc(1 - var(--k) * .13);
+  animation: march 7.2s steps(180) infinite;
+  animation-delay: calc((var(--k) - 8) * .04s);
 }
-[data-variant="propuesta"] .halo { opacity: .5; animation: breathe 2.8s ease-in-out infinite; }
+.trail i:first-child { background: #e6ff8a; box-shadow: 0 0 6px color-mix(in srgb, var(--working) 60%, transparent); }
+@keyframes march { from { offset-distance: 0%; } to { offset-distance: 100%; } }
 
 /* Indicador de borde: sesión fuera de vista que te necesita */
 .edge-cue { position: absolute; right: 388px; top: 24px; display: none; align-items: center; gap: 8px; z-index: 12;
   height: 32px; padding: 0 8px 0 12px; border-radius: var(--r-pill); background: var(--attention); color: #1a1406; font: 600 12px/16px var(--sans); }
-[data-variant="propuesta"] .edge-cue { display: inline-flex; }
+[data-variant="propuesta"] .edge-cue {
+  display: inline-flex; right: 412px; padding: 0 10px 0 14px; gap: 10px;
+  background: color-mix(in srgb, #131316 92%, transparent); color: var(--ink); font-weight: 500;
+  box-shadow: inset 0 0 0 1px #ffffff1f, var(--shadow);
+}
+.edge-cue svg { color: var(--ink-3); }
 
 /* Minimapa */
 .mini { right: 388px; bottom: 88px; width: 168px; height: 108px; padding: 8px; z-index: 12; position: absolute; }
+[data-variant="propuesta"] .mini { right: auto; bottom: auto; left: 940px; top: 680px; border-radius: 18px; }
 .mini i { position: absolute; border-radius: 2px; background: var(--raised); }
-[data-variant="propuesta"] .mini i[data-s="working"] { background: var(--working); }
+[data-variant="propuesta"] .mini i { background: #2a2a2e; }
 [data-variant="propuesta"] .mini i[data-s="attention"] { background: var(--attention); }
-[data-variant="propuesta"] .mini i[data-s="error"] { background: var(--danger); }
-[data-variant="propuesta"] .mini i[data-s="done"] { background: var(--ink-3); }
 .mini .vp { position: absolute; left: 14px; top: 18px; width: 98px; height: 62px; border: 1px solid #ffffff40; border-radius: 4px; }
+[data-variant="propuesta"] .mini .vp { border-color: #ffffff2e; }
 
 /* ---------- Dock ---------- */
 .dock { position: absolute; left: 50%; bottom: 16px; transform: translateX(calc(-50% - 54px)); height: 56px; padding: 8px; display: flex; gap: 8px; align-items: center; z-index: 20;
   border-radius: var(--r-pill); background: var(--panel); box-shadow: inset 0 0 0 1px var(--edge), var(--shadow); }
-[data-variant="propuesta"] .dock { background: color-mix(in srgb, #1b1b1e 72%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.2); backdrop-filter: blur(20px) saturate(1.2); box-shadow: var(--rim), inset 0 0 0 1px var(--edge), var(--shadow); }
+[data-variant="propuesta"] .dock { background: var(--panel-fill); box-shadow: var(--shadow); }
 .dock img { width: 28px; height: 28px; margin: 0 4px 0 6px; }
 .dbtn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
 .dbtn:hover { background: var(--raised); color: var(--ink); }
+[data-variant="propuesta"] .dbtn { color: var(--ink); background: #ffffff0f; }
+[data-variant="propuesta"] .dbtn:hover { background: #ffffff1a; }
 .dprim { height: 40px; padding: 0 16px 0 12px; border-radius: var(--r-pill); background: var(--ink); color: var(--on-ink); font-weight: 600; display: inline-flex; gap: 8px; align-items: center; }
 .dsep { width: 1px; height: 24px; background: var(--edge); }
 [data-variant="propuesta"] .dsep { background: transparent; width: 4px; }
@@ -209,48 +233,55 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 
 /* ---------- Configuración ---------- */
 .settings { right: 12px; top: 12px; bottom: 12px; width: 360px; padding: 20px 16px; z-index: 15; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
-[data-variant="propuesta"] .settings { background: color-mix(in srgb, var(--panel) 96%, transparent); }
+[data-variant="propuesta"] .settings { padding: 24px 16px; gap: 8px; }
 .settings header { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+[data-variant="propuesta"] .settings header { padding: 4px 4px 12px 8px; }
 .settings h3 { margin: 0; flex: 1; font: 600 17px/22px var(--sans); }
-[data-variant="propuesta"] .settings h3 { font: 700 24px/30px var(--sans); }
+[data-variant="propuesta"] .settings h3 { font: 600 28px/36px var(--sans); letter-spacing: -.01em; }
 .close { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
-[data-variant="propuesta"] .close { background: var(--card); box-shadow: inset 0 0 0 1px #ffffff12; }
+[data-variant="propuesta"] .close { background: var(--card); color: var(--ink); }
 .cap { margin: 0 4px; font: 500 12px/16px var(--sans); color: var(--ink-3); }
+[data-variant="propuesta"] .cap { margin: 16px 8px 4px; }
 .group { border-radius: var(--group-r); background: var(--card); overflow: hidden; }
 [data-variant="hoy"] .group { background: transparent; box-shadow: inset 0 0 0 1px var(--edge); }
 .row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; }
 [data-variant="hoy"] .row + .row { border-top: 1px solid var(--edge); }
-[data-variant="propuesta"] .group { display: flex; flex-direction: column; gap: 2px; background: transparent; }
-[data-variant="propuesta"] .group .row { background: var(--card); border-radius: 6px; }
-[data-variant="propuesta"] .group .row:first-child { border-top-left-radius: var(--group-r); border-top-right-radius: var(--group-r); }
-[data-variant="propuesta"] .group .row:last-child { border-bottom-left-radius: var(--group-r); border-bottom-right-radius: var(--group-r); }
-[data-variant="propuesta"] .group .row:hover { background: var(--raised); }
+[data-variant="propuesta"] .row { position: relative; min-height: 64px; padding: 12px 16px; }
+[data-variant="propuesta"] .row + .row::before,
+[data-variant="propuesta"] .srow + .srow::before {
+  content: ""; position: absolute; top: 0; left: 60px; right: 16px; height: 1px; background: var(--divider);
+}
+[data-variant="propuesta"] .srow + .srow::before { left: 16px; }
+[data-variant="propuesta"] .thin + .row::before { display: none; }
+[data-variant="propuesta"] .group .row:hover { background: #222225; }
 .row .tx { flex: 1; min-width: 0; }
 .row .tx b { display: block; font: 500 14px/20px var(--sans); }
 .row .tx small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
 .badge { width: 20px; height: 20px; display: grid; place-items: center; color: var(--muted); flex: none; }
 .badge svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-[data-variant="propuesta"] .badge {
-  width: 30px; height: 30px; border-radius: 10px; color: #141414;
-  background: linear-gradient(color-mix(in srgb, var(--b) 100%, #fff 12%), color-mix(in srgb, var(--b) 88%, #000));
-  box-shadow: inset 0 1px 0 #ffffff59, inset 0 0 0 1px #00000026;
-}
+[data-variant="propuesta"] .badge { width: 32px; height: 32px; border-radius: 50%; background: var(--b); color: #fff; }
 .toggle { width: 44px; height: 26px; border-radius: 13px; background: var(--active); position: relative; flex: none; }
 .toggle::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--muted); }
 .toggle[aria-checked="true"] { background: var(--ink); }
 .toggle[aria-checked="true"]::after { left: 21px; background: var(--on-ink); }
+[data-variant="propuesta"] .toggle { background: var(--off); }
+[data-variant="propuesta"] .toggle::after { background: var(--ink); }
+[data-variant="propuesta"] .toggle[aria-checked="true"] { background: var(--ink); }
+[data-variant="propuesta"] .toggle[aria-checked="true"]::after { background: var(--on-ink); }
 .slider { flex: 1; height: 6px; border-radius: 3px; background: var(--active); position: relative; }
 .slider span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--ink); }
 .big { display: none; }
 [data-variant="propuesta"] .big { display: block; }
 [data-variant="propuesta"] .thin { display: none; }
-.pill-slider { position: relative; height: 56px; border-radius: var(--r-pill); background: var(--card); overflow: hidden; box-shadow: inset 0 0 0 1px #ffffff0d; }
-.pill-slider .fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(var(--active), #26262b); box-shadow: inset 0 1px 0 #ffffff14; }
-.pill-slider .in { position: relative; display: flex; align-items: center; gap: 12px; height: 100%; padding: 0 20px; }
-.pill-slider .in b { flex: 1; font: 500 14px/20px var(--sans); }
-.pill-slider .val { font: 600 14px/20px var(--mono); color: var(--muted); }
-.pill-slider .knob { position: absolute; top: 12px; width: 4px; height: 32px; border-radius: 2px; background: var(--ink); }
-.big-stack { display: flex; flex-direction: column; gap: 8px; }
+
+/* Deslizador One UI: etiqueta y valor arriba, píldora gruesa debajo, nada encima de la pista */
+.srow { position: relative; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.shead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.shead b { font: 500 14px/20px var(--sans); }
+.shead .val { font: 500 13px/20px var(--mono); color: var(--muted); }
+.pill { position: relative; height: 30px; border-radius: var(--r-pill); background: var(--track); overflow: hidden; }
+.pill .fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--ivory-dim); }
+.pill svg.ic { position: absolute; left: 9px; top: 6px; width: 18px; height: 18px; color: #1a1a1a; stroke-width: 2; }
 
 /* ---------- Leyenda ---------- */
 .legend { width: 1520px; margin: 0 auto; padding: 20px 24px 40px; color: var(--muted); font-size: 13px; line-height: 20px; }
@@ -259,8 +290,6 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  [data-variant="propuesta"] [data-state="working"] .ring { background: none; box-shadow: inset 0 0 0 2px var(--working); }
-  [data-variant="propuesta"] [data-state="working"]::before { opacity: 1; }
   button:active, .row:active { transform: none; }
 }
 </style>
@@ -302,12 +331,10 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
     </ul>
   </nav>
 
-  <div class="halo" style="left:236px;top:-60px"></div>
-
   <!-- Paneles -->
-  <section class="pane glass sel" data-state="working" style="left:366px;top:70px" aria-label="Sesión trabajando">
-    <span class="ring"></span>
-    <div class="bar"><span class="mark working"></span><span class="name">Ordenar repositorios recientes</span><span class="tag">Trabajando</span></div>
+  <section id="p1" class="pane glass sel" data-state="working" aria-label="Sesión trabajando">
+    <span class="trail" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i><i style="--k:3"></i><i style="--k:4"></i><i style="--k:5"></i><i style="--k:6"></i></span>
+    <div class="bar"><span class="mark working"></span><span class="name">Ordenar repositorios recientes</span><span class="tag">trabajando</span></div>
 <div class="body"><span class="d">claude · opus · src/hooks/useRepos.mjs</span>
 <span class="p">›</span> Ordeno por frecuencia y acceso reciente.
 <span class="d">  Edit  src/hooks/useRepos.mjs</span>
@@ -318,8 +345,7 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 <span class="d">  ▸ 14 pruebas · ejecutando…</span></div>
   </section>
 
-  <section class="pane glass" data-state="attention" style="left:750px;top:70px" aria-label="Sesión que te necesita">
-    <span class="ring"></span>
+  <section id="p2" class="pane glass" data-state="attention" aria-label="Sesión que te necesita">
     <div class="bar"><span class="mark attention"></span><span class="name">Migración de tokens</span><span class="tag">Te necesita</span></div>
 <div class="body"><span class="d">claude · opus · DESIGN.md</span>
 <span class="p">›</span> --surface pasa de #0d0d0d a #131315.
@@ -331,8 +357,7 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 <span class="q">›</span> _</div>
   </section>
 
-  <section class="pane glass" data-state="done" style="left:366px;top:394px" aria-label="Sesión terminada">
-    <span class="ring"></span>
+  <section id="p3" class="pane glass" data-state="done" aria-label="Sesión terminada">
     <div class="bar"><span class="mark done"></span><span class="name">Dictado por voz: puntuación</span><span class="tag">Terminó</span></div>
 <div class="body"><span class="d">claude · opus · scripts/voice_text.py</span>
 <span class="p">›</span> Comas y signos de apertura en español.
@@ -343,8 +368,7 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 <span class="d">  3 archivos · +48 −11 · listo para revisar</span></div>
   </section>
 
-  <section class="pane glass" data-state="error" style="left:750px;top:394px" aria-label="Sesión con error">
-    <span class="ring"></span>
+  <section id="p4" class="pane glass" data-state="error" aria-label="Sesión con error">
     <div class="bar"><span class="mark error"></span><span class="name">Smoke de escritorio</span><span class="tag">Error</span></div>
 <div class="body"><span class="d">claude · opus · test/desktop-smoke.mjs</span>
 <span class="p">›</span> npm run test:desktop
@@ -355,8 +379,7 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 <span class="d">  Proceso terminó con código 1</span></div>
   </section>
 
-  <section class="pane glass" data-state="idle" style="left:366px;top:718px;height:168px;width:572px" aria-label="Sesión en reposo">
-    <span class="ring"></span>
+  <section id="p5" class="pane glass" data-state="idle" aria-label="Sesión en reposo">
     <div class="bar"><span class="mark"></span><span class="name">Revisar CONTRACT.md</span><span class="meta">en reposo · 32 min</span></div>
 <div class="body"><span class="d">~/phantom-workspace (main)</span>
 <span class="p">$</span> git log --oneline -3
@@ -366,7 +389,7 @@ f51c1b1 Ordenar repositorios por frecuencia y acceso reciente
   </section>
 
   <div class="edge-cue" role="status">
-    <span class="mark attention" style="background:#1a1406"></span>Fuera de vista: «Notas de lanzamiento» te necesita
+    <span class="mark attention"></span>Fuera de vista: «Notas de lanzamiento» te necesita
     <svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M9 6l6 6-6 6"/></svg>
   </div>
 
@@ -398,29 +421,35 @@ f51c1b1 Ordenar repositorios por frecuencia y acceso reciente
       <button class="close" type="button" aria-label="Cerrar"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </header>
 
-    <div class="big big-stack">
-      <div class="pill-slider" role="slider" tabindex="0" aria-label="Intensidad del ambiente" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100">
-        <span class="fill" style="width:62%"></span><span class="knob" style="left:calc(62% - 14px)"></span>
-        <span class="in"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg><b>Intensidad del ambiente</b><span class="val">62</span></span>
+    <div class="big group">
+      <div class="srow">
+        <div class="shead"><b>Intensidad del ambiente</b><span class="val">62 %</span></div>
+        <div class="pill" role="slider" tabindex="0" aria-label="Intensidad del ambiente" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" aria-valuetext="62 %">
+          <span class="fill" style="width:62%"></span>
+          <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>
+        </div>
       </div>
-      <div class="pill-slider" role="slider" tabindex="0" aria-label="Escala de interfaz" aria-valuenow="100" aria-valuemin="80" aria-valuemax="130">
-        <span class="fill" style="width:40%"></span><span class="knob" style="left:calc(40% - 14px)"></span>
-        <span class="in"><svg class="ic" viewBox="0 0 24 24"><path d="M4 18L10 6l6 12M6.5 13h7M17 10h4M19 8v4"/></svg><b>Escala de interfaz</b><span class="val">100 %</span></span>
+      <div class="srow">
+        <div class="shead"><b>Escala de interfaz</b><span class="val">100 %</span></div>
+        <div class="pill" role="slider" tabindex="0" aria-label="Escala de interfaz" aria-valuenow="100" aria-valuemin="80" aria-valuemax="130" aria-valuetext="100 %">
+          <span class="fill" style="width:40%"></span>
+          <svg class="ic" viewBox="0 0 24 24"><path d="M5 18L10 6l5 12M7 14h6M17 11h4M19 9v4"/></svg>
+        </div>
       </div>
     </div>
 
     <p class="cap">Lienzo y estados</p>
     <div class="group">
       <div class="row thin"><span class="badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg></span><div class="tx"><b>Intensidad del ambiente</b></div><div class="slider" style="max-width:96px"><span style="width:62%"></span></div></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#b9c97a"><svg viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/></svg></span><div class="tx"><b>Animar sesiones activas</b><small>Solo se mueve lo que trabaja</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Animar sesiones activas"></button></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#d9b56a"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8M10 20h4"/></svg></span><div class="tx"><b>Avisar cuando te necesiten</b><small>Borde ámbar y aviso en el rail</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Avisar cuando te necesiten"></button></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#a9a49a"><svg viewBox="0 0 24 24"><path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM4 16h4v4H4z"/></svg></span><div class="tx"><b>Retícula del lienzo</b><small>Puntos cada 24 px</small></div><button class="toggle" role="switch" aria-checked="false" aria-label="Retícula del lienzo"></button></div>
+      <div class="row" tabindex="0"><span class="badge" style="--b:#4f9a6e"><svg viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/></svg></span><div class="tx"><b>Animar sesiones activas</b><small>Solo se mueve lo que trabaja</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Animar sesiones activas"></button></div>
+      <div class="row" tabindex="0"><span class="badge" style="--b:#c4803f"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8M10 20h4"/></svg></span><div class="tx"><b>Avisar cuando te necesiten</b><small>Aro ámbar fino y fila en el rail</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Avisar cuando te necesiten"></button></div>
+      <div class="row" tabindex="0"><span class="badge" style="--b:#6e6e75"><svg viewBox="0 0 24 24"><path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM4 16h4v4H4z"/></svg></span><div class="tx"><b>Retícula del lienzo</b><small>Puntos cada 24 px</small></div><button class="toggle" role="switch" aria-checked="false" aria-label="Retícula del lienzo"></button></div>
     </div>
 
     <p class="cap">Sonido</p>
     <div class="group">
-      <div class="row" tabindex="0"><span class="badge" style="--b:#8fb39c"><svg viewBox="0 0 24 24"><path d="M5 10v4h3l4 4V6L8 10zM16 9a4 4 0 010 6"/></svg></span><div class="tx"><b>Sonido al terminar</b><small>Tono corto, volumen 30 %</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Sonido al terminar"></button></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#d08f86"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16v.5M10.3 4l-8 14a2 2 0 001.7 3h16a2 2 0 001.7-3l-8-14a2 2 0 00-3.4 0z"/></svg></span><div class="tx"><b>Sonido en error</b></div><button class="toggle" role="switch" aria-checked="false" aria-label="Sonido en error"></button></div>
+      <div class="row" tabindex="0"><span class="badge" style="--b:#4f74c2"><svg viewBox="0 0 24 24"><path d="M5 10v4h3l4 4V6L8 10zM16 9a4 4 0 010 6"/></svg></span><div class="tx"><b>Sonido al terminar</b><small>Tono corto, volumen 30 %</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Sonido al terminar"></button></div>
+      <div class="row" tabindex="0"><span class="badge" style="--b:#bf6684"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16v.5M10.3 4l-8 14a2 2 0 001.7 3h16a2 2 0 001.7-3l-8-14a2 2 0 00-3.4 0z"/></svg></span><div class="tx"><b>Sonido en error</b></div><button class="toggle" role="switch" aria-checked="false" aria-label="Sonido en error"></button></div>
     </div>
   </aside>
 </main>
@@ -428,12 +457,12 @@ f51c1b1 Ordenar repositorios por frecuencia y acceso reciente
 <footer class="legend">
   <b>Qué cambia y por qué</b>
   <ol>
-    <li><b>Escalera tonal</b> #070708 → #131315 → #1b1b1e → #232327 → #2c2c31: cada anidación sube un paso visible; hoy 1-3 % de luminancia no separa planos.</li>
-    <li><b>Vidrio falso con textura</b>: relleno denso, filo superior de 1 px, borde en degradado y una sola capa de grano compartida; blur solo en el dock.</li>
-    <li><b>Estado en el borde</b>: trabajando recorre el perímetro en lima, te necesita fija ámbar con etiqueta, terminó marca marfil, error rojo fijo; la selección baja a una línea.</li>
-    <li><b>Lienzo con vida solo donde hay estado</b>: halo de retícula, aviso de borde para sesiones fuera de vista y minimapa coloreado.</li>
-    <li><b>Jerarquía One UI</b>: grupos redondeados sin divisores, deslizadores grandes en píldora, círculos de 40 px e insignias de color apagado.</li>
-    <li><b>Motivo pixelado</b> en marcas cuadradas, numerales tabulares y Gengar; con movimiento reducido todo queda estático y el estado sigue legible.</li>
+    <li><b>Objetos sobre luz</b>: lienzo #030304 con tres campos de luz ambiental fijos y apagados; cada objeto es más oscuro que la luz que lo rodea.</li>
+    <li><b>El aro</b>: borde de 1.75 px en degradado (blanco 26 % arriba → 7 % abajo) que sigue el contorno; es el «gradiente pegado al objeto». Seleccionar solo lo aviva.</li>
+    <li><b>Tres niveles por panel</b>: objeto #131316, pozo de terminal #0a0a0b y campos #1c1c1f; sin blur en el lienzo.</li>
+    <li><b>Atención de menor a mayor</b>: reposo sin marca · terminó, cuadro marfil · error, cuadro rojo y «Error» · trabajando, pixeles lima que marchan por el borde · te necesita, único aro de color (ámbar al 70 %).</li>
+    <li><b>Ámbar mínimo</b>: fuera del panel solo vive en marcas y numerales; ninguna superficie rellena de ámbar. Un único Gengar, en el dock.</li>
+    <li><b>Apariencia como Ajustes de One UI</b>: tarjetas de grupo, filas de 64 px con divisor sangrado, insignias planas de 32 px y deslizadores en píldora sin texto encima. Con movimiento reducido los pixeles quedan fijos.</li>
   </ol>
 </footer>
 
