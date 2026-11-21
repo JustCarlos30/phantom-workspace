@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1520">
+<title>Phantom · La sesión por dentro</title>
+<style>
+:root {
+  --sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+  --ink: #f2f0eb; --muted: #a8a6a0; --ink-3: #8b8983; --ivory: #ece6d8;
+  --working: #c6f135; --attention: #f5c04a; --danger: #f27670;
+  --on-ink: #141414;
+  --bg: #020203; --panel: #0b0b0c; --term: #050506; --field: #141416; --hover: #1a1a1c;
+  --edge-top: color-mix(in srgb, #fff 22%, transparent);
+  --edge-bot: color-mix(in srgb, #fff 6%, transparent);
+  --hair: #ffffff14; --divider: #262627;
+  --shadow: 0 1px 2px #000, 0 16px 32px -16px #000;
+  --r-ctl: 8px; --r-field: 14px; --r-obj: 20px; --r-pill: 999px;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: #000; color: var(--ink); font: 400 14px/20px var(--sans); min-width: 1520px; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+button, .opt { transition: transform 120ms var(--ease-out), background-color 140ms; }
+button:active { transform: scale(.97); }
+svg.ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ---------- Escena ---------- */
+.scene {
+  position: relative; width: 1520px; height: 980px; margin: 0 auto; overflow: hidden;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(color-mix(in srgb, #f2f0eb 5%, transparent) 1px, transparent 1.2px),
+    radial-gradient(ellipse 640px 500px at 30% 26%, #17262566, transparent 70%),
+    radial-gradient(ellipse 580px 520px at 66% 70%, #1a1c2259, transparent 70%),
+    radial-gradient(ellipse 520px 420px at 88% 18%, #241e1740, transparent 70%);
+  background-size: 24px 24px, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+}
+.top { position: absolute; left: 16px; top: 16px; height: 32px; display: flex; align-items: center; gap: 16px; color: var(--muted); font-size: 12px; }
+.top h1 { margin: 0; font: 600 14px/20px var(--sans); color: var(--ink); }
+
+/* Superficie con aro de 1 px */
+.obj { position: absolute; background: var(--panel); border-radius: var(--r-obj); box-shadow: var(--shadow); }
+.obj::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(var(--edge-top), var(--edge-bot));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+
+/* ---------- Paneles de sesión ---------- */
+.pane { top: 64px; width: 484px; height: 744px; display: flex; flex-direction: column; }
+.pane[data-scene="nueva"] { left: 16px; }
+.pane[data-scene="trabajando"] { left: 518px; }
+.pane[data-scene="dictando"] { left: 1020px; }
+.bar { height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 20px; }
+.bar .name { font: 500 14px/20px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .meta { margin-left: auto; font: 500 12px/16px var(--sans); color: var(--muted); white-space: nowrap; }
+.mark { width: 6px; height: 6px; border-radius: 1px; background: #4a4a4f; flex: none; }
+.mark.working { background: var(--working); }
+.mark.ivory { background: var(--ivory); }
+.mark.attention { background: var(--attention); }
+.well { flex: 1; min-height: 0; margin: 0 8px; border-radius: 12px; background: var(--term); padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.foot { flex: none; padding: 8px; }
+
+/* Trabajando: pixeles lima que marchan sobre el aro */
+.trail { position: absolute; inset: 0; pointer-events: none; }
+.trail i {
+  position: absolute; left: 0; top: 0; width: 3px; height: 3px; background: var(--working);
+  offset-path: inset(0px round 20px); offset-rotate: 0deg;
+  offset-distance: calc(14% - var(--k) * .556%);
+  opacity: calc(1 - var(--k) * .13);
+  animation: march 7.2s steps(180) infinite;
+}
+.trail i:first-child { background: #e6ff8a; }
+@keyframes march { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+
+/* ---------- 1 · Nueva ---------- */
+.cap { margin: 4px 4px 0; font: 500 12px/16px var(--sans); color: var(--ink-3); }
+.choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.opt { height: 72px; border-radius: var(--r-field); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 4px; padding: 0 12px; background: #ffffff08; box-shadow: inset 0 0 0 1px var(--hair); color: var(--muted); text-align: left; }
+.opt b { font: 500 14px/20px var(--sans); color: var(--ink); }
+.opt small { font-size: 12px; line-height: 16px; }
+.opt:hover { background: #ffffff0f; }
+.opt[aria-checked="true"] { background: var(--ivory); box-shadow: none; color: #4a463e; }
+.opt[aria-checked="true"] b { color: var(--on-ink); font-weight: 600; }
+.segm { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; gap: 4px; border-radius: var(--r-pill); background: #ffffff08; box-shadow: inset 0 0 0 1px var(--hair); }
+.segm button { height: 32px; border-radius: var(--r-pill); color: var(--muted); font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.segm button[aria-checked="true"] { background: var(--ivory); color: var(--on-ink); font-weight: 600; }
+.calm { border-radius: var(--r-field); background: var(--field); }
+.crow { position: relative; display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 12px; color: var(--muted); }
+.crow + .crow::before { content: ""; position: absolute; top: 0; left: 40px; right: 12px; height: 1px; background: var(--divider); }
+.crow b { flex: 1; font: 500 14px/20px var(--sans); color: var(--ink); }
+.crow span { font-size: 12px; white-space: nowrap; }
+.crow .ic { color: var(--ink-3); }
+.hint { margin: auto 0 0; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+
+/* Compositor */
+.composer { border-radius: 16px; background: var(--field); padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
+.composer .field { min-height: 40px; font: 400 14px/20px var(--sans); color: var(--ink-3); padding: 0 4px; }
+.ctools { display: flex; align-items: center; gap: 4px; }
+.pl { height: 28px; padding: 0 10px; border-radius: var(--r-pill); box-shadow: inset 0 0 0 1px var(--hair); color: var(--muted); font: 500 12px/28px var(--sans); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pl:hover { color: var(--ink); box-shadow: inset 0 0 0 1px #ffffff2e; }
+.ibtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: #ffffff0d; flex: none; }
+.ibtn:hover { background: #ffffff17; }
+.send { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--ivory); color: var(--on-ink); flex: none; }
+.send[disabled] { background: #ffffff14; color: var(--ink-3); cursor: default; }
+.push { margin-left: auto; }
+
+/* ---------- 2 · Trabajando: hilo ---------- */
+.thread { display: flex; flex-direction: column; gap: 12px; }
+.you { align-self: flex-end; max-width: 84%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: var(--field); }
+.prose { margin: 0; color: #e1dfda; }
+.tools { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tool { display: flex; align-items: center; gap: 8px; height: 24px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.tool .ic { width: 14px; height: 14px; }
+.tool .v { font-weight: 500; }
+.tool .d { font: 400 12px/16px var(--mono); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tool.write { color: var(--ink); }
+.tool.write .d { color: #d6d3cc; }
+.tool .diff { font: 500 11px/16px var(--mono); color: var(--ink-3); margin-left: auto; }
+.tool .sq { width: 14px; height: 14px; display: grid; place-items: center; flex: none; }
+.tool .sq::after { content: ""; width: 6px; height: 6px; border-radius: 1px; background: var(--ivory); }
+.tool.phantom { color: var(--ink); }
+.tool.folded { color: var(--ink-3); }
+.live { display: flex; align-items: center; gap: 8px; height: 24px; font-size: 13px; color: var(--ink); }
+.live .sq { width: 14px; height: 14px; display: grid; place-items: center; }
+.live .sq::after { content: ""; width: 6px; height: 6px; border-radius: 1px; background: var(--working); animation: blink 1s steps(2, jump-none) infinite; }
+.live small { color: var(--ink-3); font: 400 12px/16px var(--mono); }
+.turnmeta { margin-top: auto; font: 500 11px/16px var(--mono); color: var(--ink-3); padding: 0 4px; }
+
+/* ---------- 3 · Dictando ---------- */
+.ctx { color: var(--muted); font-size: 13px; }
+.dict { position: relative; }
+.dict .field { color: var(--ink); min-height: 60px; }
+.dict .partial { color: var(--muted); }
+.meter { height: 32px; padding: 0 12px 0 10px; border-radius: var(--r-pill); background: #ffffff0d; display: inline-flex; align-items: center; gap: 10px; }
+.bars { display: inline-flex; align-items: center; gap: 2px; height: 16px; }
+.bars i { width: 3px; background: var(--working); image-rendering: pixelated; animation: lvl 0.8s steps(4) infinite alternate; }
+.bars i:nth-child(1) { height: 4px; animation-delay: -.1s; }
+.bars i:nth-child(2) { height: 10px; animation-delay: -.5s; }
+.bars i:nth-child(3) { height: 16px; animation-delay: -.3s; }
+.bars i:nth-child(4) { height: 12px; animation-delay: -.7s; }
+.bars i:nth-child(5) { height: 6px; animation-delay: -.2s; }
+.bars i:nth-child(6) { height: 8px; animation-delay: -.6s; }
+@keyframes lvl { from { transform: scaleY(.5); } to { transform: scaleY(1); } }
+.meter time { font: 500 12px/16px var(--mono); color: var(--ink); }
+.kbd { font-size: 12px; line-height: 16px; color: var(--ink-3); padding: 0 4px; }
+.kbd kbd { font: 500 11px/16px var(--mono); color: var(--muted); padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--hair); }
+.moment { border-top: 1px solid var(--divider); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.moment .label { font: 500 12px/16px var(--sans); color: var(--ink-3); }
+.caret { display: inline-block; width: 6px; height: 6px; border-radius: 1px; background: var(--ivory); margin: 0 6px 1px 2px; vertical-align: middle; animation: blink 1s steps(2, jump-none) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ---------- Dock y pie ---------- */
+.dock { right: 16px; bottom: 16px; height: 56px; padding: 8px; display: flex; gap: 8px; align-items: center; border-radius: var(--r-pill); }
+.titi { width: 28px; height: 28px; margin: 0 4px 0 6px; color: var(--ivory); flex: none; }
+.dprim { height: 40px; padding: 0 16px 0 12px; border-radius: var(--r-pill); background: var(--ink); color: var(--on-ink); font-weight: 600; display: inline-flex; gap: 8px; align-items: center; }
+.dbtn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #ffffff0d; color: var(--ink); }
+.dbtn .ic { width: 20px; height: 20px; }
+.legend { position: absolute; left: 16px; top: 824px; width: 960px; margin: 0; padding: 0 0 0 20px; color: var(--muted); font-size: 12px; line-height: 20px; }
+.legend b { color: var(--ink); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  button:active { transform: none; }
+}
+</style>
+</head>
+<body>
+<main class="scene" aria-label="La sesión por dentro">
+  <div class="top"><h1>La sesión por dentro</h1><span>Nueva · trabajando · dictando — mock estático, no toca el producto</span></div>
+
+  <!-- 1 · Conversación nueva -->
+  <section class="pane obj" data-scene="nueva" aria-label="Conversación nueva">
+    <div class="bar"><span class="mark"></span><span class="name">Conversación nueva</span><span class="meta">phantom-workspace</span></div>
+    <div class="well">
+      <p class="cap" id="cap-agent">Quién responde</p>
+      <div class="choices" role="radiogroup" aria-labelledby="cap-agent">
+        <button class="opt" type="button" role="radio" aria-checked="true"><b>Claude</b><small>Claude Code · opus</small></button>
+        <button class="opt" type="button" role="radio" aria-checked="false"><b>OpenCode</b><small>agente abierto</small></button>
+        <button class="opt" type="button" role="radio" aria-checked="false"><b>Codex</b><small>revisión y diff</small></button>
+      </div>
+      <p class="cap" id="cap-ui">Interfaz</p>
+      <div class="segm" role="radiogroup" aria-labelledby="cap-ui">
+        <button type="button" role="radio" aria-checked="true"><svg class="ic" viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4z"/></svg>Chat</button>
+        <button type="button" role="radio" aria-checked="false"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg>Terminal</button>
+      </div>
+      <p class="cap">Contexto</p>
+      <div class="calm">
+        <button class="crow" type="button" style="width:100%"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><b>Carpeta</b><span>~/phantom-workspace</span></button>
+        <button class="crow" type="button" style="width:100%"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg><b>Permisos</b><span>Preguntar antes de escribir</span></button>
+        <button class="crow" type="button" style="width:100%"><svg class="ic" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg><b>Modelo</b><span>claude-opus-5-5</span></button>
+      </div>
+      <p class="hint">Lo elegido es una tecla marfil; lo demás queda en vidrio silencioso.</p>
+    </div>
+    <div class="foot">
+      <div class="composer">
+        <div class="field">¿Qué hacemos en phantom-workspace?</div>
+        <div class="ctools">
+          <button class="pl" type="button">opus</button>
+          <button class="pl" type="button">effort · alto</button>
+          <button class="pl" type="button">preguntar</button>
+          <button class="ibtn push" type="button" aria-label="Dictar"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></button>
+          <button class="send" type="button" aria-label="Enviar" disabled><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · Trabajando -->
+  <section class="pane obj" data-scene="trabajando" data-state="working" aria-label="Sesión trabajando">
+    <span class="trail" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i><i style="--k:3"></i><i style="--k:4"></i><i style="--k:5"></i><i style="--k:6"></i></span>
+    <div class="bar"><span class="name">Repositorios habituales</span><span class="meta">trabajando</span></div>
+    <div class="well">
+      <div class="thread">
+        <div class="you">Ordena los repositorios por frecuencia y acceso reciente, y deja las pruebas en verde.</div>
+        <p class="prose">Primero miro cómo se arma la lista hoy y dónde se guarda el último acceso.</p>
+        <ul class="tools" aria-label="Herramientas usadas">
+          <li class="tool"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/></svg><span class="v">Leyó</span><span class="d">src/hooks/useRepos.mjs</span></li>
+          <li class="tool"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><span class="v">Buscó</span><span class="d">lastOpenedAt en host/</span></li>
+          <li class="tool phantom"><span class="sq" aria-hidden="true"></span><span class="v">Phantom · registrar tarea</span><span class="d">task_7f2c · repos habituales</span></li>
+        </ul>
+        <p class="prose">El orden era alfabético. Peso 0,7 frecuencia y 0,3 recencia, con decaimiento semanal.</p>
+        <ul class="tools">
+          <li class="tool write"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg><span class="v">Editó</span><span class="d">src/hooks/useRepos.mjs</span><span class="diff">+18 −3</span></li>
+          <li class="tool write"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg><span class="v">Creó</span><span class="d">src/hooks/frecency.mjs</span><span class="diff">+42</span></li>
+          <li class="tool folded"><svg class="ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><span class="v">Leyó 3 archivos, buscó 2 veces y editó 1 prueba</span></li>
+          <li class="tool phantom"><span class="sq" aria-hidden="true"></span><span class="v">Phantom · ejecutar checks</span><span class="d">node --test src/hooks</span></li>
+        </ul>
+        <div class="live" role="status"><span class="sq" aria-hidden="true"></span>trabajando · 14 pruebas<small>9 / 14</small></div>
+      </div>
+      <p class="turnmeta">claude-opus-5-5 · 2 min 14 s · 0,38 US$</p>
+    </div>
+    <div class="foot">
+      <div class="composer">
+        <div class="field">Responde o añade contexto…</div>
+        <div class="ctools">
+          <button class="pl" type="button">opus</button>
+          <button class="pl" type="button">effort · alto</button>
+          <button class="pl" type="button">preguntar</button>
+          <button class="ibtn push" type="button" aria-label="Dictar"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></button>
+          <button class="send" type="button" aria-label="Detener"><svg class="ic" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · Dictando -->
+  <section class="pane obj" data-scene="dictando" aria-label="Compositor dictando">
+    <div class="bar"><span class="name">Tu turno: plan de release</span><span class="meta">dictando</span></div>
+    <div class="well">
+      <div class="you">¿Qué entra en la 0.2?</div>
+      <p class="prose ctx">Propongo tres bloques: rail reducido, dictado nuevo y plugin Phantom. ¿Ajusto algo antes de escribir las notas?</p>
+      <div class="moment" aria-label="Instante corrigiendo">
+        <span class="label">Instante · corrigiendo</span>
+        <div class="composer">
+          <div class="field" style="color:var(--ink)">Deja el plugin para la 0.3 y sube el dictado al primer bloque. <span class="partial">Añade una línea sobre el rail</span><span class="caret" aria-hidden="true"></span></div>
+          <div class="ctools"><span class="kbd">confirmando la última frase…</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="composer dict">
+        <div class="field" aria-live="polite">Deja el plugin para la 0.3 y sube el dictado <span class="partial">al primer bloque</span></div>
+        <div class="ctools">
+          <div class="meter" role="status" aria-label="Dictando, 00:07">
+            <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <time datetime="PT7S">00:07</time>
+          </div>
+          <span class="kbd">Esc descarta · Enter envía</span>
+          <button class="ibtn push" type="button" aria-label="Descartar dictado"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <button class="send" type="button" aria-label="Terminar dictado"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <ol class="legend">
+    <li><b>Negro profundo y aro de 1 px</b>: objeto #0b0b0c, pozo #050506, campos #141416; el aro (22 % → 6 %) separa, sin aura ni relleno gris.</li>
+    <li><b>Elegir es pulsar una tecla</b>: proveedor e interfaz elegidos en marfil; el resto, vidrio silencioso. Carpeta, permisos y modelo son filas calmadas.</li>
+    <li><b>Herramientas sin caja</b>: glifo de 14 px, verbo y destino; lecturas en tinta secundaria, escrituras en tinta plena, Phantom solo con su marca cuadrada marfil.</li>
+    <li><b>Una sola fila viva</b>: marca lima y «trabajando · 14 pruebas»; lo repetitivo se pliega en una frase y modelo, tiempo y costo se dicen una vez.</li>
+    <li><b>Dictado silencioso</b>: la transcripción vive en el campo (tinta confirmada, parcial en secundaria); el micrófono se vuelve píldora con medidor lima y tiempo.</li>
+    <li><b>Dos iconos, una pista</b>: descartar y terminar sin texto, con nombre accesible y la pista de teclado; con movimiento reducido todo queda fijo y legible.</li>
+  </ol>
+
+  <div class="dock obj" role="toolbar" aria-label="Dock">
+    <svg class="titi" viewBox="0 0 28 28" role="img" aria-label="Titi"><path d="M5 25V13a9 9 0 0118 0v12l-4.5-3-4.5 3-4.5-3-4.5 3z" fill="currentColor"/><rect x="10" y="11" width="2.5" height="4" rx="1.25" fill="#0b0b0c"/><rect x="15.5" y="11" width="2.5" height="4" rx="1.25" fill="#0b0b0c"/></svg>
+    <button class="dprim" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nueva sesión</button>
+    <button class="dbtn" type="button" aria-label="Terminal"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg></button>
+    <button class="dbtn" type="button" aria-label="Buscar"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg></button>
+    <button class="dbtn" type="button" aria-label="Configuración"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></button>
+  </div>
+</main>
+<script>
+  document.querySelectorAll('[role="radiogroup"]').forEach(g => g.addEventListener('click', e => {
+    const b = e.target.closest('[role="radio"]'); if (!b) return;
+    g.querySelectorAll('[role="radio"]').forEach(x => x.setAttribute('aria-checked', String(x === b)));
+  }));
+</script>
+</body>
+</html>

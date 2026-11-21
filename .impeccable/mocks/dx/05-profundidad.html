@@ -28,19 +28,19 @@
   --group-r: 14px; --panel-r: 14px; --ring-w: 1px;
 }
 
-/* ---------- PROPUESTA v2: objetos oscuros con aro sobre luz ambiental ---------- */
+/* ---------- PROPUESTA v3: negro profundo, aro de 1 px nítido ---------- */
 [data-variant="propuesta"] {
-  --bg: #030304; --panel: #131316; --card: #1c1c1f; --raised: #1c1c1f; --active: #232327;
-  --term: #0a0a0b; --menu: #1c1c1f;
-  --edge: color-mix(in srgb, #fff 9%, transparent);
-  --edge-top: color-mix(in srgb, #fff 26%, transparent);
-  --edge-bot: color-mix(in srgb, #fff 7%, transparent);
+  --bg: #020203; --panel: #0b0b0c; --card: #141416; --raised: #141416; --active: #1a1a1c;
+  --term: #050506; --menu: #141416;
+  --edge: color-mix(in srgb, #fff 8%, transparent);
+  --edge-top: color-mix(in srgb, #fff 22%, transparent);
+  --edge-bot: color-mix(in srgb, #fff 6%, transparent);
   --rim: 0 0 0 transparent;
-  --dot: color-mix(in srgb, #f2f0eb 6%, transparent);
-  --shadow: 0 2px 4px #00000099, 0 28px 56px -24px #000;
-  --panel-fill: color-mix(in srgb, #131316 90%, transparent);
-  --group-r: 20px; --panel-r: 24px; --ring-w: 1.75px;
-  --track: #3a3a3c; --off: #636267; --divider: #3b3b3d; --ivory-dim: #cfcac0;
+  --dot: color-mix(in srgb, #f2f0eb 5%, transparent);
+  --shadow: 0 1px 2px #000, 0 16px 32px -16px #000;
+  --panel-fill: #0b0b0c;
+  --group-r: 18px; --panel-r: 20px; --ring-w: 1px;
+  --track: #2c2c2d; --off: #4e4e50; --divider: #262627; --ivory-dim: #cfcac0;
 }
 
 * { box-sizing: border-box; }
@@ -55,14 +55,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .px { image-rendering: pixelated; }
 
 /* ---------- Cabecera del mock ---------- */
-.mockbar {
-  width: 1520px; margin: 0 auto; height: 56px; display: flex; align-items: center; gap: 16px;
-  padding: 0 24px; color: var(--muted); font-size: 12px;
+body { position: relative; min-width: 1520px; }
+.mockbar { /* flota sobre la escena para que 1520 × 980 quepa sin scroll */
+  position: absolute; z-index: 50; top: 12px; left: calc(50% - 760px + 256px); height: 48px;
+  display: flex; align-items: center; gap: 16px; color: var(--muted); font-size: 12px;
 }
 .mockbar h1 { margin: 0; font: 600 14px/20px var(--sans); color: var(--ink); }
 .seg {
-  margin-left: auto; display: inline-flex; padding: 4px; gap: 4px; border-radius: var(--r-pill);
-  background: #151517; box-shadow: inset 0 0 0 1px #ffffff14;
+  display: inline-flex; padding: 4px; gap: 4px; border-radius: var(--r-pill);
+  background: #0b0b0c; box-shadow: inset 0 0 0 1px #ffffff1a;
 }
 .seg button { height: 32px; padding: 0 16px; border-radius: var(--r-pill); color: var(--muted); font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
@@ -78,9 +79,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 [data-variant="propuesta"] .scene {
   background-image:
     radial-gradient(var(--dot) 1px, transparent 1.2px),
-    radial-gradient(ellipse 620px 480px at 34% 22%, #1d3b3e8c, transparent 70%),
-    radial-gradient(ellipse 560px 520px at 62% 74%, #1c263a80, transparent 70%),
-    radial-gradient(ellipse 520px 420px at 82% 18%, #33281c59, transparent 70%);
+    radial-gradient(ellipse 640px 500px at 36% 24%, #17262566, transparent 70%),
+    radial-gradient(ellipse 580px 520px at 60% 72%, #1a1c2259, transparent 70%),
+    radial-gradient(ellipse 520px 420px at 80% 20%, #241e1740, transparent 70%);
   background-size: 24px 24px, 100% 100%, 100% 100%, 100% 100%;
   background-repeat: repeat, no-repeat, no-repeat, no-repeat;
 }
@@ -126,6 +127,25 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .sessions li:hover { background: var(--raised); }
 .sessions .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessions .age { font: 500 11px/16px var(--mono); color: var(--ink-3); }
+.rail-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px 4px 0 8px; font-size: 12px; color: var(--muted); }
+.rail-foot .host { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.rbtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: #ffffff0f; flex: none; }
+.rbtn:hover { background: #ffffff1a; }
+.rbtn svg.ic { width: 16px; height: 16px; }
+
+/* Rail reducido en Propuesta: 216 px, filas de 36 px */
+[data-variant="propuesta"] .rail { width: 216px; padding: 12px 8px; gap: 8px; }
+[data-variant="propuesta"] .rail .proj { padding: 4px 8px; }
+[data-variant="propuesta"] .rail h2 { margin: 8px 8px 0; }
+[data-variant="propuesta"] .need { padding: 4px 8px; gap: 10px; }
+[data-variant="propuesta"] .need small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+[data-variant="propuesta"] .sessions { gap: 0; }
+[data-variant="propuesta"] .sessions li { height: 36px; padding: 0 8px; gap: 10px; border-radius: 10px; font-size: 13px; }
+[data-variant="propuesta"] .sessions li:hover { background: #ffffff0a; }
+[data-variant="propuesta"] .sessions li.sel { background: var(--card); }
+[data-variant="propuesta"] .sessions li.need-row { color: var(--ink); }
+.sessions .kind { width: 16px; height: 16px; flex: none; color: var(--ink-3); }
+[data-variant="hoy"] .rail-foot, [data-variant="hoy"] .map-group { display: none; }
 
 /* Marca de estado: punto en Hoy, cuadrado pixelado en Propuesta */
 .mark { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
@@ -141,10 +161,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 #p1 { left: 366px; top: 70px; } #p2 { left: 750px; top: 70px; }
 #p3 { left: 366px; top: 394px; } #p4 { left: 750px; top: 394px; }
 #p5 { left: 366px; top: 718px; width: 572px; height: 168px; }
-[data-variant="propuesta"] .pane { width: 392px; height: 280px; }
-[data-variant="propuesta"] #p1 { left: 300px; top: 72px; } [data-variant="propuesta"] #p2 { left: 716px; top: 72px; }
-[data-variant="propuesta"] #p3 { left: 300px; top: 376px; } [data-variant="propuesta"] #p4 { left: 716px; top: 376px; }
-[data-variant="propuesta"] #p5 { left: 300px; top: 680px; width: 592px; height: 160px; }
+[data-variant="propuesta"] .pane { width: 440px; height: 264px; }
+[data-variant="propuesta"] #p1 { left: 256px; top: 72px; } [data-variant="propuesta"] #p2 { left: 716px; top: 72px; }
+[data-variant="propuesta"] #p3 { left: 256px; top: 356px; } [data-variant="propuesta"] #p4 { left: 716px; top: 356px; }
+[data-variant="propuesta"] #p5 { left: 256px; top: 640px; width: 640px; height: 160px; }
 .pane > .bar { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; flex: none; }
 [data-variant="propuesta"] .pane > .bar { height: 48px; padding: 0 20px; gap: 10px; }
 .pane .name { font: 600 14px/20px var(--sans); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -179,7 +199,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   --edge-bot: color-mix(in srgb, #fff 12%, transparent);
 }
 [data-variant="propuesta"] [data-state="attention"]::before {
-  padding: 1.5px; background: color-mix(in srgb, var(--attention) 70%, transparent);
+  padding: 1px; background: color-mix(in srgb, var(--attention) 80%, transparent);
 }
 
 /* Trabajando: pixeles lima que marchan por el perímetro, cabeza brillante y cola que se apaga */
@@ -187,30 +207,30 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 [data-variant="propuesta"] .trail { display: block; }
 .trail i {
   position: absolute; left: 0; top: 0; width: 4px; height: 4px; background: var(--working);
-  offset-path: inset(1px round 23px); offset-rotate: 0deg;
+  offset-path: inset(0px round 20px); offset-rotate: 0deg;
   offset-distance: calc(14% - var(--k) * .556%);
   opacity: calc(1 - var(--k) * .13);
   animation: march 7.2s steps(180) infinite;
   animation-delay: calc((var(--k) - 8) * .04s);
 }
-.trail i:first-child { background: #e6ff8a; box-shadow: 0 0 6px color-mix(in srgb, var(--working) 60%, transparent); }
+.trail i:first-child { background: #e6ff8a; }
 @keyframes march { from { offset-distance: 0%; } to { offset-distance: 100%; } }
 
 /* Indicador de borde: sesión fuera de vista que te necesita */
 .edge-cue { position: absolute; right: 388px; top: 24px; display: none; align-items: center; gap: 8px; z-index: 12;
   height: 32px; padding: 0 8px 0 12px; border-radius: var(--r-pill); background: var(--attention); color: #1a1406; font: 600 12px/16px var(--sans); }
 [data-variant="propuesta"] .edge-cue {
-  display: inline-flex; right: 412px; padding: 0 10px 0 14px; gap: 10px;
-  background: color-mix(in srgb, #131316 92%, transparent); color: var(--ink); font-weight: 500;
-  box-shadow: inset 0 0 0 1px #ffffff1f, var(--shadow);
+  display: inline-flex; right: 364px; padding: 0 10px 0 14px; gap: 10px;
+  background: #0b0b0c; color: var(--ink); font-weight: 500;
+  box-shadow: inset 0 0 0 1px #ffffff26, var(--shadow);
 }
 .edge-cue svg { color: var(--ink-3); }
 
 /* Minimapa */
 .mini { right: 388px; bottom: 88px; width: 168px; height: 108px; padding: 8px; z-index: 12; position: absolute; }
-[data-variant="propuesta"] .mini { right: auto; bottom: auto; left: 940px; top: 680px; border-radius: 18px; }
+[data-variant="propuesta"] .mini { right: auto; bottom: auto; left: 912px; top: 640px; border-radius: 16px; }
 .mini i { position: absolute; border-radius: 2px; background: var(--raised); }
-[data-variant="propuesta"] .mini i { background: #2a2a2e; }
+[data-variant="propuesta"] .mini i { background: #242425; }
 [data-variant="propuesta"] .mini i[data-s="attention"] { background: var(--attention); }
 .mini .vp { position: absolute; left: 14px; top: 18px; width: 98px; height: 62px; border: 1px solid #ffffff40; border-radius: 4px; }
 [data-variant="propuesta"] .mini .vp { border-color: #ffffff2e; }
@@ -219,11 +239,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .dock { position: absolute; left: 50%; bottom: 16px; transform: translateX(calc(-50% - 54px)); height: 56px; padding: 8px; display: flex; gap: 8px; align-items: center; z-index: 20;
   border-radius: var(--r-pill); background: var(--panel); box-shadow: inset 0 0 0 1px var(--edge), var(--shadow); }
 [data-variant="propuesta"] .dock { background: var(--panel-fill); box-shadow: var(--shadow); }
-.dock img { width: 28px; height: 28px; margin: 0 4px 0 6px; }
+[data-variant="propuesta"] .dock { transform: translateX(calc(-50% - 52px)); }
+.titi { width: 28px; height: 28px; margin: 0 4px 0 6px; flex: none; color: #ece6d8; }
 .dbtn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
 .dbtn:hover { background: var(--raised); color: var(--ink); }
-[data-variant="propuesta"] .dbtn { color: var(--ink); background: #ffffff0f; }
-[data-variant="propuesta"] .dbtn:hover { background: #ffffff1a; }
+[data-variant="propuesta"] .dbtn { color: var(--ink); background: #ffffff0d; }
+[data-variant="propuesta"] .dbtn:hover { background: #ffffff17; }
 .dprim { height: 40px; padding: 0 16px 0 12px; border-radius: var(--r-pill); background: var(--ink); color: var(--on-ink); font-weight: 600; display: inline-flex; gap: 8px; align-items: center; }
 .dsep { width: 1px; height: 24px; background: var(--edge); }
 [data-variant="propuesta"] .dsep { background: transparent; width: 4px; }
@@ -233,11 +254,14 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 
 /* ---------- Configuración ---------- */
 .settings { right: 12px; top: 12px; bottom: 12px; width: 360px; padding: 20px 16px; z-index: 15; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
-[data-variant="propuesta"] .settings { padding: 24px 16px; gap: 8px; }
+[data-variant="propuesta"] .settings { width: 320px; padding: 16px 12px; gap: 4px; }
+[data-variant="propuesta"] .settings .row { min-height: 56px; padding: 8px 12px; }
+[data-variant="propuesta"] .settings .row + .row::before { left: 56px; right: 12px; }
+[data-variant="propuesta"] .settings .srow { padding: 12px; gap: 8px; }
 .settings header { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
 [data-variant="propuesta"] .settings header { padding: 4px 4px 12px 8px; }
 .settings h3 { margin: 0; flex: 1; font: 600 17px/22px var(--sans); }
-[data-variant="propuesta"] .settings h3 { font: 600 28px/36px var(--sans); letter-spacing: -.01em; }
+[data-variant="propuesta"] .settings h3 { font: 600 24px/32px var(--sans); letter-spacing: -.01em; }
 .close { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
 [data-variant="propuesta"] .close { background: var(--card); color: var(--ink); }
 .cap { margin: 0 4px; font: 500 12px/16px var(--sans); color: var(--ink-3); }
@@ -253,7 +277,7 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 }
 [data-variant="propuesta"] .srow + .srow::before { left: 16px; }
 [data-variant="propuesta"] .thin + .row::before { display: none; }
-[data-variant="propuesta"] .group .row:hover { background: #222225; }
+[data-variant="propuesta"] .group .row:hover { background: #1a1a1c; }
 .row .tx { flex: 1; min-width: 0; }
 .row .tx b { display: block; font: 500 14px/20px var(--sans); }
 .row .tx small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
@@ -298,7 +322,6 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 
 <div class="mockbar">
   <h1>Profundidad y estados</h1>
-  <span>Escena 1520 × 980 · mock estático, no toca el producto</span>
   <div class="seg" role="group" aria-label="Variante">
     <button type="button" data-set="hoy" aria-pressed="false">Hoy</button>
     <button type="button" data-set="propuesta" aria-pressed="true">Propuesta</button>
@@ -314,21 +337,31 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
   <!-- Rail -->
   <nav class="rail glass" aria-label="Sesiones">
     <div class="proj">
-      <img class="px" src="gengar-icon.png" alt="">
-      <div><b>phantom-workspace</b><span>main · 5 sesiones</span></div>
+      <div><b>phantom-workspace</b><span>main · 6 sesiones</span></div>
     </div>
     <div class="need">
-      <span class="num">01</span>
-      <div><b>Te necesitan</b><small>migracion-tokens espera respuesta</small></div>
+      <span class="num">02</span>
+      <div><b>Te necesitan</b><small>permisos de git · plan de release</small></div>
     </div>
     <h2>Sesiones</h2>
     <ul class="sessions">
-      <li class="sel"><span class="mark working"></span><span class="t">Ordenar repositorios recientes</span><span class="age">4m</span></li>
-      <li><span class="mark attention"></span><span class="t">Migración de tokens de color</span><span class="age">1m</span></li>
-      <li><span class="mark done"></span><span class="t">Dictado por voz: puntuación</span><span class="age">12m</span></li>
-      <li><span class="mark error"></span><span class="t">Smoke de escritorio</span><span class="age">7m</span></li>
-      <li><span class="mark"></span><span class="t">Revisar CONTRACT.md</span><span class="age">32m</span></li>
+      <li class="sel"><span class="mark working"></span><span class="t">Repositorios habituales</span><span class="age">4m</span></li>
+      <li class="need-row"><span class="mark attention"></span><span class="t">Bloqueada: permisos de git</span><span class="age">1m</span></li>
+      <li><span class="mark"></span><span class="t">Codex · revisión de diff</span><span class="age">32m</span></li>
+      <li><span class="mark working"></span><span class="t">Encargo de voz</span><span class="age">9m</span></li>
+      <li><span class="mark done"></span><span class="t">Migración de tokens</span><span class="age">12m</span></li>
+      <li class="need-row"><span class="mark attention"></span><span class="t">Tu turno: plan de release</span><span class="age">3m</span></li>
     </ul>
+    <h2 class="map-group">En el mapa</h2>
+    <ul class="sessions map-group">
+      <li><svg class="ic kind" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6zM9 11h6M9 15h4"/></svg><span class="t">Nota</span></li>
+      <li><svg class="ic kind" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg><span class="t">Navegador</span></li>
+    </ul>
+    <div class="rail-foot">
+      <span class="host"><span class="mark done"></span>Host local conectado</span>
+      <button class="rbtn" type="button" aria-label="Configuración"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></button>
+      <button class="rbtn" type="button" aria-label="Dictar"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></button>
+    </div>
   </nav>
 
   <!-- Paneles -->
@@ -405,7 +438,7 @@ f51c1b1 Ordenar repositorios por frecuencia y acceso reciente
 
   <!-- Dock -->
   <div class="dock" role="toolbar" aria-label="Dock">
-    <img class="px" src="gengar-icon.png" alt="">
+    <svg class="titi" viewBox="0 0 28 28" role="img" aria-label="Titi"><path d="M5 25V13a9 9 0 0118 0v12l-4.5-3-4.5 3-4.5-3-4.5 3z" fill="currentColor"/><rect x="10" y="11" width="2.5" height="4" rx="1.25" fill="#0b0b0c"/><rect x="15.5" y="11" width="2.5" height="4" rx="1.25" fill="#0b0b0c"/></svg>
     <button class="dprim" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nueva sesión</button>
     <span class="dsep"></span>
     <button class="dbtn" type="button" aria-label="Terminal"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg></button>
@@ -457,12 +490,13 @@ f51c1b1 Ordenar repositorios por frecuencia y acceso reciente
 <footer class="legend">
   <b>Qué cambia y por qué</b>
   <ol>
-    <li><b>Objetos sobre luz</b>: lienzo #030304 con tres campos de luz ambiental fijos y apagados; cada objeto es más oscuro que la luz que lo rodea.</li>
-    <li><b>El aro</b>: borde de 1.75 px en degradado (blanco 26 % arriba → 7 % abajo) que sigue el contorno; es el «gradiente pegado al objeto». Seleccionar solo lo aviva.</li>
-    <li><b>Tres niveles por panel</b>: objeto #131316, pozo de terminal #0a0a0b y campos #1c1c1f; sin blur en el lienzo.</li>
-    <li><b>Atención de menor a mayor</b>: reposo sin marca · terminó, cuadro marfil · error, cuadro rojo y «Error» · trabajando, pixeles lima que marchan por el borde · te necesita, único aro de color (ámbar al 70 %).</li>
-    <li><b>Ámbar mínimo</b>: fuera del panel solo vive en marcas y numerales; ninguna superficie rellena de ámbar. Un único Gengar, en el dock.</li>
-    <li><b>Apariencia como Ajustes de One UI</b>: tarjetas de grupo, filas de 64 px con divisor sangrado, insignias planas de 32 px y deslizadores en píldora sin texto encima. Con movimiento reducido los pixeles quedan fijos.</li>
+    <li><b>Negro profundo</b>: lienzo #020203 con tres campos de luz ambiental muy contenidos, neutros sin dominante azul; el negro manda.</li>
+    <li><b>El aro</b>: 1 px nítido en degradado (blanco 22 % arriba → 6 % abajo), sin resplandor; solo una sombra negra de contacto. La separación la da el aro, no un relleno gris.</li>
+    <li><b>Tres niveles por panel</b>: objeto #0b0b0c, pozo de terminal #050506 y campos #141416; sin blur en el lienzo.</li>
+    <li><b>Laterales reducidos</b>: rail de 216 px con filas de 36 px (sesiones, «En el mapa», host al pie) e inspector de 320 px; la escena cabe entera en 1520 × 980 con el dock visible.</li>
+    <li><b>Atención de menor a mayor</b>: reposo sin marca · terminó, cuadro marfil · error, cuadro rojo y «Error» · trabajando, pixeles lima que marchan por el borde · te necesita, único aro de color (ámbar de 1 px).</li>
+    <li><b>Ámbar mínimo</b>: fuera del panel solo vive en marcas y numerales; ninguna superficie rellena de ámbar. Un único Titi, el fantasma de Phantom Workspace, en el dock.</li>
+    <li><b>Apariencia como Ajustes de One UI</b>: tarjetas de grupo, filas de 56 px con divisor sangrado, insignias planas de 32 px y deslizadores en píldora sin texto encima. Con movimiento reducido los pixeles quedan fijos.</li>
   </ol>
 </footer>
 
