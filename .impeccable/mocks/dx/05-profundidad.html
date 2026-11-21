@@ -1,386 +1,375 @@
 <!doctype html>
-<html lang="es" data-variant="propuesta">
+<html lang="es" data-variant="propuesta" data-rail="estado" data-trace="a" data-surface="degradado">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1520">
-<title>Phantom · Profundidad y estados (Hoy / Propuesta)</title>
+<title>Phantom · Profundidad y estados (v4)</title>
 <style>
 :root {
+  /* Tipografía: como mucho tres estilos por panel; mono solo para rutas, comandos y cifras */
   --sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
-  --ink: #f2f0eb; --muted: #a8a6a0; --ink-3: #8b8983;
-  --working: #c6f135; --attention: #f5c04a; --success: #65ba83; --danger: #f27670;
-  --on-ink: #141414;
-  --r-mark: 4px; --r-ctl: 8px; --r-obj: 14px; --r-isle: 26px; --r-pill: 999px;
-  --ease-out: cubic-bezier(.16, 1, .3, 1);
-}
+  --t-title: 600 15px/20px var(--sans);
+  --t-row: 500 14px/20px var(--sans);
+  --t-sup: 400 12px/16px var(--sans);
+  --t-code: 400 12px/18px var(--mono);
 
-/* ---------- HOY: tokens actuales tal cual ---------- */
-[data-variant="hoy"] {
-  --bg: #050505; --panel: #0d0d0d; --card: #151515; --raised: #1d1d1d; --active: #1d1d1d;
-  --term: #080808; --menu: #161616;
-  --edge: color-mix(in srgb, #fff 10%, transparent);
-  --edge-top: var(--edge); --edge-bot: var(--edge);
-  --rim: none;
-  --dot: color-mix(in srgb, #f2f0eb 16%, transparent);
-  --shadow: 0 1px 2px #00000080, 0 14px 30px -16px #000000d9;
-  --panel-fill: #0d0d0d;
-  --group-r: 14px; --panel-r: 14px; --ring-w: 1px;
-}
+  /* Tinta y señales */
+  --ink: #f2f0eb; --ink-2: #a8a6a0; --ink-3: #8b8983;
+  --ivory: #ece6d8; --ivory-press: #d6d0c2; --ivory-dim: #cfcac0; --on-ink: #141414;
+  --working: #c6f135; --working-head: #e2ff7a; --attention: #f5c04a; --danger: #f27670; --success: #65ba83;
 
-/* ---------- PROPUESTA v3: negro profundo, aro de 1 px nítido ---------- */
-[data-variant="propuesta"] {
-  --bg: #020203; --panel: #0b0b0c; --card: #141416; --raised: #141416; --active: #1a1a1c;
-  --term: #050506; --menu: #141416;
-  --edge: color-mix(in srgb, #fff 8%, transparent);
+  /* Superficies: negro profundo */
+  --bg: #020203; --obj: #0b0b0c; --obj-top: #0f0f11; --obj-bot: #070708;
+  --group: #141416; --group-hover: #18181a; --group-sel: #1d1d20; --group-press: #222225;
+  --well: #050506; --divider: #262627; --track: #2c2c2d; --off: #4e4e50;
+  --glass: #ffffff14; --glass-hover: #ffffff1c; --glass-press: #ffffff26;
   --edge-top: color-mix(in srgb, #fff 22%, transparent);
   --edge-bot: color-mix(in srgb, #fff 6%, transparent);
-  --rim: 0 0 0 transparent;
-  --dot: color-mix(in srgb, #f2f0eb 5%, transparent);
   --shadow: 0 1px 2px #000, 0 16px 32px -16px #000;
-  --panel-fill: #0b0b0c;
-  --group-r: 18px; --panel-r: 20px; --ring-w: 1px;
-  --track: #2c2c2d; --off: #4e4e50; --divider: #262627; --ivory-dim: #cfcac0;
+
+  /* Insignias por tipo (apagadas) y por estado */
+  --k-claude: #9b5c46; --k-codex: #48649d; --k-opencode: #4b7e69; --k-term: #5c5c63; --k-voz: #7b5b97;
+  --s-working: #5d7521; --s-attention: #b5872f;
+
+  /* Sistema de cajas: caja exterior con aro → grupos → filas */
+  --box-pad: 12px;            /* relleno de la caja exterior */
+  --group-gap: 12px;          /* separación entre grupos */
+  --row-py: 12px; --row-px: 16px; --row-gap: 12px;
+  --icon-col: 32px;           /* columna fija de icono / insignia */
+  --glyph: 18px; --glyph-sm: 16px;
+  --r-outer: 24px;
+  --r-group: calc(var(--r-outer) - var(--box-pad));   /* 24 − 12 = 12 */
+  --r-pill: 999px;
+  --divider-inset: calc(var(--row-px) + var(--icon-col) + var(--row-gap));
+  --ring: 1px; --trace-w: 1.5px;
+
+  /* Movimiento */
+  --ease-settle: cubic-bezier(.22, 1, .36, 1);
+  --dur-open: 320ms; --dur-press: 90ms;
+
+  /* Área del lienzo para maximizar */
+  --canvas-l: 300px; --canvas-t: 72px; --canvas-w: 864px; --canvas-h: 820px;
+}
+
+/* HOY: tokens del producto actual */
+[data-variant="hoy"] {
+  --bg: #050505; --obj: #0d0d0d; --obj-top: #0d0d0d; --obj-bot: #0d0d0d;
+  --group: transparent; --group-hover: #1d1d1d; --group-sel: #1d1d1d; --group-press: #242424;
+  --well: #080808; --divider: #ffffff1a;
+  --edge-top: #ffffff1a; --edge-bot: #ffffff1a;
+  --shadow: 0 1px 2px #00000080, 0 14px 30px -16px #000000d9;
+  --r-outer: 14px;
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; }
 body {
-  background: #000; color: var(--ink); font: 400 14px/20px var(--sans);
-  overflow-x: hidden; -webkit-font-smoothing: antialiased;
-  font-variant-numeric: tabular-nums;
+  background: #000; color: var(--ink); font: var(--t-row); min-width: 1520px;
+  overflow-x: hidden; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
 }
-button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.px { image-rendering: pixelated; }
-
-/* ---------- Cabecera del mock ---------- */
-body { position: relative; min-width: 1520px; }
-.mockbar { /* flota sobre la escena para que 1520 × 980 quepa sin scroll */
-  position: absolute; z-index: 50; top: 12px; left: calc(50% - 760px + 256px); height: 48px;
-  display: flex; align-items: center; gap: 16px; color: var(--muted); font-size: 12px;
-}
-.mockbar h1 { margin: 0; font: 600 14px/20px var(--sans); color: var(--ink); }
-.seg {
-  display: inline-flex; padding: 4px; gap: 4px; border-radius: var(--r-pill);
-  background: #0b0b0c; box-shadow: inset 0 0 0 1px #ffffff1a;
-}
-.seg button { height: 32px; padding: 0 16px; border-radius: var(--r-pill); color: var(--muted); font-weight: 500; }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ivory); outline-offset: 2px; }
+ul { list-style: none; margin: 0; padding: 0; }
+p, h1, h2, h3 { margin: 0; }
+.ic { width: var(--glyph); height: var(--glyph); flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.ic.sm { width: var(--glyph-sm); height: var(--glyph-sm); }
 
 /* ---------- Escena ---------- */
 .scene {
   position: relative; width: 1520px; height: 980px; margin: 0 auto; overflow: hidden;
   background-color: var(--bg);
-  background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
+  background-image: radial-gradient(color-mix(in srgb, #f2f0eb 5%, transparent) 1px, transparent 1.2px);
   background-size: 24px 24px;
 }
-/* Luz ambiental estática: dos campos fríos apagados y uno cálido tenue, retícula encima */
-[data-variant="propuesta"] .scene {
+[data-surface="degradado"] .scene {
   background-image:
-    radial-gradient(var(--dot) 1px, transparent 1.2px),
-    radial-gradient(ellipse 640px 500px at 36% 24%, #17262566, transparent 70%),
-    radial-gradient(ellipse 580px 520px at 60% 72%, #1a1c2259, transparent 70%),
-    radial-gradient(ellipse 520px 420px at 80% 20%, #241e1740, transparent 70%);
-  background-size: 24px 24px, 100% 100%, 100% 100%, 100% 100%;
-  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+    radial-gradient(color-mix(in srgb, #f2f0eb 5%, transparent) 1px, transparent 1.2px),
+    radial-gradient(ellipse 900px 640px at 48% 40%, #0e0e11, transparent 72%);
+  background-size: 24px 24px, 100% 100%;
+  background-repeat: repeat, no-repeat;
 }
-.grain { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; opacity: 0; mix-blend-mode: overlay; }
-[data-variant="propuesta"] .grain { opacity: .03; }
+[data-variant="hoy"] .scene { background-image: radial-gradient(color-mix(in srgb, #f2f0eb 16%, transparent) 1px, transparent 1.2px); background-size: 24px 24px; }
 
-/* Superficie base reutilizada (rail, paneles, ajustes) */
-.glass {
-  background: var(--panel-fill);
-  border-radius: var(--panel-r);
-  box-shadow: var(--rim), var(--shadow);
-  position: absolute;
-}
-.glass::before, [data-variant="propuesta"] .dock::before { /* aro en degradado vertical */
-  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: var(--ring-w); pointer-events: none;
+/* Caja exterior con aro de 1 px */
+.box { position: absolute; background: var(--obj); border-radius: var(--r-outer); box-shadow: var(--shadow); }
+[data-surface="degradado"] .box { background: linear-gradient(var(--obj-top), var(--obj-bot)); }
+.box::before, .pane::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: var(--ring); pointer-events: none;
   background: linear-gradient(var(--edge-top), var(--edge-bot));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
 }
 
+/* Grupos y filas */
+.group { border-radius: var(--r-group); background: var(--group); overflow: hidden; }
+[data-variant="hoy"] .group { box-shadow: inset 0 0 0 1px var(--divider); }
+.sect { display: flex; flex-direction: column; gap: 8px; }
+.cap { padding: 0 var(--row-px); font: var(--t-sup); color: var(--ink-3); }
+.list > li { position: relative; }
+.list > li + li::before { content: ""; position: absolute; top: 0; left: var(--divider-inset); right: var(--row-px); height: 1px; background: var(--divider); z-index: 1; }
+.row {
+  display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 44px;
+  padding: var(--row-py) var(--row-px); text-align: left; color: var(--ink);
+  transition: background-color var(--dur-press) linear;
+}
+button.row:hover { background: var(--group-hover); }
+button.row:active { background: var(--group-press); }
+.row[aria-current="true"] { background: var(--group-sel); }
+.tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tx b { font: var(--t-row); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx small { font: var(--t-sup); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx em { font-style: normal; }
+.val { flex: none; font: var(--t-row); color: var(--ink-2); white-space: nowrap; }
+.val.sup { font: var(--t-sup); color: var(--ink-3); }
+.badge { width: var(--icon-col); height: var(--icon-col); border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--b, var(--glass)); color: #fff; }
+.badge .ic { display: block; }
+.ncol { width: var(--icon-col); flex: none; text-align: center; font: var(--t-title); color: var(--attention); }
+
+/* Botones de icono y segmentados */
+.ibtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); background: var(--glass); transition: background-color var(--dur-press) linear; }
+.ibtn:hover { background: var(--glass-hover); }
+.ibtn:active { background: var(--glass-press); }
+.seg { display: inline-flex; align-items: center; height: 32px; padding: 2px; gap: 2px; border-radius: var(--r-pill); background: var(--obj); box-shadow: inset 0 0 0 1px #ffffff1a; }
+.seg .lbl { padding: 0 8px 0 12px; font: var(--t-sup); color: var(--ink-3); }
+.seg button { height: 28px; min-width: 28px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-sup); color: var(--ink-2); transition: background-color var(--dur-press) linear; }
+.seg button:hover { background: var(--glass); }
+.seg button[aria-pressed="true"] { background: var(--ivory); color: var(--on-ink); }
+.seg button[aria-pressed="true"]:active { background: var(--ivory-press); }
+
+/* ---------- Barra del mock ---------- */
+.mockbar { position: absolute; z-index: 50; left: var(--canvas-l); top: 12px; height: 48px; display: flex; align-items: center; gap: 12px; }
+.mockbar h1 { font: var(--t-title); margin-right: 4px; }
+
 /* ---------- Rail ---------- */
-.rail { left: 12px; top: 12px; bottom: 12px; width: 252px; padding: 16px 12px; display: flex; flex-direction: column; gap: 16px; z-index: 10; }
-.proj { display: flex; align-items: center; gap: 12px; padding: 4px; }
-.proj img { width: 32px; height: 32px; }
-.proj b { display: block; font: 600 14px/20px var(--sans); }
-.proj span { font-size: 12px; color: var(--muted); }
-[data-variant="propuesta"] .proj img { display: none; }
-[data-variant="propuesta"] .proj { padding: 4px 12px; }
-.need {
-  border-radius: 16px; padding: 12px; background: var(--card); display: flex; align-items: center; gap: 12px;
+.rail { left: 12px; top: 12px; bottom: 12px; width: 272px; padding: var(--box-pad); display: flex; flex-direction: column; gap: var(--group-gap); z-index: 10; }
+.rhead { display: flex; flex-direction: column; padding: 4px var(--row-px) 0; }
+.rhead b { font: var(--t-title); }
+.rhead span { font: var(--t-sup); color: var(--ink-2); }
+.rseg { display: flex; align-items: center; justify-content: space-between; padding-left: var(--row-px); }
+.rseg > span { font: var(--t-sup); color: var(--ink-3); }
+.sess .badge { transition: background-color 200ms linear; }
+[data-rail="estado"] .sess[data-state="working"] .badge { --b: var(--s-working); }
+[data-rail="estado"] .sess[data-state="attention"] .badge { --b: var(--s-attention); }
+[data-rail="tipo"] .sess[data-kind="claude"] .badge { --b: var(--k-claude); }
+[data-rail="tipo"] .sess[data-kind="codex"] .badge { --b: var(--k-codex); }
+[data-rail="tipo"] .sess[data-kind="opencode"] .badge { --b: var(--k-opencode); }
+[data-rail="tipo"] .sess[data-kind="term"] .badge { --b: var(--k-term); }
+[data-rail="tipo"] .sess[data-kind="voz"] .badge { --b: var(--k-voz); }
+[data-rail="tipo"] .sess[data-state="attention"] .st { color: var(--attention); }
+[data-variant="hoy"] .badge { --b: transparent !important; color: var(--ink-3); }
+[data-variant="hoy"] .rseg, [data-variant="hoy"] .map { display: none; }
+.rfoot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding-left: var(--row-px); }
+.rfoot .host { flex: 1; min-width: 0; font: var(--t-sup); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Paneles ---------- */
+.pane { width: 424px; height: 248px; padding: var(--box-pad); display: flex; flex-direction: column; gap: 8px; z-index: 5; transition: opacity var(--dur-open) linear; }
+#p1 { left: 300px; top: 72px; } #p2 { left: 740px; top: 72px; }
+#p3 { left: 300px; top: 336px; } #p4 { left: 740px; top: 336px; }
+#p5 { left: 300px; top: 600px; width: 640px; height: 152px; }
+.bar { height: 32px; flex: none; display: flex; align-items: center; gap: 12px; padding-left: var(--row-px); }
+.bar .name { font: var(--t-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bar .tag { margin-left: auto; font: var(--t-sup); color: var(--ink-2); white-space: nowrap; }
+[data-state="attention"] .tag { color: var(--attention); }
+[data-state="error"] .tag { color: var(--danger); }
+.body {
+  flex: 1; min-height: 0; padding: var(--row-py) var(--row-px); border-radius: var(--r-group);
+  background: var(--well); font: var(--t-code); color: #e1dfda; overflow: hidden; white-space: pre-wrap;
 }
-[data-variant="propuesta"] .need { background: transparent; border-radius: 12px; padding: 8px 12px; }
-[data-variant="propuesta"] .need b { font: 500 14px/20px var(--sans); }
-.need .num { font: 700 24px/28px var(--mono); color: var(--attention); }
-[data-variant="propuesta"] .need .num { font: 700 20px/24px var(--mono); letter-spacing: .04em; }
-[data-variant="hoy"] .need .num { font: 600 14px/20px var(--sans); color: var(--ink); }
-.need small { display: block; color: var(--muted); font-size: 12px; }
-.rail h2 { margin: 4px 4px 0; font: 500 12px/16px var(--sans); color: var(--ink-3); }
-[data-variant="propuesta"] .rail h2 { margin: 4px 12px 0; }
-.sessions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.sessions li { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 12px; color: var(--muted); }
-.sessions li.sel { background: var(--active); color: var(--ink); }
-.sessions li:hover { background: var(--raised); }
-.sessions .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sessions .age { font: 500 11px/16px var(--mono); color: var(--ink-3); }
-.rail-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px 4px 0 8px; font-size: 12px; color: var(--muted); }
-.rail-foot .host { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-.rbtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: #ffffff0f; flex: none; }
-.rbtn:hover { background: #ffffff1a; }
-.rbtn svg.ic { width: 16px; height: 16px; }
-
-/* Rail reducido en Propuesta: 216 px, filas de 36 px */
-[data-variant="propuesta"] .rail { width: 216px; padding: 12px 8px; gap: 8px; }
-[data-variant="propuesta"] .rail .proj { padding: 4px 8px; }
-[data-variant="propuesta"] .rail h2 { margin: 8px 8px 0; }
-[data-variant="propuesta"] .need { padding: 4px 8px; gap: 10px; }
-[data-variant="propuesta"] .need small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
-[data-variant="propuesta"] .sessions { gap: 0; }
-[data-variant="propuesta"] .sessions li { height: 36px; padding: 0 8px; gap: 10px; border-radius: 10px; font-size: 13px; }
-[data-variant="propuesta"] .sessions li:hover { background: #ffffff0a; }
-[data-variant="propuesta"] .sessions li.sel { background: var(--card); }
-[data-variant="propuesta"] .sessions li.need-row { color: var(--ink); }
-.sessions .kind { width: 16px; height: 16px; flex: none; color: var(--ink-3); }
-[data-variant="hoy"] .rail-foot, [data-variant="hoy"] .map-group { display: none; }
-
-/* Marca de estado: punto en Hoy, cuadrado pixelado en Propuesta */
-.mark { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
-.mark.working { background: var(--working); }
-.mark.attention { background: var(--attention); }
-.mark.done { background: var(--ink); }
-.mark.error { background: var(--danger); }
-[data-variant="propuesta"] .mark { border-radius: 1px; width: 6px; height: 6px; }
-[data-variant="propuesta"] .mark:not([class*=" "]) { background: #4a4a4f; }
-
-/* ---------- Paneles del canvas ---------- */
-.pane { width: 380px; height: 300px; display: flex; flex-direction: column; overflow: visible; z-index: 5; }
-#p1 { left: 366px; top: 70px; } #p2 { left: 750px; top: 70px; }
-#p3 { left: 366px; top: 394px; } #p4 { left: 750px; top: 394px; }
-#p5 { left: 366px; top: 718px; width: 572px; height: 168px; }
-[data-variant="propuesta"] .pane { width: 440px; height: 264px; }
-[data-variant="propuesta"] #p1 { left: 256px; top: 72px; } [data-variant="propuesta"] #p2 { left: 716px; top: 72px; }
-[data-variant="propuesta"] #p3 { left: 256px; top: 356px; } [data-variant="propuesta"] #p4 { left: 716px; top: 356px; }
-[data-variant="propuesta"] #p5 { left: 256px; top: 640px; width: 640px; height: 160px; }
-.pane > .bar { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; flex: none; }
-[data-variant="propuesta"] .pane > .bar { height: 48px; padding: 0 20px; gap: 10px; }
-.pane .name { font: 600 14px/20px var(--sans); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-[data-variant="propuesta"] .pane .name { flex: 0 1 auto; font-weight: 500; }
-.pane .meta { font: 500 11px/16px var(--mono); color: var(--ink-3); }
-[data-variant="propuesta"] .pane .meta, [data-variant="propuesta"] .tag { margin-left: auto; }
-.pane .body {
-  flex: 1; margin: 0 6px 6px; padding: 12px; border-radius: calc(var(--panel-r) - 6px);
-  background: var(--term); font: 400 12px/18px var(--mono); color: #e1dfda; overflow: hidden; white-space: pre-wrap;
-}
-[data-variant="propuesta"] .pane .body { margin: 0 8px 8px; padding: 12px 16px; border-radius: calc(var(--panel-r) - 8px); }
-[data-variant="hoy"] .pane .body { margin: 0; border-radius: 0 0 var(--panel-r) var(--panel-r); }
 .body .p { color: var(--working); } .body .d { color: var(--ink-3); }
 .body .add { color: var(--success); } .body .del { color: var(--danger); } .body .q { color: var(--attention); }
+.pane.sel { --edge-top: color-mix(in srgb, #fff 36%, transparent); --edge-bot: color-mix(in srgb, #fff 10%, transparent); }
+[data-variant="propuesta"] [data-state="attention"]::before { background: color-mix(in srgb, var(--attention) 80%, transparent); }
+[data-variant="hoy"] [data-state="working"]::before { padding: 2px; background: var(--working); }
+[data-variant="hoy"] .tag { display: none; }
 
-/* Etiqueta: oculta en Hoy; en Propuesta solo texto pequeño, sin píldora */
-.tag { display: none; height: 24px; padding: 0 8px; border-radius: 8px; font: 600 12px/24px var(--sans); align-items: center; gap: 6px; }
-[data-variant="propuesta"] .tag { padding: 0; height: auto; font: 500 12px/16px var(--sans); }
-[data-variant="propuesta"] [data-state="working"] .tag { display: inline-flex; color: var(--muted); }
-[data-variant="propuesta"] [data-state="attention"] .tag { display: inline-flex; color: var(--attention); font-weight: 600; }
-[data-variant="propuesta"] [data-state="error"] .tag { display: inline-flex; color: var(--danger); }
-[data-variant="propuesta"] [data-state="working"] .bar .mark,
-[data-variant="propuesta"] [data-state="idle"] .bar .mark { display: none; }
+/* Realce breve del aro al «ver en el mapa» (sin escalar) */
+.pane::after { background: #ffffffb3; opacity: 0; }
+.flash::after { animation: flash 900ms var(--ease-settle); }
+@keyframes flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
 
-/* Estado en Hoy: solo trazo de 2 px para trabajando; nada para te necesita */
-[data-variant="hoy"] [data-state="working"]::before { background: var(--working); padding: 2px; }
-[data-variant="hoy"] .pane.sel { outline: 1px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 1px var(--ink), var(--shadow); }
+/* Maximizar desde su sitio (FLIP) */
+.pane.lift { z-index: 30; }
+.scene.focus .pane:not(.lift), .scene.focus .mini, .scene.focus .edge-cue { opacity: .28; }
+.mini, .edge-cue { transition: opacity var(--dur-open) linear; }
 
-/* Estado en Propuesta: solo «te necesita» colorea su aro; la selección solo lo aviva */
-[data-variant="propuesta"] .pane.sel {
-  --edge-top: color-mix(in srgb, #fff 40%, transparent);
-  --edge-bot: color-mix(in srgb, #fff 12%, transparent);
+/* Trazo de «trabajando»: 1.5 px pegado al aro, sin resplandor */
+.trace { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; display: none; }
+[data-variant="propuesta"] [data-state="working"] .trace { display: block; }
+.trace rect {
+  x: calc(var(--trace-w) / 2); y: calc(var(--trace-w) / 2);
+  width: calc(100% - var(--trace-w)); height: calc(100% - var(--trace-w));
+  rx: calc(var(--r-outer) - var(--trace-w) / 2); ry: calc(var(--r-outer) - var(--trace-w) / 2);
+  fill: none; stroke: var(--working); stroke-width: var(--trace-w); display: none;
 }
-[data-variant="propuesta"] [data-state="attention"]::before {
-  padding: 1px; background: color-mix(in srgb, var(--attention) 80%, transparent);
-}
+/* A · cometa: capas con la cabeza alineada y una cola que se apaga */
+[data-trace="a"] .trace .ta { display: inline; stroke-dasharray: var(--L) calc(100px - var(--L)); animation: comet 5.6s linear infinite; }
+.trace .head { stroke: var(--working-head); stroke-linecap: round; }
+@keyframes comet { from { stroke-dashoffset: var(--L); } to { stroke-dashoffset: calc(var(--L) - 100px); } }
+/* B · respiración: todo el aro late muy tenue, sin cabeza */
+[data-trace="b"] .trace .tb { display: inline; animation: breathe 2.8s ease-in-out infinite alternate; }
+@keyframes breathe { from { opacity: .12; } to { opacity: .5; } }
+/* C · guiones cortos y regulares que avanzan a pasos */
+[data-trace="c"] .trace .tc { display: inline; opacity: .85; stroke-dasharray: .6px 1.4px; animation: dashes 1.2s steps(4) infinite; }
+@keyframes dashes { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -2px; } }
 
-/* Trabajando: pixeles lima que marchan por el perímetro, cabeza brillante y cola que se apaga */
-.trail { display: none; position: absolute; inset: 0; pointer-events: none; }
-[data-variant="propuesta"] .trail { display: block; }
-.trail i {
-  position: absolute; left: 0; top: 0; width: 4px; height: 4px; background: var(--working);
-  offset-path: inset(0px round 20px); offset-rotate: 0deg;
-  offset-distance: calc(14% - var(--k) * .556%);
-  opacity: calc(1 - var(--k) * .13);
-  animation: march 7.2s steps(180) infinite;
-  animation-delay: calc((var(--k) - 8) * .04s);
-}
-.trail i:first-child { background: #e6ff8a; }
-@keyframes march { from { offset-distance: 0%; } to { offset-distance: 100%; } }
-
-/* Indicador de borde: sesión fuera de vista que te necesita */
-.edge-cue { position: absolute; right: 388px; top: 24px; display: none; align-items: center; gap: 8px; z-index: 12;
-  height: 32px; padding: 0 8px 0 12px; border-radius: var(--r-pill); background: var(--attention); color: #1a1406; font: 600 12px/16px var(--sans); }
-[data-variant="propuesta"] .edge-cue {
-  display: inline-flex; right: 364px; padding: 0 10px 0 14px; gap: 10px;
-  background: #0b0b0c; color: var(--ink); font-weight: 500;
-  box-shadow: inset 0 0 0 1px #ffffff26, var(--shadow);
-}
-.edge-cue svg { color: var(--ink-3); }
+/* Aviso de fuera de vista */
+.edge-cue { right: 356px; top: 768px; height: 32px; padding: 0 8px 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: var(--r-pill); font: var(--t-sup); color: var(--ink); z-index: 12; }
+.edge-cue em { font-style: normal; color: var(--attention); }
+.edge-cue .ic { color: var(--ink-3); }
+.edge-cue.flash { animation: cue 900ms var(--ease-settle); }
+@keyframes cue { 18% { box-shadow: 0 0 0 1px #ffffffb3, var(--shadow); } }
+[data-variant="hoy"] .edge-cue { background: var(--attention); color: #1a1406; }
+[data-variant="hoy"] .edge-cue em, [data-variant="hoy"] .edge-cue .ic { color: inherit; }
 
 /* Minimapa */
-.mini { right: 388px; bottom: 88px; width: 168px; height: 108px; padding: 8px; z-index: 12; position: absolute; }
-[data-variant="propuesta"] .mini { right: auto; bottom: auto; left: 912px; top: 640px; border-radius: 16px; }
-.mini i { position: absolute; border-radius: 2px; background: var(--raised); }
-[data-variant="propuesta"] .mini i { background: #242425; }
-[data-variant="propuesta"] .mini i[data-s="attention"] { background: var(--attention); }
-.mini .vp { position: absolute; left: 14px; top: 18px; width: 98px; height: 62px; border: 1px solid #ffffff40; border-radius: 4px; }
-[data-variant="propuesta"] .mini .vp { border-color: #ffffff2e; }
+.mini { left: 956px; top: 600px; width: 208px; height: 152px; z-index: 12; }
+.mini i { position: absolute; border-radius: 4px; background: #242425; }
+.mini i[data-s="attention"] { background: var(--attention); }
+.mini .vp { position: absolute; left: 20px; top: 24px; width: 124px; height: 104px; border: 1px solid #ffffff2e; border-radius: 6px; }
 
 /* ---------- Dock ---------- */
-.dock { position: absolute; left: 50%; bottom: 16px; transform: translateX(calc(-50% - 54px)); height: 56px; padding: 8px; display: flex; gap: 8px; align-items: center; z-index: 20;
-  border-radius: var(--r-pill); background: var(--panel); box-shadow: inset 0 0 0 1px var(--edge), var(--shadow); }
-[data-variant="propuesta"] .dock { background: var(--panel-fill); box-shadow: var(--shadow); }
-[data-variant="propuesta"] .dock { transform: translateX(calc(-50% - 52px)); }
-.titi { width: 28px; height: 28px; margin: 0 4px 0 6px; flex: none; color: #ece6d8; }
-.dbtn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
-.dbtn:hover { background: var(--raised); color: var(--ink); }
-[data-variant="propuesta"] .dbtn { color: var(--ink); background: #ffffff0d; }
-[data-variant="propuesta"] .dbtn:hover { background: #ffffff17; }
-.dprim { height: 40px; padding: 0 16px 0 12px; border-radius: var(--r-pill); background: var(--ink); color: var(--on-ink); font-weight: 600; display: inline-flex; gap: 8px; align-items: center; }
-.dsep { width: 1px; height: 24px; background: var(--edge); }
-[data-variant="propuesta"] .dsep { background: transparent; width: 4px; }
-button, .row, .chip { transition: transform 120ms var(--ease-out), background-color 140ms; }
-button:active, .row:active { transform: scale(.97); }
-svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.dock { left: 732px; bottom: 16px; transform: translateX(-50%); height: 56px; padding: 8px; display: flex; gap: 8px; align-items: center; border-radius: var(--r-pill); z-index: 20; }
+.titi { width: 28px; height: 28px; margin: 0 4px 0 6px; flex: none; color: var(--ivory); }
+.dprim { height: 40px; padding: 0 16px 0 12px; border-radius: var(--r-pill); background: var(--ivory); color: var(--on-ink); font: var(--t-row); display: inline-flex; gap: 8px; align-items: center; transition: background-color var(--dur-press) linear; }
+.dprim:active { background: var(--ivory-press); }
+.dbtn { width: 40px; height: 40px; }
 
-/* ---------- Configuración ---------- */
-.settings { right: 12px; top: 12px; bottom: 12px; width: 360px; padding: 20px 16px; z-index: 15; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
-[data-variant="propuesta"] .settings { width: 320px; padding: 16px 12px; gap: 4px; }
-[data-variant="propuesta"] .settings .row { min-height: 56px; padding: 8px 12px; }
-[data-variant="propuesta"] .settings .row + .row::before { left: 56px; right: 12px; }
-[data-variant="propuesta"] .settings .srow { padding: 12px; gap: 8px; }
-.settings header { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
-[data-variant="propuesta"] .settings header { padding: 4px 4px 12px 8px; }
-.settings h3 { margin: 0; flex: 1; font: 600 17px/22px var(--sans); }
-[data-variant="propuesta"] .settings h3 { font: 600 24px/32px var(--sans); letter-spacing: -.01em; }
-.close { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
-[data-variant="propuesta"] .close { background: var(--card); color: var(--ink); }
-.cap { margin: 0 4px; font: 500 12px/16px var(--sans); color: var(--ink-3); }
-[data-variant="propuesta"] .cap { margin: 16px 8px 4px; }
-.group { border-radius: var(--group-r); background: var(--card); overflow: hidden; }
-[data-variant="hoy"] .group { background: transparent; box-shadow: inset 0 0 0 1px var(--edge); }
-.row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; }
-[data-variant="hoy"] .row + .row { border-top: 1px solid var(--edge); }
-[data-variant="propuesta"] .row { position: relative; min-height: 64px; padding: 12px 16px; }
-[data-variant="propuesta"] .row + .row::before,
-[data-variant="propuesta"] .srow + .srow::before {
-  content: ""; position: absolute; top: 0; left: 60px; right: 16px; height: 1px; background: var(--divider);
-}
-[data-variant="propuesta"] .srow + .srow::before { left: 16px; }
-[data-variant="propuesta"] .thin + .row::before { display: none; }
-[data-variant="propuesta"] .group .row:hover { background: #1a1a1c; }
-.row .tx { flex: 1; min-width: 0; }
-.row .tx b { display: block; font: 500 14px/20px var(--sans); }
-.row .tx small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
-.badge { width: 20px; height: 20px; display: grid; place-items: center; color: var(--muted); flex: none; }
-.badge svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-[data-variant="propuesta"] .badge { width: 32px; height: 32px; border-radius: 50%; background: var(--b); color: #fff; }
-.toggle { width: 44px; height: 26px; border-radius: 13px; background: var(--active); position: relative; flex: none; }
-.toggle::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--muted); }
-.toggle[aria-checked="true"] { background: var(--ink); }
-.toggle[aria-checked="true"]::after { left: 21px; background: var(--on-ink); }
-[data-variant="propuesta"] .toggle { background: var(--off); }
-[data-variant="propuesta"] .toggle::after { background: var(--ink); }
-[data-variant="propuesta"] .toggle[aria-checked="true"] { background: var(--ink); }
-[data-variant="propuesta"] .toggle[aria-checked="true"]::after { background: var(--on-ink); }
-.slider { flex: 1; height: 6px; border-radius: 3px; background: var(--active); position: relative; }
-.slider span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--ink); }
-.big { display: none; }
-[data-variant="propuesta"] .big { display: block; }
-[data-variant="propuesta"] .thin { display: none; }
-
-/* Deslizador One UI: etiqueta y valor arriba, píldora gruesa debajo, nada encima de la pista */
-.srow { position: relative; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+/* ---------- Apariencia ---------- */
+.settings { right: 12px; top: 12px; bottom: 12px; width: 320px; padding: var(--box-pad); z-index: 15; display: flex; flex-direction: column; gap: var(--group-gap); overflow: hidden; }
+.phead { display: flex; align-items: center; height: 32px; padding-left: var(--row-px); margin-top: 4px; }
+.phead h3 { flex: 1; font: var(--t-title); }
+.toggle { width: 44px; height: 26px; border-radius: 13px; background: var(--off); position: relative; flex: none; transition: background-color 160ms linear; }
+.toggle::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); transition: transform 200ms var(--ease-settle); }
+.toggle[aria-checked="true"] { background: var(--ivory); }
+.toggle[aria-checked="true"]::after { transform: translateX(18px); background: var(--on-ink); }
+.srow { position: relative; padding: var(--row-py) var(--row-px); display: flex; flex-direction: column; gap: 12px; }
+.srow + .srow::before { content: ""; position: absolute; top: 0; left: var(--row-px); right: var(--row-px); height: 1px; background: var(--divider); }
 .shead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.shead b { font: 500 14px/20px var(--sans); }
-.shead .val { font: 500 13px/20px var(--mono); color: var(--muted); }
-.pill { position: relative; height: 30px; border-radius: var(--r-pill); background: var(--track); overflow: hidden; }
+.shead b { font: var(--t-row); }
+.pill { position: relative; height: 32px; border-radius: var(--r-pill); background: var(--track); overflow: hidden; }
 .pill .fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--ivory-dim); }
-.pill svg.ic { position: absolute; left: 9px; top: 6px; width: 18px; height: 18px; color: #1a1a1a; stroke-width: 2; }
+.pill .ic { position: absolute; left: 8px; top: 8px; width: 16px; height: 16px; color: #1a1a1a; stroke-width: 2; }
 
-/* ---------- Leyenda ---------- */
-.legend { width: 1520px; margin: 0 auto; padding: 20px 24px 40px; color: var(--muted); font-size: 13px; line-height: 20px; }
-.legend b { color: #f2f0eb; font-weight: 600; }
+/* ---------- Pie ---------- */
+.legend { width: 1520px; margin: 0 auto; padding: 16px 24px 40px; color: var(--ink-2); font: var(--t-sup); line-height: 20px; }
+.legend summary { cursor: pointer; font: var(--t-row); color: var(--ink); }
+.legend b { color: var(--ink); font-weight: 600; }
 .legend ol { margin: 8px 0 0; padding-left: 20px; max-width: 1080px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  button:active, .row:active { transform: none; }
 }
 </style>
 </head>
 <body>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-claude" viewBox="0 0 24 24"><path d="M12 4.5v15M5.5 8.25l13 7.5M18.5 8.25l-13 7.5"/></symbol>
+    <symbol id="i-codex" viewBox="0 0 24 24"><path d="M12 3.5l7.5 4.25v8.5L12 20.5l-7.5-4.25v-8.5z"/><path d="M4.5 7.75L12 12l7.5-4.25M12 12v8.5"/></symbol>
+    <symbol id="i-opencode" viewBox="0 0 24 24"><path d="M9 7.5L4.5 12 9 16.5M15 7.5l4.5 4.5-4.5 4.5"/></symbol>
+    <symbol id="i-term" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M7.5 10l2.5 2-2.5 2M12.5 14h4"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M7.5 3.5h6l5 5v10a2 2 0 01-2 2h-9a2 2 0 01-2-2v-13a2 2 0 012-2z"/><path d="M13.5 3.5v5h5M9 13h6M9 16.5h4"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="7" cy="5.5" r="2"/><circle cx="7" cy="18.5" r="2"/><circle cx="17" cy="7.5" r="2"/><path d="M7 7.5v9M17 9.5c0 3.8-3.5 4.6-8.4 7.4"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6.5L15 12l-5.5 5.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4.5 8h9M17.5 8h2M4.5 16h2M10.5 16h9"/><circle cx="15.5" cy="8" r="2"/><circle cx="8.5" cy="16" r="2"/></symbol>
+    <symbol id="i-max" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M10 19.5H4.5V14M19.5 4.5L14 10M4.5 19.5L10 14"/></symbol>
+    <symbol id="i-min" viewBox="0 0 24 24"><path d="M10 4.5V10H4.5M14 19.5V14h5.5M10 10L4.5 4.5M14 14l5.5 5.5"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 3.5V5M12 19v1.5M3.5 12H5M19 12h1.5M6 6l1 1M17 17l1 1M6 18l1-1M17 7l1-1"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4.5 18L9 6l4.5 12M6.2 14h5.6M15 14.5h5M17.5 12v5"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3.5 12H7l2-5 4 10 2-5h5.5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.5 10a5.5 5.5 0 0111 0c0 5 2.5 6.5 2.5 6.5H4s2.5-1.5 2.5-6.5zM10 19.5a2 2 0 004 0"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="6" height="6" rx="1.5"/><rect x="13.5" y="4.5" width="6" height="6" rx="1.5"/><rect x="4.5" y="13.5" width="6" height="6" rx="1.5"/><rect x="13.5" y="13.5" width="6" height="6" rx="1.5"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4.5 9.5v5H8l4.5 4v-13L8 9.5zM15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 9.5v4M12 16.75v.25M10.3 4.6L3.4 17a2 2 0 001.7 3h13.8a2 2 0 001.7-3L13.7 4.6a2 2 0 00-3.4 0z"/></symbol>
+  </defs>
+</svg>
+
 <div class="mockbar">
   <h1>Profundidad y estados</h1>
   <div class="seg" role="group" aria-label="Variante">
-    <button type="button" data-set="hoy" aria-pressed="false">Hoy</button>
-    <button type="button" data-set="propuesta" aria-pressed="true">Propuesta</button>
+    <button type="button" data-attr="variant" data-val="hoy" aria-pressed="false">Hoy</button>
+    <button type="button" data-attr="variant" data-val="propuesta" aria-pressed="true">Propuesta</button>
+  </div>
+  <div class="seg" role="group" aria-label="Trazo de trabajando">
+    <span class="lbl">Trazo</span>
+    <button type="button" data-attr="trace" data-val="a" aria-pressed="true" aria-label="Trazo A, cometa">A</button>
+    <button type="button" data-attr="trace" data-val="b" aria-pressed="false" aria-label="Trazo B, respiración">B</button>
+    <button type="button" data-attr="trace" data-val="c" aria-pressed="false" aria-label="Trazo C, guiones">C</button>
+  </div>
+  <div class="seg" role="group" aria-label="Superficie">
+    <button type="button" data-attr="surface" data-val="plano" aria-pressed="false">Plano</button>
+    <button type="button" data-attr="surface" data-val="degradado" aria-pressed="true">Degradado</button>
   </div>
 </div>
 
 <main class="scene" aria-label="Escena de Phantom Workspace">
-  <svg class="grain" aria-hidden="true">
-    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
-    <rect width="100%" height="100%" filter="url(#grain)"/>
-  </svg>
 
   <!-- Rail -->
-  <nav class="rail glass" aria-label="Sesiones">
-    <div class="proj">
-      <div><b>phantom-workspace</b><span>main · 6 sesiones</span></div>
+  <nav class="rail box" aria-label="Sesiones">
+    <div class="rhead"><b>phantom-workspace</b><span>main · 6 sesiones</span></div>
+    <div class="rseg">
+      <span>Insignias por</span>
+      <div class="seg" role="group" aria-label="Clasificar sesiones por">
+        <button type="button" data-attr="rail" data-val="estado" aria-pressed="true">Estado</button>
+        <button type="button" data-attr="rail" data-val="tipo" aria-pressed="false">Tipo</button>
+      </div>
     </div>
-    <div class="need">
-      <span class="num">02</span>
-      <div><b>Te necesitan</b><small>permisos de git · plan de release</small></div>
+
+    <div class="group">
+      <div class="row"><span class="ncol">2</span><span class="tx"><b>Te necesitan</b><small>Migración de tokens · Notas de lanzamiento</small></span></div>
     </div>
-    <h2>Sesiones</h2>
-    <ul class="sessions">
-      <li class="sel"><span class="mark working"></span><span class="t">Repositorios habituales</span><span class="age">4m</span></li>
-      <li class="need-row"><span class="mark attention"></span><span class="t">Bloqueada: permisos de git</span><span class="age">1m</span></li>
-      <li><span class="mark"></span><span class="t">Codex · revisión de diff</span><span class="age">32m</span></li>
-      <li><span class="mark working"></span><span class="t">Encargo de voz</span><span class="age">9m</span></li>
-      <li><span class="mark done"></span><span class="t">Migración de tokens</span><span class="age">12m</span></li>
-      <li class="need-row"><span class="mark attention"></span><span class="t">Tu turno: plan de release</span><span class="age">3m</span></li>
-    </ul>
-    <h2 class="map-group">En el mapa</h2>
-    <ul class="sessions map-group">
-      <li><svg class="ic kind" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6zM9 11h6M9 15h4"/></svg><span class="t">Nota</span></li>
-      <li><svg class="ic kind" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg><span class="t">Navegador</span></li>
-    </ul>
-    <div class="rail-foot">
-      <span class="host"><span class="mark done"></span>Host local conectado</span>
-      <button class="rbtn" type="button" aria-label="Configuración"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></button>
-      <button class="rbtn" type="button" aria-label="Dictar"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></button>
+
+    <section class="sect">
+      <p class="cap">Sesiones</p>
+      <ul class="group list">
+        <li><button class="row sess" type="button" data-target="p1" data-state="working" data-kind="claude" aria-current="true"><span class="badge"><svg class="ic"><use href="#i-claude"/></svg></span><span class="tx"><b>Ordenar repositorios</b><small>Claude · <em class="st">trabajando</em></small></span><span class="val sup">4 min</span></button></li>
+        <li><button class="row sess" type="button" data-target="p2" data-state="attention" data-kind="claude"><span class="badge"><svg class="ic"><use href="#i-claude"/></svg></span><span class="tx"><b>Migración de tokens</b><small>Claude · <em class="st">te necesita</em></small></span><span class="val sup">1 min</span></button></li>
+        <li><button class="row sess" type="button" data-target="p3" data-state="done" data-kind="opencode"><span class="badge"><svg class="ic"><use href="#i-opencode"/></svg></span><span class="tx"><b>Dictado: puntuación</b><small>OpenCode · <em class="st">terminó</em></small></span><span class="val sup">12 min</span></button></li>
+        <li><button class="row sess" type="button" data-target="p4" data-state="error" data-kind="term"><span class="badge"><svg class="ic"><use href="#i-term"/></svg></span><span class="tx"><b>Smoke de escritorio</b><small>Terminal · <em class="st">error</em></small></span><span class="val sup">18 min</span></button></li>
+        <li><button class="row sess" type="button" data-target="p5" data-state="idle" data-kind="codex"><span class="badge"><svg class="ic"><use href="#i-codex"/></svg></span><span class="tx"><b>Revisar CONTRACT.md</b><small>Codex · <em class="st">en reposo</em></small></span><span class="val sup">32 min</span></button></li>
+        <li><button class="row sess" type="button" data-target="cue" data-state="attention" data-kind="voz"><span class="badge"><svg class="ic"><use href="#i-mic"/></svg></span><span class="tx"><b>Notas de lanzamiento</b><small>Encargo de voz · <em class="st">te necesita</em></small></span><span class="val sup">3 min</span></button></li>
+      </ul>
+    </section>
+
+    <section class="sect map">
+      <p class="cap">En el mapa</p>
+      <ul class="group list">
+        <li><button class="row" type="button"><span class="badge"><svg class="ic"><use href="#i-note"/></svg></span><span class="tx"><b>Nota de release</b></span><svg class="ic sm" style="color:var(--ink-3)"><use href="#i-chev"/></svg></button></li>
+        <li><button class="row" type="button"><span class="badge"><svg class="ic"><use href="#i-globe"/></svg></span><span class="tx"><b>Navegador</b></span><svg class="ic sm" style="color:var(--ink-3)"><use href="#i-chev"/></svg></button></li>
+      </ul>
+    </section>
+
+    <div class="rfoot">
+      <span class="host">Host local conectado</span>
+      <button class="ibtn" type="button" aria-label="Configuración"><svg class="ic sm"><use href="#i-sliders"/></svg></button>
+      <button class="ibtn" type="button" aria-label="Dictar"><svg class="ic sm"><use href="#i-mic"/></svg></button>
     </div>
   </nav>
 
   <!-- Paneles -->
-  <section id="p1" class="pane glass sel" data-state="working" aria-label="Sesión trabajando">
-    <span class="trail" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i><i style="--k:3"></i><i style="--k:4"></i><i style="--k:5"></i><i style="--k:6"></i></span>
-    <div class="bar"><span class="mark working"></span><span class="name">Ordenar repositorios recientes</span><span class="tag">trabajando</span></div>
-<div class="body"><span class="d">claude · opus · src/hooks/useRepos.mjs</span>
+  <section id="p1" class="pane box sel" data-state="working" aria-label="Sesión trabajando">
+    <svg class="trace" aria-hidden="true"><rect class="ta" pathLength="100" style="--L:26px;opacity:.06"/><rect class="ta" pathLength="100" style="--L:18px;opacity:.14"/><rect class="ta" pathLength="100" style="--L:11px;opacity:.28"/><rect class="ta" pathLength="100" style="--L:6px;opacity:.55"/><rect class="ta head" pathLength="100" style="--L:2.5px"/><rect class="tb" pathLength="100"/><rect class="tc" pathLength="100"/></svg>
+    <header class="bar"><span class="name">Ordenar repositorios recientes</span><span class="tag">trabajando</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <div class="body"><span class="d">claude · opus · src/hooks/useRepos.mjs</span>
 <span class="p">›</span> Ordeno por frecuencia y acceso reciente.
 <span class="d">  Edit  src/hooks/useRepos.mjs</span>
 <span class="del">-  return repos.sort(byName)</span>
 <span class="add">+  return repos.sort(byFrecency(now))</span>
 <span class="add">+  // peso: 0.7 frecuencia · 0.3 recencia</span>
 <span class="p">›</span> node --test src/hooks/*.test.mjs
-<span class="d">  ▸ 14 pruebas · ejecutando…</span></div>
+<span class="d">  ▸ 9 de 14 pruebas · ejecutando…</span></div>
   </section>
 
-  <section id="p2" class="pane glass" data-state="attention" aria-label="Sesión que te necesita">
-    <div class="bar"><span class="mark attention"></span><span class="name">Migración de tokens</span><span class="tag">Te necesita</span></div>
-<div class="body"><span class="d">claude · opus · DESIGN.md</span>
+  <section id="p2" class="pane box" data-state="attention" aria-label="Sesión que te necesita">
+    <header class="bar"><span class="name">Migración de tokens</span><span class="tag">te necesita</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <div class="body"><span class="d">claude · opus · DESIGN.md</span>
 <span class="p">›</span> --surface pasa de #0d0d0d a #131315.
   Afecta a 23 reglas en canvas-ui.css.
 
@@ -390,9 +379,9 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 <span class="q">›</span> _</div>
   </section>
 
-  <section id="p3" class="pane glass" data-state="done" aria-label="Sesión terminada">
-    <div class="bar"><span class="mark done"></span><span class="name">Dictado por voz: puntuación</span><span class="tag">Terminó</span></div>
-<div class="body"><span class="d">claude · opus · scripts/voice_text.py</span>
+  <section id="p3" class="pane box" data-state="done" aria-label="Sesión terminada">
+    <header class="bar"><span class="name">Dictado por voz: puntuación</span><span class="tag">terminó</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <div class="body"><span class="d">opencode · scripts/voice_text.py</span>
 <span class="p">›</span> Comas y signos de apertura en español.
 <span class="add">+  text = add_inverted_marks(text)</span>
 <span class="p">›</span> node --test test/voice-text.test.mjs
@@ -401,9 +390,9 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 <span class="d">  3 archivos · +48 −11 · listo para revisar</span></div>
   </section>
 
-  <section id="p4" class="pane glass" data-state="error" aria-label="Sesión con error">
-    <div class="bar"><span class="mark error"></span><span class="name">Smoke de escritorio</span><span class="tag">Error</span></div>
-<div class="body"><span class="d">claude · opus · test/desktop-smoke.mjs</span>
+  <section id="p4" class="pane box" data-state="error" aria-label="Sesión con error">
+    <header class="bar"><span class="name">Smoke de escritorio</span><span class="tag">error</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <div class="body"><span class="d">terminal · ~/phantom-workspace (main)</span>
 <span class="p">›</span> npm run test:desktop
 <span class="del">  ✖ ventana principal no respondió</span>
 <span class="del">    TimeoutError: 20000 ms superados</span>
@@ -412,101 +401,149 @@ svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-wid
 <span class="d">  Proceso terminó con código 1</span></div>
   </section>
 
-  <section id="p5" class="pane glass" data-state="idle" aria-label="Sesión en reposo">
-    <div class="bar"><span class="mark"></span><span class="name">Revisar CONTRACT.md</span><span class="meta">en reposo · 32 min</span></div>
-<div class="body"><span class="d">~/phantom-workspace (main)</span>
-<span class="p">$</span> git log --oneline -3
-7714048 Incorporar Repositorios habituales primero
-f51c1b1 Ordenar repositorios por frecuencia y acceso reciente
-<span class="p">$</span> _</div>
+  <section id="p5" class="pane box" data-state="idle" aria-label="Sesión en reposo">
+    <header class="bar"><span class="name">Revisar CONTRACT.md</span><span class="tag">en reposo · 32 min</span><button class="ibtn max" type="button" aria-label="Maximizar" aria-pressed="false"><svg class="ic sm"><use href="#i-max"/></svg></button></header>
+    <div class="body"><span class="d">codex · ~/phantom-workspace (main)</span>
+<span class="p">$</span> git log --oneline -1
+7714048 Incorporar Repositorios habituales primero</div>
   </section>
 
-  <div class="edge-cue" role="status">
-    <span class="mark attention"></span>Fuera de vista: «Notas de lanzamiento» te necesita
-    <svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M9 6l6 6-6 6"/></svg>
-  </div>
+  <div class="edge-cue box" id="cue" role="status">Fuera de vista: «Notas de lanzamiento» <em>te necesita</em><svg class="ic sm"><use href="#i-chev"/></svg></div>
 
-  <div class="mini glass" aria-label="Minimapa">
-    <i style="left:20px;top:22px;width:28px;height:22px" data-s="working"></i>
-    <i style="left:52px;top:22px;width:28px;height:22px" data-s="attention"></i>
-    <i style="left:20px;top:48px;width:28px;height:22px" data-s="done"></i>
-    <i style="left:52px;top:48px;width:28px;height:22px" data-s="error"></i>
-    <i style="left:20px;top:74px;width:60px;height:10px" data-s="idle"></i>
-    <i style="left:132px;top:30px;width:22px;height:18px" data-s="attention"></i>
+  <div class="mini box" aria-label="Minimapa">
+    <i style="left:28px;top:32px;width:50px;height:30px" data-s="working"></i>
+    <i style="left:86px;top:32px;width:50px;height:30px" data-s="attention"></i>
+    <i style="left:28px;top:68px;width:50px;height:30px" data-s="done"></i>
+    <i style="left:86px;top:68px;width:50px;height:30px" data-s="error"></i>
+    <i style="left:28px;top:104px;width:74px;height:16px" data-s="idle"></i>
+    <i style="left:164px;top:40px;width:24px;height:20px" data-s="attention"></i>
     <span class="vp"></span>
   </div>
 
   <!-- Dock -->
-  <div class="dock" role="toolbar" aria-label="Dock">
+  <div class="dock box" role="toolbar" aria-label="Dock">
     <svg class="titi" viewBox="0 0 28 28" role="img" aria-label="Titi"><path d="M5 25V13a9 9 0 0118 0v12l-4.5-3-4.5 3-4.5-3-4.5 3z" fill="currentColor"/><rect x="10" y="11" width="2.5" height="4" rx="1.25" fill="#0b0b0c"/><rect x="15.5" y="11" width="2.5" height="4" rx="1.25" fill="#0b0b0c"/></svg>
-    <button class="dprim" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nueva sesión</button>
-    <span class="dsep"></span>
-    <button class="dbtn" type="button" aria-label="Terminal"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg></button>
-    <button class="dbtn" type="button" aria-label="Buscar"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg></button>
-    <button class="dbtn" type="button" aria-label="Git"><svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 8v8M18 11c0 4-6 3-10 6"/></svg></button>
-    <button class="dbtn" type="button" aria-label="Configuración"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></button>
+    <button class="dprim" type="button"><svg class="ic"><use href="#i-plus"/></svg>Nueva sesión</button>
+    <button class="ibtn dbtn" type="button" aria-label="Terminal"><svg class="ic"><use href="#i-term"/></svg></button>
+    <button class="ibtn dbtn" type="button" aria-label="Buscar"><svg class="ic"><use href="#i-search"/></svg></button>
+    <button class="ibtn dbtn" type="button" aria-label="Git"><svg class="ic"><use href="#i-branch"/></svg></button>
+    <button class="ibtn dbtn" type="button" aria-label="Configuración"><svg class="ic"><use href="#i-sliders"/></svg></button>
   </div>
 
-  <!-- Configuración -->
-  <aside class="settings glass" aria-label="Configuración">
-    <header>
+  <!-- Apariencia -->
+  <aside class="settings box" aria-label="Apariencia">
+    <header class="phead">
       <h3>Apariencia</h3>
-      <button class="close" type="button" aria-label="Cerrar"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button class="ibtn" type="button" aria-label="Cerrar"><svg class="ic sm"><use href="#i-x"/></svg></button>
     </header>
 
-    <div class="big group">
+    <div class="group">
       <div class="srow">
         <div class="shead"><b>Intensidad del ambiente</b><span class="val">62 %</span></div>
-        <div class="pill" role="slider" tabindex="0" aria-label="Intensidad del ambiente" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" aria-valuetext="62 %">
-          <span class="fill" style="width:62%"></span>
-          <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>
-        </div>
+        <div class="pill" role="slider" tabindex="0" aria-label="Intensidad del ambiente" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" aria-valuetext="62 %"><span class="fill" style="width:62%"></span><svg class="ic"><use href="#i-sun"/></svg></div>
       </div>
       <div class="srow">
         <div class="shead"><b>Escala de interfaz</b><span class="val">100 %</span></div>
-        <div class="pill" role="slider" tabindex="0" aria-label="Escala de interfaz" aria-valuenow="100" aria-valuemin="80" aria-valuemax="130" aria-valuetext="100 %">
-          <span class="fill" style="width:40%"></span>
-          <svg class="ic" viewBox="0 0 24 24"><path d="M5 18L10 6l5 12M7 14h6M17 11h4M19 9v4"/></svg>
-        </div>
+        <div class="pill" role="slider" tabindex="0" aria-label="Escala de interfaz" aria-valuenow="100" aria-valuemin="80" aria-valuemax="130" aria-valuetext="100 %"><span class="fill" style="width:40%"></span><svg class="ic"><use href="#i-type"/></svg></div>
       </div>
     </div>
 
-    <p class="cap">Lienzo y estados</p>
-    <div class="group">
-      <div class="row thin"><span class="badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg></span><div class="tx"><b>Intensidad del ambiente</b></div><div class="slider" style="max-width:96px"><span style="width:62%"></span></div></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#4f9a6e"><svg viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/></svg></span><div class="tx"><b>Animar sesiones activas</b><small>Solo se mueve lo que trabaja</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Animar sesiones activas"></button></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#c4803f"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8M10 20h4"/></svg></span><div class="tx"><b>Avisar cuando te necesiten</b><small>Aro ámbar fino y fila en el rail</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Avisar cuando te necesiten"></button></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#6e6e75"><svg viewBox="0 0 24 24"><path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM4 16h4v4H4z"/></svg></span><div class="tx"><b>Retícula del lienzo</b><small>Puntos cada 24 px</small></div><button class="toggle" role="switch" aria-checked="false" aria-label="Retícula del lienzo"></button></div>
-    </div>
+    <section class="sect">
+      <p class="cap">Lienzo y estados</p>
+      <ul class="group list">
+        <li><div class="row"><span class="badge" style="--b:#4f9a6e"><svg class="ic"><use href="#i-pulse"/></svg></span><span class="tx"><b>Animar sesiones activas</b><small>Solo se mueve lo que trabaja</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Animar sesiones activas"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:#c4803f"><svg class="ic"><use href="#i-bell"/></svg></span><span class="tx"><b>Avisar cuando te necesiten</b><small>Aro ámbar fino y fila en el rail</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Avisar cuando te necesiten"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:#6e6e75"><svg class="ic"><use href="#i-grid"/></svg></span><span class="tx"><b>Retícula del lienzo</b><small>Puntos cada 24 px</small></span><button class="toggle" type="button" role="switch" aria-checked="false" aria-label="Retícula del lienzo"></button></div></li>
+      </ul>
+    </section>
 
-    <p class="cap">Sonido</p>
-    <div class="group">
-      <div class="row" tabindex="0"><span class="badge" style="--b:#4f74c2"><svg viewBox="0 0 24 24"><path d="M5 10v4h3l4 4V6L8 10zM16 9a4 4 0 010 6"/></svg></span><div class="tx"><b>Sonido al terminar</b><small>Tono corto, volumen 30 %</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Sonido al terminar"></button></div>
-      <div class="row" tabindex="0"><span class="badge" style="--b:#bf6684"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16v.5M10.3 4l-8 14a2 2 0 001.7 3h16a2 2 0 001.7-3l-8-14a2 2 0 00-3.4 0z"/></svg></span><div class="tx"><b>Sonido en error</b></div><button class="toggle" role="switch" aria-checked="false" aria-label="Sonido en error"></button></div>
-    </div>
+    <section class="sect">
+      <p class="cap">Sonido</p>
+      <ul class="group list">
+        <li><div class="row"><span class="badge" style="--b:#4f74c2"><svg class="ic"><use href="#i-volume"/></svg></span><span class="tx"><b>Sonido al terminar</b><small>Tono corto, volumen 30 %</small></span><button class="toggle" type="button" role="switch" aria-checked="true" aria-label="Sonido al terminar"></button></div></li>
+        <li><div class="row"><span class="badge" style="--b:#bf6684"><svg class="ic"><use href="#i-alert"/></svg></span><span class="tx"><b>Sonido en error</b><small>Solo si la ventana no tiene foco</small></span><button class="toggle" type="button" role="switch" aria-checked="false" aria-label="Sonido en error"></button></div></li>
+      </ul>
+    </section>
   </aside>
 </main>
 
-<footer class="legend">
-  <b>Qué cambia y por qué</b>
+<details class="legend">
+  <summary>Qué cambia y por qué</summary>
   <ol>
-    <li><b>Negro profundo</b>: lienzo #020203 con tres campos de luz ambiental muy contenidos, neutros sin dominante azul; el negro manda.</li>
-    <li><b>El aro</b>: 1 px nítido en degradado (blanco 22 % arriba → 6 % abajo), sin resplandor; solo una sombra negra de contacto. La separación la da el aro, no un relleno gris.</li>
-    <li><b>Tres niveles por panel</b>: objeto #0b0b0c, pozo de terminal #050506 y campos #141416; sin blur en el lienzo.</li>
-    <li><b>Laterales reducidos</b>: rail de 216 px con filas de 36 px (sesiones, «En el mapa», host al pie) e inspector de 320 px; la escena cabe entera en 1520 × 980 con el dock visible.</li>
-    <li><b>Atención de menor a mayor</b>: reposo sin marca · terminó, cuadro marfil · error, cuadro rojo y «Error» · trabajando, pixeles lima que marchan por el borde · te necesita, único aro de color (ámbar de 1 px).</li>
-    <li><b>Ámbar mínimo</b>: fuera del panel solo vive en marcas y numerales; ninguna superficie rellena de ámbar. Un único Titi, el fantasma de Phantom Workspace, en el dock.</li>
-    <li><b>Apariencia como Ajustes de One UI</b>: tarjetas de grupo, filas de 56 px con divisor sangrado, insignias planas de 32 px y deslizadores en píldora sin texto encima. Con movimiento reducido los pixeles quedan fijos.</li>
+    <li><b>Un solo sistema de cajas</b>: caja exterior con aro de 1 px (radio 24, relleno 12) → grupos en tarjeta (radio 12, separación 12) → filas de 12 × 16 con columna de icono fija de 32 px. Los valores viven en variables CSS (<code>--box-pad</code>, <code>--r-group</code>, <code>--icon-col</code>…).</li>
+    <li><b>Tres estilos de texto</b>: título 15/600, fila 14/500 y apoyo 12/400; mono solo en rutas, comandos y cifras del terminal.</li>
+    <li><b>Rail como Apariencia</b>: sesiones en tarjeta con insignia, título, línea de apoyo y tiempo. «Estado»: solo lo activo lleva color (lima apagado si trabaja, ámbar si te necesita). «Tipo»: color apagado por agente y el estado en palabra, con ámbar solo en «te necesita».</li>
+    <li><b>Trazo de trabajando</b>: A cometa continua, B respiración del aro, C guiones a pasos; los tres de 1.5 px sobre el aro, sin resplandor.</li>
+    <li><b>Superficie</b>: «Degradado» lleva cada objeto de #0f0f11 a #070708 y un radial contenido en el lienzo; «Plano» conserva #0b0b0c.</li>
+    <li><b>Interacción</b>: clic en una sesión la selecciona y realza el aro de su panel; maximizar (o doble clic en la cabecera) lo abre desde su sitio con FLIP de 320 ms y Esc lo devuelve. Pulsar solo cambia el relleno un paso; con movimiento reducido todo es inmediato.</li>
   </ol>
-</footer>
+</details>
 
 <script>
   const root = document.documentElement;
-  document.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => {
-    root.dataset.variant = b.dataset.set;
-    document.querySelectorAll('[data-set]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  const scene = document.querySelector('.scene');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+
+  document.querySelectorAll('[data-attr]').forEach(b => b.addEventListener('click', () => {
+    root.dataset[b.dataset.attr] = b.dataset.val;
+    b.parentElement.querySelectorAll('[data-attr]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   }));
   document.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', () => t.setAttribute('aria-checked', String(t.getAttribute('aria-checked') !== 'true'))));
+
+  // «Ver en el mapa»: selecciona la fila y realza el aro del panel
+  const flash = el => { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); };
+  document.querySelectorAll('.sess').forEach(row => row.addEventListener('click', () => {
+    document.querySelectorAll('.sess').forEach(r => r.removeAttribute('aria-current'));
+    row.setAttribute('aria-current', 'true');
+    const target = document.getElementById(row.dataset.target);
+    if (!target) return;
+    if (target.classList.contains('pane')) document.querySelectorAll('.pane').forEach(p => p.classList.toggle('sel', p === target));
+    flash(target);
+  }));
+
+  // Maximizar desde su sitio: FLIP sobre transform
+  function flip(el, mutate) {
+    const a = el.getBoundingClientRect();
+    mutate();
+    if (reduce.matches) return;
+    const b = el.getBoundingClientRect();
+    el.style.transition = 'none';
+    el.style.transformOrigin = '0 0';
+    el.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${a.width / b.width}, ${a.height / b.height})`;
+    el.getBoundingClientRect();
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform var(--dur-open) var(--ease-settle), opacity var(--dur-open) linear';
+      el.style.transform = '';
+    });
+  }
+  let open = null;
+  function setBtn(p, on) {
+    const b = p.querySelector('.max');
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? 'Restaurar' : 'Maximizar');
+    b.querySelector('use').setAttribute('href', on ? '#i-min' : '#i-max');
+  }
+  function openPane(p) {
+    if (open) closePane(open);
+    p.classList.add('lift');
+    flip(p, () => Object.assign(p.style, { left: 'var(--canvas-l)', top: 'var(--canvas-t)', width: 'var(--canvas-w)', height: 'var(--canvas-h)' }));
+    scene.classList.add('focus');
+    setBtn(p, true);
+    open = p;
+  }
+  function closePane(p) {
+    flip(p, () => { p.style.left = p.style.top = p.style.width = p.style.height = ''; });
+    scene.classList.remove('focus');
+    setBtn(p, false);
+    open = null;
+    setTimeout(() => { if (open !== p) p.classList.remove('lift'); }, reduce.matches ? 0 : 340);
+  }
+  const toggle = p => (open === p ? closePane(p) : openPane(p));
+  document.querySelectorAll('.pane').forEach(p => {
+    p.querySelector('.max').addEventListener('click', () => toggle(p));
+    p.querySelector('.bar').addEventListener('dblclick', e => { if (!e.target.closest('button')) toggle(p); });
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && open) closePane(open); });
 </script>
 </body>
 </html>
