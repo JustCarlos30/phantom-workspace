@@ -25,6 +25,15 @@ test('las reglas de admisión de contrato aparecen en terminalPolicy y phantomIn
   assert.ok(phantomInstructions({ name: 'p', canonicalPath: '/tmp/p', nodes: [] }).includes(POLICY_HINTS.contract));
 });
 
+test('la política incluye la regla de corte paralelo exactamente una vez', () => {
+  const texts = [
+    terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' }),
+    phantomInstructions({ name: 'Project', canonicalPath: '/project' }),
+  ];
+  for (const text of texts) assert.equal(text.split(POLICY_HINTS.parallel).length - 1, 1);
+  for (const needle of ['coordination.maxConcurrency', 'disjoint files', '`dependencies`']) assert.ok(POLICY_HINTS.parallel.includes(needle));
+});
+
 function temporary(t, cleanup = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-policy-test-'));
   if (cleanup) t.after(() => fs.rmSync(root, { recursive: true, force: true }));
