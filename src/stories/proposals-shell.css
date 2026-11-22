@@ -52,7 +52,15 @@
 
 /* ---------- Dock unificado y herramientas del lienzo ---------- */
 .px-after > .px-dockstage { position: absolute; inset: 0; height: auto; border-radius: inherit; background: none; box-shadow: none; }
+.px-after > .px-dockstage { --px-tools-w: 344px; }
 .px-after .px-canvas-group { right: 24px; bottom: 24px; }
+.px-after .px-canvas-group > .px-bar { width: var(--px-tools-w); box-sizing: border-box; justify-content: space-between; }
+/* El dock centrado nunca invade la franja de CanvasTools + 24 px a cada lado. */
+.px-after > .px-dockstage .px-dockstack { max-width: calc(100% - 2 * (var(--px-tools-w) + 48px)); grid-template-columns: minmax(0, 1fr); }
+.px-after > .px-dockstage .px-dock { max-width: 100%; gap: 4px; }
+.px-after > .px-dockstage .px-dock > * { flex: none; }
+.px-after > .px-dockstage .px-dock > .px-status { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.px-after > .px-dockstage .px-status > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .px-shell-crumb strong { font-weight: 600; }
 .px-shell-crumb span { color: var(--muted); }
 .px-shell-crumb:focus-visible { outline: 2px solid var(--on); outline-offset: 2px; border-radius: var(--r-ctl); }

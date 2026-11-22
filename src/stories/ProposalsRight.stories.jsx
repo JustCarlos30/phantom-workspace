@@ -10,7 +10,7 @@ import { VoiceDictation } from '../components/VoiceDictation';
 import { NoteIcon, TerminalIcon } from '../components/ShellIcons';
 import { demo, Panel } from './decorators';
 import { workspace, noop, activity, appearance } from './fixtures';
-import { BeforeAfter, Page, Section, materialArg } from './proposals-kit';
+import { BeforeAfter, Page, Section, Tag, materialArg } from './proposals-kit';
 import './proposals-right.css';
 
 export default {
@@ -116,14 +116,34 @@ export const Notch = {
 };
 
 /* ---------- Paleta ---------- */
-const palette = () => <Contained selector=".tw-overlay"><CommandPalette open workspace={workspace} onClose={noop} onAction={noop} /></Contained>;
+/* La CommandPalette real usa createPortal a <body>: no se puede contener. Una sola paleta y la vista alterna las reglas .px-after sobre <body>. */
+function PaletteView({ vista, material }) {
+  const after = vista === 'propuesta';
+  useEffect(() => {
+    if (!after) return undefined;
+    const body = document.body;
+    body.classList.add('px-after', 'px-material');
+    body.dataset.variant = material;
+    return () => { body.classList.remove('px-after', 'px-material'); delete body.dataset.variant; };
+  }, [after, material]);
+  return <>
+    <div className="px-right-vista"><Tag today={!after} /></div>
+    <CommandPalette open workspace={workspace} onClose={noop} onAction={noop} />
+  </>;
+}
 export const Paleta = {
-  render: ({ material }) => <Page title="Paleta de comandos" problem="La paleta superpone velo, contorno, campo de búsqueda con aro y resultados con borde de selección.">
-    <BeforeAfter stacked contain height={H} material={material} before={palette()} after={palette()} changes={[
-      'Misma CommandPalette real con material cenital y radio de isla, sin borde.',
-      'Búsqueda como campo isla: aro de 1 px que solo se aclara al enfocar.',
-      'Resultado activo con realce tonal de radio 12, sin contorno.',
-    ]} />
+  args: { vista: 'propuesta' },
+  argTypes: { vista: { control: 'inline-radio', options: ['hoy', 'propuesta'], name: 'Vista', table: { defaultValue: { summary: 'propuesta' } } } },
+  render: ({ material, vista }) => <Page title="Paleta de comandos" problem="La paleta superpone velo, contorno, campo de búsqueda con aro y resultados con borde de selección.">
+    <PaletteView vista={vista} material={material} />
+    <Section label="Qué cambia">
+      <ul className="px-changes">
+        <li>Misma CommandPalette real con material cenital y radio de isla, sin borde.</li>
+        <li>Búsqueda como campo isla: aro de 1 px que solo se aclara al enfocar.</li>
+        <li>Resultado activo con realce tonal de radio 12, sin contorno.</li>
+        <li>Usa el control «Vista» para alternar entre hoy y la propuesta.</li>
+      </ul>
+    </Section>
   </Page>,
 };
 
