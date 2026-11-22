@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pinnedRef, readerKind, emptyMessage } from './context-view.mjs';
+import { pinnedRef, readerKind, emptyMessage, compactionBlocked } from './context-view.mjs';
+
+test('Compactación solo se ofrece en sesiones soportadas, conectadas y sin cola ni operación', () => {
+  const chat = { provider: 'opencode', sessionId: 'native-session', running: false, queue: [] };
+  assert.equal(compactionBlocked(chat), '');
+  assert.equal(compactionBlocked({ ...chat, provider: 'codex' }), '');
+  assert.match(compactionBlocked(chat, false), /Conecta/);
+  assert.match(compactionBlocked(null), /Conecta/);
+  for (const provider of [null, 'claude', 'unknown']) assert.match(compactionBlocked({ ...chat, provider }), /no integrada/);
+  assert.match(compactionBlocked({ ...chat, running: true }), /operación/);
+  assert.match(compactionBlocked({ ...chat, queue: [{ id: 'q' }] }), /cola/);
+  assert.match(compactionBlocked({ ...chat, sessionId: null }), /inicia/);
+});
 
 test('pinnedRef encuentra rutas directas y anidadas y conserva el ref', () => {
   const direct = { id: 'a', path: 'README.md' }, nested = { id: 'b', ref: { path: 'docs/guide.md' } };

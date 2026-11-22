@@ -18,6 +18,7 @@ import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { executionPolicy } from '../../shared/execution-policy.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
+import { compactionBlocked } from '../hooks/context-view.mjs';
 
 const AGENT_MODES = [
   { id: 'claude', key: 'claude', label: 'Claude', hint: 'Conversar con Claude Code en esta carpeta' },
@@ -619,7 +620,7 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [open]);
-  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">{running ? 'Midiendo contexto…' : 'Contexto no disponible'}</span>;
+  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">{running ? 'Operación en curso…' : 'Contexto no disponible'}{onCompact && <button type="button" disabled={running} onClick={onCompact}>Compactar…</button>}</span>;
   const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
@@ -673,7 +674,7 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
       </dl>}
       {onCompact ? <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || 'Resumir el historial y liberar la ventana'}
         onClick={() => { close(); onCompact(); }}>
-        <FoldVertical size={14} aria-hidden="true" />Resumir conversación
+        <FoldVertical size={14} aria-hidden="true" />Compactar…
       </button> : onNew && advice.band !== 'ok' && <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || undefined}
         onClick={() => { close(); onNew(); }}>
         <MessageSquarePlus size={14} aria-hidden="true" />Empezar conversación nueva
@@ -768,9 +769,46 @@ export function SessionContext({ node, workspace, api, notify, provider, label, 
   </section>;
 }
 
+export function CompactionControls({ chat, connected, capabilities, compact, continueSession, reveal = 0 }) {
+  const [busy, setBusy] = useState(false), [capability, setCapability] = useState(null), [summary, setSummary] = useState('');
+  const pending = useRef(false);
+  useEffect(() => { setCapability(null); setSummary(''); }, [chat?.provider, chat?.sessionId]);
+  const blocked = compactionBlocked(chat, connected), latest = chat?.compactions?.at(-1), continuation = chat?.continuations?.at(-1);
+  const act = async () => {
+    if (blocked || pending.current) return;
+    pending.current = true; setBusy(true);
+    try {
+      const value = await capabilities(); setCapability(value);
+      if (value.kind === 'native') await compact();
+    } catch { /* The hook shows the host error. */ }
+    finally { pending.current = false; setBusy(false); }
+  };
+  const proceed = async () => {
+    if (blocked || pending.current || !summary.trim()) return;
+    pending.current = true; setBusy(true);
+    try { await continueSession(summary); setCapability(null); setSummary(''); }
+    catch { /* Keep the reviewed summary for retry. */ }
+    finally { pending.current = false; setBusy(false); }
+  };
+  return <div>
+    <ContextMeter meta={chat?.meta || {}} running={!!blocked || busy} reveal={reveal} onCompact={act} />
+    {blocked && <small role="status">{blocked}</small>}
+    {chat?.operation && <p role="status">{chat.operation === 'compact' ? 'Compactando con la API nativa…' : 'Comprobando capacidades instaladas…'} Puedes detener la operación.</p>}
+    {latest && <p role="status">{latest.status === 'done' ? 'Compactación nativa verificada. La medición se actualizará con la próxima petición; no se calcula ahorro.' : latest.status === 'running' ? 'Compactación en curso.' : `Compactación sin verificar (${latest.status}): ${latest.error || ''}`}</p>}
+    {continuation && <p role="status">{continuation.status === 'done' ? 'Sesión nueva de Codex confirmada; resumen e historial preservados.' : `Continuidad de Codex: ${continuation.status}${continuation.error ? ` · ${continuation.error}` : ''}`}</p>}
+    {capability?.kind === 'continuation' && <section aria-label="Continuar Codex con resumen">
+      <p>{capability.reason}</p>
+      <label>Resumen para la sesión nueva (revísalo antes de enviar)<textarea value={summary} disabled={busy} onChange={event => setSummary(event.target.value)} maxLength={32768} /></label>
+      <p>Se enviará este resumen a una sesión nueva con los mismos permisos y modelo. El historial anterior seguirá visible.</p>
+      <button type="button" disabled={!!blocked || busy || !summary.trim()} onClick={proceed}>Crear sesión nueva y enviar resumen</button>
+      <button type="button" disabled={busy} onClick={() => setCapability(null)}>Cancelar</button>
+    </section>}
+  </div>;
+}
+
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
   const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
-  const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
+  const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
@@ -901,7 +939,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         </div>
       </div>
       <div className="pc-meta">
-        <ContextMeter meta={meta} running={running} reveal={reveal} onNew={() => clear().catch(() => {})} />
+         <CompactionControls chat={chat} connected={connected} capabilities={capabilities} compact={compact} continueSession={continueSession} reveal={reveal} />
         <span className="pc-bar-space" />
         {voice.status === 'idle' && <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>}
       </div>

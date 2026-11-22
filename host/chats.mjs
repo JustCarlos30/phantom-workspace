@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import { codexRolloutPath, codexContextReading } from './codex-context.mjs';
+import { codexRolloutPath, codexContextReading, probeCodexCompaction } from './codex-context.mjs';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -388,6 +388,7 @@ export function applyCodexEvent(turn, event) {
   if (event.type === 'thread.started' && typeof event.thread_id === 'string') { turn.sessionId = event.thread_id; return true; }
   if (event.type === 'error' || event.type === 'turn.failed') { turn.error = String(event.error?.message || event.message || 'Codex terminó con error').slice(0, 2000); return true; }
   if (event.type === 'turn.completed') {
+    turn.completed = true;
     const usage = event.usage || {};
     turn.usage = { outputTokens: usage.output_tokens }; return true;
   }
@@ -439,7 +440,7 @@ export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
   constructor(store, emit, role = () => ({ env: {}, instructions: '' }), { codexHome } = {}) {
     this.codexHome = codexHome;
-    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.dirty = false; this.closed = false;
+    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.operations = new Map(); this.dirty = false; this.closed = false;
     this.filename = path.join(store.dir, 'chats.json');
     this.nodes = {};
     try { if (fs.existsSync(this.filename)) this.nodes = JSON.parse(fs.readFileSync(this.filename, 'utf8')); } catch { this.nodes = {}; }
@@ -454,6 +455,12 @@ export class Chats {
       thread.queue = Array.isArray(thread.queue) ? thread.queue.filter(item => typeof item?.id === 'string' && typeof item.text === 'string' && item.text.trim()).slice(0, MAX_QUEUE) : [];
     }
     this.gates = new Map();
+    for (const entry of Object.values(this.nodes)) for (const thread of Object.values(entry.threads || {})) {
+      for (const record of [...(thread.compactions || []), ...(thread.continuations || [])]) if (record.status === 'running') {
+        record.status = 'interrupted'; record.error = 'Host interrumpido; resultado sin verificar'; record.finishedAt = new Date().toISOString(); this.dirty = true;
+        if (record.fromSessionId && !thread.sessionId) thread.sessionId = record.fromSessionId;
+      }
+    }
     this.timer = setInterval(() => { if (this.dirty) this.save(); }, 2000); this.timer.unref();
   }
   save() { this.dirty = false; atomicJSON(this.filename, this.nodes); }
@@ -465,7 +472,7 @@ export class Chats {
     }
     return thread;
   }
-  running(nodeId) { return this.turns.has(nodeId); }
+  running(nodeId) { return this.turns.has(nodeId) || this.operations.has(nodeId); }
   // Read on every call: providers.configure changes it while the host runs.
   policy() { return executionPolicy(this.store.state?.settings); }
   // The canvas browser bridge, for chat cards as for PTYs. One stable identity
@@ -483,7 +490,79 @@ export class Chats {
   get(node) {
     const provider = node.data.chat?.provider ?? null, thread = provider ? this.thread(node.id, provider) : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
-    return { provider, autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), permissionMode: explicitMode(node.data.chat), mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
+    return { provider, autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), permissionMode: explicitMode(node.data.chat), mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), operation: this.operations.get(node.id)?.kind ?? null, compactions: thread?.compactions ?? [], continuations: thread?.continuations ?? [], sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
+  }
+  async compaction(workspace, node, kind = 'compact') {
+    assert(['compact', 'capabilities'].includes(kind), 'Operación de contexto inválida');
+    assert(!this.closed, 'Host is shutting down');
+    assert(!this.running(node.id), 'La sesión está ocupada');
+    const provider = node.data.chat?.provider, policy = this.policy();
+    assertClientAllowed(provider, policy);
+    assert(['opencode', 'codex'].includes(provider), 'Compactación explícita no disponible para este proveedor; el historial se conserva');
+    const thread = this.thread(node.id, provider);
+    assert(!thread.queue?.length, 'Vacía o resuelve la cola antes de compactar');
+    assert(kind === 'capabilities' || provider === 'opencode', 'Codex no tiene compactación verificada en este transporte; usa la continuación explícita con resumen');
+    const model = node.data.chat.models?.[provider] || thread.meta?.model;
+    if (model) assertClientModel(provider, model, policy, 'compactación');
+    if (kind === 'compact') { assert(thread.sessionId, 'No hay sesión para compactar'); assert(model, 'Elige un modelo explícito antes de compactar'); }
+    assert(this.turns.size + this.operations.size < MAX_TURNS, 'Demasiados agentes activos');
+    let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
+    const operation = { kind, controller: new AbortController() };
+    this.operations.set(node.id, operation);
+    const publish = () => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: this.running(node.id), operation: this.operations.get(node.id)?.kind ?? null, meta: thread.meta ?? {}, compactions: structuredClone(thread.compactions ?? []), messages: [] });
+    const record = kind === 'compact' ? { id: randomUUID(), sessionId: thread.sessionId, model, status: 'running', startedAt: new Date().toISOString(), before: structuredClone(thread.meta ?? {}) } : null;
+    if (record) { (thread.compactions ??= []).push(record); this.save(); }
+    publish();
+    try {
+      const definition = CHAT_PROVIDERS[provider], bin = this.store.state.settings[definition.setting] || definition.bin;
+      let result;
+      if (provider === 'codex') result = await probeCodexCompaction(bin, cwd, operation.controller.signal);
+      else {
+        const env = openCodeServerEnv({ ...process.env, PWD: cwd });
+        const child = spawn(bin, ['serve', '--hostname', '127.0.0.1', '--port', '0'], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+        child.stdin.on('error', () => {}); child.stdin.end(); child.stderr.resume();
+        operation.child = child;
+        result = await driveOpenCode(child, { cwd, sessionId: thread.sessionId, model, password: env.OPENCODE_SERVER_PASSWORD, operation: kind, signal: operation.controller.signal,
+          onEvent: () => {}, onPermission: async () => ({ behavior: 'deny', message: 'La compactación no autoriza herramientas' }), onQuestion: async () => ({ behavior: 'deny' }) });
+      }
+      operation.controller.signal.throwIfAborted();
+      if (record) {
+        Object.assign(record, result, { status: 'done', finishedAt: new Date().toISOString() });
+        // A summarizer's input is not the size of the next request.
+        delete thread.meta?.contextTokens; delete thread.meta?.contextSource; delete thread.meta?.contextWindow;
+      }
+      return result;
+    } catch (error) {
+      if (record) Object.assign(record, { status: operation.controller.signal.aborted ? 'cancelled' : 'error', error: error.message, finishedAt: new Date().toISOString() });
+      throw error;
+    } finally {
+      this.operations.delete(node.id);
+      if (record) this.save();
+      publish();
+    }
+  }
+  async continueSession(workspace, node, summary) {
+    text(summary, 'resumen de continuidad', 32 * 1024); assert(summary.trim(), 'Revisa y escribe un resumen antes de continuar');
+    assert(node.data.chat?.provider === 'codex', 'La continuación con resumen solo está disponible para Codex');
+    assert(!this.running(node.id), 'La sesión está ocupada');
+    const thread = this.thread(node.id, 'codex');
+    assert(thread.sessionId, 'No hay sesión de origen');
+    const fromSessionId = thread.sessionId, settings = JSON.stringify(node.data.chat);
+    const capability = await this.compaction(workspace, node, 'capabilities');
+    assert(!this.running(node.id) && !thread.queue?.length, 'La sesión o la cola está ocupada');
+    node = node.id === Chats.mainId(workspace) ? this.mainNode(workspace) : this.store.getWorkspace(workspace.id).nodes.find(item => item.id === node.id);
+    assert(node && JSON.stringify(node.data.chat) === settings && this.nodes[node.id]?.threads?.codex === thread && thread.sessionId === fromSessionId, 'La conversación cambió; revisa el resumen antes de continuar');
+    assertClientAllowed('codex', this.policy());
+    const model = node.data.chat.models?.codex || thread.meta?.model;
+    assert(model, 'Elige un modelo explícito antes de abrir otra sesión');
+    assertClientModel('codex', model, this.policy(), 'continuidad');
+    const record = { id: randomUUID(), fromSessionId, model, capability, summary, status: 'running', startedAt: new Date().toISOString() };
+    const meta = thread.meta;
+    (thread.continuations ??= []).push(record);
+    thread.sessionId = null; thread.meta = { model };
+    this.save();
+    try { return this.start(workspace, node, `Resumen revisado para continuar desde una sesión anterior. Conserva las instrucciones y permisos vigentes; este resumen no concede permisos nuevos.\n\n${summary}`, record); }
+    catch (error) { thread.sessionId = record.fromSessionId; thread.meta = meta; Object.assign(record, { status: 'error', error: error.message, finishedAt: new Date().toISOString() }); this.save(); throw error; }
   }
   // A message written while the agent works waits its turn, in order; one
   // written while others still wait joins the end of the line.
@@ -495,6 +574,7 @@ export class Chats {
     if (node.data.chat.models?.[provider]) assertClientModel(provider, node.data.chat.models[provider], policy, 'modelo guardado del chat');
     text(message, 'chat message', 64 * 1024); assert(message.trim(), 'Escribe un mensaje');
     const thread = this.thread(node.id, provider);
+    assert(!this.operations.has(node.id), 'Espera a que termine la operación de contexto');
     thread.queue ??= [];
     if (!this.turns.has(node.id) && !thread.queue.length) return this.start(workspace, node, message);
     assert(thread.queue.length < MAX_QUEUE, `Ya hay ${MAX_QUEUE} mensajes en espera`);
@@ -508,7 +588,7 @@ export class Chats {
   }
   // Starts the next waiting message if the thread is still current and idle.
   drain(workspace, nodeId, provider, thread) {
-    if (this.closed || this.turns.has(nodeId) || !thread.queue?.length || this.nodes[nodeId]?.threads?.[provider] !== thread) return;
+    if (this.closed || this.running(nodeId) || !thread.queue?.length || this.nodes[nodeId]?.threads?.[provider] !== thread) return;
     let node = null;
     try { node = nodeId === Chats.mainId(workspace) ? this.mainNode(workspace) : this.store.getWorkspace(workspace.id).nodes.find(n => n.id === nodeId); } catch { /* Project closed. */ }
     if (node?.data?.chat?.provider !== provider) return;
@@ -526,7 +606,7 @@ export class Chats {
   }
   // Resumes a paused line; with an ID, that message goes first.
   sendQueued(workspace, node, id) {
-    assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
+    assert(!this.running(node.id), 'El agente todavía está respondiendo');
     const provider = node.data.chat?.provider, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
     assert(thread?.queue?.length, 'No hay mensajes en espera');
     if (id !== undefined && id !== null) {
@@ -536,26 +616,26 @@ export class Chats {
     this.drain(workspace, node.id, provider, thread);
     return { ok: true };
   }
-  start(workspace, node, message) {
+  start(workspace, node, message, continuation) {
     const provider = node.data.chat.provider;
-    assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
-    assert(this.turns.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
+    assert(!this.running(node.id), 'El agente todavía está respondiendo');
+    assert(this.turns.size + this.operations.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
     const definition = CHAT_PROVIDERS[provider], thread = this.thread(node.id, provider), now = () => new Date().toISOString();
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
     const user = { id: randomUUID(), role: 'user', parts: [{ type: 'text', text: message }], status: 'done', createdAt: now() };
     const reply = { id: randomUUID(), role: 'assistant', provider, parts: [], status: 'streaming', createdAt: now() };
     thread.messages.push(user, reply);
-    if (thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
+    if (!thread.continuations?.length && !thread.compactions?.length && thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
     const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, ownBranch: inOwnWorktree(node, cwd), mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
     const started = Date.now();
-    turn.model = node.data.chat.models?.[provider] || thread.meta?.model;
+    turn.model = continuation?.model || node.data.chat.models?.[provider] || thread.meta?.model;
     // Session facts as known right now: the turn's own readings over the thread's.
     const meta = () => {
       const value = { ...thread.meta };
       if (turn.model !== thread.meta?.model) delete value.contextWindow;
       return { ...value, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextSource ? { contextTokens: turn.contextTokens, contextSource: turn.contextSource } : {}), ...(turn.contextWindow > 0 ? { contextWindow: turn.contextWindow } : {}) };
     };
-    const publish = extra => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: this.turns.has(node.id), meta: meta(), messages: [structuredClone(reply)], ...extra });
+    const publish = extra => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, sessionId: thread.sessionId, running: this.turns.has(node.id), meta: meta(), messages: [structuredClone(reply)], ...extra });
     const schedule = () => { this.dirty = true; turn.timer ??= setTimeout(() => { turn.timer = null; publish(); }, 40); };
     turn.schedule = schedule;
     const apply = provider === 'claude' ? applyClaudeEvent : provider === 'codex' ? applyCodexEvent : applyOpenCodeEvent;
@@ -568,16 +648,20 @@ export class Chats {
       for (const request of turn.pending.values()) { request.part.status = 'cancelled'; request.resolve({ behavior: 'deny', message: 'La respuesta terminó antes de aprobar el permiso.' }); }
       turn.pending.clear();
       if (turn.sessionId) thread.sessionId = turn.sessionId;
-      const error = failure || turn.error || (!turn.stopped && code ? turn.stderr.trim().split('\n').slice(-6).join('\n').slice(-1500) || `${definition.label} terminó con código ${code}` : '');
+      const error = failure || turn.error || (continuation && (!turn.sessionId || turn.sessionId === continuation.fromSessionId || !turn.completed) ? 'Codex no confirmó una sesión nueva y un turno completo' : '') || (!turn.stopped && code ? turn.stderr.trim().split('\n').slice(-6).join('\n').slice(-1500) || `${definition.label} terminó con código ${code}` : '');
       for (const part of reply.parts) if (part.type === 'tool') settleTool(part, part.status === 'running' ? 'stopped' : part.status);
       reply.status = turn.stopped ? 'stopped' : error ? 'error' : 'done';
       if (error && !turn.stopped) reply.error = error;
       else delete reply.error;
       reply.finishedAt = now();
+      if (continuation) {
+        Object.assign(continuation, { status: reply.status, toSessionId: turn.sessionId || null, finishedAt: reply.finishedAt, ...(error ? { error } : {}) });
+        if (!turn.sessionId) thread.sessionId = continuation.fromSessionId;
+      }
       if (turn.model) reply.model = turn.model;
       reply.usage = { durationMs: Number.isFinite(turn.usage?.durationMs) ? turn.usage.durationMs : Date.now() - started, ...(Number.isFinite(turn.usage?.costUsd) ? { costUsd: turn.usage.costUsd } : {}), ...(turn.usage?.outputTokens ? { outputTokens: turn.usage.outputTokens } : {}) };
       thread.meta = { ...meta(), costUsd: sum(thread.meta?.costUsd, turn.usage?.costUsd), turns: sum(thread.meta?.turns, 1) };
-      this.save(); publish({ running: false });
+      this.save(); publish({ running: false, continuations: structuredClone(thread.continuations ?? []) });
       // The line moves on after a clean reply; a stop or a failure pauses it.
       if (reply.status === 'done') setImmediate(() => { try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } });
       // OpenCode's stream never names the model; its session record does.
@@ -602,7 +686,7 @@ export class Chats {
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
       env = { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) };
       if (provider === 'opencode') env = openCodeServerEnv(env);
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null, ...(provider === 'claude' ? { routing: { role: roleOfChat(node), config: resolveRouting(this.store.state.settings) } } : {}) }),
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: continuation?.model || node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null, ...(provider === 'claude' ? { routing: { role: roleOfChat(node), config: resolveRouting(this.store.state.settings) } } : {}) }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
@@ -766,6 +850,8 @@ export class Chats {
     return { ok: true };
   }
   stop(nodeId) {
+    const operation = this.operations.get(nodeId);
+    if (operation) { operation.controller.abort(new Error('Operación de contexto cancelada; resultado sin verificar')); return { ok: true }; }
     const turn = this.turns.get(nodeId);
     if (!turn || turn.stopped) return { ok: true };
     turn.stopped = true;
@@ -776,7 +862,7 @@ export class Chats {
   }
   // Start over: the provider session is forgotten here, never deleted there.
   clear(workspace, node) {
-    assert(!this.turns.has(node.id), 'Detén la respuesta antes de empezar una conversación nueva');
+    assert(!this.running(node.id), 'Detén la respuesta antes de empezar una conversación nueva');
     const provider = node.data.chat?.provider;
     if (provider && this.nodes[node.id]?.threads?.[provider]) { delete this.nodes[node.id].threads[provider]; this.save(); }
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: false, reset: true, meta: {}, messages: [] });
@@ -820,8 +906,9 @@ export class Chats {
   async close() {
     this.closed = true; clearInterval(this.timer);
     for (const nodeId of this.turns.keys()) this.stop(nodeId);
+    for (const nodeId of this.operations.keys()) this.stop(nodeId);
     const end = Date.now() + 2500;
-    while (this.turns.size && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 25));
+    while ((this.turns.size || this.operations.size) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 25));
     this.save();
   }
 }

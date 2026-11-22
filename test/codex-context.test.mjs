@@ -3,9 +3,23 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { codexRolloutPath, codexContextReading } from '../host/codex-context.mjs';
+import { codexRolloutPath, codexContextReading, codexCompactionCapability } from '../host/codex-context.mjs';
 
 const count = info => JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info } }) + '\n';
+test('Codex exec: evidencia de interfaz no se confunde con compactación nativa', () => {
+  const help = 'Usage: codex exec [OPTIONS]\nCommands:\n resume';
+  const capability = codexCompactionCapability(help);
+  assert.equal(capability.kind, 'continuation');
+  assert.equal(capability.source, 'codex exec --help');
+  assert.match(capability.evidence, /^[a-f0-9]{64}$/);
+  assert.match(capability.reason, /no es compactación/);
+  assert.equal(codexCompactionCapability(help).evidence, capability.evidence);
+  const mentioned = codexCompactionCapability(help + '\n compact');
+  assert.equal(mentioned.kind, 'continuation');
+  assert.match(mentioned.reason, /no tiene un protocolo.*verificado/);
+  assert.notEqual(mentioned.evidence, capability.evidence);
+  for (const help of ['', 'Usage: codex app-server\nresume', 'Usage: codex exec']) assert.throws(() => codexCompactionCapability(help), /No se pudo comprobar/);
+});
 test('Codex localiza sesiones antiguas y lee la última medición válida de la cola', async t => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-context-'));
   t.after(() => fs.rm(home, { recursive: true, force: true }));

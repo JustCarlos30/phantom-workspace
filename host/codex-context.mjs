@@ -1,5 +1,23 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+
+export function codexCompactionCapability(help) {
+  if (!/Usage:.*codex exec/s.test(help) || !/resume/.test(help)) throw new Error('No se pudo comprobar la interfaz exec de Codex instalada');
+  return {
+    kind: 'continuation', source: 'codex exec --help',
+    evidence: createHash('sha256').update(help).digest('hex'),
+    reason: /\bcompact\b/i.test(help)
+      ? 'La instalación menciona compactación, pero este transporte exec no tiene un protocolo de compactación verificado. Puedes abrir una sesión nueva con un resumen revisado.'
+      : 'Codex exec instalado no expone compactación explícita. La API app-server no está integrada ni verificada en este chat. Puedes abrir una sesión nueva con un resumen revisado; no es compactación.',
+  };
+}
+
+export async function probeCodexCompaction(bin, cwd, signal) {
+  const help = await new Promise((resolve, reject) => execFile(bin, ['exec', '--help'], { cwd, signal, timeout: 15000, maxBuffer: 1024 * 1024 }, (error, stdout) => error ? reject(error) : resolve(stdout)));
+  return codexCompactionCapability(help);
+}
 
 export async function codexRolloutPath(sessionId, home) {
   if (typeof sessionId !== 'string' || !/^[A-Za-z0-9-]{8,80}$/.test(sessionId)) return null;

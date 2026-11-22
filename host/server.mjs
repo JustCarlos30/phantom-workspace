@@ -338,9 +338,15 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     // Plan quotas of the signed-in agent CLIs: percentages only, never tokens.
     if(method==='limits.read') return limits.read({force:p.force===true});
     if(method==='chat.permission.request') return chats.requestPermission(p);
-    if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.queue.remove','chat.queue.send','chat.models','chat.permission.answer','chat.question.answer'].includes(method)) {
+    if(['chat.get','chat.configure','chat.send','chat.stop','chat.clear','chat.compaction.capabilities','chat.compact','chat.continue','chat.queue.remove','chat.queue.send','chat.models','chat.permission.answer','chat.question.answer'].includes(method)) {
       const w=store.getWorkspace(p.workspaceId),main=p.nodeId===Chats.mainId(w),node=main?chats.mainNode(w):w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Chat card not found');
+      if(['chat.compaction.capabilities','chat.compact','chat.continue'].includes(method)) {
+        const keys=method==='chat.continue'?['workspaceId','nodeId','summary']:['workspaceId','nodeId'];
+        assert(Object.keys(p).every(key=>keys.includes(key)),'Unknown context operation field');
+        if(method==='chat.continue') return chats.continueSession(w,node,p.summary);
+        return chats.compaction(w,node,method==='chat.compact'?'compact':'capabilities');
+      }
       // The project's Phantom conversation keeps its settings in the chat store.
       if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});
       if(method==='chat.get') return chats.get(node);
