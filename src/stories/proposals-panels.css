@@ -1,0 +1,45 @@
+/* Propuestas/Paneles — laboratorio; no cambia producción. */
+
+.px-panels-host { position: relative; height: 100%; min-height: 0; overflow: auto; transform: translateZ(0); }
+.px-panels-read { padding: 16px; font: var(--t-body); color: var(--ink); }
+
+/* ---------- Superficie del panel: material cenital, radio de objeto, sin borde ---------- */
+.px-after .catalog-panel { border: 0; border-radius: var(--r-obj); background: var(--object-fill) var(--surface); box-shadow: none; }
+.px-after :is(.browser-panel, .rp-root, .br-root, .inc, .command-center, .plugin-card) { border: 0; box-shadow: none; }
+
+/* ---------- Cabeceras coherentes con la de sesión ---------- */
+.px-after :is(.browser-toolbar, .cc-header, .pc-head, .sk-head, .rp-file-bar) { border: 0; box-shadow: none; background: transparent; padding-inline: 16px; }
+.px-after :is(.browser-toolbar, .cc-toolbar) :is(.icon-button, .tw-button) { border: 0; box-shadow: none; background: transparent; }
+.px-after .browser-toolbar .icon-button { width: 36px; height: 36px; border-radius: 50%; }
+.px-after :is(.browser-toolbar, .cc-toolbar) :is(.icon-button, .tw-button):hover { background-color: var(--row-hover); }
+.px-after .browser-toolbar input { border: 0; border-radius: var(--r-pill); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
+.px-after .browser-toolbar input:focus { outline: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
+
+/* ---------- Grupos planos: sin cajas anidadas ---------- */
+.px-after :is(.rp-dirgroup, .rp-file, .rp-diff, .rp-editor, .br-group, .br-section, .br-detail, .inc-group, .inc-section, .inc-item, .cc-section, .cc-notice, .cc-detail, .sk-section, .sk-toolbar, .pc-sheet, .pc-tabs, .mem-chips > *) { border: 0; box-shadow: none; }
+.px-after :is(.sk-toolbar, .pc-tablist, .cc-filters, .br-filters) { background: transparent; }
+.px-after :is(.rp-file, .rp-diff, .rp-editor, .br-detail, .cc-detail) { border-radius: var(--r-group); }
+
+/* ---------- Filas tonales de radio 12 ---------- */
+.px-after :is(.rp-filerow, .br-line, .inc-line, .pc-card, .sk-row) { border: 0; border-radius: var(--r-row); box-shadow: none; background: transparent; }
+.px-after :is(.rp-filerow, .br-line, .inc-line, .pc-card, .sk-row):hover { background-color: var(--row-hover); }
+
+/* ---------- Búsquedas: aro de 1 px que se aclara al enfocar ---------- */
+.px-after :is(.br-search, .br-field) { border: 0; border-radius: var(--r-ctl); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
+.px-after :is(.br-search, .br-field):focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
+
+/* ---------- Filtros y pestañas como segmento plano ---------- */
+.px-after :is(.br-filter, .pc-tablist button, .cc-filters button) { border: 0; border-radius: var(--r-pill); box-shadow: none; background: transparent; color: var(--muted); font: var(--t-control); }
+.px-after :is(.br-filter, .pc-tablist button, .cc-filters button):is([aria-pressed='true'], [aria-selected='true']) { background-color: var(--row-hover); color: var(--ink); }
+
+/* ---------- Botones planos en píldora ---------- */
+.px-after :is(.rp-button, .br-button, .inc-button) { border: 0; border-radius: var(--r-pill); box-shadow: none; background: transparent; }
+.px-after :is(.rp-button, .br-button, .inc-button):hover { background-color: var(--row-hover); }
+
+/* ---------- Metadatos menos ruidosos ---------- */
+.px-after .cc-freshness { color: var(--ink-3); font: var(--t-support); }
+.px-after .mem-chips > * { background: transparent; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .px-after :is(.rp-filerow, .br-line, .inc-line, .pc-card, .sk-row, .br-filter) { transition: none; }
+}
