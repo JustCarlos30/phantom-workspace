@@ -73,6 +73,12 @@ Ejemplos de aplicación:
 - «¿Qué hace esta función?»: consulta de solo lectura, sin registro obligatorio.
 - «Continúa con el cambio anterior»: consultar contexto y contrato; continuar el mismo ID, sin duplicarlo.
 
+## Atadura y aviso de fin de los runs
+
+Al lanzar `run` desde una terminal, el host ata la tarea a esa terminal (`cardId`, título) y muestra «trabajando». Al terminar, la tarjeta pasa a `review` (tarea `completed`: verificar que funciona y si necesita algo más) o a `blocked` con el motivo (bloqueada, fallida, controlador fallido, estado desconocido o run perdido). Si la terminal fue reatada a otra tarea o desvinculada, no se toca. Es solo el estado visible de la sesión: nunca marca la tarea como completada.
+
+Chats y terminales reciben un aviso automático de fin, una vez por run. En una terminal solo se escribe (mensaje + Enter) si la sesión sigue viva, es la actual del nodo y hay un agente reconocido en primer plano; si no, bastan la tarjeta y el aviso de atención. Tope de 4 avisos por nodo; al agotarlo el host deja un aviso de atención (una vez por nodo). El contador se reinicia con cualquier entrada de usuario a esa terminal (`terminal.write`). Límite: el host no distingue una pulsación humana de otro cliente que escriba por esa misma vía.
+
 ## Terminales nuevas y sesiones ya abiertas
 
 La inyección ocurre al crear el PTY. No cambia el entorno de shells ni de agentes que ya estén ejecutándose. Tras instalar estos cambios hay que reiniciar el host de Phantom Workspace para cargar el código nuevo y crear o relanzar la sesión de terminal; abrir OpenCode, Claude Code o Codex dentro de esa sesión nueva permite heredar el bootstrap. Las chat cards lanzan un proceso por turno: tras reiniciar el host, el siguiente turno ya lleva la política. Volver a adjuntar una terminal existente no equivale a relanzarla.
