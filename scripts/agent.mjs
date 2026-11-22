@@ -114,7 +114,7 @@ export async function main(args=process.argv.slice(2), env=process.env) {
       workspaceId=context.workspaceId;
     }
     if(action==='runs') return invokeAgent('phantom.controllers',{workspaceId},env.PHANTOM_WORKSPACE_SOCKET);
-    return invokeAgent('phantom.control',{workspaceId,id:rest[0],action:'run',...(env.PHANTOM_TERMINAL_SESSION_ID?{sessionId:env.PHANTOM_TERMINAL_SESSION_ID}:{}),...(rest.length===2?{model:rest[1]}:{})},env.PHANTOM_WORKSPACE_SOCKET,60000);
+    return invokeAgent('phantom.control',{workspaceId,id:rest[0],action:'run',...(env.PHANTOM_TERMINAL_SESSION_ID?{sessionId:env.PHANTOM_TERMINAL_SESSION_ID}:env.PHANTOM_WORKSPACE_ID?{main:true}:{}),...(rest.length===2?{model:rest[1]}:{})},env.PHANTOM_WORKSPACE_SOCKET,60000);
   }
   // The project's Phantom conversation orchestrates without a terminal: it reads the queue and runs token commands by workspace.
   if(!env.PHANTOM_TERMINAL_SESSION_ID && merge && env.PHANTOM_WORKSPACE_ID && (merge.token || action==='queue')) {

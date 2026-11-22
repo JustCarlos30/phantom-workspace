@@ -16,7 +16,11 @@ export function phantomRunIds(part) {
     return target ? `$${target}` : match;
   });
   if (!/(?:^|[;|&(\n]|\b(?:do|then|while|until|if)\s+)\s*(?:["']?(?:[^\s;|&()]*\/)?phantom["']?\s+(?:run|show|events|do|create|card)\b|(?:["']?(?:(?:[^\s;|&()]*\/)?node|\$(?:PHANTOM_AGENT_NODE|\{PHANTOM_AGENT_NODE\}))["']?\s+)?(?:["']?[^\s;|&()]*agent\.mjs["']?|"?\$(?:PHANTOM_AGENT_CLI|\{PHANTOM_AGENT_CLI\})"?)\s+(?:run|bind)\b)/.test(command)) return [];
-  return [...new Set([part.detail, part.input, part.output].flatMap(value => textOf(value).match(/\b(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi) || []))];
+  const ids = value => textOf(value).match(/\b(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi) || [];
+  const found = [part.detail, part.input].flatMap(ids), output = ids(part.output);
+  if (/phantom["']?\s+(?:create|card|do)\b/.test(command)) found.push(...output);
+  else if (!found.length && /(?:phantom["']?\s+(?:show|run|events)|(?:agent\.mjs|PHANTOM_AGENT_CLI\}?)["']?\s+(?:run|bind))\s+["']?\$/.test(command) && output.length) found.push(output[0]);
+  return [...new Set(found)];
 }
 
 // One entry per task id for the whole turn, in first-seen order.

@@ -98,8 +98,20 @@ test('no enlaza comandos ajenos aunque su salida mencione Phantom', () => {
   assert.deepEqual(phantomRunIds(shell(`cat agent.mjs run ${id}`)), []);
   assert.deepEqual(phantomRunIds(shell(`echo "$PHANTOM_AGENT_CLI" run ${id}`)), []);
 });
-test('deduplica IDs de detalle, entrada y salida', () => {
-  assert.deepEqual(phantomRunIds({ ...shell(`phantom run ${id}`), input: { command: `phantom run ${id}` }, output: `${id} ${card} ${id}` }), [id, card]);
+test('deduplica IDs literales y no toma otros encargos de la salida de run', () => {
+  assert.deepEqual(phantomRunIds({ ...shell(`phantom run ${id}`), input: { command: `phantom run ${id}` }, output: `${id} ${card} ${id}` }), [id]);
+});
+test('phantom list con show --help no produce ids', () => {
+  assert.deepEqual(phantomRunIds({ ...shell('phantom list --json | head; phantom show --help'), output: `${id}\n${card}` }), []);
+});
+test('show con ID literal produce solo ese id', () => {
+  assert.deepEqual(phantomRunIds({ ...shell(`phantom show ${id}`), output: `${card} ${id}` }), [id]);
+});
+test('create toma el id de la salida', () => {
+  assert.deepEqual(phantomRunIds({ ...shell('phantom create --goal x'), output: `creada ${card}` }), [card]);
+});
+test('show "$ID" toma solo el primer id de la salida', () => {
+  assert.deepEqual(phantomRunIds({ ...shell('phantom show "$ID"'), output: `${card} depende de ${id}` }), [card]);
 });
 test('enlaza el ID recibido en la salida de create', () => {
   assert.deepEqual(phantomRunIds({ ...shell('phantom create --goal ejemplo'), output: { id: card } }), [card]);

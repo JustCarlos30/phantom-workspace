@@ -14,6 +14,17 @@ import { main as agentCLI } from '../scripts/agent.mjs';
 import { handleIntegration } from '../integrations/index.mjs';
 import { CLAUDE_CLIENT, DEFAULT_HARNESS_MODEL, assertClaudeClient, assertContractClaudeOnly, claudeModelCatalog, contractModels, describeExecution, isClaudeModel, resolveHarnessModel } from '../shared/execution-policy.mjs';
 
+test('las reglas de admisión de contrato aparecen en terminalPolicy y phantomInstructions', () => {
+  const base = { workspaceId: 'w', nodeId: 'n', cwd: '/tmp/x', branch: 'b' };
+  for (const sessionId of ['s1', undefined]) {
+    const text = terminalPolicy({ ...base, sessionId });
+    assert.ok(text.includes('minNewPassedTests'));
+    assert.ok(text.includes('exact files, never directories'));
+    assert.ok(text.includes(POLICY_HINTS.contract));
+  }
+  assert.ok(phantomInstructions({ name: 'p', canonicalPath: '/tmp/p', nodes: [] }).includes(POLICY_HINTS.contract));
+});
+
 function temporary(t, cleanup = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-policy-test-'));
   if (cleanup) t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -234,7 +245,7 @@ test('agent run and runs use host controllers with workspace identity or termina
     for (const model of [undefined, 'provider/model']) {
       calls.length = 0;
       assert.deepEqual(await agentCLI(['run', 'task-id', ...(model ? [model] : [])], env), descriptor);
-      assert.deepEqual(calls, [...contextCalls, { method: 'phantom.control', payload: { workspaceId, id: 'task-id', action: 'run', ...(identity.PHANTOM_TERMINAL_SESSION_ID ? { sessionId: 'session' } : {}), ...(model ? { model } : {}) } }]);
+      assert.deepEqual(calls, [...contextCalls, { method: 'phantom.control', payload: { workspaceId, id: 'task-id', action: 'run', ...(identity.PHANTOM_TERMINAL_SESSION_ID ? { sessionId: 'session' } : { main: true }), ...(model ? { model } : {}) } }]);
     }
     calls.length = 0;
     assert.deepEqual(await agentCLI(['runs'], env), controllers);
