@@ -86,6 +86,7 @@ First determine whether you are already executing inside a Phantom controlled do
 
 Bind the canonical ID returned by Phantom (for direct tasks as well as coordinated cards):
 \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" bind ID\`
+Launching \`run\` from this terminal binds that task to it and shows "working"; when the run ends the card shows review or blocked, and an automatic end notice arrives (chats and terminals with an agent in the foreground): verify the result really works and whether it needs more work before closing the request.
 Report progress:
 \`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" report "Current step" working\`
 If runtime, model, required checks, or a material decision are unavailable, report blocked and explain the blocker instead of making untracked edits:

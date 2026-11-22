@@ -24,6 +24,7 @@ import { publicSettings, portableSettings } from './public-settings.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, wakeTarget } from './run-wake.mjs';
+import { startPatch, finishPatch, cardNode } from './run-binding.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
@@ -96,7 +97,13 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       }
     }
     broadcast(event);
-    try{const target=store&&chats&&!closingPromise?wakeTarget(event,wakeSeen):null;if(target)wakeChat(target,event.result).catch(()=>{});}catch{}
+    try{
+      const r=event.result;
+      if(store&&!closingPromise&&event.type==='tool.status'&&event.status==='running'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string')bindRunStart(r,event.workspaceId).catch(()=>{});
+      const target=store&&!closingPromise?wakeTarget(event,wakeSeen):null;
+      if(target?.via==='chat'){if(chats)wakeChat(target,r).catch(()=>{});}
+      else if(target)wakeTerminal(target,r).catch(()=>{});
+    }catch{}
     // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
     if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
   };
@@ -106,8 +113,45 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     const w=store.getWorkspace(target.workspaceId),node=target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.data?.chat?.provider);
     if(!node)return;
     let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
+    applyFinish(w.id,node.id,target.taskId,controller,task);
     if(closingPromise||!wakeLimit.allow(node.id))return;
     await chats.send(store.getWorkspace(w.id),node,wakeMessage({taskId:target.taskId,controller,task}));
+  };
+  // End of a run: a terminal card still bound to that task shows review/blocked, whether it was told by chat or by PTY.
+  const applyFinish=(workspaceId,nodeId,taskId,controller,task)=>{
+    if(controller?.action!=='run')return;
+    let node;try{node=store.getWorkspace(workspaceId).nodes.find(n=>n.id===nodeId&&n.type==='terminal');}catch{}
+    if(!node)return;
+    const patch=finishPatch({agent:node.data.agent,taskId,controller,task});if(!patch)return;
+    validateAgent(patch);
+    mutate(workspaceId,()=>{const current=store.getWorkspace(workspaceId).nodes.find(n=>n.id===nodeId);if(current?.data.agent?.cardId===taskId)current.data.agent={...current.data.agent,...patch};});
+  };
+  // A terminal that launches a run gets the task bound and "working" on its card; the same mutation path as terminal.agent.update.
+  const bindRunStart=async(r,workspaceId)=>{
+    const answer=await routeIntegration('phantom.detail',{workspaceId,topic:'tasks',id:r.taskId});
+    if(!answer?.handled||!['task','card'].includes(answer.result?.kind))return;
+    const patch=startPatch({taskId:r.taskId,contract:answer.result.contract});validateAgent(patch);
+    mutate(workspaceId,()=>{const current=cardNode(store.getWorkspace(workspaceId).nodes,r.origin);if(!current)return;
+      if(patch.cardId!==current.data.agent?.cardId&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(patch.cardTitle);if(named)current.title=named;}
+      current.data.agent={...current.data.agent,...patch};});
+  };
+  // At the end the card shows review/blocked, and a live terminal with a recognized foreground agent is told; capped like chats.
+  const wakeExhausted=new Set();
+  const wakeTerminal=async(target,controller)=>{
+    let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
+    if(closingPromise)return;
+    let node;try{node=store.getWorkspace(target.workspaceId).nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');}catch{}
+    if(!node)return;
+    applyFinish(target.workspaceId,node.id,target.taskId,controller,task);
+    let session;try{session=node.data.sessionId?terminals.get(node.data.sessionId):null;}catch{}
+    if(!session||session.status!=='running'||session.nodeId!==node.id||!terminals.foreground(session.id)?.agent)return;
+    if(!wakeLimit.allow(node.id)){
+      if(wakeExhausted.has(node.id))return;wakeExhausted.add(node.id);
+      const w=store.getWorkspace(target.workspaceId),now=new Date().toISOString(),item={id:randomUUID(),eventKey:`wake-exhausted:${node.id}:${target.id}`,title:`El encargo ${target.taskId} terminó y nadie lo atendió (tope de avisos alcanzado)`,source:'phantom',ref:target.id,runId:target.id,status:'completed',createdAt:now,observedAt:now};
+      mutate(w.id,()=>{pushAttention(store.getWorkspace(w.id),item);});broadcast({type:'attention.new',workspaceId:w.id,item});
+      return;
+    }
+    terminals.write(session.id,wakeMessage({taskId:target.taskId,controller,task})+'\r');
   };
   // Environment owners are registered in the workspace state; releases are serialized so racing triggers do not repeat work.
   let envChain=Promise.resolve();
@@ -325,7 +369,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='terminal.setup.retry') return terminals.retrySetup(p.sessionId);
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);
     if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
-    if(method==='terminal.write') return terminals.write(p.sessionId,p.data);
+    if(method==='terminal.write') {
+      // Host-originated notices call terminals.write directly, so this RPC is user input: it restarts the notice cap.
+      try{const s=terminals.get(p.sessionId);wakeLimit.reset(s.nodeId);wakeExhausted.delete(s.nodeId);}catch{}
+      return terminals.write(p.sessionId,p.data);
+    }
     if(method==='terminal.trust') return terminals.trust(p.sessionId);
     if(method==='terminal.resize') return terminals.resize(p.sessionId,p.cols,p.rows);
     if(method==='terminal.stop') return terminals.stop(p.sessionId);
