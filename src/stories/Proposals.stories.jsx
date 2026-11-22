@@ -15,6 +15,7 @@ const storyId = (area, name) => `propuestas-${area}--${kebab(name)}`;
 const storyHref = (area, name) => `?path=/story/${storyId(area, name)}`;
 
 const AREAS = [
+  ['feel', 'Feel', 'cambia', [['FocoIsla', 'Foco de la isla'], ['Acento', 'Color de acento'], ['ContadorContexto', 'Contador de contexto'], ['Movimiento', 'Movimiento']]],
   ['fundamentos', 'Fundamentos', 'cambia', [['Fondos', 'Fondos'], ['Material', 'Material'], ['Tinta', 'Tinta'], ['Insignias', 'Insignias'], ['Botones', 'Botones'], ['Campos', 'Campos'], ['Selectores', 'Selectores'], ['Menus', 'Menús'], ['EstadosVacios', 'Estados vacíos']]],
   ['shell', 'Shell', 'cambia', [['Rail', 'Rail'], ['RailFilas', 'Filas del rail'], ['BarraSuperior', 'Barra superior'], ['Dock', 'Dock'], ['Zoom', 'Zoom'], ['Minimapa', 'Minimapa'], ['PanelEnMapa', 'Panel en el mapa']]],
   ['sesiones', 'Sesiones', 'cambia', [['SesionNueva', 'Sesión nueva'], ['ChatReposo', 'Chat en reposo'], ['ChatTrabajando', 'Chat trabajando'], ['ChatAtencion', 'Chat que te necesita'], ['ChatError', 'Chat con error'], ['ChatVacio', 'Chat vacío'], ['Dictado', 'Dictado'], ['Terminal', 'Terminal'], ['TarjetaTerminal', 'Tarjeta de terminal'], ['PhantomChat', 'Phantom Chat'], ['Orquestador', 'Orquestador']]],
@@ -61,6 +62,9 @@ const DECIDED = [
   ['Compositor isla', 'Campo redondeado con todos los controles dentro, aro de 1 px que solo se aclara al enfocar y una sola línea viva de estado.', [['sesiones', 'ChatReposo', 'Chat en reposo'], ['sesiones', 'ChatTrabajando', 'Chat trabajando'], ['sesiones', 'Dictado', 'Dictado']]],
 ];
 const PENDING = [
+  ['Aro de foco de la isla', 'Luz (recomendada), blanco como hoy, marfil, acento o sin aro; el foco de teclado de los botones no cambia.', [['feel', 'FocoIsla', 'Foco de la isla']]],
+  ['Uso del acento', 'Solo en tu acción primaria, foco/selección e identidad del proyecto; nunca en estados, superficies, lectura ni herramientas.', [['feel', 'Acento', 'Color de acento']]],
+  ['Contador de contexto', 'Anillo dentro de la isla junto al modelo, que solo muestra número y aviso al acercarse al límite.', [['feel', 'ContadorContexto', 'Contador de contexto']]],
   ['Material del objeto', 'Cenital (por defecto), grafito o borde, comparados con el material de hoy desde Controls.', [['fundamentos', 'Material', 'Material'], ['shell', 'Rail', 'Rail']]],
   ['Mensaje del usuario', 'Cita con barra marfil, como hoy, o burbuja a la derecha con relleno 5 %.', [['sesiones', 'ChatReposo', 'Chat en reposo'], ['sesiones', 'ChatTrabajando', 'Chat trabajando']]],
   ['Dock unificado', 'Un solo dock centrado; las herramientas del lienzo pasan junto al minimapa.', [['shell', 'Dock', 'Dock'], ['shell', 'Minimapa', 'Minimapa'], ['shell', 'Zoom', 'Zoom']]],

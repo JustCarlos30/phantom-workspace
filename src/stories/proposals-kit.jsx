@@ -95,7 +95,7 @@ export function Dictation() {
   </div>;
 }
 
-export function Composer({ state = 'reposo' }) {
+export function Composer({ state = 'reposo', focus, meter, accent }) {
   const id = useId(), ref = useRef(null);
   const [text, setText] = useState(state === 'escribiendo' ? SAMPLE : '');
   const working = state === 'trabajando', dictating = state === 'dictando', canSend = text.trim().length > 0;
@@ -109,13 +109,13 @@ export function Composer({ state = 'reposo' }) {
   const send = working && !canSend
     ? <button type="button" className="px-send" aria-label="Detener"><Square size={12} fill="currentColor" aria-hidden="true" /></button>
     : <Send disabled={!canSend} />;
-  return <div className="px-composer">
+  return <div className="px-composer" data-accent={accent ? '' : undefined}>
     {working ? <LiveLine /> : dictating ? <Hint /> : null}
-    <div className="px-isle">
+    <div className="px-isle" data-focus={focus}>
       {dictating ? <Dictation /> : <>
         <label className="px-sr" htmlFor={id}>Mensaje para la sesión</label>
         <textarea id={id} ref={ref} className="px-textarea" rows={1} value={text} placeholder={working ? 'Añade instrucciones para la siguiente vuelta…' : 'Escribe a la sesión…'} onChange={event => setText(event.target.value)} onKeyDown={onKeyDown} />
-        <div className="px-tools"><IconButton label="Adjuntar" icon={Plus} /><ContextChip /><span className="px-spacer" /><ModelChip /><IconButton label="Dictar" icon={Mic} />{send}</div>
+        <div className="px-tools"><IconButton label="Adjuntar" icon={Plus} /><ContextChip /><span className="px-spacer" />{meter}<ModelChip /><IconButton label="Dictar" icon={Mic} />{send}</div>
       </>}
     </div>
   </div>;

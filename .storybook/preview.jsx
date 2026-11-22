@@ -12,6 +12,6 @@ export default {
     a11y: { test: 'todo' },
     controls: { expanded: true },
     docs: { story: { inline: false, height: '760px' } },
-    options: { storySort: { order: ['Catálogo', 'Fundamentos', 'Propuestas', ['Resumen', 'Fundamentos', 'Shell', 'Sesiones', 'Derecha', 'Paneles'], 'Primitivas', 'Identidad', 'Navegación', 'Actividad', 'Conversaciones', 'Herramientas', 'Phantom', 'Git', 'Contenido', 'Ajustes', 'Voz', 'Fondos'] } },
+    options: { storySort: { order: ['Catálogo', 'Fundamentos', 'Propuestas', ['Resumen', 'Feel', 'Fundamentos', 'Shell', 'Sesiones', 'Derecha', 'Paneles'], 'Primitivas', 'Identidad', 'Navegación', 'Actividad', 'Conversaciones', 'Herramientas', 'Phantom', 'Git', 'Contenido', 'Ajustes', 'Voz', 'Fondos'] } },
   },
 };
