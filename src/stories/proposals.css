@@ -18,6 +18,13 @@
 .px-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .px-tag { font: var(--t-micro); font-family: var(--mono); color: var(--ink-3); }
 .px-spacer { flex: 1; }
+.px-scene { display: grid; gap: 8px; min-width: 0; align-content: start; }
+.px-pilltag { justify-self: start; display: inline-flex; align-items: center; height: 24px; padding: 0 12px; border-radius: var(--r-pill); font: var(--t-micro); white-space: nowrap; }
+.px-pilltag[data-kind="hoy"] { background: var(--control-fill); color: var(--muted); }
+.px-pilltag[data-kind="propuesta"] { background: var(--on); color: var(--on-ink); }
+.px-ad { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.px-ad .catalog-panel { height: 704px; min-height: 0; }
+.px-changes { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 720px; font: var(--t-body); color: var(--prose-ink); }
 .px-page :is(button, [tabindex]):focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--focus-offset); }
 
 /* Lienzo real: casi negro con la retícula de puntos del producto. */
@@ -33,10 +40,10 @@
   --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
 }
 .px-material[data-variant="cenital"] {
-  --object-top: #141417; --object-bottom: #0a0a0c;
-  --object-fill: radial-gradient(140% 90% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 55%), linear-gradient(var(--object-top), var(--object-bottom));
+  --object-top: #19191d; --object-bottom: #0d0d10;
+  --object-fill: radial-gradient(140% 90% at 0% 0%, color-mix(in srgb, #fff 6%, transparent), transparent 55%), linear-gradient(var(--object-top), var(--object-bottom));
 }
-.px-material[data-variant="grafito"] { --object-top: oklch(0.20 0.012 260); --object-bottom: oklch(0.13 0.008 260); }
+.px-material[data-variant="grafito"] { --object-top: oklch(0.23 0.014 260); --object-bottom: oklch(0.15 0.01 260); }
 .px-material[data-variant="borde"] {
   --object-edge-top: color-mix(in srgb, #fff 34%, transparent);
   --object-edge-bottom: color-mix(in srgb, #fff 8%, transparent);
@@ -140,8 +147,17 @@
 .px-composer:is([data-variant="isla"], [data-variant="pildora"]) { max-width: 768px; margin: 0 auto; padding: 0 24px 24px; }
 .px-composer:is([data-variant="isla"], [data-variant="pildora"]) > .px-live { padding: 0 16px; }
 .px-tools { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.px-tools .px-chip { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.px-tools .px-chip > svg { flex: none; }
+.px-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.px-tools :is(.px-icon, .px-send) { flex: none; }
+@container (max-width: 460px) {
+  .px-tools .px-ctx { padding: 0 8px; }
+  .px-tools .px-ctx .px-chip-text { display: none; }
+}
 
 .px-isle {
+  container-type: inline-size; min-width: 0;
   display: grid; gap: 8px; padding: 12px 12px 8px;
   border-radius: var(--r-obj); background: var(--px-fill-field);
   box-shadow: inset 0 0 0 1px var(--px-ring-rest);
@@ -220,6 +236,10 @@
 .px-seg kbd { font: var(--t-micro); font-family: var(--mono); color: inherit; }
 .px-zoom { min-width: 48px; text-align: center; font: var(--t-micro); font-family: var(--mono); color: var(--muted); }
 .px-canvas-group { position: absolute; right: 24px; bottom: 24px; display: grid; justify-items: end; gap: 8px; }
+.px-stage[data-layout="unificado"] { container-type: inline-size; }
+@container (max-width: 1280px) {
+  .px-canvas-group { bottom: calc(24px + var(--dock-h) + 24px); }
+}
 .px-minimap { width: 200px; height: 128px; overflow: hidden; }
 .px-minimap i { position: absolute; border-radius: var(--r-mark); background: var(--control-hover); }
 .px-minimap b { position: absolute; left: 56px; top: 28px; width: 88px; height: 60px; border-radius: var(--r-mark); box-shadow: inset 0 0 0 1px var(--ink-3); }
@@ -245,6 +265,9 @@
 .px-rail-group { position: relative; margin-top: 8px; padding-top: 12px; }
 .px-rail-group::before { content: ""; position: absolute; top: 0; left: 12px; right: 12px; height: var(--divider-width); background: var(--divider); }
 
+@media (max-width: 1099px) {
+  .px-ad { grid-template-columns: 1fr; }
+}
 @media (max-width: 900px) {
   .px-real { grid-template-columns: 1fr; }
   .px-canvas-group { display: none; }
