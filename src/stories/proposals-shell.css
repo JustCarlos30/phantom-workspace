@@ -1,0 +1,75 @@
+/* Propuestas/Shell — laboratorio; no cambia producción. */
+
+/* Montajes: anclan el shell real dentro del escenario. */
+.px-shell-rail { position: relative; top: 0; left: 0; height: 100%; max-height: 100%; width: var(--rail-width); overflow: hidden; }
+.px-shell-top, .px-shell-dock, .px-shell-corner, .px-shell-map { position: relative; height: 100%; min-height: 0; }
+.px-shell-top > .workspace-header { position: absolute; top: 0; left: 0; right: 0; }
+.px-shell-dock > .create-dock { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); }
+.px-shell-corner > :is(.canvas-navigation, .canvas-minimap) { position: absolute; right: 0; bottom: 0; top: auto; left: auto; }
+
+/* Hover simulado para comparar la fila en ese estado. */
+.px-shell-forcehover .rail-session:has([aria-label*='hover']) .rail-session-row { background-color: var(--row-hover); }
+
+/* ---------- Rail propuesto (maqueta) ---------- */
+.px-shell-railfull { height: 100%; min-height: 0; grid-template-rows: auto auto auto 1fr auto; }
+.px-shell-attn { color: var(--attention); }
+.px-shell-attn > span { flex: 1; }
+.px-shell-attn > b { font: var(--t-micro); font-weight: 600; }
+.px-shell-railhead { margin: 0; padding: 0 12px 4px; color: var(--ink-3); font: var(--t-support); }
+.px-shell-railfull small[data-tone='working'] { color: var(--working); }
+.px-shell-railfull small[data-tone='attention'] { color: var(--attention); }
+.px-shell-railfull .px-rail-row[aria-current='true'] { background-color: var(--row-hover); }
+.px-shell-railfoot { position: relative; display: flex; align-items: center; gap: 4px; align-self: end; padding-top: 12px; }
+.px-shell-railfoot::before { content: ""; position: absolute; top: 0; left: 12px; right: 12px; height: var(--divider-width); background: var(--divider); }
+.px-shell-host { flex: 1; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--muted); font: var(--t-support); }
+.px-shell-host > i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
+
+/* ---------- Filas del rail sobre el componente real ---------- */
+.px-after .px-shell-rail { border-radius: var(--r-isle); background: var(--object-fill) var(--surface); box-shadow: none; }
+.px-after .rail-panel-row { border: 0; box-shadow: none; border-radius: var(--r-row); background: transparent; }
+.px-after .rail-panel-row:hover, .px-after .rail-panel-row.selected, .px-after.px-material .px-shell-forcehover .rail-session:has([aria-label*='hover']) .rail-panel-row { background-color: var(--row-hover); }
+.px-after .rail-panel-row > button { border: 0; box-shadow: none; border-radius: var(--r-row); }
+.px-after .rail-panel-row > button:focus-visible { outline: 2px solid var(--on); outline-offset: -2px; }
+.px-after .rail-session-type { display: none; }
+.px-after .rail-session-meta { color: var(--ink-3); font: var(--t-support); }
+.px-after .rail-session-row[data-state='working'] .rail-session-status { color: var(--working); }
+.px-after .rail-session-row[data-state='attention'] .rail-session-status { color: var(--attention); }
+.px-after .rail-panel-focus { width: 36px; height: 36px; border: 0; border-radius: 50%; box-shadow: none; opacity: 0; }
+.px-after .rail-panel-row:hover .rail-panel-focus, .px-after .rail-panel-row.selected .rail-panel-focus, .px-after .rail-panel-focus:focus-visible { opacity: 1; }
+.px-after .rail-heading { color: var(--ink-3); font: var(--t-support); }
+.px-after .rail-map-action { border: 0; box-shadow: none; border-radius: var(--r-row); }
+
+/* ---------- Barra superior propuesta (maqueta) ---------- */
+.px-shell-topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 4px; height: 52px; padding: 0 8px 0 16px; border-radius: var(--r-pill); }
+.px-shell-crumb { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ink); font: var(--t-control); cursor: pointer; }
+.px-shell-crumb strong { font-weight: 600; }
+.px-shell-crumb span { color: var(--muted); }
+.px-shell-crumb:focus-visible { outline: 2px solid var(--on); outline-offset: 2px; border-radius: var(--r-ctl); }
+.px-shell-saved { display: inline-flex; color: var(--ink-3); }
+.px-shell-spacer { flex: 1; }
+.px-shell-search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; border: 0; border-radius: var(--r-pill); background: var(--row-hover); color: var(--muted); font: var(--t-control); cursor: pointer; }
+.px-shell-search:hover { color: var(--ink); }
+.px-shell-search:focus-visible { outline: 2px solid var(--on); outline-offset: 2px; }
+.px-shell-search kbd { font: var(--t-micro); font-family: var(--mono); color: var(--ink-3); }
+.px-shell-bell { position: relative; display: inline-flex; }
+.px-shell-bell > i { position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--on); pointer-events: none; }
+
+/* ---------- Minimapa real ---------- */
+.px-after .canvas-minimap { border: 0; border-radius: var(--r-obj); background: var(--object-fill) var(--surface); box-shadow: var(--shadow-chrome); }
+.px-after .minimap-node { fill: color-mix(in srgb, var(--ink) 18%, transparent); }
+.px-after .minimap-node.selected { fill: color-mix(in srgb, var(--on) 70%, transparent); stroke: none; }
+.px-after .minimap-view { fill: transparent; stroke: color-mix(in srgb, var(--ink) 45%, transparent); stroke-width: 1; }
+
+/* ---------- Panel en el mapa ---------- */
+.px-shell-map > .canvas-node { position: absolute; overflow: visible; }
+.px-shell-nodehead { display: flex; align-items: center; gap: 8px; padding: 12px 16px; color: var(--ink); font: var(--t-control); }
+.px-shell-nodehead strong { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.px-shell-nodebody { margin: 0; padding: 0 16px; color: var(--muted); font: var(--t-body); }
+.px-after .canvas-node { border: 0; border-radius: var(--r-obj); background: var(--object-fill) var(--surface); box-shadow: none; }
+.px-after .canvas-node.selected:not(.focused):not(.is-dragging) { box-shadow: none; }
+.px-after .canvas-node .panel-state[data-state='working'] { color: var(--working); }
+.px-after .canvas-node .panel-state[data-state='attention'] { color: var(--attention); }
+
+@media (prefers-reduced-motion: reduce) {
+  .px-after .canvas-node, .px-after .rail-panel-focus { transition: none; }
+}
