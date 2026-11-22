@@ -34,6 +34,25 @@ test('interface scale IPC is desktop-local, exact-shaped and strictly bounded', 
   assert.throws(() => validateInvocation('desktop.interfaceScale.reset', {}));
 });
 
+test('chat context RPCs pass the desktop host allowlist with existing JSON limits', async () => {
+  const { HOST_METHODS, LOCAL_METHODS } = await import('../desktop/security.mjs');
+  for (const method of ['chat.compaction.capabilities', 'chat.compact', 'chat.continue']) {
+    assert.equal(HOST_METHODS.has(method), true);
+    assert.equal(LOCAL_METHODS.has(method), false);
+    for (const nodeId of [id, `phantom:${workspaceId}`]) {
+      const payload = { workspaceId, nodeId, ...(method === 'chat.continue' ? { summary: 'Objetivo, decisiones y pendientes revisados.' } : {}) };
+      assert.doesNotThrow(() => validateInvocation(method, payload));
+    }
+    for (const payload of [null, [], { summary: undefined }, { summary: Infinity },
+      { summary: new Date() }, JSON.parse('{"__proto__":{}}'), { summary: 'x'.repeat(1024 * 1024) }]) {
+      assert.throws(() => validateInvocation(method, payload));
+    }
+  }
+  for (const method of ['chat.compaction', 'chat.compaction.auto', 'chat.compact.force', 'chat.continue.force', 'chat.permission.request']) {
+    assert.throws(() => validateInvocation(method, { workspaceId, nodeId: id }), /Método desktop no permitido/);
+  }
+});
+
 test('review media requires a verified capability and supports only GET/HEAD and bounded ranges', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'phantom-review-media-'));
   t.after(() => rm(root, { recursive: true, force: true }));

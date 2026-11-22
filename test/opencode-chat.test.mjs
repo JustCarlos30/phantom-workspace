@@ -343,3 +343,93 @@ test('OpenCode cancellation interrupts retry backoff and leaves no server or lat
   await new Promise(resolve => setTimeout(resolve, 250));
   assert.equal(d.counts().attempts, 1);
 });
+
+async function compactionChat(t, main = false) {
+  const f = await setup(t);
+  await f.host.invoke('providers.configure', { providers: { opencode: { enabled: true } } });
+  const ref = main ? { ...f.ref, nodeId: `phantom:${f.ref.workspaceId}` } : f.ref;
+  await f.host.invoke('chat.configure', { ...ref, provider: 'opencode', model: 'openai/gpt-5', permissionMode: 'ask' });
+  const thread = f.host.chats.thread(ref.nodeId, 'opencode');
+  thread.sessionId = 'ses_fixture';
+  thread.messages.push({ id: 'original', role: 'user', status: 'done', parts: [{ type: 'text', text: 'Conservar este historial' }] });
+  thread.grants = ['exact-existing-grant'];
+  thread.meta = { model: 'openai/gpt-5', contextTokens: 190000, contextSource: 'opencode:request-v1', contextWindow: 200000 };
+  f.host.chats.save();
+  return { ...f, ref, thread, get: () => f.host.invoke('chat.get', ref),
+    compact: () => f.host.invoke('chat.compact', ref),
+    scenario: value => fs.writeFileSync(path.join(f.root, 'compact-scenario.json'), JSON.stringify(value)) };
+}
+
+test('Compactar verifica API, marcador y resumen nuevos, conserva historial/permisos y persiste evidencia en ambos chats', async t => {
+  for (const main of [false, true]) {
+    const f = await compactionChat(t, main), before = structuredClone(f.thread.messages);
+    const capability = await f.host.invoke('chat.compaction.capabilities', f.ref);
+    assert.deepEqual(capability, { kind: 'native', source: 'opencode:/doc', version: 'fixture' });
+    assert.equal(fs.existsSync(path.join(f.root, 'summarize.json')), false, 'probing does not compact');
+    const first = await f.compact(), second = await f.compact();
+    assert.notEqual(first.summaryId, second.summaryId, 'old summaries cannot confirm a new operation');
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.root, 'summarize.json'))).body, { providerID: 'openai', modelID: 'gpt-5', auto: false });
+    const chat = await f.get();
+    assert.equal(chat.sessionId, 'ses_fixture');
+    assert.equal(chat.running, false); assert.equal(chat.operation, null);
+    assert.deepEqual(chat.messages, before); assert.deepEqual(f.thread.grants, ['exact-existing-grant']);
+    assert.equal(chat.permissionMode, 'ask');
+    assert.equal(chat.meta.contextTokens, undefined, 'no estimated savings or stale reading');
+    assert.equal(chat.compactions[0].before.contextTokens, 190000);
+    assert.equal(chat.compactions[1].status, 'done');
+    const persisted = JSON.parse(fs.readFileSync(f.host.chats.filename))[f.ref.nodeId].threads.opencode;
+    assert.equal(persisted.compactions[1].summaryId, second.summaryId);
+    assert.equal(persisted.compactions[1].summary, 'Resumen nativo de prueba');
+    assert.deepEqual(persisted.messages, before);
+    assert.equal(fs.existsSync(path.join(f.root, 'transport.json')), false, 'no text command was sent');
+  }
+});
+
+test('Compactar no acredita éxito ante capacidad ausente, override, sesión nativa ocupada, HTTP o resumen inválido', async t => {
+  const f = await compactionChat(t);
+  for (const scenario of ['unsupported', 'override', 'busy', 'http-error', 'missing-summary', 'wrong-model', 'rejected']) {
+    f.scenario(scenario);
+    fs.rmSync(path.join(f.root, 'summarize.json'), { force: true });
+    await assert.rejects(f.compact(), /OpenCode/);
+    const chat = await f.get();
+    assert.equal(chat.compactions.at(-1).status, 'error', scenario);
+    assert.equal(chat.meta.contextTokens, 190000);
+    assert.equal(chat.messages.length, 1); assert.equal(chat.sessionId, 'ses_fixture');
+    assert.equal(chat.running, false);
+    if (['unsupported', 'override', 'busy'].includes(scenario)) assert.equal(fs.existsSync(path.join(f.root, 'summarize.json')), false);
+  }
+});
+
+test('Compactar bloquea cola, respuestas y operaciones rivales; detener cancela sin borrar historial', async t => {
+  const f = await compactionChat(t);
+  f.thread.queue = [{ id: 'queued', text: 'espera' }];
+  await assert.rejects(f.compact(), /cola/);
+  assert.equal(f.thread.compactions, undefined);
+  f.thread.queue = [];
+  f.host.chats.turns.set(f.ref.nodeId, {});
+  await assert.rejects(f.compact(), /ocupada/);
+  f.host.chats.turns.delete(f.ref.nodeId);
+  f.scenario('hold');
+  const running = f.compact(), rejected = assert.rejects(running, /cancelada/);
+  await until(() => fs.existsSync(path.join(f.root, 'summarize.json')));
+  assert.equal((await f.get()).operation, 'compact');
+  await assert.rejects(f.compact(), /ocupada/);
+  await assert.rejects(f.host.invoke('chat.send', { ...f.ref, text: 'carrera' }), /operación de contexto/);
+  await assert.rejects(f.host.invoke('chat.clear', f.ref), /Detén/);
+  await assert.rejects(f.host.invoke('chat.configure', { ...f.ref, model: 'openai/other' }), /Detén/);
+  await f.host.invoke('chat.stop', f.ref); await rejected;
+  const chat = await f.get();
+  assert.equal(chat.compactions.at(-1).status, 'cancelled');
+  assert.match(chat.compactions.at(-1).error, /Operación de contexto cancelada; resultado sin verificar/);
+  assert.equal(chat.meta.contextTokens, 190000); assert.equal(chat.messages.length, 1);
+  gone(JSON.parse(fs.readFileSync(path.join(f.root, 'summarize.json'))).pid);
+});
+
+test('Compactar respeta proveedor habilitado y rechaza campos RPC desconocidos antes de ejecutar', async t => {
+  const f = await compactionChat(t);
+  await assert.rejects(f.host.invoke('chat.compact', { ...f.ref, model: 'anthropic/claude-test' }), /Unknown/);
+  await f.host.invoke('providers.configure', { providers: { opencode: { enabled: false } } });
+  await assert.rejects(f.compact(), /Habilita OpenCode/);
+  assert.equal(fs.existsSync(path.join(f.root, 'summarize.json')), false);
+  assert.equal((await f.get()).messages.length, 1);
+});

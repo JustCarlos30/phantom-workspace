@@ -17,7 +17,7 @@ export const HOST_METHODS = new Set([
   'node.create', 'node.update', 'node.remove',
   'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.resize', 'terminal.stop', 'terminal.close',
   'terminal.agent.update', 'terminal.agent.context', 'terminal.agent.report', 'opencode.sessions',
-  'chat.get', 'chat.configure', 'chat.send', 'chat.stop', 'chat.clear', 'chat.queue.remove', 'chat.queue.send', 'chat.models', 'chat.permission.answer', 'chat.question.answer',
+  'chat.get', 'chat.configure', 'chat.send', 'chat.stop', 'chat.clear', 'chat.compaction.capabilities', 'chat.compact', 'chat.continue', 'chat.queue.remove', 'chat.queue.send', 'chat.models', 'chat.permission.answer', 'chat.question.answer',
   'task.create', 'task.update', 'task.remove', 'mission.create', 'mission.update', 'mission.remove',
   'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read', 'skills.catalog', 'skills.read',
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',

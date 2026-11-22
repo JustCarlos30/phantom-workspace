@@ -6,7 +6,7 @@ import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceActivity, VoiceTranscript, dictationPreview } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
-import { ContextMeter, Message, PermissionRow, ProviderChoices, QueuedMessages, SessionContext, useEnabledProviders, withEdited } from './ChatCard';
+import { CompactionControls, Message, PermissionRow, ProviderChoices, QueuedMessages, SessionContext, useEnabledProviders, withEdited } from './ChatCard';
 import PhantomOrchestrator from './PhantomOrchestrator';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude', hint: 'Claude Code en la carpeta del proyecto' }, { id: 'opencode', label: 'OpenCode', hint: 'OpenCode en la carpeta del proyecto' }, { id: 'codex', label: 'Codex', hint: 'Codex en la carpeta del proyecto' }];
@@ -30,7 +30,7 @@ const PERMISSIONS = {
 export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership, tab = 'chat', onTab, status, onOpenPanel, onTask }) {
   const nodeId = `phantom:${workspace.id}`;
   // The host owns the provider; `pending` only shows a switch in flight.
-  const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId, provider: 'phantom', api, connected });
+  const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId, provider: 'phantom', api, connected });
   const [pending, setPending] = useState(null);
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${nodeId}`);
   const [sending, setSending] = useState(false);
@@ -137,7 +137,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
         </div>
       </div>
       <div className="pc-meta">
-        <ContextMeter meta={meta} running={running} />
+         <CompactionControls chat={chat} connected={connected} capabilities={capabilities} compact={compact} continueSession={continueSession} />
         <span className="pc-bar-space" />
         {voice.status === 'idle' && <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>}
       </div>

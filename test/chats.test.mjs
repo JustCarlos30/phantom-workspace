@@ -169,6 +169,131 @@ function fixture(dir, name, body) {
   return file;
 }
 
+async function codexContinuation(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-continuation-'));
+  const bin = fixture(root, 'codex', `
+const fs = require('fs');
+const mode = fs.existsSync('scenario.json') ? JSON.parse(fs.readFileSync('scenario.json')) : 'success';
+if (process.argv.includes('--help')) {
+  if (mode === 'help-fail') process.exit(2);
+  console.log('Usage: codex exec [OPTIONS]\\nCommands:\\n resume');
+} else {
+  let prompt = ''; process.stdin.setEncoding('utf8');
+  process.stdin.on('data', chunk => prompt += chunk);
+  process.stdin.on('end', () => {
+    fs.writeFileSync('continuation.json', JSON.stringify({ argv: process.argv.slice(2), prompt, pid: process.pid }));
+    const out = event => console.log(JSON.stringify(event));
+    if (mode !== 'no-session') out({ type: 'thread.started', thread_id: mode === 'same-session' ? 'old-session-12345678' : 'new-session-12345678' });
+    if (mode === 'hold') { setInterval(() => {}, 1000); return; }
+    if (mode === 'truncated') return;
+    if (mode === 'fail') { out({ type: 'turn.failed', error: { message: 'fixture failure' } }); process.exitCode = 1; return; }
+    out({ type: 'item.completed', item: { id: 'answer', type: 'agent_message', text: 'Resumen recibido' } });
+    out({ type: 'turn.completed', usage: { output_tokens: 2 } });
+  });
+}
+`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  host.chats.codexHome = path.join(root, 'no-user-rollouts');
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  await host.invoke('providers.configure', { providers: { codex: { enabled: true } } });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { cwd: root, chat: { provider: 'codex' } } });
+  const ref = { workspaceId: workspace.id, nodeId: node.id }, thread = host.chats.thread(node.id, 'codex');
+  thread.sessionId = 'old-session-12345678';
+  thread.meta = { model: 'gpt-test', contextTokens: 190000, contextSource: 'codex:request-v1' };
+  thread.grants = ['exact-existing-grant'];
+  thread.messages = Array.from({ length: 402 }, (_, i) => ({ id: `old-${i}`, role: 'user', parts: [{ type: 'text', text: `historial ${i}` }], status: 'done' }));
+  return { root, host, ref, thread,
+    scenario: value => fs.writeFileSync(path.join(root, 'scenario.json'), JSON.stringify(value)),
+    get: () => host.invoke('chat.get', ref),
+    proceed: () => host.invoke('chat.continue', { ...ref, summary: 'Objetivo, decisiones y pendientes revisados.' }),
+    idle: () => until(() => !host.chats.running(node.id)),
+    transport: () => JSON.parse(fs.readFileSync(path.join(root, 'continuation.json'))) };
+}
+
+test('Codex: continuidad explícita crea sesión comprobada con modelo observado y conserva historial, resumen y permisos', async t => {
+  const f = await codexContinuation(t), before = structuredClone(f.thread.messages);
+  const capability = await f.host.invoke('chat.compaction.capabilities', f.ref);
+  assert.equal(capability.kind, 'continuation');
+  assert.equal(fs.existsSync(path.join(f.root, 'continuation.json')), false);
+  await assert.rejects(f.host.invoke('chat.compact', f.ref), /no tiene compactación verificada/);
+  await assert.rejects(f.host.invoke('chat.continue', { ...f.ref, summary: ' ' }), /resumen/);
+  await f.proceed(); await f.idle();
+  const chat = await f.get(), record = chat.continuations.at(-1), transport = f.transport();
+  assert.equal(record.status, 'done'); assert.equal(chat.sessionId, 'new-session-12345678');
+  assert.equal(record.fromSessionId, 'old-session-12345678'); assert.equal(record.toSessionId, chat.sessionId);
+  assert.deepEqual(record.capability, capability);
+  assert.equal(record.model, 'gpt-test'); assert.match(record.summary, /pendientes revisados/);
+  assert.equal(transport.argv.includes('resume'), false);
+  assert.equal(transport.argv[transport.argv.indexOf('--model') + 1], 'gpt-test');
+  assert.ok(transport.argv.includes('sandbox_mode="read-only"'));
+  assert.match(transport.prompt, /este resumen no concede permisos nuevos/);
+  assert.match(transport.prompt, /pendientes revisados/);
+  assert.deepEqual(chat.messages.slice(0, before.length), before);
+  assert.deepEqual(f.thread.grants, ['exact-existing-grant']); assert.equal(chat.mode, 'ask');
+  assert.equal(chat.meta.contextTokens, undefined); assert.deepEqual(chat.compactions, []);
+  const persisted = JSON.parse(fs.readFileSync(f.host.chats.filename))[f.ref.nodeId].threads.codex;
+  assert.deepEqual(persisted.continuations, chat.continuations);
+  await f.host.invoke('chat.send', { ...f.ref, text: 'siguiente' }); await f.idle();
+  assert.ok(f.transport().argv.includes('resume')); assert.ok(f.transport().argv.includes('new-session-12345678'));
+  assert.deepEqual((await f.get()).messages.slice(0, before.length), before, 'subsequent turns preserve visible history');
+});
+
+test('Codex: fallo de sondeo no cambia sesión; ID ausente, repetido o turno incompleto nunca acreditan continuidad', async t => {
+  for (const mode of ['help-fail', 'no-session', 'same-session', 'truncated', 'fail']) {
+    const f = await codexContinuation(t); f.scenario(mode);
+    if (mode === 'help-fail') {
+      await assert.rejects(f.proceed());
+      assert.equal(f.thread.continuations, undefined);
+      assert.equal(f.thread.sessionId, 'old-session-12345678');
+      assert.equal(f.thread.meta.contextTokens, 190000);
+      assert.equal(fs.existsSync(path.join(f.root, 'continuation.json')), false);
+    } else {
+      await f.proceed(); await f.idle();
+      const chat = await f.get();
+      assert.equal(chat.continuations.at(-1).status, 'error', mode);
+      assert.match(chat.continuations.at(-1).error, /no confirmó|fixture failure/);
+      assert.equal(chat.messages[0].id, 'old-0');
+      assert.equal(chat.messages.at(-1).status, 'error');
+      if (mode === 'no-session' || mode === 'same-session') assert.equal(chat.sessionId, 'old-session-12345678');
+    }
+  }
+});
+
+test('Codex: cola y sesión ocupada impiden continuidad; cancelar conserva origen, resumen e historial', async t => {
+  const f = await codexContinuation(t);
+  f.thread.queue = [{ id: 'queued', text: 'espera' }];
+  await assert.rejects(f.proceed(), /cola/);
+  assert.equal(fs.existsSync(path.join(f.root, 'continuation.json')), false);
+  f.thread.queue = []; f.scenario('hold');
+  await f.proceed();
+  await until(() => fs.existsSync(path.join(f.root, 'continuation.json')));
+  await assert.rejects(f.proceed(), /ocupada/);
+  await f.host.invoke('chat.stop', f.ref); await f.idle();
+  const chat = await f.get(), record = chat.continuations.at(-1);
+  assert.equal(record.status, 'stopped'); assert.match(record.summary, /revisados/);
+  assert.equal(record.fromSessionId, 'old-session-12345678');
+  assert.equal(chat.messages[0].id, 'old-0'); assert.equal(chat.messages.at(-1).status, 'stopped');
+  assert.throws(() => process.kill(f.transport().pid, 0), /ESRCH/);
+});
+
+test('Reinicio marca operaciones interrumpidas sin éxito y recupera el origen de continuidad', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-compaction-restart-'));
+  const original = { id: 'old', parts: [{ type: 'text', text: 'historial' }], status: 'done' };
+  fs.writeFileSync(path.join(root, 'chats.json'), JSON.stringify({ n: { threads: {
+    opencode: { sessionId: 'native', messages: [original], compactions: [{ id: 'c', status: 'running' }] },
+    codex: { sessionId: null, messages: [original], continuations: [{ id: 's', status: 'running', fromSessionId: 'source', summary: 'resumen preservado' }] },
+  } } }));
+  const chats = new Chats({ dir: root }, () => {});
+  t.after(async () => { await chats.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  assert.equal(chats.thread('n', 'opencode').compactions[0].status, 'interrupted');
+  const codex = chats.thread('n', 'codex');
+  assert.equal(codex.continuations[0].status, 'interrupted'); assert.equal(codex.sessionId, 'source');
+  assert.equal(codex.continuations[0].summary, 'resumen preservado');
+  assert.deepEqual(codex.messages, [original]);
+});
+
 test('Claude stream folds partial text, tool calls and results into one reply', () => {
   const t = turn(), stream = event => ({ type: 'stream_event', event });
   applyClaudeEvent(t, { type: 'system', subtype: 'init', session_id: 'abc', model: 'claude-x' });

@@ -18,6 +18,24 @@ const server = http.createServer(async (req, res) => {
   let raw = ''; for await (const chunk of req) raw += chunk;
   const body = raw ? JSON.parse(raw) : {};
   const json = value => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(value)); };
+  const compactScenario = fs.existsSync('compact-scenario.json') ? JSON.parse(fs.readFileSync('compact-scenario.json')) : 'success';
+  if (url.pathname === '/doc') return json({ info: { version: 'fixture' }, paths: compactScenario === 'unsupported' ? {} : { '/session/{sessionID}/summarize': { post: { requestBody: { content: { 'application/json': { schema: { properties: { providerID: {}, modelID: {}, auto: {} } } } } } } } } });
+  if (url.pathname === '/config') return json({ agent: compactScenario === 'override' ? { compaction: { model: 'anthropic/claude-test' } } : {} });
+  if (url.pathname === '/agent') return json([]);
+  if (url.pathname === '/config/providers') return json({ providers: [{ id: 'openai', models: { 'gpt-5': {} } }] });
+  if (url.pathname === '/session/status') return json(compactScenario === 'busy' ? { ses_fixture: { type: 'busy' } } : {});
+  if (url.pathname === '/session/ses_fixture/message' && req.method === 'GET') return json(fs.existsSync('native-messages.json') ? JSON.parse(fs.readFileSync('native-messages.json')) : []);
+  if (url.pathname === '/session/ses_fixture/summarize') {
+    fs.writeFileSync('summarize.json', JSON.stringify({ pid: process.pid, body }));
+    if (compactScenario === 'hold') return;
+    if (compactScenario === 'http-error') { res.writeHead(500).end(); return; }
+    const markerId = randomUUID(), summaryId = randomUUID();
+    const messages = fs.existsSync('native-messages.json') ? JSON.parse(fs.readFileSync('native-messages.json')) : [];
+    messages.push({ info: { id: markerId, role: 'user' }, parts: [{ type: 'compaction' }] });
+    if (compactScenario !== 'missing-summary') messages.push({ info: { id: summaryId, role: 'assistant', parentID: markerId, summary: true, providerID: body.providerID, modelID: compactScenario === 'wrong-model' ? 'other' : body.modelID, time: { completed: Date.now() } }, parts: [{ type: 'text', text: 'Resumen nativo de prueba' }] });
+    fs.writeFileSync('native-messages.json', JSON.stringify(messages));
+    return json(compactScenario !== 'rejected');
+  }
   if (url.pathname === '/event') {
     connections++; record();
     res.writeHead(200, { 'content-type': 'text/event-stream' });
