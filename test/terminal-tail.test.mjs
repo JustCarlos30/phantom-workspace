@@ -5,7 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire, registerHooks } from 'node:module';
 import { createHost } from '../host/server.mjs';
-import { detectAgent, tailLines, screenSignal, nextScreenState } from '../host/terminals.mjs';
+import { detectAgent, tailLines, screenSignal, screenReason, nextScreenState } from '../host/terminals.mjs';
+
+test('screenReason names only the Claude trust dialog', () => {
+  assert.equal(screenReason(['Accessing workspace: /home/carlosj/project', '', 'Quick safety check: Is this a project you created or one you trust?', '', '❯ No, exit', '  Yes, I trust this folder', 'Enter to confirm · Esc to cancel']), 'trust');
+  assert.equal(screenReason(['Do you trust the files in this folder?', '❯ 1. Yes, I trust this folder', '  2. No, exit']), 'trust');
+  assert.equal(screenReason([' Bash command', ' Do you want to proceed?', ' ❯ 1. Yes', '   2. No']), null);
+  assert.equal(screenReason(['✻ Thinking… (12s · esc to interrupt)', '> ']), null);
+  assert.equal(screenReason(['> ', '  ? for shortcuts']), null);
+});
 
 const require = createRequire(import.meta.url);
 const { Terminal } = require('@xterm/headless');
@@ -92,6 +100,29 @@ test('terminal.tail reads live PTY text without ANSI and replays closed snapshot
   assert.equal(closed.status, 'exited');
   assert.equal(closed.foreground, null);
   assert.ok(closed.lines.includes('TAIL_GREEN'));
+});
+
+test('terminal.trust refuses a session that is not in the trust dialog without touching the config', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-trust-rpc-')));
+  const previous = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = root;
+  const filename = path.join(root, '.claude.json');
+  const original = JSON.stringify({ projects: { [root]: { hasTrustDialogAccepted: false } } });
+  fs.writeFileSync(filename, original);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => {
+    await host.close(); fs.rmSync(root, { recursive: true, force: true });
+    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = previous;
+  });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const { session } = await host.invoke('terminal.create', { workspaceId: workspace.id, shell: '/bin/sh' });
+  await host.invoke('terminal.write', { sessionId: session.id, data: "echo READY_TRUST\n" });
+  const tail = await until(async () => { const value = await host.invoke('terminal.tail', { sessionId: session.id, lines: 4 }); return value.lines.includes('READY_TRUST') ? value : null; });
+  assert.equal(tail.screenReason, null);
+  await assert.rejects(host.invoke('terminal.trust', { sessionId: session.id }), /no está pidiendo confiar/);
+  assert.equal(fs.readFileSync(filename, 'utf8'), original);
+  assert.equal(fs.existsSync(`${filename}.lock`), false);
+  await host.invoke('terminal.stop', { sessionId: session.id });
 });
 
 test('screenSignal reads whose turn it is from visible agent chrome', () => {

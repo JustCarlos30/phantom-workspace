@@ -96,6 +96,12 @@ test('Integración exige base explícita y comparación válida; no integrada nu
   assert.equal(buildActivity({ workspace: { nodes }, git: { branches: git.branches } }).unknownBranches, 2);
 });
 
+test('El diálogo de confianza se nombra como tal y no como un permiso cualquiera', () => {
+  assert.deepEqual(sessionState({ status: 'running', screenState: 'awaiting_approval', screenReason: 'trust' }), { needsYou: true, label: 'Pide confiar en la carpeta', tone: 'warning', screen: 'awaiting_approval' });
+  assert.equal(sessionState({ status: 'running', screenState: 'awaiting_approval', screenReason: null }).label, 'Pide permiso');
+  assert.equal(sessionState({ status: 'running', screenState: 'awaiting_approval' }).label, 'Pide permiso');
+});
+
 test('screen state turns a quiet agent terminal into a needs-you signal', () => {
   assert.deepEqual(sessionState({ status: 'running', screenState: 'awaiting_approval', agentState: 'working' }), { needsYou: true, label: 'Pide permiso', tone: 'warning', screen: 'awaiting_approval' });
   assert.equal(sessionState({ status: 'running', screenState: 'awaiting_input' }).needsYou, true);

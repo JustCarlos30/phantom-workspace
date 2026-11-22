@@ -47,6 +47,8 @@ Socket Unix privado en directorio de estado. Una línea JSON por mensaje: reques
 - `attention.list {workspaceId}`, `.ack {workspaceId,id}`, `.create {workspaceId,title,source,ref?}`.
 - `storage.export {includeHistory?}` → JSON portable sin secrets/transcript default; `.import {data}` valida y nunca ejecuta.
 - `host.shutdown` explícito termina procesos de este host y daemon.
+- Sesiones exponen `screenReason`: `"trust"` mientras la pantalla visible muestra el diálogo de confianza de Claude Code (el estado sigue siendo `awaiting_approval`); `null` en cualquier otro caso y se limpia al desaparecer el diálogo.
+- `terminal.trust {sessionId}` (solo escritorio; nunca móvil, gateway ni `terminal.agent.*`) exige sesión viva con `screenReason:"trust"`; marca `hasTrustDialogAccepted` del proyecto registrado en `~/.claude.json` (lock, temporal + rename atómico, conserva claves), hereda al worktree de la sesión y solo entonces envía `\r` al PTY → `{trusted:true}`. Si la concesión falla, error visible y nada al PTY. Regla: Phantom hereda confianza ya otorgada y solo la otorga por gesto explícito del usuario en el escritorio.
 
 ### Acceso móvil local
 

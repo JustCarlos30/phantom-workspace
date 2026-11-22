@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { inheritClaudeTrust } from '../host/claude-trust.mjs';
+import { grantClaudeTrust, inheritClaudeTrust } from '../host/claude-trust.mjs';
 import { prepareTerminalDirectory } from '../host/worktrees.mjs';
 
 async function fixture(t) {
@@ -84,7 +84,76 @@ test('effective config is selected afresh and CLAUDE_CONFIG_DIR takes precedence
   assert.equal(await f.inherit(), true);
 });
 
-test('occupied lock fails safely without removing it or retrying', async t => {
+test('grant marks the untrusted origin, keeps other keys and lets the worktree inherit', async t => {
+  const f = await fixture(t);
+  f.config.projects[f.source] = { hasTrustDialogAccepted: false, allowedTools: ['Read'] }; f.save();
+  assert.equal(await f.inherit(), false);
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), true);
+  assert.deepEqual(f.read(), { ...f.config, projects: { ...f.config.projects, [f.source]: { hasTrustDialogAccepted: true, allowedTools: ['Read'] } } });
+  assert.equal(fs.statSync(f.filename).mode & 0o777, 0o640);
+  assert.deepEqual(fs.readdirSync(path.dirname(f.filename)), ['.claude.json']);
+  assert.equal(await f.inherit(), true);
+  assert.equal(f.read().projects[f.directory.cwd].hasTrustDialogAccepted, true);
+});
+
+test('grant creates the origin entry when absent', async t => {
+  const f = await fixture(t);
+  delete f.config.projects[f.source]; f.save();
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), true);
+  assert.deepEqual(f.read().projects[f.source], { hasTrustDialogAccepted: true });
+  assert.deepEqual(f.read().projects['/unrelated'], { keep: 7 });
+});
+
+test('grant never replaces corrupt, missing or non-regular config and needs a registered workspace', async t => {
+  const f = await fixture(t);
+  assert.equal(await grantClaudeTrust({ ...f.store, state: { workspaces: [] } }, f.workspace, f.env), false);
+  fs.writeFileSync(f.filename, '{broken');
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), false);
+  assert.equal(fs.readFileSync(f.filename, 'utf8'), '{broken');
+  fs.unlinkSync(f.filename);
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), false);
+  assert.deepEqual(fs.readdirSync(path.dirname(f.filename)), []);
+  fs.mkdirSync(f.filename);
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), false);
+  assert.equal(fs.statSync(f.filename).isDirectory(), true);
+});
+
+test('grant leaves the worktree entry and other projects untouched', async t => {
+  const f = await fixture(t);
+  f.config.projects[f.source] = { hasTrustDialogAccepted: false };
+  f.config.projects[f.directory.cwd] = { hasTrustDialogAccepted: false, mine: 1 }; f.save();
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), true);
+  const after = f.read();
+  assert.equal(after.projects[f.source].hasTrustDialogAccepted, true);
+  assert.deepEqual(after.projects[f.directory.cwd], { hasTrustDialogAccepted: false, mine: 1 });
+  assert.deepEqual(after.projects['/unrelated'], { keep: 7 });
+  assert.deepEqual(fs.readdirSync(path.dirname(f.filename)), ['.claude.json']);
+});
+
+test('grant retries while a lock is released', async t => {
+  const f = await fixture(t);
+  f.config.projects[f.source].hasTrustDialogAccepted = false; f.save();
+  const lock = `${f.filename}.lock`;
+  fs.writeFileSync(lock, 'other writer');
+  setTimeout(() => fs.unlinkSync(lock), 50);
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), true);
+  assert.equal(f.read().projects[f.source].hasTrustDialogAccepted, true);
+  assert.equal(fs.existsSync(lock), false);
+});
+
+test('grant gives up after bounded retries on a permanent lock without touching it', async t => {
+  const f = await fixture(t);
+  const lock = `${f.filename}.lock`;
+  f.config.projects[f.source].hasTrustDialogAccepted = false; f.save();
+  fs.writeFileSync(lock, 'other writer');
+  const started = Date.now();
+  assert.equal(await grantClaudeTrust(f.store, f.workspace, f.env), false);
+  assert.ok(Date.now() - started < 2000);
+  assert.equal(f.read().projects[f.source].hasTrustDialogAccepted, false);
+  assert.equal(fs.readFileSync(lock, 'utf8'), 'other writer');
+});
+
+test('occupied lock fails safely without removing it after bounded retries', async t => {
   const f = await fixture(t);
   fs.writeFileSync(`${f.filename}.lock`, 'other writer');
   assert.equal(await f.inherit(), false);

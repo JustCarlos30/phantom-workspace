@@ -9,7 +9,7 @@ import { provisionBrowserTerminal } from './agent-browser.mjs';
 import { bootstrapAgentPolicy, shimmedPath } from './agent-policy.mjs';
 import { prepareWorktree } from './worktree-setup.mjs';
 import { roleEnv, roleOf } from './merge-guard.mjs';
-import { inheritClaudeTrust } from './claude-trust.mjs';
+import { grantClaudeTrust, inheritClaudeTrust } from './claude-trust.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
 function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
@@ -74,9 +74,14 @@ export function tailLines(terminal,count) {
 const TRUST_PROMPT=[/\bquick safety check\b/i,/\bis this a project you (created|trust)\b/i,/\byes, i trust this folder\b/i,/\baccessing workspace:/i];
 const WORKING=/\besc(ape)?\b.{0,4}\b(to )?(interrupt|cancel)\b/i;
 const APPROVAL=[/\bdo you want to (proceed|make|create|run|allow|continue|apply|overwrite|delete)\b/i,/\bwould you like to (run|proceed|allow|make|apply|continue)\b/i,/\ballow (once|always)\b/i,/\bpermission required\b/i,/\brequires? (your )?approval\b/i,/^\s*[❯›>]\s*1\.\s*(yes|allow|approve)\b/i,/\((y\/n|yes\/no)\)|\[(y\/n|Y\/n|y\/N)\]/,/\bpress enter to (continue|confirm)\b/i];
+const recentLines=lines=>lines.filter(l=>l.trim()).slice(-14);
+// Why the screen asks for approval, when it is Claude's folder-trust dialog.
+export function screenReason(lines) {
+  return recentLines(lines).some(l=>TRUST_PROMPT.some(r=>r.test(l)))?'trust':null;
+}
 export function screenSignal(lines) {
-  const recent=lines.filter(l=>l.trim()).slice(-14);
-  if(recent.some(l=>TRUST_PROMPT.some(r=>r.test(l)))) return 'awaiting_approval';
+  const recent=recentLines(lines);
+  if(screenReason(lines)) return 'awaiting_approval';
   if(recent.some(l=>WORKING.test(l))) return 'working';
   if(recent.some(l=>APPROVAL.some(r=>r.test(l)))) return 'awaiting_approval';
   return null;
@@ -111,7 +116,7 @@ export class Terminals {
       }
     },1000);this.timer.unref();
   }
-  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,screenStateAt:this.live.get(s.id)?.screenStateAt??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
+  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,screenStateAt:this.live.get(s.id)?.screenStateAt??null,screenReason:this.live.get(s.id)?.screenReason??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
   foreground(id) { const entry=this.live.get(id);return entry&&!entry.exited?foregroundOf(entry.child.pid):null; }
   async create(w, node, options) {
@@ -235,7 +240,7 @@ export class Terminals {
   tail(id,count=12,maxCount=40) {
     assert(Number.isInteger(count)&&count>=1&&count<=maxCount,'Invalid tail line count');
     const s=this.get(id),e=this.live.get(id),base={status:e?s.status:s.status==='running'?'lost':s.status,seq:s.seq,cols:s.cols,rows:s.rows};
-    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:cachedForeground(e),screenState:e.screenState??null};
+    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:cachedForeground(e),screenState:e.screenState??null,screenReason:e.screenReason??null};
     // Closed sessions: parse the persisted snapshot once per sequence.
     const key=s.snapshotSeq??s.seq,cached=this.tails?.get(id);
     if(cached?.key===key&&cached.count===count) return {...base,...cached.value,foreground:null};
@@ -257,15 +262,27 @@ export class Terminals {
       const buffer=e.terminal.buffer.active,lines=[];
       for(let i=Math.max(0,buffer.viewportY);i<buffer.viewportY+e.terminal.rows;i++) lines.push(buffer.getLine(i)?.translateToString(true)??'');
       const agent=cachedForeground(e)?.agent??null;
-      this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent));
+      this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent),screenReason(lines));
     },450);
     e.screenTimer.unref?.();
   }
-  setScreenState(s,e,state) {
-    if((e.screenState??null)===state) return;
-    e.screenState=state;
-    e.screenStateAt=state===null?null:Date.now();
-    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state,screenStateAt:e.screenStateAt});
+  setScreenState(s,e,state,reason=null) {
+    if((e.screenState??null)===state&&(e.screenReason??null)===reason) return;
+    if((e.screenState??null)!==state) e.screenStateAt=state===null?null:Date.now();
+    e.screenState=state;e.screenReason=reason;
+    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state,screenStateAt:e.screenStateAt,screenReason:reason});
+  }
+  // Explicit desktop gesture: trust the project, then accept Claude's default option.
+  async trust(id) {
+    const s=this.get(id),e=this.live.get(id);
+    assert(e&&!e.exited&&!e.stopping&&s.status==='running','La terminal no está en ejecución');
+    assert(e.screenReason==='trust','La terminal no está pidiendo confiar en la carpeta');
+    const w=this.store.getWorkspace(s.workspaceId);
+    assert(await grantClaudeTrust(this.store,w),'No se pudo marcar el proyecto como confiable en la configuración de Claude');
+    if(s.worktree) await inheritClaudeTrust(this.store,w,s).catch(()=>{});
+    assert(this.live.get(id)===e&&!e.exited&&!e.stopping,'La terminal no está en ejecución');
+    e.child.write('\r');
+    return {trusted:true};
   }
   async resize(id,cols,rows) {dimensions(cols,rows);const e=this.live.get(id);assert(e&&!e.exited,'Terminal is not running');e.chain=e.chain.then(()=>{if(e.exited)return;const s=this.get(id);e.child.resize(cols,rows);e.terminal.resize(cols,rows);Object.assign(s,{cols,rows});e.snapshotDirty=true;this.capture(s,e);this.save();});await e.chain;return {ok:true};}
   stop(id) {

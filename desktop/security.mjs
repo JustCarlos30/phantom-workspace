@@ -15,7 +15,7 @@ export const HOST_METHODS = new Set([
   'android.status', 'android.configure', 'android.start', 'android.link', 'android.stop', 'android.pairing', 'android.bootstrap', 'android.approve', 'android.revoke',
   'workspace.open', 'workspace.select', 'workspace.update', 'workspace.relocate',
   'node.create', 'node.update', 'node.remove',
-  'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.resize', 'terminal.stop', 'terminal.close',
+  'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.trust', 'terminal.resize', 'terminal.stop', 'terminal.close',
   'terminal.agent.update', 'terminal.agent.context', 'terminal.agent.report', 'opencode.sessions',
   'chat.get', 'chat.configure', 'chat.send', 'chat.stop', 'chat.clear', 'chat.compaction.capabilities', 'chat.compact', 'chat.continue', 'chat.queue.remove', 'chat.queue.send', 'chat.models', 'chat.permission.answer', 'chat.question.answer',
   'task.create', 'task.update', 'task.remove', 'mission.create', 'mission.update', 'mission.remove',

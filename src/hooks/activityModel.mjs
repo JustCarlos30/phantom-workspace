@@ -44,7 +44,7 @@ export function sessionState(session, connected = true, linkedTasks = []) {
   // What the terminal screen shows right now outranks a declared 'working': an
   // agent sitting on a question needs you even if it never reported it.
   const screen = text(session?.screenState);
-  if (screen === 'awaiting_approval') return { needsYou: true, label: 'Pide permiso', tone: 'warning', screen };
+  if (screen === 'awaiting_approval') return { needsYou: true, label: session?.screenReason === 'trust' ? 'Pide confiar en la carpeta' : 'Pide permiso', tone: 'warning', screen };
   if (screen === 'awaiting_input' && !explicit?.needsYou) return { needsYou: true, label: 'Terminó · tu turno', tone: 'warning', screen };
   if (explicit) return { needsYou: explicit.needsYou, label: explicit.label, tone: explicit.needsYou ? 'warning' : 'neutral' };
   if (screen === 'working') return { needsYou: false, label: 'Trabajando', tone: 'working', screen };
@@ -207,7 +207,7 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
     if (s.nodeId && claimed.has(s.nodeId)) continue;
     const need = s.screen === 'awaiting_approval' ? 'approval' : s.screen === 'awaiting_input' ? 'turn' : s.status === 'lost' ? 'lost' : rowKind({ ...s, status: text(s.agentState) || text(s.agent?.status) || s.status });
     const sessionId = s.descriptor && s.id && !s.id.startsWith('node:') ? s.id : null, live = s.status === 'running';
-    needs.push({ ...s, key: `session:${s.id}`, target: 'terminal', source: 'Host · terminal.list', group: 'now', need, sessionId, live, reply: ['turn', 'input'].includes(need) && live && sessionId ? 'terminal' : null, excerpt: !!(live && sessionId), at: s.screen ? s.screenStateAt || 0 : 0, headline: SESSION_NEED[need] || s.label, context: s.title });
+    needs.push({ ...s, key: `session:${s.id}`, target: 'terminal', source: 'Host · terminal.list', group: 'now', need, sessionId, live, reply: ['turn', 'input'].includes(need) && live && sessionId ? 'terminal' : null, excerpt: !!(live && sessionId), at: s.screen ? s.screenStateAt || 0 : 0, headline: need === 'approval' && s.screenReason === 'trust' ? s.label : SESSION_NEED[need] || s.label, context: s.title });
     claim(s.nodeId);
   }
   for (const n of notices.filter(n => n.needsYou)) {
