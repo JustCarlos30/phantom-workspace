@@ -311,6 +311,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);
     if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
     if(method==='terminal.write') return terminals.write(p.sessionId,p.data);
+    if(method==='terminal.trust') return terminals.trust(p.sessionId);
     if(method==='terminal.resize') return terminals.resize(p.sessionId,p.cols,p.rows);
     if(method==='terminal.stop') return terminals.stop(p.sessionId);
     if(method==='terminal.close') {

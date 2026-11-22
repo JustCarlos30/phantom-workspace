@@ -39,8 +39,9 @@ export function effectiveStatus(agent, screenState) {
   return screenState === 'working' ? 'working' : null;
 }
 
-export function AgentState({ agent, status = agent?.status || 'idle' }) {
-  return <span className={`pt-state is-${status}`}><i aria-hidden="true" />{SCREEN_LABELS[status] || AGENT_LABELS[status] || AGENT_LABELS.idle}</span>;
+export function AgentState({ agent, status = agent?.status || 'idle', reason = null }) {
+  const label = status === 'approval' && reason === 'trust' ? 'Pide confiar en la carpeta' : SCREEN_LABELS[status] || AGENT_LABELS[status] || AGENT_LABELS.idle;
+  return <span className={`pt-state is-${status}`}><i aria-hidden="true" />{label}</span>;
 }
 
 export function locationOf(node, workspace) {
@@ -81,12 +82,21 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     : !sessionId ? node.data?.launchError || 'Sin sesión activa. Inicia una nueva para continuar.'
     : error ? `No se pudo leer la salida: ${error}`
     : !tail ? 'Leyendo la salida…' : 'Sin salida todavía.';
+  const trustAsked = state === 'approval' && tail?.screenReason === 'trust' && status === 'running';
+  const [trusting, setTrusting] = useState(false);
+  const project = workspace?.name || 'este proyecto';
+  async function trust() {
+    setTrusting(true);
+    try { await api('terminal.trust', { sessionId }); notify?.('Proyecto confiado'); }
+    catch (err) { notify?.(err?.message || String(err)); }
+    finally { setTrusting(false); }
+  }
   const glimpse = overview ? (tail?.lines || []).filter(line => line.trim()).slice(-3).join('\n') : null;
   return <div ref={card} className={`pt-card ${overview ? 'is-overview' : ''}`} data-agent={state || 'idle'} data-session={status} onDoubleClick={e => { if (!e.target.closest('button')) onOpen(); }}>
     <div className="pt-card-identity">
       {!overview && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />}
       {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
-      {state && <AgentState agent={agent} status={state} />}
+      {state && <AgentState agent={agent} status={state} reason={tail?.screenReason} />}
       {overview && <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>}
       {agent.step && (overview ? <p className="pt-card-step" title={agent.step}>{agent.step}</p> : <div className="pt-card-now" data-tone={stateTone(state)}>
         <i aria-hidden="true" />
@@ -101,6 +111,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     {!overview && <footer className="pt-card-footer">
       <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{where}</span></span>
       <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>
+      {trustAsked && <button type="button" className="pt-card-action" disabled={trusting} onClick={trust} title={`Confiar en ${project} para Claude Code`} aria-label={`Confiar en el proyecto ${project}`}>Confiar en este proyecto</button>}
       {ended && <button type="button" className="pt-card-action" onClick={() => onRelaunch(node)}><RotateCcw size={14} aria-hidden="true" />Nueva sesión</button>}
       <button type="button" className="pt-card-action is-primary" onClick={onOpen} title="Abrir terminal · doble clic">Abrir<ArrowUpRight size={14} aria-hidden="true" /></button>
     </footer>}
