@@ -234,7 +234,7 @@ test('agent run and runs use host controllers with workspace identity or termina
     for (const model of [undefined, 'provider/model']) {
       calls.length = 0;
       assert.deepEqual(await agentCLI(['run', 'task-id', ...(model ? [model] : [])], env), descriptor);
-      assert.deepEqual(calls, [...contextCalls, { method: 'phantom.control', payload: { workspaceId, id: 'task-id', action: 'run', ...(identity.PHANTOM_TERMINAL_SESSION_ID ? { sessionId: 'session' } : {}), ...(model ? { model } : {}) } }]);
+      assert.deepEqual(calls, [...contextCalls, { method: 'phantom.control', payload: { workspaceId, id: 'task-id', action: 'run', ...(identity.PHANTOM_TERMINAL_SESSION_ID ? { sessionId: 'session' } : { main: true }), ...(model ? { model } : {}) } }]);
     }
     calls.length = 0;
     assert.deepEqual(await agentCLI(['runs'], env), controllers);

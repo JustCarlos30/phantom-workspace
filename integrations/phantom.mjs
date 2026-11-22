@@ -430,7 +430,14 @@ async function controlOwned(payload, context, c) {
   const sid = payload.sessionId;
   const nodeId = typeof sid === 'string' && sid.length > 0 && sid.length <= 200 && !/[\u0000-\u001f\u007f]/.test(sid)
     ? (context.sessions ?? []).find(s => s.id === sid && s.status === 'running' && s.workspaceId === c.workspace.id)?.nodeId : undefined;
-  const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '', ...(typeof nodeId === 'string' && nodeId ? { origin: { nodeId } } : {}), ...(payload.action === 'run' ? { requestedModel: payload.model, modelSource: payload.modelSource, engine, client: clientOfEngine(engine) } : {}) };
+  if (payload.action === 'run' && typeof nodeId === 'string' && nodeId) {
+    let own; try { own = context.getWorkspace?.(c.workspace.id)?.nodes?.find(n => n.id === nodeId)?.data?.worktree?.path; } catch {}
+    const target = (task.contract ?? task.raw?.contract)?.workspace;
+    if (typeof own === 'string' && own && typeof target === 'string' && target && path.resolve(own) !== path.resolve(target)) throw new Error(`El encargo ${task.id} pertenece al worktree ${target}, no al de esta terminal (${own}). Usa handoff para que lo ejecute su worktree.`);
+  }
+  const origin = typeof nodeId === 'string' && nodeId ? (context.chatRunning?.(nodeId) ? { nodeId, via: 'chat' } : { nodeId })
+    : payload.main === true && context.chatRunning?.(`phantom:${c.workspace.id}`) ? { nodeId: `phantom:${c.workspace.id}`, via: 'chat' } : null;
+  const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '', ...(origin ? { origin } : {}), ...(payload.action === 'run' ? { requestedModel: payload.model, modelSource: payload.modelSource, engine, client: clientOfEngine(engine) } : {}) };
   c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';

@@ -23,6 +23,7 @@ import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
 import { setExecutionPolicy } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
+import { wakeMessage, createWakeLimit, wakeTarget } from './run-wake.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
@@ -38,7 +39,7 @@ You work in the project folder itself, not in a worktree. Help the user understa
 
 Before registering a task or card for a change, resolve and load the card.prepare skill and follow its "Plan y ruteo" section. Decide the plan and declare it in the contract: lane, children only if justified, model/variant proportional to difficulty (fast mechanical work on the economical model), budget.maxTokens, and judge when project policy requires it. If the skill or those fields are unavailable in the installed harness, continue with the contract it admits and say so in the report; never invent fields.
 
-Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: both die when the turn ends. Register the task with \`phantom create\` (or \`phantom card\`), including its scope and checks, then use \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" run ID [MODEL]\`, which hands it to the host and survives your turn. Check its status with \`phantom show ID\` or \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" runs\`; do not relaunch a task already shown as running.
+Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: both die when the turn ends. Register the task with \`phantom create\` (or \`phantom card\`), including its scope and checks, then use \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" run ID [MODEL]\`, which hands it to the host and survives your turn. In a chat, the host sends an automatic notice with the final status when the run ends, so there is no need to poll or wait inside the turn. To reuse tasks, list them with \`phantom list --workspace "$PWD" --scope worktree\` and never show/run/bind a task whose contract.workspace is not the exact cwd. Check its status with \`phantom show ID\` or \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" runs\`; do not relaunch a task already shown as running.
 
 This product's procedures are published as Phantom skills. Before integrating branches, verifying before publishing, preparing a release, organizing the canvas, or doing research, resolve the appropriate skill with the Phantom MCP \`skills_resolve\` tool and follow it: \`branch.integrate\`, \`verify.prepublish\`, \`release.build\`, \`canvas.organize\`, or \`research.collect\`. If the MCP or skill is unavailable, say so and use the CLI help instead. For feedback services and jobs run through Docker compose (previews, long-running services, e2e or migration jobs, full dev environments by profile), resolve the skill actions \`env.service\`, \`env.job\` and \`env.up\` and write them as compose.yaml services with \`x-phantom\`. Each research belongs in its own space created with the canvas CLI \`research\` command, which the user reviews in the Reader panel.
 
@@ -91,8 +92,18 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       }
     }
     broadcast(event);
+    try{const target=store&&chats&&!closingPromise?wakeTarget(event,wakeSeen):null;if(target)wakeChat(target,event.result).catch(()=>{});}catch{}
     // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
     if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
+  };
+  // A chat that launched a Phantom run hears once when it ends; capped per node until the user writes again.
+  const wakeSeen=new Set(),wakeLimit=createWakeLimit(4);
+  const wakeChat=async(target,controller)=>{
+    const w=store.getWorkspace(target.workspaceId),node=target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.data?.chat?.provider);
+    if(!node)return;
+    let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
+    if(closingPromise||!wakeLimit.allow(node.id))return;
+    await chats.send(store.getWorkspace(w.id),node,wakeMessage({taskId:target.taskId,controller,task}));
   };
   // Environment owners are registered in the workspace state; releases are serialized so racing triggers do not repeat work.
   let envChain=Promise.resolve();
@@ -128,7 +139,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     const request=(async()=>{
       if(!integration) {const module=await (integrationLoad??=import('../integrations/index.mjs'));integration=module.handleIntegration;shutdownIntegration??=module.shutdownIntegrations;}
       assert(!closingPromise,'Host is shutting down');
-      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,sessions:terminals.sessions.filter(s=>s.status==='running').map(s=>terminals.descriptor(s))});
+      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.running(nodeId),sessions:terminals.sessions.filter(s=>s.status==='running').map(s=>terminals.descriptor(s))});
     })();inFlightIntegrations.add(request);try{return await request;}finally{inFlightIntegrations.delete(request);}
   };
   async function invoke(method,p={}) {
@@ -331,7 +342,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       // The project's Phantom conversation keeps its settings in the chat store.
       if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});
       if(method==='chat.get') return chats.get(node);
-      if(method==='chat.send') return chats.send(w,node,p.text);
+      if(method==='chat.send'){wakeLimit.reset(node.id);return chats.send(w,node,p.text);}
       if(method==='chat.stop') return chats.stop(node.id);
       if(method==='chat.clear') return chats.clear(w,node);
       if(method==='chat.queue.remove') return chats.removeQueued(w,node,p.id);
