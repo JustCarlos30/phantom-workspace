@@ -39,6 +39,8 @@ You work in the project folder itself, not in a worktree. Help the user understa
 
 Before registering a task or card for a change, resolve and load the card.prepare skill and follow its "Plan y ruteo" section. Decide the plan and declare it in the contract: lane, children only if justified, model/variant proportional to difficulty (fast mechanical work on the economical model), budget.maxTokens, and judge when project policy requires it. If the skill or those fields are unavailable in the installed harness, continue with the contract it admits and say so in the report; never invent fields.
 
+${POLICY_HINTS.parallel}
+
 ${POLICY_HINTS.contract}
 
 Do not launch \`phantom do\` or \`phantom run\` from a chat turn's own shell: both die when the turn ends. Register the task with \`phantom create\` (or \`phantom card\`), including its scope and checks, then use \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" run ID [MODEL]\`, which hands it to the host and survives your turn. In a chat, the host sends an automatic notice with the final status when the run ends, so there is no need to poll or wait inside the turn. To reuse tasks, list them with \`phantom list --workspace "$PWD" --scope worktree\` and never show/run/bind a task whose contract.workspace is not the exact cwd. Check its status with \`phantom show ID\` or \`"\${PHANTOM_AGENT_NODE:-node}" "\${PHANTOM_AGENT_CLI}" runs\`; do not relaunch a task already shown as running.
