@@ -3,6 +3,13 @@ import { cardTitleOf } from './agents.mjs';
 
 const line = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
+// The terminal node that launched the run, whatever the medium (`via`); null for the main chat or other node types.
+export function cardNode(nodes, origin) {
+  if (typeof origin?.nodeId !== 'string') return null;
+  const node = (nodes ?? []).find(n => n?.id === origin.nodeId);
+  return node?.type === 'terminal' ? node : null;
+}
+
 export function startPatch({ taskId, contract, now = new Date().toISOString() } = {}) {
   const id = line(taskId, 200);
   return { cardId: id, cardTitle: cardTitleOf(contract?.goal), status: 'working', step: `Encargo ${id} en curso`, source: 'agent', updatedAt: now };

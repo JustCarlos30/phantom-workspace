@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { wakeMessage, createWakeLimit, wakeTarget } from '../host/run-wake.mjs';
 
-import { startPatch, finishPatch } from '../host/run-binding.mjs';
+import { startPatch, finishPatch, cardNode } from '../host/run-binding.mjs';
 import { validateAgent } from '../host/agents.mjs';
 
 const HEAD = '[Aviso automático de Phantom Workspace; no es un mensaje del usuario]';
@@ -91,6 +91,20 @@ test('finishPatch: blocked/failed/desconocido/lost → blocked saneado', () => {
     assert.equal(p.status, 'blocked');
     assert.doesNotThrow(() => validateAgent(p));
   }
+});
+
+test('cardNode: nodo terminal con o sin via chat', () => {
+  const nodes = [{ id: 'n1', type: 'terminal' }, { id: 'n2', type: 'note' }];
+  assert.equal(cardNode(nodes, { nodeId: 'n1', via: 'chat' }), nodes[0]);
+  assert.equal(cardNode(nodes, { nodeId: 'n1' }), nodes[0]);
+});
+
+test('cardNode: chat principal, inexistente o no terminal → null', () => {
+  const nodes = [{ id: 'n1', type: 'terminal' }, { id: 'n2', type: 'note' }];
+  assert.equal(cardNode(nodes, { nodeId: 'phantom:w1', via: 'chat' }), null);
+  assert.equal(cardNode(nodes, { nodeId: 'n2', via: 'chat' }), null);
+  assert.equal(cardNode(nodes, { nodeId: 'nada' }), null);
+  assert.equal(cardNode(nodes, undefined), null);
 });
 
 test('finishPatch: no toca si cardId cambió o se desvinculó', () => {

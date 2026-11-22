@@ -24,7 +24,7 @@ import { publicSettings, portableSettings } from './public-settings.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, wakeTarget } from './run-wake.mjs';
-import { startPatch, finishPatch } from './run-binding.mjs';
+import { startPatch, finishPatch, cardNode } from './run-binding.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
@@ -97,7 +97,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     broadcast(event);
     try{
       const r=event.result;
-      if(store&&!closingPromise&&event.type==='tool.status'&&event.status==='running'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string'&&r.origin.via!=='chat')bindRunStart(r,event.workspaceId).catch(()=>{});
+      if(store&&!closingPromise&&event.type==='tool.status'&&event.status==='running'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string')bindRunStart(r,event.workspaceId).catch(()=>{});
       const target=store&&!closingPromise?wakeTarget(event,wakeSeen):null;
       if(target?.via==='chat'){if(chats)wakeChat(target,r).catch(()=>{});}
       else if(target)wakeTerminal(target,r).catch(()=>{});
@@ -111,15 +111,25 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     const w=store.getWorkspace(target.workspaceId),node=target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.data?.chat?.provider);
     if(!node)return;
     let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
+    applyFinish(w.id,node.id,target.taskId,controller,task);
     if(closingPromise||!wakeLimit.allow(node.id))return;
     await chats.send(store.getWorkspace(w.id),node,wakeMessage({taskId:target.taskId,controller,task}));
+  };
+  // End of a run: a terminal card still bound to that task shows review/blocked, whether it was told by chat or by PTY.
+  const applyFinish=(workspaceId,nodeId,taskId,controller,task)=>{
+    if(controller?.action!=='run')return;
+    let node;try{node=store.getWorkspace(workspaceId).nodes.find(n=>n.id===nodeId&&n.type==='terminal');}catch{}
+    if(!node)return;
+    const patch=finishPatch({agent:node.data.agent,taskId,controller,task});if(!patch)return;
+    validateAgent(patch);
+    mutate(workspaceId,()=>{const current=store.getWorkspace(workspaceId).nodes.find(n=>n.id===nodeId);if(current?.data.agent?.cardId===taskId)current.data.agent={...current.data.agent,...patch};});
   };
   // A terminal that launches a run gets the task bound and "working" on its card; the same mutation path as terminal.agent.update.
   const bindRunStart=async(r,workspaceId)=>{
     const answer=await routeIntegration('phantom.detail',{workspaceId,topic:'tasks',id:r.taskId});
     if(!answer?.handled||!['task','card'].includes(answer.result?.kind))return;
     const patch=startPatch({taskId:r.taskId,contract:answer.result.contract});validateAgent(patch);
-    mutate(workspaceId,()=>{const current=store.getWorkspace(workspaceId).nodes.find(n=>n.id===r.origin.nodeId);if(current?.type!=='terminal')return;
+    mutate(workspaceId,()=>{const current=cardNode(store.getWorkspace(workspaceId).nodes,r.origin);if(!current)return;
       if(patch.cardId!==current.data.agent?.cardId&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(patch.cardTitle);if(named)current.title=named;}
       current.data.agent={...current.data.agent,...patch};});
   };
@@ -130,7 +140,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(closingPromise)return;
     let node;try{node=store.getWorkspace(target.workspaceId).nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');}catch{}
     if(!node)return;
-    if(controller.action==='run'){const patch=finishPatch({agent:node.data.agent,taskId:target.taskId,controller,task});if(patch){validateAgent(patch);mutate(target.workspaceId,()=>{const current=store.getWorkspace(target.workspaceId).nodes.find(n=>n.id===node.id);if(current?.data.agent?.cardId===target.taskId)current.data.agent={...current.data.agent,...patch};});}}
+    applyFinish(target.workspaceId,node.id,target.taskId,controller,task);
     let session;try{session=node.data.sessionId?terminals.get(node.data.sessionId):null;}catch{}
     if(!session||session.status!=='running'||session.nodeId!==node.id||!terminals.foreground(session.id)?.agent)return;
     if(!wakeLimit.allow(node.id)){
