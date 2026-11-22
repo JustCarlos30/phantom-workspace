@@ -24,8 +24,11 @@
 .px-after .pc-field textarea:focus-visible { outline: 0; }
 .px-after .pc-controls > :is(.pc-icon, .phantom-chat-mic, .pc-send) { width: 36px; height: 36px; border-radius: 50%; box-shadow: none; }
 .px-after .pc-send:not(:disabled) { background: var(--on); color: var(--on-ink); box-shadow: none; }
-.px-after .pc-session-settings { display: none; }
-.px-after .pc-meta { padding: 0 8px; }
+.px-after .pc-composer > :is(.pc-meta, .pc-session-settings) { display: none; }
+
+/* Dictado de hoy: compositor real dentro de un panel del mismo alto */
+.px-sessions-dictpanel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.px-sessions-dictpanel > .pc-thread { flex: 1; min-height: 0; }
 .px-after .pc-column { max-width: 720px; padding: 16px; }
 .px-after .pc-dock { max-width: 720px; padding: 0 16px 8px; }
 

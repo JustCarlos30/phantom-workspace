@@ -29,14 +29,14 @@ export function Before({ children }) {
 export function After({ material = 'cenital', children }) {
   return <div className="px-after px-material" data-variant={material}>{children}</div>;
 }
-export function Stage({ children, height, canvas = true }) {
-  return <div className="px-stage" data-canvas={canvas ? undefined : 'off'} style={height ? { height } : undefined}>{children}</div>;
+export function Stage({ children, height, canvas = true, contain }) {
+  return <div className="px-stage" data-canvas={canvas ? undefined : 'off'} data-contain={contain || undefined} style={height ? { height } : undefined}>{children}</div>;
 }
-export function BeforeAfter({ before, after, changes = [], stacked, height, material }) {
+export function BeforeAfter({ before, after, changes = [], stacked, height, material, contain }) {
   return <div className="px-ba" data-stacked={stacked || undefined}>
     <div className="px-ba-cols">
-      <div className="px-ba-col"><Tag today /><Stage height={height}><Before>{before}</Before></Stage></div>
-      <div className="px-ba-col"><Tag /><Stage height={height}><After material={material}>{after}</After></Stage></div>
+      <div className="px-ba-col"><Tag today /><Stage height={height} contain={contain}><Before>{before}</Before></Stage></div>
+      <div className="px-ba-col"><Tag /><Stage height={height} contain={contain}><After material={material}>{after}</After></Stage></div>
     </div>
     <Section label="Qué cambia">
       {changes.length ? <ul className="px-changes">{changes.map(item => <li key={item}>{item}</li>)}</ul> : <p className="px-nochange">Sin cambios de estructura: solo hereda el material</p>}

@@ -35,6 +35,8 @@
 /* ---------- Botones planos en píldora ---------- */
 .px-after :is(.rp-button, .br-button, .inc-button) { border: 0; border-radius: var(--r-pill); box-shadow: none; background: transparent; }
 .px-after :is(.rp-button, .br-button, .inc-button):hover { background-color: var(--row-hover); }
+.px-after :is(.rp-button, .br-button, .inc-button).is-primary { background: var(--on); color: var(--on-ink); }
+.px-after :is(.rp-button, .br-button, .inc-button).is-primary:hover:not(:disabled) { background: var(--on-hover); color: var(--on-ink); }
 
 /* ---------- Metadatos menos ruidosos ---------- */
 .px-after .cc-freshness { color: var(--ink-3); font: var(--t-support); }

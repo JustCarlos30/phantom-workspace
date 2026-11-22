@@ -117,7 +117,7 @@ function TopProposal() {
 
 export const BarraSuperior = {
   render: ({ material }) => <Page title="Barra superior" problem="Dos píldoras separadas: migas con «Proyectos ›» y la ruta completa en una segunda línea, y otra píldora con «Guardado», buscador y tres iconos.">
-    <BeforeAfter height={320} material={material} before={<TopToday />} after={<TopProposal />} changes={[
+    <BeforeAfter stacked height={240} material={material} before={<TopToday />} after={<TopProposal />} changes={[
       'Una sola barra ligera en vez de dos píldoras.',
       'Migas «proyecto / espacio» en una línea; la ruta pasa al tooltip y se quita «Proyectos ›».',
       '«Guardado» queda como un check silencioso con texto accesible.',
@@ -145,7 +145,7 @@ function DockToday() {
 
 export const Dock = {
   render: ({ material }) => <Page title="Dock" problem="Dos barras apiladas: la muesca «Te necesitan» encima y el dock de crear debajo, cada una con su contorno.">
-    <BeforeAfter height={H} material={material} before={<DockToday />} after={<DockUnified />} changes={[
+    <BeforeAfter stacked height={320} material={material} before={<DockToday />} after={<DockUnified />} changes={[
       'Un único dock píldora con el estado (atención y sesiones) dentro.',
       '«Nueva sesión» como única primaria marfil; crear nota, navegador y terminal en círculos de 36 px.',
       'Las herramientas del lienzo se agrupan junto al minimapa, fuera del dock.',
@@ -171,7 +171,7 @@ function ZoomToday() {
 
 export const Zoom = {
   render: ({ material }) => <Page title="Zoom y herramientas del lienzo" problem="Nueve controles en una barra con dos separadores; el modo activo y el zoom compiten con guardar y ayuda.">
-    <BeforeAfter height={H} material={material} before={<ZoomToday />} after={<CanvasTools />} changes={[
+    <BeforeAfter stacked height={300} material={material} before={<ZoomToday />} after={<CanvasTools />} changes={[
       'Modo del lienzo en un segmento con pistas de teclado V, H y C.',
       'Zoom y encuadrar en controles circulares de 36 px, junto al minimapa.',
       'El interruptor del minimapa y la ayuda salen de la barra.',

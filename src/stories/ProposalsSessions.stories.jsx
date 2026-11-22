@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Folder } from 'lucide-react';
 import TerminalPanel from '../components/TerminalPanel';
 import TerminalCard from '../components/TerminalCard';
@@ -51,13 +51,32 @@ function NewSessionMock() {
 
 function DictationToday() {
   const voice = { status: 'recording', level: 0.4, mode: 'live', live: { confirmed: 'Transcripción sintética.', partial: 'Texto en curso…' }, cancel: noop };
-  return <section className="catalog-sample pc" aria-label="Fixture sintético de dictado"><div className="pc-composer" data-dictating><div className="pc-field"><div className="pc-input" data-preview><VoiceTranscript voice={voice} draft="Borrador." /><textarea aria-label="Transcripción sintética" readOnly value={dictationPreview(voice, 'Borrador.')} /></div><div className="pc-controls"><VoiceActivity voice={voice} onFinish={noop} hint="Esc descarta · Enter envía" /></div></div></div></section>;
+  return <Panel><section className="pt-card pc px-sessions-dictpanel" aria-label="Fixture sintético de dictado (SYNTHETIC)"><div className="pc-thread" aria-hidden="true" /><div className="pc-composer" data-dictating><div className="pc-field"><div className="pc-input" data-preview><VoiceTranscript voice={voice} draft="Borrador." /><textarea aria-label="Transcripción sintética" readOnly value={dictationPreview(voice, 'Borrador.')} /></div><div className="pc-controls"><VoiceActivity voice={voice} onFinish={noop} hint="Esc descarta · Enter envía" /></div></div></div></section></Panel>;
+}
+
+/* El ChatCard se fija al final del hilo; aquí se muestra desde su inicio hasta que el usuario interactúa. */
+function FromTop({ children }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return undefined;
+    const top = () => root.querySelectorAll('.pc-thread').forEach(el => { el.scrollTop = 0; });
+    const observer = new MutationObserver(top);
+    const stop = () => observer.disconnect();
+    top();
+    observer.observe(root, { childList: true, subtree: true });
+    root.addEventListener('wheel', stop, { once: true, passive: true });
+    root.addEventListener('pointerdown', stop, { once: true });
+    root.addEventListener('keydown', stop, { once: true });
+    return () => { stop(); root.removeEventListener('wheel', stop); root.removeEventListener('pointerdown', stop); root.removeEventListener('keydown', stop); };
+  }, []);
+  return <div ref={ref} className="px-sessions-fill">{children}</div>;
 }
 
 export const SesionNueva = {
   parameters: { host: { scenario: 'empty' } },
   render: ({ material }) => <Page title="Sesión nueva" problem="Elegir quién responde, la interfaz y el contexto exige recorrer tres bloques apilados y el compositor queda separado por un divisor.">
-    <BeforeAfter height={H} material={material} before={chat()} after={<NewSessionMock />} changes={[
+    <BeforeAfter height={H} material={material} before={<FromTop>{chat()}</FromTop>} after={<NewSessionMock />} changes={[
       'Filas con realce tonal de radio 12, sin anillos alrededor de cada opción.',
       'Chat/Terminal pasa a un segmento compacto en vez de filas.',
       'Columna centrada de 720 px y compositor isla con el contexto como chip.',

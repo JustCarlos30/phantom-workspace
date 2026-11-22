@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Settings from '../components/Settings';
 import { Appearance } from '../components/Appearance';
 import ActivityNotch, { ActivityTray } from '../components/ActivityNotch';
@@ -24,6 +24,27 @@ const H = 720;
 const types = [['note', 'Nota', NoteIcon, 'Contexto de texto', 'space'], ['terminal', 'Terminal', TerminalIcon, 'Sesión local', 'space']];
 /* Contenedor con transform: ancla dentro del escenario los overlays fijos. */
 const Host = ({ children }) => <div className="px-right-host">{children}</div>;
+/* Los modales reales se montan con createPortal en <body>: se copia su DOM (inerte) dentro del escenario y se oculta el original, para ver dos copias. */
+function Contained({ selector, children }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    let clone = null, original = null;
+    const frame = requestAnimationFrame(() => {
+      original = [...document.body.querySelectorAll(`:scope > ${selector}`)].find(node => !node.dataset.pxTaken) || null;
+      if (!original || !ref.current) return;
+      original.dataset.pxTaken = 'true';
+      clone = original.cloneNode(true);
+      delete clone.dataset.pxTaken;
+      clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+      clone.setAttribute('inert', '');
+      clone.setAttribute('aria-hidden', 'true');
+      ref.current.appendChild(clone);
+      original.style.display = 'none';
+    });
+    return () => { cancelAnimationFrame(frame); clone?.remove(); if (original) { original.style.display = ''; delete original.dataset.pxTaken; } };
+  }, [selector]);
+  return <div ref={ref} className="px-right-host">{children}</div>;
+}
 
 /* ---------- Inspector ---------- */
 const inspector = () => <Host><InspectorPanel {...demo} tab="playground" /></Host>;
@@ -73,7 +94,7 @@ function Tray() {
 }
 export const Bandeja = {
   render: ({ material }) => <Page title="Bandeja «Te necesitan»" problem="La bandeja suma contorno de popover, pestañas Pendientes / En curso / Hoy con fondo propio y filas con borde; el ámbar compite con el contenido.">
-    <BeforeAfter height={H} material={material} before={<Tray />} after={<Tray />} changes={[
+    <BeforeAfter stacked contain height={H} material={material} before={<Tray />} after={<Tray />} changes={[
       'Misma ActivityTray real con material cenital y radio de isla, sin borde.',
       'Pestañas Pendientes / En curso / Hoy como segmento plano; la activa con realce tonal.',
       'Filas tonales de radio 12 sin contorno; ámbar solo en el texto de «te necesita».',
@@ -95,10 +116,10 @@ export const Notch = {
 };
 
 /* ---------- Paleta ---------- */
-const palette = () => <Host><CommandPalette open workspace={workspace} onClose={noop} onAction={noop} /></Host>;
+const palette = () => <Contained selector=".tw-overlay"><CommandPalette open workspace={workspace} onClose={noop} onAction={noop} /></Contained>;
 export const Paleta = {
   render: ({ material }) => <Page title="Paleta de comandos" problem="La paleta superpone velo, contorno, campo de búsqueda con aro y resultados con borde de selección.">
-    <BeforeAfter height={H} material={material} before={palette()} after={palette()} changes={[
+    <BeforeAfter stacked contain height={H} material={material} before={palette()} after={palette()} changes={[
       'Misma CommandPalette real con material cenital y radio de isla, sin borde.',
       'Búsqueda como campo isla: aro de 1 px que solo se aclara al enfocar.',
       'Resultado activo con realce tonal de radio 12, sin contorno.',
@@ -124,7 +145,7 @@ function Indicator() {
   const voice = { status: 'recording', level: 0.4, mode: 'live', live: { confirmed: 'Transcripción sintética.', partial: 'Texto en curso…' }, cancel: noop };
   return <Host><section className="catalog-sample pc" aria-label="Fixture sintético de dictado (SYNTHETIC)"><div className="pc-composer" data-dictating><div className="pc-field"><div className="pc-input" data-preview><VoiceTranscript voice={voice} draft="Borrador." /><textarea aria-label="Transcripción sintética" readOnly value={dictationPreview(voice, 'Borrador.')} /></div><div className="pc-controls"><VoiceActivity voice={voice} onFinish={noop} hint="Esc descarta · Enter envía" /></div></div></div></section></Host>;
 }
-const dictation = () => <Host><VoiceDictation {...demo} target={{ workspaceId: workspace.id, label: 'Sin campo seleccionado', kind: 'none' }} /></Host>;
+const dictation = () => <Contained selector=".voice-backdrop"><VoiceDictation {...demo} target={{ workspaceId: workspace.id, label: 'Sin campo seleccionado', kind: 'none' }} /></Contained>;
 export const Voz = {
   render: ({ material }) => <Page title="Voz" problem="El indicador de dictado y la ventana de dictado suman contornos, medidor con fondo y dos botones de distinto peso.">
     <Section label="Indicador en el compositor">
@@ -135,7 +156,7 @@ export const Voz = {
       ]} />
     </Section>
     <Section label="Dictado">
-      <BeforeAfter height={H} material={material} before={dictation()} after={dictation()} changes={[
+      <BeforeAfter stacked contain height={H} material={material} before={dictation()} after={dictation()} changes={[
         'Mismo VoiceDictation real con material cenital, sin borde.',
         'Controles circulares planos y primaria marfil.',
       ]} />
