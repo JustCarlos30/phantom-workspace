@@ -9,7 +9,7 @@ export function mergeChat(chat, event) {
     const index = messages.findIndex(m => m.id === message.id);
     if (index >= 0) messages[index] = structuralShare(messages[index], message); else messages.push(message);
   }
-  return { ...chat, running: event.running, meta: event.meta ?? chat.meta, messages, queue: event.queue ?? chat.queue ?? [] };
+  return { ...chat, sessionId: event.sessionId === undefined ? chat.sessionId : event.sessionId, running: event.running, operation: event.operation === undefined ? chat.operation : event.operation, compactions: event.compactions ?? chat.compactions ?? [], continuations: event.continuations ?? chat.continuations ?? [], meta: event.meta ?? chat.meta, messages, queue: event.queue ?? chat.queue ?? [] };
 }
 
 // Compact readings for the card's status line. Values come from the provider;

@@ -3,6 +3,24 @@ import assert from 'node:assert/strict';
 import { contextAdvice, contextNudge, nudgeDismissal, contextUse as measuredContextUse, mergeChat } from './chatState.js';
 const contextUse = meta => measuredContextUse({ contextSource: 'claude:request-v1', ...meta });
 
+test('Eventos de compactación conservan historial y actualizan sesión, operación y evidencia sin lecturas inventadas', () => {
+  const message = { id: 'original', parts: [{ type: 'text', text: 'historial' }] };
+  let chat = { provider: 'opencode', sessionId: null, messages: [message], meta: { contextSource: 'opencode:request-v1', contextTokens: 190000 } };
+  chat = mergeChat(chat, { provider: 'opencode', running: false, sessionId: 'native', messages: [] });
+  assert.equal(chat.sessionId, 'native', 'a completed first turn enables the meter without remounting');
+  chat = mergeChat(chat, { provider: 'opencode', running: true, operation: 'compact', messages: [] });
+  assert.equal(chat.sessionId, 'native'); assert.equal(chat.operation, 'compact');
+  const records = [{ id: 'c', status: 'done', summaryId: 'summary' }];
+  chat = mergeChat(chat, { provider: 'opencode', running: false, operation: null, meta: {}, compactions: records, messages: [] });
+  assert.equal(chat.operation, null); assert.equal(chat.running, false);
+  assert.deepEqual(chat.compactions, records); assert.equal(measuredContextUse(chat.meta), null);
+  assert.strictEqual(chat.messages[0], message);
+  const other = mergeChat(chat, { provider: 'codex', sessionId: 'foreign', messages: [] });
+  assert.strictEqual(other, chat);
+  chat = mergeChat(chat, { provider: 'opencode', sessionId: null, messages: [] });
+  assert.equal(chat.sessionId, null);
+});
+
 test('mergeChat conserva las partes y mensajes que no cambian durante streaming', () => {
   const untouched = { id: 'user', role: 'user', parts: [{ type: 'text', text: 'Hola' }] };
   const previous = { id: 'assistant', status: 'streaming', parts: [
