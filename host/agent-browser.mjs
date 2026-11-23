@@ -21,7 +21,7 @@ export function provisionBrowserTerminal(dataDir, { sessionId, workspaceId, node
   fs.mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });
   const token = randomBytes(32).toString('hex');
   fs.writeFileSync(filename, JSON.stringify({ token, workspaceId, nodeId }), { mode: 0o600, flag: 'wx' });
-  const inherited = (baseEnv.PATH || '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== browserShims);
+  const inherited = (baseEnv.PATH || (process.platform === 'darwin' ? '/opt/homebrew/bin:' : '') + '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== browserShims);
   let browser = path.join(browserShims, 'xdg-open');
   const browserLink = path.resolve(dataDir, 'browser-bin', 'xdg-open');
   try {
