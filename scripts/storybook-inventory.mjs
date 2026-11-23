@@ -23,6 +23,23 @@ export function validateInventory(sources, entries, storyIds) {
   return errors;
 }
 
+export function validateStoryIndex(stories, index) {
+  const errors = [];
+  const declared = new Set(), built = new Set();
+  for (const story of stories) {
+    if (declared.has(story.id)) errors.push(`ID CSF duplicado: ${story.id}`);
+    declared.add(story.id);
+  }
+  for (const entry of Object.values(index.entries)) {
+    if (entry.type !== 'story') continue;
+    if (built.has(entry.id)) errors.push(`ID de build duplicado: ${entry.id}`);
+    built.add(entry.id);
+  }
+  for (const id of declared) if (!built.has(id)) errors.push(`Story ausente del build: ${id}`);
+  for (const id of built) if (!declared.has(id)) errors.push(`Story ajena al AST actual: ${id}`);
+  return errors;
+}
+
 const root = fileURLToPath(new URL('../', import.meta.url));
 const ignored = new Set(['.git', 'node_modules', 'dist', 'out', 'storybook-static', '.test-artifacts']);
 export async function productionStyles() {
@@ -90,6 +107,45 @@ export function analyzeSource(text, source) {
   });
   return { ast, symbols, imports, exports: [...exports] };
 }
+
+export function analyzeStories(text, file) {
+  const { ast, imports } = analyzeSource(text, file);
+  const declarations = new Map();
+  for (const node of ast.program.body) {
+    const declaration = node.declaration || node;
+    if (declaration.type === 'FunctionDeclaration') declarations.set(declaration.id.name, declaration);
+    for (const d of declaration.declarations || []) declarations.set(d.id.name, d.init);
+  }
+  let meta = ast.program.body.find(n => n.type === 'ExportDefaultDeclaration')?.declaration;
+  if (meta?.type === 'Identifier') meta = declarations.get(meta.name);
+  const property = name => meta?.properties?.find(p => (p.key.name || p.key.value) === name)?.value;
+  const title = property('title')?.value;
+  if (typeof title !== 'string') throw new Error(`Título CSF estático requerido: ${file}`);
+  const stories = [];
+  for (const node of ast.program.body.filter(n => n.type === 'ExportNamedDeclaration')) {
+    const exports = [
+      ...(node.declaration?.declarations || []).map(d => ({ name: d.id.name, value: d.init })),
+      ...(node.declaration?.type === 'FunctionDeclaration' ? [{ name: node.declaration.id.name, value: node.declaration }] : []),
+      ...(node.specifiers || []).map(s => ({ name: s.exported.name || s.exported.value, value: declarations.get(s.local.name) })),
+    ];
+    for (const { name, value } of exports) {
+      if (!value) throw new Error(`Export CSF local requerido: ${file} → ${name}`);
+      const referenced = new Set();
+      const collect = (value, visited = new Set()) => walk(value, child => {
+        if (child.type === 'JSXIdentifier' || child.type === 'Identifier') {
+          referenced.add(child.name);
+          if (declarations.has(child.name) && !visited.has(child.name)) { visited.add(child.name); collect(declarations.get(child.name), visited); }
+        }
+      });
+      collect(value);
+      if (property('component')) collect(property('component'));
+      const renderedImports = ast.program.body.filter(n => n.type === 'ImportDeclaration' && n.specifiers.some(s => referenced.has(s.local.name))).map(n => n.source.value);
+      stories.push({ id: storyId(property('id')?.value || title, name), file, title, exportName: name, imports, renderedImports });
+    }
+  }
+  return stories;
+}
+
 export async function inspectRepository() {
   const files = await repositoryFiles();
   const sources = files.filter(file => /\.(jsx|tsx)$/.test(file) && !file.startsWith('src/stories/'));
@@ -99,29 +155,7 @@ export async function inspectRepository() {
     sourceDetails.push({ source, symbols, exports });
   }
   for (const file of files.filter(file => file.endsWith('.stories.jsx'))) {
-    const { ast, imports } = analyzeSource(await readFile(resolve(root, file), 'utf8'), file);
-    const meta = ast.program.body.find(n => n.type === 'ExportDefaultDeclaration')?.declaration;
-    const title = meta?.properties?.find(p => p.key.name === 'title')?.value.value;
-    if (!title) throw new Error(`Título CSF estático requerido: ${file}`);
-    const declarations = new Map();
-    for (const node of ast.program.body) for (const d of node.declarations || node.declaration?.declarations || []) declarations.set(d.id.name, d.init);
-    for (const node of ast.program.body.filter(n => n.type === 'ExportNamedDeclaration')) {
-      for (const d of node.declaration?.declarations || []) {
-        const referenced = new Set();
-        const collect = (value, visited = new Set()) => walk(value, child => {
-          if (child.type === 'JSXIdentifier' || child.type === 'Identifier') {
-            referenced.add(child.name);
-            if (declarations.has(child.name) && !visited.has(child.name)) { visited.add(child.name); collect(declarations.get(child.name), visited); }
-          }
-        });
-        collect(d.init);
-        // A CSF component in the default metadata is rendered by args-only stories.
-        const component = meta.properties.find(p => p.key.name === 'component');
-        if (component) collect(component.value);
-        const renderedImports = ast.program.body.filter(n => n.type === 'ImportDeclaration' && n.specifiers.some(s => referenced.has(s.local.name))).map(n => n.source.value);
-        stories.push({ id: storyId(title, d.id.name), file, title, exportName: d.id.name, imports, renderedImports });
-      }
-    }
+    stories.push(...analyzeStories(await readFile(resolve(root, file), 'utf8'), file));
   }
   const importsSource = (story, source) => story.renderedImports.some(path => relative(root, resolve(root, dirname(story.file), path)).replace(/\.jsx$/, '') === source.replace(/\.jsx$/, ''));
   const entries = [...catalog, ...exclusions].map(entry => ({ ...entry, ...sourceDetails.find(d => d.source === entry.source), scenarios: stories.filter(story => importsSource(story, entry.source)).map(story => ({ id: story.id, name: story.exportName })) }));
@@ -140,9 +174,7 @@ export async function inspectRepository() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const report = await inspectRepository();
   const index = JSON.parse(await readFile(resolve(root, 'storybook-static/index.json'), 'utf8'));
-  const built = Object.values(index.entries).filter(e => e.type === 'story').map(e => e.id).sort();
-  const declared = report.stories.map(s => s.id).sort();
-  if (JSON.stringify(built) !== JSON.stringify(declared)) report.errors.push('El índice del build difiere de las exportaciones CSF actuales; reconstruye Storybook.');
+  report.errors.push(...validateStoryIndex(report.stories, index));
   if (report.errors.length) { console.error(report.errors.join('\n')); process.exitCode = 1; }
-  else console.log(`${catalog.length} fuentes renderizadas, ${exclusions.length} exclusiones explícitas, ${declared.length} stories, ${report.files.length} archivos inventariados por AST/clasificación.`);
+  else console.log(`${catalog.length} fuentes renderizadas, ${exclusions.length} exclusiones explícitas, ${report.stories.length} stories, ${report.files.length} archivos inventariados por AST/clasificación.`);
 }

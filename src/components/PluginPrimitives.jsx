@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import EmptyState from './EmptyState.jsx';
+import { CopyButton as SharedCopyButton } from './CopyButton.jsx';
 
 export function Button({ children, icon: Icon, tone, type = 'button', className = '', ...props }) {
   return <button {...props} type={type} className={`plugin-button tw-button ${tone ? `tw-${tone}` : ''} ${className}`}>{Icon && <Icon size={15} aria-hidden="true" />}{children}</button>;
@@ -99,7 +100,6 @@ export function TextRow({ label, hint, value, onChange, placeholder, type = 'tex
   const id = useId();
   return <Row label={label} hint={hint} htmlFor={id}><input id={id} className={`st-input${mono ? ' is-mono' : ''}`} type={type} value={value} placeholder={placeholder} disabled={disabled} readOnly={readOnly} list={list} onFocus={onFocus} spellCheck={false} onChange={event => onChange?.(event.target.value)} />{children}</Row>;
 }
-export function CopyButton({ value, label = 'Copiar' }) {
-  const [copied, setCopied] = useState(false);
-  return <button type="button" className="st-btn" disabled={!value} onClick={async () => { try { await navigator.clipboard.writeText(String(value)); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { setCopied(false); } }}>{copied ? 'Copiado' : label}</button>;
+export function CopyButton(props) {
+  return <SharedCopyButton {...props} variant="text" />;
 }

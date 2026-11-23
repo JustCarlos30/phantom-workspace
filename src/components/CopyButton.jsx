@@ -1,13 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 
-// Copies and confirms in place; the confirmation is the only feedback needed.
-export function CopyButton({ text, label = 'Copiar', className = '' }) {
-  const [copied, setCopied] = useState(false), timer = useRef();
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(typeof text === 'function' ? text() : text); setCopied(true); clearTimeout(timer.current); timer.current = setTimeout(() => setCopied(false), 1600); } catch { /* Clipboard denied: nothing was copied, so nothing is claimed. */ }
+export function CopyButton({ text, value, label = 'Copiar', className = '', variant = 'icon', disabled, onClick, ...props }) {
+  const [copied, setCopied] = useState(false), timer = useRef(), attempt = useRef(0);
+  const source = text !== undefined ? text : value;
+  useEffect(() => {
+    setCopied(false);
+    return () => { clearTimeout(timer.current); attempt.current++; };
+  }, [source]);
+  const copy = async event => {
+    onClick?.(event);
+    if (event.defaultPrevented) return;
+    const current = ++attempt.current;
+    clearTimeout(timer.current);
+    setCopied(false);
+    try {
+      await navigator.clipboard.writeText(String(typeof source === 'function' ? source() : source));
+      if (current !== attempt.current) return;
+      setCopied(true);
+      timer.current = setTimeout(() => setCopied(false), 1600);
+    } catch {
+      if (current === attempt.current) setCopied(false);
+    }
   };
   const Icon = copied ? Check : Copy;
-  return <button type="button" className={`md-copy ${copied ? 'is-copied' : ''} ${className}`} title={label} aria-label={copied ? 'Copiado' : label} onClick={copy}><Icon size={12} aria-hidden="true" /></button>;
+  return <button type="button" title={label} aria-label={copied ? 'Copiado' : label} {...props} className={`${variant === 'text' ? 'st-btn' : 'md-copy'} ${copied ? 'is-copied' : ''} ${className}`} disabled={disabled || (variant === 'text' ? !source : source == null)} onClick={copy}>{variant === 'text' ? (copied ? 'Copiado' : label) : <Icon size={12} aria-hidden="true" />}</button>;
 }

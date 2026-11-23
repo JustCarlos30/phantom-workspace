@@ -2,7 +2,7 @@ import React from 'react';
 import ChatCard from '../components/ChatCard';
 import { demo, Panel } from './decorators';
 import { chatNode } from './fixtures';
-import { BeforeAfter, Page, Section, Session, Status } from './proposals-kit';
+import { BeforeAfter, Page, Section, Status } from './proposals-kit';
 import './proposals.css';
 
 export default {
@@ -46,7 +46,7 @@ const CHANGES = [
   'Sin la fila «Contexto de la sesión»: el contexto pasa a un chip dentro de la isla.',
   'Una sola línea de estado viva encima del campo.',
   'Conversación en columna centrada de 720 px.',
-  'Material más separado del lienzo (cenital: #19191d → #0d0d10 con brillo).',
+  'Material vigente: #151518 → #0b0b0d con brillo del 4 % sobre #020203.',
 ];
 
 export const AntesDespues = {
@@ -54,7 +54,7 @@ export const AntesDespues = {
   render: () => <Page title="Antes y después" problem="A la izquierda, el ChatCard real de producción tal como está hoy. A la derecha, el panel de sesión propuesto con material cenital, compositor isla y mensaje en cita.">
     <BeforeAfter height={704} changes={CHANGES}
       before={<Panel><ChatCard {...demo} node={chatNode} /></Panel>}
-      after={<Session material="cenital" message="cita" state="trabajando" />} />
+      after={<Panel><ChatCard {...demo} node={chatNode} /></Panel>} />
   </Page>,
 };
 

@@ -18,7 +18,7 @@ const refKey = ref => ref ? JSON.stringify([ref.scope, ref.id, ref.version, ref.
 const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const sourceText = value => typeof value === 'string' ? value : value ? JSON.stringify(value) : 'Phantom';
 
-function SkillForm({ existing, mode = 'create', workspace, api, notify, onSaved, onClose }) {
+export function SkillForm({ existing, mode = 'create', workspace, api, notify, onSaved, onClose }) {
   const manifest = existing?.manifest || {};
   const originalRef = exactRef(existing);
   const updating = mode === 'version', copying = mode === 'copy';

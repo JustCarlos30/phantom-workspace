@@ -283,6 +283,8 @@ Delta E5: `chat.css` **10 → 8**. Se retiran cinco bordes de caja: `.pc-field`,
 
 Delta etapa 6·2a: `chat.css` **8 → 7**. Se retira el divisor superior de `.pc-composer`: el compositor comparte el pozo del hilo y la isla se distingue por relleno y aro `box-shadow` inset, sin bordes nuevos.
 
+Delta de `.pc-card`: `plugins.css` **8 → 7**. Se elimina su borde para quitar la caja interior; hover y selección se expresan con los tonos compartidos `--row-hover` y `--row-selected`, sin añadir bordes.
+
 E5 amplía las restricciones a la lectura 14/20, cita sin burbuja, insignias estables de sesión, actividad sin tarjetas, compositor a sangre, vista previa independiente del borrador y medidor de nivel real. `test/subagent-card-width.test.mjs` conserva min-width cero, columna `minmax(0,1fr)` y contención de descendientes; añade ausencia de tarjeta y wrapping del estado. Los umbrales AA permanecen y se incluye `--prose-ink:#d9d6cf`.
 
 `test/design-capture.mjs design-v2-e5` incorpora `session-new`, `session-working` y `session-dictating`, cada una a 1520×980 y 1100×760, además de progreso medido y dictado con movimiento reducido. Usa componentes del build con conversaciones, subagentes y respuestas ASR marcadas **SYNTHETIC**, audio de oscilador WebAudio y perfil aislado. Comprueba receta común en mapa/foco/lateral, ausencia de porcentaje sin total, detalles con teclado, barras en silencio, cancelación conservando borrador y Enter repetido con una única entrega final. `voice-desktop.mjs` añade X/Esc/cambio de proyecto con resultado tardío, conserva errores/permisos e inserción revisada sin Enter; los scripts de compositor y planos usan el build de Vite. Estas son comprobaciones declaradas: su ejecución, capturas resultantes y cierre los informa Phantom.

@@ -5,16 +5,17 @@ services:
       dockerfile: Dockerfile.storybook
     ports:
       - target: 80
-        published: "6006"
+        published: "${STORYBOOK_PORT:-0}"
         host_ip: 127.0.0.1
         protocol: tcp
         app_protocol: http
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/index.json"]
       interval: 30s
       timeout: 5s
       retries: 3
-    restart: unless-stopped
+    restart: "no"
     x-phantom:
       lifecycle: ephemeral
       purpose: "Preview de componentes UI"
+      card: "task_a9eee333-3f66-4acd-88f2-892b2628c921"

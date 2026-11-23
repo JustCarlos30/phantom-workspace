@@ -16,7 +16,7 @@
   background: radial-gradient(var(--dot) 1px, transparent 1.2px) 0 0 / 24px 24px, var(--bg);
 }
 .px-fd-canvas > .px-fd-cap { position: absolute; top: 12px; left: 16px; }
-.px-after .px-fd-canvas { --bg: #070709; --dot: color-mix(in srgb, #fff 7%, transparent); }
+.px-after .px-fd-canvas { --bg: #020203; --dot: color-mix(in srgb, #fff 7%, transparent); }
 .px-fd-bg { position: relative; height: 100%; overflow: hidden; border-radius: var(--r-group); }
 .px-fd-bg > .catalog-background { position: relative; height: 100%; min-height: 0; }
 .px-after .px-fd-bg canvas { opacity: 0.55; }
