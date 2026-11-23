@@ -9,7 +9,14 @@ test('formatea actividad, hijos y tiempo sin actividad', () => {
 });
 
 test('muestra verificación aunque no haya una acción actual', () => {
-  assert.equal(runHealthView({ phase: 'verifying', idleMs: 65_000 }).line, 'Verificando · hijos 0/0 · sin actividad 1 min 5 s');
+  assert.equal(runHealthView({ phase: 'verifying', idleMs: 65_000 }).line, 'Verificando · sin actividad 1 min 5 s');
+});
+
+test('sin datos o en idle no inventa hijos 0/0 ni 0 s', () => {
+  for (const input of [[], undefined, { phase: 'idle' }]) {
+    assert.equal(runHealthView(input).line, 'Esperando eventos de Phantom');
+  }
+  assert.equal(runHealthView({ phase: 'verifying' }).line, 'Verificando');
 });
 
 test('un encargo estancado produce aviso warn', () => {
