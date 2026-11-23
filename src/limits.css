@@ -24,7 +24,7 @@
 .usage-window b { text-align: right; font-weight: 500; }
 .usage-reason, .usage-extra { margin: var(--s-1) 0 0; color: var(--muted); }
 .usage-stale { margin: var(--s-1) 0 0; }
-.usage-badge { display: inline-block; padding: 0 var(--s-1); border: 1px solid currentColor; border-radius: 999px; color: var(--muted); font-size: .85em; white-space: nowrap; }
+.usage-badge { display: inline-block; padding: 0 var(--s-1); background: var(--fill-2); border-radius: var(--r-pill); color: var(--muted); font-size: .85em; white-space: nowrap; }
 .usage-refresh { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: var(--s-1); min-height: 44px; border-radius: var(--r-pill); background: var(--fill-2); cursor: pointer; }
 .usage-refresh[disabled] { opacity: .5; cursor: default; }
 .usage-refresh .spin { animation: usage-spin 1s linear infinite; }
