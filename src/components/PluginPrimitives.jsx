@@ -14,14 +14,29 @@ export function Field({ label, children, hint }) {
   return <div className="plugin-field tw-field"><label htmlFor={id}>{label}</label>{React.cloneElement(children, { id, 'aria-describedby': describedBy })}{hint && <small id={`${id}-hint`}>{hint}</small>}</div>;
 }
 
-export function ErrorNotice({ error, retry, clear }) {
-  if (!error) return null;
-  const message = typeof error === 'string' ? error : error.message || 'No se pudo completar la operación.';
-  return <div className="plugin-error tw-error" role="alert"><span>{message}</span><div className="tw-row">{retry && <Button icon={RefreshCw} onClick={retry}>Reintentar</Button>}{clear && <Button onClick={clear}>Descartar error</Button>}</div></div>;
+const PHANTOM_MISSING = /Phantom unavailable|Phantom CLI not found/i;
+const CHROMIUM_MISSING = /Chromium de Playwright no está descargado|Playwright no disponible/i;
+
+export function DataView({ value, label = 'Datos de la fuente', open }) {
+  return <details className="plugin-data tw-details" open={open}><summary>{label}</summary><pre className="tw-code">{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</pre></details>;
 }
 
-export function DataView({ value, label = 'Datos de la fuente' }) {
-  return <details className="plugin-data tw-details"><summary>{label}</summary><pre className="tw-code">{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</pre></details>;
+// Missing tools: one plain sentence, one action when useful; the raw reason stays in DataView.
+export function Unavailable({ reason, onOpenPanel, retry, detailsLabel }) {
+  const raw = typeof reason === 'string' ? reason.trim() : '';
+  const phantom = PHANTOM_MISSING.test(raw);
+  return <div className="plugin-unavailable tw-warning" role="status"><span>{phantom ? 'Phantom no está instalado o no se encuentra.' : 'No está disponible en este equipo.'}</span>
+    <div className="tw-row">{phantom && onOpenPanel && <Button onClick={() => onOpenPanel('plugins', { category: 'agents' }, 'Configuración')}>Abrir Configuración</Button>}{retry && <Button icon={RefreshCw} onClick={retry}>Reintentar</Button>}</div>
+    {raw && <DataView value={raw} label={detailsLabel} />}
+  </div>;
+}
+
+export function ErrorNotice({ error, retry, clear, onOpenPanel, clearLabel = 'Descartar error', detailsLabel }) {
+  if (!error) return null;
+  const message = typeof error === 'string' ? error : error.message || 'No se pudo completar la operación.';
+  if (PHANTOM_MISSING.test(message)) return <Unavailable reason={message} onOpenPanel={onOpenPanel} retry={retry} detailsLabel={detailsLabel} />;
+  if (CHROMIUM_MISSING.test(message)) return <div className="plugin-error tw-error" role="alert"><span>Falta instalar Chromium para el navegador automático. Ejecuta: <code>npx playwright install chromium</code></span><div className="tw-row">{clear && <Button onClick={clear}>{clearLabel}</Button>}</div><DataView value={message} label={detailsLabel} /></div>;
+  return <div className="plugin-error tw-error" role="alert"><span>{message}</span><div className="tw-row">{retry && <Button icon={RefreshCw} onClick={retry}>Reintentar</Button>}{clear && <Button onClick={clear}>{clearLabel}</Button>}</div></div>;
 }
 
 export function useOperation(notify) {
@@ -60,7 +75,7 @@ export function useResource(api, method, payload, { enabled = true } = {}) {
       if (seq === sequence.current) setResult({ loading: false, data, error: null });
       return data;
     } catch (error) {
-      if (seq === sequence.current) setResult({ loading: false, data: null, error });
+      if (seq === sequence.current) setResult(old => ({ loading: false, data: old.data, error }));
     }
   }, [api, method, key]);
   useEffect(() => {
@@ -71,15 +86,19 @@ export function useResource(api, method, payload, { enabled = true } = {}) {
   return { ...result, reload };
 }
 
-export function OperationState({ op }) {
-  return <><ErrorNotice error={op.error} retry={op.retry} clear={op.clear} />{op.busy && <p className="plugin-loading tw-muted" role="status">Procesando…</p>}</>;
+export function OperationState({ op, onOpenPanel, clearLabel }) {
+  return <><ErrorNotice error={op.error} retry={op.retry} clear={op.clear} onOpenPanel={onOpenPanel} clearLabel={clearLabel} />{op.busy && <p className="plugin-loading tw-muted" role="status">Procesando…</p>}</>;
 }
 
-export function ResourceState({ resource, empty = 'No hay elementos.' }) {
-  if (resource.loading) return <p className="plugin-loading tw-muted" role="status">Consultando la fuente…</p>;
-  if (resource.error) return <ErrorNotice error={resource.error} retry={resource.reload} />;
-  if (resource.data?.available === false) return <div className="plugin-unavailable tw-warning" role="status">{resource.data.reason || 'Fuente no disponible.'}<Button onClick={resource.reload}>Reintentar</Button></div>;
-  if (empty && Array.isArray(resource.data?.items) && !resource.data.items.length) return <EmptyState className="plugin-empty tw-empty" description={empty} />;
+// strict: the resource must be a list (array or {items}); any other shape is reported, never hidden.
+export function ResourceState({ resource, empty = 'No hay elementos.', onOpenPanel, loadingLabel = 'Consultando la fuente…', strict }) {
+  if (resource.loading) return <p className="plugin-loading tw-muted" role="status">{loadingLabel}</p>;
+  if (resource.error) return <ErrorNotice error={resource.error} retry={resource.reload} onOpenPanel={onOpenPanel} />;
+  if (resource.data?.available === false) return <Unavailable reason={resource.data.reason || 'Fuente no disponible.'} onOpenPanel={onOpenPanel} retry={resource.reload} />;
+  const data = resource.data;
+  const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : null;
+  if (strict && data != null && !items) return <ErrorNotice error="No se pudo leer la lista. Vuelve a intentarlo." retry={resource.reload} />;
+  if (empty && items && !items.length || strict && empty && data == null) return <EmptyState className="plugin-empty tw-empty" description={empty} />;
   return null;
 }
 
