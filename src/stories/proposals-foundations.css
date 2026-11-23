@@ -54,7 +54,7 @@
 /* ---------- Insignias ---------- */
 .px-fd-badges { display: grid; gap: 24px; align-content: start; }
 .px-fd-glyph { width: 32px; height: 32px; display: grid; place-items: center; color: var(--ink); }
-.px-after :is(.pt-glyph, .project-initials, .px-fd-glyph) {
+.px-after :is(.pt-glyph, .px-fd-glyph) {
   width: 32px; height: 32px; box-sizing: border-box; display: grid; place-items: center; padding: 0;
   border: 0; border-radius: 50%; background: var(--control-fill); box-shadow: none; color: var(--ink);
   font: var(--t-micro); font-weight: 600;
