@@ -21,7 +21,6 @@ import { PANEL_ICONS } from './PanelIcons';
 import { pulseState } from '../hooks/terminalBorderState.mjs';
 import { useSessionAlerts } from '../hooks/useSessionAlerts';
 import { useChat } from '../hooks/useChat';
-import { PhantomGlyph } from './Glyphs';
 import TitiMascot from './GengarMascot.jsx';
 import ReferencePanelContent, { CommentLayer } from './References';
 import { INLINE_LIMIT, readTransfer, toBase64, visibleComments } from '../hooks/references.mjs';
@@ -120,7 +119,7 @@ const CanvasNode = React.memo(function CanvasNode({ node, preview, focusSize, an
   </article>;
 });
 
-export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, phantomLauncher = null, showCharacter = false }) {
+export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, showCharacter = false }) {
   const navFit = useFitDensity(NAV_FIT);
   const root = useRef(null);
   const stage = useRef(null);
@@ -673,16 +672,15 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     <div className="canvas-view-controls">
     {!focused && minimap && <Minimap nodes={nodes} camera={camera} cameraRef={cameraRef} frameRef={minimapFrame} size={size} selected={selected} onUpdate={next => { stopInertia(); updateCamera(next); }} />}
     {!focused && <><div ref={navFit} className="canvas-navigation" role="toolbar" aria-label="Navegación del canvas">
-      <div className="control-segmented" role="group" aria-label="Herramientas del canvas"><button aria-label="Herramienta de selección" title="Seleccionar · V" aria-pressed={tool === 'select'} onClick={() => { setTool('select'); root.current.focus(); }}><MousePointer2 size={16} /></button>
-      <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /></button>
-      <button aria-label="Herramienta de comentarios" title="Comentar · C" aria-pressed={tool === 'comment'} onClick={() => { setTool(current => current === 'comment' ? 'select' : 'comment'); root.current.focus(); }}><MessageCircle size={16} />{comments.some(c => !c.resolved) && <b className="comment-count">{comments.filter(c => !c.resolved).length}</b>}</button></div><i />
+      <div className="control-segmented" role="group" aria-label="Herramientas del canvas"><button aria-label="Herramienta de selección" title="Seleccionar · V" aria-pressed={tool === 'select'} onClick={() => { setTool('select'); root.current.focus(); }}><MousePointer2 size={16} /><kbd aria-hidden="true">V</kbd></button>
+      <button aria-label="Herramienta de mano" title="Mover mapa · H · Mantén Espacio" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); root.current.focus(); }}><Hand size={16} /><kbd aria-hidden="true">H</kbd></button>
+      <button aria-label="Herramienta de comentarios" title="Comentar · C" aria-pressed={tool === 'comment'} onClick={() => { setTool(current => current === 'comment' ? 'select' : 'comment'); root.current.focus(); }}><MessageCircle size={16} /><kbd aria-hidden="true">C</kbd>{comments.some(c => !c.resolved) && <b className="comment-count">{comments.filter(c => !c.resolved).length}</b>}</button></div><i />
       <button title="Alejar (−)" aria-label="Alejar" disabled={camera.zoom <= .15} onClick={() => zoomAt(cameraRef.current.zoom / 1.2)}><span aria-hidden="true">−</span></button>
       <button className="zoom-value" aria-label={`Zoom ${Math.round(camera.zoom * 100)}%. Opciones de zoom`} aria-expanded={navigationMenu === 'zoom'} aria-controls="canvas-zoom-options" onClick={() => setNavigationMenu(menu => menu === 'zoom' ? null : 'zoom')}><span ref={zoomLabel}>{Math.round(camera.zoom * 100)}</span>%<span aria-hidden="true">▾</span></button>
       <button title="Acercar (+)" aria-label="Acercar" disabled={camera.zoom >= 1.8} onClick={() => zoomAt(cameraRef.current.zoom * 1.2)}><span aria-hidden="true">+</span></button><i />
       <button title="Ajustar todos los paneles · 0" aria-label="Ajustar todos los paneles" onClick={() => fit()}><LocateFixed size={17} /></button>
       <button className="view-toggle" title="Minimapa" aria-label="Mostrar minimapa" aria-pressed={minimap} onClick={toggleMinimap}><MapIcon size={16} /></button>
       <button title="Gestos y atajos · ?" aria-label="Gestos y atajos del canvas" aria-expanded={navigationMenu === 'help'} aria-controls="canvas-gesture-help" onClick={() => setNavigationMenu(menu => menu === 'help' ? null : 'help')}><span aria-hidden="true">?</span></button>
-      {phantomLauncher && <><i /><button className="phantom-launcher" data-tone={phantomLauncher.status.tone} title={`Phantom: chat y orquestador · Ctrl ⇧ Espacio\n${phantomLauncher.status.label}`} aria-label={`${phantomLauncher.open ? 'Cerrar' : 'Abrir'} Phantom. ${phantomLauncher.status.label}`} aria-pressed={phantomLauncher.open} onClick={phantomLauncher.onToggle}><PhantomGlyph size={17} />{phantomLauncher.status.integration && phantomLauncher.status.queued > 0 ? <b className="phantom-launcher-count">{phantomLauncher.status.queued}</b> : phantomLauncher.status.tone !== 'off' && <i className="phantom-launcher-dot" aria-hidden="true" />}</button></>}
     </div>
     {navigationMenu && <div className="canvas-popover" id={navigationMenu === 'zoom' ? 'canvas-zoom-options' : 'canvas-gesture-help'} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setNavigationMenu(null); root.current.querySelector(`[aria-controls="${e.currentTarget.id}"]`)?.focus(); } }}>
       <div className="canvas-popover-heading"><strong>{navigationMenu === 'zoom' ? 'Vista del canvas' : 'Muévete por tu espacio'}</strong><button aria-label="Cerrar controles del canvas" onClick={() => setNavigationMenu(null)}><X size={14} /></button></div>

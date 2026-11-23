@@ -12,7 +12,8 @@ import { Merges } from './merges.mjs';
 import { Branches } from './branches.mjs';
 import { Repo } from './repo.mjs';
 import { createLimits } from './limits.mjs';
-import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle, cardTitleOf, autoBindings } from './agents.mjs';
+import { agentContext, validateAgent, isDefaultTerminalTitle, cardPanelTitle, cardTitleOf, autoBindings, applyPlanOp } from './agents.mjs';
+import { nextPlanStep, planNote } from './plan-chain.mjs';
 import { validatePluginPanel } from '../shared/plugins.mjs';
 import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
@@ -104,6 +105,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(target?.via==='chat'){if(chats)wakeChat(target,r).catch(()=>{});}
       else if(target)wakeTerminal(target,r).catch(()=>{});
     }catch{}
+    try{const step=store&&!closingPromise?planTarget(event):null;if(step)planChain(step).catch(()=>{});}catch{}
     // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
     if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
   };
@@ -152,6 +154,28 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       return;
     }
     terminals.write(session.id,wakeMessage({taskId:target.taskId,controller,task})+'\r');
+  };
+  // A finished Phantom run backing a terminal plan's running phase closes it and, with chain, launches the next registered one.
+  const planSeen=new Set();
+  const planTarget=event=>{
+    if(event?.type!=='tool.status'||!['completed','failed'].includes(event.status))return null;
+    const r=event.result;if(r?.source!=='phantom'||!r.id||typeof r.taskId!=='string'||planSeen.has(r.id))return null;
+    const workspaceId=event.workspaceId??r.workspaceId,w=store.state.workspaces.find(w=>w.id===workspaceId);
+    const node=w?.nodes.find(n=>n.type==='terminal'&&n.data.plan?.phases.some(p=>p.status==='running'&&p.taskId===r.taskId));
+    if(!node)return null;
+    planSeen.add(r.id);return {workspaceId,nodeId:node.id,taskId:r.taskId,controller:r};
+  };
+  const planChain=async({workspaceId,nodeId,taskId,controller})=>{
+    const save=fn=>mutate(workspaceId,()=>{const n=store.getWorkspace(workspaceId).nodes.find(n=>n.id===nodeId);if(!n?.data.plan)return null;const plan=fn(n.data.plan);if(plan)n.data.plan=plan;return n;});
+    const block=(id,message)=>{try{save(plan=>{const phase=plan.phases.find(p=>p.taskId===id&&p.status==='running');return phase?applyPlanOp(plan,{type:'block',key:phase.key,note:planNote(message)}):null;});}catch{}};
+    let launch=null,node;
+    try{
+      const answer=await routeIntegration('phantom.detail',{workspaceId,topic:'tasks',id:taskId});assert(answer?.handled,'Phantom no está disponible');
+      node=save(plan=>{const step=nextPlanStep(plan,{taskId,taskStatus:answer.result?.status,controllerStatus:controller?.status});launch=step.launch;return step.plan;});
+    }catch(error){block(taskId,error.message);return;}
+    if(!launch||closingPromise)return;
+    try{const answer=await routeIntegration('phantom.control',{workspaceId,id:launch,action:'run',sessionId:node.data.sessionId});assert(answer?.handled!==false,'Phantom no está disponible');}
+    catch(error){block(launch,error.message);}
   };
   // Environment owners are registered in the workspace state; releases are serialized so racing triggers do not repeat work.
   let envChain=Promise.resolve();
@@ -243,7 +267,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
        if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
        w.nodes.push(node);return node;
     });
-     if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='reference'&&patch.data){for(const key of ['file','hash','kind','mime','previousVersion']) assert(patch.data[key]===undefined||patch.data[key]===n.data[key],'La identidad de la referencia es inmutable; importa una nueva versión');patch.data={...patch.data};for(const key of ['file','hash','kind','mime','previousVersion']) if(n.data[key]!==undefined)patch.data[key]=n.data[key];}if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.handoff;if(n.data.handoff)patch.data.handoff=n.data.handoff;delete patch.data.process;if(n.data.process)patch.data.process=n.data.process;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
+     if(method==='node.update') return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId),n=w.nodes.find(n=>n.id===p.id);assert(n,'Node not found');object(p.patch);for(const key of Object.keys(p.patch)) assert(['title','x','y','width','height','groupId','data'].includes(key),'Unsupported node patch');const patch={...p.patch};if(n.type==='reference'&&patch.data){for(const key of ['file','hash','kind','mime','previousVersion']) assert(patch.data[key]===undefined||patch.data[key]===n.data[key],'La identidad de la referencia es inmutable; importa una nueva versión');patch.data={...patch.data};for(const key of ['file','hash','kind','mime','previousVersion']) if(n.data[key]!==undefined)patch.data[key]=n.data[key];}if(n.type==='terminal'&&patch.data){object(patch.data);patch.data={...patch.data};delete patch.data.agent;if(n.data.agent)patch.data.agent=n.data.agent;delete patch.data.handoff;if(n.data.handoff)patch.data.handoff=n.data.handoff;delete patch.data.process;if(n.data.process)patch.data.process=n.data.process;delete patch.data.chat;if(n.data.chat)patch.data.chat=n.data.chat;delete patch.data.role;if(n.data.role)patch.data.role=n.data.role;delete patch.data.plan;if(n.data.plan)patch.data.plan=n.data.plan;}if(patch.data!==undefined){object(patch.data);patch.data={...patch.data};validatePluginPanel(n.type,patch.data);}Object.assign(n,patch);return n;});
     if(method==='node.remove') { const w=store.getWorkspace(p.workspaceId); assert(w.nodes.some(n=>n.id===p.id),'Node not found');assert(!terminals.sessions.some(s=>s.nodeId===p.id&&s.workspaceId===w.id&&s.status==='running'),'Terminal is running: hide this panel (data.hidden) or stop its session before removing it');chats.removeNode(p.id);await envRelease(w.id,null,p.id);return mutate(w.id,()=>{const current=store.getWorkspace(w.id),node=current.nodes.find(n=>n.id===p.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==p.id);return {ok:true};}); }
     if(method.startsWith('reference.')||method.startsWith('comment.')) return handleReference(method,p,{store,mutate,dataDir,brief:(w,comment)=>mentionBrief(w,comment,dataDir,CANVAS_CLI),mention:(w,comment,brief)=>chats.send(w,chats.mainNode(w),brief)});
     if(method==='terminal.create') {
@@ -337,6 +361,16 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       object(p.patch);for(const key of Object.keys(p.patch)) assert(['step','status'].includes(key),'Reports may only update step and status');
       const patch=structuredClone(p.patch);validateAgent(patch);
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return agentContext(w,current,session);});
+    }
+    if(method==='terminal.agent.plan') {
+      for(const key of Object.keys(p))assert(['sessionId','op'].includes(key),`Clave de plan desconocida: ${key}`);
+      const session=terminals.get(p.sessionId),w=store.getWorkspace(session.workspaceId),node=w.nodes.find(n=>n.id===session.nodeId);
+      assert(node?.type==='terminal','Terminal node not found');
+      assert(node.data.sessionId===session.id,'El plan requiere la sesión actual del panel');
+      object(p.op);const op=structuredClone(p.op);
+      applyPlanOp(node.data.plan,op);
+      if(['start','task'].includes(op.type)&&op.taskId!==undefined){const result=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:op.taskId});assert(result.handled&&['task','card'].includes(result.result?.kind),'Expected a Phantom task or card');}
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current?.data.sessionId===session.id,'El plan requiere la sesión actual del panel');const plan=applyPlanOp(current.data.plan,op);if(plan)current.data.plan=plan;else delete current.data.plan;return plan;});
     }
     if(method==='terminal.agent.update') {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);

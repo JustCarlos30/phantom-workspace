@@ -7,9 +7,14 @@
 .app-shell [data-type="note"] { --type: var(--c-lilac); }
 .app-shell [data-type="zone"] { --type: var(--c-lilac); }
 
-/* ---------- Top bar: two pills ---------- */
-.app-shell :is(.workspace-identity, .header-controls, .focus-return, .workspace-header > .rail-toggle) { border-radius: var(--r-isle); }
-.app-shell .workspace-identity { padding: 0 20px; }
+/* ---------- Top bar: one pill; identity and controls are groups inside it ---------- */
+.app-shell :is(.workspace-header, .focus-return, .workspace-header > .rail-toggle) { border-radius: var(--r-isle); }
+.app-shell .workspace-identity { padding: 0 8px 0 20px; }
+.app-shell .identity-separator { margin: 0 2px; font: var(--t-control); }
+.app-shell .identity-space { font: var(--t-control); font-weight: 400; }
+/* «Guardado» is a quiet check; saving and errors say it in words. */
+.app-shell .save-state.is-quiet { color: var(--ink-3); }
+.app-shell .save-state > .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .app-shell .header-controls { padding: 0 8px 0 14px; gap: 4px; }
 .app-shell .header-controls .icon-button { width: var(--target); height: var(--target); border-radius: 50%; background: var(--control-fill); color: var(--ink); }
 .app-shell .header-controls .icon-button:hover:not(:disabled) { background-color: var(--control-hover); color: var(--ink); }
@@ -24,13 +29,17 @@
 .app-shell .canvas-navigation { height: 48px; padding: 0 8px; gap: 2px; border-radius: var(--r-isle); }
 .app-shell .canvas-navigation button { display: grid; place-items: center; width: var(--target); min-width: var(--target); height: var(--target); padding: 0; border-radius: 50%; background: var(--control-fill); box-shadow: none; color: var(--ink); }
 .app-shell .canvas-navigation button:hover:not(:disabled) { background-color: var(--control-hover); color: var(--ink); }
-/* The tool is the one choice; the minimap, the menus and Phantom are switches. */
+/* The tool is the one choice; the minimap and the menus are switches. */
 .app-shell .canvas-navigation button[aria-pressed="true"] { background-color: var(--on); color: var(--on-ink); }
-.app-shell .canvas-navigation button:is([aria-expanded="true"], .view-toggle[aria-pressed="true"], .phantom-launcher[aria-pressed="true"]) { background-color: var(--control-fill); color: var(--ink); box-shadow: none; }
+.app-shell .canvas-navigation button:is([aria-expanded="true"], .view-toggle[aria-pressed="true"]) { background-color: var(--control-fill); color: var(--ink); box-shadow: none; }
 .app-shell .canvas-navigation button:disabled { opacity: .4; }
 .app-shell .canvas-navigation .zoom-value { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 60px; padding: 0 10px; border-radius: var(--r-pill); font: var(--t-support); font-weight: 500; font-variant-numeric: tabular-nums; }
 /* Groups are separated by space; a rule would be one more edge in the pill. */
 .app-shell .canvas-navigation > i { width: 8px; height: 0; margin: 0; background: none; }
+/* With room, each tool shows its key beside the glyph; tighter fits drop it. */
+.app-shell .canvas-navigation[data-fit="full"] .control-segmented button { grid-auto-flow: column; gap: 6px; }
+.app-shell .canvas-navigation .control-segmented kbd { min-width: 0; height: auto; padding: 0; background: none; color: inherit; font: var(--t-micro); opacity: .6; }
+.app-shell .canvas-navigation:not([data-fit="full"]) .control-segmented kbd { display: none; }
 
 /* ---------- Dock: one row. Activity reads on the left, creation on the right ---------- */
 .app-shell .activity-dock { flex-direction: row; align-items: center; gap: var(--dock-gap); height: var(--dock-h); padding: var(--dock-pad); border-radius: var(--r-pill); overflow: visible; }
@@ -55,13 +64,10 @@
 .app-shell .activity-dock .dock-main > i { display: none; }
 
 /* ---------- Tight shelf: Phantom or the inspector take a column ----------
-   The bottom row keeps its centre instead of scrolling: the minimap yields
-   its column, and readings and search fold to their glyphs. */
+   The minimap steps aside (the view tools stay bottom right), and readings
+   and search fold to their glyphs. */
 @media (max-width: 1700px) {
-  .app-shell:is(.phantom-chat-open, .studio-inspector-open) { --map-column: 0px; }
-  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .canvas-view-controls { grid-template-columns: minmax(0, 1fr); }
   .app-shell:is(.phantom-chat-open, .studio-inspector-open) .canvas .canvas-view-controls .canvas-minimap { display: none; }
-  .app-shell:is(.phantom-chat-open, .studio-inspector-open) .canvas .canvas-view-controls .canvas-popover { right: 0; }
   .app-shell:is(.phantom-chat-open, .studio-inspector-open) .activity-dock .activity-summary-action > span,
   .app-shell:is(.phantom-chat-open, .studio-inspector-open) .activity-dock .notch-stale { display: none; }
   .app-shell:is(.phantom-chat-open, .studio-inspector-open) .search-command > span { display: none; }
@@ -116,10 +122,10 @@
 .app-shell :is(.workspace-identity, .focus-return) button:hover:not(:disabled) { background: var(--row-hover); }
 .app-shell :is(.workspace-identity, .focus-return) button:active:not(:disabled) { background: var(--row-press); }
 .app-shell .activity-dock .dock-main .dock-action:active:not(:disabled) { background-color: var(--control-press); background-clip: content-box; scale: none; }
-.app-shell .activity-dock .dock-main .dock-action.dock-primary { flex-direction: row; width: auto; padding: 0 18px; gap: 8px; border-radius: var(--r-pill); background: var(--on); color: var(--on-ink); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary { flex-direction: row; width: auto; padding: 0 18px; gap: 8px; border-radius: var(--r-pill); background: var(--primary); color: var(--primary-ink); }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary > span { display: inline; position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
-.app-shell .activity-dock .dock-main .dock-action.dock-primary:hover:not(:disabled) { background-color: var(--on-hover); color: var(--on-ink); }
-.app-shell .activity-dock .dock-main .dock-action.dock-primary:active:not(:disabled) { background-color: var(--on-press); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:hover:not(:disabled) { background-color: var(--primary-hover); color: var(--primary-ink); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:active:not(:disabled) { background-color: var(--primary-press); }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary:disabled,
 .app-shell :is(.workspace-header, .canvas-navigation, .focus-return) button:disabled { background-color: var(--control-fill); color: var(--ink-3); opacity: 1; }
 .app-shell .activity-dock .dock-main button.dock-action.dock-hub { width: var(--dock-control-size); min-width: var(--dock-control-size); height: var(--dock-control-size); padding: 0; border-radius: 50%; background: var(--control-fill); color: var(--ink); justify-content: center; }

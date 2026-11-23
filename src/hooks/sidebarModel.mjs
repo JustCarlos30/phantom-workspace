@@ -1,4 +1,5 @@
 import { timeOf, ago } from './activityModel.mjs';
+import { planSummary } from './plan-view.mjs';
 
 const providerLabels = { claude: 'Claude', opencode: 'OpenCode', codex: 'Codex', terminal: 'Terminal' };
 
@@ -38,6 +39,7 @@ export function buildSessionRows(nodes = [], sessions = {}, now = Date.now()) {
       time: ago(timeOf(session), now),
       model: node.data?.chat?.models?.[provider]?.split('/').pop() || '',
       resources: [],
+      plan: planSummary(node.data?.plan),
     };
   });
   const counts = new Map();

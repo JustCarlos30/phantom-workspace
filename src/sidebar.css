@@ -14,49 +14,58 @@
 }
 .project-rail button:focus-visible, .project-rail summary:focus-visible { outline: var(--focus-width) solid var(--on); outline-offset: calc(-1 * var(--focus-offset)); }
 
-/* ---------- Brand ---------- */
-.project-rail .brand { display: flex; align-items: center; gap: var(--row-gap); flex-shrink: 0; font: var(--t-support); color: var(--muted); }
-.project-rail .brand > span:last-of-type > span { display: block; margin-top: -2px; font: var(--t-micro); font-weight: 400; letter-spacing: 0; color: var(--ink-3); opacity: .72; }
-.project-rail .brand-mark { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; color: var(--accent); background: none; }
-.project-rail .brand .icon-button { width: 32px; height: 32px; margin-left: auto; border-radius: 50%; background: none; color: var(--muted); opacity: .72; }
+/* ---------- Head: a two-line row, project over space ----------
+   No brand label. The row is the anchor of both menus, which open at the
+   rail's full width under it. */
+.project-rail .brand { position: relative; display: flex; align-items: center; gap: var(--s-1); flex-shrink: 0; min-width: 0; font: var(--t-support); color: var(--muted); }
+.project-rail .brand .icon-button { width: 32px; height: 32px; border-radius: 50%; background: none; color: var(--muted); opacity: .72; }
 .project-rail .brand .icon-button:hover { background-color: var(--control-hover); color: var(--ink); opacity: 1; }
-.rail-collapsed .project-rail .brand .icon-button { margin-left: 0; }
+.app-shell:not(.rail-collapsed) .project-rail .rail-head {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-rows: 1fr 1fr; column-gap: var(--s-2); row-gap: 0; align-items: center;
+}
+.app-shell:not(.rail-collapsed) .project-rail .rail-head > .project-switcher { grid-column: 1 / 3; grid-row: 1 / 3; }
+.app-shell:not(.rail-collapsed) .project-rail .rail-head > .rail-spaces { grid-column: 2; grid-row: 2; z-index: 1; justify-self: start; align-self: start; max-width: 100%; }
+.app-shell:not(.rail-collapsed) .project-rail .rail-head > .icon-button { grid-column: 3; grid-row: 1 / 3; margin: 0; }
+.project-rail .rail-head > .icon-button { flex: none; }
 
-/* ---------- Context: where you are, not a form ----------
-   The project is the rail's title: a coloured disc with its initials and the
-   name. The space is a small chip under the name. Neither is a field with a
-   label and a caret; both open their menu when pressed. */
-.project-rail .context-switcher { position: relative; flex-shrink: 0; min-width: 0; }
+/* The project is the row's title: a coloured disc with its initials and the
+   name. The space sits under the name as support text. Neither is a field
+   with a label; both open their menu when pressed. */
+.project-rail .context-switcher { position: static; flex-shrink: 0; min-width: 0; }
+.project-rail .project-switcher { flex: 1 1 auto; min-width: 0; }
 .project-switcher > summary {
-  display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 48px; padding: 4px var(--row-px) 0;
+  display: grid; grid-template-columns: 32px minmax(0, 1fr); grid-template-rows: 1fr 1fr; column-gap: var(--s-2); align-items: center; width: 100%; min-height: var(--row-detail); padding: 0;
   border-radius: var(--r-row); color: var(--ink); text-align: left; cursor: pointer; list-style: none;
   transition: background-color var(--dur-fast) linear;
 }
 .project-switcher > summary::-webkit-details-marker { display: none; }
-.project-switcher > summary > .project-initials { --project-mark-size: var(--badge-size); }
+.project-switcher > summary > .project-initials { --project-mark-size: 32px; grid-column: 1; grid-row: 1 / 3; }
+.project-switcher > summary > .project-switcher-label { grid-column: 2; grid-row: 1; align-self: end; }
 .project-switcher > summary:hover, .project-switcher[open] > summary { background: var(--row-hover); }
 .project-switcher > summary:active { background: var(--row-press); }
 .project-initials {
   display: grid; place-items: center; width: var(--project-mark-size, 36px); height: var(--project-mark-size, 36px); flex-shrink: 0; border-radius: 50%;
   background: color-mix(in srgb, var(--project-accent, var(--accent)) 22%, var(--surface)); color: color-mix(in srgb, var(--project-accent, var(--accent)) 86%, var(--ink)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project-accent, var(--accent)) 34%, transparent); font: var(--t-support); font-weight: 600; letter-spacing: .02em;
 }
-.project-switcher-label { min-width: 0; flex: 1; }
+.project-switcher-label { min-width: 0; flex: 1 1 auto; }
+.space-switcher-trigger .project-switcher-label { flex: 0 1 auto; }
+.space-switcher-trigger strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-switcher-label strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* «Proyecto» and «Espacio» stay for assistive tech; on screen the shape says it. */
 .project-switcher-label small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.project-switcher > summary strong { font: var(--t-title); letter-spacing: -.01em; }
+.project-switcher > summary strong { font: var(--t-control); font-weight: 600; }
 /* The caret only appears when the row is live, so at rest it reads as a title. */
 .project-switcher > summary > svg { flex-shrink: 0; color: var(--muted); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur) var(--ease-out); }
 .project-switcher > summary:is(:hover, :focus-visible) > svg, .project-switcher[open] > summary > svg { opacity: .72; }
 .project-switcher[open] > summary > svg { transform: rotate(180deg); }
 
-.project-rail .rail-spaces { margin: 0; padding-left: var(--row-px); }
+.project-rail .rail-spaces { flex: 0 1 auto; min-width: 0; max-width: 45%; margin: 0; padding: 0; }
 .space-switcher-trigger {
-  position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: var(--control-size); min-height: var(--control-size); padding: 0 8px 0 10px;
-  border-radius: var(--r-pill); background: var(--control-fill); box-shadow: none; color: var(--muted); text-align: left;
+  position: relative; display: inline-flex; align-items: center; gap: 4px; max-width: calc(100% + 4px); height: 24px; min-height: 24px; margin-left: -4px; padding: 0 4px;
+  border-radius: var(--r-pill); background: none; box-shadow: none; color: var(--muted); text-align: left;
   transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.space-switcher-trigger::after { content: ""; position: absolute; inset: calc((var(--control-size) - var(--target)) / 2) 0; }
+.space-switcher-trigger::after { content: ""; position: absolute; inset: calc((24px - var(--target)) / 2) 0; }
 .space-switcher-trigger:hover, .space-switcher-trigger[aria-expanded=true] { background: var(--control-hover); color: var(--ink); }
 .space-switcher-trigger:active { background: var(--control-press); }
 .space-switcher-trigger > svg { flex-shrink: 0; width: 14px; height: 14px; color: inherit; }
@@ -126,8 +135,8 @@
 .rail-attention > span { flex: 1; min-width: 0; }
 .rail-attention > svg:last-child { opacity: .5; }
 .rail-attention b { font: var(--t-micro); font-weight: 600; font-variant-numeric: tabular-nums; }
-.rail-attention.needs-you { color: var(--ink); font-weight: 500; }
-.rail-attention.needs-you > svg:first-child { color: var(--attention); }
+.project-rail .rail-attention { color: var(--ink-3); }
+.project-rail .rail-attention.needs-you { color: var(--attention); font-weight: 500; }
 .rail-attention.needs-you b { color: var(--attention); }
 
 /* Selection and attention retain independent, readable signals. */
@@ -167,8 +176,8 @@
 .rail-panel-row.selected .rail-panel-label > span:first-child { color: inherit; }
 .rail-session-meta { display: flex; align-items: baseline; min-width: 0; font: var(--t-support); color: var(--muted); }
 .rail-session-status { flex-shrink: 0; white-space: nowrap; }
-.rail-session-type, .rail-session-time { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-session-type::after, .rail-session-time::before { content: " · "; white-space: pre; }
+.rail-session-type, .rail-session-time, .rail-session-plan { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-session-type::after, .rail-session-time::before, .rail-session-plan::before { content: " · "; white-space: pre; }
 .rail-session-resources { padding-left: 37px; }
 .rail-resource-row > button:first-child { font: var(--t-control); font-weight: 400; }
 .rail-panel-focus { display: grid; place-items: center; width: 28px; height: 28px; margin-right: calc(var(--row-px) - (var(--target) - var(--control-size)) / 2); flex-shrink: 0; border-radius: 50%; color: inherit; opacity: 0; transition: opacity var(--dur-fast) linear, background-color var(--dur-fast) linear; }
@@ -205,15 +214,11 @@
 
 /* ---------- Short windows: the list yields before the selectors do ---------- */
 @media (max-height: 700px) {
-  .project-switcher > summary { min-height: 42px; }
-  .project-rail .rail-spaces { padding-left: 48px; margin-bottom: var(--s-2); }
   .project-rail .rail-heading { height: 30px; }
   .project-rail .rail-bottom { padding-top: var(--s-2); }
 }
 @media (max-height: 600px) {
   .project-rail { overflow-y: auto; }
-  .app-shell:not(.rail-collapsed) .project-rail .brand { height: 36px; margin-bottom: 4px; }
-  .project-switcher > summary { min-height: 38px; }
 }
 
 .project-rail :is(.brand .icon-button, .rail-heading button, .rail-panel-focus, .space-rename, .space-remove, .rail-system > button) { width: var(--target); height: var(--target); min-width: var(--target); flex-shrink: 0; padding: calc((var(--target) - var(--control-size)) / 2); background-clip: content-box; border-radius: 50%; }
@@ -225,10 +230,9 @@
 .project-rail :is(.rail-attention, .rail-map-action) > svg:first-child { width: var(--glyph-primary); height: var(--glyph-primary); }
 .project-rail .rail-attention.needs-you[aria-expanded=true] { color: var(--ink); }
 .project-rail .rail-bottom > button[aria-pressed=true] { background: var(--fill-3); color: var(--accent); }
-.project-rail :is(.brand > span:last-of-type > span, .brand .icon-button, .project-item small, .space-select small, kbd, .rail-heading > span, .rail-heading button, .rail-empty, .host-indicator) { opacity: 1; }
+.project-rail :is(.brand .icon-button, .project-item small, .space-select small, kbd, .rail-heading > span, .rail-heading button, .rail-empty, .host-indicator) { opacity: 1; }
 @media (pointer: coarse) {
   .project-rail { --target: 44px; }
-  .project-rail .project-switcher > summary { min-height: var(--target); }
   .project-rail :is(.space-rename, .space-remove) { opacity: 1; }
 }
 

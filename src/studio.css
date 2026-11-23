@@ -51,8 +51,8 @@
 ::-webkit-scrollbar-thumb { background-color: #62615e; }
 .button { border-color: var(--hairline); }
 .button:hover { background: var(--surface-2); border-color: var(--muted); }
-.button.primary, .tw-button.tw-primary { background: var(--on); color: var(--on-ink); border-color: transparent; }
-.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--on); }
+.button.primary, .tw-button.tw-primary { background: var(--primary); color: var(--primary-ink); border-color: transparent; }
+.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .icon-button:hover { background: var(--surface-2); }
 .project-label { min-width: 0; flex: 1; }
 .project-active-dot { background: var(--accent); flex-shrink: 0; }

@@ -6,6 +6,7 @@ import { useTerminalTail } from '../hooks/useTerminalTail';
 import { formatSince, stateTone, useNow } from '../hooks/terminalPulse.mjs';
 import { ModeSwitch } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
+import PlanPhases from './PlanPhases';
 
 const LINE_HEIGHT = 22;
 
@@ -103,6 +104,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
         <p key={agent.step} className="pt-card-step" title={agent.step}>{agent.step}</p>
         {hasTime && <time dateTime={updatedAt.toISOString()} title={`${updatedAt.toLocaleString()} · ${agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}`}>{formatSince(now - updatedAt.getTime())}</time>}
       </div>)}
+      <PlanPhases plan={node.data?.plan} compact />
     </div>
     {overview && !agent.step && <p className="pt-card-glimpse" aria-hidden="true">{glimpse || (ended || preparing ? '' : '…')}</p>}
     {!overview && <div className={`pt-card-screen ${alternate ? 'is-alternate' : ''}`} role="log" aria-label={`Últimas líneas de ${node.title}`} aria-live="off" style={alternate ? { '--rows': tail.lines.length || 1, '--cols': tail.cols || 80 } : undefined}>

@@ -179,7 +179,16 @@ test('E3 controls share flat levels, a single segmented recipe and tonal row fee
     assert.equal(rootDeclarations(canvas, `--${name}`)[0], value, name);
   assert.match(shell, /\.control-segmented\s*\{[^}]*height: var\(--seg-height\); padding: var\(--seg-pad\); gap: var\(--seg-gap\); border: 0; border-radius: var\(--r-pill\); background: var\(--control-fill\)/);
   assert.match(shell, /\.control-segmented > button\s*\{[^}]*height: calc\(var\(--seg-height\) - 2 \* var\(--seg-pad\)\)/);
-  assert.match(shell, /\.dock-action\.dock-primary\s*\{[^}]*padding: 0 18px; gap: 8px;[^}]*background: var\(--on\); color: var\(--on-ink\)/);
+  assert.match(shell, /\.dock-action\.dock-primary\s*\{[^}]*padding: 0 18px; gap: 8px;[^}]*background: var\(--primary\); color: var\(--primary-ink\)/);
+  assert.equal(rootDeclarations(canvas, '--primary')[0], 'var(--accent)');
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const settings = sheets.find(sheet => sheet.name === 'src/settings.css').css;
+  assert.match(chat, /\.pc-send \{[^}]*background: var\(--primary\); color: var\(--primary-ink\)/);
+  assert.match(settings, /\.st-btn\.is-primary \{[^}]*background: var\(--primary\); color: var\(--primary-ink\)/);
+  assert.match(chat, /\.pc-field textarea \{[^}]*caret-color: var\(--accent\)/);
+  for (const { name, css } of sheets)
+    for (const [, selector, body] of css.matchAll(/([^{}]*(?:working|attention|danger|success|st-switch|st-seg)[^{}]*)\{([^}]*)\}/g))
+      assert.doesNotMatch(body, /var\(--(?:accent|primary)\)/, `${name}: state/switch selector ${selector.trim()} must not use the accent`);
   assert.match(sidebar, /border-block: var\(--row-air\) solid transparent; background-clip: padding-box; border-radius: var\(--r-row\)/);
   assert.match(sidebar, /\.rail-panel-group[^{}]*::before\s*\{[^}]*height: var\(--divider-width\); background: var\(--divider\)/);
   for (const value of declarations(sidebar + shell, '(?:scale|translate)')) assert.equal(value, 'none');
@@ -200,7 +209,7 @@ test('object chrome has a vertical fill, one ring and accessible opaque material
   assert.equal(declarations(tokens, '--glass-thick')[0], 'var(--surface)');
   assert.equal(declarations(tokens, '--glass-filter')[0], 'none');
   assert.equal(declarations(tokens, '--glass-sheen')[0], 'var(--object-fill)');
-  for (const [name, value] of Object.entries({ 'object-top': '#0f0f11', 'object-bottom': '#070708', 'object-fill': 'linear-gradient(var(--object-top), var(--object-bottom))', 'object-ring-width': '1px', 'object-edge-top': 'color-mix(in srgb, #fff 22%, transparent)', 'object-edge-bottom': 'color-mix(in srgb, #fff 6%, transparent)', 'object-ring': 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))', 'selected-edge-top': 'color-mix(in srgb, #fff 36%, transparent)', 'selected-edge-bottom': 'color-mix(in srgb, #fff 10%, transparent)' }))
+  for (const [name, value] of Object.entries({ 'object-top': '#151518', 'object-bottom': '#0b0b0d', 'object-sheen': 'radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)', 'object-fill': 'var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))', 'object-ring-width': '1px', 'object-edge-top': 'color-mix(in srgb, #fff 26%, transparent)', 'object-edge-bottom': 'color-mix(in srgb, #fff 7%, transparent)', 'object-ring': 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))', 'selected-edge-top': 'color-mix(in srgb, #fff 36%, transparent)', 'selected-edge-bottom': 'color-mix(in srgb, #fff 10%, transparent)' }))
     assert.equal(declarations(tokens, `--${name}`)[0], value);
   assert.equal(declarations(tokens, '--on')[0], '#ece6d8');
   assert.equal(declarations(tokens, '--on-ink')[0], '#141414');
@@ -290,8 +299,9 @@ test('workplanes and wells are opaque without blur and composer height never ani
   assert.match(side, /\.phantom-chat\s*\{[^}]*background-color:\s*var\(--workplane\);[^}]*background-image:\s*var\(--workplane-wash\)/);
   assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--well\)/);
   assert.match(chat, /\.pc-thread\s*\{[^}]*background:\s*var\(--well-terminal\)/);
-  assert.match(chat, /\.pc-composer\s*\{[^}]*background:\s*var\(--well-raised\)/);
-  assert.match(chat, /\.pc-field\s*\{[^}]*background:\s*transparent;[^}]*box-shadow: none/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*background:\s*var\(--well-terminal\)/);
+  assert.match(side, /\.phantom-chat \.pc-composer\s*\{[^}]*background:\s*var\(--well\)/);
+  assert.match(chat, /\.pc-field\s*\{[^}]*border-radius:\s*var\(--r-obj\);[^}]*background:\s*var\(--composer-fill\);[^}]*box-shadow:\s*inset 0 0 0 1px var\(--composer-ring\)/);
   assert.match(terminal, /\.pt-card-screen,[^{]+\{[^}]*background:\s*var\(--well-terminal\)/);
   const plane = /(?:^|[\s>+~])(?:\.pc|\.pc-thread|\.pc-composer|\.phantom-chat|\.pt-card|\.pt-card-screen|\.terminal-panel|\.terminal-host|\.canvas-node\[data-type="terminal"\])(?=[:.\[#]|$)(?:[^\s>+~]*)$/;
   for (const { name, css } of sheets) {
@@ -331,9 +341,14 @@ test('E5 session rows, quote and activity use two surface levels and measured pr
   assert.match(chat, /\.pc-tools::before\s*\{[^}]*left: 32px; top: 10px; bottom: 18px;[^}]*background: var\(--divider\)/);
   assert.match(chat, /\.pc-subagent\s*\{[^}]*background: none/);
   assert.match(chat, /\.pc-session-row\s*\{[^}]*border-radius: var\(--r-row\)/);
-  assert.match(chat, /\.pc-composer\s*\{[^}]*padding: 12px 24px 24px 28px;[^}]*border-top: var\(--divider-width\) solid var\(--divider\)/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*padding: 0 24px 24px;/);
+  assert.doesNotMatch(chat, /\.pc-composer\s*\{[^}]*border-top:/);
+  assert.match(chat, /\.pc-field:focus-within\s*\{[^}]*background:\s*var\(--composer-fill-lit\)/);
+  assert.match(chat, /\.pc-field textarea:focus-visible\s*\{[^}]*outline:\s*0/);
+  for (const [name, value] of Object.entries({ 'composer-fill': 'color-mix(in srgb, #fff 3%, transparent)', 'composer-fill-lit': 'color-mix(in srgb, #fff 5%, transparent)', 'composer-ring': 'color-mix(in srgb, #fff 8%, transparent)', 'composer-light-top': 'color-mix(in srgb, #fff 30%, transparent)', 'composer-max': '720px' }))
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
   for (const css of [chat, sheets.find(sheet => sheet.name === 'src/phantom-chat.css').css]) {
-    assert.doesNotMatch(css, /\.pc-field(?::hover|:focus-within|\.is-listening)\s*\{/);
+    assert.doesNotMatch(css, /\.pc-field(?::hover|\.is-listening)\s*\{/);
     assert.doesNotMatch(css, /\.pc\.is-focused \.pc-(?:composer|controls|field textarea)\s*\{/);
   }
 });
@@ -541,7 +556,8 @@ test('E4 settings use flat groups, inset dividers and borderless aligned control
   assert.match(css, /:is\(:hover, :active\) \+ \*::before/);
   assert.match(css, /\.st-row:hover\s*\{ background-color: var\(--row-hover\)/);
   assert.match(css, /\.st-row:active\s*\{ background-color: var\(--row-press\)/);
-  assert.match(css, /\.st :is\(\.st-input, \.st-select\)\s*\{[^}]*border: 0; background: var\(--control-fill\); box-shadow: none/);
+  assert.match(css, /\.st :is\(\.st-input, \.st-select\)\s*\{[^}]*border: 0; background: transparent; box-shadow: inset 0 0 0 1px color-mix\(in srgb, var\(--ink\) 12%, transparent\)/);
+  assert.match(css, /\.st :is\(\.st-input, \.st-select\):is\(:focus, :focus-visible\)\s*\{ outline: none; box-shadow: inset 0 0 0 1px color-mix\(in srgb, var\(--ink\) 40%, transparent\)/);
   assert.match(css, /\.st-switch > i\s*\{[^}]*transition: transform 200ms var\(--ease-settle\)/);
   assert.match(css, /\.st-switch\[aria-checked="true"\] > i\s*\{ transform: translateX\(18px\)/);
   for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {

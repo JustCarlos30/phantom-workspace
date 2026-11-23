@@ -90,7 +90,7 @@
 .app-shell .pc-models > input {
   height: 38px; margin: 0; padding: 0 16px; border-radius: 0; outline: 0; box-shadow: none;
   background: linear-gradient(var(--hairline), var(--hairline)) left bottom / 100% 1px no-repeat;
-  color: var(--ink-3); caret-color: var(--ink);
+  color: var(--ink-3); caret-color: var(--accent);
 }
 .app-shell .context-search { margin: -6px -6px 6px; padding: 0 16px; gap: var(--s-2); }
 .app-shell .context-search:focus-within, .app-shell .pc-models > input:focus-visible { outline: 0; box-shadow: none; }

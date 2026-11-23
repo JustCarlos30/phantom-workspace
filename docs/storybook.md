@@ -22,6 +22,8 @@ El modo de desarrollo escucha en **127.0.0.1:6006**. El build escribe `storybook
 - **Primitivas–Fondos**: doce familias con componentes de producción, incluidos Canvas, terminal xterm, ChatCard, dock, orquestador, Repository, Cards, Skills, Configuración, móvil y voz.
 - **Docs**, **Controls** y **Accessibility**: fuente del escenario, propiedades editables donde aplican y resultados del addon a11y. El addon expone incidencias; la existencia del catálogo y sus capturas no acreditan conformidad AA.
 
+- **Propuestas**: laboratorio de diseño exploratorio, de primitivas a pantalla completa (material, controles, compositor, hilo, sesión, dock y cabecera del rail). Cada story tiene variantes en Controls y una comparativa lado a lado, con datos marcados SYNTHETIC. Sus estilos viven solo en `src/stories/proposals.css` (clases `.px-`); no cambia producción ni se registra en `catalog.mjs` hasta que una variante se apruebe.
+
 Las propuestas de consolidación están separadas del estándar vigente. `DESIGN.md` sigue siendo la referencia de diseño; el catálogo no cambia contratos de producción.
 
 ## CSS y assets

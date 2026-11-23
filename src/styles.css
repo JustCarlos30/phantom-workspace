@@ -21,7 +21,7 @@
 .search-command{display:flex;align-items:center;gap:8px;border:1px solid transparent;height:31px;border-radius:var(--r-ctl);font-size:11px;color:var(--muted);padding:0 9px;margin-right:6px}
 .search-command kbd{font-size:9px;margin-left:20px}
 .attention-button{position:relative}
-.attention-button i{position:absolute;top:4px;right:5px;background:var(--accent);height:5px;width:5px;border-radius:50%}
+.attention-button i{position:absolute;top:4px;right:5px;background:var(--on);height:5px;width:5px;border-radius:50%}
 .workspace-body{flex:1;min-height:0;display:flex;position:relative}
 .canvas-region{flex:1;min-width:0;position:relative;overflow:hidden}
 .canvas{height:100%;width:100%;position:relative;background-color:var(--bg);overflow:hidden;touch-action:none;outline-offset:-4px!important}

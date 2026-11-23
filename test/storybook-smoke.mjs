@@ -11,7 +11,7 @@ const index = JSON.parse(await readFile(resolve(root, 'index.json'), 'utf8'));
 const stories = Object.values(index.entries).filter((entry) => entry.type === 'story');
 assert.ok(stories.length, 'El build no contiene stories');
 assert.equal(stories.length, 101, 'Conservar las 101 stories (99 previas, Procesos y Servicios se unieron en Entorno, más 2 de herramientas frecuentes)');
-assert.equal(catalog.length, 63, 'Conservar las 63 fuentes del catálogo');
+assert.equal(catalog.length, 64, 'Conservar las 64 fuentes del catálogo');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.gif': 'image/gif' };
 const server = createServer(async (req, res) => {
   try {
