@@ -636,14 +636,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .connection-error { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: var(--surface); background-image: var(--object-fill); }
 
 /* ---------- Buttons ---------- */
-.button { height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); font-weight: 550; transition: background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
-.button:hover { background: var(--fill-3); border: 0; }
-.button:active:not(:disabled) { scale: .98; }
-.button.primary, .tw-button.tw-primary { background: var(--primary); color: var(--primary-ink); border-color: transparent; }
-.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--primary-hover); }
-.icon-button { border-radius: var(--r-ctl); transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.icon-button:hover { background: var(--fill-2); color: var(--ink); }
-.icon-button.active { background: var(--accent-soft); color: var(--accent); }
 
 /* ---------- Top bar ---------- */
 .workspace-header, .activity-notch, .focus-return { border-radius: var(--r-obj); }
@@ -776,9 +768,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tw-field > input:hover, .tw-field > select:hover, .tw-field > textarea:hover { background: var(--fill-2); }
 .tw-field > input:focus-visible, .tw-field > select:focus-visible, .tw-field > textarea:focus-visible, .agent-editor input:focus-visible, .agent-editor select:focus-visible { outline: 0; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .tw-field input[type="file"]::file-selector-button { border: 0; border-radius: var(--r-ctl); background: var(--fill-3); }
-.tw-button { border-color: transparent; border-radius: var(--r-ctl); background: var(--fill-2); font-weight: 550; }
-.tw-button:hover:not(:disabled) { background: var(--fill-3); border-color: transparent; }
-.tw-button:active:not(:disabled) { background: var(--fill-3); }
 .tw-tabs { gap: 2px; padding: 2px; margin-bottom: 14px; border-radius: var(--r-ctl); background: var(--fill); width: fit-content; max-width: 100%; }
 .tw-tabs .tw-button { min-height: 26px; padding: 3px 11px; border-radius: var(--r-ctl); background: none; color: var(--muted); }
 .tw-tabs .tw-button:hover:not(:disabled) { background: none; color: var(--ink); }
@@ -1222,18 +1211,18 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
   transition-timing-function: linear;
 }
 
-.button.primary, .tw-button.tw-primary, .pc-send:not(:disabled) { box-shadow: var(--shadow-key); }
-.button.primary, .tw-button.tw-primary, .phantom-chat .pc-send:not(:disabled):not(.is-stop) {
+.pc-send:not(:disabled) { box-shadow: var(--shadow-key); }
+.phantom-chat .pc-send:not(:disabled):not(.is-stop) {
   background-image: none;
 }
-.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled), .phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) {
+.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) {
   background-image: none;
 }
 .pc-modes, .pd-tabs, .tw-tabs { box-shadow: var(--shadow-well); }
 .pc-modes::before, .pd-tabs button[aria-selected="true"],
 .activity-dock .dock-main .dock-action.active, .dock-main button.active,
 .canvas-navigation button:is([aria-pressed="true"], [aria-expanded="true"]) { box-shadow: var(--shadow-key); }
-.button.primary:active:not(:disabled), .tw-button.tw-primary:active:not(:disabled), .pc-send:active:not(:disabled),
+.pc-send:active:not(:disabled),
 .pd-tabs button[aria-selected="true"]:active:not(:disabled),
 .activity-dock .dock-main .dock-action.active:active:not(:disabled), .dock-main button.active:active:not(:disabled),
 .canvas-navigation button:is([aria-pressed="true"], [aria-expanded="true"]):active:not(:disabled),
@@ -1261,11 +1250,20 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
    icon buttons and toolbar controls rest on nothing: the island is their box.
    The rail, top bar, navigation and dock own their states in sidebar.css and
    shell.css. */
-.button, .tw-button { background: var(--fill); }
+.button { height: 34px; padding: 0 14px; }
+.button, .tw-button { border: 0; border-radius: var(--r-ctl); background: var(--fill); box-shadow: none; font-weight: 550; }
 .button:hover, .tw-button:hover:not(:disabled) { background: var(--fill-3); }
-.button.primary, .tw-button.tw-primary { background: var(--primary); color: var(--primary-ink); box-shadow: var(--shadow-key); }
+.button.primary, .tw-button.tw-primary { background: var(--primary); background-image: none; color: var(--primary-ink); box-shadow: none; }
 .button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--primary-hover); color: var(--primary-ink); }
 .button.primary:active:not(:disabled), .tw-button.tw-primary:active:not(:disabled) { background: var(--primary-press); }
+.icon-button { width: var(--control-size); height: var(--control-size); border-radius: 50%; }
+.icon-button:not(.active):hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+:is(.tw-button, .button, .icon-button):disabled,
+:is(.tw-button, .button, .icon-button):disabled:hover { background: var(--control-fill); color: var(--ink-3); }
+:is(.tw-button, .button, .icon-button):focus-visible { outline: 2px solid var(--on); outline-offset: 2px; }
+@media (pointer: coarse) {
+  :is(.tw-button, .button, .icon-button) { min-height: 44px; min-width: 44px; }
+}
 .icon-button.active,
 .tw-tabs .tw-button[aria-pressed="true"],
 .activity-tray .activity-filters button[aria-pressed=true],
