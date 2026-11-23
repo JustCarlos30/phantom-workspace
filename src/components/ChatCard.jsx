@@ -606,7 +606,7 @@ const share = ratio => ratio < .01 ? '<1' : String(Math.round(ratio * 100));
 // The meter opens a panel that reads the context against quality/cost bands and
 // offers compaction. `onCompact` is optional: until a provider wires it the
 // action stays visible but disabled, so the recommendation is never a dead end.
-export function ContextMeter({ meta, running = false, onCompact, onNew, reveal = 0 }) {
+export function ContextMeter({ meta, running = false, onCompact, onNew, reveal = 0, blocked = '' }) {
   const use = contextUse(meta);
   const [open, setOpen] = useState(false);
   const root = useRef(null), trigger = useRef(null), panel = useRef(null);
@@ -620,9 +620,11 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [open]);
-  if (!use) return <span className="pc-context is-empty" title="El proveedor no ha expuesto una medición válida de la última petición">{running ? 'Operación en curso…' : 'Contexto no disponible'}{onCompact && <button type="button" disabled={running} onClick={onCompact}>Compactar…</button>}</span>;
+  if (!use) return null;
   const advice = contextAdvice(use);
   const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
+  const fill = Math.min(1, use.window ? use.ratio : use.tokens / (CONTEXT_TOKEN_BANDS.compact * 1.5)), ring = 2 * Math.PI * 8;
+  const percent = Math.round(use.ratio * 100);
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
   const perTurn = Number.isFinite(meta.costUsd) && meta.costUsd > 0 && meta.turns > 0 ? meta.costUsd / meta.turns : null;
   const bands = use.window
@@ -631,15 +633,18 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
   // Without a window the scale ends at 1.5× the compaction size.
   const watchAt = use.window ? CONTEXT_BANDS.watch * 100 : 100 / 1.5 * CONTEXT_TOKEN_BANDS.watch / CONTEXT_TOKEN_BANDS.compact;
   const compactAt = use.window ? CONTEXT_BANDS.compact * 100 : 100 / 1.5;
-  const compactBlocked = running ? 'Disponible cuando termine la respuesta' : '';
+  const compactBlocked = running ? 'Disponible cuando termine la respuesta' : blocked;
   return <span ref={root} className="pc-context-wrap">
-    <button ref={trigger} type="button" className={`pc-context ${level} is-${advice.band} ${open ? 'is-open' : ''}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
+    <button ref={trigger} type="button" className={`pc-context ${level} is-${advice.band} ${open ? 'is-open' : ''}`} data-danger={use.window && use.ratio >= .95 || undefined} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
+      aria-label={use.window ? `Contexto: ${formatTokens(use.tokens)} de ${formatTokens(use.window)} tokens, ${percent} %` : `Contexto: ${formatTokens(use.tokens)} tokens`}
       title={use.window ? `${use.tokens.toLocaleString()} de ${use.window.toLocaleString()} tokens de contexto en uso · ${advice.title}` : `${use.tokens.toLocaleString()} tokens de contexto en uso · ${advice.title}`}
       onClick={() => setOpen(value => !value)}>
-      {use.window && <span className="pc-context-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.min(100, use.ratio * 100))}%` }} /></span>}
-      <span>{formatTokens(use.tokens)}{use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}</span>
-      {use.window && <span className="pc-context-share">{share(use.ratio)}%</span>}
-      {advice.band === 'compact' && <span className="pc-context-flag">larga</span>}
+      <svg className="pc-context-ring" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+        <circle className="pc-context-ring-track" cx="10" cy="10" r="8" />
+        <circle className="pc-context-ring-arc" cx="10" cy="10" r="8" strokeDasharray={`${ring * fill} ${ring}`} transform="rotate(-90 10 10)" />
+      </svg>
+      {use.window && use.ratio >= .7 && <span className="pc-context-share">{percent} %</span>}
+      {use.window && use.ratio >= .9 && <span className="pc-context-low">Queda poco contexto</span>}
     </button>
     {open && <div ref={panel} id={id} className={`pc-context-panel is-${advice.band}`} role="dialog" aria-label="Ventana de contexto" tabIndex={-1}
       onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }}>
@@ -672,10 +677,12 @@ export function ContextMeter({ meta, running = false, onCompact, onNew, reveal =
         <div><dt>Costo acumulado</dt><dd>{formatCost(meta.costUsd)}</dd></div>
         <div><dt>Promedio por turno</dt><dd>{formatCost(perTurn)}</dd></div>
       </dl>}
-      {onCompact ? <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || 'Resumir el historial y liberar la ventana'}
+      {onCompact && <button type="button" className={`pc-context-compact ${advice.band === 'compact' && !compactBlocked ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || 'Resumir el historial y liberar la ventana'}
         onClick={() => { close(); onCompact(); }}>
         <FoldVertical size={14} aria-hidden="true" />Compactar…
-      </button> : onNew && advice.band !== 'ok' && <button type="button" className={`pc-context-compact ${advice.band === 'compact' ? 'is-primary' : ''}`} disabled={!!compactBlocked} title={compactBlocked || undefined}
+      </button>}
+      {onCompact && compactBlocked && <p className="pc-context-note">{compactBlocked}</p>}
+      {onNew && advice.band !== 'ok' && <button type="button" className={`pc-context-compact ${advice.band === 'compact' && (!onCompact || compactBlocked) ? 'is-primary' : ''}`} disabled={running} title={running ? 'Disponible cuando termine la respuesta' : undefined}
         onClick={() => { close(); onNew(); }}>
         <MessageSquarePlus size={14} aria-hidden="true" />Empezar conversación nueva
       </button>}
@@ -769,7 +776,9 @@ export function SessionContext({ node, workspace, api, notify, provider, label, 
   </section>;
 }
 
-export function CompactionControls({ chat, connected, capabilities, compact, continueSession, reveal = 0 }) {
+// Compaction for the composer: props for the meter in the island, one status
+// line above it only while something real happens, and Codex's continuation form.
+export function useCompaction({ chat, connected, capabilities, compact, continueSession }) {
   const [busy, setBusy] = useState(false), [capability, setCapability] = useState(null), [summary, setSummary] = useState('');
   const pending = useRef(false);
   useEffect(() => { setCapability(null); setSummary(''); }, [chat?.provider, chat?.sessionId]);
@@ -790,20 +799,39 @@ export function CompactionControls({ chat, connected, capabilities, compact, con
     catch { /* Keep the reviewed summary for retry. */ }
     finally { pending.current = false; setBusy(false); }
   };
-  return <div>
-    <ContextMeter meta={chat?.meta || {}} running={!!blocked || busy} reveal={reveal} onCompact={act} />
-    {blocked && <small role="status">{blocked}</small>}
-    {chat?.operation && <p role="status">{chat.operation === 'compact' ? 'Compactando con la API nativa…' : 'Comprobando capacidades instaladas…'} Puedes detener la operación.</p>}
-    {latest && <p role="status">{latest.status === 'done' ? 'Compactación nativa verificada. La medición se actualizará con la próxima petición; no se calcula ahorro.' : latest.status === 'running' ? 'Compactación en curso.' : `Compactación sin verificar (${latest.status}): ${latest.error || ''}`}</p>}
-    {continuation && <p role="status">{continuation.status === 'done' ? 'Sesión nueva de Codex confirmada; resumen e historial preservados.' : `Continuidad de Codex: ${continuation.status}${continuation.error ? ` · ${continuation.error}` : ''}`}</p>}
-    {capability?.kind === 'continuation' && <section aria-label="Continuar Codex con resumen">
+  const status = [
+    chat?.operation && `${chat.operation === 'compact' ? 'Compactando con la API nativa…' : 'Comprobando capacidades instaladas…'} Puedes detener la operación.`,
+    latest && (latest.status === 'done' ? 'Compactación nativa verificada. La medición se actualizará con la próxima petición; no se calcula ahorro.' : latest.status === 'running' ? 'Compactación en curso.' : `Compactación sin verificar (${latest.status}): ${latest.error || ''}`),
+    continuation && (continuation.status === 'done' ? 'Sesión nueva de Codex confirmada; resumen e historial preservados.' : `Continuidad de Codex: ${continuation.status}${continuation.error ? ` · ${continuation.error}` : ''}`),
+  ].filter(Boolean).join(' · ');
+  return {
+    meter: { running: !!chat?.running || !!chat?.operation || busy, blocked, onCompact: act },
+    status: status ? <p className="pc-status-line" role="status">{status}</p> : null,
+    form: capability?.kind === 'continuation' ? <section className="pc-continuation" aria-label="Continuar Codex con resumen">
       <p>{capability.reason}</p>
       <label>Resumen para la sesión nueva (revísalo antes de enviar)<textarea value={summary} disabled={busy} onChange={event => setSummary(event.target.value)} maxLength={32768} /></label>
       <p>Se enviará este resumen a una sesión nueva con los mismos permisos y modelo. El historial anterior seguirá visible.</p>
       <button type="button" disabled={!!blocked || busy || !summary.trim()} onClick={proceed}>Crear sesión nueva y enviar resumen</button>
       <button type="button" disabled={busy} onClick={() => setCapability(null)}>Cancelar</button>
-    </section>}
-  </div>;
+    </section> : null,
+  };
+}
+
+// «Contexto de la sesión» as a chip in the island; its settings open above it.
+export function SessionChip({ cwd, children }) {
+  const root = useRef(null), [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const outside = e => { if (!root.current?.contains(e.target)) root.current.open = false; };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]);
+  const name = String(cwd || '').split('/').filter(Boolean).at(-1) || 'Sesión';
+  return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
+    onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
+    <summary className="pc-session-chip" aria-label="Contexto de la sesión" title={cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}</span></summary>
+    <div className="pc-session-pop">{children}</div>
+  </details>;
 }
 
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
@@ -893,7 +921,9 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   };
   submitRef.current = submit;
   const model = meta.model;
-  const context = <SessionContext node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} model={model} permissionMode={permissionMode} running={running} ready={!!chat} />;
+  const compaction = useCompaction({ chat, connected, capabilities, compact, continueSession });
+  const startNew = () => clear().catch(() => {});
+  const context =<SessionContext node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} model={model} permissionMode={permissionMode} running={running} ready={!!chat} />;
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
     return <div className="pt-card pc is-overview" data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
@@ -923,7 +953,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     <form className="pc-composer" data-dictating={voice.status !== 'idle' || undefined} onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
       <ContextNudge key={`${node.id}.${chat?.messages?.[0]?.id || 'empty'}`} nodeId={node.id} firstMessageId={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
-      {messages.length > 0 && <details className="pc-session-settings"><summary>Contexto de la sesión<ChevronDown size={16} aria-hidden="true" /></summary><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</details>}
+      {compaction.status}
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         {voice.error && <p className="voice-inline-error" role="alert">{voice.error}</p>}
         <div className="pc-input" data-preview={voice.status !== 'idle' || undefined}>
@@ -932,17 +962,18 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         </div>
         <div className="pc-controls">
           <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
-          {voice.status === 'idle' && <button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={18} /></button>}
+          {voice.status === 'idle' && <button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={startNew}><MessageSquarePlus size={18} /></button>}
+          {voice.status === 'idle' && messages.length > 0 && <SessionChip cwd={locationOf(node, workspace).cwd}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>}
+          <span className="pc-bar-space" />
+          <ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />
+          {voice.status === 'idle' && messages.length > 0 && <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />}
+          {voice.status === 'idle' && messages.length > 0 && <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />}
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : `Dictar a ${label}`} aria-label={`Dictar a ${label}`} onClick={voice.start}><Mic size={18} /></button>}
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
         </div>
       </div>
-      <div className="pc-meta">
-         <CompactionControls chat={chat} connected={connected} capabilities={capabilities} compact={compact} continueSession={continueSession} reveal={reveal} />
-        <span className="pc-bar-space" />
-        {voice.status === 'idle' && <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>}
-      </div>
+      {compaction.form}
     </form>
   </div>;
 }

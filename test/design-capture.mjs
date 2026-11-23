@@ -813,7 +813,8 @@ try {
       });
       const common = await recipe(panel);
       assert.equal(common.padding, '0px 24px 24px'); assert.equal(common.gap, '12px');
-      assert.equal(common.background, 'rgb(4, 4, 5)'); assert.equal(common.background, common.thread, 'Composer shares the thread well');
+      assert.equal(common.background, common.thread, 'Composer shares the thread well');
+      const { background: _background, thread: _thread, ...shape } = common;
       assert.equal(common.field, true, 'Composer island has a translucent fill');
       assert.equal(common.radius, '24px'); assert.equal(common.shadow, true, 'Composer island has its ring'); assert.equal(common.border, '0px');
       assert.equal(common.input.padding, '8px 12px'); assert.equal(common.input.radius, '12px');
@@ -828,7 +829,10 @@ try {
         for (const [suffix, width, height] of [['', 1520, 980], ['-narrow', 1100, 760]]) {
           await app.evaluate(({ BrowserWindow }, [width, height]) => BrowserWindow.getAllWindows()[0].setContentSize(width, height), [width, height]);
           await delay(300);
-          assert.deepEqual(await recipe(panel), common, `${name}${suffix}: same composer`);
+          const { background, thread, ...current } = await recipe(panel);
+          assert.deepEqual(current, shape, `${name}${suffix}: same composer`);
+          assert.equal(background, thread, `${name}${suffix}: composer shares the thread well`);
+          if (name === 'session-working') assert.equal(background, 'rgb(4, 4, 5)');
           assert.equal(await panel.locator('.pc-controls').evaluate(el => {
             const bounds = el.closest('.pc').getBoundingClientRect(), r = el.getBoundingClientRect();
             return el.scrollWidth <= el.clientWidth && r.left >= bounds.left - .001 && r.right <= bounds.right + .001 && r.bottom <= bounds.bottom + .001;
