@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { validateAgent } from './agents.mjs';
+import { validateAgent, validatePlan } from './agents.mjs';
 import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '../shared/plugins.mjs';
 import { validateUsage, recordUsage } from '../shared/project-usage.mjs';
 import { validateReference, validateComments } from './references.mjs';
@@ -82,7 +82,7 @@ export function validateState(input, { clone = true } = {}) {
       assert(Array.isArray(w[key]) && w[key].length <= 10000, `Invalid ${key}`); const seen = new Set();
       for (const item of w[key]) { object(item); assert(uuid(item.id) && !seen.has(item.id), `Invalid ${key} ID`); seen.add(item.id); }
     }
-    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
+    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); if (n.data.plan !== undefined) { assert(n.type === 'terminal', 'Plan only on terminal nodes'); validatePlan(n.data.plan); } text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
     for (const n of w.nodes) validatePluginPanel(n.type, n.data);
     for (const n of w.nodes) if (n.type === 'reference') validateReference(n.data);
     if (w.comments !== undefined) validateComments(w.comments, w.nodes);
