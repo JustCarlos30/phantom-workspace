@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, X, LoaderCircle } from 'lucide-react';
+const MOD = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgentData?.platform || navigator.platform || '') ? '⌘' : 'Ctrl';
 import { TerminalIcon as TerminalSquare, NoteIcon as StickyNote, LayersIcon as Layers, FitIcon as LocateFixed, SelectIcon as MousePointer2, HandIcon as Hand, MinimapIcon as MapIcon, CommentIcon as MessageCircle } from './ShellIcons.jsx';
 import Minimap from './Minimap';
 import CanvasNode, { ChatAlertWatcher, ReviewContext } from './canvas/CanvasNode.jsx';
