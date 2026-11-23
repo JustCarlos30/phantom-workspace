@@ -22,6 +22,22 @@ export function resetIn(resetsAt, now = Date.now()) {
   return `en ${Math.floor(h / 24)} d`;
 }
 
+const agoText = (value, now) => {
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  const min = Math.max(0, Math.floor((now - t) / 60000));
+  if (min < 1) return 'hace un momento';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  return h < 24 ? `hace ${h} h` : `hace ${Math.floor(h / 24)} d`;
+};
+
+const retryText = (value, now) => {
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  return `reintenta en ${Math.max(1, Math.ceil((t - now) / 60000))} min`;
+};
+
 export function summarize(data, now = Date.now()) {
   const providers = Array.isArray(data?.providers) ? data.providers : [];
   return providers.map(p => {
@@ -33,6 +49,11 @@ export function summarize(data, now = Date.now()) {
       plan: p.plan ?? null,
       available: !!p.available,
       reason: p.reason ?? null,
+      status: p.status ?? null,
+      stale: p.stale === true,
+      staleSince: p.stale ? agoText(p.staleSince, now) : null,
+      retryAt: p.retryAt ?? null,
+      retry: p.retryAt ? retryText(p.retryAt, now) : null,
       percent,
       tone: percent == null ? 'ok' : toneOf(percent),
       windows: (Array.isArray(p.windows) ? p.windows : []).map(w => {
