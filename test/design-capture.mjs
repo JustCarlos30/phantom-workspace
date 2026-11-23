@@ -118,7 +118,12 @@ const shot = async scene => {
     for (const el of document.querySelectorAll('.project-rail,.canvas-node,.inspector-host,.activity-dock,.canvas-navigation,.context-menu-panel,.pc-models')) {
       if (!el.getClientRects().length) continue;
       const style = getComputedStyle(el), ring = getComputedStyle(el, '::before');
-      if (style.backgroundColor !== 'rgb(11, 11, 12)' || style.backgroundImage !== 'linear-gradient(rgb(15, 15, 17), rgb(7, 7, 8))') throw new Error(`Missing object material: ${el.className}`);
+      const fillProbe = document.createElement('div'); el.append(fillProbe);
+      fillProbe.style.position = 'absolute';
+      fillProbe.style.backgroundImage = 'var(--object-fill)';
+      const expectedFill = getComputedStyle(fillProbe).backgroundImage;
+      fillProbe.remove();
+      if (style.backgroundColor !== 'rgb(11, 11, 12)' || style.backgroundImage !== expectedFill) throw new Error(`Missing object material: ${el.className}`);
       if (style.backdropFilter !== 'none' || ['Top', 'Right', 'Bottom', 'Left'].some(side => style[`border${side}Width`] !== '0px')) throw new Error(`Blur or extra edge: ${el.className}`);
       const probe = document.createElement('div'); el.append(probe);
       probe.style.position = 'absolute';
