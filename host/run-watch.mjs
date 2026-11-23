@@ -49,6 +49,15 @@ export function noticeMessage(kind, { taskId, run, blocker } = {}) {
   return '';
 }
 
+export const AMEND_STEP = 'Presupuesto ampliado; relanza el encargo';
+
+// Notice after the user widened a budget from the UI (result = phantom amend payload).
+export function amendNotice(taskId, result) {
+  const id = line(taskId, 200);
+  const what = result?.expanded === 'turns' ? `el límite de turnos a ${Number(result.maxTurns)}` : `el límite de tokens a ${Number(result?.maxTokens)}`;
+  return [NOTICE_HEAD, `El usuario amplió el presupuesto del encargo Phantom ${id}: ${what}.`, `Relánzalo con \`agent.mjs run ${id}\` y comprueba el resultado.`].join(' ');
+}
+
 // Per-run throttle: at most one intermediate notice per `gapMs`, and a cap of its own per node.
 export function createNoticeLimit({ gapMs = NOTICE_MIN_GAP_MS, max = 6 } = {}) {
   const lastByRun = new Map(), counts = new Map();
@@ -90,7 +99,7 @@ export function createRunWatch({ fetchHealth, fetchTask, apply, notify, now = Da
     else if (!ended) {
       if (run.looping) { if (!state.looping) wanted.push('looping'); } else state.looping = false;
       if (run.round > state.round) wanted.push('repair');
-      if (run.idleMs >= NOTICE_STALL_MS) { if (!state.stalled) wanted.push('stalled'); } else state.stalled = false;
+      if (run.idleMs >= NOTICE_STALL_MS && run.children.done >= run.children.total) { if (!state.stalled) wanted.push('stalled'); } else state.stalled = false;
     }
     const kind = wanted[0];
     if (!kind || !limit.available(target.id, target.nodeId, at)) return;

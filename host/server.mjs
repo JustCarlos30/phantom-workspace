@@ -26,7 +26,7 @@ import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
 import { startPatch, finishPatch, cardNode } from './run-binding.mjs';
-import { createRunWatch, createNoticeLimit, buildRun, stepLine } from './run-watch.mjs';
+import { createRunWatch, createNoticeLimit, buildRun, stepLine, amendNotice, AMEND_STEP } from './run-watch.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
@@ -541,6 +541,15 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     });
     if(method==='host.shutdown') {setTimeout(()=>close().catch(error=>console.error(error.message)),30);return {ok:true};}
     const answer=await routeIntegration(method,p);assert(answer?.handled,`Unknown method: ${method}`);
+    if(method==='phantom.control'&&p.action==='amend'&&answer.result?.action==='amend'){
+      try{
+        const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.type==='terminal'&&n.data.agent?.cardId===p.id);
+        if(node){
+          const delivered=await deliverNotice({workspaceId:w.id,nodeId:node.id,via:'terminal'},'amend',amendNotice(p.id,answer.result));
+          if(!delivered?.delivered)mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);if(current?.data.agent?.cardId===p.id)current.data.agent={...current.data.agent,step:AMEND_STEP,updatedAt:new Date().toISOString()};});
+        }
+      }catch{}
+    }
     // The full task catalog (no query filter) is what proves a unique match.
     if(method==='phantom.list'&&p.topic==='tasks'&&!p.query&&answer.result?.available&&Array.isArray(answer.result.items)) autoBind(p.workspaceId,answer.result.items);
     return answer.result;

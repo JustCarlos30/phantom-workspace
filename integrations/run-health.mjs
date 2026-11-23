@@ -9,7 +9,6 @@ const DONE_CHILD = ['completed', 'done', 'failed', 'cancelled', 'blocked', 'sett
 const relevantType = type => /^(?:process|child|action|task|run|verification|judge)\./.test(type ?? '');
 const timestamp = event => Date.parse(event?.at);
 const oneLine = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-const clock2 = ms => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 function actionTarget(data) {
   const args = data.args ?? {};
@@ -30,7 +29,7 @@ export function summarizeRunHealth(events, now = Date.now(), opts = {}) {
   let phase = 'running', current = null, reason = null;
   let stage = 'waiting', round = 0, recorded = false, judging = false;
   const children = new Map(), actions = new Map(), log = [];
-  const note = (event, text) => { const line = oneLine(text, 190); if (line) log.push({ at: event.at, text: `${clock2(timestamp(event))} ${line}` }); };
+  const note = (event, text) => { const line = oneLine(text, 190); if (line) log.push({ at: event.at, text: line }); };
   for (const event of selected) {
     const data = event.data ?? {};
     if (event.type === 'run.started') { phase = 'running'; stage = 'waiting'; }
@@ -80,11 +79,11 @@ export function summarizeRunHealth(events, now = Date.now(), opts = {}) {
   const counts = new Map();
   for (const signature of signatures) counts.set(signature, (counts.get(signature) ?? 0) + 1);
   const looping = !ended && [...counts.values()].some(count => count >= loopThreshold);
-  const stalled = !ended && idleMs >= stallMs;
+  const open = [...children.values()].filter(done => !done).length;
+  const stalled = !ended && open === 0 && idleMs >= stallMs;
   const blockReason = reason;
   if (!reason && looping) reason = 'Repeated action loop detected';
   else if (!reason && stalled) reason = 'No relevant events within the stall threshold';
-  const open = [...children.values()].filter(done => !done).length;
   if (!ended && open > 0 && (stage === 'agent' || stage === 'repair')) stage = 'children';
   const activity = oneLine(ended ? { completed: 'completado', blocked: 'bloqueado', cancelled: 'cancelado' }[phase]
     : judging ? 'juez revisando'

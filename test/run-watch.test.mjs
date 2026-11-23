@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { summarizeRunHealth } from '../integrations/run-health.mjs';
-import { buildRun, stepLine, noticeMessage, createNoticeLimit, createRunWatch, NOTICE_HEAD, NOTICE_STALL_MS } from '../host/run-watch.mjs';
+import { buildRun, stepLine, noticeMessage, createNoticeLimit, createRunWatch, NOTICE_HEAD, NOTICE_STALL_MS, amendNotice, AMEND_STEP } from '../host/run-watch.mjs';
 import { createRunWake, wakeMessage } from '../host/run-wake.mjs';
 import { finishPatch } from '../host/run-binding.mjs';
 import { validateAgent } from '../host/agents.mjs';
@@ -85,6 +85,27 @@ test('avisos: stalled una vez por episodio, con cabecera y comandos; sin avisos 
   h.at(NOTICE_STALL_MS * 3); await h.watch.tick();
   assert.equal(h.sent.length, 1, 'mismo episodio: no repite');
   h.watch.stop();
+});
+
+test('avisos: con hijos abiertos no hay aviso stalled; al cerrarse vuelve el umbral', async () => {
+  const events = [ev(0, 'run.started'), ev(1, 'task.running'), ev(2, 'child.started', { id: 'c1' })];
+  const h = harness(now => summarizeRunHealth(events, now));
+  h.watch.track(target);
+  h.at(NOTICE_STALL_MS * 2); await h.watch.tick();
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.applied.at(-1).run.stalled, false);
+  events.push(ev(3, 'child.completed', { id: 'c1' }));
+  h.at(NOTICE_STALL_MS * 3); await h.watch.tick();
+  assert.deepEqual(h.sent.map(s => s.kind), ['stalled']);
+  h.watch.stop();
+});
+
+test('aviso de presupuesto ampliado: cabecera, qué y a cuánto, y relanzar', () => {
+  const tokens = amendNotice('task_1', { action: 'amend', expanded: 'tokens', maxTokens: 1350000 });
+  assert.ok(tokens.startsWith(NOTICE_HEAD)); assert.match(tokens, /tokens a 1350000/); assert.match(tokens, /agent\.mjs run task_1/);
+  assert.match(amendNotice('task_1', { expanded: 'turns', maxTurns: 150 }), /turnos a 150/);
+  assert.equal(/[\u0000-\u001f\u007f]/.test(tokens), false);
+  assert.match(AMEND_STEP, /Presupuesto ampliado; relanza el encargo/);
 });
 
 test('avisos: entrada en reparación, throttle de 3 min y tope propio por nodo', async () => {

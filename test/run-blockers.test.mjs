@@ -83,6 +83,7 @@ async function amendFixture(t, taskOverride = {}) {
   const workspace = { id: randomUUID(), path: root, canonicalPath: root, services: [] };
   const calls = [];
   const taskRaw = { id: 'task_9', status: 'blocked', revision: 4, contract: { workspace: root, budget: { maxTokens: 900000 } }, ...taskOverride };
+  taskRaw.contract = { workspace: root, ...taskRaw.contract };
   const context = { workspace, getWorkspace: id => id === workspace.id ? workspace : undefined, state: { settings: { phantomPath: cli } }, dataDir: path.join(home, 'state'), sessions: [], emit() {}, persist: async () => {} };
   context.execFile = async (file, args) => {
     if (file === 'git') throw new Error('No Git transport');
@@ -98,8 +99,42 @@ test('amend: x1.5 sobre maxTokens con motivo y revisión vigente', async t => {
   const result = await f.call({ id: 'task_9', reason: 'El usuario aprobó ampliar' });
   assert.equal(result.maxTokens, 1350000); assert.equal(result.previousMaxTokens, 900000); assert.equal(result.reason, 'El usuario aprobó ampliar');
   const amend = f.calls.find(args => args[0] === 'amend');
-  assert.deepEqual(amend.slice(0, 7), ['amend', 'task_9', '--max-tokens', '1350000', '--reason', 'El usuario aprobó ampliar', '--revision']);
-  assert.equal(amend[7], '4');
+  // --revision = límite de tokens vigente esperado; --contract-revision = revisión del contrato.
+  assert.deepEqual(amend, ['amend', 'task_9', '--max-tokens', '1350000', '--reason', 'El usuario aprobó ampliar', '--revision', '900000', '--contract-revision', '4', '--json']);
+});
+
+test('amend: sin maxTokens vigente ni revisión no envía --revision ni --contract-revision', async t => {
+  const f = await amendFixture(t, { revision: undefined, contract: { budget: {} } });
+  await f.call({ id: 'task_9', reason: 'El usuario aprobó ampliar' });
+  assert.deepEqual(f.calls.find(args => args[0] === 'amend'), ['amend', 'task_9', '--max-tokens', '500000', '--reason', 'El usuario aprobó ampliar', '--json']);
+});
+
+test('amend: motivo de turnos amplía --max-turns x1.5 y devuelve qué amplió', async t => {
+  const f = await amendFixture(t, { reason: 'Presupuesto agregado de turns agotado', contract: { budget: { maxTokens: 900000, maxTurns: 100 } } });
+  const result = await f.call({ id: 'task_9', reason: 'El usuario aprobó ampliar' });
+  assert.equal(result.expanded, 'turns'); assert.equal(result.maxTurns, 150); assert.equal(result.previousMaxTurns, 100);
+  assert.deepEqual(f.calls.find(args => args[0] === 'amend').slice(0, 4), ['amend', 'task_9', '--max-turns', '150']);
+  assert.equal(f.calls.find(args => args[0] === 'amend').includes('--max-tokens'), false);
+});
+
+test('amend: sin maxTurns vigente usa 150 x1.5; motivo de tiempo se rechaza', async t => {
+  const f = await amendFixture(t, { blockedReason: 'Presupuesto de turnos agotado' });
+  assert.equal((await f.call({ id: 'task_9', reason: 'El usuario aprobó ampliar' })).maxTurns, 225);
+  const g = await amendFixture(t, { reason: 'Presupuesto de tiempo agotado' });
+  await assert.rejects(g.call({ id: 'task_9', reason: 'El usuario aprobó ampliar' }), /tiempo/);
+  assert.equal(g.calls.some(args => args[0] === 'amend'), false);
+});
+
+test('bloqueos de presupuesto: turnos -> --max-turns; tiempo -> contrato nuevo', () => {
+  const t = { id: 'task_1', contract: { budget: { maxTokens: 900000, maxTurns: 100 } } };
+  const turns = cls('Presupuesto agregado de turns agotado', t);
+  assert.equal(turns.category, 'budget'); assert.equal(turns.autonomy, 'ask_user');
+  assert.deepEqual(turns.commands, ['phantom amend task_1 --max-turns 150 --reason "presupuesto de turnos ampliado con aprobación del usuario"', 'agent.mjs run task_1']);
+  assert.match(cls('Presupuesto de turnos agotado', { id: 'task_1' }).commands[0], /--max-turns 225 /);
+  const time = cls('Presupuesto de tiempo agotado', t);
+  assert.equal(time.category, 'contract'); assert.equal(time.autonomy, 'orchestrator');
+  assert.equal(time.commands.some(c => c.includes('amend')), false);
+  assert.match(cls('Presupuesto de tokens agotado', t).commands[0], /--max-tokens 1350000 /);
 });
 
 test('amend: validación estricta del payload', async t => {

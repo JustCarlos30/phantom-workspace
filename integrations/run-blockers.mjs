@@ -8,6 +8,19 @@ export function amendedMaxTokens(current) {
   return Number.isFinite(current) && current > 0 ? Math.ceil(current * 1.5) : DEFAULT_MAX_TOKENS;
 }
 
+export const DEFAULT_MAX_TURNS = 150;
+export function amendedMaxTurns(current) {
+  return Number.isFinite(current) && current > 0 ? Math.ceil(current * 1.5) : Math.ceil(DEFAULT_MAX_TURNS * 1.5);
+}
+
+// Which budget dimension a block reason names: 'time' | 'turns' | 'tokens' (default).
+export function budgetKind(reason) {
+  const text = clean(reason, 2000);
+  if (/tiempo|timeout|time budget/i.test(text)) return 'time';
+  if (/\bturns?\b|turnos|maxTurns|max_?turns/i.test(text)) return 'turns';
+  return 'tokens';
+}
+
 // "resets 1:50pm (America/Mexico_City)" -> next ISO instant; only when the zone is stated and known.
 export function parseRetryAt(text, now = Date.now()) {
   const match = /resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b[^()\n]{0,20}\(\s*([A-Za-z_]+\/[A-Za-z_]+)\s*\)/i.exec(text);
@@ -41,6 +54,12 @@ export function classifyBlocker(reason, task, now = Date.now()) {
   const out = ({ autonomy, summary, remedy, commands = [], retryAt }) => ({ category, autonomy, summary: clean(summary, 300), remedy: clean(remedy, 400), commands: commands.map(c => clean(c, 300)).slice(0, 4), ...(retryAt ? { retryAt } : {}) });
   if (category === 'budget') {
     const budget = task?.contract?.budget ?? task?.raw?.contract?.budget;
+    const kind = budgetKind(text);
+    if (kind === 'time') return { ...out({ autonomy: 'orchestrator', summary: 'El run agotó su presupuesto de tiempo.',
+      remedy: 'amend no admite el tiempo: crea un contrato nuevo con más timeoutMs y cancela el encargo bloqueado.', commands: inspect }), category: 'contract' };
+    if (kind === 'turns') return out({ autonomy: 'ask_user', summary: 'El run agotó su presupuesto de turnos.',
+      remedy: 'Pregunta al usuario si autoriza ampliar los turnos; si acepta, ejecuta amend con el motivo y relanza. No amplíes sin su respuesta.',
+      commands: id ? [`phantom amend ${id} --max-turns ${amendedMaxTurns(budget?.maxTurns)} --reason "presupuesto de turnos ampliado con aprobación del usuario"`, `agent.mjs run ${id}`] : [] });
     const next = amendedMaxTokens(budget?.maxTokens);
     return out({ autonomy: 'ask_user', summary: 'El run agotó su presupuesto (tokens, turnos o tiempo).',
       remedy: 'Pregunta al usuario si autoriza ampliar el presupuesto; si acepta, ejecuta amend con el motivo y relanza. No amplíes sin su respuesta.',
