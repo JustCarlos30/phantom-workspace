@@ -41,11 +41,11 @@
 .plugin-entry header>span { color: var(--muted); }
 .plugin-actions, .cc-toolbar { margin: 14px 0; }
 .plugin-preference { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 20px 0; }
-.plugin-preference select, .cc-filters select, .cc-filters input { color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-mark); padding: 8px 10px; max-width: 100%; min-width: 0; font: inherit; }
+.plugin-preference select, .cc-filters select, .cc-filters input { color: var(--ink); background: transparent; border: 0; border-radius: var(--r-ctl); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); padding: 8px 10px; max-width: 100%; min-width: 0; font: inherit; }
 .plugin-manager button:focus-visible, .plugin-manager select:focus-visible, .command-center :is(button,input,select,summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .plugin-manager button:disabled, .command-center button:disabled { opacity: .5; cursor: not-allowed; }
 .plugin-manager :is(input,select), .command-center :is(input,select) { caret-color: var(--accent); }
-.plugin-manager select:hover:not(:disabled), .cc-filters :is(select,input):hover { border-color: var(--muted); }
+.plugin-manager select:hover:not(:disabled), .cc-filters :is(select,input):hover, .plugin-preference select:focus, .cc-filters :is(select,input):focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
 .plugin-error { color: var(--danger); }
 .cc-stale, .cc-blocked { color: var(--warning); }
 .cc-header { justify-content: space-between; }
@@ -71,6 +71,23 @@
 .cc-section summary { cursor: pointer; color: var(--muted); }
 .cc-events { margin: 0; padding-left: 20px; }
 .cc-events li { padding: 10px 0; }
+/* 6·5: ritmo y jerarquía del centro de mando. */
+.command-center .cc-header h3 { font: var(--t-title); letter-spacing: normal; color: var(--ink); }
+.command-center .cc-toolbar { gap: 8px; margin: 16px 0 0; }
+.command-center .cc-toolbar .tw-button { border: 0; border-radius: var(--r-pill); box-shadow: none; background: transparent; }
+.command-center .cc-toolbar .tw-button:hover:not(:disabled) { background-color: var(--row-hover); }
+.command-center .plugin-preference { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; font: var(--t-body); }
+.command-center .plugin-preference select { flex: 0 0 auto; }
+.command-center .cc-freshness { flex-direction: row; flex-wrap: nowrap; gap: 6px; margin: 8px 0 0; color: var(--ink-3); font: var(--t-support); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.command-center .cc-freshness > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.command-center .cc-freshness > span + span::before { content: '· '; }
+.command-center .cc-filters { align-items: center; gap: 12px; margin: 20px 0 0; }
+.command-center .cc-list { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 0; }
+.command-center .cc-task { gap: 2px; padding: 12px 16px; border: 0; border-radius: var(--r-row); font: var(--t-support); color: var(--muted); transition: background-color 120ms ease; }
+.command-center .cc-task:hover { background-color: var(--row-hover); }
+.command-center .cc-task strong { font: var(--t-headline); color: var(--ink); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.command-center .cc-task :is(.cc-path, small) { font: var(--t-support); font-family: var(--mono); color: var(--ink-3); }
+@media (prefers-reduced-motion: reduce) { .command-center .cc-task { transition: none; } }
 @media (max-width: 600px) { .cc-toolbar .tw-button { flex: 1 1 auto; justify-content: center; } .cc-filters { flex-direction: column; } .cc-filters label, .cc-filters select { flex-basis: auto; width: 100%; } }
 
 /* ── Phantom Cards · Mesa del ahora ─────────────────────────────────────── */

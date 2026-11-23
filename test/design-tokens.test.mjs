@@ -547,7 +547,8 @@ test('E4 settings use flat groups, inset dividers and borderless aligned control
   assert.match(css, /:is\(:hover, :active\) \+ \*::before/);
   assert.match(css, /\.st-row:hover\s*\{ background-color: var\(--row-hover\)/);
   assert.match(css, /\.st-row:active\s*\{ background-color: var\(--row-press\)/);
-  assert.match(css, /\.st :is\(\.st-input, \.st-select\)\s*\{[^}]*border: 0; background: var\(--control-fill\); box-shadow: none/);
+  assert.match(css, /\.st :is\(\.st-input, \.st-select\)\s*\{[^}]*border: 0; background: transparent; box-shadow: inset 0 0 0 1px color-mix\(in srgb, var\(--ink\) 12%, transparent\)/);
+  assert.match(css, /\.st :is\(\.st-input, \.st-select\):is\(:focus, :focus-visible\)\s*\{ outline: none; box-shadow: inset 0 0 0 1px color-mix\(in srgb, var\(--ink\) 40%, transparent\)/);
   assert.match(css, /\.st-switch > i\s*\{[^}]*transition: transform 200ms var\(--ease-settle\)/);
   assert.match(css, /\.st-switch\[aria-checked="true"\] > i\s*\{ transform: translateX\(18px\)/);
   for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
