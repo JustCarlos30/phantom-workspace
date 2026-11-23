@@ -290,8 +290,9 @@ test('workplanes and wells are opaque without blur and composer height never ani
   assert.match(side, /\.phantom-chat\s*\{[^}]*background-color:\s*var\(--workplane\);[^}]*background-image:\s*var\(--workplane-wash\)/);
   assert.match(side, /\.phantom-chat \.pc-thread\s*\{[^}]*background:\s*var\(--well\)/);
   assert.match(chat, /\.pc-thread\s*\{[^}]*background:\s*var\(--well-terminal\)/);
-  assert.match(chat, /\.pc-composer\s*\{[^}]*background:\s*var\(--well-raised\)/);
-  assert.match(chat, /\.pc-field\s*\{[^}]*background:\s*transparent;[^}]*box-shadow: none/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*background:\s*var\(--well-terminal\)/);
+  assert.match(side, /\.phantom-chat \.pc-composer\s*\{[^}]*background:\s*var\(--well\)/);
+  assert.match(chat, /\.pc-field\s*\{[^}]*border-radius:\s*var\(--r-obj\);[^}]*background:\s*var\(--composer-fill\);[^}]*box-shadow:\s*inset 0 0 0 1px var\(--composer-ring\)/);
   assert.match(terminal, /\.pt-card-screen,[^{]+\{[^}]*background:\s*var\(--well-terminal\)/);
   const plane = /(?:^|[\s>+~])(?:\.pc|\.pc-thread|\.pc-composer|\.phantom-chat|\.pt-card|\.pt-card-screen|\.terminal-panel|\.terminal-host|\.canvas-node\[data-type="terminal"\])(?=[:.\[#]|$)(?:[^\s>+~]*)$/;
   for (const { name, css } of sheets) {
@@ -331,9 +332,14 @@ test('E5 session rows, quote and activity use two surface levels and measured pr
   assert.match(chat, /\.pc-tools::before\s*\{[^}]*left: 32px; top: 10px; bottom: 18px;[^}]*background: var\(--divider\)/);
   assert.match(chat, /\.pc-subagent\s*\{[^}]*background: none/);
   assert.match(chat, /\.pc-session-row\s*\{[^}]*border-radius: var\(--r-row\)/);
-  assert.match(chat, /\.pc-composer\s*\{[^}]*padding: 12px 24px 24px 28px;[^}]*border-top: var\(--divider-width\) solid var\(--divider\)/);
+  assert.match(chat, /\.pc-composer\s*\{[^}]*padding: 0 24px 24px;/);
+  assert.doesNotMatch(chat, /\.pc-composer\s*\{[^}]*border-top:/);
+  assert.match(chat, /\.pc-field:focus-within\s*\{[^}]*background:\s*var\(--composer-fill-lit\)/);
+  assert.match(chat, /\.pc-field textarea:focus-visible\s*\{[^}]*outline:\s*0/);
+  for (const [name, value] of Object.entries({ 'composer-fill': 'color-mix(in srgb, #fff 3%, transparent)', 'composer-fill-lit': 'color-mix(in srgb, #fff 5%, transparent)', 'composer-ring': 'color-mix(in srgb, #fff 8%, transparent)', 'composer-light-top': 'color-mix(in srgb, #fff 30%, transparent)', 'composer-max': '720px' }))
+    assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
   for (const css of [chat, sheets.find(sheet => sheet.name === 'src/phantom-chat.css').css]) {
-    assert.doesNotMatch(css, /\.pc-field(?::hover|:focus-within|\.is-listening)\s*\{/);
+    assert.doesNotMatch(css, /\.pc-field(?::hover|\.is-listening)\s*\{/);
     assert.doesNotMatch(css, /\.pc\.is-focused \.pc-(?:composer|controls|field textarea)\s*\{/);
   }
 });

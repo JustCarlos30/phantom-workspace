@@ -42,6 +42,7 @@
 .phantom-chat .pc-icon { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 
 .phantom-chat .pc-thread { background: var(--well); }
+.phantom-chat .pc-composer { background: var(--well); }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
 

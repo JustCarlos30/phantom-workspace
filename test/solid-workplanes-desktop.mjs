@@ -195,8 +195,8 @@ const materials = async () => {
       }
       for (const field of panel.querySelectorAll('.pc-field')) {
         const style = getComputedStyle(field);
-        if (alpha(style.backgroundColor) !== 0 || style.boxShadow !== 'none' || style.borderTopWidth !== '0px') bad.push('field adds a third surface or halo');
-        if (getComputedStyle(field.closest('.pc-composer')).padding !== '12px 24px 24px 28px') bad.push('composer is not full-bleed');
+        if (!(alpha(style.backgroundColor) > 0) || style.boxShadow === 'none' || style.borderTopWidth !== '0px') bad.push('field is not the ringed composer island');
+        if (getComputedStyle(field.closest('.pc-composer')).padding !== '0px 24px 24px') bad.push('composer does not hold the island in its well');
       }
       const text = panel.querySelector('.pc-message.is-agent,.pt-output,.terminal-wrap') || panel.querySelector('.node-body');
       const chain = [];

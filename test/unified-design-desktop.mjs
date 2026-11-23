@@ -123,11 +123,14 @@ try {
   const composerRecipe = input => input.evaluate(el => {
     const style = element => { const s = getComputedStyle(element); return { padding: s.padding, gap: s.gap, background: s.backgroundColor, radius: s.borderRadius, shadow: s.boxShadow, minHeight: s.minHeight }; };
     const composer = el.closest('.pc-composer');
-    return { composer: style(composer), field: style(composer.querySelector('.pc-field')), input: style(el), controls: style(composer.querySelector('.pc-controls')), send: style(composer.querySelector('.pc-send')) };
+    // The island fill steps on focus; the recipe records that it is translucent and present.
+    const field = style(composer.querySelector('.pc-field')); field.background = field.background !== 'rgba(0, 0, 0, 0)';
+    return { composer: style(composer), field, input: style(el), controls: style(composer.querySelector('.pc-controls')), send: style(composer.querySelector('.pc-send')) };
   });
   const recipe = await composerRecipe(card);
-  assert.equal(recipe.composer.padding, '12px 24px 24px 28px');
-  assert.equal(recipe.field.background, 'rgba(0, 0, 0, 0)'); assert.equal(recipe.field.shadow, 'none');
+  assert.equal(recipe.composer.padding, '0px 24px 24px');
+  assert.equal(recipe.field.background, true, 'composer island has a translucent fill'); assert.notEqual(recipe.field.shadow, 'none');
+  assert.equal(recipe.field.radius, '24px');
   const providers = page.locator('.canvas-node .pc-providers');
   assert.deepEqual(await providers.getByRole('radio').allTextContents(), ['ClaudeConversar con Claude Code en esta carpeta']);
   assert.deepEqual(await page.locator('.canvas-node .pc-modes').getByRole('radio').allTextContents(), ['Chat', 'Terminal']);
@@ -162,7 +165,8 @@ try {
     assert.match(materials[key].background, /^rgb\(/, `${key}: opaque working surface`);
     assert.equal(materials[key].backdrop, 'none', `${key}: no working-plane glass`);
   }
-  assert.equal(materials.field.background, 'rgba(0, 0, 0, 0)', 'field does not add a third surface');
+  assert.notEqual(materials.field.background, 'rgba(0, 0, 0, 0)', 'field is the translucent composer island');
+  assert.equal(materials.composer.background, materials.thread.background, 'composer shares the thread well');
   assert.equal(materials.rail.backdrop, 'none', 'navigation uses opaque object material');
   checks.push({ materials });
   await page.getByRole('complementary', { name: 'Phantom', exact: true }).getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();

@@ -803,12 +803,14 @@ try {
       const input = panel.getByLabel('Mensaje para Claude', { exact: true });
       const recipe = async surface => surface.locator('.pc-composer').evaluate(el => {
         const s = getComputedStyle(el), field = getComputedStyle(el.querySelector('.pc-field')), input = getComputedStyle(el.querySelector('textarea')), controls = getComputedStyle(el.querySelector('.pc-controls'));
-        return { padding: s.padding, gap: s.gap, background: s.backgroundColor, field: field.backgroundColor, radius: field.borderRadius, border: field.borderTopWidth, shadow: field.boxShadow, input: { padding: input.padding, radius: input.borderRadius, background: input.backgroundColor, border: input.borderWidth, shadow: input.boxShadow, minimum: input.minHeight, font: input.font, transition: input.transitionProperty }, controls: { padding: controls.padding, gap: controls.gap } };
+        // Fill and ring change with focus and dictation; the recipe records that they exist.
+        return { padding: s.padding, gap: s.gap, background: s.backgroundColor, thread: getComputedStyle(el.parentElement.querySelector(':scope > .pc-thread')).backgroundColor, field: field.backgroundColor !== 'rgba(0, 0, 0, 0)', radius: field.borderRadius, border: field.borderTopWidth, shadow: field.boxShadow !== 'none', input: { padding: input.padding, radius: input.borderRadius, background: input.backgroundColor, border: input.borderWidth, shadow: input.boxShadow, minimum: input.minHeight, font: input.font, transition: input.transitionProperty }, controls: { padding: controls.padding, gap: controls.gap } };
       });
       const common = await recipe(panel);
-      assert.equal(common.padding, '12px 24px 24px 28px'); assert.equal(common.gap, '12px');
-      assert.equal(common.background, 'rgb(11, 11, 13)'); assert.equal(common.field, 'rgba(0, 0, 0, 0)');
-      assert.equal(common.radius, '0px'); assert.equal(common.shadow, 'none'); assert.equal(common.border, '0px');
+      assert.equal(common.padding, '0px 24px 24px'); assert.equal(common.gap, '12px');
+      assert.equal(common.background, 'rgb(4, 4, 5)'); assert.equal(common.background, common.thread, 'Composer shares the thread well');
+      assert.equal(common.field, true, 'Composer island has a translucent fill');
+      assert.equal(common.radius, '24px'); assert.equal(common.shadow, true, 'Composer island has its ring'); assert.equal(common.border, '0px');
       assert.equal(common.input.padding, '8px 12px'); assert.equal(common.input.radius, '12px');
       assert.equal(common.input.background, 'rgba(0, 0, 0, 0)'); assert.equal(common.input.border, '0px'); assert.equal(common.input.shadow, 'none');
       assert.equal(common.input.minimum, '40px'); assert.equal(common.input.transition, 'none'); assert.equal(common.controls.gap, '8px');
@@ -841,17 +843,19 @@ try {
             observations.push({ scene: `${name}${suffix}`, quote });
           }
           if (name === 'session-dictating') {
+            await input.evaluate(el => el.blur());
+            await delay(200);
+            const rest = await input.evaluate(el => getComputedStyle(el.closest('.pc-field')).backgroundColor);
             await input.press('ArrowLeft');
+            await delay(200);
             const field = await input.evaluate(el => {
               const s = getComputedStyle(el), preview = getComputedStyle(el.parentElement.querySelector('.voice-live'));
-              return { focused: el.matches(':focus-visible'), padding: s.padding, radius: s.borderRadius, pixelRatio: devicePixelRatio, outline: { width: parseFloat(s.outlineWidth), widthToken: s.getPropertyValue('--focus-width').trim(), style: s.outlineStyle, color: s.outlineColor, offset: parseFloat(s.outlineOffset), offsetToken: s.getPropertyValue('--focus-offset').trim() }, preview: { padding: preview.padding, radius: preview.borderRadius, font: preview.font } };
+              return { focused: el.matches(':focus-visible'), padding: s.padding, radius: s.borderRadius, fill: getComputedStyle(el.closest('.pc-field')).backgroundColor, outline: { style: s.outlineStyle }, preview: { padding: preview.padding, radius: preview.borderRadius, font: preview.font } };
             });
-            assert.equal(field.focused, true, 'Dictation retains visible keyboard focus');
+            assert.equal(field.focused, true, 'Dictation retains keyboard focus');
             assert.equal(field.padding, common.input.padding); assert.equal(field.radius, common.input.radius);
-            assert.equal(field.outline.widthToken, '2px'); assert.equal(field.outline.offsetToken, '2px');
-            assert.equal(field.outline.style, 'solid'); assert.equal(field.outline.color, 'rgb(236, 230, 216)');
-            assert.ok(field.outline.width > 0 && Math.abs(field.outline.width - 2) < 1 / field.pixelRatio, 'Dictation focus retains 2 CSS px with device-pixel snapping');
-            assert.ok(field.outline.offset > 0 && Math.abs(field.outline.offset - 2) < 1 / field.pixelRatio, 'Dictation focus offset retains 2 CSS px with device-pixel snapping');
+            assert.equal(field.outline.style, 'none', 'The field shows focus with the island light, not an outline');
+            assert.notEqual(field.fill, rest, 'Focused island steps its fill');
             assert.deepEqual(field.preview, { padding: common.input.padding, radius: common.input.radius, font: common.input.font });
             observations.push({ scene: `${name}${suffix}`, dictationField: field });
           }

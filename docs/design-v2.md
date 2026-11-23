@@ -70,7 +70,7 @@ Las cabeceras dejan ver este material; ningún cuerpo opaco heredado debe taparl
 
 **Nivel 1:** objeto, único contenedor con aro, degradado y radio grande. **Nivel 2:** un relleno plano interior donde se lee salida o se escribe. No anidar otro pozo, burbuja, tarjeta de actividad o tarjeta que solo agrupa. El resto se separa con espacio, tipografía y divisores de **1 px**.
 
-Excepción declarada: los grupos del inspector de Configuración son planos y sin aro. En 06, hilo y compositor son dos zonas contiguas del mismo nivel interior: el compositor cierra el pozo a sangre con un paso tonal y un divisor; no es una caja flotante dentro de él. El textarea queda transparente sobre esa banda. Las pistas de controles, radios e insignias son partes del control, no nuevos contenedores de contenido.
+Excepción declarada: los grupos del inspector de Configuración son planos y sin aro. En 06, hilo y compositor eran dos zonas contiguas del mismo nivel interior separadas por paso tonal y divisor. Etapa 6·2a (aprobada por Carlos tras el laboratorio Propuestas): compositor isla; sustituye la banda a sangre del mock 06. El compositor comparte el pozo del hilo y su campo es una isla con relleno blanco 3 % y aro inset de 1 px: excepción declarada a esta regla, porque es la superficie de escritura y no agrupa contenido. El textarea queda transparente dentro de la isla. Las pistas de controles, radios e insignias son partes del control, no nuevos contenedores de contenido.
 
 | Token del producto | Actual → nuevo | Uso |
 |---|---|---|
@@ -200,12 +200,13 @@ Rail expandido: top/bottom/left 12 px, padding 12 px, alto disponible con scroll
 | `--prose-ink` | `∅` (mensaje `--ink`) → `#d9d6cf` | 06 `.prose` |
 | `--t-code`, `--t-terminal-preview` | `∅` → `400 12px/16px var(--mono)`, `400 12px/18px var(--mono)` | 06 / 05, respectivamente |
 | `--composer-field-min`, `--composer-gap` | `∅` (textarea mínimo 38 px) → `40px`, `12px` | 06 `.field`, `.composer` |
+| `--composer-fill`, `--composer-fill-lit`, `--composer-ring`, `--composer-light-top`, `--composer-max` | `∅` → blanco 3 %, 5 %, 8 %, 30 % (`color-mix`), `720px` | Etapa 6·2a, laboratorio Propuestas `.px-isle` |
 
 Radio vacío: círculo de 20 px con marca interior `inset 0 0 0 1.5px #4e4e50`; seleccionado: plano marfil con punto oscuro de 8 px. Es el dibujo semántico del radio, no un contorno añadido a la fila. Implementarlo con control nativo o semántica radio completa, incluidos flechas, Inicio/Fin, foco y `aria-checked`.
 
 Guía de actividad: ancho 1 px, x = `16px + 32px / 2` = **32 px** respecto a la lista, top 10 px, bottom 18 px. Columna de glifo 32 × 20 px, glifo normal 16 px, Titi 16 px; el fondo de esa columna es el mismo pozo para interrumpir la guía bajo el icono. Fila viva: gap interno 8 px y padding inferior 12 px. La barra usa lima y radio 999; **64 % es fixture**, no progreso por defecto. Sin total medible, mostrar estado textual sin porcentaje fabricado.
 
-**Compositor idéntico en los tres estados:** a sangre al pie, `#0b0b0d`, divisor superior 1 px `#ffffff12`, sin otra caja. Padding exacto de 06: **12 px arriba, 24 derecha, 24 abajo, 28 izquierda**; gap 12 px entre campo y herramientas, 8 px entre herramientas. El campo base mide 40 px en el fixture; `useComposerSize` sigue creciendo y limitando el texto real sin animar altura ni ocultar controles. Cita de usuario: margen horizontal 16 px y final 8 px; con el gap de pila 12 deja 20 px hasta la respuesta. Mono solo para rutas, comandos y cifras; no cambiar la fuente de la terminal interactiva para imitar la previsualización.
+**Compositor idéntico en los tres estados (etapa 6·2a, isla; sustituye la banda a sangre del mock 06):** el compositor comparte el pozo del hilo (`#040405`), sin divisor, con padding **0 24 24**. El campo es una isla centrada de hasta 720 px, radio `--r-obj`, relleno blanco 3 %, aro inset de 1 px blanco 8 % y foco «luz» (relleno 5 % y aro iluminado desde arriba, 120 ms lineal); sin outline en el textarea. Hilo, dock y metadatos comparten la columna de 720 px. Gap 12 px entre campo y herramientas, 8 px entre herramientas. El campo base mide 40 px en el fixture; `useComposerSize` sigue creciendo y limitando el texto real sin animar altura ni ocultar controles. Cita de usuario: margen horizontal 16 px y final 8 px; con el gap de pila 12 deja 20 px hasta la respuesta. Mono solo para rutas, comandos y cifras; no cambiar la fuente de la terminal interactiva para imitar la previsualización.
 
 ### 10. Dictado dentro del campo
 
@@ -218,7 +219,7 @@ Sin «Te escucho…», sin «Habla, te escucho…», sin botón textual de cance
 | `--voice-bar-width`, `--voice-bar-gap`, `--voice-bar-radius`, `--voice-bars-height` | `∅` → `3px`, `3px`, `2px`, `16px` | 06 `.bars` |
 | `--voice-caret-width`, `--voice-caret-height`, `--voice-caret-radius` | `∅` → `2px`, `16px`, `1px` | 06 `.caret`, color marfil |
 | `--voice-caret-duration` | `∅` → `1.1s` | Blink `ease-in-out`, opacidad 0 al 50 % |
-| `--voice-composer-divider` | `∅` (borde lima + halo de 2–5 px) → `#ffffff26` | 06 `.composer.dict` |
+| `--voice-composer-divider` | `∅` (borde lima + halo de 2–5 px) → `#ffffff26` | 06 `.composer.dict`; desde 6·2a colorea el aro de la isla |
 
 Barras del fixture: alturas **6, 12, 16, 10, 14, 6 px**; movimiento `.9s ease-in-out infinite alternate`, delays **−.1, −.5, −.3, −.7, −.2, −.6 s**, `scaleY(.45)`→`scaleY(1)`, color `#c6f135`. Estos números describen el mock estático animado. En producción, la entrada ya disponible `voice.level` gobierna el nivel: no simular captura en silencio, permiso pendiente o transcripción. No introducir un nuevo analizador ni otro bucle de audio. Movimiento reducido elimina blink/interpolación; conserva nivel legible, texto y tiempo.
 
@@ -288,7 +289,7 @@ Quedan derogadas, para las familias anteriores, estas reglas vigentes:
 2. **Planos `#050505` / `#080808` / `#0d0d0d` / `#151515` / `#1d1d1d`**, y la premisa de menús como único plano elevado: nueva escalera y material común. Los menús conservan navegación, selección textual y dueño CSS; no se añade una nueva lógica de menú.
 3. **Atención sin contorno** y prohibición absoluta de categorías coloreadas: atención lleva aro ámbar de objeto; insignias usan OKLCH. Sigue prohibido el lavado ámbar de superficies y pozos.
 4. **Selección con borde de acento, halo u outline separado**, contornos rojos de error, órbita verde de éxito, cabeza blanca con `drop-shadow` y ondas alrededor de paneles: sustituir por la regla 4. Estado no equivale a selección.
-5. **«Dentro no hay líneas»**, burbujas de usuario, tarjetas de subagente/encargo como agrupación y campo del compositor con halo: divisores/guía, cita y compositor a sangre. Mantener detalle y acciones reales.
+5. **«Dentro no hay líneas»**, burbujas de usuario, tarjetas de subagente/encargo como agrupación y campo del compositor con halo: divisores/guía, cita y compositor isla (etapa 6·2a: aro inset y foco «luz», no halo exterior). Mantener detalle y acciones reales.
 6. **Controles sin relleno en reposo para toda la isla**, sombra de tecla/pozo y escala .96/.97/.98 con resorte: tres niveles planos, secundarios con relleno y feedback tonal sin movimiento.
 7. **Radios 8/14/26, rail 252, inspector 360, dock 56, botones de dock 36 y margen inferior 16**: medidas de las tablas. El título de 17/22 pasa a 15/20 en estas familias.
 8. **Orbe de voz, «Te escucho…», cancelación textual y aura espectral**: medidor y transcripción dentro del campo. Se conservan los contratos de audio, envío explícito e inserción segura en terminal.

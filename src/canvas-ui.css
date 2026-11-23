@@ -167,6 +167,11 @@
   --prose-ink: #d9d6cf;
   --composer-field-min: 40px;
   --composer-gap: 12px;
+  --composer-fill: color-mix(in srgb, #fff 3%, transparent);
+  --composer-fill-lit: color-mix(in srgb, #fff 5%, transparent);
+  --composer-ring: color-mix(in srgb, #fff 8%, transparent);
+  --composer-light-top: color-mix(in srgb, #fff 30%, transparent);
+  --composer-max: 720px;
   --t-control: 500 14px/20px var(--sans);
   --t-support: 400 12px/16px var(--sans);
   --t-micro: 500 12px/16px var(--sans);
