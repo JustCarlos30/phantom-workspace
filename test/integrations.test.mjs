@@ -446,12 +446,20 @@ test('Phantom controllers use host Node argv, owned SIGINT, bounded output and r
   // The descriptor records what was requested, never a confirmed runtime.
   assert.equal(descriptor.requestedModel, 'claude-code/haiku'); assert.equal(descriptor.modelSource, 'payload'); assert.equal(descriptor.engine, 'claude-code'); assert.equal(descriptor.observedModel, undefined);
   assert.equal((await f.call('phantom.control', { id: task.id, action: 'verify' })).id, descriptor.id);
+  const foreign = await fixture(t);
+  await assert.rejects(foreign.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller owned by this host/);
+  assert.deepEqual(children[0].signals, []);
   children[0].stdout.write('x'.repeat(1100000));
-  await f.call('phantom.control', { id: descriptor.id, action: 'stop' }); assert.deepEqual(children[0].signals, ['SIGINT']);
+  const stopped = await f.call('phantom.control', { id: descriptor.id, action: 'stop' });
+  assert.equal(stopped.stopRequested, true); assert.deepEqual(children[0].signals, ['SIGINT']);
   children[0].emit('close', 1, 'SIGINT');
-  assert.equal(f.workspace.phantomControllers[0].status, 'failed'); assert.equal(f.workspace.phantomControllers[0].truncated, true); assert.ok(f.workspace.phantomControllers[0].output.length <= 65536);
+  assert.equal(f.workspace.phantomControllers[0].status, 'stopped'); assert.equal(f.workspace.phantomControllers[0].truncated, true); assert.ok(f.workspace.phantomControllers[0].output.length <= 65536);
+  assert.equal(f.workspace.phantomControllers[0].exitCode, 1); assert.equal(f.workspace.phantomControllers[0].signal, 'SIGINT');
   assert.ok(f.context.events.some(e => e.type === 'tool.output' && e.workspaceId === f.workspace.id));
-  assert.ok(f.context.events.some(e => e.type === 'tool.status' && e.status === 'failed'));
+  assert.deepEqual(f.context.events.filter(e => e.type === 'tool.status').map(e => e.status), ['running', 'stopped']);
+  assert.ok(f.context.events.every(e => e.workspaceId === f.workspace.id && e.id === descriptor.id));
+  assert.equal(f.context.events.find(e => e.type === 'tool.status' && e.status === 'stopped').result.stopRequested, true);
+  assert.deepEqual(foreign.context.events, []);
   await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller/);
   assert.equal(f.context.events.filter(e => e.type === 'tool.output').reduce((n, e) => n + Buffer.byteLength(e.data), 0), 1048576);
   const cancel = await f.call('phantom.control', { id: task.id, action: 'cancel' }); assert.equal(cancel.id, task.id); assert.ok(calls.some(args => args.includes('cancel')));
@@ -478,10 +486,28 @@ test('Claude-only: contract, judge and child models must be Claude even when the
     [{ coordination: { children: [{ id: 'a', judge: { model: 'gpt-4' } }] } }, /juez del hijo a/],
   ]) {
     const f = await policyRun(t, contract);
-    await assert.rejects(f.run({ model: 'claude-code/sonnet' }), where);
-    await assert.rejects(f.run({ model: 'claude-code/sonnet' }), /Claude Code/);
-    assert.deepEqual(f.spawned, [], 'no process starts and the task is untouched');
-    assert.deepEqual(f.workspace.phantomControllers ?? [], []);
+    const original = structuredClone(f.task), calls = [], errors = [];
+    const execFile = f.context.execFile;
+    f.context.execFile = (file, args) => { calls.push({ file, args }); return execFile(file, args); };
+    for (const expected of [where, /Claude Code/]) {
+      await assert.rejects(f.run({ model: 'claude-code/sonnet' }), error => {
+        assert.match(error.message, expected); assert.match(error.message, where);
+        errors.push(error.message); return true;
+      });
+    }
+    assert.deepEqual(f.spawned, [], 'no process starts');
+    assert.deepEqual(f.task, original, 'the native task and immutable contract are untouched');
+    assert.ok(calls.some(c => c.args.includes('show')));
+    assert.ok(calls.every(c => c.file === 'git' || c.args.includes('show')), 'native calls only read the task');
+    const attempts = f.workspace.phantomControllers;
+    assert.equal(attempts.length, 2); assert.notEqual(attempts[0].id, attempts[1].id);
+    for (const [index, attempt] of attempts.entries()) {
+      assert.equal(attempt.kind, 'attempt'); assert.equal(attempt.status, 'failed'); assert.equal(attempt.action, 'run');
+      assert.equal(attempt.taskId, f.task.id); assert.equal(attempt.workspaceId, f.workspace.id); assert.equal(attempt.workspacePath, f.root);
+      assert.equal(attempt.error, errors[index]);
+      assert.equal(attempt.pid, undefined); assert.equal(attempt.run, undefined); assert.equal(attempt.runId, undefined);
+    }
+    assert.deepEqual(f.context.events, attempts.map(attempt => ({ type: 'tool.status', workspaceId: f.workspace.id, id: attempt.id, status: 'failed', result: attempt })));
   }
 });
 
