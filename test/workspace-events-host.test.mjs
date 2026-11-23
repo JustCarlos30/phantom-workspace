@@ -65,9 +65,9 @@ test('child cards are visible only to the owner terminal', () => {
   host.feed(tool('running', 'P'), nodeOf);
   host.feed(tool('running', 'C1', { parentTaskId: 'P' }), nodeOf);
   host.feed(tool('failed', 'C1', { parentTaskId: 'P' }), nodeOf);
-  const cursorless = host.query({ sessionId: 's-w1' }, lookup).cursor;
+  const cursorless = host.query({ principal: { sessionId: 's-w1' } }, lookup).cursor;
   assert.ok(cursorless);
-  const probe = (sessionId) => host.query({ sessionId, cursor: 'cHcxOjA' }, lookup).events;
+  const probe = (sessionId) => host.query({ principal: { sessionId }, cursor: 'cHcxOjA' }, lookup).events;
   const owner = probe('s-w1').filter((e) => e.audience === 'owner');
   const stranger = probe('s-w2').filter((e) => e.audience === 'owner');
   const orch = probe('s-orch').filter((e) => e.audience === 'owner');
@@ -80,9 +80,9 @@ test('worker cannot see another workspace nor request it', () => {
   const { host, nodeOf } = make();
   const lookup = world();
   host.feed({ ...tool('running', 'X'), workspaceId: 'w2' }, nodeOf);
-  const events = host.query({ sessionId: 's-w1', cursor: 'cHcxOjA' }, lookup).events;
+  const events = host.query({ principal: { sessionId: 's-w1' }, cursor: 'cHcxOjA' }, lookup).events;
   assert.equal(events.filter((e) => e.workspaceId === 'w2').length, 0);
-  assert.throws(() => host.query({ sessionId: 's-w1', workspaceId: 'w2' }, lookup), { message: 'Forbidden' });
+  assert.throws(() => host.query({ principal: { sessionId: 's-w1' }, workspaceId: 'w2' }, lookup), { message: 'Forbidden' });
 });
 
 test('unknown or dead session is Forbidden', () => {
@@ -126,15 +126,38 @@ test('stalled alert fires for lack of activity and terminal output rearms it', (
 test('rate limit per principal and bounded response', () => {
   const { host, advance, nodeOf } = make();
   const lookup = world();
-  for (let i = 0; i < 10; i++) host.query({ sessionId: 's-w1' }, lookup);
-  assert.throws(() => host.query({ sessionId: 's-w1' }, lookup), /Demasiadas/);
-  host.query({ sessionId: 's-w2' }, lookup);
+  for (let i = 0; i < 10; i++) host.query({ principal: { sessionId: 's-w1' } }, lookup);
+  assert.throws(() => host.query({ principal: { sessionId: 's-w1' } }, lookup), /Demasiadas/);
+  host.query({ principal: { sessionId: 's-w2' } }, lookup);
   advance(1100);
-  host.query({ sessionId: 's-w1' }, lookup);
+  host.query({ principal: { sessionId: 's-w1' } }, lookup);
   for (let i = 0; i < 150; i++) host.feed(tool(i % 2 ? 'completed' : 'running', `R${i}`), nodeOf);
   advance(1100);
-  const res = host.query({ sessionId: 's-orch', cursor: 'cHcxOjA' }, lookup);
+  const res = host.query({ principal: { sessionId: 's-orch' }, cursor: 'cHcxOjA' }, lookup);
   assert.ok(res.events.length <= 100);
+});
+
+test('query takes the principal from payload.principal.sessionId', () => {
+  const { host, nodeOf } = make();
+  const lookup = world();
+  host.feed(tool('running', 'P1'), nodeOf);
+  const res = host.query({ principal: { sessionId: 's-w1' }, cursor: 'cHcxOjA' }, lookup);
+  assert.ok(res.events.some((e) => e.entityId === 'P1'));
+});
+
+test('query without a valid principal session is Forbidden', () => {
+  const { host } = make();
+  const lookup = world();
+  const bad = [
+    { cursor: 'cHcxOjA' },
+    { principal: null, sessionId: 's-w1' },
+    { principal: {}, sessionId: 's-w1' },
+    { principal: { sessionId: 5 }, sessionId: 's-w1' },
+    { principal: { sessionId: 'nope' } },
+  ];
+  for (const payload of bad) {
+    assert.throws(() => host.query(payload, lookup), (e) => e.message === 'Forbidden' && e.code === FORBIDDEN_CODE);
+  }
 });
 
 test('close stops the timer', () => {

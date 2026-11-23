@@ -139,7 +139,7 @@ export function createHostEvents({ stallMs, unattendedMs, tickMs = 30000, broadc
   }
 
   function query(payload, lookup) {
-    const principal = { sessionId: payload?.sessionId };
+    const principal = payload && 'principal' in payload ? payload.principal : { sessionId: payload?.sessionId };
     const filter = authorize(principal, payload, lookup);
     limit(principal.sessionId);
     const result = model.since(payload?.cursor ?? null, filter);
