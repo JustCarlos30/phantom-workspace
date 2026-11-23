@@ -39,6 +39,11 @@ test('exige umbrales coherentes en node --test que escribe pruebas', async () =>
   assert.ok(findings.some(finding => finding.message.includes('minNewPassedTests')));
 });
 
+test('acepta minNewPassedTests sin minPassedTests para pruebas nuevas', async () => {
+  const contract = valid(); delete contract.checks[0].minPassedTests;
+  assert.deepEqual(await lintContract(contract, { runCheck: runner() }), []);
+});
+
 test('valida los presupuestos y el juez', async () => {
   const contract = valid(); contract.budget = { maxTokens: 59999, timeoutMs: 1000 }; contract.judge = { budget: { maxTokens: 29999 } };
   const findings = await lintContract(contract, { runCheck: runner() });

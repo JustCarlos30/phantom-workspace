@@ -38,7 +38,8 @@ export async function lintContract(contract, { root = process.cwd(), runCheck = 
 
   for (const check of checks) {
     if (!isNodeTest(check)) continue;
-    if (!isPositiveInteger(check.minPassedTests)) error(`check ${check.name || commandName(check.argv)} debe definir minPassedTests positivo`);
+    if (check.minNewPassedTests === undefined && !isPositiveInteger(check.minPassedTests)) error(`check ${check.name || commandName(check.argv)} debe definir minPassedTests positivo`);
+    else if (check.minPassedTests !== undefined && !isPositiveInteger(check.minPassedTests)) error(`check ${check.name || commandName(check.argv)} tiene minPassedTests incoherente`);
     const testPaths = check.argv.slice(check.argv.indexOf('--test') + 1).filter(value => typeof value === 'string' && !value.startsWith('-'));
     if (testPaths.some(testPath => scope.includes(testPath)) && !isPositiveInteger(check.minNewPassedTests)) {
       error(`check ${check.name || commandName(check.argv)} debe definir minNewPassedTests positivo para pruebas en scope`);

@@ -33,6 +33,11 @@ test('counts children once and records terminal children', () => {
   assert.deepEqual(result.children, { done: 1, total: 2 });
 });
 
+test('counts settled and delivery-accepted children as done', () => {
+  const result = summarizeRunHealth([event(0, 'run.started'), event(1, 'child.settled', { id: 'one' }), event(2, 'child.delivery_accepted', { id: 'two' })], start + 3_000);
+  assert.deepEqual(result.children, { done: 2, total: 2 });
+});
+
 test('returns an idle summary without events', () => {
   assert.deepEqual(summarizeRunHealth([], start), { phase: 'idle', elapsedMs: 0, idleMs: 0, current: null, children: { done: 0, total: 0 }, stalled: false, looping: false, reason: null });
 });

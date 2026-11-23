@@ -43,7 +43,7 @@ export function summarizeRunHealth(events, now = Date.now(), opts = {}) {
 
     if (event.type.startsWith('child.')) {
       const id = data.id ?? data.taskId ?? data.childId ?? event.child_id;
-      if (id) children.set(id, ['child.completed', 'child.done', 'child.failed', 'child.cancelled', 'child.blocked'].includes(event.type) || ['completed', 'done', 'failed', 'cancelled', 'blocked'].includes(data.status));
+      if (id) children.set(id, ['child.completed', 'child.done', 'child.failed', 'child.cancelled', 'child.blocked', 'child.settled', 'child.delivery_accepted'].includes(event.type) || ['completed', 'done', 'failed', 'cancelled', 'blocked', 'settled', 'delivery_accepted'].includes(data.status));
     }
   }
 
