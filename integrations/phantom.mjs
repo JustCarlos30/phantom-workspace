@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 import { assertContractAllowed, clientOfEngine, engineOf, executionPolicy, resolveHarnessModel } from '../shared/execution-policy.mjs';
+import { summarizeRunHealth } from './run-health.mjs';
 
 const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
@@ -164,13 +165,14 @@ function activityReason(raw) {
   } catch { return raw; }
 }
 async function events(payload, context, c) {
-  if (payload.view !== undefined && payload.view !== 'activity') throw new Error('Invalid Phantom events view');
+  if (payload.view !== undefined && !['activity', 'health'].includes(payload.view)) throw new Error('Invalid Phantom events view');
   // Authorize the canonical task before invoking the CLI event reader. In
   // particular, never fetch a foreign task's events and filter them afterwards.
   const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
   if (task.id !== payload.id) throw new Error('Phantom task ID mismatch');
   const result = await c.call(['events', payload.id]);
   if (!Array.isArray(result)) throw new Error('Phantom returned invalid events');
+  if (payload.view === 'health') return summarizeRunHealth(result, Date.now());
   if (payload.view === 'activity') {
     const checks = (task.contract ?? task.raw?.contract)?.checks ?? [];
     const grouped = new Map();

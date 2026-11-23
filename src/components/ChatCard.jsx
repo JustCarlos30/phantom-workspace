@@ -16,6 +16,7 @@ import ToolOutput from './ToolOutput';
 import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
 import { phantomRunIds, turnRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
+import { runHealthView } from '../hooks/run-health-view.mjs';
 import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { executionPolicy } from '../../shared/execution-policy.mjs';
@@ -870,12 +871,20 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const turnPhase = waiting ? 'waiting' : running ? 'running' : 'idle', seenPhase = useRef(null);
   // Encargos Phantom lanzados desde este chat: consulta al terminar un turno y cada 3 s mientras haya vivos.
   const [controllers, setControllers] = useState([]);
+  const [runHealth, setRunHealth] = useState([]);
   const runs = delegatedRuns(node.id, controllers);
   const delegation = delegationState(turnPhase, runs);
   const phase = delegation.phase, liveRuns = runs.live.length;
   const refreshRuns = useRef(null);
   refreshRuns.current = async () => {
-    try { const response = await api('phantom.controllers', { workspaceId: workspace.id }); if (Array.isArray(response?.items)) setControllers(response.items); } catch { /* Se reintenta en el siguiente ciclo. */ }
+    try {
+      const response = await api('phantom.controllers', { workspaceId: workspace.id });
+      if (!Array.isArray(response?.items)) return;
+      setControllers(response.items);
+      const live = delegatedRuns(node.id, response.items).live;
+      const health = await Promise.all(live.map(item => api('phantom.events', { workspaceId: workspace.id, id: item.taskId, view: 'health' }).catch(() => null)));
+      setRunHealth(health.filter(Boolean));
+    } catch { /* Se reintenta en el siguiente ciclo. */ }
   };
   useEffect(() => { if (connected && turnPhase === 'idle' && typeof api === 'function') refreshRuns.current(); }, [connected, turnPhase, workspace.id]);
   useEffect(() => {
@@ -883,12 +892,11 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     const timer = setInterval(() => refreshRuns.current(), 3000);
     return () => clearInterval(timer);
   }, [connected, liveRuns, workspace.id]);
-  const delegatedSince = runs.live.map(item => item.createdAt).filter(Boolean).sort()[0];
-  const delegatedElapsed = useElapsed(delegatedSince, phase === 'delegating');
   const [ackedRun, setAckedRun] = useState(null);
   const finishedRun = delegation.outcome === 'attention' ? runs.latest : null;
   useEffect(() => { if (seen && finishedRun) setAckedRun(finishedRun.id); }, [seen, finishedRun?.id]);
-  const delegating = phase === 'delegating', delegatingLabel = `Esperando ${liveRuns} ${liveRuns === 1 ? 'encargo' : 'encargos'} Phantom`;
+  const delegating = phase === 'delegating', healthView = runHealthView(runHealth);
+  const delegatingLabel = healthView.line;
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
@@ -949,7 +957,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           {context}
         </div>}
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
-        {delegating && !running && !waiting && <p className="pc-working" role="status">{delegatingLabel} · <span className="pc-num">{formatElapsed(delegatedElapsed)}</span></p>}
+        {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{healthView.line}</span>{healthView.warning && <span className="pc-run-health-warning" role="status">{healthView.warning}</span>}</p>}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
