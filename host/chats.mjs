@@ -618,6 +618,8 @@ export class Chats {
   }
   start(workspace, node, message, continuation) {
     const provider = node.data.chat.provider;
+    assertClientAllowed(provider, this.policy(), 'El agente de este chat');
+    if (node.data.chat.models?.[provider]) assertClientModel(provider, node.data.chat.models[provider], this.policy(), 'modelo guardado del chat');
     assert(!this.running(node.id), 'El agente todavía está respondiendo');
     assert(this.turns.size + this.operations.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
     const definition = CHAT_PROVIDERS[provider], thread = this.thread(node.id, provider), now = () => new Date().toISOString();
@@ -662,8 +664,7 @@ export class Chats {
       reply.usage = { durationMs: Number.isFinite(turn.usage?.durationMs) ? turn.usage.durationMs : Date.now() - started, ...(Number.isFinite(turn.usage?.costUsd) ? { costUsd: turn.usage.costUsd } : {}), ...(turn.usage?.outputTokens ? { outputTokens: turn.usage.outputTokens } : {}) };
       thread.meta = { ...meta(), costUsd: sum(thread.meta?.costUsd, turn.usage?.costUsd), turns: sum(thread.meta?.turns, 1) };
       this.save(); publish({ running: false, continuations: structuredClone(thread.continuations ?? []) });
-      // The line moves on after a clean reply; a stop or a failure pauses it.
-      if (reply.status === 'done') setImmediate(() => { try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } });
+      if (!turn.stopped) setImmediate(() => { try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } });
       // OpenCode's stream never names the model; its session record does.
       if (provider === 'opencode' && !thread.meta.model && thread.sessionId) execFile(bin, ['export', thread.sessionId], { cwd, env: { ...process.env, PWD: cwd }, timeout: 15000, maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
         try {

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createHost } from '../host/server.mjs';
 import { Chats, applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
 import { mergeChat } from '../src/hooks/chatState.js';
+import { handleIntegration } from '../integrations/index.mjs';
 
 const until = async fn => { const end = Date.now() + 5000; while (Date.now() < end) { if (await fn()) return; await new Promise(r => setTimeout(r, 25)); } throw new Error('Timed out'); };
 const turn = () => ({ message: { parts: [] }, sessionId: null, streamed: new Set(), freshText: true, cwd: '/repo', error: '' });
@@ -168,6 +169,108 @@ function fixture(dir, name, body) {
   fs.writeFileSync(file, `#!${process.execPath}\n${body}`, { mode: 0o755 });
   return file;
 }
+
+async function failedRunFixture(t, { terminal = false, spawnFailure = false } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-failed-wake-'));
+  const agent = fixture(root, 'agent', `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'system',subtype:'init',session_id:'wake-session'});setTimeout(()=>{if(input==='first') {out({type:'result',is_error:true,result:'turn failed',session_id:'wake-session'});return;}out({type:'assistant',message:{content:[{type:'text',text:input}]}});out({type:'result',is_error:false,session_id:'wake-session'});},500);});`);
+  const cli = path.join(root, 'inert.mjs'); fs.writeFileSync(cli, '// inert');
+  let spawns = 0, lastEvent, host, hostEmit;
+  host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: (method, payload, context) => handleIntegration(method, payload, {
+    ...context,
+    execFile: async (_file, args) => {
+      if (args.includes('show')) return { stdout: JSON.stringify({ id: 'task_rejected', status: 'ready', contract: { workspace: spawnFailure ? root : path.join(root, 'foreign'), checks: [] } }) };
+      throw new Error('Not a Git workspace');
+    },
+    spawn: () => { spawns++; throw new Error('fixture spawn failed'); },
+    emit: event => { lastEvent = event; hostEmit = context.emit; context.emit(event); },
+  }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await host.invoke('settings.update', { patch: { claudePath: agent } });
+  const w = await host.invoke('workspace.open', { path: root });
+  await host.invoke('plugins.update', { workspaceId: w.id, id: 'phantom', patch: { config: { phantomPath: cli } } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: terminal ? {} : { cwd: root, chat: { provider: 'claude' } } });
+  const stored = host.store.getWorkspace(w.id).nodes.find(n => n.id === node.id);
+  stored.data.sessionId = 'fixture-session';
+  host.terminals.sessions.push({ id: 'fixture-session', nodeId: node.id, workspaceId: w.id, status: terminal ? 'running' : 'lost', snapshot: '', seq: 0 });
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  if (!terminal) await host.invoke('chat.send', { ...ref, text: 'first' });
+  return { host, ref, node: stored, spawns: () => spawns, repeat: () => hostEmit(lastEvent),
+    run: () => host.invoke('phantom.control', { workspaceId: w.id, id: 'task_rejected', action: 'run', sessionId: 'fixture-session' }),
+    get: () => host.invoke('chat.get', ref) };
+}
+
+test('rechazo antes de spawn continúa el chat con PTY lost y causa real, sin mensaje manual', async t => {
+  const f = await failedRunFixture(t);
+  await assert.rejects(f.run(), /Phantom task belongs to another workspace/);
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  const chat = await f.get();
+  assert.match(chat.messages.at(-1).parts[0].text, /Motivo informado.*Phantom task belongs to another workspace/);
+  assert.equal(f.spawns(), 0);
+  assert.equal(f.host.terminals.get('fixture-session').status, 'lost');
+  assert.equal(f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers.length, 1);
+});
+
+test('fallo síncrono de spawn emite un único aviso y permite continuidad', async t => {
+  const f = await failedRunFixture(t, { spawnFailure: true });
+  await assert.rejects(f.run(), /fixture spawn failed/);
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  assert.match((await f.get()).messages.at(-1).parts[0].text, /fixture spawn failed/);
+  assert.equal(f.spawns(), 1);
+  assert.equal(f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers.length, 1);
+});
+
+test('la cola avanza tras error de turno sin otro mensaje manual', async t => {
+  const f = await failedRunFixture(t);
+  await f.host.invoke('chat.send', { ...f.ref, text: 'next' });
+  await until(async () => { const chat = await f.get(); return !chat.running && !chat.queue.length; });
+  const chat = await f.get();
+  assert.equal(chat.messages[1].status, 'error');
+  assert.equal(chat.messages.at(-1).parts[0].text, 'next');
+});
+
+test('entrega temporal fallida se reintenta con una sola escritura efectiva y deduplica el evento', async t => {
+  const f = await failedRunFixture(t, { terminal: true });
+  let attempts = 0, writes = 0;
+  f.host.terminals.foreground = () => ({ agent: true });
+  f.host.terminals.write = () => { if (++attempts === 1) throw new Error('temporarily busy'); writes++; };
+  await assert.rejects(f.run(), /another workspace/);
+  f.repeat();
+  await until(() => writes === 1);
+  f.repeat();
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal(attempts, 2); assert.equal(writes, 1); assert.equal(f.spawns(), 0);
+});
+
+test('stop cancela aviso pendiente; ownership rechazado no relanza ni duplica el run', async t => {
+  const f = await failedRunFixture(t, { terminal: true });
+  let writes = 0;
+  f.host.terminals.foreground = () => ({ agent: false });
+  f.host.terminals.write = () => { writes++; };
+  await assert.rejects(f.run(), /another workspace/);
+  await f.host.invoke('terminal.stop', { sessionId: 'fixture-session' });
+  f.host.terminals.foreground = () => ({ agent: true });
+  await new Promise(resolve => setTimeout(resolve, 1200));
+  assert.equal(writes, 0); assert.equal(f.spawns(), 0);
+  const w = f.host.store.getWorkspace(f.ref.workspaceId);
+  assert.equal(w.phantomControllers.length, 1);
+  assert.equal(w.attention.filter(item => item.eventKey.startsWith('wake-blocked:')).length, 1);
+});
+
+test('PTY perdido sin chat produce bloqueo visible permanente, deduplicado y sin restaurar procesos', async t => {
+  const f = await failedRunFixture(t, { terminal: true });
+  // The run came from a live agent; its PTY disappears before delivery.
+  let release;
+  const original = f.host.terminals.get.bind(f.host.terminals);
+  f.host.terminals.get = id => { const session = original(id); session.status = 'lost'; release = true; return session; };
+  await assert.rejects(f.run(), /another workspace/);
+  await until(() => release && f.host.store.getWorkspace(f.ref.workspaceId).attention.some(item => item.eventKey.startsWith('wake-blocked:')));
+  f.repeat();
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  const w = f.host.store.getWorkspace(f.ref.workspaceId);
+  assert.equal(w.attention.filter(item => item.eventKey.startsWith('wake-blocked:')).length, 1);
+  assert.match(w.attention.find(item => item.eventKey.startsWith('wake-blocked:')).title, /PTY no está disponible/);
+  assert.equal(f.spawns(), 0);
+});
 
 async function codexContinuation(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-continuation-'));
