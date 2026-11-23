@@ -115,6 +115,8 @@ test('amend: motivo de turnos amplía --max-turns x1.5 y devuelve qué amplió',
   assert.equal(result.expanded, 'turns'); assert.equal(result.maxTurns, 150); assert.equal(result.previousMaxTurns, 100);
   assert.deepEqual(f.calls.find(args => args[0] === 'amend').slice(0, 4), ['amend', 'task_9', '--max-turns', '150']);
   assert.equal(f.calls.find(args => args[0] === 'amend').includes('--max-tokens'), false);
+  assert.equal(f.calls.find(args => args[0] === 'amend').includes('--revision'), false);
+  assert.equal(f.calls.find(args => args[0] === 'amend').includes('--contract-revision'), true);
 });
 
 test('amend: sin maxTurns vigente usa 150 x1.5; motivo de tiempo se rechaza', async t => {

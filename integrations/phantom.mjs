@@ -420,7 +420,7 @@ async function amend(payload, context, c) {
     const next = turns ? undefined : amendedMaxTokens(current);
     const nextTurns = turns ? amendedMaxTurns(currentTurns) : undefined;
     const contractRevision = contract?.revision ?? task.revision ?? task.raw?.revision;
-    const raw = await c.call(['amend', task.id, ...(turns ? ['--max-turns', String(nextTurns)] : ['--max-tokens', String(next)]), '--reason', reason, ...(positive(current) ? ['--revision', String(current)] : []), ...(positive(contractRevision) ? ['--contract-revision', String(contractRevision)] : [])]);
+    const raw = await c.call(['amend', task.id, ...(turns ? ['--max-turns', String(nextTurns)] : ['--max-tokens', String(next)]), '--reason', reason, ...(!turns && positive(current) ? ['--revision', String(current)] : []), ...(positive(contractRevision) ? ['--contract-revision', String(contractRevision)] : [])]);
     return { id: task.id, action: 'amend', source: 'phantom', expanded: turns ? 'turns' : 'tokens', ...(turns ? { maxTurns: nextTurns, previousMaxTurns: Number.isFinite(currentTurns) ? currentTurns : null } : { maxTokens: next, previousMaxTokens: Number.isFinite(current) ? current : null }), reason, revision: positive(contractRevision) ? contractRevision : null, observedAt: observedAt(), raw };
   })();
   starts.set(key, work);
