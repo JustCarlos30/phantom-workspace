@@ -56,11 +56,11 @@ export function preferredCardMode() {
   if (saved && saved !== 'claude' && policyCache.enabled.includes(saved)) return saved;
   return saved === 'claude' && policyCache.enabled.includes('claude') ? 'claude' : policyCache.enabled.includes(policyCache.chat) ? policyCache.chat : 'claude';
 }
-const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
+const FULL_LIST = 'borrar / o tu home entero y formatear o escribir discos';
 // Branches Phantom creates per session are named after an id; show the project instead.
 const AUTO_BRANCH = /^phantom\/terminal-/;
 const AUTO_APPROVE = {
-  claude: { auto: 'Trabaja solo. Te pide permiso para borrar, publicar o salir de su carpeta.', ask: 'Te pide permiso antes de cada cambio.', full: `Hace todo sin preguntar. Solo te pide permiso para: ${FULL_LIST}.` },
+  claude: { auto: 'Trabaja solo. Te pide permiso para borrar, publicar o salir de su carpeta.', ask: 'Te pide permiso antes de cada cambio.', full: `Hace todo sin preguntar, salvo ${FULL_LIST}.` },
   opencode: { auto: 'Trabaja solo, según la configuración de OpenCode.', ask: 'Te pide permiso antes de cada cambio.', full: 'Hace todo sin preguntar, según la configuración de OpenCode.' },
   codex: { auto: 'Edita dentro de su carpeta. No puede pedirte permiso: lo que lo requiera se rechaza.', ask: 'Solo lee. No edita ni pide permiso.', full: 'Hace todo sin preguntar, también fuera de su carpeta y en la red.' },
 };
