@@ -24,6 +24,12 @@ test('resetIn da texto corto', () => {
   assert.equal(resetIn(new Date(now + 3600000).toISOString(), now), 'en 1 h');
 });
 
+test('summarize expone stale, staleSince, status y retry', () => {
+  const now = 1_000_000_000_000;
+  const [row] = summarize({ providers: [{ id: 'claude', label: 'Claude', available: true, stale: true, status: 'rate_limited', staleSince: new Date(now - 7 * 60000).toISOString(), retryAt: new Date(now + 4 * 60000).toISOString(), windows: [{ label: '5 h', percent: 40 }] }] }, now);
+  assert.deepEqual([row.stale, row.staleSince, row.status, row.retry, row.percent], [true, 'hace 7 min', 'rate_limited', 'reintenta en 4 min', 40]);
+});
+
 test('summarize cubre disponible, sin sesión y vacío', () => {
   const now = 1_000_000_000_000;
   const rows = summarize({ providers: [
