@@ -596,7 +596,7 @@ export const phantomTool = tool => typeof tool === 'string' && /^mcp__phantom(_w
 // Remotion export (writes a folder) keep the normal rules.
 export const PHANTOM_SCRIPTS = fileURLToPath(new URL('../scripts', import.meta.url));
 const PHANTOM_CLIS = {
-  'agent.mjs': () => true,
+  'agent.mjs': args => args[0] !== 'events' || (args.length <= 2 && args.slice(1).every(arg => /^[A-Za-z0-9_-]{1,200}$/.test(arg))),
   'canvas.mjs': args => !args.some(arg => arg === '--remotion' || arg.startsWith('--remotion=')),
   'workspace-browser.mjs': () => true,
   'branches.mjs': args => args.length === 0 || ['status', 'help', '--help', '-h'].includes(args[0]),

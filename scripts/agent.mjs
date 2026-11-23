@@ -1,6 +1,7 @@
 import net from 'node:net';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { EVENTS_METHOD } from '../shared/workspace-events.mjs';
 
 export function invokeAgent(method, payload, socketPath, timeout=10000) {
   if (!socketPath) return Promise.reject(new Error('Ejecuta este comando dentro de una terminal nueva de Phantom Workspace.'));
@@ -35,6 +36,7 @@ const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|worki
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
   +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"\n'
   +'Fases: phases show | phases set ARCHIVO.json|- | phases start KEY [TASK_ID] | phases task KEY TASK_ID | phases done KEY ["nota"] | phases block KEY "motivo" | phases reset KEY | phases clear\n'
+  +'Eventos: events [CURSOR]\n'
   +'Hooks: subagent (lee el evento de Claude Code por stdin)';
 // Incorporaciones: [payload from arguments, argument check]. Orchestrator actions carry its token.
 const MERGE={
@@ -85,6 +87,12 @@ export async function main(args=process.argv.slice(2), env=process.env) {
     else throw new Error(USAGE);
     if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
     return invokeAgent(`terminal.agent.env.${sub}`,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...payload},env.PHANTOM_WORKSPACE_SOCKET,wait);
+  }
+  if(args[0]==='events') {
+    const [,cursor]=args;
+    if(args.length>2||(cursor!==undefined&&!/^[A-Za-z0-9_-]{1,200}$/.test(cursor)))throw new Error(USAGE);
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    return invokeAgent(EVENTS_METHOD,{principal:{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},...(cursor===undefined?{}:{cursor})},env.PHANTOM_WORKSPACE_SOCKET);
   }
   if(['launch','processes','output','stop'].includes(args[0])) {
     const [action,...rest]=args;

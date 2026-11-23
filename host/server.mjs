@@ -25,6 +25,7 @@ import { publicSettings, portableSettings } from './public-settings.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
+import { createHostEvents, EVENTS_METHOD } from './workspace-events.mjs';
 import { startPatch, finishPatch, cardNode } from './run-binding.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
@@ -85,7 +86,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
+  const hostEvents=createHostEvents({broadcast:event=>broadcast(event)});
   const emit=event=>{
+    try{if(store&&!closingPromise)hostEvents.feed(event,sessionId=>terminals?.sessions.find(s=>s.id===sessionId)?.nodeId);}catch{}
     const terminalExit=event.type==='terminal.exit',toolFinish=event.type==='tool.status'&&['failed','completed'].includes(event.status);
     const runId=terminalExit?event.sessionId:event.id;
     if((terminalExit||toolFinish)&&runId&&store) {
@@ -228,6 +231,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   async function invoke(method,p={}) {
     assert(!closingPromise,'Host is shutting down');
     text(method,'method',128); object(p);
+    if(method===EVENTS_METHOD) return hostEvents.query(p,{session:id=>terminals.sessions.find(s=>s.id===id),workspaces:()=>store.state.workspaces});
     if(method==='mobile.status') return mobile.status();
     if(method==='mobile.start') return mobile.start(p);
     if(method==='mobile.stop') return mobile.stop();
@@ -371,7 +375,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(session.status==='running' && node.data.sessionId===session.id,'Report requires the current live terminal session');
       object(p.patch);for(const key of Object.keys(p.patch)) assert(['step','status'].includes(key),'Reports may only update step and status');
       const patch=structuredClone(p.patch);validateAgent(patch);
-      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return agentContext(w,current,session);});
+      const reported=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return {context:agentContext(w,current,session),agent:current.data.agent};});
+      try{hostEvents.report({workspaceId:w.id,nodeId:node.id,agent:reported.agent});}catch{}
+      return reported.context;
     }
     if(method==='terminal.agent.plan') {
       for(const key of Object.keys(p))assert(['sessionId','op'].includes(key),`Clave de plan desconocida: ${key}`);
@@ -518,7 +524,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   function close() {
     if(closingPromise)return closingPromise;
-    runWake.close();
+    runWake.close();hostEvents.close();
     closingPromise=(async()=>{
       try {
         try { await Promise.all([mobile?.stop(),android?.stop()]); } finally {
