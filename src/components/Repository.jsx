@@ -13,6 +13,7 @@ import EmptyState from './EmptyState.jsx';
 // unsaved work). Git is the source; writes go through the host, which refuses
 // anything that would lose work or overwrite a newer file.
 const POLL_MS = 8000;
+const MOD = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgentData?.platform || navigator.platform || '') ? '⌘' : 'Ctrl';
 const STATUS = { M: 'Modificado', A: 'Añadido', D: 'Borrado', R: 'Renombrado', C: 'Copiado', T: 'Tipo cambiado', U: 'En conflicto' };
 const statusTone = code => code === 'D' ? 'removed' : code === 'A' ? 'added' : code === 'U' ? 'conflict' : 'modified';
 const statusLetter = status => { const code = changeCode(status); return code === '?' ? 'N' : code; };
@@ -97,7 +98,7 @@ function EditorView({ tab, api, workspace, notify, onDirty, onSaved }) {
       <span className="rp-spacer" />
       <span className="rp-quiet" title={tab.tree}>{tab.treeTitle}</span>
       <button type="button" className="rp-icon" title="Recargar desde disco" aria-label="Recargar desde disco" disabled={busy} onClick={() => { if (!dirty || window.confirm('Se descartarán los cambios del editor. ¿Recargar desde disco?')) load(); }}><RotateCcw size={13} /></button>
-      <button type="button" className="rp-button is-primary" disabled={!dirty || busy} onClick={save}><Save size={13} aria-hidden="true" />Guardar <kbd>Ctrl S</kbd></button>
+      <button type="button" className="rp-button is-primary" disabled={!dirty || busy} onClick={save}><Save size={13} aria-hidden="true" />Guardar <kbd>{MOD} S</kbd></button>
     </div>
     {error && <ErrorNotice error={error} clear={() => setError(null)} />}
     {file && !file.editable && <p className="rp-warning rp-pad">{file.reason}</p>}
