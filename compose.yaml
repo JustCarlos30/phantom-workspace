@@ -18,4 +18,4 @@ services:
     x-phantom:
       lifecycle: ephemeral
       purpose: "Preview de componentes UI"
-      card: "task_8d85ce7b-dc67-4070-832d-24cb80f95a19"
+      card: "task_a9eee333-3f66-4acd-88f2-892b2628c921"
