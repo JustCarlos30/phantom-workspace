@@ -9,6 +9,8 @@ import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
 import { BAND_RANK, CONTEXT_BANDS, CONTEXT_SIZE_CAPS, CONTEXT_TOKEN_BANDS, contextAdvice, contextNudge, contextUse, nudgeDismissal, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
+import PlanPhases from './PlanPhases';
+import { planSummary } from '../hooks/plan-view.mjs';
 import Markdown, { CopyButton } from './Markdown';
 import ToolOutput from './ToolOutput';
 import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
@@ -931,11 +933,13 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
         {(running || waiting) && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{plainMarkdown(lastText).slice(-240)}</p>}
+        <PlanPhases plan={node.data?.plan} compact />
       </div>
     </div>;
   }
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
+    {planSummary(node.data?.plan) && <details className="plan-phases-toggle pc-plan"><summary><PlanPhases plan={node.data.plan} compact /></summary><PlanPhases plan={node.data.plan} /></details>}
     <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}

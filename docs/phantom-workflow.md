@@ -73,6 +73,16 @@ Ejemplos de aplicación:
 - «¿Qué hace esta función?»: consulta de solo lectura, sin registro obligatorio.
 - «Continúa con el cambio anterior»: consultar contexto y contrato; continuar el mismo ID, sin duplicarlo.
 
+## Plan con fases
+
+Para trabajo de varias etapas, el agente declara su plan con `"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" phases set ARCHIVO.json` y enlaza cada encargo con `phases start KEY ID`; el host marca la fase al cerrar el encargo. El plan se ve con datos reales del nodo (`node.data.plan`):
+
+- Tarjeta de terminal y resumen de chat: una línea «Fase N de M · título» con el progreso hechas/total.
+- Panel enfocado y cabecera del chat: un desplegable «Plan» con la lista ordenada de fases, su estado, la nota si está bloqueada y el ID corto del encargo.
+- Rail de sesiones: «Fase N de M» en el apoyo de la fila.
+
+Una fase pendiente sin encargo aparece como «Sin encargo todavía» y no es ejecutable: hasta enlazarle un ID (`phases task KEY ID` o `phases start KEY ID`) la cadena no puede lanzarla.
+
 ## Terminales nuevas y sesiones ya abiertas
 
 La inyección ocurre al crear el PTY. No cambia el entorno de shells ni de agentes que ya estén ejecutándose. Tras instalar estos cambios hay que reiniciar el host de Phantom Workspace para cargar el código nuevo y crear o relanzar la sesión de terminal; abrir OpenCode, Claude Code o Codex dentro de esa sesión nueva permite heredar el bootstrap. Las chat cards lanzan un proceso por turno: tras reiniciar el host, el siguiente turno ya lleva la política. Volver a adjuntar una terminal existente no equivale a relanzarla.

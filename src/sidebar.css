@@ -171,8 +171,8 @@
 .rail-panel-row.selected .rail-panel-label > span:first-child { color: inherit; }
 .rail-session-meta { display: flex; align-items: baseline; min-width: 0; font: var(--t-support); color: var(--muted); }
 .rail-session-status { flex-shrink: 0; white-space: nowrap; }
-.rail-session-type, .rail-session-time { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-session-type::after, .rail-session-time::before { content: " · "; white-space: pre; }
+.rail-session-type, .rail-session-time, .rail-session-plan { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-session-type::after, .rail-session-time::before, .rail-session-plan::before { content: " · "; white-space: pre; }
 .rail-session-resources { padding-left: 37px; }
 .rail-resource-row > button:first-child { font: var(--t-control); font-weight: 400; }
 .rail-panel-focus { display: grid; place-items: center; width: 28px; height: 28px; margin-right: calc(var(--row-px) - (var(--target) - var(--control-size)) / 2); flex-shrink: 0; border-radius: 50%; color: inherit; opacity: 0; transition: opacity var(--dur-fast) linear, background-color var(--dur-fast) linear; }

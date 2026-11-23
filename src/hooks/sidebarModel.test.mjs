@@ -53,7 +53,7 @@ test('rows expose defaults, original node and title, status and model basename',
   assert.deepEqual(rows, [{
     id: 'a', node, provider: 'opencode', providerLabel: 'OpenCode', title: 'Una tarea',
     fullTitle: 'Una tarea. Detalle', tone: 'unknown', statusLabel: 'Estado desconocido',
-    needsYou: false, time: '', model: 'model', resources: [],
+    needsYou: false, time: '', model: 'model', resources: [], plan: null,
   }]);
   assert.deepEqual(resources, []);
   const row = buildSessionRows([node], { a: { tone: 'warning', label: 'Necesita permiso', needsYou: true } }).rows[0];
@@ -71,6 +71,13 @@ test('rows expose defaults, original node and title, status and model basename',
   }
   assert.equal(buildSessionRows([node], { a: { updatedAt: 'invalid', createdAt: now - 60000 } }, now).rows[0].time, 'hace 1 min');
   assert.equal(buildSessionRows([{ ...node, createdAt: now - 60000 }], {}, now).rows[0].time, '', 'Node age is not session activity');
+});
+
+test('rows summarize the agent plan', () => {
+  const plan = { title: 'P', phases: [{ key: 'a', title: 'Uno', status: 'done' }, { key: 'b', title: 'Dos', status: 'running' }] };
+  const row = buildSessionRows([terminal('a', 'claude', 'X', { plan })]).rows[0];
+  assert.equal(row.plan.label, 'Fase 2 de 2 · Dos');
+  assert.equal(row.plan.index, 2);
 });
 
 test('duplicates are numbered in source order before stable priority sorting', () => {
