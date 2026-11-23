@@ -7,9 +7,14 @@
 .app-shell [data-type="note"] { --type: var(--c-lilac); }
 .app-shell [data-type="zone"] { --type: var(--c-lilac); }
 
-/* ---------- Top bar: two pills ---------- */
-.app-shell :is(.workspace-identity, .header-controls, .focus-return, .workspace-header > .rail-toggle) { border-radius: var(--r-isle); }
-.app-shell .workspace-identity { padding: 0 20px; }
+/* ---------- Top bar: one pill; identity and controls are groups inside it ---------- */
+.app-shell :is(.workspace-header, .focus-return, .workspace-header > .rail-toggle) { border-radius: var(--r-isle); }
+.app-shell .workspace-identity { padding: 0 8px 0 20px; }
+.app-shell .identity-separator { margin: 0 2px; font: var(--t-control); }
+.app-shell .identity-space { font: var(--t-control); font-weight: 400; }
+/* «Guardado» is a quiet check; saving and errors say it in words. */
+.app-shell .save-state.is-quiet { color: var(--ink-3); }
+.app-shell .save-state > .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .app-shell .header-controls { padding: 0 8px 0 14px; gap: 4px; }
 .app-shell .header-controls .icon-button { width: var(--target); height: var(--target); border-radius: 50%; background: var(--control-fill); color: var(--ink); }
 .app-shell .header-controls .icon-button:hover:not(:disabled) { background-color: var(--control-hover); color: var(--ink); }

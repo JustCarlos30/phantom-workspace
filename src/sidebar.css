@@ -14,21 +14,21 @@
 }
 .project-rail button:focus-visible, .project-rail summary:focus-visible { outline: var(--focus-width) solid var(--on); outline-offset: calc(-1 * var(--focus-offset)); }
 
-/* ---------- Brand ---------- */
-.project-rail .brand { display: flex; align-items: center; gap: var(--row-gap); flex-shrink: 0; font: var(--t-support); color: var(--muted); }
-.project-rail .brand > span:last-of-type > span { display: block; margin-top: -2px; font: var(--t-micro); font-weight: 400; letter-spacing: 0; color: var(--ink-3); opacity: .72; }
-.project-rail .brand-mark { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; color: var(--accent); background: none; }
-.project-rail .brand .icon-button { width: 32px; height: 32px; margin-left: auto; border-radius: 50%; background: none; color: var(--muted); opacity: .72; }
+/* ---------- Head: one selector row «project / space» ----------
+   No brand label. The row is the anchor of both menus, which open at the
+   rail's full width under it. */
+.project-rail .brand { position: relative; display: flex; align-items: center; gap: var(--s-1); flex-shrink: 0; min-width: 0; font: var(--t-support); color: var(--muted); }
+.project-rail .brand .icon-button { width: 32px; height: 32px; border-radius: 50%; background: none; color: var(--muted); opacity: .72; }
 .project-rail .brand .icon-button:hover { background-color: var(--control-hover); color: var(--ink); opacity: 1; }
-.rail-collapsed .project-rail .brand .icon-button { margin-left: 0; }
+.project-rail .rail-head-separator { flex-shrink: 0; color: var(--ink-3); font: var(--t-control); }
 
-/* ---------- Context: where you are, not a form ----------
-   The project is the rail's title: a coloured disc with its initials and the
-   name. The space is a small chip under the name. Neither is a field with a
-   label and a caret; both open their menu when pressed. */
-.project-rail .context-switcher { position: relative; flex-shrink: 0; min-width: 0; }
+/* The project is the row's title: a coloured disc with its initials and the
+   name. The space is a text segment after the slash. Neither is a field with
+   a label; both open their menu when pressed. */
+.project-rail .context-switcher { position: static; flex-shrink: 0; min-width: 0; }
+.project-rail .project-switcher { flex: 1 1 auto; }
 .project-switcher > summary {
-  display: flex; align-items: center; gap: var(--row-gap); width: 100%; min-height: 48px; padding: 4px var(--row-px) 0;
+  display: flex; align-items: center; gap: var(--s-2); width: 100%; min-height: 48px; padding: 0 var(--s-1);
   border-radius: var(--r-row); color: var(--ink); text-align: left; cursor: pointer; list-style: none;
   transition: background-color var(--dur-fast) linear;
 }
@@ -50,10 +50,10 @@
 .project-switcher > summary:is(:hover, :focus-visible) > svg, .project-switcher[open] > summary > svg { opacity: .72; }
 .project-switcher[open] > summary > svg { transform: rotate(180deg); }
 
-.project-rail .rail-spaces { margin: 0; padding-left: var(--row-px); }
+.project-rail .rail-spaces { flex: 0 1 auto; max-width: 45%; margin: 0; padding: 0; }
 .space-switcher-trigger {
-  position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: var(--control-size); min-height: var(--control-size); padding: 0 8px 0 10px;
-  border-radius: var(--r-pill); background: var(--control-fill); box-shadow: none; color: var(--muted); text-align: left;
+  position: relative; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: var(--control-size); min-height: var(--control-size); padding: 0 6px;
+  border-radius: var(--r-pill); background: none; box-shadow: none; color: var(--muted); text-align: left;
   transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .space-switcher-trigger::after { content: ""; position: absolute; inset: calc((var(--control-size) - var(--target)) / 2) 0; }
@@ -126,8 +126,8 @@
 .rail-attention > span { flex: 1; min-width: 0; }
 .rail-attention > svg:last-child { opacity: .5; }
 .rail-attention b { font: var(--t-micro); font-weight: 600; font-variant-numeric: tabular-nums; }
-.rail-attention.needs-you { color: var(--ink); font-weight: 500; }
-.rail-attention.needs-you > svg:first-child { color: var(--attention); }
+.project-rail .rail-attention { color: var(--ink-3); }
+.project-rail .rail-attention.needs-you { color: var(--attention); font-weight: 500; }
 .rail-attention.needs-you b { color: var(--attention); }
 
 /* Selection and attention retain independent, readable signals. */
@@ -206,13 +206,12 @@
 /* ---------- Short windows: the list yields before the selectors do ---------- */
 @media (max-height: 700px) {
   .project-switcher > summary { min-height: 42px; }
-  .project-rail .rail-spaces { padding-left: 48px; margin-bottom: var(--s-2); }
   .project-rail .rail-heading { height: 30px; }
   .project-rail .rail-bottom { padding-top: var(--s-2); }
 }
 @media (max-height: 600px) {
   .project-rail { overflow-y: auto; }
-  .app-shell:not(.rail-collapsed) .project-rail .brand { height: 36px; margin-bottom: 4px; }
+  .app-shell:not(.rail-collapsed) .project-rail .brand { min-height: 38px; }
   .project-switcher > summary { min-height: 38px; }
 }
 
@@ -225,7 +224,7 @@
 .project-rail :is(.rail-attention, .rail-map-action) > svg:first-child { width: var(--glyph-primary); height: var(--glyph-primary); }
 .project-rail .rail-attention.needs-you[aria-expanded=true] { color: var(--ink); }
 .project-rail .rail-bottom > button[aria-pressed=true] { background: var(--fill-3); color: var(--accent); }
-.project-rail :is(.brand > span:last-of-type > span, .brand .icon-button, .project-item small, .space-select small, kbd, .rail-heading > span, .rail-heading button, .rail-empty, .host-indicator) { opacity: 1; }
+.project-rail :is(.brand .icon-button, .project-item small, .space-select small, kbd, .rail-heading > span, .rail-heading button, .rail-empty, .host-indicator) { opacity: 1; }
 @media (pointer: coarse) {
   .project-rail { --target: 44px; }
   .project-rail .project-switcher > summary { min-height: var(--target); }

@@ -45,6 +45,12 @@ try {
     assert.equal(await rail.getByRole('navigation', { name: 'Sesiones' }).locator('.rail-panel-row').count(), 1);
     assert.equal(await rail.getByRole('navigation', { name: 'En el mapa' }).locator('.rail-panel-row').count(), 2);
     assert.ok(Math.abs((await rail.boundingBox()).width - 272) <= 1 / 64);
+    // Etapa 6·4: no brand label; one selector row «project / space» heads the rail.
+    assert.equal(await rail.locator('.rail-head > .project-switcher + .rail-head-separator + .rail-spaces').count(), 1);
+    assert.doesNotMatch(await rail.locator('.rail-head').innerText(), /Phantom\s*Workspace/);
+    const [projectBox, spaceBox] = [await rail.locator('.project-switcher > summary').boundingBox(), await rail.locator('.space-switcher-trigger').boundingBox()];
+    assert.ok(Math.abs((projectBox.y + projectBox.height / 2) - (spaceBox.y + spaceBox.height / 2)) <= 1, 'Project and space share one row');
+    assert.equal(await rail.locator('.rail-head + .rail-attention').count(), 1, 'Attention is the first row under the head');
     const row = rail.locator('.rail-session-row').first();
     assert.ok(Math.abs((await row.boundingBox()).height - 56) <= 1 / 64);
     assert.ok(Math.abs((await row.locator('.rail-agent-mark').boundingBox()).width - 32) <= 1 / 64);

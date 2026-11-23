@@ -145,7 +145,8 @@ try {
   await projectTrigger.focus(); await page.keyboard.press('Enter');
   assert.equal(await rail.locator('.context-menu-panel').count(), 1);
   assert.equal(await spaceTrigger.getAttribute('aria-expanded'), 'false');
-  await rail.locator('.brand').click(); await expectClosed();
+  // The menu now covers the rows under the head; the host status is a neutral zone below it.
+  await rail.locator('.rail-bottom .host-indicator').click(); await expectClosed();
 
   await spaceTrigger.click();
   await rail.getByRole('button', { name: 'Nuevo espacio', exact: true }).click();

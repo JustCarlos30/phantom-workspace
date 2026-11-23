@@ -284,7 +284,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .app-shell .canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
 .app-shell[data-focus-moving] .canvas-region { transition: none; }
 
-.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
+.project-rail, .workspace-header, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
 .context-menu, .toast, .canvas-busy, .connection-error {
   background: var(--object-fill) var(--surface);
@@ -293,13 +293,12 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 }
 .canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-chrome); }
 
-.workspace-identity, .header-controls, .activity-notch, .dock-main, .toast,
-.workspace-header > .rail-toggle { position: relative; }
-:is(.canvas-node, .project-rail, .workspace-identity, .header-controls, .activity-notch,
+.activity-notch, .dock-main, .toast { position: relative; }
+:is(.canvas-node, .project-rail, .workspace-header, .activity-notch,
     .dock-main, .activity-dock, .canvas-navigation, .canvas-minimap, .inspector-host,
     .focus-return, .toast, .canvas-busy, .connection-error, .zone-selection,
     .group-selection, .activity-tray, .attention-tray, .tw-palette, .tw-voice,
-    .app-dialog, .phantom-chat, .agent-editor, .workspace-header > .rail-toggle)::before {
+    .app-dialog, .phantom-chat, .agent-editor)::before {
   content: ""; position: absolute; inset: 0; z-index: 3;
   border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
   background: var(--object-ring);
@@ -323,7 +322,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   .rail-collapsed .project-rail { bottom: auto; width: auto; max-width: 340px; padding: 8px; display: flex; flex-direction: row; align-items: center; gap: 4px; }
   .rail-collapsed .project-rail > :not(.brand):not(.rail-collapsed-project) { display: none; }
   .rail-collapsed .brand { padding: 0; }
-  .rail-collapsed .brand > span:not(.brand-mark) { display: none; }
+  .rail-collapsed .brand > :is(.context-switcher, .rail-head-separator) { display: none; }
   .rail-collapsed .rail-collapse { margin-left: 0; order: 3; }
   .rail-collapsed .workspace-identity { display: none; }
   .rail-collapsed .workspace-header { left: auto; }
@@ -334,16 +333,17 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 }
 @media (max-width: 850px) { .project-rail { border-radius: 0 var(--r-obj) var(--r-obj) 0; } }
 
-/* ---------- Top bar: two islands over the canvas ---------- */
+/* ---------- Top bar: one object over the canvas ---------- */
 .workspace-header {
   position: absolute; top: var(--gutter); right: var(--gutter); left: calc(var(--gutter) * 2 + var(--rail-width));
-  height: 48px; min-height: 48px; padding: 0; background: transparent; border: 0; z-index: 28; pointer-events: none;
+  height: 48px; min-height: 48px; padding: 0; border: 0; border-radius: var(--r-obj); z-index: 28;
   transition: left var(--dur) var(--ease-out);
 }
-.workspace-header > * { pointer-events: auto; }
-.workspace-identity { flex: 0 1 auto; min-width: 0; max-width: 46%; height: 48px; padding: 8px 16px; border-radius: var(--r-obj); display: flex; flex-direction: column; justify-content: center; }
-.workspace-path { margin-top: 2px; }
-.header-controls { height: 48px; padding: 0 8px; border-radius: var(--r-obj); gap: 4px; margin-left: auto; }
+.workspace-identity { flex: 0 1 auto; min-width: 0; max-width: 60%; height: 100%; padding: 0 8px 0 16px; display: flex; align-items: center; }
+.workspace-identity .breadcrumb { min-width: 0; }
+.identity-separator { flex-shrink: 0; color: var(--ink-3); }
+.identity-space { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.header-controls { height: 100%; padding: 0 8px; gap: 4px; margin-left: auto; }
 .header-controls .icon-button { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 .header-controls .icon-button:hover { background: var(--island-hover); }
 .search-command { height: 32px; border-radius: var(--r-ctl); background: var(--island-hover); border-color: transparent; margin-right: 4px; }
@@ -498,8 +498,6 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .studio-focused .workspace-identity { flex: 0 0 280px; }
 .focus-return { max-width: 280px; }
 .focus-return > span { min-width: 0; }
-.workspace-identity { padding: 8px 16px; }
-.workspace-identity > * { flex-shrink: 0; }
 .workspace-identity .breadcrumb { height: 18px; }
 @media (min-width: 851px) {
   .brand .rail-collapse { display: inline-flex; }
@@ -618,8 +616,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tw-inspector, .tw-tool-panel, .tw-palette, .tw-voice, .tw-button, .plugin-surface { font-family: inherit; }
 
 /* ---------- Matte islands ---------- */
-.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation, .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index, .context-menu, .toast, .activity-tray, .attention-tray, .activity-dock, .tw-palette, .tw-voice, .app-dialog { --ink-3: var(--ink-on-glass); --muted: var(--ink-on-glass); }
-.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
+.project-rail, .workspace-header, .activity-notch, .dock-main, .canvas-navigation, .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index, .context-menu, .toast, .activity-tray, .attention-tray, .activity-dock, .tw-palette, .tw-voice, .app-dialog { --ink-3: var(--ink-on-glass); --muted: var(--ink-on-glass); }
+.project-rail, .workspace-header, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
 .context-menu, .toast, .canvas-busy, .zone-selection, .group-selection, .activity-tray, .attention-tray {
   background-color: var(--glass);
@@ -644,7 +642,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .icon-button.active { background: var(--accent-soft); color: var(--accent); }
 
 /* ---------- Top bar ---------- */
-.workspace-identity, .header-controls, .activity-notch, .focus-return { border-radius: var(--r-obj); }
+.workspace-header, .activity-notch, .focus-return { border-radius: var(--r-obj); }
 .breadcrumb { font-size: 12px; gap: 7px; }
 .breadcrumb > button, .project-name-editor > button { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
 .workspace-path { font-size: 11px; }
@@ -853,7 +851,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
     padding: var(--box-pad); border: 0; border-radius: var(--r-isle);
     box-shadow: var(--shadow-chrome);
   }
-  .app-shell:not(.rail-collapsed) .brand { height: 40px; flex-shrink: 0; margin: 0; padding: 0 var(--row-px); border: 0; }
+  .app-shell:not(.rail-collapsed) .brand { min-height: 48px; flex-shrink: 0; margin: 0; padding: 0; border: 0; }
 
   /* Collapsed: the rail folds into a pill that sits where the rail began. */
   .rail-collapsed .project-rail {
@@ -861,21 +859,18 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
     padding: 0 8px; border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
 
-  /* Top row: no strip. Title and controls are two separate objects; the space
-     between them is canvas, and it takes clicks and pans like canvas. */
-  .workspace-header, .rail-collapsed .workspace-header {
+  /* Top row: one bar from the rail's edge to the right margin. Identity and
+     controls are groups inside it, not boxes of their own. */
+  .workspace-header {
     top: var(--gutter); left: calc(var(--gutter) * 2 + var(--rail-width)); right: var(--gutter);
     height: var(--bar); min-height: var(--bar); padding: 0; gap: 8px;
-    background: transparent; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; pointer-events: none;
+    border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
-  .rail-collapsed .workspace-header { left: var(--gutter); }
-  .workspace-identity, .header-controls {
-    height: var(--bar); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
-  }
-  .workspace-identity { padding: 0 18px; max-width: min(44%, 520px); }
+  /* Collapsed: the identity hides and the bar shrinks to its controls, right-aligned. */
+  .rail-collapsed .workspace-header { left: auto; }
+  .workspace-identity, .header-controls { height: 100%; }
+  .workspace-identity { padding: 0 8px 0 18px; max-width: min(60%, 520px); }
   .header-controls { padding: 0 8px; }
-  /* The rail already names the project; the title keeps name + path, not a fake breadcrumb. */
-  .workspace-identity .breadcrumb > svg, .workspace-identity .breadcrumb > span { display: none; }
 
   /* Focus mode: the stage starts one gap after the rail and stops before the inspector. */
   .studio-focused:not(.rail-collapsed) .canvas-region { left: calc(var(--gutter) * 2 + var(--rail-width) - 12px); }
@@ -904,8 +899,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   .studio-inspector-open.rail-collapsed .tool-picker { left: calc((100% - var(--inspector-width) - var(--gutter)) / 2); }
 }
 @media (max-width: 850px) {
-  .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0; background: transparent; border: 0; pointer-events: none; }
-   .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); background-color: var(--island); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+  .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0 0 0 4px; border: 0; border-radius: var(--r-obj); }
+  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: 100%; border: 0; }
   .workspace-header > .rail-toggle { width: var(--bar); flex-shrink: 0; }
   .header-controls { padding: 0 6px; }
   .inspector-host { top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); left: var(--gutter); border-radius: var(--r-isle); }

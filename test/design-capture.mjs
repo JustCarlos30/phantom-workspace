@@ -324,7 +324,8 @@ try {
     const notch = document.querySelector('.activity-notch');
     notch.classList.add('needs-you');
     notch.querySelector('strong').textContent = 'Sintético: 2 te necesitan';
-    document.querySelector('.attention-button').insertAdjacentHTML('beforeend', '<i></i>');
+    // The bell only exists when the rail is collapsed or narrow.
+    document.querySelector('.attention-button')?.insertAdjacentHTML('beforeend', '<i></i>');
   });
   const railStatuses = await page.locator('.rail-session-status').evaluateAll(elements => elements.map(el => {
     const rect = el.getBoundingClientRect();

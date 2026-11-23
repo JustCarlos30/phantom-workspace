@@ -179,6 +179,8 @@ Filas sobre el rail, sin tarjetas por sesión. Título en una línea con elipsis
 
 Rail expandido: top/bottom/left 12 px, padding 12 px, alto disponible con scroll de la lista. Fila de 56 px, padding horizontal 16 px, columna de insignia 32 px y gap 12 px. Cabecera de proyecto: padding `4px 16px 0`. Pie: gap 8 y padding izquierdo 16 px. El nombre del proyecto no compite con otro título de marca.
 
+**Etapa 6·4 (aprobada por Carlos tras el laboratorio Propuestas).** Sin rótulo de marca: la cabecera del rail (`div.brand.rail-head`) es una sola fila selector «proyecto / espacio» — disco de 32 px con iniciales y nombre truncado, «/» en tinta terciaria, el espacio como segmento de texto con chevrón (sin relleno en reposo, realce tonal al pasar) y al final contraer/cerrar. Ambos menús se despliegan a todo el ancho del rail bajo esa fila y siguen siendo excluyentes. «Te necesitan» es la primera fila bajo la cabecera, con el lenguaje de las sesiones y dentro de la navegación por flechas: tinta terciaria en «Todo en orden», texto y numeral ámbar con pendientes (nunca fondo). La fila superior es un solo objeto de 48 px desde el borde del rail hasta el margen derecho: identidad en una línea «proyecto / espacio» (ruta en el `title`), «Guardado» como check silencioso y la campana solo con el rail contraído o estrecho.
+
 `SidebarPanels` ya llama `onJump` y `onFocus` por separado. Mantenerlo. `buildSessionRows` ya conserva identificadores, títulos completos, orden estable y recursos asociados. Añadir solo el dato temporal que falta, usando `timeOf`/`ago` existentes; sin fecha válida, omitir tiempo. No inventar antigüedad ni un estado «trabajando» porque una terminal siga abierta.
 
 ### 9. Sesión por dentro

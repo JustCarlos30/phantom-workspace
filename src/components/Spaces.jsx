@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Layers, Pencil, Plus, Search, X } from 'lucide-react';
+import { ChevronDown, Pencil, Plus, Search, X } from 'lucide-react';
 import { isEditingTarget } from '../hooks/inputOwnership';
 import { useContextSwitcher } from './ProjectSwitcher';
 
@@ -41,7 +41,7 @@ export default function Spaces({ spaces, active, nodes, onSelect, onCreate, onRe
   };
   const field = <input ref={input} className="space-input" aria-label="Nombre del espacio" maxLength={80} value={editing?.value || ''} onChange={e => changeEditing({ ...editingRef.current, value: e.target.value })} onBlur={commit} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); commit(); menu.search.current?.focus(); } if (e.key === 'Escape') { e.preventDefault(); changeEditing(null); menu.search.current?.focus(); } }} autoFocus />;
   return <section ref={menu.root} className="rail-spaces context-switcher" aria-label="Espacios del proyecto" onKeyDown={menu.onKeyDown} onBlur={menu.onBlur}>
-    <button ref={menu.trigger} className="space-switcher-trigger" aria-expanded={open} aria-controls="space-context-menu" title={`Espacio: ${current.name}`} onClick={() => onOpenChange(!open)}><Layers size={16} /><span className="project-switcher-label"><small>Espacio</small><strong>{current.name}</strong></span><ChevronDown size={14} /></button>
+    <button ref={menu.trigger} className="space-switcher-trigger" aria-expanded={open} aria-controls="space-context-menu" title={`Espacio: ${current.name}`} onClick={() => onOpenChange(!open)}><span className="project-switcher-label"><small>Espacio</small><strong>{current.name}</strong></span><ChevronDown size={14} /></button>
     {open && <div id="space-context-menu" className="context-menu-panel" style={menu.style}>
       <label className="context-search"><Search size={14} /><input ref={menu.search} aria-label="Buscar espacios" placeholder="Buscar espacio…" value={query} onChange={e => setQuery(e.target.value)} /></label>
       {query && !filtered.length && <p className="context-empty" role="status">Sin espacios que coincidan.</p>}
