@@ -12,6 +12,7 @@ import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
 import { runTimeoutMs, closeBlockedTasks } from '../integrations/phantom.mjs';
 import { services } from '../integrations/services.mjs';
+import { createRunWake, wakeMessage } from '../host/run-wake.mjs';
 
 const exec = promisify(execFile);
 await mkdir('/tmp/opencode', { recursive: true });
@@ -463,6 +464,72 @@ test('Phantom controllers use host Node argv, owned SIGINT, bounded output and r
   await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller/);
   assert.equal(f.context.events.filter(e => e.type === 'tool.output').reduce((n, e) => n + Buffer.byteLength(e.data), 0), 1048576);
   const cancel = await f.call('phantom.control', { id: task.id, action: 'cancel' }); assert.equal(cancel.id, task.id); assert.ok(calls.some(args => args.includes('cancel')));
+});
+
+test('Phantom stop ignores late error/close in either order without waking; an unstopped failure wakes once', async t => {
+  for (const scenario of ['stop-error-close', 'stop-close-error', 'failure']) {
+    const f = await fixture(t), children = [], prepared = [], notices = [], blocks = [];
+    const task = { id: 'task_late', kind: 'card', status: 'ready', contract: { workspace: f.root, goal: 'Late controller events' } };
+    const nodeId = 'agent-node', sessionId = 'agent-session';
+    f.context.sessions.push({ id: sessionId, nodeId, workspaceId: f.workspace.id, status: 'running' });
+    const wake = createRunWake({
+      prepare: target => { prepared.push(target); return {}; },
+      deliver: (target, controller) => { notices.push({ target, controller, message: wakeMessage({ taskId: target.taskId, controller }) }); return {}; },
+      blocked: (target, reason) => blocks.push({ target, reason }),
+    });
+    t.after(() => wake.close());
+    const emit = f.context.emit;
+    f.context.emit = event => { emit(event); wake.accept(event); };
+    f.context.execFile = async file => {
+      if (file === 'git') throw new Error('no git');
+      return { stdout: JSON.stringify(task), stderr: '' };
+    };
+    f.context.spawn = () => {
+      const child = new EventEmitter(); child.pid = 123456; child.stdout = new PassThrough(); child.stderr = new PassThrough();
+      child.signals = []; child.kill = signal => { child.signals.push(signal); return true; };
+      children.push(child); return child;
+    };
+    const descriptor = await f.call('phantom.control', { id: task.id, action: 'run', model: 'claude-code/haiku', sessionId });
+    assert.equal(descriptor.status, 'running');
+    assert.deepEqual(descriptor.origin, { nodeId });
+    assert.equal(children.length, 1);
+    assert.deepEqual(prepared, []); assert.deepEqual(notices, []);
+    const child = children[0], stopped = scenario !== 'failure';
+    if (stopped) {
+      const result = await f.call('phantom.control', { id: descriptor.id, action: 'stop' });
+      assert.equal(result.stopRequested, true);
+      assert.deepEqual(child.signals, ['SIGINT']);
+    }
+    if (scenario === 'stop-close-error') child.emit('close', 0, null);
+    child.emit('error', new Error('late controller transport failure'));
+    child.emit('close', 1, 'SIGINT');
+    child.emit('close', 0, null);
+    await Promise.resolve();
+    const statuses = f.context.events.filter(event => event.type === 'tool.status');
+    assert.deepEqual(statuses.map(event => event.status), ['running', stopped ? 'stopped' : 'failed'], scenario);
+    assert.ok(statuses.every(event => event.workspaceId === f.workspace.id && event.id === descriptor.id));
+    assert.deepEqual(statuses[1].result.origin, { nodeId });
+    assert.equal(statuses[1].result.stopRequested, stopped ? true : undefined);
+    assert.equal(f.workspace.phantomControllers.length, 1);
+    assert.deepEqual(f.workspace.phantomControllers[0], statuses[1].result);
+    for (const event of f.context.events) { wake.accept(event); wake.accept(event); }
+    await Promise.resolve();
+    assert.deepEqual(blocks, []);
+    if (stopped) {
+      assert.deepEqual(prepared, []); assert.deepEqual(notices, []);
+    } else {
+      assert.deepEqual(child.signals, []);
+      const target = { id: descriptor.id, nodeId, via: 'terminal', taskId: task.id, workspaceId: f.workspace.id };
+      assert.deepEqual(prepared, [target]);
+      assert.equal(notices.length, 1);
+      assert.deepEqual(notices[0].target, target);
+      assert.deepEqual(notices[0].controller, statuses[1].result);
+      assert.equal(notices[0].controller.error, 'late controller transport failure');
+      assert.match(notices[0].message, /Motivo informado.*late controller transport failure/);
+    }
+    await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller owned by this host/);
+    assert.equal(children.length, 1);
+  }
 });
 
 async function policyRun(t, contract, config = {}) {
