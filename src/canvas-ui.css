@@ -51,6 +51,9 @@
   --on-ink: #141414;
   --on-hover: #f6f1e6;
   --on-press: #d6d0c2;
+  --primary: var(--accent);
+  --primary-hover: color-mix(in srgb, var(--primary), #fff 12%);
+  --primary-press: color-mix(in srgb, var(--primary), #000 12%);
   --control-size: 36px;
   --dock-control-size: 40px;
   --control-fill: #ffffff14;
@@ -109,6 +112,7 @@
   --dur-spring: var(--dur-open);
   --ease-out: cubic-bezier(.16, 1, .3, 1);
   --dur-fast: 120ms;
+  --dur-enter: 200ms;
   --dur: 240ms;
   --island: var(--glass);
   --island-hover: var(--fill-3);
@@ -426,8 +430,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .dock-main button { height: 40px; padding: 0 12px; gap: 7px; border-radius: var(--r-obj); font-size: 12px; color: var(--muted); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .dock-main button:hover:not(:disabled) { background: var(--island-hover); color: var(--ink); }
 .dock-main button:active:not(:disabled) { background: var(--accent-soft); }
-.dock-main button:first-of-type { background: var(--accent); color: var(--primary-ink); }
-.dock-main button:first-of-type:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); color: var(--primary-ink); }
+.dock-main button:first-of-type { background: var(--primary); color: var(--primary-ink); }
+.dock-main button:first-of-type:hover:not(:disabled) { background: var(--primary-hover); color: var(--primary-ink); }
 .dock-main button.active { background: var(--accent-soft); color: var(--accent); }
 .dock-main > i { height: 22px; background: var(--hairline); margin: 0 4px; }
 .dock-label { display: none !important; }
@@ -635,8 +639,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .button { height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); font-weight: 550; transition: background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
 .button:hover { background: var(--fill-3); border: 0; }
 .button:active:not(:disabled) { scale: .98; }
-.button.primary, .tw-button.tw-primary { background: var(--accent); color: var(--primary-ink); border-color: transparent; }
-.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 14%); }
+.button.primary, .tw-button.tw-primary { background: var(--primary); color: var(--primary-ink); border-color: transparent; }
+.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .icon-button { border-radius: var(--r-ctl); transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .icon-button:hover { background: var(--fill-2); color: var(--ink); }
 .icon-button.active { background: var(--accent-soft); color: var(--accent); }
@@ -1257,8 +1261,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
    shell.css. */
 .button, .tw-button { background: var(--fill); }
 .button:hover, .tw-button:hover:not(:disabled) { background: var(--fill-3); }
-.button.primary, .button.primary:hover, .tw-button.tw-primary,
-.tw-button.tw-primary:hover:not(:disabled), .icon-button.active,
+.button.primary, .tw-button.tw-primary { background: var(--primary); color: var(--primary-ink); box-shadow: var(--shadow-key); }
+.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--primary-hover); color: var(--primary-ink); }
+.button.primary:active:not(:disabled), .tw-button.tw-primary:active:not(:disabled) { background: var(--primary-press); }
+.icon-button.active,
 .tw-tabs .tw-button[aria-pressed="true"],
 .activity-tray .activity-filters button[aria-pressed=true],
 .tw-palette-results li[aria-selected="true"] button {

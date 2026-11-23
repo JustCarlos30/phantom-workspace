@@ -62,7 +62,9 @@
 .pc, .pc-thread, .pc-composer { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .pc-thread ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
 .pc-column { display: flex; flex-direction: column; gap: var(--group-gap); min-height: 100%; max-width: var(--composer-max); margin: 0 auto; padding: 16px 12px 20px; }
-.pc-thread .pc-message { flex: none; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.pc-thread .pc-message { flex: none; min-width: 0; color: var(--ink); overflow-wrap: anywhere; transition: opacity var(--dur-enter) var(--ease-settle), transform var(--dur-enter) var(--ease-settle); }
+@starting-style { .pc-thread .pc-message { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .pc-thread .pc-message { transition: none; } }
 .pc-message.is-user { align-self: stretch; max-width: none; margin: 0 16px var(--quote-gap); padding-left: var(--quote-inset); border-left: var(--quote-width) solid var(--on); border-radius: 0; background: none; font: var(--t-control); }
 .pc-message.is-user .md { gap: 6px; }
 .pc-message.is-user .md p { max-width: none; font: inherit; }
@@ -320,7 +322,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-field:focus-within::after { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .pc-field, .pc-field::after { transition: none; } }
 .pc-composer :is(.pc-queue, .pc-nudge) { width: 100%; max-width: var(--composer-max); margin-inline: auto; }
-.pc-field textarea { display: block; width: 100%; min-height: var(--composer-field-min); flex: none; resize: none; border: 0; background: transparent; color: var(--ink); font: var(--t-control); overflow-y: auto; overscroll-behavior: contain; transition: none; }
+.pc-field textarea { display: block; width: 100%; min-height: var(--composer-field-min); flex: none; resize: none; border: 0; background: transparent; color: var(--ink); font: var(--t-control); overflow-y: auto; overscroll-behavior: contain; transition: none; caret-color: var(--accent); }
 .pc-field :is(textarea, .voice-live) { padding: 8px 12px; border-radius: var(--r-ctl); }
 .pc-field textarea::placeholder { color: var(--ink-3); }
 .pc-field textarea:focus-visible { outline: 0; }
@@ -419,9 +421,9 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-permission[data-mode="full"] > svg { color: var(--pc-del); }.pc-permission:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pc-cost { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); flex-shrink: 0; }
 .pc-cost::before { content: ''; width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .6; }
-.pc-send { display: grid; place-items: center; width: var(--control-size); height: var(--control-size); border-radius: 50%; background: var(--on); color: var(--on-ink); flex-shrink: 0; transition: background-color var(--dur-fast) linear; }
-.pc-send:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-solid) 86%, var(--muted)); }
-.pc-send:active:not(:disabled) { background: var(--on-press); }
+.pc-send { display: grid; place-items: center; width: var(--control-size); height: var(--control-size); border-radius: 50%; background: var(--primary); color: var(--primary-ink); flex-shrink: 0; transition: background-color var(--dur-fast) linear; }
+.pc-send:hover:not(:disabled) { background: var(--primary-hover); }
+.pc-send:active:not(:disabled) { background: var(--primary-press); }
 .pc-send:disabled { background: var(--fill-2); color: var(--muted); opacity: 1; cursor: not-allowed; }
 .pc-send.is-stop { background: var(--on); color: var(--on-ink); }
 .pc-send.is-stop:hover { background: var(--on-hover); }
@@ -595,7 +597,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-question-actions button.is-primary,
 .pc-question-actions button.is-primary:hover:not(:disabled),
 .pc-ask-actions button.is-primary, .pc-ask-actions button.is-primary:hover:not(:disabled) {
-  background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key);
+  background: var(--primary); color: var(--primary-ink); box-shadow: var(--shadow-key);
 }
 /* In a menu the current value is a lit veil with its check, not a light key:
    the key belongs to the one selection of the island. */
@@ -621,8 +623,8 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic) { background: var(--control-fill); color: var(--ink); }
 .pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic):hover:not(:disabled) { background: var(--control-hover); }
 .pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic):active:not(:disabled) { background: var(--control-press); }
-.pc.pc .pc-send:hover:not(:disabled):not(.is-stop) { background: var(--on-hover); }
-.pc.pc .pc-send:active:not(:disabled):not(.is-stop) { background: var(--on-press); }
+.pc.pc .pc-send:hover:not(:disabled):not(.is-stop) { background: var(--primary-hover); }
+.pc.pc .pc-send:active:not(:disabled):not(.is-stop) { background: var(--primary-press); }
 .pc.pc .pc-send:disabled { background: var(--control-fill); color: var(--ink-3); }
 .pc:has(.pc-session-new) > .pc-composer { background: transparent; }
 @media (pointer: coarse) { .pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic, .pc-send) { min-width: 44px; min-height: 44px; } }

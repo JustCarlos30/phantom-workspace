@@ -264,6 +264,27 @@ Realce del mismo recorrido del aro, sin escala: opacidad **0 al 0 %, 1 al 18 %, 
 
 Con movimiento reducido, aplicar destino directamente y conservar selección/etiquetas; cometa quieta, ningún destello ni fallback de fundido. Esc respeta prioridades existentes: primero dictado, menú o edición; el shell restaura panel cuando posee la navegación. No robar Esc ni otras teclas a xterm con entrada activa. Preservar retorno de foco, overlays `inert` y oclusión del navegador nativo. La atenuación `.28` de vecinos al maximizar en 05 no se aplica a la mera selección; el producto actual oculta vecinos en foco, por lo que no se exige introducir una nueva capa de paneles inactivos.
 
+**Estándar de movimiento · Etapa 6·6 (aprobada por Carlos tras el laboratorio Propuestas).**
+
+| Duración | Curva | Uso |
+|---|---|---|
+| `--dur-fast` 120 ms | linear | Realce tonal de filas y controles; nunca escala ni desplazamiento |
+| 160 ms | linear | Fondo del interruptor, luz del foco |
+| `--dur-enter` 200 ms | `--ease-settle` | Thumb del interruptor; entrada de un mensaje nuevo en el hilo (opacidad + 4 px con `@starting-style`, solo `opacity`/`transform`) |
+| `--dur-open` 320 ms | `--ease-settle` | Abrir/cerrar menú, bandeja y paleta; maximizar panel con FLIP |
+| `--map-flash-duration` 900 ms | `--ease-settle` | Destello del aro al saltar a un panel |
+| Bucle | — | Solo la cometa de «trabajando» y el spinner |
+
+No se anima: altura del compositor, color de estado, rebote o escala de botones, bucles decorativos. Movimiento reducido desactiva la entrada de mensajes.
+
+### 12b. Acento
+
+Etapa 6·6 (aprobada por Carlos tras el laboratorio Propuestas). El acento elegido en Apariencia (`--accent`, marfil por defecto) significa **«tú y tu acción»**; los colores de estado significan **«el agente»**. Mezclarlos haría que un botón pareciera un estado o al revés.
+
+- **Sí lleva acento** (`--primary: var(--accent)`, tinta `--primary-ink: #141414`; hover `color-mix(in srgb, var(--primary), #fff 12%)`, pulsado `… #000 12%`): enviar del compositor, «Nueva sesión» del dock, la primaria de Configuración y de diálogos, `caret-color` del compositor y campos, foco de teclado, enlaces en prosa y selección de texto.
+- **Nunca lleva acento**: estados (lima `--working`, ámbar `--attention`, `--danger`, `--success`), superficies y rellenos de objeto, texto de lectura, iconos de herramientas, interruptores y segmentados (siguen marfil `--on`).
+- Contraste de `#141414` sobre los acentos disponibles (cálculo WCAG a mano): azul `#5b9cff` ≈ 7,2:1, rojo `#f27670` ≈ 6,7:1, verde `#65ba83` ≈ 7,8:1; naranja `#f3a45b` y marfil `#f2f0eb`, más claros, quedan por encima. Todos superan AA.
+
 ### 13. Dock con aire y sistema de cajas
 
 Dock de **64 px**, a **24 px** del borde inferior y de cualquier panel. Un solo objeto píldora, Titi, «Nueva sesión» primaria y acciones secundarias circulares. Mantener accesibles las herramientas actuales aunque sus accesos se plieguen; no eliminar funciones para copiar el número de botones del fixture.

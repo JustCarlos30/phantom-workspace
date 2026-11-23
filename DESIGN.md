@@ -435,7 +435,25 @@ El notch usa texto en `--ink` y una marca ámbar en el punto o glifo, sin anillo
 
 `activityMood` prioriza `asleep` (host desconectado), `unsure` (fuente no fresca), `grin` (necesita al usuario), `working` (trabajo real) y `calm` (reposo). `PhantomFace` renderiza el rig existente `TitiGhost` en canvas HiDPI, cuerpo `--identity-ink:var(--on)` y render pixelado. El notch del dock recibe la identidad solo en una escena poblada con personaje habilitado: 28×28 px y margen izquierdo de 4 px. En vacío o con «Mostrar Titi» apagado usa `CircleDot`; texto y acciones de actividad permanecen disponibles. El rail no añade otra mascota.
 
+## Acento · Etapa 6·6
+
+El acento de Apariencia (`--accent`, marfil por defecto) significa «tú y tu acción»; los colores de estado significan «el agente». Por eso nunca comparten papel.
+
+- **Sí:** `--primary: var(--accent)` con `--primary-ink: #141414` (AA ≥ 6,7:1 sobre todos los acentos) en enviar del compositor (`.pc-send`), «Nueva sesión» (`.dock-primary`), `.st-btn.is-primary`, `.button.primary` y primarias de diálogo; hover/pulsado `--primary-hover`/`--primary-press` (mezcla 12 % con blanco/negro). `caret-color: var(--accent)` en compositor, paleta y campos de Configuración; foco, enlaces de prosa y selección.
+- **Nunca:** estados (`--working`, `--attention`, `--danger`, `--success`), superficies, texto de lectura, iconos de herramientas, interruptores y segmentados (marfil `--on`). `test/design-tokens.test.mjs` prohíbe `var(--accent|--primary)` en selectores de estado e interruptor.
+
 ## Movimiento
+
+| Duración | Curva | Uso |
+|---|---|---|
+| `--dur-fast` 120 ms | linear | Realce tonal de filas y controles; sin escala ni desplazamiento |
+| 160 ms | linear | Fondo del interruptor, luz del foco |
+| `--dur-enter` 200 ms | `--ease-settle` | Thumb del interruptor; entrada de mensaje nuevo (`@starting-style`, opacidad + 4 px) |
+| `--dur-open` 320 ms | `--ease-settle` | Menú, bandeja, paleta; maximizar con FLIP |
+| 900 ms | `--ease-settle` | Destello del aro al saltar a un panel |
+| bucle | — | Solo cometa de «trabajando» y spinner |
+
+No se anima: altura del compositor, color de estado, rebotes/escala de botones, bucles decorativos. Movimiento reducido desactiva la entrada de mensajes.
 
 E3 sustituye el hundimiento y el resorte de controles por feedback tonal de 120 ms linear, sin escala ni desplazamiento. `--ease-spring`/`--dur-spring` quedan como aliases de asentamiento/320 ms para compatibilidad. Rail y controles del shell aplican cambios inmediatamente con movimiento reducido. Las transiciones espaciales del objeto siguen el contrato E2; los controles internos aún no migrados pertenecen a sus etapas respectivas.
 

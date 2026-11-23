@@ -179,7 +179,16 @@ test('E3 controls share flat levels, a single segmented recipe and tonal row fee
     assert.equal(rootDeclarations(canvas, `--${name}`)[0], value, name);
   assert.match(shell, /\.control-segmented\s*\{[^}]*height: var\(--seg-height\); padding: var\(--seg-pad\); gap: var\(--seg-gap\); border: 0; border-radius: var\(--r-pill\); background: var\(--control-fill\)/);
   assert.match(shell, /\.control-segmented > button\s*\{[^}]*height: calc\(var\(--seg-height\) - 2 \* var\(--seg-pad\)\)/);
-  assert.match(shell, /\.dock-action\.dock-primary\s*\{[^}]*padding: 0 18px; gap: 8px;[^}]*background: var\(--on\); color: var\(--on-ink\)/);
+  assert.match(shell, /\.dock-action\.dock-primary\s*\{[^}]*padding: 0 18px; gap: 8px;[^}]*background: var\(--primary\); color: var\(--primary-ink\)/);
+  assert.equal(rootDeclarations(canvas, '--primary')[0], 'var(--accent)');
+  const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
+  const settings = sheets.find(sheet => sheet.name === 'src/settings.css').css;
+  assert.match(chat, /\.pc-send \{[^}]*background: var\(--primary\); color: var\(--primary-ink\)/);
+  assert.match(settings, /\.st-btn\.is-primary \{[^}]*background: var\(--primary\); color: var\(--primary-ink\)/);
+  assert.match(chat, /\.pc-field textarea \{[^}]*caret-color: var\(--accent\)/);
+  for (const { name, css } of sheets)
+    for (const [, selector, body] of css.matchAll(/([^{}]*(?:working|attention|danger|success|st-switch|st-seg)[^{}]*)\{([^}]*)\}/g))
+      assert.doesNotMatch(body, /var\(--(?:accent|primary)\)/, `${name}: state/switch selector ${selector.trim()} must not use the accent`);
   assert.match(sidebar, /border-block: var\(--row-air\) solid transparent; background-clip: padding-box; border-radius: var\(--r-row\)/);
   assert.match(sidebar, /\.rail-panel-group[^{}]*::before\s*\{[^}]*height: var\(--divider-width\); background: var\(--divider\)/);
   for (const value of declarations(sidebar + shell, '(?:scale|translate)')) assert.equal(value, 'none');
