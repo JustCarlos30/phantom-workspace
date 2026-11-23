@@ -29,6 +29,7 @@
 .pc:not(.is-overview):not(.phantom-chat) { font-size: 13px; background: transparent; }
 .pc-bar { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 12px 8px; background: var(--surface); font-size: 12px; flex-shrink: 0; }
 .pc-bar-space { flex: 1; min-width: 0; }
+.pc-composer[data-dictating] .pc-bar-space { display: none; }
 .pc-location { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; }
 .pc-bar .pc-location { flex: 0 1 auto; }
 .pc-location > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
