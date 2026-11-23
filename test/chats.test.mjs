@@ -228,6 +228,27 @@ test('la cola avanza tras error de turno sin otro mensaje manual', async t => {
   assert.equal(chat.messages.at(-1).parts[0].text, 'next');
 });
 
+test('stop entre el final fallido y el drenaje cancela el siguiente turno hasta reanudarlo', async t => {
+  const f = await failedRunFixture(t);
+  const emit = f.host.chats.emit;
+  let stopping;
+  f.host.chats.emit = event => {
+    emit(event);
+    if (event.nodeId === f.node.id && event.running === false && event.messages?.some(message => message.status === 'error')) stopping = f.host.invoke('chat.stop', f.ref);
+  };
+  await f.host.invoke('chat.send', { ...f.ref, text: 'next' });
+  await until(() => Boolean(stopping));
+  await stopping;
+  await new Promise(resolve => setImmediate(resolve));
+  const chat = await f.get();
+  assert.equal(chat.running, false);
+  assert.equal(chat.messages.length, 2);
+  assert.deepEqual(chat.queue.map(item => item.text), ['next']);
+  await f.host.invoke('chat.queue.send', f.ref);
+  await until(async () => { const current = await f.get(); return !current.running && !current.queue.length; });
+  assert.equal((await f.get()).messages.at(-1).parts[0].text, 'next');
+});
+
 test('entrega temporal fallida se reintenta con una sola escritura efectiva y deduplica el evento', async t => {
   const f = await failedRunFixture(t, { terminal: true });
   let attempts = 0, writes = 0;

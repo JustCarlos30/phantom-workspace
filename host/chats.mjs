@@ -440,7 +440,7 @@ export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
   constructor(store, emit, role = () => ({ env: {}, instructions: '' }), { codexHome } = {}) {
     this.codexHome = codexHome;
-    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.operations = new Map(); this.dirty = false; this.closed = false;
+    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.operations = new Map(); this.drains = new Map(); this.dirty = false; this.closed = false;
     this.filename = path.join(store.dir, 'chats.json');
     this.nodes = {};
     try { if (fs.existsSync(this.filename)) this.nodes = JSON.parse(fs.readFileSync(this.filename, 'utf8')); } catch { this.nodes = {}; }
@@ -663,8 +663,9 @@ export class Chats {
       if (turn.model) reply.model = turn.model;
       reply.usage = { durationMs: Number.isFinite(turn.usage?.durationMs) ? turn.usage.durationMs : Date.now() - started, ...(Number.isFinite(turn.usage?.costUsd) ? { costUsd: turn.usage.costUsd } : {}), ...(turn.usage?.outputTokens ? { outputTokens: turn.usage.outputTokens } : {}) };
       thread.meta = { ...meta(), costUsd: sum(thread.meta?.costUsd, turn.usage?.costUsd), turns: sum(thread.meta?.turns, 1) };
-      this.save(); publish({ running: false, continuations: structuredClone(thread.continuations ?? []) });
-      if (!turn.stopped) setImmediate(() => { try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } });
+      this.save();
+      if (!turn.stopped) this.drains.set(node.id, setImmediate(() => { this.drains.delete(node.id); try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } }));
+      publish({ running: false, continuations: structuredClone(thread.continuations ?? []) });
       // OpenCode's stream never names the model; its session record does.
       if (provider === 'opencode' && !thread.meta.model && thread.sessionId) execFile(bin, ['export', thread.sessionId], { cwd, env: { ...process.env, PWD: cwd }, timeout: 15000, maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
         try {
@@ -851,6 +852,7 @@ export class Chats {
     return { ok: true };
   }
   stop(nodeId) {
+    clearImmediate(this.drains.get(nodeId)); this.drains.delete(nodeId);
     const operation = this.operations.get(nodeId);
     if (operation) { operation.controller.abort(new Error('Operación de contexto cancelada; resultado sin verificar')); return { ok: true }; }
     const turn = this.turns.get(nodeId);
@@ -906,6 +908,8 @@ export class Chats {
   removeNode(nodeId) { this.stop(nodeId); if (this.nodes[nodeId]) { delete this.nodes[nodeId]; this.save(); } }
   async close() {
     this.closed = true; clearInterval(this.timer);
+    for (const handle of this.drains.values()) clearImmediate(handle);
+    this.drains.clear();
     for (const nodeId of this.turns.keys()) this.stop(nodeId);
     for (const nodeId of this.operations.keys()) this.stop(nodeId);
     const end = Date.now() + 2500;
