@@ -73,12 +73,6 @@
 .phantom-chat-toggle.active { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
 
 
-/* With the chat open, narrow canvases stack view controls above the dock. */
-@media (min-width: 851px) and (max-width: 1800px) {
-  .phantom-chat-open:not(.studio-focused) .canvas-navigation { bottom: calc(var(--gutter) + 112px); }
-  .phantom-chat-open:not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: calc(var(--gutter) + 168px); }
-}
-
 /* Header toggle: a dot when the orchestration needs a look. */
 .phantom-chat-toggle { position: relative; }
 .phantom-chat-toggle:is([data-tone="waiting"], [data-tone="attention"])::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--warning); }

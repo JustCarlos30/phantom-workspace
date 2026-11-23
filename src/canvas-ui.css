@@ -493,9 +493,6 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   .app-shell:not(.rail-collapsed) .create-dock { left: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
   .studio-inspector-open .create-dock { left: calc((var(--gutter) + 100% - var(--inspector-width) - var(--gutter)) / 2); }
   .studio-inspector-open:not(.rail-collapsed) .create-dock { left: calc((var(--rail-width) + var(--gutter) * 2 + 100% - var(--inspector-width) - var(--gutter) * 2) / 2); }
-  /* With the inspector open, view controls stack in a column above the toolbar row. */
-  .studio-inspector-open:not(.studio-focused) .canvas-navigation { bottom: 84px; }
-  .studio-inspector-open:not(.studio-focused) .canvas-minimap, .studio-inspector-open:not(.studio-focused) .canvas-popover { bottom: 144px; }
 }
 @media (min-width: 851px) and (max-width: 1360px) { .studio-inspector-open .dock-main button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .studio-inspector-open .dock-main button { padding: 0 11px; } }
 .studio-focused .workspace-identity { flex: 0 0 280px; }
@@ -528,11 +525,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas, .canvas-region, .workspace-body, .main-workspace { overflow: clip; }
 
 /* ---------- Composition: one anchor for the bottom row ---------- */
-.app-shell { --dock-x: 50%; }
+/* --dock-x is defined with the shelf, at the end of this sheet. */
 @media (min-width: 851px) {
-  .app-shell:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
-  .studio-inspector-open { --dock-x: calc((100% - var(--inspector-width) - var(--gutter)) / 2); }
-  .studio-inspector-open:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
   .app-shell .create-dock, .app-shell .tool-picker { left: var(--dock-x); }
 }
 /* Selection actions float as one island just above the dock, like Figma's selection bar. */
@@ -835,11 +829,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .focus-return button { white-space: nowrap; flex-shrink: 0; }
 .studio-focused .workspace-identity { flex: 0 0 340px; }
 .activity-notch { justify-content: flex-start; }
-/* Narrow desktop with the rail open: view controls sit above the dock row instead of under it. */
-@media (min-width: 851px) and (max-width: 1180px) {
-  .app-shell:not(.rail-collapsed):not(.studio-focused) .canvas-navigation { bottom: 84px; }
-  .app-shell:not(.rail-collapsed):not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: 144px; }
-}
 
 /* =====================================================================
    Lienzo (2026-11-11)
@@ -947,9 +936,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 }
 .activity-dock.activity-open { z-index: 46; }
 @media (min-width: 851px) {
-  .app-shell:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
-  .app-shell.studio-inspector-open:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
-  .app-shell.studio-inspector-open.rail-collapsed { --dock-x: calc((100% - var(--inspector-width)) / 2); }
   .app-shell.studio-focused :is(.create-dock, .tool-picker) { left: 50%; }
 }
 .activity-dock .activity-strip {
@@ -983,10 +969,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .activity-tray-scroll > section:first-of-type { border-top: 0; }
 .tool-picker { bottom: calc(var(--gutter) + var(--dock-h) + 12px); max-height: calc(100% - 172px); }
 .zone-selection, .group-selection { bottom: calc(var(--gutter) + var(--dock-h) + 12px); }
-@media (min-width: 851px) and (max-width: 1180px) {
-  .app-shell:not(.rail-collapsed):not(.studio-focused) .canvas-navigation { bottom: 124px; }
-  .app-shell:not(.rail-collapsed):not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: 184px; }
-}
 @media (max-width: 650px) {
   .activity-dock .activity-strip button { padding-inline: 6px; gap: 4px; }
   .activity-dock .activity-unread { display: none; }
@@ -1106,12 +1088,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   .canvas .canvas-node, .canvas .canvas-node.focused, .canvas-zone { transition: none; animation: none; }
 }
 
-/* Lienzo: inspector-open stacking must win over the shared bottom-row baseline above. */
-@media (min-width: 851px) {
-  .studio-inspector-open:not(.studio-focused) .canvas-navigation { bottom: calc(var(--gutter) + 108px); }
-  .studio-inspector-open:not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: calc(var(--gutter) + 108px + 56px); }
-}
-
 /* =====================================================================
    Acabado (2026-11-12)
    Same matte charcoal, finished edges. Three rules: what is chosen is
@@ -1156,20 +1132,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    own edge, not a frame floating around it. */
 button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2px; }
 
-/* Phantom launcher: the last control of the view island, bottom right. Its
-   mark says whether the orchestration is working, waiting or needs a look. */
-.canvas-navigation .phantom-launcher { position: relative; min-width: 36px; color: var(--accent); }
-.canvas-navigation .phantom-launcher[aria-pressed="true"] { background: var(--accent-soft); }
-.phantom-launcher-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--muted); box-shadow: 0 0 0 2px var(--island, var(--glass)); }
-.phantom-launcher[data-tone="idle"] .phantom-launcher-dot { background: var(--accent); }
-.phantom-launcher[data-tone="working"] .phantom-launcher-dot { background: var(--working); }
-.phantom-launcher[data-tone="waiting"] .phantom-launcher-dot { background: var(--warning); }
-.phantom-launcher[data-tone="attention"] .phantom-launcher-dot { background: var(--danger); }
-.phantom-launcher-count { position: absolute; top: -3px; right: -3px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: var(--r-pill); background: var(--accent); color: var(--primary-ink); font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; font-variant-numeric: tabular-nums; }
-.phantom-launcher[data-tone="waiting"] .phantom-launcher-count { background: var(--fill-2); color: var(--warning); }
-@keyframes phantom-pulse { 50% { opacity: .3; } }
-@media (prefers-reduced-motion: reduce) { .phantom-launcher-dot { animation: none !important; } }
-
 /* The orchestrator's card names its role beside the title. */
 .node-role { flex-shrink: 0; margin-left: 6px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font: var(--t-micro); letter-spacing: .02em; white-space: nowrap; }
 .canvas-node[data-role="orchestrator"]:not(.selected) { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -1180,32 +1142,37 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
   .canvas-region::before { display: none; }
 }
 
-/* Navigation has its own shelf, outside the clipped working stage. Its two
-   rows share a column with creation; the map owns the neighbouring column.
-   Panning can leave work offscreen, but can never put it under these islands. */
-.app-shell { --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h) + 60px); --shelf-left: 0px; --shelf-right: 0px; --map-column: 206px; }
+/* One level below the stage (etapa 6·3). The shelf holds a single row: the
+   dock, centred in the room left of the view tools, and the tools anchored
+   bottom right on the dock's baseline. The minimap floats over the stage's
+   corner just above them. Panning can never put work under the shelf. */
+.app-shell {
+  --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h)); --shelf-left: 0px; --shelf-right: 0px;
+  --nav-reserve: clamp(240px, (100% - var(--shelf-left) - var(--shelf-right)) * .34, 440px); --nav-space: calc(var(--nav-reserve) + 24px);
+  --dock-x: calc(var(--shelf-left) + var(--gutter) + (100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - var(--nav-space)) / 2);
+}
 @media (min-width: 851px) {
   .app-shell:not(.rail-collapsed) { --shelf-left: calc(var(--rail-width) + var(--gutter)); }
   .app-shell.studio-inspector-open { --shelf-right: calc(var(--inspector-width) + var(--gutter)); }
 }
-.app-shell.studio-focused { --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h)); --shelf-left: 0px; --shelf-right: 0px; --map-column: 0px; }
+.app-shell.studio-focused { --shelf-left: 0px; --shelf-right: 0px; --nav-space: 0px; }
 .canvas-stage { position: absolute; inset: 0 var(--shelf-right) var(--canvas-shelf) var(--shelf-left); overflow: clip; }
 .canvas-view-controls {
-  position: absolute; left: calc(var(--shelf-left) + var(--gutter)); right: calc(var(--shelf-right) + var(--gutter)); bottom: var(--dock-clearance);
-  height: calc(60px + var(--dock-h)); display: grid; grid-template-columns: minmax(0, 1fr) 190px; grid-template-rows: 48px var(--dock-h); gap: 12px 16px;
+  position: absolute; right: calc(var(--shelf-right) + var(--gutter)); bottom: var(--dock-clearance); z-index: 12;
+  max-width: var(--nav-reserve); display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
   pointer-events: none;
 }
 .app-shell .canvas .canvas-view-controls .canvas-navigation {
-  position: relative; inset: auto; grid-column: 1; grid-row: 1; justify-self: center; max-width: 100%; overflow-x: auto; pointer-events: auto;
+  position: relative; inset: auto; max-width: 100%; overflow-x: auto; pointer-events: auto;
 }
 .canvas-view-controls .canvas-navigation > * { flex-shrink: 0; }
 .app-shell .canvas .canvas-view-controls .canvas-minimap {
-  position: relative; inset: auto; grid-column: 2; grid-row: 1 / 3; align-self: end; display: block; pointer-events: auto;
+  position: relative; inset: auto; display: block; flex-shrink: 0; pointer-events: auto;
 }
-.app-shell .canvas .canvas-view-controls .canvas-popover { bottom: 128px; right: 206px; pointer-events: auto; }
+.app-shell .canvas .canvas-view-controls .canvas-popover { position: absolute; top: auto; bottom: calc(48px + 12px); right: 0; max-width: none; pointer-events: auto; }
 .app-shell .canvas-region .create-dock {
-  left: calc(var(--shelf-left) + (100% - var(--shelf-left) - var(--shelf-right) - var(--map-column)) / 2);
-  bottom: var(--dock-clearance); max-width: calc(100% - var(--shelf-left) - var(--shelf-right) - var(--map-column) - var(--dock-clearance) * 2);
+  left: var(--dock-x); bottom: var(--dock-clearance);
+  max-width: calc(100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - var(--nav-space));
 }
 .create-dock .dock-main { overflow-x: auto; justify-content: safe center; }
 .create-dock .dock-main > * { flex-shrink: 0; }

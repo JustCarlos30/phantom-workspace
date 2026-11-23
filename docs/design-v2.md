@@ -264,6 +264,8 @@ Con movimiento reducido, aplicar destino directamente y conservar selección/eti
 
 Dock de **64 px**, a **24 px** del borde inferior y de cualquier panel. Un solo objeto píldora, Titi, «Nueva sesión» primaria y acciones secundarias circulares. Mantener accesibles las herramientas actuales aunque sus accesos se plieguen; no eliminar funciones para copiar el número de botones del fixture.
 
+> **Etapa 6·3 (aprobada por Carlos tras el laboratorio Propuestas): un solo nivel abajo.** La franja inferior tiene una sola fila: `--canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h))` (112 px también en mapa). El dock queda solo, centrado en el espacio a la izquierda de las herramientas del lienzo (`--dock-x`); la navegación (48 px) se ancla abajo a la derecha, alineada por abajo con el dock y separada al menos 24 px; el minimapa flota 12 px encima de ella sobre la esquina del escenario. Sin lanzador de Phantom en la barra (sigue en la cabecera). El segmentado muestra V/H/C en densidad `full`.
+
 | Token del producto | Actual → nuevo | Fuente |
 |---|---|---|
 | `--dock-h` | `56px` → `64px` | 05/06 `.dock` |

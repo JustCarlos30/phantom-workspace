@@ -363,7 +363,7 @@ try {
         const seg = document.querySelector('.canvas-navigation .control-segmented');
         const primary = dock.querySelector('.dock-primary'), ps = getComputedStyle(primary);
         const host = rail.querySelector('.host-indicator'), mark = rail.querySelector('.project-switcher > summary > .project-initials');
-        return { rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), coarse, rows, controls,
+        return { rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), nav: rect(document.querySelector('.canvas-navigation')), coarse, rows, controls,
           primary: { bounds: rect(primary), icon: rect(primary.querySelector('svg')), label: rect(primary.querySelector('span')), direction: ps.flexDirection, padding: [ps.paddingLeft, ps.paddingRight], gap: ps.gap },
           host: { text: host.textContent, clipped: host.scrollWidth > host.clientWidth, bounds: rect(host), next: rect(host.nextElementSibling) },
           projectMark: { bounds: rect(mark), text: mark.textContent, radius: getComputedStyle(mark).borderRadius },
@@ -378,6 +378,8 @@ try {
       assert.ok(Math.abs(measurement.window.height - measurement.dock.bottom - 24) <= 1, 'Dock clears the window by 24px');
       assert.ok(measurement.dock.y - measurement.stage.bottom >= 24 - layoutUnit, 'Clipped work stage clears dock by at least 24px');
       assert.ok(measurement.dock.x - measurement.rail.right >= 24 - layoutUnit, 'Dock clears the rail');
+      assert.ok(measurement.nav.x - measurement.dock.right >= 24 - layoutUnit, 'View tools sit right of the dock with at least 24px');
+      dimension(measurement.nav.bottom, measurement.dock.bottom, 'View tools share the dock baseline');
       dimension(measurement.stage.x, measurement.rail.right, 'Working stage excludes the expanded rail');
       assert.equal(measurement.primary.direction, 'row'); assert.deepEqual(measurement.primary.padding, ['18px', '18px']); assert.equal(measurement.primary.gap, '8px');
       dimension(measurement.primary.bounds.height, measurement.coarse ? 44 : 40, 'Primary height');
