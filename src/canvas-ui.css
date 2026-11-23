@@ -509,7 +509,7 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 }
 
 /* Minimap: neutral blocks, accent only for what is selected or in view. */
-.minimap-node, .minimap-node.type-terminal, .minimap-node.type-browser, .minimap-node.type-note { fill: color-mix(in srgb, var(--ink) 24%, transparent); }
+.minimap-node, .minimap-node.type-terminal, .minimap-node.type-browser, .minimap-node.type-note { fill: color-mix(in srgb, var(--ink) 18%, transparent); }
 .minimap-node.selected { fill: color-mix(in srgb, var(--accent) 55%, transparent); stroke: none; }
 
 /* Panel headers share one control size. */
@@ -706,8 +706,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tool-picker-list { display: block; padding: 2px 8px 10px; overflow: auto; }
 .tool-group h3 { margin: 0; padding: 12px 10px 5px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
-.tool-item { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 7px 10px 7px 8px; border-radius: var(--r-obj); text-align: left; transition: background-color var(--dur-fast) var(--ease-out); }
-.tool-item:hover:not(:disabled), .tool-item:focus-visible { background: var(--fill-2); }
+.tool-item { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 7px 10px 7px 8px; border-radius: var(--r-row); text-align: left; transition: background-color var(--dur-fast) var(--ease-out); }
+.tool-item:hover:not(:disabled), .tool-item:focus-visible { background: var(--row-hover); }
 .tool-item:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
 .tool-tile { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 34px; color: var(--muted); }
 .tool-item:hover:not(:disabled) .tool-tile, .tool-item:focus-visible .tool-tile { color: var(--ink); }

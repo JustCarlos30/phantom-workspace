@@ -105,7 +105,7 @@
 
 /* ---------- Focused terminal ---------- */
 .terminal-panel.pt-focus { background: var(--terminal-bg); padding: 0; color: var(--ink); container-type: inline-size; }
-.pt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 52px; padding: 4px 16px 12px; background: var(--surface); flex-shrink: 0; }
+.pt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 52px; padding: 8px 16px; background: var(--surface); flex-shrink: 0; }
 .pt-bar-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex: 1; min-width: 0; font-size: 12px; }
 .pt-context { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0 16px 8px; background: var(--surface); color: var(--muted); font-size: 12px; flex-shrink: 0; }
 .pt-context .pt-chip { display: inline-flex; flex: 1; min-width: 0; max-width: none; padding: 0; background: transparent; }
