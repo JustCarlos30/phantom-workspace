@@ -4,6 +4,8 @@ import { ProviderTile, providerKey } from './Glyphs';
 import { AGENT_LABELS } from './AgentIdentity';
 import { useTerminalTail } from '../hooks/useTerminalTail';
 import { formatSince, stateTone, useNow } from '../hooks/terminalPulse.mjs';
+import { runProgressView } from '../hooks/run-progress-view.mjs';
+import { CopyButton } from './CopyButton';
 import { ModeSwitch } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 import PlanPhases from './PlanPhases';
@@ -56,6 +58,67 @@ export function locationOf(node, workspace) {
   return { cwd, folder, branch, where };
 }
 
+const HM = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
+const hm = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? HM.format(t) : ''; };
+
+// Progreso en vivo de un run Phantom delegado (node.data.agent.run).
+export function RunProgress({ run, workspaceId, api, notify }) {
+  const live = !!run && !['completed', 'blocked', 'cancelled'].includes(run.phase);
+  const now = useNow(live, 1000);
+  const view = runProgressView(run, now);
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [flash, setFlash] = useState(false);
+  const previous = useRef(run?.phase);
+  const log = useRef(null);
+  useEffect(() => {
+    const before = previous.current; previous.current = run?.phase;
+    if (run?.phase !== 'completed' || !before || before === 'completed') return;
+    setFlash(true);
+    const timer = setTimeout(() => setFlash(false), 1400);
+    return () => clearTimeout(timer);
+  }, [run?.phase]);
+  useEffect(() => { if (open && log.current) log.current.scrollTop = log.current.scrollHeight; }, [open, view?.lines.length, view?.lines.at(-1)?.text]);
+  if (!view) return null;
+  const { blocker } = view;
+  async function amend() {
+    setBusy(true); setError('');
+    try {
+      await api('phantom.control', { workspaceId, id: view.taskId, action: 'amend', reason: 'Ampliado por el usuario desde Workspace' });
+      setConfirming(false); notify?.('Presupuesto ampliado');
+    } catch (err) { setError(err?.message || String(err)); }
+    finally { setBusy(false); }
+  }
+  return <section className={`pt-run${flash ? ' is-flash' : ''}`} data-tone={view.tone} aria-label="Progreso del encargo">
+    <div className="pt-run-head">
+      <strong className="pt-run-phase">{view.label}</strong>
+      {view.activity && <span className="pt-run-activity" title={view.activity}>{view.activity}</span>}
+      <span className="pt-run-times">{view.elapsed}{view.idle && ` · inactivo ${view.idle}`}</span>
+    </div>
+    {view.warning && <p className="pt-run-warning" data-level={view.level} role="status">{view.warning}</p>}
+    {view.children.items.length > 0 && <ul className="pt-run-children" aria-label={`Hijos ${view.children.done} de ${view.children.total}`}>
+      {view.children.items.map(item => <li key={item.key} data-status={item.status}><span>{item.key}</span><em>{item.statusLabel}</em>{item.activity && <small title={item.activity}>{item.activity}</small>}</li>)}
+    </ul>}
+    {blocker && <div className="pt-run-blocker" role="alert">
+      <strong>{blocker.title}</strong>
+      {blocker.summary && <p>{blocker.summary}</p>}
+      {blocker.remedy && <p className="pt-run-remedy">{blocker.remedy}</p>}
+      {blocker.retryAt && <p className="pt-run-remedy">Reintento: {blocker.retryAt}</p>}
+      {blocker.commands.map(command => <div key={command} className="pt-run-command"><code>{command}</code><CopyButton value={command} label="Copiar comando" /></div>)}
+      {blocker.action && (confirming
+        ? <div className="pt-run-confirm"><span>¿Ampliar el presupuesto ×1,5?</span><button type="button" className="pt-card-action is-primary" disabled={busy} onClick={amend}>{busy ? 'Ampliando…' : 'Confirmar'}</button><button type="button" className="pt-card-action" disabled={busy} onClick={() => { setConfirming(false); setError(''); }}>Cancelar</button></div>
+        : <button type="button" className="pt-card-action" onClick={() => setConfirming(true)}>{blocker.action.label}</button>)}
+      {error && <p className="pt-run-error" role="alert">{error}</p>}
+    </div>}
+    {view.lines.length > 0 && <>
+      <button type="button" className="pt-run-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? 'Ocultar registro' : `Ver registro (${view.lines.length})`}</button>
+      {open && <pre ref={log} className="pt-run-log" tabIndex={0} role="log" aria-label="Registro del encargo" aria-live="off">{view.lines.slice(-12).map(line => `${hm(line.at)} ${line.text}`.trim()).join('\n')}</pre>}
+    </>}
+  </section>;
+}
+
 export default function TerminalCard({ node, workspace, api, notify, overview = false, connected = true, enabled = true, onOpen, onRelaunch }) {
   const card = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -100,11 +163,12 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
       {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
       {state && <AgentState agent={agent} status={state} reason={tail?.screenReason} />}
       {overview && <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>}
-      {agent.step && (overview ? <p className="pt-card-step" title={agent.step}>{agent.step}</p> : <div className="pt-card-now" data-tone={stateTone(state)}>
+      {agent.step && (overview ? <p className="pt-card-step" title={agent.step}>{agent.step}</p> : <div className="pt-card-now" data-tone={agent.run?.phase === 'blocked' ? 'attention' : stateTone(state)}>
         <i aria-hidden="true" />
         <p key={agent.step} className="pt-card-step" title={agent.step}>{agent.step}</p>
         {hasTime && <time dateTime={updatedAt.toISOString()} title={`${updatedAt.toLocaleString()} · ${agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}`}>{formatSince(now - updatedAt.getTime())}</time>}
       </div>)}
+      {!overview && agent.run && <RunProgress run={agent.run} workspaceId={workspace?.id} api={api} notify={notify} />}
       <PlanPhases plan={node.data?.plan} compact />
     </div>
     {overview && !agent.step && <p className="pt-card-glimpse" aria-hidden="true">{glimpse || (ended || preparing ? '' : '…')}</p>}
