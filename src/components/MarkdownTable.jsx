@@ -23,7 +23,7 @@ export default function MarkdownTable({ block, inline, id = 't' }) {
   const cellProps = c => ({ 'data-align': block.align?.[c] || (kinds[c] === 'number' ? 'right' : undefined), 'data-kind': kinds[c] });
   const summary = block.pending ? 'Recibiendo tabla…' : `${block.rows.length} ${block.rows.length === 1 ? 'fila' : 'filas'} · ${block.head.length} ${block.head.length === 1 ? 'columna' : 'columnas'}`;
   return <figure className={`md-table ${block.pending ? 'is-pending' : ''}`} aria-busy={block.pending || undefined}>
-    <figcaption><span>{summary}</span>{!block.pending && <CopyButton text={() => toTSV(block)} label="Copiar tabla (pega en hojas de cálculo)" />}</figcaption>
+    <figcaption><span>{summary}</span>{!block.pending && <CopyButton value={() => toTSV(block)} label="Copiar tabla (pega en hojas de cálculo)" />}</figcaption>
     <div className={`md-table-body ${edges.start ? 'has-start' : ''} ${edges.end ? 'has-end' : ''}`}><div ref={scroller} className="md-table-scroll" tabIndex={edges.start || edges.end ? 0 : undefined} role="region" aria-label={`Tabla: ${block.head.filter(Boolean).slice(0, 3).join(', ')}`}>
       <table>
         <thead><tr>{block.head.map((cell, c) => <th key={c} scope="col" {...cellProps(c)}>{inline(cell, `${id}-h${c}`)}</th>)}</tr></thead>

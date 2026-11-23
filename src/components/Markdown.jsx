@@ -106,7 +106,7 @@ export function parseMarkdown(source, { streaming = false } = {}) {
 export default React.memo(function Markdown({ source, streaming = false }) {
   const blocks = useMemo(() => parseMarkdown(source, { streaming }), [source, streaming]);
   return <div className="md">{blocks.map((block, i) => {
-    if (block.type === 'code') return <figure key={i} className="md-code"><figcaption><span>{block.lang || 'código'}</span><CopyButton text={block.text} label="Copiar código" /></figcaption><pre><code>{block.text}</code></pre></figure>;
+    if (block.type === 'code') return <figure key={i} className="md-code"><figcaption><span>{block.lang || 'código'}</span><CopyButton value={block.text} label="Copiar código" /></figcaption><pre><code>{block.text}</code></pre></figure>;
     if (block.type === 'h') return React.createElement(`h${Math.min(6, block.level + 2)}`, { key: i }, inline(block.text, i));
     if (block.type === 'hr') return <hr key={i} />;
     if (block.type === 'table') return <MarkdownTable key={i} id={`t${i}`} block={block} inline={inline} />;
