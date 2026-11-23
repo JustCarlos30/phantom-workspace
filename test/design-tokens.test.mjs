@@ -466,7 +466,7 @@ test('materials retire the old activity glint and keep auxiliary status indicato
   assert.match(trace, /stroke-dasharray: var\(--L\) calc\(100px - var\(--L\)\)/);
   assert.match(trace, /\.studio-concentration[\s\S]*animation-play-state: paused/);
   assert.match(trace, /prefers-reduced-motion: reduce[\s\S]*animation: none !important/);
-  const source = readFileSync(path.join(root, 'src/components/Canvas.jsx'), 'utf8');
+  const source = ['src/components/Canvas.jsx', 'src/components/canvas/CanvasNode.jsx'].map(file => readFileSync(path.join(root, file), 'utf8')).join('\n');
   assert.doesNotMatch(source, /PixelField|PIXEL_KIND/);
   assert.match(source, /state === 'working' && <ActivityTrace/);
   for (const state of ['working', 'error', 'success']) assert.match(canvas, new RegExp(`\\.canvas-node\\.pulse-${state}\\s*\\{\\s*--pulse:`));
