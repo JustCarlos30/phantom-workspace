@@ -1162,13 +1162,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .app-shell {
   --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h)); --shelf-left: 0px; --shelf-right: 0px;
   --tools-column: clamp(264px, 100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - 880px, 480px); --nav-space: calc(var(--tools-column) + 24px);
-  --dock-x: calc(var(--shelf-left) + var(--gutter) + (100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - var(--nav-space)) / 2);
+  --shelf-inset: var(--gutter);
+  --dock-room: calc(100% - var(--shelf-left) - var(--shelf-right) - var(--shelf-inset) - var(--gutter) - var(--nav-space));
+  --dock-x: calc(var(--shelf-left) + var(--shelf-inset) + var(--dock-room) / 2);
 }
 @media (min-width: 851px) {
-  .app-shell:not(.rail-collapsed) { --shelf-left: calc(var(--rail-width) + var(--gutter)); }
+  .app-shell:not(.rail-collapsed) { --shelf-left: calc(var(--rail-width) + var(--gutter)); --shelf-inset: 24px; }
   .app-shell.studio-inspector-open { --shelf-right: calc(var(--inspector-width) + var(--gutter)); }
 }
-.app-shell.studio-focused { --shelf-left: 0px; --shelf-right: 0px; --nav-space: 0px; }
+.app-shell.studio-focused { --shelf-left: 0px; --shelf-right: 0px; --nav-space: 0px; --shelf-inset: var(--gutter); }
 .canvas-stage { position: absolute; inset: 0 var(--shelf-right) var(--canvas-shelf) var(--shelf-left); overflow: clip; }
 .canvas-view-controls {
   position: absolute; right: calc(var(--shelf-right) + var(--gutter)); bottom: var(--dock-clearance); z-index: 12;
@@ -1185,7 +1187,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .app-shell .canvas .canvas-view-controls .canvas-popover { position: absolute; top: auto; bottom: calc(48px + 12px); right: 0; max-width: none; pointer-events: auto; }
 .app-shell .canvas-region .create-dock {
   left: var(--dock-x); bottom: var(--dock-clearance);
-  max-width: calc(100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - var(--nav-space));
+  max-width: var(--dock-room);
 }
 .create-dock .dock-main { overflow-x: auto; justify-content: safe center; }
 .create-dock .dock-main > * { flex-shrink: 0; }
