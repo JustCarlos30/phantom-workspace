@@ -200,7 +200,7 @@ test('object chrome has a vertical fill, one ring and accessible opaque material
   assert.equal(declarations(tokens, '--glass-thick')[0], 'var(--surface)');
   assert.equal(declarations(tokens, '--glass-filter')[0], 'none');
   assert.equal(declarations(tokens, '--glass-sheen')[0], 'var(--object-fill)');
-  for (const [name, value] of Object.entries({ 'object-top': '#0f0f11', 'object-bottom': '#070708', 'object-fill': 'linear-gradient(var(--object-top), var(--object-bottom))', 'object-ring-width': '1px', 'object-edge-top': 'color-mix(in srgb, #fff 22%, transparent)', 'object-edge-bottom': 'color-mix(in srgb, #fff 6%, transparent)', 'object-ring': 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))', 'selected-edge-top': 'color-mix(in srgb, #fff 36%, transparent)', 'selected-edge-bottom': 'color-mix(in srgb, #fff 10%, transparent)' }))
+  for (const [name, value] of Object.entries({ 'object-top': '#151518', 'object-bottom': '#0b0b0d', 'object-sheen': 'radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)', 'object-fill': 'var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))', 'object-ring-width': '1px', 'object-edge-top': 'color-mix(in srgb, #fff 26%, transparent)', 'object-edge-bottom': 'color-mix(in srgb, #fff 7%, transparent)', 'object-ring': 'linear-gradient(var(--object-edge-top), var(--object-edge-bottom))', 'selected-edge-top': 'color-mix(in srgb, #fff 36%, transparent)', 'selected-edge-bottom': 'color-mix(in srgb, #fff 10%, transparent)' }))
     assert.equal(declarations(tokens, `--${name}`)[0], value);
   assert.equal(declarations(tokens, '--on')[0], '#ece6d8');
   assert.equal(declarations(tokens, '--on-ink')[0], '#141414');

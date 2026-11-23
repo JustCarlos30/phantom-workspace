@@ -45,11 +45,12 @@ Rail, panel, inspector y dock comparten **degradado vertical sutil y un único a
 
 | Token del producto | Actual → nuevo | Fuente |
 |---|---|---|
-| `--object-top`, `--object-bottom` | `∅` → `#0f0f11`, `#070708` | 05/06 `--obj-top`, `--obj-bot` |
-| `--object-fill` | `∅` → `linear-gradient(var(--object-top), var(--object-bottom))` | `.box` |
+| `--object-top`, `--object-bottom` | `#0f0f11`, `#070708` → `#151518`, `#0b0b0d` | 05/06 `--obj-top`, `--obj-bot`; Etapa 6·1 |
+| `--object-sheen` | `∅` → `radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)` | Etapa 6·1, luz cenital |
+| `--object-fill` | `linear-gradient(var(--object-top), var(--object-bottom))` → `var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))` | `.box`; Etapa 6·1 |
 | `--object-ring-width` | `∅` (borde CSS de 1 px) → `1px` | `--ring` |
-| `--object-edge-top` | `∅` (hairline uniforme) → `color-mix(in srgb, #fff 22%, transparent)` | `--edge-top` |
-| `--object-edge-bottom` | `∅` → `color-mix(in srgb, #fff 6%, transparent)` | `--edge-bot` |
+| `--object-edge-top` | `color-mix(in srgb, #fff 22%, transparent)` → `color-mix(in srgb, #fff 26%, transparent)` | `--edge-top`; Etapa 6·1 |
+| `--object-edge-bottom` | `color-mix(in srgb, #fff 6%, transparent)` → `color-mix(in srgb, #fff 7%, transparent)` | `--edge-bot`; Etapa 6·1 |
 | `--object-ring` | `∅` → `linear-gradient(var(--object-edge-top), var(--object-edge-bottom))` | `.box::before` |
 | `--r-obj`, `--r-isle` | `14px`, `26px` → `24px`, `24px` | `--r-outer`; dock conserva píldora |
 | `--shadow-chrome` | `0 1px 2px #00000066, 0 18px 40px -20px #000000cc` → `0 1px 2px #000, 0 16px 32px -16px #000` | `--shadow` |
@@ -58,6 +59,8 @@ Rail, panel, inspector y dock comparten **degradado vertical sutil y un único a
 | `--glass-tint`, `--glass`, `--glass-thick` | `#0d0d0d`; `var(--surface)`; `color-mix(in srgb, var(--surface) 60%, var(--surface-2))` → `#0b0b0c`; `var(--surface)`; `var(--surface)` | Bases opacas; imagen separada |
 | `--glass-sheen`, `--workplane-wash` | `none`; `linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent)` → ambos `var(--object-fill)` | Degradado vertical neutro |
 | `--workplane`, `--glass-filter` | `color-mix(in srgb, var(--surface) 80%, transparent)`; `none` → `var(--surface)`; `none` | Sin blur ni transmisión de color |
+
+Etapa 6·1 (aprobada por Carlos tras el laboratorio Propuestas): material cenital; sustituye los valores de los mocks 05/06.
 
 Receta ejecutable del aro: pseudo-elemento con `position:absolute; inset:0; border-radius:inherit; padding:var(--object-ring-width); pointer-events:none`, fondo `var(--object-ring)`, máscara `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`, `-webkit-mask-composite:xor; mask-composite:exclude`. En el mock ocupa z-index **3** y la cometa **4**. Quitar el borde/outline de selección anterior para no sumar contornos. No reemplazar `background-color` por un valor de tipo imagen: el degradado va en `background-image` o en el shorthand correspondiente.
 

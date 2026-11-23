@@ -10,12 +10,13 @@ colors:
   surface-2: "#111113"
   surface-3: "#1d1d20"
   menu: "var(--surface)"
-  object-top: "#0f0f11"
-  object-bottom: "#070708"
-  object-fill: "linear-gradient(var(--object-top), var(--object-bottom))"
+  object-top: "#151518"
+  object-bottom: "#0b0b0d"
+  object-sheen: "radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)"
+  object-fill: "var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))"
   object-ring-width: "1px"
-  object-edge-top: "color-mix(in srgb, #fff 22%, transparent)"
-  object-edge-bottom: "color-mix(in srgb, #fff 6%, transparent)"
+  object-edge-top: "color-mix(in srgb, #fff 26%, transparent)"
+  object-edge-bottom: "color-mix(in srgb, #fff 7%, transparent)"
   object-ring: "linear-gradient(var(--object-edge-top), var(--object-edge-bottom))"
   selected-edge-top: "color-mix(in srgb, #fff 36%, transparent)"
   selected-edge-bottom: "color-mix(in srgb, #fff 10%, transparent)"
@@ -156,7 +157,7 @@ Este documento describe las etapas 1–5 de [docs/design-v2.md](docs/design-v2.m
 - Atención: `--attention #f5c04a`. Lo que te necesita no pinta superficies: el ámbar identifica la etiqueta y el aro exterior del panel, y las marcas compactas existentes del rail, dock y campana. Sin velos ni píldoras ámbar. En la bandeja, los discos de icono son `--fill-2` con el icono en el tono del estado. Ámbar significa intervención requerida; lima `--working #c6f135` significa trabajo real. Ámbar se distingue del verde apagado de éxito `#65ba83` y del rojo de error.
 - La misma restricción rige en todos los paneles, incluidos terminal, chat, referencias, Skills y voz, también mediante aliases (`--warning`, `--tone`, `--pc-caution`). Los pozos no reciben lavados ni bordes ámbar. Las excepciones son el aro exterior enmascarado del panel (E2) y el disco de estado del rail (E3), nunca sus superficies. Atención no dibuja halos ni ondas de fondo. Las categorías de Configuración usan insignias OKLCH estables (E4), sin teñir el grupo. Los switches activos son `--on` marfil con indicador `--on-ink` oscuro. Verde de éxito significa éxito real (o adiciones en un diff), nunca selección o acción armada. Acento inicial/cursor: `#f2f0eb`; tecla primaria: `#ece6d8`. Las preferencias personales, sus migraciones y ANSI se conservan.
 
-Escalera E1: lienzo `#020203` < pozo `#040405` < base de objeto `#0b0b0c`; relleno interior `#111113`, selección de fila `#1d1d20`. Rail, paneles, inspector, dock y flotantes comparten degradado vertical `#0f0f11` → `#070708`, aro degradado de 1 px y sombra negra de contacto. El pozo es más oscuro que el objeto, no que el lienzo.
+Escalera E1: lienzo `#020203` < pozo `#040405` < base de objeto `#0b0b0c`; relleno interior `#111113`, selección de fila `#1d1d20`. Rail, paneles, inspector, dock y flotantes comparten degradado vertical `#151518` → `#0b0b0d` con luz cenital tenue arriba-izquierda (`--object-sheen`), aro degradado de 1 px y sombra negra de contacto. El pozo es más oscuro que el objeto, no que el lienzo.
 
 Tres tintas reales: `--ink #f2f0eb` (lo elegido y lo que se lee), `--muted #a8a6a0` (opciones y texto secundario, también en chrome), `--ink-3 #8b8983` (etiquetas, pistas, contadores). Marfil para teclas y selección; lima (trabajando), ámbar (te necesita), verde y rojo solo significan estado.
 
@@ -218,10 +219,11 @@ No hay animación continua: solo `materialize` al cambiar de paso, desactivada c
 | `--r-pill` | 999 px | Chips y estados. No es una superficie |
 | `--bg` / `--terminal-bg` | `#020203` / `#040405` | Lienzo negro y terminal |
 | `--surface` / `--surface-2` / `--surface-3` | `#0b0b0c` / `#111113` / `#1d1d20` | Base de objeto / campos / selección de fila |
-| `--object-top` / `--object-bottom` | `#0f0f11` / `#070708` | Extremos del degradado vertical |
-| `--object-fill` | `linear-gradient(var(--object-top), var(--object-bottom))` | Imagen, separada de la base opaca |
+| `--object-top` / `--object-bottom` | `#151518` / `#0b0b0d` | Extremos del degradado vertical |
+| `--object-sheen` | `radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)` | Luz cenital tenue arriba-izquierda |
+| `--object-fill` | `var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))` | Lista de imágenes, separada de la base opaca |
 | `--object-ring-width` | 1 px | Aro enmascarado; overview compensa el zoom con `--ov` |
-| `--object-edge-top` / `--object-edge-bottom` | blanco al 22 % / 6 % | Extremos del aro |
+| `--object-edge-top` / `--object-edge-bottom` | blanco al 26 % / 7 % | Extremos del aro |
 | `--object-ring` | `linear-gradient(var(--object-edge-top), var(--object-edge-bottom))` | Único contorno del objeto |
 | `--selected-edge-top` / `--selected-edge-bottom` | blanco al 36 % / 10 % | Selección sobre el mismo recorrido |
 | `--hairline` | blanco al 10 % | Divisores y bordes interiores existentes |
@@ -325,8 +327,8 @@ Estados de una rama, y solo estos: Trabajando · Sin guardar · Lista · En cola
 ## Material y planos · Etapa 1
 
 - **Bases opacas.** Lienzo `#020203`, pozo `#040405`, objeto `#0b0b0c`, relleno interior `#111113`, selección de fila `#1d1d20`. Studio y canvas declaran la misma paleta. El fallback de xterm usa `#040405`, conservando cursor, selección, preferencias y ANSI.
-- **Objeto común.** Rail, paneles, inspector, dock y flotantes usan `--object-fill`: degradado vertical `#0f0f11` → `#070708` sobre base opaca. `--glass`, `--glass-thick`, `--workplane` y `--menu` son aliases de `--surface`; `--glass-sheen` y `--workplane-wash` son aliases de la imagen. No se asigna una imagen a `background-color`. Radio exterior 24 px; dock conserva píldora. Cabeceras y `.node-body` transparentes dejan ver el material.
-- **Aro único.** Pseudo-elemento `::before`, absoluto, `inset:0`, radio heredado, padding de 1 px, z-index 3 y `pointer-events:none`. Fondo `linear-gradient(var(--object-edge-top), var(--object-edge-bottom))`, blanco al 22 % arriba y 6 % abajo. Máscara `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`, `-webkit-mask-composite:xor; mask-composite:exclude`. Sustituye el borde exterior; no se añade outline de selección. Los elementos interiores del dock no duplican su aro. Los menús son propiedad de `src/menus.css` y restablecen el aro neutro aunque se abran dentro de un panel seleccionado.
+- **Objeto común.** Rail, paneles, inspector, dock y flotantes usan `--object-fill`: degradado vertical `#151518` → `#0b0b0d` con luz cenital `--object-sheen` sobre base opaca. `--glass`, `--glass-thick`, `--workplane` y `--menu` son aliases de `--surface`; `--glass-sheen` y `--workplane-wash` son aliases de la imagen. No se asigna una imagen a `background-color`. Radio exterior 24 px; dock conserva píldora. Cabeceras y `.node-body` transparentes dejan ver el material.
+- **Aro único.** Pseudo-elemento `::before`, absoluto, `inset:0`, radio heredado, padding de 1 px, z-index 3 y `pointer-events:none`. Fondo `linear-gradient(var(--object-edge-top), var(--object-edge-bottom))`, blanco al 26 % arriba y 7 % abajo. Máscara `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`, `-webkit-mask-composite:xor; mask-composite:exclude`. Sustituye el borde exterior; no se añade outline de selección. Los elementos interiores del dock no duplican su aro. Los menús son propiedad de `src/menus.css` y restablecen el aro neutro aunque se abran dentro de un panel seleccionado.
 - **Selección y foco.** El panel seleccionado aclara el mismo aro a 36 %/10 %, sin aumentar su grosor ni añadir halo. Overview conserva la compensación de zoom semántico. Las acciones y sus focos siguen operativos; el centro transparente de la máscara no cubre texto ni controles. Seleccionar un panel no atenúa ni filtra la lectura de sus vecinos.
 - **Contacto.** `0 1px 2px #000, 0 16px 32px -16px #000` para todos los objetos, incluidos reposo, selección, arrastre y foco. Sin backdrop-filter, aura ni resplandor del material. Las elevaciones anteriores son aliases y los tokens de relieve de control son `none`.
 - **Pozos.** Hilo lateral, hilo del canvas y salida de terminal: `#040405` opaco. Escritura: `#0b0b0d` opaco, contigua al hilo, con campo transparente. Una imagen blanca detrás no penetra en la lectura. El canvas permanece transparente sobre la base/arte ambiental permitido entre objetos.

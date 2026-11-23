@@ -14,12 +14,13 @@
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
   --hairline: color-mix(in srgb, #fff 10%, transparent);
-  --object-top: #0f0f11;
-  --object-bottom: #070708;
-  --object-fill: linear-gradient(var(--object-top), var(--object-bottom));
+  --object-top: #151518;
+  --object-bottom: #0b0b0d;
+  --object-sheen: radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%);
+  --object-fill: var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom));
   --object-ring-width: 1px;
-  --object-edge-top: color-mix(in srgb, #fff 22%, transparent);
-  --object-edge-bottom: color-mix(in srgb, #fff 6%, transparent);
+  --object-edge-top: color-mix(in srgb, #fff 26%, transparent);
+  --object-edge-bottom: color-mix(in srgb, #fff 7%, transparent);
   --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
   --selected-edge-top: color-mix(in srgb, #fff 36%, transparent);
   --selected-edge-bottom: color-mix(in srgb, #fff 10%, transparent);
