@@ -17,6 +17,7 @@ import { PhantomGlyph, ProviderGlyph, ProviderTile } from './Glyphs';
 import { phantomRunIds, turnRunIds, summarizePhantomRun, summarizePhantomActivity } from '../hooks/phantom-run-link.mjs';
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
 import { runHealthView } from '../hooks/run-health-view.mjs';
+import { runProgressView } from '../hooks/run-progress-view.mjs';
 import { itemsOf } from '../hooks/plugin-model.mjs';
 import { EFFORTS } from '../../shared/chat-options.mjs';
 import { executionPolicy } from '../../shared/execution-policy.mjs';
@@ -896,7 +897,8 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const finishedRun = delegation.outcome === 'attention' ? runs.latest : null;
   useEffect(() => { if (seen && finishedRun) setAckedRun(finishedRun.id); }, [seen, finishedRun?.id]);
   const delegating = phase === 'delegating', healthView = runHealthView(runHealth);
-  const delegatingLabel = healthView.line;
+  const progress = runProgressView(node.data?.agent?.run, Date.now());
+  const delegatingLabel = progress ? `${progress.label}${progress.activity ? ` · ${progress.activity}` : ''}` : healthView.line;
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
@@ -957,7 +959,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           {context}
         </div>}
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
-        {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{healthView.line}</span>{healthView.warning && <span className="pc-run-health-warning" role="status">{healthView.warning}</span>}</p>}
+        {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{delegatingLabel}{progress && progress.idle ? ` · inactivo ${progress.idle}` : ''}</span>{(progress?.warning || healthView.warning) && <span className="pc-run-health-warning" role="status">{progress?.warning || healthView.warning}</span>}{progress?.blocker && <span className="pc-run-health-warning" role="alert">{`${progress.blocker.title}: ${progress.blocker.summary}`}</span>}</p>}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
