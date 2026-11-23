@@ -56,7 +56,7 @@ export function preferredCardMode() {
   if (saved && saved !== 'claude' && policyCache.enabled.includes(saved)) return saved;
   return saved === 'claude' && policyCache.enabled.includes('claude') ? 'claude' : policyCache.enabled.includes(policyCache.chat) ? policyCache.chat : 'claude';
 }
-const FULL_LIST = 'borrar / o tu home entero y formatear o escribir discos';
+const FULL_LIST = 'lo que puede romper algo: Git destructivo, credenciales y .env, instalar o tocar el sistema, discos y apagar la máquina';
 // Branches Phantom creates per session are named after an id; show the project instead.
 const AUTO_BRANCH = /^phantom\/terminal-/;
 const AUTO_APPROVE = {
@@ -83,16 +83,17 @@ export function PermissionRow({ part, onAnswer }) {
   const [busy, setBusy] = useState(false);
   const pending = part.status === 'pending';
   const answer = async decision => { setBusy(true); try { await onAnswer?.(part.id, decision); } catch { setBusy(false); } };
-  return <div className={`pc-ask is-${part.status}`} role={pending ? 'group' : undefined} aria-label={pending ? `${part.tool} pide permiso` : undefined}>
+  return <div className={`pc-ask is-${part.status}${part.danger ? ' is-danger' : ''}`} role={pending ? 'group' : undefined} aria-label={pending ? `${part.tool} pide permiso` : undefined}>
     <span className="pc-ask-icon" aria-hidden="true"><ShieldAlert size={14} /></span>
     <div className="pc-ask-body">
+      {part.danger && <span className="pc-ask-flag"><ShieldAlert size={12} aria-hidden="true" />Puede romper algo</span>}
       <p><strong>{part.tool}</strong> <span>{part.reason}</span></p>
       {part.detail && <code title={part.detail}>{part.detail}</code>}
     </div>
     {pending
       ? <div className="pc-ask-actions">
         <button type="button" disabled={busy} onClick={() => answer('deny')}>Rechazar</button>
-        <button type="button" disabled={busy} title={`No volver a preguntar en esta conversación: ${part.key}`} onClick={() => answer('always')}>Siempre</button>
+        {!part.danger && <button type="button" disabled={busy} title={`No volver a preguntar en esta conversación: ${part.key}`} onClick={() => answer('always')}>Siempre</button>}
         <button type="button" className="is-primary" disabled={busy} onClick={() => answer('allow')}>Aprobar</button>
       </div>
       : <span className="pc-ask-state">{PERMISSION_STATUS[part.status] || part.status}</span>}

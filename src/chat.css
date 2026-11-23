@@ -488,6 +488,9 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-ask-body p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .pc-ask-body strong { color: var(--ink); font-weight: 600; }
 .pc-ask-body code { overflow: hidden; color: var(--ink); font: 12px/1.4 var(--mono); white-space: nowrap; text-overflow: ellipsis; }
+.pc-ask.is-danger.is-pending { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pc-del) 45%, transparent); }
+.pc-ask.is-danger .pc-ask-icon { color: var(--pc-del); }
+.pc-ask-flag { display: inline-flex; align-items: center; gap: 4px; justify-self: start; color: var(--pc-del); font-size: 11px; font-weight: 600; line-height: 1.4; }
 .pc-ask-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .pc-ask-actions button { min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 550; line-height: 1; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-ask-actions button:hover:not(:disabled) { background: var(--row-hover); }
