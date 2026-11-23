@@ -414,6 +414,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-context-note { margin: -4px 0 0; color: var(--muted); font-size: 11px; }
 .pc-context-share { color: var(--ink); }
 .pc-permission { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 14px 0 12px; border-radius: var(--r-pill); background: none; color: var(--muted); font: var(--t-support); font-weight: 500; line-height: 1; white-space: nowrap; flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.pc-permission:not(.pc-session-row) { box-shadow: inset 0 0 0 1px var(--hairline); cursor: pointer; }
 .pc-permission:hover { color: var(--ink); background: var(--fill-2); }
 .pc-permission[aria-pressed="true"] { color: var(--ink); background: var(--fill-2); box-shadow: var(--shadow-rim); }
 .pc-permission[aria-pressed="true"] > svg { color: var(--pc-caution); }
