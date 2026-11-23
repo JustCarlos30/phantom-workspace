@@ -10,8 +10,8 @@ export function Page({ title, problem, children }) {
 export function Section({ label, children }) {
   return <section className="px-section"><h3 className="px-label">{label}</h3>{children}</section>;
 }
-export function Tag({ today }) {
-  return today ? <span className="px-pilltag" data-kind="hoy">HOY · así está la app</span> : <span className="px-pilltag" data-kind="propuesta">PROPUESTA · nuevo</span>;
+export function Tag({ today, historical }) {
+  return today ? <span className="px-pilltag" data-kind="hoy">{historical ? 'MAQUETA HISTÓRICA · referencia' : 'HOY · producción'}</span> : <span className="px-pilltag" data-kind="propuesta">PROPUESTA · nuevo</span>;
 }
 
 const STATUS = { cambia: 'Cambia', material: 'Solo material', igual: 'Sin cambio' };
@@ -20,7 +20,7 @@ export function Status({ kind }) {
 }
 
 /* ---------- Material ---------- */
-export const MATERIALS = [['hoy', 'Hoy', 'Tokens actuales'], ['cenital', 'Cenital', '#19191d → #0d0d10 y brillo 6 %'], ['grafito', 'Grafito', 'Tinte frío, más claro arriba'], ['borde', 'Borde', 'Aro 34 % → 8 %']];
+export const MATERIALS = [['hoy', 'Hoy', 'Tokens actuales'], ['cenital', 'Cenital', '#151518 → #0b0b0d y brillo 4 %'], ['grafito', 'Grafito experimental', 'Tinte frío, más claro arriba'], ['borde', 'Borde experimental', 'Aro 34 % → 8 %']];
 export const materialArg = { control: 'inline-radio', options: MATERIALS.map(([key]) => key), name: 'Material', table: { defaultValue: { summary: 'cenital' } } };
 
 export function Before({ children }) {
@@ -32,10 +32,10 @@ export function After({ material = 'cenital', children }) {
 export function Stage({ children, height, canvas = true, contain }) {
   return <div className="px-stage" data-canvas={canvas ? undefined : 'off'} data-contain={contain || undefined} style={height ? { height } : undefined}>{children}</div>;
 }
-export function BeforeAfter({ before, after, changes = [], stacked, height, material, contain }) {
+export function BeforeAfter({ before, after, changes = [], stacked, height, material, contain, historical }) {
   return <div className="px-ba" data-stacked={stacked || undefined}>
     <div className="px-ba-cols">
-      <div className="px-ba-col"><Tag today /><Stage height={height} contain={contain}><Before>{before}</Before></Stage></div>
+      <div className="px-ba-col"><Tag today historical={historical} /><Stage height={height} contain={contain}><Before>{before}</Before></Stage></div>
       <div className="px-ba-col"><Tag /><Stage height={height} contain={contain}><After material={material}>{after}</After></Stage></div>
     </div>
     <Section label="Qué cambia">
@@ -59,8 +59,8 @@ export function Specimen() {
 export function IconButton({ label, icon: Icon, state, disabled }) {
   return <button type="button" className="px-btn px-icon" aria-label={label} data-state={state} disabled={disabled}><Icon size={18} strokeWidth={1.75} aria-hidden="true" /></button>;
 }
-export function Send({ disabled }) {
-  return <button type="button" className="px-send" aria-label="Enviar" disabled={disabled}><ArrowUp size={18} strokeWidth={2} aria-hidden="true" /></button>;
+export function Send({ disabled, onClick }) {
+  return <button type="button" className="px-send" aria-label="Enviar" disabled={disabled} onClick={onClick}><ArrowUp size={18} strokeWidth={2} aria-hidden="true" /></button>;
 }
 export function ContextChip() {
   return <button type="button" className="px-chip px-ctx" aria-label="Contexto: taller-fantasma"><Folder size={14} aria-hidden="true" /><span className="px-chip-text">taller-fantasma</span></button>;
@@ -108,7 +108,7 @@ export function Composer({ state = 'reposo', focus, meter, accent }) {
   const onKeyDown = event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); if (canSend) setText(''); } };
   const send = working && !canSend
     ? <button type="button" className="px-send" aria-label="Detener"><Square size={12} fill="currentColor" aria-hidden="true" /></button>
-    : <Send disabled={!canSend} />;
+    : <Send disabled={!canSend} onClick={() => setText('')} />;
   return <div className="px-composer" data-accent={accent ? '' : undefined}>
     {working ? <LiveLine /> : dictating ? <Hint /> : null}
     <div className="px-isle" data-focus={focus}>

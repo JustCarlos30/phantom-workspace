@@ -9,7 +9,15 @@ const fields = '.st-input, .st-select, .pc-root .tw-field > input:not([type=chec
 const searches = '.pc-search input, .sk-search input, .pc-select select';
 
 export async function assertFormGeometry(page, context) {
+  await page.mouse.move(0, 0);
+  await page.locator(`${fields}, ${searches}`).evaluateAll(async elements => {
+    await Promise.all(elements.flatMap(el => el.getAnimations()).map(animation => animation.finished));
+  });
   const report = await page.locator(`${fields}, ${searches}`).evaluateAll(elements => elements.filter(el => el.checkVisibility()).map(el => {
+    const horizontal = [];
+    for (let p = el.parentElement; p; p = p.parentElement) horizontal.push([p, p.scrollLeft]);
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+    for (const [parent, left] of horizontal) parent.scrollLeft = left;
     const s = getComputedStyle(el), r = el.getBoundingClientRect();
     const search = el.closest('.pc-search, .sk-search, .pc-select');
     const box = search || el, b = box.getBoundingClientRect(), bs = getComputedStyle(box);
@@ -22,11 +30,19 @@ export async function assertFormGeometry(page, context) {
     }
     const label = el.getAttribute('aria-label') || [...(el.labels || [])].map(l => l.textContent.trim()).join(' ');
     const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d'); ctx.font = getComputedStyle(el, '::placeholder').font;
-    return { label, tag: el.tagName, type: el.type, settings: Boolean(el.closest('.st')), search: Boolean(search), width: b.width, height: b.height, left: b.left, right: b.right, clips,
+    const settings = Boolean(el.closest('.st'));
+    let expectedShadow = 'none';
+    if (settings) {
+      const probe = document.createElement('span');
+      probe.style.boxShadow = 'inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent)';
+      el.parentElement.append(probe); expectedShadow = getComputedStyle(probe).boxShadow; probe.remove();
+    }
+    return { label, tag: el.tagName, type: el.type, settings, expectedShadow, search: Boolean(search), width: b.width, height: b.height, left: b.left, right: b.right, top: b.top, bottom: b.bottom, clips,
+      reachable: box.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)),
       background: bs.backgroundColor, borderWidth: bs.borderTopWidth, borderColor: bs.borderTopColor, radius: bs.borderRadius,
       padding: bs.padding, fontSize: s.fontSize, align: s.textAlign, shadow: bs.boxShadow,
       innerBackground: s.backgroundColor, innerBorder: s.borderTopWidth,
-      placeholderFits: !el.placeholder || el.tagName === 'TEXTAREA' || ctx.measureText(el.placeholder).width + (el.type === 'search' ? 16 : 0) <= el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) + 1,
+      placeholderFits: Boolean(el.value) || !el.placeholder || el.tagName === 'TEXTAREA' || ctx.measureText(el.placeholder).width + (el.type === 'search' ? 16 : 0) <= el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) + 1,
       placeholderWidth: ctx.measureText(el.placeholder || '').width, contentWidth: el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
       described: (el.getAttribute('aria-describedby') || '').split(' ').filter(Boolean).every(id => Boolean(document.getElementById(id))),
     };
@@ -39,11 +55,12 @@ export async function assertFormGeometry(page, context) {
     assert.ok(control.described, `${name}: ayuda ARIA inexistente`);
     assert.deepEqual(control.clips, [], `${name}: recorte horizontal`);
     assert.ok(control.left >= 0 && control.right <= viewport.width + 1, `${name}: fuera del viewport`);
+    assert.ok(control.top >= 0 && control.bottom <= viewport.height + 1 && control.reachable, `${name}: recortado o interceptado tras desplazar los contenedores`);
     assert.ok(control.width >= 70 && control.height >= 38, `${name}: tamaño insuficiente ${control.width}×${control.height}`);
-    assert.equal(control.background, control.settings ? 'rgba(255, 255, 255, 0.08)' : 'rgb(17, 17, 19)', `${name}: superficie`);
+    assert.equal(control.background, control.settings ? 'rgba(0, 0, 0, 0)' : 'rgb(17, 17, 19)', `${name}: superficie`);
     assert.equal(control.borderWidth, control.settings ? '0px' : '1px', `${name}: borde`);
     assert.equal(control.radius, '12px', `${name}: radio`);
-    assert.equal(control.shadow, 'none', `${name}: relieve decorativo`);
+    assert.equal(control.shadow, control.expectedShadow, `${name}: borde interior sin relieve decorativo`);
     assert.ok(['12px', '14px'].includes(control.fontSize), `${name}: tipo`);
     assert.ok(['left', 'start', ...(control.type === 'number' ? ['right'] : [])].includes(control.align), `${name}: alineación`);
     assert.ok(control.placeholderFits, `${name}: placeholder truncado (${control.placeholderWidth} > ${control.contentWidth})`);
@@ -60,24 +77,50 @@ export async function assertFormGeometry(page, context) {
 
 export async function assertVisibleFocus(page, control, context) {
   await control.scrollIntoViewIfNeeded();
+  const resting = await control.evaluate(async el => {
+    el.blur();
+    const box = el.closest('.pc-search, .sk-search, .pc-select') || el;
+    await Promise.all(box.getAnimations().map(animation => animation.finished));
+    const s = getComputedStyle(box);
+    return { shadow: s.boxShadow, width: s.outlineWidth, style: s.outlineStyle, color: s.outlineColor };
+  });
   await control.focus();
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   assert.ok(await control.evaluate(el => document.activeElement === el && el.matches(':focus-visible')), `${context}: foco de teclado`);
-  const focus = await control.evaluate(el => {
+  const focus = await control.evaluate(async el => {
     const box = el.closest('.pc-search, .sk-search, .pc-select') || el;
-    const s = getComputedStyle(box), r = box.getBoundingClientRect(), inset = parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset);
+    await Promise.all(box.getAnimations().map(animation => animation.finished));
+    const s = getComputedStyle(box), r = box.getBoundingClientRect();
+    const internal = Boolean(el.closest('.st') && el.matches('.st-input, .st-select'));
+    let expectedShadow = 'none';
+    if (internal) {
+      const probe = document.createElement('span');
+      probe.style.boxShadow = 'inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent)';
+      el.parentElement.append(probe); expectedShadow = getComputedStyle(probe).boxShadow; probe.remove();
+    }
+    const inset = s.outlineStyle === 'none' ? 0 : Math.max(0, parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset));
     const clips = [];
     for (let p = box.parentElement; p; p = p.parentElement) {
       const ps = getComputedStyle(p), pr = p.getBoundingClientRect();
       if (/(auto|scroll|hidden|clip)/.test(ps.overflowX) && (r.left - inset < pr.left - 1 || r.right + inset > pr.right + 1)) clips.push(`${p.className}:x`);
       if (/(auto|scroll|hidden|clip)/.test(ps.overflowY) && (r.top - inset < pr.top - 1 || r.bottom + inset > pr.bottom + 1)) clips.push(`${p.className}:y`);
     }
-    return { width: s.outlineWidth, style: s.outlineStyle, color: s.outlineColor, clips };
+    return { internal, shadow: s.boxShadow, expectedShadow, width: s.outlineWidth, style: s.outlineStyle, color: s.outlineColor, clips };
   });
-  assert.equal(focus.width, '2px', `${context}: contorno de foco`);
-  assert.equal(focus.style, 'solid', `${context}: foco sólido`);
-  assert.notEqual(focus.color, 'rgba(0, 0, 0, 0)', `${context}: foco invisible`);
+  if (focus.internal) {
+    assert.notEqual(focus.expectedShadow, 'none', `${context}: falta el borde de foco interior`);
+    assert.equal(focus.shadow, focus.expectedShadow, `${context}: foco interior reforzado`);
+    assert.notEqual(focus.shadow, resting.shadow, `${context}: el borde interior no cambia al enfocar`);
+  }
+  if (focus.style !== 'none') {
+    assert.equal(focus.width, '2px', `${context}: contorno de foco`);
+    assert.equal(focus.style, 'solid', `${context}: foco sólido`);
+    assert.notEqual(focus.color, 'rgba(0, 0, 0, 0)', `${context}: foco invisible`);
+  } else {
+    assert.ok(focus.internal, `${context}: falta el indicador de foco`);
+  }
+  assert.notDeepEqual({ shadow: focus.shadow, width: focus.width, style: focus.style, color: focus.color }, resting, `${context}: foco indistinguible del reposo`);
   assert.deepEqual(focus.clips, [], `${context}: foco recortado`);
   return focus;
 }

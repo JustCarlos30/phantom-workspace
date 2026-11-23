@@ -1,4 +1,4 @@
-.plugin-surface { width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; background: var(--surface); color: var(--ink); font: 13px/1.5 var(--sans); container-type: inline-size; }
+.plugin-surface { box-sizing: border-box; width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; background: var(--surface); color: var(--ink); font: 13px/1.5 var(--sans); container-type: inline-size; }
 .plugin-surface *, .plugin-surface *::before, .plugin-surface *::after { box-sizing: border-box; }
 .plugin-surface .tw-content { min-width: 0; height: auto; overflow: visible; padding: 16px; }
 .plugin-surface h2 { font-size: 15px; font-weight: 600; margin: 0; }
@@ -32,6 +32,8 @@
 @container (max-width: 440px) { .plugin-surface .tw-content { padding: 12px; } .plugin-surface .plugin-filters .tw-field { flex-basis: 100%; } .plugin-surface .tw-heading { align-items: flex-start; } }
 @media (prefers-reduced-motion: reduce) { .plugin-surface *, .plugin-surface *::before, .plugin-surface *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 .plugin-manager, .command-center { color: var(--ink); font-size: 13px; line-height: 1.55; min-width: 0; overflow-wrap: anywhere; }
+.command-center { width: 100%; container: command-center / inline-size; }
+.command-center, .command-center * { box-sizing: border-box; }
 .plugin-manager p, .command-center p { margin: 8px 0 14px; }
 .plugin-muted, .cc-freshness, .cc-task small, .cc-path { color: var(--muted); }
 .plugin-entry { padding: 20px 0; margin-top: 20px; }
@@ -60,7 +62,6 @@
 .cc-task { display: flex; flex-direction: column; gap: 6px; padding: 15px 10px; color: var(--ink); width: 100%; min-width: 0; text-align: left; line-height: 1.5; }
 .cc-task strong { font-size: 14px; font-weight: 600; white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
 .cc-task:hover { background: var(--surface-2); }
-.cc-task.selected { background: var(--accent-soft); }
 .cc-task span, .cc-task small { max-width: 100%; overflow-wrap: anywhere; }
 .cc-detail { margin-top: 24px; padding-top: 20px; }
 .cc-detail h3 { font-size: 18px; letter-spacing: -.02em; margin: 0 0 12px; }
@@ -85,14 +86,15 @@
 .command-center .cc-list { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 0; }
 .command-center .cc-task { gap: 2px; padding: 12px 16px; border: 0; border-radius: var(--r-row); font: var(--t-support); color: var(--muted); transition: background-color 120ms ease; }
 .command-center .cc-task:hover { background-color: var(--row-hover); }
+.command-center .cc-task.selected { background: var(--row-selected); color: var(--ink); }
 .command-center .cc-task strong { font: var(--t-headline); color: var(--ink); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .command-center .cc-task :is(.cc-path, small) { font: var(--t-support); font-family: var(--mono); color: var(--ink-3); }
 @media (prefers-reduced-motion: reduce) { .command-center .cc-task { transition: none; } }
-@media (max-width: 600px) { .cc-toolbar .tw-button { flex: 1 1 auto; justify-content: center; } .cc-filters { flex-direction: column; } .cc-filters label, .cc-filters select { flex-basis: auto; width: 100%; } }
+@container command-center (max-width: 600px) { .cc-toolbar .tw-button { flex: 1 1 auto; justify-content: center; } .cc-filters { flex-direction: column; } .cc-filters label, .cc-filters select { flex-basis: auto; width: 100%; } .command-center .plugin-preference { flex-wrap: wrap; } }
 
 /* ── Phantom Cards · Mesa del ahora ─────────────────────────────────────── */
 .plugin-surface:has(> .pc-root, > .sk-root) { overflow: hidden; }
-.pc-root, .plugin-surface .sk-root { --pc-blocked: var(--warning); --pc-live: var(--accent); --pc-done: var(--success); --pc-idle: var(--muted); display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
+.pc-root, .plugin-surface .sk-root { --pc-blocked: var(--warning); --pc-live: var(--working); --pc-done: var(--success); --pc-idle: var(--muted); display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
 .pc-blocked { --pc-tone: var(--pc-blocked); } .pc-live { --pc-tone: var(--pc-live); } .pc-done { --pc-tone: var(--pc-done); } .pc-idle, .pc-muted { --pc-tone: var(--pc-idle); }
 .plugin-surface :is(.pc-root, .sk-root) h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
 .plugin-surface :is(.pc-search, .sk-search, .pc-select) { font-weight: 400; }
@@ -113,7 +115,7 @@
 .pc-icon:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
 .pc-icon:disabled { opacity: .5; cursor: default; }
 
-.pc-body { flex: 1; min-height: 0; display: flex; }
+.pc-body { flex: 1; min-height: 0; min-width: 0; display: flex; }
 .pc-desk { flex: 1; min-width: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 22px; }
 .pc-root.is-wide.has-side .pc-desk { flex: 0 0 min(440px, 42%); }
 .pc-side { flex: 1; min-width: 0; overflow: auto; }
@@ -128,9 +130,9 @@
 .pc-zone-decide .pc-zone-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 10px; }
 .pc-root.is-wide.has-side .pc-zone-decide .pc-zone-items { grid-template-columns: 1fr; }
 
-.pc-card { position: relative; display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); background: var(--bg); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background-color 140ms ease-out, border-color 140ms ease-out, box-shadow 220ms cubic-bezier(.16,1,.3,1); }
-.pc-card:hover { border-color: var(--muted); }
-.pc-card.is-selected { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 55%, var(--hairline)); }
+.pc-card { position: relative; display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0; padding: 9px 12px; border: 0; border-radius: var(--r-ctl); background: var(--bg); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background-color 140ms ease-out; }
+.pc-card:hover { background: var(--row-hover); }
+.pc-card.is-selected { background: var(--row-selected); }
 .pc-card-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .pc-card-goal { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .pc-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: var(--muted); }
@@ -140,16 +142,15 @@
 .pc-zone-decide .pc-card { padding: 14px 16px; border-radius: var(--r-ctl); }
 .pc-zone-decide .pc-card-goal { font-size: 15px; letter-spacing: -.015em; }
 .pc-zone-decide .pc-card-reason { color: var(--pc-blocked); }
-.pc-zone-decide .pc-card.is-selected { background: var(--fill-2); }
+.pc-zone-decide .pc-card.is-selected { background: var(--row-selected); }
 .pc-zone-queue .pc-card { border-color: transparent; background: transparent; padding: 7px 10px; }
 .pc-zone-queue .pc-card:hover { background: var(--surface-2); border-color: transparent; }
-.pc-zone-queue .pc-card.is-selected { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.pc-zone-queue .pc-card.is-selected { background: var(--row-selected); }
 .pc-zone-queue .pc-card-goal { font-weight: 500; }
 .pc-pulse { flex: none; width: 9px; height: 9px; margin: 5px 2px 0 0; border-radius: 50%; background: var(--pc-live); box-shadow: 0 0 0 0 color-mix(in srgb, var(--pc-live) 50%, transparent); animation: pc-pulse 1.8s cubic-bezier(.16,1,.3,1) infinite; }
 .pc-elapsed { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
 .pc-num { font-variant-numeric: tabular-nums; }
-/* Signature move: a card whose native state changed stays lit until opened. */
-.pc-card.is-fresh { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), var(--shadow-rest); animation: materialize 600ms var(--ease-out); }
+.pc-card.is-fresh { animation: materialize 600ms var(--ease-out); }
 .pc-new { padding: 0 6px; border-radius: var(--r-mark); background: var(--accent); color: #171b28; font-size: 10px; font-weight: 650; line-height: 16px; }
 @keyframes pc-pulse { 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 

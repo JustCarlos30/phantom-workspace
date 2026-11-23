@@ -38,7 +38,7 @@
 
 /* Escenario: lienzo real casi negro con la retícula de puntos del producto. */
 .px-stage, .px-canvas, .px-dockstage {
-  position: relative; box-sizing: border-box; min-width: 0; border-radius: var(--r-obj); overflow: hidden;
+  position: relative; box-sizing: border-box; min-width: 0; border-radius: var(--r-obj); overflow: auto;
   background: radial-gradient(var(--dot) 1px, transparent 1.2px) 0 0 / 24px 24px, var(--bg);
   box-shadow: inset 0 0 0 1px var(--divider);
 }
@@ -48,18 +48,20 @@
 .px-stage[data-contain] { transform: translateZ(0); contain: layout paint; }
 .px-stage[data-contain] > :is(.px-before, .px-after) { position: relative; height: 100%; min-height: 0; }
 .px-stage > * { min-height: 0; }
+.px-stage > :is(.px-before, .px-after) { height: 100%; min-height: 0; }
 .px-stage > :is(.px-before, .px-after) > .catalog-panel { height: 100%; min-height: 0; }
+.px-sessions-fill > .catalog-panel { height: 100%; min-height: 0; }
 
 /* ---------- Material: la receta sobreescribe solo custom properties ---------- */
 .px-material {
-  --object-fill: linear-gradient(var(--object-top), var(--object-bottom));
+  --object-fill: var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom));
   --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
   --glass-sheen: var(--object-fill);
   --workplane-wash: var(--object-fill);
 }
 .px-material[data-variant="cenital"] {
-  --object-top: #19191d; --object-bottom: #0d0d10;
-  --object-fill: radial-gradient(140% 90% at 0% 0%, color-mix(in srgb, #fff 6%, transparent), transparent 55%), linear-gradient(var(--object-top), var(--object-bottom));
+  --object-top: #151518; --object-bottom: #0b0b0d;
+  --object-sheen: radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%);
 }
 .px-material[data-variant="grafito"] { --object-top: oklch(0.23 0.014 260); --object-bottom: oklch(0.15 0.01 260); }
 .px-material[data-variant="borde"] {

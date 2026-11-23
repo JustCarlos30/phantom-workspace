@@ -10,6 +10,7 @@ import Branches from './Branches.jsx';
 import Repository from './Repository.jsx';
 import VideoReview from './VideoReview.jsx';
 import EmptyState from './EmptyState.jsx';
+import { Button } from './PluginPrimitives.jsx';
 import Markdown from './Markdown.jsx';
 import MemoryCard, { MemoryForm } from './MemoryCard.jsx';
 import { pinnedRef, readerKind, emptyMessage } from '../hooks/context-view.mjs';
@@ -49,9 +50,7 @@ export class ToolErrorBoundary extends React.Component {
   }
 }
 
-export function Button({ children, icon: Icon, tone, ...props }) {
-  return <button type="button" className={`tw-button ${tone ? `tw-${tone}` : ''}`} {...props}>{Icon && <Icon size={15} aria-hidden="true" />}{children}</button>;
-}
+export { Button };
 export function Field({ label, children, hint }) {
   const id = useId();
   return <div className="tw-field"><label htmlFor={id}>{label}</label>{React.cloneElement(children, { id, 'aria-describedby': hint ? `${id}-hint` : undefined })}{hint && <small id={`${id}-hint`}>{hint}</small>}</div>;
