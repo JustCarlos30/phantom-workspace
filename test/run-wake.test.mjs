@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wakeMessage, createWakeLimit, wakeTarget } from '../host/run-wake.mjs';
+import { wakeMessage, createWakeLimit, wakeTarget, createRunWake } from '../host/run-wake.mjs';
 
 import { startPatch, finishPatch, cardNode } from '../host/run-binding.mjs';
 import { validateAgent } from '../host/agents.mjs';
@@ -46,6 +46,8 @@ test('wakeTarget: solo phantom terminado con origin via chat, una vez por descri
   const seen = new Set();
   const event = { type: 'tool.status', status: 'completed', workspaceId: 'w', result: { id: 'd1', taskId: 'task_1', source: 'phantom', origin: { nodeId: 'n', via: 'chat' } } };
   assert.deepEqual(wakeTarget(event, seen), { id: 'd1', nodeId: 'n', via: 'chat', taskId: 'task_1', workspaceId: 'w' });
+  assert.equal(seen.has('d1'), false, 'delivery has not been acknowledged');
+  seen.add('d1');
   assert.equal(wakeTarget(event, seen), null);
   assert.equal(wakeTarget({ ...event, status: 'running', result: { ...event.result, id: 'd2' } }, seen), null);
   assert.equal(wakeTarget({ ...event, result: { ...event.result, id: 'd4', source: 'tool' } }, seen), null);
@@ -56,6 +58,7 @@ test('wakeTarget: origen terminal, una vez por descriptor', () => {
   const seen = new Set();
   const event = { type: 'tool.status', status: 'completed', workspaceId: 'w', result: { id: 't1', taskId: 'task_1', source: 'phantom', origin: { nodeId: 'n' } } };
   assert.deepEqual(wakeTarget(event, seen), { id: 't1', nodeId: 'n', via: 'terminal', taskId: 'task_1', workspaceId: 'w' });
+  seen.add('t1');
   assert.equal(wakeTarget(event, seen), null);
   assert.equal(wakeTarget({ ...event, result: { ...event.result, id: 't2', origin: undefined } }, seen), null);
 });
@@ -111,4 +114,16 @@ test('finishPatch: no toca si cardId cambió o se desvinculó', () => {
   assert.equal(finishPatch({ agent: { cardId: 'otra' }, taskId: 't', task: { status: 'completed' } }), null);
   assert.equal(finishPatch({ agent: { cardId: '' }, taskId: 't', task: { status: 'completed' } }), null);
   assert.equal(finishPatch({ agent: undefined, taskId: 't', task: { status: 'completed' } }), null);
+});
+
+test('destinatario ocupado agota espera acotada y reporta un solo bloqueo aunque repitan eventos', async () => {
+  let attempts = 0;
+  const blocks = [], event = { type: 'tool.status', status: 'failed', workspaceId: 'w', result: { id: 'bounded', source: 'phantom', taskId: 't', origin: { nodeId: 'n' } } };
+  const wake = createRunWake({ prepare: () => ({}), deliver: () => { attempts++; return { retry: true, reason: 'ocupado' }; }, blocked: (_target, reason) => blocks.push(reason), delayMs: 1, maxAttempts: 2 });
+  wake.accept(event); wake.accept(event);
+  await new Promise(resolve => setTimeout(resolve, 30));
+  wake.accept(event);
+  assert.equal(attempts, 2);
+  assert.deepEqual(blocks, ['ocupado']);
+  wake.close();
 });
