@@ -14,19 +14,19 @@ export function PhantomFace({ mood = 'calm', size = 30, className = '', ...props
   return <TitiGhost {...props} mood={mood} size={size} className={`phantom-face titi-ghost is-${mood} ${className}`} data-mood={mood} />;
 }
 
-// An open circular C monogram with a filled dot.
+// A radial burst of eight uneven rays, after Anthropic's spark.
 export function ClaudeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="M18 6A8.5 8.5 0 1 0 18 18" /><circle cx="17.5" cy="12" r="1.6" fill="currentColor" stroke="none" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="M12 2.5v6.5M12 15v6.5M2.5 12H9M15 12h6.5M5.3 5.3 9.4 9.4M14.6 14.6l4.1 4.1M18.7 5.3l-4.1 4.1M9.4 14.6l-4.1 4.1" /></svg>;
 }
 
-// An open square frame with a solid cursor block.
+// A terminal frame with a prompt chevron and cursor.
 export function OpenCodeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="M15 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9" /><rect x="16" y="9" width="4" height="6" rx="1" fill="currentColor" stroke="none" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="m7.5 9.5 3 2.5-3 2.5M13 15h3.5" /></svg>;
 }
 
-// A hexagonal codex module holding left-aligned lines of code.
+// A hexagonal bloom: three interlaced rounded petals inside a hexagon.
 export function CodexGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" /><path d="M8.5 9.5h7M8.5 12h4.5M8.5 14.5h6" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><path d="M12 2.8 20 7.4v9.2l-8 4.6-8-4.6V7.4Z" /><path d="M12 7.5v4.5l-3.9 2.25M12 12l3.9 2.25" /></svg>;
 }
 
 export function ShellGlyph({ size = 14, ...props }) {
