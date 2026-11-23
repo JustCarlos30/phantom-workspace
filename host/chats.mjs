@@ -80,8 +80,9 @@ function inOwnWorktree(node, cwd) {
   const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
   return Boolean(tree && here && realpath(tree) === here);
 }
-// How a turn handles permissions. 'full': everything except a short list of
-// dangerous actions, which still asks. 'auto': the agent works without
+// How a turn handles permissions. 'full' (Total, YOLO): everything without
+// asking except catastrophes: deleting or re-permissioning / or the whole home,
+// and formatting or writing raw disks. 'auto': the agent works without
 // interruptions and asks only for sensitive actions (destructive, commit and
 // push, external tools and services, databases). 'ask': every change asks.
 // Inside the card's own Phantom worktree the default is 'auto'; elsewhere (the

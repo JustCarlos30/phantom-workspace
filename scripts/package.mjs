@@ -80,8 +80,23 @@ for (const output of outputs) {
     await cp(path.join(mobileSource, item), path.join(mobileBundled, item), { recursive: true });
   }
   const executablePath = path.join(output, 'phantom-workspace');
-  const entry = `[Desktop Entry]\nType=Application\nName=Phantom Workspace\nComment=Sesiones, herramientas y contexto por proyecto\nExec="${executablePath}"\nIcon=${path.join(resources, 'app', 'assets', 'phantom.svg')}\nTerminal=false\nCategories=Development;IDE;\nStartupNotify=true\n`;
+  const iconPath = path.join(resources, 'app', 'assets', 'phantom-icon.png');
+  try {
+    const svg = await readFile(path.join(root, 'assets', 'phantom.svg'), 'utf8');
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage({ viewport: { width: 512, height: 512 } });
+      await page.setContent(`<style>html,body{margin:0;background:transparent}svg{display:block;width:512px;height:512px}</style>${svg}`);
+      await writeFile(iconPath, await page.screenshot({ type: 'png', omitBackground: true, clip: { x: 0, y: 0, width: 512, height: 512 } }));
+    } finally { await browser.close(); }
+  } catch (error) { console.warn(`No se pudo generar el icono PNG: ${error.message}`); }
+  const entry = `[Desktop Entry]\nType=Application\nName=Phantom Workspace\nComment=Sesiones, herramientas y contexto por proyecto\nExec="${executablePath}"\nIcon=${iconPath}\nTerminal=false\nCategories=Development;IDE;\nStartupNotify=true\nStartupWMClass=${metadata.name}\n`;
   await writeFile(path.join(root, 'Phantom Workspace.desktop'), entry, { mode: 0o755 });
+  try {
+    const applications = path.join(os.homedir(), '.local', 'share', 'applications');
+    await mkdir(applications, { recursive: true });
+    await writeFile(path.join(applications, 'phantom-workspace.desktop'), entry, { mode: 0o755 });
+  } catch (error) { console.warn(`No se pudo instalar el .desktop: ${error.message}`); }
   await writeFile(path.join(output, 'BUILD.json'), JSON.stringify({ version: metadata.version, node: process.version, electron: metadata.devDependencies.electron, builtAt: new Date().toISOString(), phantom: '0.5.0', platform: 'linux-x64' }, null, 2));
   console.log(`Paquete listo: ${executablePath}`);
 }
