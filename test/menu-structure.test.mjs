@@ -11,7 +11,7 @@ test('menus.css define la regla reutilizable de separador', () => {
 });
 
 test('ChatCard renderiza separadores role=separator entre grupos de sus menús', () => {
-  const jsx = read('src/components/ChatCard.jsx');
+  const jsx = ['src/components/ChatCard.jsx', 'src/components/chat/ChatPermissions.jsx', 'src/components/chat/ChatPickers.jsx', 'src/components/chat/ChatTools.jsx'].map(read).join('\n');
   const count = (jsx.match(/className="menu-separator" role="separator"/g) || []).length;
   assert.ok(count >= 3, `separadores encontrados: ${count}`);
   assert.match(jsx, /pc-models-list[\s\S]*menu-separator/);

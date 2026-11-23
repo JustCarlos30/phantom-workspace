@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 // own worktree, pushes and shared
 // Git refs, external MCP tools, external services and providers, databases,
 // privilege and the system. "Pregunta todo" keeps the stricter folder rule.
+// Total is YOLO: it asks only for catastrophes (deleting or re-permissioning /
+// or the whole home, formatting or writing raw disks).
 // The shell classifiers are heuristics over the command text: a guard against
 // surprises, not a sandbox.
 
@@ -232,10 +234,11 @@ function grantKey(tool, input, cwd) {
   return tool;
 }
 
-// Total mode still stops for this short list: privilege, wiping beyond the
-// folder or the home, rewriting the remote's history, the user's keys and
-// shell startup, the system, piping the network into a shell, raw disks.
-// Everything else Git-related is left to the merge guard's hooks.
+// Hard list used by Autónomo (Total only asks for catastrophes, see below):
+// privilege, wiping beyond the folder or the home, rewriting the remote's
+// history, the user's keys and shell startup, the system, piping the network
+// into a shell, raw disks. Everything else Git-related is left to the merge
+// guard's hooks.
 const HOME = os.homedir();
 const TMP_DIRS = [...new Set(['/tmp', '/var/tmp', os.tmpdir()].flatMap(dir => [dir, real(dir)]))];
 const PROTECTED_DIRS = [...['.ssh', '.gnupg', '.aws'].map(dir => path.join(HOME, dir)), '/etc', '/usr', '/boot'];
@@ -328,6 +331,56 @@ export function hardStopCommand(line, cwd, relaxed = false) {
   }
   close();
   return reason;
+}
+
+// Total mode's only stops: wiping or re-permissioning the root or the whole
+// home, and formatting or writing raw disks. Literal targets only (/, ~,
+// $HOME, the absolute home); an unparseable line is allowed.
+const rootOrHome = target => { const at = expandHome(target).replace(/\/\*?$/, '') || '/'; return at === '/' || at === HOME; };
+function catastrophicSegment(words) {
+  const args = [...words];
+  while (args.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(args[0])) args.shift();
+  for (;;) {
+    if (args[0] === 'rtk') { args.shift(); if (args[0] === 'proxy') args.shift(); continue; }
+    if (['time', 'nice', 'nohup', 'command', 'builtin', 'exec', 'sudo', 'doas'].includes(args[0])) { args.shift(); continue; }
+    if (args[0] === 'env') { args.shift(); while (args[0] && (args[0].startsWith('-') || args[0].includes('='))) args.shift(); continue; }
+    break;
+  }
+  if (!args.length) return null;
+  const [command, ...rest] = args, name = path.basename(command), paths = pathArgs(rest);
+  if (/^mkfs/.test(name) || ['fdisk', 'parted', 'wipefs'].includes(name)) return `${name} formatea o reparticiona discos`;
+  if (name === 'dd' && rest.some(arg => /^of=\/dev\//.test(arg))) return 'dd escribe directamente en un dispositivo';
+  if (name === 'rm' && rest.some(arg => /^-[a-zA-Z]*[rR]/.test(arg) || arg === '--recursive')) {
+    const wide = paths.find(rootOrHome);
+    if (wide) return `rm borra ${wide} entero`;
+  }
+  if (['chmod', 'chown', 'chgrp'].includes(name) && rest.some(arg => /^-[a-zA-Z]*R/.test(arg) || arg === '--recursive')) {
+    const wide = paths.slice(1).find(rootOrHome);
+    if (wide) return `${name} -R cambia los permisos de ${wide}`;
+  }
+  return null;
+}
+export function catastrophicCommand(line) {
+  if (typeof line !== 'string' || !line.trim()) return null;
+  const tokens = tokenize(line.replace(/\$\(|<\(|>\(|`/g, ' ; ').replace(/\)/g, ' ; '));
+  if (!tokens) return null;
+  let words = [], reason = null;
+  const close = () => { if (!reason && words.length) reason = catastrophicSegment(words); words = []; };
+  for (let i = 0; i < tokens.length && !reason; i++) {
+    const token = tokens[i];
+    if (token.op) { close(); continue; }
+    if (token.redirect) {
+      const target = tokens[++i]?.word;
+      if (!token.redirect.startsWith('<') && target !== undefined && /^\/dev\/(sd|nvme|hd|vd|xvd|disk|mmcblk)/.test(target)) reason = `escribe directamente en ${target}`;
+      continue;
+    }
+    words.push(token.word);
+  }
+  close();
+  return reason;
+}
+export function catastrophic(tool, input) {
+  return tool === 'Bash' ? catastrophicCommand(input?.command) : null;
 }
 
 // Why any tool call must still ask in Total mode, or null.
@@ -572,7 +625,8 @@ export function phantomCommand(line) {
 
 export const PERMISSION_MODES = ['ask', 'auto', 'full'];
 
-// mode 'full': everything goes except the short hard list above, which asks.
+// mode 'full' (YOLO): everything goes except the catastrophic list (root/home
+// wipes, raw disks), which asks.
 // mode 'auto': everything goes except the hard list and the sensitive actions
 // above (destructive, commit/push, external tools and services, databases).
 // mode 'ask': it may read anything, but every change asks.
@@ -581,7 +635,7 @@ export function permissionDecision({ tool, input = {}, cwd, mode = 'ask', ownBra
   if (READ_TOOLS.has(tool) || phantomTool(tool)) return { allow: true, key };
   if (tool === 'Bash' && phantomCommand(input.command)) return { allow: true, key };
   if (mode === 'full') {
-    const reason = hardStop(tool, input, cwd);
+    const reason = catastrophic(tool, input);
     return reason ? { allow: false, key, reason: `Acción delicada, pregunta incluso en modo Total: ${reason}` } : { allow: true, key };
   }
   if (mode === 'auto') {
