@@ -124,8 +124,8 @@
 .app-shell .activity-dock .dock-main .dock-action:active:not(:disabled) { background-color: var(--control-press); background-clip: content-box; scale: none; }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary { flex-direction: row; width: auto; padding: 0 18px; gap: 8px; border-radius: var(--r-pill); background: var(--primary); color: var(--primary-ink); }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary > span { display: inline; position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
-.app-shell .activity-dock .dock-main .dock-action.dock-primary:hover:not(:disabled) { background-color: var(--primary-hover); color: var(--primary-ink); }
-.app-shell .activity-dock .dock-main .dock-action.dock-primary:active:not(:disabled) { background-color: var(--primary-press); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:hover:not(:disabled) { background-color: var(--primary-hover); background-clip: border-box; color: var(--primary-ink); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:active:not(:disabled) { background-color: var(--primary-press); background-clip: border-box; }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary:disabled,
 .app-shell :is(.workspace-header, .canvas-navigation, .focus-return) button:disabled { background-color: var(--control-fill); color: var(--ink-3); opacity: 1; }
 .app-shell .activity-dock .dock-main button.dock-action.dock-hub { width: var(--dock-control-size); min-width: var(--dock-control-size); height: var(--dock-control-size); padding: 0; border-radius: 50%; background: var(--control-fill); color: var(--ink); justify-content: center; }
