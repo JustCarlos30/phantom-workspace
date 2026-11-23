@@ -28,8 +28,18 @@ test('los glyphs de proveedor existen y dibujan svg con viewBox 24', async () =>
   }
   for (const name of ['ClaudeGlyph', 'OpenCodeGlyph', 'CodexGlyph']) {
     const body = source.split(`export function ${name}`)[1].split('\n}')[0];
-    assert.match(body, /<svg [^>]*\{\.\.\.base\}/);
+    assert.match(body, /<svg [^>]*viewBox="0 0 24 24"[^>]*fill="currentColor"/);
+    assert.equal((body.match(/<path /g) || []).length, 1);
   }
+});
+
+test('los tres logos contienen el inicio exacto de su path oficial', async () => {
+  const source = await read('src/components/Glyphs.jsx');
+  const body = name => source.split(`export function ${name}`)[1].split('\n}')[0];
+  assert.ok(body('ClaudeGlyph').includes('d="m4.7144 15.9555'));
+  assert.ok(body('CodexGlyph').includes('d="M22.2819 9.8211'));
+  assert.ok(body('OpenCodeGlyph').includes('d="M22 24H2V0h20z'));
+  assert.notEqual(body('OpenCodeGlyph'), body('ShellGlyph'));
 });
 
 test('OpenCodeGlyph se distingue de ShellGlyph y no usa el chevron de terminal', async () => {
