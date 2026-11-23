@@ -19,9 +19,9 @@ export function ClaudeGlyph({ size = 14, ...props }) {
   return <svg width={size} height={size} {...base} {...props}><path d="M12 2.5v6.5M12 15v6.5M2.5 12H9M15 12h6.5M5.3 5.3 9.4 9.4M14.6 14.6l4.1 4.1M18.7 5.3l-4.1 4.1M9.4 14.6l-4.1 4.1" /></svg>;
 }
 
-// A terminal frame with a prompt chevron and cursor.
+// OpenCode's square "O": a rounded outer square with a filled inner block set low.
 export function OpenCodeGlyph({ size = 14, ...props }) {
-  return <svg width={size} height={size} {...base} {...props}><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="m7.5 9.5 3 2.5-3 2.5M13 15h3.5" /></svg>;
+  return <svg width={size} height={size} {...base} {...props}><rect x="3" y="3" width="18" height="18" rx="3" /><rect x="8" y="10" width="8" height="7" rx="1" fill="currentColor" /></svg>;
 }
 
 // A hexagonal bloom: three interlaced rounded petals inside a hexagon.

@@ -31,3 +31,10 @@ test('los glyphs de proveedor existen y dibujan svg con viewBox 24', async () =>
     assert.match(body, /<svg [^>]*\{\.\.\.base\}/);
   }
 });
+
+test('OpenCodeGlyph se distingue de ShellGlyph y no usa el chevron de terminal', async () => {
+  const source = await read('src/components/Glyphs.jsx');
+  const body = name => source.split(`export function ${name}`)[1].split('\n}')[0];
+  assert.notEqual(body('OpenCodeGlyph'), body('ShellGlyph'));
+  assert.doesNotMatch(body('OpenCodeGlyph'), /m7/);
+});
