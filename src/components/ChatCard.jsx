@@ -10,6 +10,7 @@ import { Mic } from 'lucide-react';
 import { formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import PlanPhases from './PlanPhases';
+import TouchedFiles from './TouchedFiles.jsx';
 import { planSummary } from '../hooks/plan-view.mjs';
 import Markdown, { CopyButton } from './Markdown';
 import { ProviderTile } from './Glyphs';
@@ -360,6 +361,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
           {voice.status === 'idle' && <button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={startNew}><MessageSquarePlus size={18} /></button>}
           {voice.status === 'idle' && messages.length > 0 && <SessionChip cwd={locationOf(node, workspace).cwd}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>}
+          {voice.status === 'idle' && <TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} />}
           <span className="pc-bar-space" />
           <ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />
           {voice.status === 'idle' && messages.length > 0 && <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />}

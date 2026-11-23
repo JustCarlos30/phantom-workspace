@@ -9,6 +9,7 @@ import { CopyButton } from './CopyButton';
 import { ModeSwitch } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 import PlanPhases from './PlanPhases';
+import TouchedFiles from './TouchedFiles.jsx';
 
 const LINE_HEIGHT = 22;
 
@@ -177,6 +178,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     {!overview && <footer className="pt-card-footer">
       <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{where}</span></span>
       <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>
+      <TouchedFiles node={node} workspace={workspace} api={api} enabled={enabled && visible} />
       {trustAsked && <button type="button" className="pt-card-action" disabled={trusting} onClick={trust} title={`Confiar en ${project} para Claude Code`} aria-label={`Confiar en el proyecto ${project}`}>Confiar en este proyecto</button>}
       {ended && <button type="button" className="pt-card-action" onClick={() => onRelaunch(node)}><RotateCcw size={14} aria-hidden="true" />Nueva sesión</button>}
       <button type="button" className="pt-card-action is-primary" onClick={onOpen} title="Abrir terminal · doble clic">Abrir<ArrowUpRight size={14} aria-hidden="true" /></button>
