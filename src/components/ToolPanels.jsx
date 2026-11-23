@@ -10,7 +10,7 @@ import Branches from './Branches.jsx';
 import Repository from './Repository.jsx';
 import VideoReview from './VideoReview.jsx';
 import EmptyState from './EmptyState.jsx';
-import { Button } from './PluginPrimitives.jsx';
+import { Button, Field, useOperation, useResource, ErrorNotice as SharedErrorNotice, DataView as SharedDataView, ResourceState as SharedResourceState } from './PluginPrimitives.jsx';
 import Markdown from './Markdown.jsx';
 import MemoryCard, { MemoryForm } from './MemoryCard.jsx';
 import { pinnedRef, readerKind, emptyMessage } from '../hooks/context-view.mjs';
@@ -50,66 +50,11 @@ export class ToolErrorBoundary extends React.Component {
   }
 }
 
-export { Button };
-export function Field({ label, children, hint }) {
-  const id = useId();
-  return <div className="tw-field"><label htmlFor={id}>{label}</label>{React.cloneElement(children, { id, 'aria-describedby': hint ? `${id}-hint` : undefined })}{hint && <small id={`${id}-hint`}>{hint}</small>}</div>;
-}
-// Missing tools get one plain sentence and, when there is something to do, one
-// action; the original message stays available under Detalles.
-const PHANTOM_MISSING = /Phantom unavailable|Phantom CLI not found/i;
-const CHROMIUM_MISSING = /Chromium de Playwright no está descargado|Playwright no disponible/i;
-function Unavailable({ reason, onOpenPanel, retry }) {
-  const raw = textValue(reason, '');
-  const phantom = PHANTOM_MISSING.test(raw);
-  return <div className="tw-warning" role="status"><span>{phantom ? 'Phantom no está instalado o no se encuentra.' : 'No está disponible en este equipo.'}</span>
-    <div className="tw-row">{phantom && onOpenPanel && <Button onClick={() => onOpenPanel('plugins', { category: 'agents' }, 'Configuración')}>Abrir Configuración</Button>}{retry && <Button icon={RefreshCw} onClick={retry}>Reintentar</Button>}</div>
-    {raw && <DataView value={raw} />}
-  </div>;
-}
-export function ErrorNotice({ error, retry, clear, onOpenPanel }) {
-  if (!error) return null;
-  const raw = message(error);
-  if (PHANTOM_MISSING.test(raw)) return <Unavailable reason={raw} onOpenPanel={onOpenPanel} retry={retry} />;
-  if (CHROMIUM_MISSING.test(raw)) return <div className="tw-error" role="alert"><span>Falta instalar Chromium para el navegador automático. Ejecuta: <code>npx playwright install chromium</code></span><div className="tw-row">{clear && <Button onClick={clear}>Cerrar</Button>}</div><DataView value={raw} /></div>;
-  return <div className="tw-error" role="alert"><span>{raw}</span><div className="tw-row">{retry && <Button icon={RefreshCw} onClick={retry}>Reintentar</Button>}{clear && <Button onClick={clear}>Cerrar</Button>}</div></div>;
-}
-export function useOperation(notify) {
-  const [busy, setBusy] = useState(false), [error, setError] = useState(null);
-  const lock = useRef(false), mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const run = async (fn, success) => {
-    if (lock.current) return;
-    lock.current = true; setBusy(true); setError(null);
-    try { const value = await fn(); if (success) notify?.(success, 'success'); return { ok: true, value }; }
-    catch (e) { if (mounted.current) setError(e); return { ok: false }; }
-    finally { lock.current = false; if (mounted.current) setBusy(false); }
-  };
-  return { busy, error, run, clear: () => setError(null) };
-}
-function useResource(api, method, payload) {
-  const key = JSON.stringify(payload), sequence = useRef(0);
-  const [result, setResult] = useState({ loading: true, data: null, error: null });
-  const reload = useCallback(async () => {
-    const seq = ++sequence.current;
-    setResult(old => ({ ...old, loading: true, error: null }));
-    try {
-      const data = await api(method, JSON.parse(key));
-      if (seq === sequence.current) setResult({ loading: false, data, error: null });
-    } catch (error) { if (seq === sequence.current) setResult({ loading: false, data: null, error }); }
-  }, [api, method, key]);
-  useEffect(() => { reload(); return () => { sequence.current++; }; }, [reload]);
-  return { ...result, reload };
-}
-function ResourceState({ resource, empty = 'Aún no hay nada aquí.', onOpenPanel }) {
-  if (resource.loading) return <p className="tw-muted" role="status">Cargando…</p>;
-  if (resource.error) return <ErrorNotice error={resource.error} retry={resource.reload} onOpenPanel={onOpenPanel} />;
-  if (resource.data?.available === false) return <Unavailable reason={resource.data.reason} onOpenPanel={onOpenPanel} retry={resource.reload} />;
-  return empty && itemsOf(resource.data).length === 0 ? <EmptyState className="tw-empty" description={empty} /> : null;
-}
-export function DataView({ value, label = 'Detalles', open }) {
-  return <details className="tw-details" open={open}><summary>{label}</summary><pre className="tw-code">{typeof value === 'string' ? value : json(value)}</pre></details>;
-}
+// Single contract lives in PluginPrimitives; these bindings only keep this surface's wording.
+export { Button, Field, useOperation, useResource };
+export function ErrorNotice(props) { return <SharedErrorNotice clearLabel="Cerrar" detailsLabel="Detalles" {...props} />; }
+export function DataView({ label = 'Detalles', ...props }) { return <SharedDataView label={label} {...props} />; }
+function ResourceState({ empty = 'Aún no hay nada aquí.', ...props }) { return <SharedResourceState strict loadingLabel="Cargando…" empty={empty} {...props} />; }
 function Identity({ value }) {
   const [copied, setCopied] = useState(false), op = useOperation();
   if (value == null) return <span className="tw-muted">Sin datos</span>;
