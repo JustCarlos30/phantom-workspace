@@ -870,6 +870,20 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   .rail-collapsed .workspace-header { left: auto; }
   .workspace-identity, .header-controls { height: 100%; }
   .workspace-identity { padding: 0 8px 0 18px; max-width: min(60%, 520px); }
+}
+/* Top bar is exactly one --bar tall; identity is a single line. In focus the
+   bar shrinks to its controls on the right and never covers .focus-return. */
+.app-shell .workspace-header {
+  box-sizing: border-box; height: var(--bar); min-height: var(--bar); max-height: var(--bar);
+  padding-block: 0; display: flex; flex-wrap: nowrap; align-items: center;
+}
+.app-shell .workspace-header > * { max-height: 100%; align-self: center; }
+.app-shell .workspace-identity { flex-direction: row; align-items: center; }
+.app-shell .workspace-identity .breadcrumb { height: auto; max-height: 100%; }
+.app-shell .workspace-path { display: none; }
+.app-shell.studio-focused .workspace-header { left: auto; }
+.app-shell.studio-focused .workspace-identity { display: none; }
+@media (min-width: 851px) {
   .header-controls { padding: 0 8px; }
 
   /* Focus mode: the stage starts one gap after the rail and stops before the inspector. */

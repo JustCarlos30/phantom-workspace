@@ -364,7 +364,7 @@ try {
         const seg = document.querySelector('.canvas-navigation .control-segmented');
         const primary = dock.querySelector('.dock-primary'), ps = getComputedStyle(primary);
         const host = rail.querySelector('.host-indicator'), mark = rail.querySelector('.project-switcher > summary > .project-initials');
-        return { rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), nav: rect(document.querySelector('.canvas-navigation')), coarse, rows, controls,
+        return { header: rect(document.querySelector('.workspace-header')), rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), nav: rect(document.querySelector('.canvas-navigation')), coarse, rows, controls,
           primary: { bounds: rect(primary), icon: rect(primary.querySelector('svg')), label: rect(primary.querySelector('span')), direction: ps.flexDirection, padding: [ps.paddingLeft, ps.paddingRight], gap: ps.gap },
           host: { text: host.textContent, clipped: host.scrollWidth > host.clientWidth, bounds: rect(host), next: rect(host.nextElementSibling) },
           projectMark: { bounds: rect(mark), text: mark.textContent, radius: getComputedStyle(mark).borderRadius },
@@ -372,6 +372,7 @@ try {
           segment: seg && { height: rect(seg).height, padding: getComputedStyle(seg).padding, gap: getComputedStyle(seg).gap, children: [...seg.children].filter(el => getComputedStyle(el).display !== 'none').map(el => rect(el).height) } };
       });
       assert.deepEqual(measurement.tokens, { 'rail-width': '272px', gutter: '12px', 'box-pad': '12px', 'row-detail': '56px', 'badge-size': '32px', 'glyph-primary': '18px', 'dock-h': '64px', 'dock-clearance': '24px', 'seg-height': '36px', 'seg-pad': '4px', 'seg-gap': '4px', 'focus-width': '2px' });
+      dimension(measurement.header.height, 48, 'Top bar height');
       dimension(measurement.rail.width, 272, 'Rail width'); dimension(measurement.rail.x, 12, 'Rail left'); dimension(measurement.rail.y, 12, 'Rail top');
       for (const padding of measurement.padding) dimension(padding, 12, 'Rail padding');
       assert.ok(Math.abs(measurement.window.height - measurement.rail.bottom - 12) <= 1);
@@ -584,6 +585,12 @@ try {
     await page.getByRole('button', { name: `Ver ${working.title} en el mapa`, exact: true }).click();
     await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
     await shot('focus-flip-reduced');
+    const focusBar = await page.evaluate(() => {
+      const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, height: r.height }; };
+      return { header: rect(document.querySelector('.workspace-header')), back: rect(document.querySelector('.focus-return')) };
+    });
+    assert.ok(Math.abs(focusBar.header.height - 48) <= 1, `Focused top bar height: ${focusBar.header.height} vs 48`);
+    assert.ok(focusBar.header.x >= focusBar.back.right || focusBar.header.right <= focusBar.back.x || focusBar.header.y >= focusBar.back.bottom || focusBar.header.bottom <= focusBar.back.y, 'Focused top bar does not cover «Volver al mapa»');
     await page.locator('.focus-return button').click(); await delay(400);
     assert.equal(await page.evaluate(() => window.focusObservations.length), 2, 'Reduced motion applies layout without FLIP');
     assert.equal(await panel.evaluate(el => el.getAnimations({ subtree: true }).filter(animation => ['map-flash', 'trace-orbit'].includes(animation.animationName)).length), 0);
