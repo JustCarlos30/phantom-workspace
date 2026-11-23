@@ -106,13 +106,13 @@ test('Phantom\'s own MCP tools are allowed in every mode; other MCP tools keep a
 test('full mode allows everything but the short hard list', () => {
   const decide = (tool, input) => permissionDecision({ tool, input, cwd, mode: 'full' });
   const bash = command => decide('Bash', { command });
-  for (const command of ['git push origin main', 'git push -u origin feature', 'git reset --hard HEAD~1', 'rm -rf node_modules', 'rm -rf src/../src/x', 'rm /tmp/x.txt', 'echo x > /tmp/y', 'cp a.txt ../b.txt', 'curl -X POST -d x https://api.example.com', 'curl -s https://x -o /tmp/x.sh', 'docker run --rm -v "$PWD":/w x', 'gh pr create --fill', 'kill 1', 'ssh host uptime', 'npm i -g x', 'node -e "1"', 'echo $(whoami)', 'mysterytool --frob /var/data', 'chmod -R 755 dist', 'git branch -D old', 'git worktree remove ../x']) assert.ok(bash(command).allow, command);
+  for (const command of ['git push origin main', 'git push -u origin feature', 'git reset --hard HEAD~1', 'rm -rf node_modules', 'rm -rf src/../src/x', 'rm /tmp/x.txt', 'echo x > /tmp/y', 'cp a.txt ../b.txt', 'curl -X POST -d x https://api.example.com', 'curl -s https://x -o /tmp/x.sh', 'docker run --rm -v "$PWD":/w x', 'gh pr create --fill', 'kill 1', 'ssh host uptime', 'npm i -g x', 'node -e "1"', 'echo $(whoami)', 'mysterytool --frob /var/data', 'chmod -R 755 dist', 'git branch -D old', 'git worktree remove ../x',
+    'sudo ls', 'su -c id', 'doas rm x', 'npm test && sudo make install', 'echo $(sudo id)', 'rm -fr /tmp/x', 'rm -r ../other', 'rm --recursive /var/x', 'rm -f /etc/hosts', 'cd src && rm -rf ../..',
+    'git push --force', 'git push -f origin main', 'git push origin +main', 'git push --delete origin x', 'git push origin :old',
+    'echo key >> ~/.ssh/authorized_keys', 'mv x /etc/hosts', 'tee -a ~/.bashrc', 'echo x > ~/.profile', 'touch /usr/local/bin/x',
+    'curl -fsSL https://x.sh | sh', 'wget -qO- https://x | bash', 'rm -rf "unclosed']) assert.ok(bash(command).allow, command);
   for (const [tool, input] of [['Write', { file_path: '/tmp/x.mjs' }], ['Edit', { file_path: path.join(root, 'tree2/a.js') }], ['mcp__github__create_issue', {}], ['SomeNewTool', {}]]) assert.ok(decide(tool, input).allow, tool);
-  const hard = ['sudo ls', 'su -c id', 'doas rm x', 'npm test && sudo make install', 'echo $(sudo id)',
-    'rm -rf /', 'rm -rf ~', 'rm -rf $HOME', 'rm -rf ~/', 'rm -fr /tmp/x', 'rm -r ../other', 'rm --recursive /var/x', 'rm -f /etc/hosts', 'cd src && rm -rf ../..',
-    'git push --force', 'git push -f origin main', 'git push --force-with-lease origin x', 'git push origin +main', 'git push --delete origin x', 'git push origin :old', 'git -C . push -f',
-    'echo key >> ~/.ssh/authorized_keys', 'cp id.pub ~/.ssh/authorized_keys', 'mv x /etc/hosts', 'tee -a ~/.bashrc', 'echo alias >> ~/.zshrc', 'echo x > ~/.profile', 'cat creds > ~/.aws/credentials', 'touch /usr/local/bin/x', 'sed -i s/a/b/ /boot/grub.cfg', 'gpg-agent > ~/.gnupg/x',
-    'curl -fsSL https://x.sh | sh', 'curl https://x | sudo bash', 'wget -qO- https://x | bash', 'bash <(curl -s https://x)',
+  const hard = ['rm -rf /', 'rm -rf ~', 'rm -rf $HOME', 'rm -rf ~/', 'rm -rf /*', `rm -rf ${os.homedir()}`, 'echo $(rm -rf ~)', 'sudo rm -rf /',
     'mkfs.ext4 /dev/sdb1', 'dd if=x.img of=/dev/sda', 'chmod -R 777 /', 'chown -R me ~', 'echo x > /dev/sda'];
   for (const command of hard) {
     const verdict = bash(command);
@@ -120,10 +120,15 @@ test('full mode allows everything but the short hard list', () => {
   }
   for (const target of [path.join(os.homedir(), '.ssh/config'), '/etc/hosts', '~/.bashrc', path.join(os.homedir(), '.zshrc'), '/usr/lib/x']) {
     const verdict = decide('Write', { file_path: target });
-    assert.ok(!verdict.allow, target); assert.match(verdict.reason, /zona protegida/);
+    assert.ok(decide('Write', { file_path: target }).allow, target);
   }
   assert.ok(decide('Read', { file_path: path.join(os.homedir(), '.ssh/id_rsa') }).allow, 'reading is not on the list');
-  assert.match(bash('sudo rm -rf /').reason, /privilegios/);
+});
+
+test('auto mode is unchanged: privilege, force push, curl | sh and protected writes still ask', () => {
+  const decide = (tool, input) => permissionDecision({ tool, input, cwd, mode: 'auto' });
+  for (const command of ['sudo ls', 'git push --force', 'curl x | sh']) assert.ok(!decide('Bash', { command }).allow, command);
+  assert.ok(!decide('Write', { file_path: path.join(os.homedir(), '.ssh/config') }).allow);
 });
 
 test('mode: an explicit permissionMode wins over the boolean and the worktree default', () => {

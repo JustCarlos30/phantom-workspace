@@ -38,7 +38,9 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
       <input ref={search} type="text" value={query} placeholder="Buscar o escribir un modelo…" aria-label="Buscar modelo" spellCheck={false} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const first = custom || items[0]?.id; if (first) choose(first); } }} />
       <div className="pc-models-list" role="listbox" aria-label="Modelos disponibles">
         {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={14} aria-hidden="true" />}</button>}
-        {groups.map(group => <React.Fragment key={group.name}><h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
+        {!needle && groups.length > 0 && <div className="menu-separator" role="separator" />}
+        {groups.map((group, g) => <React.Fragment key={group.name}>{g > 0 && <div className="menu-separator" role="separator" />}<h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
+        {custom && items.length > 0 && <div className="menu-separator" role="separator" />}
         {custom && <button type="button" role="option" aria-selected={false} onClick={() => choose(custom)}><span>Usar <span className="pc-mono">{custom}</span></span></button>}
         {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
         {failure && <p role="alert">{failure}. Puedes escribir el nombre del modelo.</p>}
@@ -125,14 +127,14 @@ export function EffortMenu({ label, heading, ariaName, title, levels, selected, 
     </button>
     {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={ariaName} aria-activedescendant={`${id}-${active}`} onKeyDown={keys}>
       <h4>{heading}</h4>
-      {options.map((option, i) => <div key={option || 'auto'} id={`${id}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
+      {options.map((option, i) => <React.Fragment key={option || 'auto'}>{i === 1 && <div className="menu-separator" role="separator" />}<div id={`${id}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
         <EffortMeter level={option === stray && stray ? -1 : i - 1} total={levels.length || 3} />
         <span>{option || 'auto'}</span>
         {!option && <small>predeterminado</small>}
         {option && option === stray && <small>no disponible en este modelo</small>}
         {option === selected && <Check size={14} aria-hidden="true" />}
-      </div>)}
-      {note && <p className="pc-effort-note" role="status">{note}</p>}
+      </div></React.Fragment>)}
+      {note && <><div className="menu-separator" role="separator" /><p className="pc-effort-note" role="status">{note}</p></>}
     </div>}
   </div>;
 }

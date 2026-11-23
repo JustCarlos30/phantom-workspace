@@ -148,6 +148,7 @@
 
 /* ---------- Sessions and resources ---------- */
 .project-rail .rail-panels { display: flex; flex-direction: column; flex: 1; min-height: 80px; margin-top: 0; overflow: hidden; }
+.rail-panel-group:first-child .rail-heading { margin-top: var(--s-2); }
 .rail-panel-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 .rail-panel-group { --empty-inset: var(--row-pad); }
 .rail-panel-group + .rail-panel-group { position: relative; margin-top: var(--rail-gap); padding-top: var(--rail-group-inset); }
