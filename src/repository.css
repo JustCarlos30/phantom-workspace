@@ -174,8 +174,8 @@
 .rp-detail-section { display: grid; gap: 6px; padding: 10px 8px 12px; }
 .rp-detail-section h4 { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0 6px; font-size: 12px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--muted); }
 .rp-filelist { margin: 0; padding: 0; list-style: none; }
-.rp-filerow { display: flex; align-items: center; gap: 2px; border-radius: var(--r-mark); }
-.rp-filerow:hover { background: var(--surface-2); }
+.rp-filerow { display: flex; align-items: center; gap: 2px; border-radius: var(--r-row); }
+.rp-filerow:hover { background: var(--row-hover); }
 .rp-filerow-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 6px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .rp-status { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--r-mark); font: 700 10px var(--rp-mono); flex: none; }
 .rp-status.is-modified { color: var(--c-sky, #7cc4ff); background: color-mix(in srgb, var(--c-sky, #7cc4ff) 15%, transparent); }

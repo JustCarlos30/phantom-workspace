@@ -144,7 +144,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .tv-error .tv-label { color: var(--pc-del); }
 .tv-head .md-copy { width: 22px; height: 22px; opacity: .6; }
 .tv:hover .tv-head .md-copy, .tv-head .md-copy:focus-visible, .tv-head .md-copy.is-copied { opacity: 1; }
-.tv-scroll { max-height: 280px; overflow: auto; overscroll-behavior: contain; border-radius: var(--r-ctl); background: var(--fill); }
+.tv-scroll { max-height: min(60vh, 520px); overflow: auto;border-radius: var(--r-ctl); background: var(--fill); }
 .tv-error .tv-scroll { background: color-mix(in srgb, var(--pc-del) 7%, transparent); }
 .tv-body { margin: 0; padding: 8px 10px; font: 12px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tv-shell .tv-body { color: var(--terminal-ink); }
@@ -201,17 +201,16 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-subagent-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pc-subagent-more > summary > svg { transition: transform var(--dur-fast) var(--ease-out); }
 .pc-subagent-more[open] > summary > svg { transform: rotate(90deg); }
-.pc-subagent-steps { display: grid; gap: 1px; margin: 4px 0 0; padding: 0 0 0 10px; border-left: 1px solid var(--hairline); list-style: none; max-height: 220px; overflow: auto; }
+.pc-subagent-steps { display: grid; gap: 1px; margin: 4px 0 0; padding: 0 0 0 10px; border-left: 1px solid var(--hairline); list-style: none; }
 .pc-subagent-steps > li { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 22px; font: 12px/1.4 var(--mono); }
 .pc-subagent-steps > li > .pc-tool-name { font-weight: 500; }
 .pc-subagent-steps > li.is-error > .pc-tool-name { color: var(--pc-del); }
 .pc-subagent-hidden { color: var(--muted); font-style: italic; }
-.pc-subagent-prompt { margin: 4px 0 0; padding: 8px 0; max-height: 200px; overflow: auto; background: none; color: var(--ink); font: var(--t-code); white-space: pre-wrap; word-break: break-word; }
+.pc-subagent-prompt { margin: 4px 0 0; padding: 8px 0; background: none; color: var(--ink); font: var(--t-code); white-space: pre-wrap; word-break: break-word; }
 .pc-subagent-output { margin-top: 4px; }
 .pc-phantom-link { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .pc-phantom-link > * { min-width: 0; }
 .pc-phantom-run .pc-subagent-head { flex-wrap: wrap; }
-.pc-phantom-run .pc-subagent-steps { max-height: 308px; }
 .pc-phantom-id { color: var(--muted); font-size: 11px; }
 .pc-phantom-status { margin-left: auto; color: var(--muted); }
 .pc-phantom-status.is-live { color: var(--working); }
@@ -310,7 +309,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-session-context .pc-effort { align-self: flex-end; }
 
 /* ---------- Composer: one field, its status line inside ---------- */
-.pc-error { display: flex; align-items: flex-start; gap: 6px; margin: 0; padding: 8px 16px; background: var(--error-bg); color: var(--ink); font-size: 12px; line-height: 1.45; flex-shrink: 0; }
+.pc-error { display: flex; align-items: flex-start; gap: 6px; max-width: 720px; margin: 0 auto; padding: 8px 16px; background: transparent; color: var(--ink); font-size: 12px; line-height: 1.45; flex-shrink: 0; }
 .pc-error > svg { flex-shrink: 0; margin-top: 2px; color: var(--danger); }
 .pc-dock { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: var(--composer-max); margin: 0 auto; padding: 0 12px 8px; flex-shrink: 0; }
 .pc.is-focused .pc-dock { padding: 0 20px 10px; }
@@ -482,7 +481,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 /* A permission the agent waits on: answered in place, then kept as a record. */
 .pc-ask { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 10px 10px 12px; border: 0; border-radius: 0; background: none; }
 .pc-ask:not(.is-pending) { border-color: transparent; background: none; padding-block: 7px; padding-inline: 0; }
-.pc-ask.is-pending { background: none; }
+.pc-ask.is-pending { padding: 12px 16px; border-radius: var(--r-isle); background: var(--object-fill); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); }
 .pc-ask-icon { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; color: var(--pc-caution); }
 .pc-ask:not(.is-pending) .pc-ask-icon { color: var(--muted); }
 .pc-ask-body { display: grid; gap: 3px; flex: 1; min-width: 0; }
@@ -490,8 +489,8 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-ask-body strong { color: var(--ink); font-weight: 600; }
 .pc-ask-body code { overflow: hidden; color: var(--ink); font: 12px/1.4 var(--mono); white-space: nowrap; text-overflow: ellipsis; }
 .pc-ask-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.pc-ask-actions button { min-height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 550; line-height: 1; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
-.pc-ask-actions button:hover:not(:disabled) { background: var(--fill-3); }
+.pc-ask-actions button { min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 550; line-height: 1; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
+.pc-ask-actions button:hover:not(:disabled) { background: var(--row-hover); }
 .pc-ask-actions button.is-primary { background: var(--pc-solid); color: var(--pc-solid-ink); }
 .pc-ask-actions button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-solid) 86%, var(--muted)); }
 .pc-ask-actions button:disabled { opacity: .5; cursor: default; }

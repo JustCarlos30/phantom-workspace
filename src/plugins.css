@@ -329,10 +329,10 @@
 .pc-run-options { flex: 1 1 100%; font-size: 12px; }
 .pc-run-options > summary { width: fit-content; color: var(--muted); cursor: pointer; }
 .pc-run-options[open] > summary { margin-bottom: 10px; }
-.pc-tablist { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; width: fit-content; max-width: 100%; border-radius: var(--r-ctl); background: var(--fill); }
-.pc-tablist button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-mark); background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.pc-tablist { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; width: fit-content; max-width: 100%; border-radius: var(--r-ctl); background: transparent; }
+.pc-tablist button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted); font: var(--t-control); cursor: pointer; }
 .pc-tablist button:hover { color: var(--ink); }
-.pc-tablist button[aria-selected="true"] { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+.pc-tablist button[aria-selected="true"] { background: var(--row-hover); color: var(--ink); font-weight: 600; }
 .pc-tabpanel { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; min-width: 0; }
 .plugin-surface .pc-tabpanel .pc-label { margin: 10px 0 0; }
 .pc-goal-section .pc-label { margin-top: 0; }
