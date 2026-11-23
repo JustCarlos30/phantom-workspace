@@ -8,7 +8,7 @@
    Separators are 1px gradients, not borders: no new drawn edges. */
 
 /* ---------- Plane ---------- */
-.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index),
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index, .usage-popover),
 ::picker(select) {
   --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
   background-color: var(--menu); background-image: var(--object-fill);
@@ -16,7 +16,7 @@
   box-shadow: var(--shadow-chrome);
   --muted: #a8a6a0; --ink-3: #8b8983;
 }
-.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index)::before,
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index, .usage-popover)::before,
 ::picker(select)::before {
   content: ""; position: absolute; inset: 0; z-index: 3;
   border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;

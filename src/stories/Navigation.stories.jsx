@@ -4,6 +4,8 @@ import Minimap from '../components/Minimap';
 import Spaces from '../components/Spaces';
 import ProjectSwitcher from '../components/ProjectSwitcher';
 import SidebarPanels from '../components/SidebarPanels';
+import RailUsage from '../components/RailUsage';
+import '../limits.css';
 import ToolPicker from '../components/ToolPicker';
 import { CommandPalette } from '../components/CommandPalette';
 import { Inspector } from '../components/Inspector';
@@ -24,3 +26,5 @@ export const Paneles = { render: () => <SidebarPanels nodes={[noteNode]} types={
 export const Herramientas = { render: () => <ToolPicker types={types} onPick={noop} onClose={noop} /> };
 export const Comandos = { render: () => <CommandPalette open workspace={workspace} onClose={noop} onAction={noop} /> };
 export const InspectorContextual = { render: () => <Inspector {...demo} tab="playground" /> };
+
+export const Limites = { render: () => <div className="project-rail" style={{ position: "relative", height: 440, justifyContent: "flex-end" }}><RailUsage data={{ providers: [{ id: "claude", label: "Claude", available: true, plan: "Max", windows: [{ label: "Sesión", percent: 42 }, { label: "Semana", percent: 76 }] }] }} loading={false} onRefresh={noop} /></div> };
