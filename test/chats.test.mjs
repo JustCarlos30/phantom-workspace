@@ -170,10 +170,13 @@ function fixture(dir, name, body) {
   return file;
 }
 
-async function failedRunFixture(t, { terminal = false, spawnFailure = false } = {}) {
+async function failedRunFixture(t, { terminal = false, spawnFailure = false, initializationFailure } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-failed-wake-'));
-  const agent = fixture(root, 'agent', `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'system',subtype:'init',session_id:'wake-session'});setTimeout(()=>{if(input==='first') {out({type:'result',is_error:true,result:'turn failed',session_id:'wake-session'});return;}out({type:'assistant',message:{content:[{type:'text',text:input}]}});out({type:'result',is_error:false,session_id:'wake-session'});},500);});`);
+  const agent = fixture(root, 'agent', initializationFailure
+    ? `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'wake-session'});setTimeout(()=>{if(input==='first'){out({type:'turn.failed',error:{message:'turn failed'}});return;}out({type:'item.completed',item:{id:'answer',type:'agent_message',text:input}});out({type:'turn.completed',usage:{output_tokens:1}});},500);});`
+    : `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'system',subtype:'init',session_id:'wake-session'});setTimeout(()=>{if(input==='first') {out({type:'result',is_error:true,result:'turn failed',session_id:'wake-session'});return;}out({type:'assistant',message:{content:[{type:'text',text:input}]}});out({type:'result',is_error:false,session_id:'wake-session'});},500);});`);
   const cli = path.join(root, 'inert.mjs'); fs.writeFileSync(cli, '// inert');
+  const events = [];
   let spawns = 0, lastEvent, host, hostEmit;
   host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: (method, payload, context) => handleIntegration(method, payload, {
     ...context,
@@ -182,20 +185,22 @@ async function failedRunFixture(t, { terminal = false, spawnFailure = false } = 
       throw new Error('Not a Git workspace');
     },
     spawn: () => { spawns++; throw new Error('fixture spawn failed'); },
-    emit: event => { lastEvent = event; hostEmit = context.emit; context.emit(event); },
+    emit: event => { events.push(event); lastEvent = event; hostEmit = context.emit; context.emit(event); },
   }) });
   t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
-  await host.invoke('settings.update', { patch: { claudePath: agent } });
+  await host.invoke('settings.update', { patch: initializationFailure ? { codexPath: agent } : { claudePath: agent } });
+  if (initializationFailure) await host.invoke('providers.configure', { providers: { codex: { enabled: true } } });
   const w = await host.invoke('workspace.open', { path: root });
-  await host.invoke('plugins.update', { workspaceId: w.id, id: 'phantom', patch: { config: { phantomPath: cli } } });
-  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: terminal ? {} : { cwd: root, chat: { provider: 'claude' } } });
+  await host.invoke('plugins.update', { workspaceId: w.id, id: 'phantom', patch: { config: { phantomPath: initializationFailure === 'cli' ? path.join(root, 'missing.mjs') : cli } } });
+  if (initializationFailure === 'data') await host.invoke('settings.update', { patch: { phantomData: root } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: terminal ? {} : { cwd: root, chat: { provider: initializationFailure ? 'codex' : 'claude' } } });
   const stored = host.store.getWorkspace(w.id).nodes.find(n => n.id === node.id);
   stored.data.sessionId = 'fixture-session';
   host.terminals.sessions.push({ id: 'fixture-session', nodeId: node.id, workspaceId: w.id, status: terminal ? 'running' : 'lost', snapshot: '', seq: 0 });
   const ref = { workspaceId: w.id, nodeId: node.id };
   if (!terminal) await host.invoke('chat.send', { ...ref, text: 'first' });
-  return { host, ref, node: stored, spawns: () => spawns, repeat: () => hostEmit(lastEvent),
-    run: () => host.invoke('phantom.control', { workspaceId: w.id, id: 'task_rejected', action: 'run', sessionId: 'fixture-session' }),
+  return { host, ref, node: stored, events, spawns: () => spawns, repeat: () => hostEmit(lastEvent),
+    run: (extra = {}) => host.invoke('phantom.control', { workspaceId: w.id, id: 'task_rejected', action: 'run', sessionId: 'fixture-session', ...extra }),
     get: () => host.invoke('chat.get', ref) };
 }
 
@@ -217,6 +222,62 @@ test('fallo síncrono de spawn emite un único aviso y permite continuidad', asy
   assert.match((await f.get()).messages.at(-1).parts[0].text, /fixture spawn failed/);
   assert.equal(f.spawns(), 1);
   assert.equal(f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers.length, 1);
+});
+
+test('CLI inexistente continúa Codex con PTY lost, causa real y un único intento sin run nativo', async t => {
+  const f = await failedRunFixture(t, { initializationFailure: 'cli' });
+  const results = await Promise.allSettled([f.run(), f.run()]);
+  for (const result of results) {
+    assert.equal(result.status, 'rejected');
+    assert.match(result.reason.message, /Phantom CLI not found.*missing\.mjs/);
+  }
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  const chat = await f.get();
+  assert.equal(chat.provider, 'codex');
+  assert.match(chat.messages.at(-1).parts[0].text, /Motivo informado.*Phantom CLI not found.*missing\.mjs/);
+  assert.equal(f.host.terminals.get('fixture-session').status, 'lost');
+  assert.equal(f.spawns(), 0);
+  assert.equal(f.events.length, 1, 'detail consultado por wake no emite otro aviso');
+  const [attempt] = f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers;
+  assert.equal(attempt.kind, 'attempt');
+  assert.equal(attempt.status, 'failed');
+  assert.deepEqual(attempt.origin, { nodeId: f.node.id, via: 'chat' });
+  assert.equal('pid' in attempt, false);
+  assert.equal('runId' in attempt, false);
+  assert.equal('backend' in attempt, false);
+  f.repeat();
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal((await f.get()).messages.length, chat.messages.length);
+  assert.equal(f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers.length, 1);
+});
+
+test('configuración de datos inválida antes de control conserva la causa y continúa Codex sin spawn', async t => {
+  const f = await failedRunFixture(t, { initializationFailure: 'data' });
+  await assert.rejects(f.run(), /Integration state must be outside workspace/);
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  assert.match((await f.get()).messages.at(-1).parts[0].text, /Motivo informado.*Integration state must be outside workspace/);
+  assert.equal(f.spawns(), 0);
+  assert.equal(f.events.length, 1);
+});
+
+test('CLI inexistente: consultas, stop, cancel y entradas inválidas no despiertan otros chats', async t => {
+  const f = await failedRunFixture(t, { initializationFailure: 'cli' });
+  for (const extra of [{ id: '-invalid' }, { id: 'bad\u0000id' }, { workspaceId: 'unknown' }]) await assert.rejects(f.run(extra));
+  for (const method of ['phantom.detail', 'phantom.events', 'phantom.controllers']) {
+    await assert.rejects(f.host.invoke(method, { workspaceId: f.ref.workspaceId, topic: 'tasks', id: 'task_rejected' }), /Phantom CLI not found/);
+  }
+  assert.equal((await f.host.invoke('phantom.list', { workspaceId: f.ref.workspaceId, topic: 'tasks' })).available, false);
+  assert.equal((await f.host.invoke('plugins.status', { workspaceId: f.ref.workspaceId, id: 'phantom' })).available, false);
+  for (const action of ['stop', 'cancel']) await assert.rejects(f.run({ action }), /Phantom CLI not found/);
+  assert.equal(f.events.length, 0);
+  f.host.terminals.sessions.push({ id: 'foreign-session', nodeId: f.node.id, workspaceId: `${f.ref.workspaceId}-foreign`, status: 'running', snapshot: '', seq: 0 });
+  for (const sessionId of ['unknown', 'bad\u0000id', 42, 'foreign-session']) await assert.rejects(f.run({ sessionId }), /Phantom CLI not found/);
+  assert.equal(f.events.length, 4);
+  assert.ok(f.events.every(event => !event.result.origin));
+  await until(() => !f.host.chats.running(f.node.id));
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal((await f.get()).messages.filter(m => m.role === 'assistant').length, 1);
+  assert.equal(f.spawns(), 0);
 });
 
 test('la cola avanza tras error de turno sin otro mensaje manual', async t => {

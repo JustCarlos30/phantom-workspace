@@ -396,12 +396,16 @@ async function writeNative(method, payload, context, c) {
 }
 async function control(payload, context, c) {
   if (payload.action === 'stop' || payload.action === 'cancel') return controlOwned(payload, context, c);
-  const key = stable({ backend: c.backend, id: payload.id });
+  identifier(payload.id);
+  const key = stable({ workspace: c.root, id: payload.id });
   if (starts.has(key)) return starts.get(key);
   const origin = runOrigin(payload, context, c);
-  const work = controlOwned(payload, context, c, origin).catch(async error => {
+  const work = (async () => {
+    if (payload.action === 'run') c = await client(payload, context);
+    return controlOwned(payload, context, c, origin);
+  })().catch(async error => {
     if (payload.action === 'run' && !error.phantomNotified) {
-      const descriptor = { id: randomUUID(), taskId: payload.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: 'run', status: 'failed', source: 'phantom', createdAt: observedAt(), endedAt: observedAt(), error: error.message, ...origin };
+      const descriptor = { id: randomUUID(), kind: 'attempt', taskId: payload.id, workspaceId: c.workspace.id, workspacePath: c.root, ...(c.backend ? { backend: c.backend } : {}), action: 'run', status: 'failed', source: 'phantom', createdAt: observedAt(), endedAt: observedAt(), error: error.message, ...origin };
       c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
       prunePhantomControllers(c.workspace, controllers, context.dataDir);
       context.emit?.({ type: 'tool.status', workspaceId: c.workspace.id, id: descriptor.id, status: 'failed', result: { ...descriptor } });
@@ -506,6 +510,7 @@ export async function phantom(method, payload, context) {
     try { return await list(payload, context, await client(payload, context)); }
     catch (error) { return { available: false, items: [], reason: unavailableReason(error), observedAt: observedAt() }; }
   }
+  if (method === 'phantom.control' && payload.action === 'run') return control(payload, context, await workspaceRoot(context, payload));
   const c = await client(payload, context);
   if (method === 'phantom.events') return events(payload, context, c);
   if (method === 'phantom.detail') return detail(payload, context, c);
