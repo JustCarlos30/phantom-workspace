@@ -1,5 +1,9 @@
 .plugin-surface { box-sizing: border-box; width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; background: var(--surface); color: var(--ink); font: 13px/1.5 var(--sans); container-type: inline-size; }
 .plugin-surface *, .plugin-surface *::before, .plugin-surface *::after { box-sizing: border-box; }
+.pc-run-health { min-width: 0; }
+.pc-run-health-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-run-health-warning { flex: 0 0 auto; color: var(--warning); font-weight: 600; }
+.pc-run-health[data-level="alert"] .pc-run-health-warning { color: var(--danger); }
 .plugin-surface .tw-content { min-width: 0; height: auto; overflow: visible; padding: 16px; }
 .plugin-surface h2 { font-size: 15px; font-weight: 600; margin: 0; }
 .plugin-surface h3 { font-size: 15px; }

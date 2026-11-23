@@ -50,6 +50,10 @@ Esta finalización Git es una operación del controlador de ramas, separada de `
 
 No se permite sustituir el controlador por Git directo, desactivar hooks (`--no-verify`, cambios de `core.hooksPath`), retirar el entorno del guard, omitir checks de integración (`--no-checks`, `checks --none`), modificar a mano el estado de cola ni fingir tareas `completed`. Si falta la aceptación o el controlador autorizado no está disponible, se comunica el bloqueo. El padre conserva el encargo de integración pendiente y lo continúa por ese controlador cuando estén disponibles sus requisitos.
 
+## Preflight de contrato
+
+Antes de registrar una tarea, valida su JSON con `node scripts/contract-lint.mjs CONTRATO.json`. El preflight exige archivos exactos no ignorados en `scope`, umbrales para `node --test`, presupuesto de al menos 60000 tokens, tiempo total suficiente, juez con 30000 tokens cuando exista y un worktree limpio. El comando informa un hallazgo por línea y falla si encuentra errores.
+
 ## Comandos y ejemplos
 
 Dentro de una terminal de Phantom Workspace:

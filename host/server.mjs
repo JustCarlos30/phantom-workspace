@@ -24,7 +24,7 @@ import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
-import { wakeMessage, createWakeLimit, wakeTarget } from './run-wake.mjs';
+import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
 import { startPatch, finishPatch, cardNode } from './run-binding.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
@@ -101,24 +101,53 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     try{
       const r=event.result;
       if(store&&!closingPromise&&event.type==='tool.status'&&event.status==='running'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string')bindRunStart(r,event.workspaceId).catch(()=>{});
-      const target=store&&!closingPromise?wakeTarget(event,wakeSeen):null;
-      if(target?.via==='chat'){if(chats)wakeChat(target,r).catch(()=>{});}
-      else if(target)wakeTerminal(target,r).catch(()=>{});
+      if(store&&!closingPromise)runWake.accept(event);
     }catch{}
     try{const step=store&&!closingPromise?planTarget(event):null;if(step)planChain(step).catch(()=>{});}catch{}
     // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
     if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
   };
   // A chat that launched a Phantom run hears once when it ends; capped per node until the user writes again.
-  const wakeSeen=new Set(),wakeLimit=createWakeLimit(4);
-  const wakeChat=async(target,controller)=>{
-    const w=store.getWorkspace(target.workspaceId),node=target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.data?.chat?.provider);
-    if(!node)return;
-    let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
-    applyFinish(w.id,node.id,target.taskId,controller,task);
-    if(closingPromise||!wakeLimit.allow(node.id))return;
-    await chats.send(store.getWorkspace(w.id),node,wakeMessage({taskId:target.taskId,controller,task}));
+  const wakeLimit=createWakeLimit(4);
+  const wakeNode=target=>{
+    const w=store.getWorkspace(target.workspaceId);
+    return target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');
   };
+  const runWake=createRunWake({
+    prepare:target=>{
+      let node;try{node=wakeNode(target);}catch{}
+      return {node,chat:JSON.stringify(node?.data.chat),thread:chats.nodes[target.nodeId]?.threads?.[node?.data.chat?.provider],sessionId:node?.data.sessionId};
+    },
+    deliver:async(target,controller,recipient)=>{
+      let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
+      if(closingPromise||recipient.cancelled)return {};
+      const node=wakeNode(target),main=target.nodeId.startsWith('phantom:');
+      if(!node||(!main&&node!==recipient.node)||JSON.stringify(node.data.chat)!==recipient.chat||node.data.sessionId!==recipient.sessionId||chats.nodes[target.nodeId]?.threads?.[node.data.chat?.provider]!==recipient.thread)return {reason:'El destinatario cambió o se cerró'};
+      applyFinish(target.workspaceId,node.id,target.taskId,controller,task);
+      const message=wakeMessage({taskId:target.taskId,controller,task});
+      if(target.via==='chat'){
+        if(!node.data.chat?.provider)return {reason:'El chat ya no tiene agente configurado'};
+        if(chats.running(node.id)||chats.turns.size+chats.operations.size>=16||chats.get(node).queue.length)return {retry:true,reason:'El chat sigue ocupado; no se pudo entregar el aviso'};
+        if(!wakeLimit.available(node.id))return {reason:'Tope de avisos automáticos alcanzado'};
+        await chats.send(store.getWorkspace(target.workspaceId),node,message);
+        wakeLimit.allow(node.id);
+        return {};
+      }
+      let session;try{session=terminals.get(node.data.sessionId);}catch{}
+      if(!session||session.status!=='running'||session.nodeId!==node.id)return {reason:'El PTY no está disponible; no se puede continuar esta sesión'};
+      if(!terminals.foreground(session.id)?.agent)return {retry:true,reason:'No hay un agente en primer plano; aviso sin entregar'};
+      if(!wakeLimit.available(node.id))return {reason:'Tope de avisos automáticos alcanzado'};
+      try{terminals.write(session.id,message+'\r');}catch(error){return {retry:true,reason:error.message};}
+      wakeLimit.allow(node.id);
+      return {};
+    },
+    blocked:(target,reason)=>{
+      if(closingPromise)return;
+      let w;try{w=store.getWorkspace(target.workspaceId);}catch{return;}
+      const now=new Date().toISOString(),item={id:randomUUID(),eventKey:`wake-blocked:${target.id}`,title:`Continuación bloqueada para ${target.taskId}: ${reason}`,source:'phantom',ref:target.id,runId:target.id,status:'failed',createdAt:now,observedAt:now};
+      mutate(w.id,()=>pushAttention(w,item));broadcast({type:'attention.new',workspaceId:w.id,item});
+    },
+  });
   // End of a run: a terminal card still bound to that task shows review/blocked, whether it was told by chat or by PTY.
   const applyFinish=(workspaceId,nodeId,taskId,controller,task)=>{
     if(controller?.action!=='run')return;
@@ -136,24 +165,6 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     mutate(workspaceId,()=>{const current=cardNode(store.getWorkspace(workspaceId).nodes,r.origin);if(!current)return;
       if(patch.cardId!==current.data.agent?.cardId&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(patch.cardTitle);if(named)current.title=named;}
       current.data.agent={...current.data.agent,...patch};});
-  };
-  // At the end the card shows review/blocked, and a live terminal with a recognized foreground agent is told; capped like chats.
-  const wakeExhausted=new Set();
-  const wakeTerminal=async(target,controller)=>{
-    let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
-    if(closingPromise)return;
-    let node;try{node=store.getWorkspace(target.workspaceId).nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');}catch{}
-    if(!node)return;
-    applyFinish(target.workspaceId,node.id,target.taskId,controller,task);
-    let session;try{session=node.data.sessionId?terminals.get(node.data.sessionId):null;}catch{}
-    if(!session||session.status!=='running'||session.nodeId!==node.id||!terminals.foreground(session.id)?.agent)return;
-    if(!wakeLimit.allow(node.id)){
-      if(wakeExhausted.has(node.id))return;wakeExhausted.add(node.id);
-      const w=store.getWorkspace(target.workspaceId),now=new Date().toISOString(),item={id:randomUUID(),eventKey:`wake-exhausted:${node.id}:${target.id}`,title:`El encargo ${target.taskId} terminó y nadie lo atendió (tope de avisos alcanzado)`,source:'phantom',ref:target.id,runId:target.id,status:'completed',createdAt:now,observedAt:now};
-      mutate(w.id,()=>{pushAttention(store.getWorkspace(w.id),item);});broadcast({type:'attention.new',workspaceId:w.id,item});
-      return;
-    }
-    terminals.write(session.id,wakeMessage({taskId:target.taskId,controller,task})+'\r');
   };
   // A finished Phantom run backing a terminal plan's running phase closes it and, with chain, launches the next registered one.
   const planSeen=new Set();
@@ -211,7 +222,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     const request=(async()=>{
       if(!integration) {const module=await (integrationLoad??=import('../integrations/index.mjs'));integration=module.handleIntegration;shutdownIntegration??=module.shutdownIntegrations;}
       assert(!closingPromise,'Host is shutting down');
-      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.running(nodeId),sessions:terminals.sessions.filter(s=>s.status==='running').map(s=>terminals.descriptor(s))});
+      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.turns.has(nodeId),sessions:terminals.sessions.map(s=>terminals.descriptor(s))});
     })();inFlightIntegrations.add(request);try{return await request;}finally{inFlightIntegrations.delete(request);}
   };
   async function invoke(method,p={}) {
@@ -405,15 +416,16 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
     if(method==='terminal.write') {
       // Host-originated notices call terminals.write directly, so this RPC is user input: it restarts the notice cap.
-      try{const s=terminals.get(p.sessionId);wakeLimit.reset(s.nodeId);wakeExhausted.delete(s.nodeId);}catch{}
+      try{const s=terminals.get(p.sessionId);wakeLimit.reset(s.nodeId);runWake.reset(s.nodeId);}catch{}
       return terminals.write(p.sessionId,p.data);
     }
     if(method==='terminal.trust') return terminals.trust(p.sessionId);
     if(method==='terminal.resize') return terminals.resize(p.sessionId,p.cols,p.rows);
-    if(method==='terminal.stop') return terminals.stop(p.sessionId);
+    if(method==='terminal.stop') {runWake.cancel(terminals.get(p.sessionId).nodeId);return terminals.stop(p.sessionId);}
     if(method==='terminal.close') {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Terminal node not found');
+      runWake.cancel(node.id,'La terminal se cerró');
       await terminals.closeNode(node.id);chats.removeNode(node.id);await envRelease(w.id,null,node.id);
       return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
@@ -433,11 +445,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         return chats.compaction(w,node,method==='chat.compact'?'compact':'capabilities');
       }
       // The project's Phantom conversation keeps its settings in the chat store.
-      if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});
+      if(main&&method==='chat.configure') {const result=chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});if(p.provider!==undefined&&p.provider!==node.data.chat.provider)runWake.cancel(node.id,'El proveedor del chat cambió');return result;}
       if(method==='chat.get') return chats.get(node);
-      if(method==='chat.send'){wakeLimit.reset(node.id);return chats.send(w,node,p.text);}
-      if(method==='chat.stop') return chats.stop(node.id);
-      if(method==='chat.clear') return chats.clear(w,node);
+      if(method==='chat.send'){wakeLimit.reset(node.id);runWake.reset(node.id);return chats.send(w,node,p.text);}
+      if(method==='chat.stop') {runWake.cancel(node.id);return chats.stop(node.id);}
+      if(method==='chat.clear') {const result=chats.clear(w,node);runWake.cancel(node.id,'La conversación se reinició');return result;}
       if(method==='chat.queue.remove') return chats.removeQueued(w,node,p.id);
       if(method==='chat.queue.send') return chats.sendQueued(w,node,p.id);
       if(method==='chat.models') return chats.models(w,node);
@@ -451,6 +463,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
       if(p.model!==undefined&&p.model!==null){validateModel(p.model);const provider=patch.provider===undefined?node.data.chat?.provider:patch.provider;if(provider)assertClientModel(provider,p.model,rules,'chat');}
       assert((p.model===undefined&&p.reasoning===undefined)||!chats.running(node.id),'Detén la respuesta antes de cambiar modelo o effort/variant');
+      if(patch.provider!==undefined&&patch.provider!==node.data.chat?.provider)runWake.cancel(node.id,'El proveedor del chat cambió');
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat=applyPatch(current.data.chat,patch);for(const [field,key] of [['model','models'],['reasoning','reasoning']])if(p[field]!==undefined){assert(chat.provider,'Elige un agente primero');const values={...chat[key]};if(p[field]===null)delete values[chat.provider];else values[chat.provider]=p[field];chat[key]=values;}validateChat(chat);current.data={...current.data,chat};return current;});
     }
     if(method.startsWith('merge.')) return merges.handle(method,p);
@@ -505,6 +518,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   function close() {
     if(closingPromise)return closingPromise;
+    runWake.close();
     closingPromise=(async()=>{
       try {
         try { await Promise.all([mobile?.stop(),android?.stop()]); } finally {
