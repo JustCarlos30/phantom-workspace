@@ -14,7 +14,7 @@ import { Sidebar, fileName } from './repository/RepositoryParts.jsx';
 // unsaved work). Git is the source; writes go through the host, which refuses
 // anything that would lose work or overwrite a newer file.
 const POLL_MS = 8000;
-const tabId = tab => `${tab.kind}:${tab.oid || tab.tree}:${tab.path}`;
+const tabId = tab => `${tab.kind}:${tab.oid || tab.tree}:${tab.against || ''}:${tab.path}`;
 
 function usePolling(reload, active, paused) {
   useEffect(() => {
@@ -35,7 +35,9 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
   const cards = useResource(api, 'phantom.list', { workspaceId: workspace?.id, topic: 'tasks' }, { enabled });
   const op = useOperation(notify);
   const paused = useRef(false); paused.current = op.busy;
-  const reloadAll = useCallback(() => Promise.all([overview.reload(), graph.reload(), cards.reload()]), [overview.reload, graph.reload, cards.reload]);
+  const [pulse, setPulse] = useState(0);
+  const expansion = useRef(new Map());
+  const reloadAll = useCallback(() => { setPulse(value => value + 1); return Promise.all([overview.reload(), graph.reload(), cards.reload()]); }, [overview.reload, graph.reload, cards.reload]);
   usePolling(reloadAll, enabled && active, paused);
   const catalog = cards.data?.available !== false ? cards.data?.items || [] : [];
   const content = useMemo(() => contentByBranch({ cards: catalog, baseBranch: overview.data?.base?.branch }), [cards.data, overview.data?.base?.branch]);
@@ -121,7 +123,7 @@ export default function Repository({ workspace, api, notify, onOpenPanel, active
       </section>
       <aside className="rp-detail" aria-label="Detalle">
         {selected?.kind === 'commit' && <CommitDetail key={selected.oid} oid={selected.oid} api={api} workspace={workspace} graph={history} onOpenTab={openTab} onSelectCommit={selectCommit} />}
-        {selectedTree && <TreeDetail tree={selectedTree} cards={cardsFor(selectedTree)} base={model.base} api={api} workspace={workspace} busy={op.busy} act={act} notice={notices[selectedTree.id]} onOpenTab={openTab} onOpenPanel={onOpenPanel} onSelectCommit={selectCommit} />}
+        {selectedTree && <TreeDetail tree={selectedTree} cards={cardsFor(selectedTree)} base={model.base} api={api} workspace={workspace} busy={op.busy} act={act} pulse={pulse} expansion={expansion.current} notice={notices[selectedTree.id]} onOpenTab={openTab} onOpenPanel={onOpenPanel} onSelectCommit={selectCommit} />}
         {!selected && <EmptyState className="rp-quiet rp-pad" description="Selecciona un commit o una sesión." />}
         {selected?.kind === 'tree' && !selectedTree && <p className="rp-quiet rp-pad">Esa sesión ya no existe.</p>}
       </aside>
