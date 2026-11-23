@@ -425,6 +425,23 @@ test('Codex: continuidad explícita crea sesión comprobada con modelo observado
   assert.deepEqual((await f.get()).messages.slice(0, before.length), before, 'subsequent turns preserve visible history');
 });
 
+test('permisos peligrosos: llevan danger, ignoran grants previos y "always" no guarda grant', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-danger-'));
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const chats = host.chats, node = { id: 'danger-node' };
+  const live = { finished: false, cwd: root, mode: 'full', message: { parts: [] }, schedule() {}, pending: new Map(), thread: { grants: ['Bash:git reset'] } };
+  chats.gates.set('tok', live); chats.turns.set(node.id, live);
+  const ask = command => chats.requestPermission({ token: 'tok', tool_name: 'Bash', input: { command } });
+  // A grant for the same key does not approve a dangerous request.
+  const pending = ask('git reset --hard');
+  const part = live.message.parts.at(-1);
+  assert.equal(part.danger, true); assert.equal(part.status, 'pending'); assert.equal(part.key, 'Bash:git reset'); assert.match(part.reason, /^Puede romper algo/);
+  chats.answerPermission(node, part.id, 'always');
+  assert.equal((await pending).behavior, 'allow'); assert.equal(part.status, 'allowed');
+  assert.deepEqual(live.thread.grants, ['Bash:git reset']);
+});
+
 test('Codex: fallo de sondeo no cambia sesión; ID ausente, repetido o turno incompleto nunca acreditan continuidad', async t => {
   for (const mode of ['help-fail', 'no-session', 'same-session', 'truncated', 'fail']) {
     const f = await codexContinuation(t); f.scenario(mode);

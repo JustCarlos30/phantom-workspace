@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, Notification, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, Notification, protocol, session, shell, systemPreferences } from 'electron';
 import { constants, createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
@@ -6,6 +6,7 @@ import { access, mkdir, readFile, realpath, rename, rm, stat, writeFile } from '
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolveNodeBinary } from './shell-env.mjs';
 import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
 import { readLocalImage, imagePreviewRoots } from './local-image.mjs';
@@ -77,7 +78,7 @@ async function nodeBinary() {
   if (app.isPackaged) {
     try { await access(packaged, constants.X_OK); return packaged; } catch { /* explicit fallback below */ }
   }
-  const selected = process.env.PHANTOM_NODE_BINARY || '/usr/bin/node';
+  const selected = resolveNodeBinary();
   if (!path.isAbsolute(selected)) throw new Error('PHANTOM_NODE_BINARY debe ser una ruta absoluta');
   await access(selected, constants.X_OK);
   return selected;
@@ -171,7 +172,9 @@ function configureUISession(ses) {
     if (!local) return callback(false);
     if (permission === 'clipboard-sanitized-write') return callback(true);
     if (permission !== 'media' || !details.mediaTypes?.length || details.mediaTypes.some(type => type !== 'audio')) return callback(false);
-    callback(true);
+    if (process.platform !== 'darwin') return callback(true);
+    // macOS: the OS prompt must be answered before Chromium can capture audio.
+    systemPreferences.askForMediaAccess('microphone').then(granted => callback(granted !== false), () => callback(true));
   });
   ses.setDevicePermissionHandler(() => false);
   ses.setDisplayMediaRequestHandler((_request, callback) => callback(null));
@@ -511,7 +514,7 @@ if (!app.requestSingleInstanceLock()) {
     if (app.isReady()) quit().catch(error => console.error(error));
     else app.quit();
   });
-  app.on('window-all-closed', () => app.quit());
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
   app.on('before-quit', event => {
     if (mainWindow && !mainWindow.isDestroyed() && !approvedClose.has(mainWindow)) {
       event.preventDefault();

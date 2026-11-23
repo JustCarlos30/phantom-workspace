@@ -8,6 +8,7 @@ import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jso
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 import { assertContractAllowed, clientOfEngine, engineOf, executionPolicy, resolveHarnessModel } from '../shared/execution-policy.mjs';
 import { summarizeRunHealth } from './run-health.mjs';
+import { amendedMaxTokens, amendedMaxTurns, budgetKind } from './run-blockers.mjs';
 
 const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
@@ -396,7 +397,37 @@ async function writeNative(method, payload, context, c) {
   writes.set(journal, { hash, work });
   try { return await work; } finally { writes.delete(journal); }
 }
+const AMEND_KEYS = new Set(['workspaceId', 'pluginId', 'id', 'action', 'reason']);
+// Widens maxTokens x1.5 (500000 when none) of a blocked/ready task. Only an explicit user click may reach this.
+async function amend(payload, context, c) {
+  for (const key of Object.keys(payload)) if (!AMEND_KEYS.has(key)) throw new Error(`Unknown amend field: ${key}`);
+  identifier(payload.id);
+  const reason = typeof payload.reason === 'string' ? payload.reason.trim() : '';
+  if (reason.length < 8 || reason.length > 300 || /[\u0000-\u001f\u007f-\u009f]/.test(reason) || reason.startsWith('-')) throw new Error('amend requires a one-line reason (8 to 300 characters)');
+  const key = `amend\0${c.root}\0${payload.id}`;
+  if (starts.has(key)) return starts.get(key);
+  const work = (async () => {
+    const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
+    if (task.id !== payload.id) throw new Error('Phantom task ID mismatch');
+    if (!['blocked', 'ready'].includes(task.status)) throw new Error(`Only a blocked or ready task can be amended (status: ${task.status})`);
+    const contract = task.contract ?? task.raw?.contract;
+    const current = contract?.budget?.maxTokens;
+    const currentTurns = contract?.budget?.maxTurns;
+    const positive = value => Number.isInteger(value) && value > 0;
+    const kind = budgetKind(task.reason ?? task.blockedReason ?? task.raw?.reason ?? task.raw?.blockedReason);
+    if (kind === 'time') throw new Error('El presupuesto de tiempo no se amplía con amend: crea un contrato nuevo con más timeoutMs');
+    const turns = kind === 'turns';
+    const next = turns ? undefined : amendedMaxTokens(current);
+    const nextTurns = turns ? amendedMaxTurns(currentTurns) : undefined;
+    const contractRevision = contract?.revision ?? task.revision ?? task.raw?.revision;
+    const raw = await c.call(['amend', task.id, ...(turns ? ['--max-turns', String(nextTurns)] : ['--max-tokens', String(next)]), '--reason', reason, ...(!turns && positive(current) ? ['--revision', String(current)] : []), ...(positive(contractRevision) ? ['--contract-revision', String(contractRevision)] : [])]);
+    return { id: task.id, action: 'amend', source: 'phantom', expanded: turns ? 'turns' : 'tokens', ...(turns ? { maxTurns: nextTurns, previousMaxTurns: Number.isFinite(currentTurns) ? currentTurns : null } : { maxTokens: next, previousMaxTokens: Number.isFinite(current) ? current : null }), reason, revision: positive(contractRevision) ? contractRevision : null, observedAt: observedAt(), raw };
+  })();
+  starts.set(key, work);
+  try { return await work; } finally { starts.delete(key); }
+}
 async function control(payload, context, c) {
+  if (payload.action === 'amend') return amend(payload, context, c);
   if (payload.action === 'stop' || payload.action === 'cancel') return controlOwned(payload, context, c);
   identifier(payload.id);
   const key = stable({ workspace: c.root, id: payload.id });
