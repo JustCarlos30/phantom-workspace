@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
-import { readLocalImage } from './local-image.mjs';
+import { readLocalImage, imagePreviewRoots } from './local-image.mjs';
 import { createInterfaceScaleModel } from '../shared/interface-scale.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
@@ -446,7 +446,7 @@ async function invokeLocal(method, payload) {
     }
     // Agent review captures live here, outside the project's source tree. Only
     // raster preview (never openPath or general file reads) gets this extra root.
-    if (method === 'desktop.previewImage') return readLocalImage(payload.path, [...roots, '/tmp/opencode']);
+    if (method === 'desktop.previewImage') return readLocalImage(payload.path, await imagePreviewRoots(roots, state.workspaces, dataDir));
     const target = await authorizedPath(payload.path, roots);
     const error = await shell.openPath(target);
     if (error) throw new Error(error);
