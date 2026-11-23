@@ -6,6 +6,7 @@ import { diffStats, parseDiff, parseRefs } from '../../hooks/repo-graph.mjs';
 import EmptyState from '../EmptyState.jsx';
 import { FileRow, GroupedFiles, MixBar, fileDir, fileName, statusLetter } from './RepositoryParts.jsx';
 
+const MOD = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgentData?.platform || navigator.platform || '') ? '⌘' : 'Ctrl';
 const fullDate = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }); };
 
 // ---------------------------------------------------------------- Diff & editor tabs
@@ -76,7 +77,7 @@ export function EditorView({ tab, api, workspace, notify, onDirty, onSaved }) {
       <span className="rp-spacer" />
       <span className="rp-quiet" title={tab.tree}>{tab.treeTitle}</span>
       <button type="button" className="rp-icon" title="Recargar desde disco" aria-label="Recargar desde disco" disabled={busy} onClick={() => { if (!dirty || window.confirm('Se descartarán los cambios del editor. ¿Recargar desde disco?')) load(); }}><RotateCcw size={13} /></button>
-      <button type="button" className="rp-button is-primary" disabled={!dirty || busy} onClick={save}><Save size={13} aria-hidden="true" />Guardar <kbd>Ctrl S</kbd></button>
+      <button type="button" className="rp-button is-primary" disabled={!dirty || busy} onClick={save}><Save size={13} aria-hidden="true" />Guardar <kbd>{MOD} S</kbd></button>
     </div>
     {error && <ErrorNotice error={error} clear={() => setError(null)} />}
     {file && !file.editable && <p className="rp-warning rp-pad">{file.reason}</p>}

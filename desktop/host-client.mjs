@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { dataHome } from '../host/store.mjs';
+import { resolveNodeBinary } from './shell-env.mjs';
 
 export function requestTimeout(method) {
   // Git allocation/validation plus the bounded four-minute dependency setup.
@@ -19,7 +20,7 @@ export function requestTimeout(method) {
   return 60000;
 }
 
-export async function connectHost({dataDir=dataHome(),nodePath='/usr/bin/node',hostPath=new URL('../host/server.mjs',import.meta.url).pathname,onEvent=()=>{}}={}) {
+export async function connectHost({dataDir=dataHome(),nodePath=resolveNodeBinary(),hostPath=new URL('../host/server.mjs',import.meta.url).pathname,onEvent=()=>{}}={}) {
   dataDir=path.resolve(dataDir);fs.mkdirSync(dataDir,{recursive:true,mode:0o700});fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock');let socket,closed=false,connecting,pending=new Map(),reconnectTimer;
   const notify=event=>{try{onEvent(event);}catch{}};

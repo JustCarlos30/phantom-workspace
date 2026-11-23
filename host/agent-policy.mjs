@@ -26,7 +26,7 @@ export function engineHint(policy = currentPolicy) {
 // Phantom terminal these shims, first in PATH, hand them the policy file.
 export const agentShims = fileURLToPath(new URL('../scripts/agent-shims', import.meta.url));
 export function shimmedPath(inherited) {
-  return [agentShims, ...(inherited || '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== agentShims)].join(':');
+  return [agentShims, ...(inherited || (process.platform === 'darwin' ? '/opt/homebrew/bin:' : '') + '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== agentShims)].join(':');
 }
 
 export const POLICY_HINTS = Object.freeze({
