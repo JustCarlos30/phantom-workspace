@@ -931,12 +931,16 @@ try {
       assert.deepEqual(await app.evaluate(() => globalThis.sessionDesignFixture.sent.map(call => call.text)), ['Borrador previo. SYNTHETIC dictado final.']);
       await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
       await page.locator('.phantom-chat .pc-field').waitFor();
-      assert.deepEqual(await recipe(page.locator('.phantom-chat')), common, 'Side composer shares the session recipe');
+      const { background: sideBackground, thread: sideThread, ...side } = await recipe(page.locator('.phantom-chat'));
+      assert.deepEqual(side, shape, 'Side composer shares the session recipe');
+      assert.equal(sideBackground, sideThread, 'Side composer shares its thread well');
       await page.locator('.phantom-chat').getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();
       await toMap();
       await page.locator('.canvas').focus(); await page.keyboard.press('1');
       await panel.locator('.pc-composer').waitFor();
-      assert.deepEqual(await recipe(panel), common, 'Map composer shares the focus recipe');
+      const { background: mapBackground, thread: mapThread, ...map } = await recipe(panel);
+      assert.deepEqual(map, shape, 'Map composer shares the focus recipe');
+      assert.equal(mapBackground, mapThread, 'Map composer shares its thread well');
       observations.push({ scene: 'session-v2', fixture: 'SYNTHETIC chat, delegation and ASR; WebAudio oscillator, no provider or microphone', composer: common, explicitSends: 1 });
       await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler('phantom:invoke'); ipcMain.handle('phantom:invoke', globalThis.sessionDesignFixture.original); delete globalThis.sessionDesignFixture; });
       await invoke('node.remove', { workspaceId, id: session.id });

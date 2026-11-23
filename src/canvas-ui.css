@@ -1143,7 +1143,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
    corner just above them. Panning can never put work under the shelf. */
 .app-shell {
   --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h)); --shelf-left: 0px; --shelf-right: 0px;
-  --nav-reserve: clamp(240px, (100% - var(--shelf-left) - var(--shelf-right)) * .34, 440px); --nav-space: calc(var(--nav-reserve) + 24px);
+  --tools-column: clamp(264px, 100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - 880px, 480px); --nav-space: calc(var(--tools-column) + 24px);
   --dock-x: calc(var(--shelf-left) + var(--gutter) + (100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - var(--nav-space)) / 2);
 }
 @media (min-width: 851px) {
@@ -1154,11 +1154,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
 .canvas-stage { position: absolute; inset: 0 var(--shelf-right) var(--canvas-shelf) var(--shelf-left); overflow: clip; }
 .canvas-view-controls {
   position: absolute; right: calc(var(--shelf-right) + var(--gutter)); bottom: var(--dock-clearance); z-index: 12;
-  max-width: var(--nav-reserve); display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+  max-width: var(--tools-column); display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
   pointer-events: none;
 }
 .app-shell .canvas .canvas-view-controls .canvas-navigation {
-  position: relative; inset: auto; max-width: 100%; overflow-x: auto; pointer-events: auto;
+  position: relative; inset: auto; max-width: var(--tools-column); overflow-x: auto; pointer-events: auto;
 }
 .canvas-view-controls .canvas-navigation > * { flex-shrink: 0; }
 .app-shell .canvas .canvas-view-controls .canvas-minimap {
