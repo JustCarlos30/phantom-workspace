@@ -481,7 +481,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 /* A permission the agent waits on: answered in place, then kept as a record. */
 .pc-ask { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 10px 10px 12px; border: 0; border-radius: 0; background: none; }
 .pc-ask:not(.is-pending) { border-color: transparent; background: none; padding-block: 7px; padding-inline: 0; }
-.pc-ask.is-pending { padding: 12px 16px; border-radius: var(--r-isle); background: var(--object-fill); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); }
+.pc-ask.is-pending { padding: 12px 16px; border-radius: var(--r-isle); background: none; box-shadow: none; }
 .pc-ask-icon { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; color: var(--pc-caution); }
 .pc-ask:not(.is-pending) .pc-ask-icon { color: var(--muted); }
 .pc-ask-body { display: grid; gap: 3px; flex: 1; min-width: 0; }
