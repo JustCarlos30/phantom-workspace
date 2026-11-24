@@ -44,9 +44,11 @@ Esta proyección no cifra archivos ni implementa protección frente a root o a
 procesos del mismo usuario. Los permisos locales del directorio y del socket no
 constituyen esa defensa.
 
-Se han observado los dispositivos `/dev/tpm0` y `/dev/tpmrm0`, pero el backend TPM
-no está configurado ni validado. No se declara TPM, HSM ni KMS implementado:
-KMS/HSM requieren un proveedor real, una política y pruebas de integración.
+El equipo tiene `/dev/tpm0` y `/dev/tpmrm0` y `npm run probe:tpm` sella y abre un
+secreto sintético con `systemd-creds` (`host+tpm2`, PCR7), pero ninguna clave ni
+credencial de Phantom usa el TPM. No se declara TPM, HSM ni KMS implementado:
+KMS/HSM requieren un proveedor real, una política y pruebas de integración. El
+diagnóstico y lo que falta para usar el TPM están en `docs/desktop-tpm.md`.
 
 ## Pruebas del cambio
 

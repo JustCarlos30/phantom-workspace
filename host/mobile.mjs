@@ -91,6 +91,10 @@ export class MobileAccess {
         remoteAddress: remoteAddress ?? device?.remoteAddress ?? null, method, ...ids, result, ...(phase ? { phase } : {}) });
     } catch (cause) { throw Object.assign(new Error('No se pudo guardar la auditoría móvil', { cause }), { status: 503 }); }
   }
+  auditLog() {
+    try { return { events: this.audit.list(100).reverse() }; }
+    catch (cause) { throw Object.assign(new Error('No se pudo leer la auditoría móvil', { cause }), { status: 503 }); }
+  }
   pairing() {
     check(this.server, 'Activa primero el acceso móvil');
     const code = secret(); this.pair = { digest: hash(code), expiresAt: this.now() + this.pairingTTL };

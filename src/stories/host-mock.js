@@ -80,6 +80,7 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'limits.read': () => ({ available: false, reason: 'Sin cuentas reales en el catálogo', items: [] }),
     'review.projects': () => items([]),
     'mobile.status': () => ({ enabled: false, running: false, interfaces: [], devices: [], pending: [] }),
+    'mobile.audit': () => ({ events: [] }),
     'android.status': () => ({ configured: false, enabled: false, processAlive: false, devices: [], workspaces: [], interfaces: [], node: { compatible: false }, repoError: 'Proyecto Android no conectado en el catálogo' }),
     'voice.status': () => ({ available: false, reason: 'Micrófono aislado en Storybook' }),
     'voice.stream.warm': () => ({ ready: true }),

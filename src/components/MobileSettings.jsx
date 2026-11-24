@@ -76,5 +76,30 @@ function BrowserSettings({ workspace, api }) {
       {status.devices.map(device => <Row key={device.id} label={device.name || 'Móvil'}><button className="st-btn is-danger" disabled={busy} onClick={() => run(() => api('mobile.revoke', { id: device.id }))}>Revocar</button></Row>)}
       <Row label="Desactivar"><button className="st-btn is-danger" disabled={busy} onClick={() => run(async () => { await api('mobile.stop', {}); if (mounted.current) setPairing(null); })}>Desactivar</button></Row>
     </Group>}
+    {status && <AuditLog api={api} />}
   </>;
+}
+
+const AUDIT_LABELS = {
+  'mobile.start': 'Acceso activado', 'mobile.stop': 'Acceso desactivado', 'pairing.expire': 'Código caducado',
+  'pairing.request': 'Solicitud de vinculación', 'pairing.request.expire': 'Solicitud caducada', 'pairing.approve': 'Vinculación aprobada',
+  'pairing.reject': 'Vinculación rechazada', pairing: 'Vinculación', 'device.revoke': 'Dispositivo revocado', 'device.expire': 'Acceso caducado',
+  'chat.send': 'Mensaje enviado', 'chat.stop': 'Chat detenido', 'chat.permission.answer': 'Permiso respondido',
+  'chat.question.answer': 'Pregunta respondida', 'terminal.write': 'Entrada de terminal', 'terminal.stop': 'Terminal detenida',
+};
+
+// Read-only and on demand: the host projects only audited fields (no tokens, codes or content).
+function AuditLog({ api }) {
+  const [events, setEvents] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
+  const load = async () => {
+    setLoading(true); setError('');
+    try { setEvents((await api('mobile.audit', {})).events); } catch (e) { setError(e.message); } finally { setLoading(false); }
+  };
+  return <details className="st-details" onToggle={e => { if (e.currentTarget.open && !events && !loading) load(); }}><summary>Actividad reciente</summary><Group>
+    {error && <p className="st-error" role="alert">{error}</p>}
+    {!events && !error && <p className="st-note" role="status">Consultando…</p>}
+    {events && !events.length && <Row label="Sin actividad registrada." />}
+    {events?.slice(0, 30).map((event, i) => <Row key={i} label={`${AUDIT_LABELS[event.method] || event.method}${event.phase === 'accepted' ? ' (admitida)' : ''}${event.result === 'error' ? ' · error' : ''}`} hint={[event.time && new Date(event.time).toLocaleString(), event.deviceName, event.remoteAddress].filter(Boolean).join(' · ')} />)}
+    {events && <Row label="Historial local"><button className="st-btn" disabled={loading} onClick={load}>Actualizar</button></Row>}
+  </Group></details>;
 }

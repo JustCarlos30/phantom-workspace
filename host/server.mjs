@@ -283,6 +283,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='mobile.revoke') return mobile.revoke(p);
     if(method==='mobile.approve') return mobile.approve(p);
     if(method==='mobile.reject') return mobile.reject(p);
+    if(method==='mobile.audit') return mobile.auditLog();
     if(method==='android.status') return android.status();
     if(method==='android.configure') return android.configure(p);
     if(method==='android.start') return android.start(p);

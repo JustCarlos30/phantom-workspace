@@ -12,7 +12,7 @@ import { fetch, fixture, rawPost, post, phone, signed, authorized } from './supp
 test('mobile is opt-in, desktop-only management, start/stop and restart forget access', async t => {
   const f = await fixture(t);
   assert.equal((await f.host.invoke('mobile.status')).enabled, false);
-  for (const method of ['status', 'start', 'stop', 'pairing', 'revoke', 'approve', 'reject']) assert.ok(HOST_METHODS.has(`mobile.${method}`));
+  for (const method of ['status', 'start', 'stop', 'pairing', 'revoke', 'approve', 'reject', 'audit']) assert.ok(HOST_METHODS.has(`mobile.${method}`));
   const started = await f.start(); assert.match(started.url, /^https:\/\/127\.0\.0\.1:\d+\/mobile$/);
   await assert.rejects(f.start(), /activo/);
   await f.host.invoke('mobile.stop'); assert.equal((await f.host.invoke('mobile.status')).enabled, false);
@@ -214,4 +214,40 @@ test('a completion-audit failure returns an error and cannot replay an already e
     assert.equal(f.writes(), 1);
   } finally { mocked.mock.restore(); }
   assert.equal((await rpc('chat.send', payload, id)).status, 503); assert.equal(f.writes(), 1);
+});
+
+test('desktop audit view lists recent events newest first without codes, tokens or content', async t => {
+  const f = await fixture(t), { rpc, token } = await authorized(f);
+  const code = (await f.host.invoke('mobile.pairing')).code;
+  const text = 'AUDIT_PRIVATE_CHAT_TEXT';
+  assert.equal((await rpc('chat.send', { nodeId: f.node.id, text })).status, 200);
+  const { events } = await f.host.invoke('mobile.audit');
+  assert.equal(events[0].method, 'chat.send'); assert.equal(events[0].phase, 'completed'); assert.equal(events[0].result, 'ok');
+  assert.equal(events[0].nodeId, f.node.id); assert.equal(events[0].deviceName, 'Test phone');
+  assert.ok(events.some(event => event.method === 'mobile.start'));
+  for (const value of [code, token, text]) assert.ok(!JSON.stringify(events).includes(value));
+  for (const event of events) assert.ok(Object.keys(event).every(key => ['time', 'deviceId', 'deviceName', 'remoteAddress', 'method', 'nodeId', 'sessionId', 'result', 'phase'].includes(key)));
+  const file = path.join(f.root, 'state', 'mobile-audit.jsonl');
+  fs.chmodSync(file, 0o644);
+  try { await assert.rejects(f.host.invoke('mobile.audit'), /auditoría/); }
+  finally { fs.chmodSync(file, 0o600); }
+});
+
+test('audit list is bounded, spans the rotated generation, projects fields and refuses links', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-mobile-audit-list-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const audit = new MobileAudit(root);
+  assert.deepEqual(audit.list(), []);
+  for (let i = 0; i < 60; i++) audit.append({ method: 'old', result: 'ok', time: String(i) });
+  fs.renameSync(audit.file, audit.file + '.1');
+  fs.appendFileSync(audit.file + '.1', 'not json\n');
+  for (let i = 60; i < 120; i++) audit.append({ method: 'new', result: 'ok', time: String(i), secret: 'PRIVATE', extra: { nested: true } });
+  const events = audit.list(100);
+  assert.equal(events.length, 100);
+  assert.deepEqual(events.map(event => Number(event.time)), Array.from({ length: 100 }, (_, i) => i + 20));
+  assert.ok(!JSON.stringify(events).includes('PRIVATE'));
+  assert.equal(audit.list(5).length, 5); assert.equal(audit.list(5)[4].time, '119');
+  const victim = path.join(root, 'victim'); fs.writeFileSync(victim, '{"method":"forged"}\n', { mode: 0o600 });
+  fs.rmSync(audit.file); fs.symlinkSync(victim, audit.file);
+  assert.throws(() => audit.list());
 });
