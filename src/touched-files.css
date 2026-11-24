@@ -6,7 +6,7 @@
 .tf-stat { display: inline-flex; gap: 6px; font-variant-numeric: tabular-nums; }
 .tf-add { color: var(--success); }
 .tf-del { color: var(--danger); }
-.tf-pop { position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 6; display: flex; flex-direction: column; gap: 10px; width: min(460px, 86vw); max-height: min(60vh, 520px); overflow: auto; padding: 12px; border-radius: var(--r-obj); background: var(--object-fill) var(--menu); box-shadow: var(--shadow-chrome); color: var(--ink); font: var(--t-support); cursor: default; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom right; }
+.tf-pop { position: fixed; z-index: 80; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box; overflow: auto; padding: 12px; border-radius: var(--r-obj); background: var(--object-fill) var(--menu); box-shadow: var(--shadow-chrome); color: var(--ink); font: var(--t-support); cursor: default; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom right; }
 .tf-pop:focus { outline: 0; }
 .tf-pop::before { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; padding: var(--object-ring-width); pointer-events: none; background: linear-gradient(var(--object-edge-top), var(--object-edge-bottom)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .tf-base { margin: 0; color: var(--muted); }

@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FileDiff } from 'lucide-react';
 import { groupByFolder, parseDiffLines, sameFiles, summarize } from '../hooks/touched-files.mjs';
 import '../touched-files.css';
@@ -40,6 +41,7 @@ export default function TouchedFiles({ node, workspace, api, enabled = true }) {
   const [result, setResult] = useState(null);
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [place, setPlace] = useState(null);
   const [hidden, setHidden] = useState(typeof document !== 'undefined' && document.hidden);
 
   useEffect(() => {
@@ -82,12 +84,30 @@ export default function TouchedFiles({ node, workspace, api, enabled = true }) {
   useEffect(() => {
     if (!open) return;
     pop.current?.focus({ preventScroll: true });
-    const onPointer = event => { if (!root.current?.contains(event.target)) close(false); };
+    const onPointer = event => { if (!root.current?.contains(event.target) && !pop.current?.contains(event.target)) close(false); };
     const onKey = event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } };
     document.addEventListener('pointerdown', onPointer, true);
     document.addEventListener('keydown', onKey, true);
     return () => { document.removeEventListener('pointerdown', onPointer, true); document.removeEventListener('keydown', onKey, true); };
   }, [open, close]);
+
+  // The popup lives on <body>: inside the canvas card it is scaled by the zoom and clipped.
+  useLayoutEffect(() => {
+    if (!open) { setPlace(null); return; }
+    const measure = () => {
+      const rect = button.current?.getBoundingClientRect();
+      if (!rect) return;
+      const margin = 12, width = Math.min(460, window.innerWidth - margin * 2);
+      const left = Math.max(margin, Math.min(rect.right - width, window.innerWidth - width - margin));
+      const above = rect.top - 8 - margin, below = window.innerHeight - rect.bottom - 8 - margin;
+      const up = above >= Math.min(320, below);
+      setPlace({ left, width, maxHeight: Math.max(160, Math.min(560, up ? above : below)), ...(up ? { bottom: window.innerHeight - rect.top + 8 } : { top: rect.bottom + 8 }) });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => { window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
+  }, [open, node.x, node.y]);
 
   const files = result?.files;
   const groups = useMemo(() => groupByFolder(files), [files]);
@@ -101,7 +121,7 @@ export default function TouchedFiles({ node, workspace, api, enabled = true }) {
       <span>{plural(total.count)}</span>
       {(total.added > 0 || total.removed > 0) && <span className="tf-stat"><span className="tf-add">+{total.added}</span><span className="tf-del">−{total.removed}</span></span>}
     </button>}
-    {open && files?.length > 0 && <div ref={pop} className="tf-pop" role="dialog" aria-label="Archivos tocados" tabIndex={-1}>
+    {open && place && files?.length > 0 && createPortal(<div ref={pop} className="tf-pop" role="dialog" aria-label="Archivos tocados" tabIndex={-1} style={place} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       <p className="tf-base">{result.base ? `contra ${result.base}` : 'sin rama base'}{result.truncated ? ' · lista recortada' : ''}</p>
       {groups.map(group => <section key={group.folder} className="tf-group">
         <h4>{group.folder || 'Raíz'}</h4>
@@ -120,6 +140,6 @@ export default function TouchedFiles({ node, workspace, api, enabled = true }) {
           })}
         </ul>
       </section>)}
-    </div>}
+    </div>, document.body)}
   </span>;
 }
