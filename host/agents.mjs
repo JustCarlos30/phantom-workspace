@@ -2,9 +2,43 @@ import { assert, object, text } from './store.mjs';
 import { POLICY_HINTS } from './agent-policy.mjs';
 
 export const AGENT_STATUSES = ['idle', 'working', 'blocked', 'review'];
+export const RUN_PHASES = ['waiting', 'agent', 'checks', 'repair', 'judge', 'children', 'completed', 'blocked', 'cancelled'];
+export const BLOCKER_CATEGORIES = ['budget', 'rate_limit', 'contract', 'verification', 'no_change', 'engine', 'policy', 'unknown'];
+export const BLOCKER_AUTONOMY = ['auto', 'orchestrator', 'ask_user', 'human'];
+const runLine = (value, name, max) => assert(typeof value === 'string' && value.length <= max && !/[\x00-\x1f\x7f-\x9f]/.test(value) && !/[\p{Zl}\p{Zp}]/u.test(value), `Agent run: ${name} debe ser texto de una línea (<=${max})`);
+const runIso = (value, name) => assert(typeof value === 'string' && value.length <= 64 && !Number.isNaN(Date.parse(value)), `Agent run: ${name} debe ser una fecha ISO`);
+const runInt = (value, name) => assert(Number.isInteger(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER, `Agent run: ${name} debe ser un entero >= 0`);
+// Live progress of the Phantom run bound to a terminal card; written by the host, read by the UI.
+export function validateRun(run) {
+  object(run);
+  const keys = ['taskId', 'phase', 'activity', 'startedAt', 'lastEventAt', 'elapsedMs', 'idleMs', 'round', 'children', 'stalled', 'looping', 'log', 'blocker', 'observedAt'];
+  for (const key of Object.keys(run)) assert(keys.includes(key), `Agent run: clave desconocida ${key}`);
+  runLine(run.taskId, 'taskId', 200); assert(run.taskId.length > 0, 'Agent run: taskId vacío');
+  assert(RUN_PHASES.includes(run.phase), 'Agent run: phase inválida');
+  runLine(run.activity, 'activity', 240);
+  runIso(run.startedAt, 'startedAt'); if (run.lastEventAt !== null) runIso(run.lastEventAt, 'lastEventAt'); runIso(run.observedAt, 'observedAt');
+  for (const key of ['elapsedMs', 'idleMs', 'round']) runInt(run[key], key);
+  object(run.children); runInt(run.children.done, 'children.done'); runInt(run.children.total, 'children.total');
+  assert(Array.isArray(run.children.items) && run.children.items.length <= 16, 'Agent run: children.items máximo 16');
+  for (const item of run.children.items) { object(item); runLine(item.key, 'children.key', 200); runLine(item.status, 'children.status', 60); runLine(item.activity, 'children.activity', 240); }
+  assert(typeof run.stalled === 'boolean' && typeof run.looping === 'boolean', 'Agent run: stalled/looping deben ser booleanos');
+  assert(Array.isArray(run.log) && run.log.length <= 20, 'Agent run: log máximo 20 líneas');
+  for (const entry of run.log) { object(entry); runIso(entry.at, 'log.at'); runLine(entry.text, 'log.text', 200); }
+  if (run.blocker !== null) {
+    const b = run.blocker; object(b);
+    for (const key of Object.keys(b)) assert(['category', 'autonomy', 'summary', 'remedy', 'commands', 'retryAt'].includes(key), `Agent run: blocker.${key} desconocido`);
+    assert(BLOCKER_CATEGORIES.includes(b.category) && BLOCKER_AUTONOMY.includes(b.autonomy), 'Agent run: blocker inválido');
+    runLine(b.summary, 'blocker.summary', 300); runLine(b.remedy, 'blocker.remedy', 400);
+    assert(Array.isArray(b.commands) && b.commands.length <= 4, 'Agent run: blocker.commands máximo 4');
+    for (const command of b.commands) runLine(command, 'blocker.command', 300);
+    if (b.retryAt !== undefined) runIso(b.retryAt, 'blocker.retryAt');
+  }
+  return run;
+}
 export function validateAgent(agent) {
   object(agent);
-  for (const key of Object.keys(agent)) assert(['cardId','cardTitle','providerSessionId','provider','step','status','source','updatedAt'].includes(key), 'Unknown agent field');
+  for (const key of Object.keys(agent)) assert(['cardId','cardTitle','providerSessionId','provider','step','status','source','updatedAt','run'].includes(key), 'Unknown agent field');
+  if (agent.run !== undefined) validateRun(agent.run);
   for (const key of ['cardId','cardTitle','providerSessionId','provider','step','source','updatedAt']) if (agent[key] !== undefined) {
     text(agent[key], `agent.${key}`, key === 'step' ? 1000 : 512);
     assert(!/[\x00-\x1f\x7f]/.test(agent[key]), 'Agent fields must be single-line text');

@@ -186,6 +186,14 @@
 .rp-filedir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-size: 11px; color: var(--muted); }
 .rp-filestat { flex: none; font: 11px var(--rp-mono); }
 .rp-same { flex: none; font-size: 10px; color: var(--muted); }
+.rp-explorer-bar { display: flex; align-items: center; gap: 6px; }
+.rp-explorer-bar .rp-search { flex: 1; min-width: 0; }
+.rp-explorer-bar .rp-button[aria-pressed="true"] { background-color: var(--surface-2); color: var(--ink); }
+.rp-tree { margin: 0; padding: 0; list-style: none; }
+.rp-tree-row { display: flex; align-items: center; gap: 6px; height: 24px; padding-right: 6px; border-radius: var(--r-row); cursor: pointer; font-size: 12px; }
+.rp-tree-row:hover { background: var(--row-hover); }
+.rp-tree-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.rp-tree-row .rp-filename { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-finder { display: grid; gap: 6px; margin-top: 4px; padding: 8px; border: 1px solid var(--hairline); border-radius: var(--r-ctl); background: var(--bg); max-height: 320px; overflow: auto; }
 .rp-commit { display: grid; gap: 8px; padding: 12px 14px 16px; }
 .rp-facts { padding: 4px 14px 16px; font-size: 12px; }

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Copy, FileCode2, FileDiff, FolderOpen, GitCommitHorizontal, GitMerge, Pencil, RefreshCw, RotateCcw, Save, Search, SquareTerminal } from 'lucide-react';
 import { ErrorNotice, useResource } from '../PluginPrimitives';
-import { commitsText, filesText } from '../../hooks/branches-model.mjs';
+import { commitsText, filesText, plural } from '../../hooks/branches-model.mjs';
+import { buildFileTree, pruneToChanged, visibleRows } from '../../hooks/file-tree.mjs';
 import { diffStats, parseDiff, parseRefs } from '../../hooks/repo-graph.mjs';
 import EmptyState from '../EmptyState.jsx';
 import { FileRow, GroupedFiles, MixBar, fileDir, fileName, statusLetter } from './RepositoryParts.jsx';
@@ -12,7 +13,7 @@ const fullDate = value => { const date = new Date(value); return Number.isNaN(da
 // ---------------------------------------------------------------- Diff & editor tabs
 
 export function DiffView({ tab, api, workspace, onEdit }) {
-  const payload = tab.oid ? { workspaceId: workspace.id, oid: tab.oid, path: tab.path, ...(tab.originalPath ? { originalPath: tab.originalPath } : {}) } : { workspaceId: workspace.id, tree: tab.tree, path: tab.path };
+  const payload = tab.oid ? { workspaceId: workspace.id, oid: tab.oid, path: tab.path, ...(tab.originalPath ? { originalPath: tab.originalPath } : {}) } : { workspaceId: workspace.id, tree: tab.tree, path: tab.path, ...(tab.against ? { against: tab.against } : {}), ...(tab.against && tab.originalPath ? { originalPath: tab.originalPath } : {}) };
   const resource = useResource(api, 'repo.diff', payload);
   const rows = useMemo(() => parseDiff(resource.data?.text || ''), [resource.data]);
   const stats = useMemo(() => diffStats(rows), [rows]);
@@ -23,7 +24,7 @@ export function DiffView({ tab, api, workspace, onEdit }) {
       {tab.originalPath && <span className="rp-quiet">desde {tab.originalPath}</span>}
       <span className="rp-stat is-add">+{stats.added}</span><span className="rp-stat is-del">−{stats.removed}</span>
       <span className="rp-spacer" />
-      <span className="rp-quiet">{tab.oid ? `Commit ${tab.oid.slice(0, 7)}` : 'Contra lo último guardado'}</span>
+      <span className="rp-quiet">{tab.oid ? `Commit ${tab.oid.slice(0, 7)}` : tab.against ? `Todo contra ${tab.baseName || 'la base'}` : 'Contra lo último guardado'}</span>
       <button type="button" className="rp-icon" title="Releer" aria-label="Releer diff" onClick={resource.reload}><RefreshCw size={13} className={resource.loading ? 'spinning' : ''} /></button>
       {tab.tree && tab.status !== 'D' && <button type="button" className="rp-button" onClick={onEdit}><Pencil size={13} aria-hidden="true" />Editar</button>}
     </div>
@@ -122,9 +123,53 @@ export function CommitDetail({ oid, api, workspace, graph, onOpenTab, onSelectCo
   </div>;
 }
 
-export function FileFinder({ tree, api, workspace, onOpen }) {
+const MAX_ROWS = 400;
+
+// Folder explorer: a navigable tree of the worktree (repo.files) marked with what
+// changed. With text in the search box it falls back to the flat filtered list.
+export function FileExplorer({ tree, api, workspace, changes, expansion, onOpen }) {
   const resource = useResource(api, 'repo.files', { workspaceId: workspace.id, tree: tree.worktree.path });
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(''), [onlyChanged, setOnlyChanged] = useState(false);
+  const [expanded, setExpanded] = useState(() => expansion?.get(tree.worktree.path) || new Set());
+  const [active, setActive] = useState(null);
+  const list = useRef(null), refocus = useRef(false);
+  const toggle = useCallback(dir => setExpanded(old => {
+    const next = new Set(old); if (!next.delete(dir)) next.add(dir);
+    expansion?.set(tree.worktree.path, next);
+    return next;
+  }), [expansion, tree.worktree.path]);
+  const model = useMemo(() => {
+    const built = buildFileTree(resource.data?.files || [], changes || []);
+    return onlyChanged ? pruneToChanged(built) : built;
+  }, [resource.data, changes, onlyChanged]);
+  const allRows = useMemo(() => visibleRows(model, onlyChanged ? new Set(collectDirs(model)) : expanded), [model, expanded, onlyChanged]);
+  const rows = allRows.slice(0, MAX_ROWS);
+  const flat = query.trim() !== '';
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    list.current?.querySelector('[tabindex="0"]')?.focus();
+  });
+  const activeIndex = Math.max(0, rows.findIndex(row => row.node.path === active));
+  const move = index => { const row = rows[Math.min(rows.length - 1, Math.max(0, index))]; if (row) { refocus.current = true; setActive(row.node.path); } };
+  const keydown = event => {
+    const row = rows[activeIndex];
+    if (!row) return;
+    const { node } = row, isDir = node.type === 'dir';
+    const open = !onlyChanged && row.expanded;
+    if (event.key === 'ArrowDown') move(activeIndex + 1);
+    else if (event.key === 'ArrowUp') move(activeIndex - 1);
+    else if (event.key === 'ArrowRight' && isDir) { if (!open && !onlyChanged) { refocus.current = true; toggle(node.path); } else move(activeIndex + 1); }
+    else if (event.key === 'ArrowLeft') {
+      if (isDir && open && !onlyChanged) { refocus.current = true; toggle(node.path); }
+      else { const parent = rows.findLastIndex((item, index) => index < activeIndex && item.depth < row.depth); if (parent >= 0) move(parent); }
+    }
+    else if (event.key === 'Enter' || event.key === ' ') { if (isDir) { if (!onlyChanged) { refocus.current = true; toggle(node.path); } } else onOpen(node.path); }
+    else if (event.key === 'Home') move(0);
+    else if (event.key === 'End') move(rows.length - 1);
+    else return;
+    event.preventDefault();
+  };
   const results = useMemo(() => {
     const files = resource.data?.files || [], text = query.trim().toLowerCase();
     if (!text) return files.slice(0, 60);
@@ -132,15 +177,42 @@ export function FileFinder({ tree, api, workspace, onOpen }) {
     return files.filter(file => { const lower = file.toLowerCase(); return parts.every(part => lower.includes(part)); }).sort((a, b) => a.length - b.length).slice(0, 60);
   }, [resource.data, query]);
   return <div className="rp-finder">
-    <label className="rp-search"><Search size={12} aria-hidden="true" /><input autoFocus type="search" placeholder="Buscar archivo" aria-label="Buscar archivo en esta sesión" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && results[0]) onOpen(results[0]); }} /></label>
+    <div className="rp-explorer-bar">
+      <label className="rp-search"><Search size={12} aria-hidden="true" /><input autoFocus type="search" placeholder="Buscar archivo" aria-label="Buscar archivo en esta sesión" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && flat && results[0]) onOpen(results[0]); }} /></label>
+      <button type="button" className="rp-button" aria-pressed={onlyChanged} onClick={() => setOnlyChanged(value => !value)}>Solo cambiados</button>
+    </div>
     {resource.error && <ErrorNotice error={resource.error} retry={resource.reload} />}
-    <ul className="rp-filelist">{results.map(file => <li key={file} className="rp-filerow"><button type="button" className="rp-filerow-main" onClick={() => onOpen(file)} title={file}><FileCode2 size={12} aria-hidden="true" className="rp-quiet" /><span className="rp-filename">{fileName(file)}</span><span className="rp-filedir">{fileDir(file)}</span></button></li>)}</ul>
+    {!resource.data && resource.loading && <p className="rp-quiet" role="status">Leyendo archivos…</p>}
+    {flat
+      ? <ul className="rp-filelist">{results.map(file => <li key={file} className="rp-filerow"><button type="button" className="rp-filerow-main" onClick={() => onOpen(file)} title={file}><FileCode2 size={12} aria-hidden="true" className="rp-quiet" /><span className="rp-filename">{fileName(file)}</span><span className="rp-filedir">{fileDir(file)}</span></button></li>)}</ul>
+      : <ul className="rp-tree" role="tree" aria-label="Archivos de la sesión" ref={list} onKeyDown={keydown}>{rows.map(({ node, depth, expanded: open }, index) => {
+        const isDir = node.type === 'dir', isOpen = isDir && (onlyChanged || open), letter = node.status ? statusLetter(node.status) : null;
+        return <li key={node.path} role="treeitem" aria-level={depth + 1} aria-expanded={isDir ? isOpen : undefined} aria-selected={index === activeIndex} tabIndex={index === activeIndex ? 0 : -1} className="rp-tree-row" style={{ paddingLeft: 6 + depth * 14 }}
+          onFocus={() => setActive(node.path)} onClick={() => { setActive(node.path); if (!isDir) onOpen(node.path); else if (!onlyChanged) toggle(node.path); }} title={node.path}>
+          {isDir ? (isOpen ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />) : <FileCode2 size={12} aria-hidden="true" className="rp-quiet" />}
+          <span className="rp-filename">{node.name}</span>
+          {isDir && node.changed > 0 && <span className="rp-count" title={`${plural(node.changed, 'archivo cambiado', 'archivos cambiados')}`}>{node.changed}</span>}
+          {letter && <span className={`rp-status is-${letter === 'N' ? 'added' : letter === 'D' ? 'removed' : letter === 'A' ? 'added' : letter === 'U' ? 'conflict' : 'modified'}`} aria-label={`Estado ${letter}`}>{letter}</span>}
+        </li>;
+      })}</ul>}
+    {!flat && !resource.loading && !rows.length && resource.data && <p className="rp-quiet">{onlyChanged ? 'Nada cambiado.' : 'Sin archivos.'}</p>}
+    {!flat && allRows.length > rows.length && <p className="rp-quiet">Mostrando {rows.length} de {allRows.length}: pliega carpetas o busca por nombre.</p>}
     {resource.data?.truncated && <p className="rp-quiet">Lista recortada: afina la búsqueda.</p>}
   </div>;
 }
 
-export function TreeDetail({ tree, cards, base, api, workspace, busy, act, notice, onOpenTab, onOpenPanel, onSelectCommit }) {
-  const [message, setMessage] = useState(''), [finder, setFinder] = useState(false), [showCommitted, setShowCommitted] = useState(false), [armed, setArmed] = useState(false);
+function collectDirs(node, out = []) {
+  for (const child of node.children) if (child.type === 'dir') { out.push(child.path); collectDirs(child, out); }
+  return out;
+}
+
+export function TreeDetail({ tree, cards, base, api, workspace, busy, act, pulse, expansion, notice, onOpenTab, onOpenPanel, onSelectCommit }) {
+  const [message, setMessage] = useState(''), [finder, setFinder] = useState(false), [armed, setArmed] = useState(false);
+  const all = useResource(api, 'repo.changes', { workspaceId: workspace.id, tree: tree.worktree?.path }, { enabled: Boolean(tree.exists && tree.worktree?.path) });
+  const reloadAll = all.reload, firstPulse = useRef(pulse);
+  useEffect(() => { if (pulse !== firstPulse.current && tree.exists) reloadAll(); }, [pulse]);
+  const allFiles = all.data?.files || [];
+  const allAdded = allFiles.reduce((sum, file) => sum + (file.added || 0), 0), allRemoved = allFiles.reduce((sum, file) => sum + (file.removed || 0), 0);
   useEffect(() => { setMessage(''); setFinder(false); setArmed(false); }, [tree.id]);
   useEffect(() => { if (!armed) return undefined; const timer = setTimeout(() => setArmed(false), 6000); return () => clearTimeout(timer); }, [armed]);
   const path = tree.worktree?.path;
@@ -152,10 +224,10 @@ export function TreeDetail({ tree, cards, base, api, workspace, busy, act, notic
       <p className="rp-kicker">{!(tree.isBase && tree.state === 'merged') && <span className="rp-pill" data-tone={tree.tone}>{tree.stateLabel}</span>}<span>{tree.detail}</span></p>
       <div className="rp-actions">
         {tree.terminal && onOpenPanel && <button type="button" className="rp-button" onClick={() => onOpenPanel('terminal', { focusNodeId: tree.terminal.nodeId })}><SquareTerminal size={13} aria-hidden="true" />Ir a la sesión</button>}
-        {tree.exists && <button type="button" className="rp-button" aria-expanded={finder} onClick={() => setFinder(value => !value)}><FolderOpen size={13} aria-hidden="true" />Abrir archivo…</button>}
+        {tree.exists && <button type="button" className="rp-button" aria-expanded={finder} onClick={() => setFinder(value => !value)}><FolderOpen size={13} aria-hidden="true" />Explorar archivos</button>}
         {onOpenPanel && cards.slice(0, 1).map(card => <button key={card.id} type="button" className="rp-link" title={card.title} onClick={() => onOpenPanel('phantom-cards', { cardId: card.id })}>Ver tarea</button>)}
       </div>
-      {finder && tree.exists && <FileFinder tree={tree} api={api} workspace={workspace} onOpen={file => { setFinder(false); onOpenTab({ kind: 'edit', tree: path, treeTitle: tree.title, path: file }); }} />}
+      {finder && tree.exists && <FileExplorer tree={tree} api={api} workspace={workspace} changes={allFiles} expansion={expansion} onOpen={file => { setFinder(false); onOpenTab({ kind: 'edit', tree: path, treeTitle: tree.title, path: file }); }} />}
       {notice && <p className={`rp-notice is-${notice.tone}`} role="status">{notice.text}</p>}
     </div>
 
@@ -169,10 +241,20 @@ export function TreeDetail({ tree, cards, base, api, workspace, busy, act, notic
       {tree.changeCount > tree.changes.length && <p className="rp-quiet">y {tree.changeCount - tree.changes.length} más</p>}
     </div>
 
-    {tree.committedCount > 0 && <div className="rp-detail-section">
-      <button type="button" className="rp-disclosure" aria-expanded={showCommitted} onClick={() => setShowCommitted(value => !value)}>{showCommitted ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<h4>Guardados, por integrar <span className="rp-count">{tree.committedCount}</span></h4></button>
-      {showCommitted && <GroupedFiles items={tree.committed} pathOf={file => file} render={(file, hideDir) => <FileRow key={file} status="M" path={file} hideDir={hideDir} onOpen={() => onOpenTab({ kind: 'edit', tree: path, treeTitle: tree.title, path: file })} />} />}
-      {showCommitted && tree.committedCount > tree.committed.length && <p className="rp-quiet">y {tree.committedCount - tree.committed.length} más</p>}
+    {tree.exists && !tree.isBase && <div className="rp-detail-section">
+      <h4>Todo contra {base} {all.data && <><span className="rp-count">{allFiles.length}</span> <span className="rp-stat is-add">+{allAdded}</span> <span className="rp-stat is-del">−{allRemoved}</span></>}</h4>
+      {all.error && <ErrorNotice error={all.error} retry={all.reload} />}
+      {!all.data && all.loading && <p className="rp-quiet" role="status">Leyendo cambios…</p>}
+      {all.data && !allFiles.length && <p className="rp-clean"><Check size={12} aria-hidden="true" />Sin diferencias con {base}.</p>}
+      {allFiles.length > 0 && <MixBar changes={allFiles} total={allFiles.length} />}
+      <GroupedFiles items={allFiles} render={(file, hideDir) => <FileRow key={`${file.status}:${file.path}`} status={file.status} path={file.path} hideDir={hideDir}
+        title={file.originalPath ? `${file.originalPath} → ${file.path}` : file.path}
+        extra={<>
+          {file.uncommitted && <span className="rp-same">sin guardar</span>}{file.committed && <span className="rp-same">guardado</span>}
+          <span className="rp-filestat">{file.added === null || file.added === undefined ? 'bin' : <><span className="is-add">+{file.added}</span> <span className="is-del">−{file.removed}</span></>}</span>
+        </>}
+        onOpen={() => onOpenTab({ kind: 'diff', tree: path, treeTitle: tree.title, path: file.path, originalPath: file.originalPath, status: statusLetter(file.status), against: 'base', baseName: base })} />} />
+      {all.data?.truncated && <p className="rp-quiet">Lista recortada.</p>}
     </div>}
 
     {(tree.can.commit || tree.can.integrate || tree.can.update) && <form className="rp-commit" onSubmit={event => { event.preventDefault(); act(tree, 'save', { message: message.trim() || `Guardar trabajo de ${tree.title}` }).then(result => { if (result?.ok) setMessage(''); }); }}>

@@ -10,12 +10,14 @@ import { Mic } from 'lucide-react';
 import { formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
 import PlanPhases from './PlanPhases';
+import TouchedFiles from './TouchedFiles.jsx';
 import { planSummary } from '../hooks/plan-view.mjs';
 import Markdown, { CopyButton } from './Markdown';
 import { ProviderTile } from './Glyphs';
 import { phantomRunIds, turnRunIds } from '../hooks/phantom-run-link.mjs';
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
 import { runHealthView } from '../hooks/run-health-view.mjs';
+import { runProgressView } from '../hooks/run-progress-view.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 import { compactionBlocked } from '../hooks/context-view.mjs';
 import { AGENT_MODES, AgentChoices, ModeSwitch, PermissionRow, PermissionSwitch } from './chat/ChatPermissions';
@@ -278,7 +280,8 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const finishedRun = delegation.outcome === 'attention' ? runs.latest : null;
   useEffect(() => { if (seen && finishedRun) setAckedRun(finishedRun.id); }, [seen, finishedRun?.id]);
   const delegating = phase === 'delegating', healthView = runHealthView(runHealth);
-  const delegatingLabel = healthView.line;
+  const progress = runProgressView(node.data?.agent?.run, Date.now());
+  const delegatingLabel = progress ? `${progress.label}${progress.activity ? ` · ${progress.activity}` : ''}` : healthView.line;
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
@@ -339,7 +342,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           {context}
         </div>}
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
-        {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{healthView.line}</span>{healthView.warning && <span className="pc-run-health-warning" role="status">{healthView.warning}</span>}</p>}
+        {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{delegatingLabel}{progress && progress.idle ? ` · inactivo ${progress.idle}` : ''}</span>{(progress?.warning || healthView.warning) && <span className="pc-run-health-warning" role="status">{progress?.warning || healthView.warning}</span>}{progress?.blocker && <span className="pc-run-health-warning" role="alert">{`${progress.blocker.title}: ${progress.blocker.summary}`}</span>}</p>}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
@@ -358,6 +361,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
           {voice.status === 'idle' && <button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={startNew}><MessageSquarePlus size={18} /></button>}
           {voice.status === 'idle' && messages.length > 0 && <SessionChip cwd={locationOf(node, workspace).cwd}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>}
+          {voice.status === 'idle' && <TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} />}
           <span className="pc-bar-space" />
           <ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />
           {voice.status === 'idle' && messages.length > 0 && <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />}
