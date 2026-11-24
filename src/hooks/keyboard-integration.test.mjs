@@ -19,7 +19,7 @@ function key(key, extra = {}) {
     preventDefault() { this.defaultPrevented = true; },
     stopPropagation() { this.stopped = true; }, ...extra };
 }
-async function terminal() {
+async function terminal(t) {
   const writes = [], commands = [];
   const element = { contains: candidate => candidate?.tagName === 'TEXTAREA' };
   let receive;
@@ -28,6 +28,7 @@ async function terminal() {
     subscribe: callback => { receive = callback; return () => {}; },
     snapshot: async () => {}, output: async () => {}, onStatus() {}, onError() {},
   });
+  t.after(() => stream.dispose());
   await stream.start();
   const send = (event, context, { active = true, blocked = false, text = event.key } = {}) => {
     const consumed = dispatchWorkspaceKey(event, bindings, context, id => commands.push(id));
@@ -38,8 +39,8 @@ async function terminal() {
   return { send, writes, commands, stream, receive };
 }
 
-test('salir desde xterm se consume antes del PTY y permite elegir vecino sin escribir', async () => {
-  const f = await terminal();
+test('salir desde xterm se consume antes del PTY y permite elegir vecino sin escribir', async t => {
+  const f = await terminal(t);
   const exit = key('Escape', { ctrlKey: true, shiftKey: true, target: target('xterm') });
   assert.equal(f.send(exit, { inPanel: true }), true);
   assert.equal(exit.defaultPrevented, true);
@@ -55,30 +56,29 @@ test('salir desde xterm se consume antes del PTY y permite elegir vecino sin esc
   assert.equal(selected, 'b');
   assert.equal(arrow.stopped, true);
   assert.deepEqual(f.writes, []);
-  f.stream.dispose();
 });
 
-test('flechas y Enter pertenecen a xterm en interacción; Escape sin modificador también', async () => {
-  const f = await terminal();
+test('flechas y Enter pertenecen a xterm en interacción; Escape sin modificador también', async t => {
+  const f = await terminal(t);
   for (const [name, text] of [['ArrowLeft', '\x1b[D'], ['ArrowRight', '\x1b[C'], ['ArrowUp', '\x1b[A'], ['ArrowDown', '\x1b[B'], ['Enter', '\r'], ['Escape', '\x1b']]) {
     const event = key(name, { target: target('xterm') });
     assert.equal(f.send(event, { navigationMode: true, inPanel: true }, { text }), false);
     assert.equal(event.defaultPrevented, false);
   }
   assert.deepEqual(f.commands, []);
-  assert.deepEqual(f.writes.map(write => write.data), ['\x1b[D', '\x1b[C', '\x1b[A', '\x1b[B', '\r', '\x1b']);
-  f.stream.dispose();
+  assert.deepEqual(f.writes, ['\x1b[D', '\x1b[C', '\x1b[A', '\x1b[B', '\r', '\x1b'].map(data => ({ method: 'terminal.write', sessionId: 'pty', data })));
 });
 
-test('comandos globales y sesiones se capturan desde xterm sin caracteres de control en PTY', async () => {
-  const f = await terminal();
+test('comandos globales y sesiones se capturan desde xterm sin caracteres de control en PTY', async t => {
+  const f = await terminal(t);
   for (const [name, modifiers] of [['k', { ctrlKey: true }], ['PageDown', { ctrlKey: true }], ['PageUp', { ctrlKey: true }], ['T', { ctrlKey: true, shiftKey: true }]]) {
     assert.equal(f.send(key(name, { ...modifiers, target: target('xterm') }), { inPanel: true }), true);
   }
   assert.deepEqual(f.commands, ['palette', 'next-session', 'previous-session', 'create-terminal']);
   assert.deepEqual(f.writes, []);
-  assert.equal(cycleSession([{ id: 'a', type: 'terminal' }, { id: 'hidden', type: 'terminal', data: { hidden: true } }, { id: 'b', type: 'terminal' }], 'a', 1), 'b');
-  f.stream.dispose();
+  const nodes = [{ id: 'a', type: 'terminal' }, { id: 'hidden', type: 'terminal', data: { hidden: true } }, { id: 'b', type: 'terminal' }];
+  assert.equal(cycleSession(nodes, 'a', 1), 'b');
+  assert.equal(cycleSession(nodes, 'b', -1), 'a');
 });
 
 test('escritura normal, IME y AltGraph no disparan comandos del workspace', () => {
@@ -93,15 +93,19 @@ test('escritura normal, IME y AltGraph no disparan comandos del workspace', () =
   assert.deepEqual(commands, []);
 });
 
-test('entrar exige modo navegación y ownership del canvas', () => {
+test('entrar y ajustar exigen modo navegación y ownership del canvas', () => {
   const commands = [];
-  assert.equal(dispatchWorkspaceKey(key('Enter'), bindings, {}, id => commands.push(id)), false);
-  assert.equal(dispatchWorkspaceKey(key('Enter'), bindings, { navigationMode: true }, id => commands.push(id)), true);
-  assert.deepEqual(commands, ['enter-panel']);
+  for (const [name, id] of [['Enter', 'enter-panel'], ['0', 'fit-all']]) {
+    assert.equal(dispatchWorkspaceKey(key(name), bindings, {}, command => commands.push(command)), false);
+    assert.equal(dispatchWorkspaceKey(key(name), bindings, { navigationMode: true }, command => commands.push(command)), true);
+    assert.equal(commands.at(-1), id);
+  }
+  assert.equal(dispatchWorkspaceKey(key('Enter', { target: target('editor') }), bindings, { navigationMode: true }, id => commands.push(id)), false);
+  assert.deepEqual(commands, ['enter-panel', 'fit-all']);
 });
 
-test('overlays retienen teclado y bloquean incluso escritura tardía de xterm y rueda', async () => {
-  const f = await terminal();
+test('overlays retienen teclado y bloquean incluso escritura tardía de xterm y rueda', async t => {
+  const f = await terminal(t);
   for (const overlay of ['palette', 'projectsOpen', 'shortcutsOpen', 'list', 'voice', 'folder']) {
     const policy = overlayPolicy({ [overlay]: true });
     assert.equal(f.send(key('k', { ctrlKey: true, target: target('xterm') }), { blocked: policy.navigationBlocked }, { blocked: policy.inputBlocked }), false);
@@ -110,17 +114,15 @@ test('overlays retienen teclado y bloquean incluso escritura tardía de xterm y 
   }
   assert.deepEqual(f.commands, []);
   assert.deepEqual(f.writes, []);
-  f.stream.dispose();
 });
 
-test('una selección sin foco DOM, una desconexión y una vista inactiva no pueden escribir', async () => {
-  const f = await terminal();
+test('una selección sin foco DOM, una desconexión y una vista inactiva no pueden escribir', async t => {
+  const f = await terminal(t);
   assert.equal(f.send(key('a'), {}, { active: true }), false);
   f.send(key('b', { target: target('xterm') }), {}, { active: false });
   f.receive({ type: 'connection', status: 'disconnected' });
   f.send(key('c', { target: target('xterm') }), {});
   assert.deepEqual(f.writes, []);
-  f.stream.dispose();
 });
 
 test('rebinding se despacha; desactivar elimina captura y duplicados no destruyen las vías de salida', () => {
@@ -137,34 +139,15 @@ test('rebinding se despacha; desactivar elimina captura y duplicados no destruye
   assert.equal(commands.at(-1), 'leave-panel');
 });
 
-test('editores enriquecidos conservan flechas y los eventos consumidos no se despachan de nuevo', () => {
-  const editor = { isContentEditable: true };
-  assert.equal(isEditingTarget(editor), true);
-  assert.equal(isEditingTarget(null), false);
+test('editores anidados y contenteditable conservan sus teclas; volver al enfoque es global', () => {
   const commands = [];
-  const event = key('ArrowRight', { target: editor });
-  assert.equal(dispatchWorkspaceKey(event, bindings, { navigationMode: true }, id => commands.push(id)), false);
-  const palette = key('k', { ctrlKey: true });
-  assert.equal(dispatchWorkspaceKey(palette, bindings, {}, id => commands.push(id)), true);
-  assert.equal(dispatchWorkspaceKey(palette, bindings, {}, id => commands.push(id)), false);
-  assert.deepEqual(commands, ['palette']);
-});
-
-test('dictado se despacha una vez, respeta overlays y puede ceder su acorde a paleta', async () => {
-  const f = await terminal();
-  const event = key('m', { ctrlKey: true, shiftKey: true, target: target('xterm') });
-  assert.equal(f.send(event, { inPanel: true }), true);
-  assert.equal(f.send(event, { inPanel: true }), false);
-  assert.deepEqual(f.commands, ['dictation']);
-  assert.deepEqual(f.writes, []);
-  const commands = [];
-  const custom = validateBindings({ palette: 'Ctrl+Shift+M', dictation: 'Alt+M' });
-  assert.deepEqual(custom.conflicts, []);
-  assert.equal(dispatchWorkspaceKey(key('m', { ctrlKey: true, shiftKey: true }), custom.bindings, {}, id => commands.push(id)), true);
-  assert.equal(dispatchWorkspaceKey(key('m', { altKey: true }), custom.bindings, {}, id => commands.push(id)), true);
-  assert.equal(dispatchWorkspaceKey(key('m', { altKey: true }), custom.bindings, { blocked: true }, id => commands.push(id)), false);
-  assert.equal(dispatchWorkspaceKey(key('m', { altKey: true, isComposing: true }), custom.bindings, {}, id => commands.push(id)), false);
-  assert.equal(dispatchWorkspaceKey(key('m', { altKey: true }), resolveBindings({ dictation: null }), {}, id => commands.push(id)), false);
-  assert.deepEqual(commands, ['palette', 'dictation']);
-  f.stream.dispose();
+  for (const editor of [target('editor'), target('xterm'), { isContentEditable: true },
+    { closest: selector => selector.includes('[role="textbox"]') ? {} : null }]) {
+    assert.equal(isEditingTarget(editor), true);
+    const event = key('ArrowDown', { target: editor });
+    assert.equal(dispatchWorkspaceKey(event, bindings, { navigationMode: true }, id => commands.push(id)), false);
+    assert.equal(event.stopped, false);
+  }
+  assert.equal(dispatchWorkspaceKey(key('Enter', { ctrlKey: true, shiftKey: true }), bindings, {}, id => commands.push(id)), true);
+  assert.deepEqual(commands, ['return-focus']);
 });

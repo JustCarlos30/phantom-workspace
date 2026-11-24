@@ -9,7 +9,7 @@ import { VoiceActivity, VoiceTranscript, dictationPreview } from '../components/
 import { ClaudeGlyph, PhantomGlyph } from '../components/Glyphs';
 import { demo, Panel } from './decorators';
 import { terminalNode, chatNode, noop } from './fixtures';
-import { BeforeAfter, Page, Session, Composer, materialArg } from './proposals-kit';
+import { BeforeAfter, Page, Composer, materialArg } from './proposals-kit';
 import './proposals-sessions.css';
 
 export default {
@@ -28,7 +28,8 @@ function NewSessionMock() {
   const [who, setWho] = useState('claude');
   const [mode, setMode] = useState('chat');
   const options = [['claude', 'Claude Code', ClaudeGlyph, 'Opus 5.5'], ['phantom', 'Phantom', PhantomGlyph, 'Orquesta']];
-  return <div className="px-object px-newsession" aria-label="Sesión nueva propuesta">
+  return <div className="px-object px-newsession" aria-label="Maqueta sintética de sesión nueva propuesta">
+    <span className="px-tag">MAQUETA SINTÉTICA · no es el flujo real</span>
     <div className="px-newsession-col">
       <section className="px-newsession-group" role="radiogroup" aria-label="Quién responde">
         <h4>Quién responde</h4>
@@ -87,7 +88,7 @@ export const SesionNueva = {
 
 export const ChatReposo = {
   render: ({ material }) => <Page title="Chat en reposo" problem="El compositor ocupa una franja con divisor y fila «Contexto de la sesión»; la lectura usa 780 px.">
-    <BeforeAfter height={H} material={material} before={chat()} after={<Session material={material} state="reposo" />} changes={[
+    <BeforeAfter height={H} material={material} before={chat()} after={<Fill>{chat()}</Fill>} changes={[
       'Compositor isla: texto y controles dentro del mismo campo redondeado.',
       'El contexto pasa a un chip dentro de la isla; desaparece la fila plegable.',
       'Columna de lectura centrada de 720 px.',
@@ -99,7 +100,7 @@ export const ChatReposo = {
 export const ChatTrabajando = {
   parameters: { host: { scenario: 'working' } },
   render: ({ material }) => <Page title="Chat trabajando" problem="El estado de trabajo se reparte entre el hilo, el placeholder y el botón de detener.">
-    <BeforeAfter height={H} material={material} before={chat()} after={<Session material={material} state="trabajando" />} changes={[
+    <BeforeAfter height={H} material={material} before={chat()} after={<Fill>{chat()}</Fill>} changes={[
       'Una sola línea viva encima de la isla con spinner y subagentes.',
       'Lima solo para «Trabajando»; el resto del panel no cambia de tono.',
       'Detener ocupa el lugar de enviar dentro de la isla.',
@@ -140,7 +141,8 @@ export const ChatVacio = {
 
 export const Dictado = {
   render: ({ material }) => <Page title="Dictado" problem="El dictado sustituye los controles del campo y cambia el divisor del compositor.">
-    <BeforeAfter height={H} material={material} before={<DictationToday />} after={<Session material={material} state="dictando" />} changes={[
+    <BeforeAfter historical height={H} material={material} before={<DictationToday />} after={<Fill><DictationToday /></Fill>} changes={[
+      'Fixture sintético con VoiceActivity real; no inicia una grabación.',
       'El dictado vive dentro de la isla con medidor de barras y tiempo.',
       'Descartar y terminar como controles circulares de 36 px; terminar en marfil.',
       'La pista «Esc descarta · Enter envía» ocupa la línea viva.',

@@ -12,6 +12,7 @@ import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
 import { runTimeoutMs, closeBlockedTasks } from '../integrations/phantom.mjs';
 import { services } from '../integrations/services.mjs';
+import { createRunWake, wakeMessage } from '../host/run-wake.mjs';
 
 const exec = promisify(execFile);
 await mkdir('/tmp/opencode', { recursive: true });
@@ -446,15 +447,89 @@ test('Phantom controllers use host Node argv, owned SIGINT, bounded output and r
   // The descriptor records what was requested, never a confirmed runtime.
   assert.equal(descriptor.requestedModel, 'claude-code/haiku'); assert.equal(descriptor.modelSource, 'payload'); assert.equal(descriptor.engine, 'claude-code'); assert.equal(descriptor.observedModel, undefined);
   assert.equal((await f.call('phantom.control', { id: task.id, action: 'verify' })).id, descriptor.id);
+  const foreign = await fixture(t);
+  await assert.rejects(foreign.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller owned by this host/);
+  assert.deepEqual(children[0].signals, []);
   children[0].stdout.write('x'.repeat(1100000));
-  await f.call('phantom.control', { id: descriptor.id, action: 'stop' }); assert.deepEqual(children[0].signals, ['SIGINT']);
+  const stopped = await f.call('phantom.control', { id: descriptor.id, action: 'stop' });
+  assert.equal(stopped.stopRequested, true); assert.deepEqual(children[0].signals, ['SIGINT']);
   children[0].emit('close', 1, 'SIGINT');
-  assert.equal(f.workspace.phantomControllers[0].status, 'failed'); assert.equal(f.workspace.phantomControllers[0].truncated, true); assert.ok(f.workspace.phantomControllers[0].output.length <= 65536);
+  assert.equal(f.workspace.phantomControllers[0].status, 'stopped'); assert.equal(f.workspace.phantomControllers[0].truncated, true); assert.ok(f.workspace.phantomControllers[0].output.length <= 65536);
+  assert.equal(f.workspace.phantomControllers[0].exitCode, 1); assert.equal(f.workspace.phantomControllers[0].signal, 'SIGINT');
   assert.ok(f.context.events.some(e => e.type === 'tool.output' && e.workspaceId === f.workspace.id));
-  assert.ok(f.context.events.some(e => e.type === 'tool.status' && e.status === 'failed'));
+  assert.deepEqual(f.context.events.filter(e => e.type === 'tool.status').map(e => e.status), ['running', 'stopped']);
+  assert.ok(f.context.events.every(e => e.workspaceId === f.workspace.id && e.id === descriptor.id));
+  assert.equal(f.context.events.find(e => e.type === 'tool.status' && e.status === 'stopped').result.stopRequested, true);
+  assert.deepEqual(foreign.context.events, []);
   await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller/);
   assert.equal(f.context.events.filter(e => e.type === 'tool.output').reduce((n, e) => n + Buffer.byteLength(e.data), 0), 1048576);
   const cancel = await f.call('phantom.control', { id: task.id, action: 'cancel' }); assert.equal(cancel.id, task.id); assert.ok(calls.some(args => args.includes('cancel')));
+});
+
+test('Phantom stop ignores late error/close in either order without waking; an unstopped failure wakes once', async t => {
+  for (const scenario of ['stop-error-close', 'stop-close-error', 'failure']) {
+    const f = await fixture(t), children = [], prepared = [], notices = [], blocks = [];
+    const task = { id: 'task_late', kind: 'card', status: 'ready', contract: { workspace: f.root, goal: 'Late controller events' } };
+    const nodeId = 'agent-node', sessionId = 'agent-session';
+    f.context.sessions.push({ id: sessionId, nodeId, workspaceId: f.workspace.id, status: 'running' });
+    const wake = createRunWake({
+      prepare: target => { prepared.push(target); return {}; },
+      deliver: (target, controller) => { notices.push({ target, controller, message: wakeMessage({ taskId: target.taskId, controller }) }); return {}; },
+      blocked: (target, reason) => blocks.push({ target, reason }),
+    });
+    t.after(() => wake.close());
+    const emit = f.context.emit;
+    f.context.emit = event => { emit(event); wake.accept(event); };
+    f.context.execFile = async file => {
+      if (file === 'git') throw new Error('no git');
+      return { stdout: JSON.stringify(task), stderr: '' };
+    };
+    f.context.spawn = () => {
+      const child = new EventEmitter(); child.pid = 123456; child.stdout = new PassThrough(); child.stderr = new PassThrough();
+      child.signals = []; child.kill = signal => { child.signals.push(signal); return true; };
+      children.push(child); return child;
+    };
+    const descriptor = await f.call('phantom.control', { id: task.id, action: 'run', model: 'claude-code/haiku', sessionId });
+    assert.equal(descriptor.status, 'running');
+    assert.deepEqual(descriptor.origin, { nodeId });
+    assert.equal(children.length, 1);
+    assert.deepEqual(prepared, []); assert.deepEqual(notices, []);
+    const child = children[0], stopped = scenario !== 'failure';
+    if (stopped) {
+      const result = await f.call('phantom.control', { id: descriptor.id, action: 'stop' });
+      assert.equal(result.stopRequested, true);
+      assert.deepEqual(child.signals, ['SIGINT']);
+    }
+    if (scenario === 'stop-close-error') child.emit('close', 0, null);
+    child.emit('error', new Error('late controller transport failure'));
+    child.emit('close', 1, 'SIGINT');
+    child.emit('close', 0, null);
+    await Promise.resolve();
+    const statuses = f.context.events.filter(event => event.type === 'tool.status');
+    assert.deepEqual(statuses.map(event => event.status), ['running', stopped ? 'stopped' : 'failed'], scenario);
+    assert.ok(statuses.every(event => event.workspaceId === f.workspace.id && event.id === descriptor.id));
+    assert.deepEqual(statuses[1].result.origin, { nodeId });
+    assert.equal(statuses[1].result.stopRequested, stopped ? true : undefined);
+    assert.equal(f.workspace.phantomControllers.length, 1);
+    assert.deepEqual(f.workspace.phantomControllers[0], statuses[1].result);
+    for (const event of f.context.events) { wake.accept(event); wake.accept(event); }
+    await Promise.resolve();
+    assert.deepEqual(blocks, []);
+    if (stopped) {
+      assert.deepEqual(prepared, []); assert.deepEqual(notices, []);
+    } else {
+      assert.deepEqual(child.signals, []);
+      const target = { id: descriptor.id, nodeId, via: 'terminal', taskId: task.id, workspaceId: f.workspace.id };
+      assert.deepEqual(prepared, [target]);
+      assert.equal(notices.length, 1);
+      assert.deepEqual(notices[0].target, target);
+      assert.deepEqual(notices[0].controller, statuses[1].result);
+      assert.equal(notices[0].controller.error, 'late controller transport failure');
+      assert.match(notices[0].message, /Motivo informado.*late controller transport failure/);
+    }
+    await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller owned by this host/);
+    assert.equal(children.length, 1);
+  }
 });
 
 async function policyRun(t, contract, config = {}) {
@@ -478,10 +553,28 @@ test('Claude-only: contract, judge and child models must be Claude even when the
     [{ coordination: { children: [{ id: 'a', judge: { model: 'gpt-4' } }] } }, /juez del hijo a/],
   ]) {
     const f = await policyRun(t, contract);
-    await assert.rejects(f.run({ model: 'claude-code/sonnet' }), where);
-    await assert.rejects(f.run({ model: 'claude-code/sonnet' }), /Claude Code/);
-    assert.deepEqual(f.spawned, [], 'no process starts and the task is untouched');
-    assert.deepEqual(f.workspace.phantomControllers ?? [], []);
+    const original = structuredClone(f.task), calls = [], errors = [];
+    const execFile = f.context.execFile;
+    f.context.execFile = (file, args) => { calls.push({ file, args }); return execFile(file, args); };
+    for (const expected of [where, /Claude Code/]) {
+      await assert.rejects(f.run({ model: 'claude-code/sonnet' }), error => {
+        assert.match(error.message, expected); assert.match(error.message, where);
+        errors.push(error.message); return true;
+      });
+    }
+    assert.deepEqual(f.spawned, [], 'no process starts');
+    assert.deepEqual(f.task, original, 'the native task and immutable contract are untouched');
+    assert.ok(calls.some(c => c.args.includes('show')));
+    assert.ok(calls.every(c => c.file === 'git' || c.args.includes('show')), 'native calls only read the task');
+    const attempts = f.workspace.phantomControllers;
+    assert.equal(attempts.length, 2); assert.notEqual(attempts[0].id, attempts[1].id);
+    for (const [index, attempt] of attempts.entries()) {
+      assert.equal(attempt.kind, 'attempt'); assert.equal(attempt.status, 'failed'); assert.equal(attempt.action, 'run');
+      assert.equal(attempt.taskId, f.task.id); assert.equal(attempt.workspaceId, f.workspace.id); assert.equal(attempt.workspacePath, f.root);
+      assert.equal(attempt.error, errors[index]);
+      assert.equal(attempt.pid, undefined); assert.equal(attempt.run, undefined); assert.equal(attempt.runId, undefined);
+    }
+    assert.deepEqual(f.context.events, attempts.map(attempt => ({ type: 'tool.status', workspaceId: f.workspace.id, id: attempt.id, status: 'failed', result: attempt })));
   }
 });
 

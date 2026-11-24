@@ -148,6 +148,7 @@
 
 /* ---------- Sessions and resources ---------- */
 .project-rail .rail-panels { display: flex; flex-direction: column; flex: 1; min-height: 80px; margin-top: 0; overflow: hidden; }
+.rail-panel-group:first-child .rail-heading { margin-top: var(--s-2); }
 .rail-panel-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 .rail-panel-group { --empty-inset: var(--row-pad); }
 .rail-panel-group + .rail-panel-group { position: relative; margin-top: var(--rail-gap); padding-top: var(--rail-group-inset); }
@@ -161,6 +162,8 @@
 .project-rail .rail-count { font-weight: 400; font-variant-numeric: tabular-nums; }
 .project-rail .rail-heading button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--muted); opacity: .72; }
 .project-rail .rail-heading button:hover { background-color: var(--control-hover); color: var(--ink); opacity: 1; }
+.project-rail .rail-group-label { margin: 0; padding: var(--s-2) var(--row-pad) 4px; font: var(--t-micro); font-weight: 500; color: var(--ink-3); opacity: .72; }
+.project-rail .rail-session-group + .rail-session-group > .rail-group-label { padding-top: var(--s-3); }
 .project-rail .rail-empty { padding: 4px var(--row-pad) 8px; color: var(--muted); font: var(--t-support); opacity: .72; }
 
 .rail-panel-row { display: flex; align-items: center; height: var(--row-detail); }

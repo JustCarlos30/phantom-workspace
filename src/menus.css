@@ -102,6 +102,12 @@
 .app-shell .pc-models-list { padding: 6px; }
 .app-shell .context-menu-panel :is(.project-list, .space-list) { gap: 0; }
 
+/* Reusable separator: 1px line in the border token between groups. */
+.menu-separator, [role="separator"].menu-separator {
+  flex-shrink: 0; height: var(--divider-width, 1px); margin: var(--s-1) var(--s-2); border: 0; background: var(--hairline);
+}
+.app-shell .pc-models-list > button, .app-shell .pc-effort-menu [role="option"] { min-height: 34px; }
+
 /* A closing action (new space, open folder) sits under its own line. */
 .app-shell .project-rail .context-menu-panel > .open-folder {
   margin-top: 6px; border-radius: var(--r-ctl);

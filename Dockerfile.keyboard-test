@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
+RUN node node_modules/electron/install.js
 COPY . .
 RUN npm run build
 RUN chown root:root node_modules/electron/dist/chrome-sandbox \
@@ -14,4 +15,4 @@ RUN chown root:root node_modules/electron/dist/chrome-sandbox \
     && mkdir -p /tmp/phantom-keyboard-e2e \
     && chmod 1777 /tmp/phantom-keyboard-e2e
 ENV PHANTOM_KEYBOARD_EVIDENCE=/tmp/phantom-keyboard-e2e
-CMD ["node", "-e", "require('node:fs').chmodSync('/tmp/phantom-keyboard-e2e', 0o1777); process.setgroups([]); process.setgid('node'); process.setuid('node'); process.env.HOME='/tmp'; const child=require('node:child_process').spawn('dbus-run-session',['--','xvfb-run','-a','-s','-screen 0 1600x1000x24','node','test/keyboard-navigation.mjs'],{stdio:'inherit'}); child.on('error',error=>{console.error(error);process.exit(1)}); child.on('exit',code=>process.exit(code??1)); process.on('SIGTERM',()=>child.kill('SIGTERM')); process.on('SIGINT',()=>child.kill('SIGINT'));"]
+CMD ["node", "-e", "require('node:fs').chmodSync('/tmp/phantom-keyboard-e2e', 0o1777); process.setgid('node'); process.setuid('node'); process.env.HOME='/tmp'; const child=require('node:child_process').spawn('dbus-run-session',['--','xvfb-run','-a','-s','-screen 0 1600x1000x24','node','test/keyboard-navigation.mjs'],{stdio:'inherit'}); child.on('error',error=>{console.error(error);process.exit(1)}); child.on('exit',code=>process.exit(code??1)); process.on('SIGTERM',()=>child.kill('SIGTERM')); process.on('SIGINT',()=>child.kill('SIGINT'));"]

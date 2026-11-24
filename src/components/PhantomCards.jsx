@@ -13,7 +13,7 @@ function StatusPill({ status }) {
   return <span className={`pc-pill pc-${statusTone(status)}`}><i aria-hidden="true" />{statusLabel(status)}</span>;
 }
 
-function CardForm({ existing, workspace, api, notify, onSaved, onClose }) {
+export function CardForm({ existing, workspace, api, notify, onSaved, onClose }) {
   // The UI edits commands and budget as plain fields; the contract model keeps JSON.
   const [form, setForm] = useState(() => {
     const base = existing ? cardFormOf(existing) : emptyCardForm();
@@ -110,7 +110,7 @@ function CheckLine({ check, index }) {
   </li>;
 }
 
-function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOpenPanel, onChanged, onClose }) {
+function CardDetail({ resolve, id, catalog, workspace, api, refresh, notify, plugin, onOpenPanel, onChanged, onClose }) {
   const payload = { workspaceId: workspace.id, pluginId: 'phantom' };
   const detail = useResource(api, 'phantom.detail', { workspaceId: workspace.id, topic: 'tasks', id });
   const events = useResource(api, 'phantom.events', { workspaceId: workspace.id, id });
@@ -178,6 +178,12 @@ function CardDetail({ id, catalog, workspace, api, refresh, notify, plugin, onOp
           {actions.run && <details className="pc-run-options"><summary>Opciones de ejecución</summary><div className="pc-model"><Field label="Modelo para ejecutar" hint={`Vacío: ${facts.requested} (${facts.requestedSource}). ${openCode ? 'Claude Code («claude-code/…») u OpenCode («proveedor/modelo»).' : 'Solo Claude Code.'}`}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="claude-code/sonnet" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>{openCode ? 'Ver modelos habilitados' : 'Ver modelos Claude Code'}</Button></div></details>}
         </div>}
       </section>
+      {resolve && ['blocked', 'failed'].includes(status) && <section className="pc-resolve" aria-label="Resolver bloqueo">
+        <strong>Resolver bloqueo</strong>
+        <span>{explain ? `${explain.label}. ${explain.meaning} ${explain.next}.` : 'Phantom no informó el motivo.'}</span>
+        <span className="pc-quiet">{available.some(([action]) => action === 'recover' || action === 'verify') ? 'Puedes recuperar o verificar con las acciones de arriba.' : 'Phantom no admite recuperar ni verificar ahora. Corrige contrato o presupuesto en un reemplazo; el original se conserva y no se ejecuta nada hasta que lo lances.'}</span>
+        <Button disabled={op.busy} aria-expanded={Boolean(editing)} onClick={() => setEditing(old => old ? null : { ...native, id })}>{editing ? 'Ocultar reemplazo' : 'Preparar reemplazo'}</Button>
+      </section>}
       <ErrorNotice error={op.error} clear={op.clear} />{op.busy && <p role="status" className="pc-status">Enviando acción…</p>}
       <dl className="pc-facts pc-summary" aria-label="Resumen de la última ejecución">
         <div><dt>Cambios</dt><dd className="pc-num">{summary.files ? `${summary.files} ${summary.files === 1 ? 'archivo' : 'archivos'} · +${summary.added} −${summary.removed}` : 'Sin cambios registrados'}</dd></div>
@@ -288,7 +294,7 @@ function useCatalog(api, workspaceId, reading) {
   return { ...state, reload: read, fresh, seen };
 }
 
-function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy, where }) {
+export function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy, where }) {
   const metaId = useId();
   const decide = card.zone === 'decide', live = card.zone === 'live';
   const line = live ? lastLine(card.controller?.output) : '';
@@ -424,7 +430,7 @@ export function PhantomCards({ workspace, api, refresh, notify, onOpenPanel, nod
         </section>)}</div>}
       </div>}
       {creating ? <div className="pc-side"><CardForm workspace={workspace} api={api} notify={notify} onSaved={() => { source.reload(); refresh?.(); }} onClose={() => setCreating(false)} /></div>
-        : selected ? <div className="pc-side"><CardDetail key={`${workspace.id}:${selected}`} id={selected} catalog={{ ...(lookup.get(selected) || {}), lookup }} workspace={workspace} api={api} refresh={refresh} notify={notify} plugin={plugin} onOpenPanel={onOpenPanel} onChanged={source.reload} onClose={() => setSelected('')} /></div>
+        : selected ? <div className="pc-side"><CardDetail key={`${workspace.id}:${selected}`} resolve={Boolean(node?.data?.resolve) && selected === node?.data?.cardId} id={selected} catalog={{ ...(lookup.get(selected) || {}), lookup }} workspace={workspace} api={api} refresh={refresh} notify={notify} plugin={plugin} onOpenPanel={onOpenPanel} onChanged={source.reload} onClose={() => setSelected('')} /></div>
         : null}
     </div>
   </div>;

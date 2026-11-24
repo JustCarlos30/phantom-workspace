@@ -49,8 +49,6 @@
 ::placeholder { color: var(--muted); }
 * { scrollbar-color: #62615e transparent; }
 ::-webkit-scrollbar-thumb { background-color: #62615e; }
-.button { border-color: var(--hairline); }
-.button:hover { background: var(--surface-2); border-color: var(--muted); }
 .button.primary, .tw-button.tw-primary { background: var(--primary); color: var(--primary-ink); border-color: transparent; }
 .button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .icon-button:hover { background: var(--surface-2); }
@@ -197,7 +195,7 @@
 .accent-options { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .accent-options button { display: flex; flex: 1; align-items: center; flex-direction: column; gap: var(--s-2); color: var(--muted); font: var(--t-micro); padding: var(--s-2) var(--s-1); border-radius: var(--r-ctl); }
 .accent-options button:hover { background: var(--fill-2); }
-.accent-options button[aria-pressed=true] { background: none; color: var(--ink); }
+.accent-options button[aria-pressed=true] { background: none; color: var(--ink); box-shadow: 0 0 0 1px var(--on); }
 .accent-options button>span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--swatch); color: var(--on-ink); box-shadow: var(--shadow-rim); }
 .accent-options button:active { background: var(--row-press); }
 .intensity-label { display: flex; justify-content: space-between; }

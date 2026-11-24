@@ -1,5 +1,6 @@
 import { WebContentsView, session } from 'electron';
 import { browserURL, browserNode, clampBounds, validateID } from './security.mjs';
+import { forwardableKey } from './browser-keys.mjs';
 
 const securedSessions = new WeakSet();
 
@@ -128,6 +129,10 @@ export class BrowserManager {
     const entry = { id, workspaceId, view, attached: false, lastUsed: Date.now(), console: [], consoleSeq: 0 };
     this.entries.set(id, entry);
     const wc = view.webContents;
+    wc.on('before-input-event', (event, input) => {
+      const k = forwardableKey(input);
+      if (k && !this.disposed) this.emit({ type: 'browser.key', id: entry.id, workspaceId: entry.workspaceId, ...k });
+    });
     // Electron 45: the FIRST argument is Event<WebContentsConsoleMessageEventParams>.
     // Bound both individual strings and retained history; never expose a debugger.
     wc.on('console-message', details => {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSessionRows, providerOf, sessionTitle } from './sidebarModel.mjs';
+import { buildSessionRows, groupSessionRows, providerOf, sessionTitle } from './sidebarModel.mjs';
 
 const terminal = (id, provider = 'claude', title = 'Terminal', data = {}) => ({
   id, type: 'terminal', title, data: { chat: { provider }, ...data },
@@ -116,6 +116,45 @@ test('hidden nodes are excluded from counts, numbering and resource ownership', 
   assert.deepEqual(rows[0].resources, []);
   assert.deepEqual(resources, [orphan]);
   assert.deepEqual(buildSessionRows(), { rows: [], resources: [] });
+});
+
+const row = (id, extra = {}) => ({ id, needsYou: false, tone: 'unknown', ...extra });
+
+test('groupSessionRows returns attention, working and rest groups in that order', () => {
+  const groups = groupSessionRows([row('r'), row('w', { tone: 'working' }), row('a', { needsYou: true })]);
+  assert.deepEqual(groups.map(group => [group.key, group.label]), [
+    ['attention', 'Necesitan tu atención'], ['working', 'Trabajando'], ['rest', 'En reposo'],
+  ]);
+  assert.deepEqual(groups.map(group => group.rows.map(r => r.id)), [['a'], ['w'], ['r']]);
+});
+
+test('groupSessionRows omits empty groups', () => {
+  assert.deepEqual(groupSessionRows([row('w', { tone: 'working' }), row('r')]).map(group => group.key), ['working', 'rest']);
+  assert.deepEqual(groupSessionRows([row('a', { needsYou: true })]).map(group => group.key), ['attention']);
+  assert.deepEqual(groupSessionRows([]), []);
+  assert.deepEqual(groupSessionRows(), []);
+});
+
+test('groupSessionRows keeps the internal order and treats needsYou as attention even when working', () => {
+  const groups = groupSessionRows([
+    row('r1'), row('w1', { tone: 'working' }), row('a1', { needsYou: true, tone: 'working' }),
+    row('r2', { tone: 'idle' }), row('w2', { tone: 'working' }), row('a2', { needsYou: true }),
+  ]);
+  assert.deepEqual(groups.map(group => group.rows.map(r => r.id)), [['a1', 'a2'], ['w1', 'w2'], ['r1', 'r2']]);
+});
+
+test('groupSessionRows puts everything in a single rest group when nothing is active', () => {
+  const rows = [row('a'), row('b', { tone: 'idle' }), row('c', { tone: 'warning' })];
+  const groups = groupSessionRows(rows);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].key, 'rest');
+  assert.deepEqual(groups[0].rows, rows);
+});
+
+test('groupSessionRows is consistent with buildSessionRows ordering', () => {
+  const nodes = ['a', 'b', 'c', 'd'].map(id => terminal(id));
+  const { rows } = buildSessionRows(nodes, { b: { tone: 'working' }, c: { needsYou: true } });
+  assert.deepEqual(groupSessionRows(rows).flatMap(group => group.rows.map(r => r.id)), rows.map(r => r.id));
 });
 
 test('building rows does not mutate inputs', () => {

@@ -34,7 +34,7 @@ export default function RailUsage({ data, loading, error, onRefresh }) {
       <span className="usage-rows">
         {rows.map(r => <span key={r.id} className={`usage-row ${r.available && r.percent != null ? '' : 'usage-off'}`}>
           <span className="usage-name">{r.label}</span>
-          {r.available && r.percent != null ? <><Bar percent={r.percent} tone={r.tone} /><span className="usage-pct" data-tone={r.tone}>{r.percent}%</span></> : <span className="usage-none">Sin sesión</span>}
+          {r.available && r.percent != null ? <><Bar percent={r.percent} tone={r.tone} /><span className="usage-pct" data-tone={r.tone}>{r.percent}%</span>{r.stale && <span className="usage-badge" title={r.retry || undefined}>{r.staleSince}</span>}</> : <span className="usage-none" title={r.retry || r.reason || undefined}>{r.status === 'rate_limited' ? 'En espera' : r.status === 'error' ? 'Error' : 'Sin sesión'}</span>}
         </span>)}
       </span>
       {worst && <span className="usage-mini" data-tone={worst.tone}>{worst.percent}%</span>}
@@ -42,7 +42,8 @@ export default function RailUsage({ data, loading, error, onRefresh }) {
     {open && <div ref={box} id={id} className="usage-popover" role="dialog" aria-label="Detalle de límites">
       {rows.map(r => <section key={r.id} className="usage-detail">
         <h3>{r.label}{r.plan && <small>{r.plan}</small>}</h3>
-        {!r.available && <p className="usage-reason">{r.reason || 'Sin sesión'}</p>}
+        {r.stale && <p className="usage-stale"><span className="usage-badge">Desactualizado {r.staleSince}</span></p>}
+        {(!r.available || r.stale) && <p className="usage-reason">{r.reason || 'Sin sesión'}{r.retry && ` · ${r.retry}`}</p>}
         {r.windows.map((w, i) => <div key={i} className="usage-window">
           <span>{w.label}</span><Bar percent={w.percent} tone={w.tone} /><b data-tone={w.tone}>{w.percent}%</b><em>{w.reset}</em>
         </div>)}
@@ -52,6 +53,7 @@ export default function RailUsage({ data, loading, error, onRefresh }) {
           {p?.limitReached && <p className="usage-extra" data-tone="danger">Límite alcanzado</p>}
         </>; })()}
       </section>)}
+      {rows.some(r => r.status === 'rate_limited' && r.retry) && <p className="usage-reason">Actualizar no consulta a un proveedor en espera por 429: {rows.filter(r => r.status === 'rate_limited' && r.retry).map(r => `${r.label} ${r.retry}`).join('; ')}.</p>}
       <button type="button" className="usage-refresh" disabled={loading} onClick={() => onRefresh?.()}><RefreshCw size={14} aria-hidden="true" className={loading ? 'spin' : ''} />Actualizar</button>
     </div>}
   </div>;

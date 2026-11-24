@@ -18,7 +18,7 @@ export default {
   title: 'Propuestas/Shell',
   args: { material: 'cenital' },
   argTypes: { material: materialArg },
-  parameters: { docs: { description: { component: 'Laboratorio exploratorio: el shell real de hoy (rail, barra superior, dock, zoom, minimapa y paneles en el mapa) frente a la propuesta. No cambia producción. Datos SYNTHETIC.' } } },
+  parameters: { docs: { description: { component: 'Laboratorio exploratorio: componentes reales y maquetas históricas identificadas frente a la propuesta. Datos SYNTHETIC.' } } },
 };
 
 const H = 640;
@@ -69,7 +69,7 @@ function RailFull() {
 
 export const Rail = {
   render: ({ material }) => <Page title="Rail" problem="La barra lateral apila marca, selector de proyecto, selector de espacio, fila de atención, dos grupos con cabecera y un pie: seis niveles antes de llegar a las sesiones.">
-    <BeforeAfter height={H} material={material} before={<RailToday />} after={<RailFull />} changes={[
+    <BeforeAfter historical height={H} material={material} before={<RailToday />} after={<RailFull />} changes={[
       'Proyecto y espacio se funden en un solo selector «proyecto / espacio».',
       'La atención pasa a ser la primera fila, con ámbar solo en el texto y el contador.',
       'Desaparece la marca «Phantom Workspace» del rail; el pie queda con host, voz y configuración en controles circulares de 36 px.',
@@ -117,7 +117,7 @@ function TopProposal() {
 
 export const BarraSuperior = {
   render: ({ material }) => <Page title="Barra superior" problem="Dos píldoras separadas: migas con «Proyectos ›» y la ruta completa en una segunda línea, y otra píldora con «Guardado», buscador y tres iconos.">
-    <BeforeAfter stacked height={240} material={material} before={<TopToday />} after={<TopProposal />} changes={[
+    <BeforeAfter historical stacked height={240} material={material} before={<TopToday />} after={<TopProposal />} changes={[
       'Una sola barra ligera en vez de dos píldoras.',
       'Migas «proyecto / espacio» en una línea; la ruta pasa al tooltip y se quita «Proyectos ›».',
       '«Guardado» queda como un check silencioso con texto accesible.',
@@ -145,7 +145,7 @@ function DockToday() {
 
 export const Dock = {
   render: ({ material }) => <Page title="Dock" problem="Dos barras apiladas: la muesca «Te necesitan» encima y el dock de crear debajo, cada una con su contorno.">
-    <BeforeAfter stacked height={320} material={material} before={<DockToday />} after={<DockUnified />} changes={[
+    <BeforeAfter historical stacked height={320} material={material} before={<DockToday />} after={<DockUnified />} changes={[
       'Un único dock píldora con el estado (atención y sesiones) dentro.',
       '«Nueva sesión» como única primaria marfil; crear nota, navegador y terminal en círculos de 36 px.',
       'Las herramientas del lienzo se agrupan junto al minimapa, fuera del dock.',
@@ -171,7 +171,7 @@ function ZoomToday() {
 
 export const Zoom = {
   render: ({ material }) => <Page title="Zoom y herramientas del lienzo" problem="Nueve controles en una barra con dos separadores; el modo activo y el zoom compiten con guardar y ayuda.">
-    <BeforeAfter stacked height={300} material={material} before={<ZoomToday />} after={<CanvasTools />} changes={[
+    <BeforeAfter historical stacked height={300} material={material} before={<ZoomToday />} after={<CanvasTools />} changes={[
       'Modo del lienzo en un segmento con pistas de teclado V, H y C.',
       'Zoom y encuadrar en controles circulares de 36 px, junto al minimapa.',
       'El interruptor del minimapa y la ayuda salen de la barra.',
@@ -220,10 +220,10 @@ export const PanelEnMapa = {
       <BeforeAfter height={480} material={material} before={<LiveCanvas select />} after={<LiveCanvas select />} changes={['Sin sombra flotante al seleccionar: basta el aro de selección.', 'Canvas real con el mismo panel seleccionado.']} />
     </Section>
     <Section label="Trabajando">
-      <BeforeAfter height={480} material={material} before={<MapNode state="working" />} after={<MapNode state="working" />} changes={['El cometa lima de ActivityTrace se conserva como única señal de trabajo.', 'Maqueta con las clases reales de .canvas-node: el estado de pulso necesita una sesión de terminal que el catálogo no monta.']} />
+      <BeforeAfter historical height={480} material={material} before={<MapNode state="working" />} after={<MapNode state="working" />} changes={['El cometa lima de ActivityTrace se conserva como única señal de trabajo.', 'Maqueta con las clases reales de .canvas-node: el estado de pulso necesita una sesión de terminal que el catálogo no monta.']} />
     </Section>
     <Section label="Te necesita">
-      <BeforeAfter height={480} material={material} before={<MapNode state="attention" />} after={<MapNode state="attention" />} changes={['Ámbar solo en el aro y en el texto «Te necesita»; sin sombra extra.', 'Maqueta con las clases reales de .canvas-node, igual que «Trabajando».']} />
+      <BeforeAfter historical height={480} material={material} before={<MapNode state="attention" />} after={<MapNode state="attention" />} changes={['Ámbar solo en el aro y en el texto «Te necesita»; sin sombra extra.', 'Maqueta con las clases reales de .canvas-node, igual que «Trabajando».']} />
     </Section>
   </Page>,
 };

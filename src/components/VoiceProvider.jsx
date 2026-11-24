@@ -3,8 +3,6 @@ import { Mic } from 'lucide-react';
 import { VoiceDictation } from './VoiceDictation';
 import { VOICE_SURFACES } from './VoiceActivity';
 import { cancelVoiceRecording } from '../hooks/useVoiceRecorder';
-import { useWorkspaceShortcuts } from '../hooks/useWorkspaceShortcuts';
-import { formatBinding } from '../hooks/workspace-commands.mjs';
 
 const VoiceContext = createContext(null);
 export const useVoiceWorkspace = () => useContext(VoiceContext);
@@ -99,6 +97,15 @@ export function VoiceProvider({ workspaceId, api, connected, children }) {
     const surface = chosen ? owner?.closest?.(VOICE_SURFACES) || null : null;
     setTarget(chosen ? { ...chosen, workspaceId, surface } : { workspaceId, label: 'Sin campo seleccionado', kind: 'none' });
   }, [workspaceId, connected, target]);
+  useEffect(() => {
+    const shortcut = event => {
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && !event.isComposing && event.key.toLowerCase() === 'm') {
+        event.preventDefault(); event.stopPropagation(); if (!event.repeat) openDictation();
+      }
+    };
+    window.addEventListener('keydown', shortcut, true);
+    return () => window.removeEventListener('keydown', shortcut, true);
+  }, [openDictation]);
   useEffect(() => { if (!connected) { cancelVoiceRecording(); setTarget(null); } }, [connected]);
   return <VoiceContext.Provider value={{ open: !!target, openDictation, registerTerminal }}>
     {children}
@@ -108,6 +115,5 @@ export function VoiceProvider({ workspaceId, api, connected, children }) {
 
 export function VoiceLauncher({ disabled }) {
   const voice = useVoiceWorkspace();
-  const { bindings } = useWorkspaceShortcuts();
-  return <button type="button" className="voice-launcher" aria-label="Dictado por voz" title={`Dictado por voz · ${formatBinding(bindings.dictation)}`} aria-keyshortcuts={bindings.dictation?.replace('Ctrl', 'Control') || undefined} disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => voice.openDictation()}><Mic size={15} /><span>Dictado por voz</span></button>;
+  return <button type="button" className="voice-launcher" aria-label="Dictado por voz" title="Dictado por voz · Ctrl/Cmd + Shift + M" aria-keyshortcuts="Control+Shift+M Meta+Shift+M" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => voice.openDictation()}><Mic size={15} /><span>Dictado por voz</span></button>;
 }

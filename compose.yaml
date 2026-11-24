@@ -1,23 +1,38 @@
 services:
+  composer-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.composer-test
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    network_mode: none
+    restart: "no"
+    x-phantom:
+      lifecycle: ephemeral
+      purpose: "Aceptación offline del compositor con Chromium y capturas geométricas"
+      card: "task_4ba164b2-0d38-4267-8282-dc1c82ef094c/composer"
   storybook:
     build:
       context: .
       dockerfile: Dockerfile.storybook
     ports:
       - target: 80
-        published: "6006"
+        published: "${STORYBOOK_PORT:-0}"
         host_ip: 127.0.0.1
         protocol: tcp
         app_protocol: http
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/index.json"]
       interval: 30s
       timeout: 5s
       retries: 3
-    restart: unless-stopped
+    restart: "no"
     x-phantom:
       lifecycle: ephemeral
       purpose: "Preview de componentes UI"
+      card: "task_a9eee333-3f66-4acd-88f2-892b2628c921"
   keyboard-e2e:
     profiles: [keyboard-test]
     build:

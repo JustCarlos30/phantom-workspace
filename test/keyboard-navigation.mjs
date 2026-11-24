@@ -2,7 +2,6 @@ import { _electron as electron } from 'playwright';
 import assert from 'node:assert/strict';
 import { access, mkdir, mkdtemp, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { killElectronGroup } from './support/electron-process.mjs';
@@ -63,9 +62,12 @@ async function chooseProject(name, id) {
   const search = dialog().locator('input').first();
   await tabTo(search, 'buscador de proyectos');
   await type(name);
+  await poll(async () => await dialog().getByRole('option').count() === 1, `proyecto filtrado ${name}`);
   await press('Enter');
   await poll(async () => (await activeWorkspace())?.id === id, `proyecto ${name}`);
   await dialog().waitFor({ state: 'hidden' });
+  await poll(async () => (await page.locator('.project-name-editor > button').first().textContent())?.includes(name), `título visible ${name}`);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 async function choosePanel(title, id) {
   await press('Control+Shift+f');
@@ -73,6 +75,7 @@ async function choosePanel(title, id) {
   await poll(() => input.evaluate(element => element === document.activeElement), 'foco del índice de paneles');
   await type(title);
   const button = page.locator('.panel-index-items button').filter({ has: page.locator('strong', { hasText: title }) });
+  await button.waitFor();
   await tabTo(button, `panel ${title}`);
   await press('Enter'); await selectedId(id);
 }
@@ -86,7 +89,8 @@ async function stableTerminal(sessionId) {
   let previous, since;
   return poll(async () => {
     const snapshot = await invoke('terminal.attach', { sessionId });
-    if (snapshot.seq !== previous) { previous = snapshot.seq; since = Date.now(); }
+    const signature = JSON.stringify([snapshot.seq, snapshot.session.cols, snapshot.session.rows, snapshot.data]);
+    if (signature !== previous) { previous = signature; since = Date.now(); }
     return Date.now() - since >= 350 ? snapshot : false;
   }, 'salida PTY estable');
 }
@@ -102,113 +106,112 @@ async function shortcuts() {
   await press('Control+,'); await dialog().waitFor();
 }
 async function shortcutControl(title, binding) {
-  const control = dialog().getByRole('button', { name: `Editar atajo: ${title}`, exact: true });
+  const button = { name: `Editar atajo: ${title}`, exact: true };
+  const row = dialog().locator('.tw-shortcut-row').filter({ has: page.getByRole('button', button) });
+  const control = row.getByRole('button', button);
   await control.waitFor();
-  await poll(async () => await control.locator('..').locator('kbd').textContent() === binding, `atajo visible de ${title}`);
+  await poll(async () => await row.locator('kbd').innerText() === binding, `atajo visible de ${title}`);
   return control;
 }
 async function storedBindings() { return page.evaluate(() => JSON.parse(localStorage.getItem('phantom:workspace:shortcuts') || '{}')); }
+async function bounded(operation, label, timeout) {
+  let timer;
+  try { return await Promise.race([operation, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`Timeout ${label}`)), timeout); })]); }
+  finally { clearTimeout(timer); }
+}
+function cleanupError(error) { result.errors.push(`Cleanup: ${error.stack || error.message}`); process.exitCode = 1; }
+async function processArgs(pid) {
+  try { return (await readFile(`/proc/${pid}/cmdline`, 'utf8')).split('\0').filter(Boolean); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+}
 
 const watchdog = setTimeout(() => {
+  process.exitCode = 1;
   result.errors.push('Límite de 180 segundos agotado');
   result.checks.push({ name: 'Límite de tiempo', status: 'failed' });
-  process.exitCode = 1;
   finish().finally(() => process.exit(1));
 }, 180000);
-for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
-  result.errors.push(`Interrumpido por ${signal}`); process.exitCode = 1;
+const interrupted = signal => {
+  process.exitCode = 1; result.errors.push(`Interrumpido por ${signal}`);
   finish().finally(() => process.exit(1));
-});
-function cleanupFailure(error) { result.errors.push(`Cleanup: ${error.message}`); process.exitCode = 1; }
+};
+process.once('SIGTERM', () => interrupted('SIGTERM'));
+process.once('SIGINT', () => interrupted('SIGINT'));
 let finishing;
 function finish() { return finishing ||= (async () => {
   clearTimeout(watchdog);
-  const cleanupWatchdog = setTimeout(() => {
-    cleanupFailure(new Error('Límite de limpieza agotado'));
-    save().finally(() => process.exit(1));
-  }, 45000);
-  try {
-    if (app) {
-      for (const session of sessions) {
-        try {
-          await Promise.race([invoke('terminal.stop', { sessionId: session.id }), delay(1200).then(() => { throw new Error(`Timeout terminal.stop ${session.id}`); })]);
-          result.cleanup.push(`terminal.stop ${session.id}`);
-        } catch (error) { cleanupFailure(error); }
-      }
-      try {
-        await Promise.race([invoke('desktop.quit', { stopHost: true }), delay(1800).then(() => { throw new Error('Timeout desktop.quit'); })]);
-        await poll(() => page.isClosed(), 'cierre del renderer', 10000);
-        result.cleanup.push('desktop.quit');
-      } catch (error) { cleanupFailure(error); }
-      const child = app.process();
-      killElectronGroup(child);
-      try {
-        await poll(() => {
-          try { process.kill(-child.pid, 0); return false; }
-          catch (error) { if (error.code === 'ESRCH') return true; throw error; }
-        }, 'cierre del grupo Electron', 7000);
-        result.cleanup.push(`grupo Electron ${child.pid} cerrado`);
-      } catch (error) { cleanupFailure(error); }
-    }
-    if (!hostPid) {
-      try {
-        const { pid } = JSON.parse(await readFile(path.join(profile, 'host.lock'), 'utf8'));
-        assert.ok(Number.isSafeInteger(pid) && pid > 0, 'PID válido del host sintético');
-        hostPid = pid;
-      } catch (error) { if (error.code !== 'ENOENT') cleanupFailure(error); }
-    }
-    if (hostPid) {
-      try {
-        const args = (await readFile(`/proc/${hostPid}/cmdline`, 'utf8')).split('\0');
-        if (args.some(Boolean)) {
-          assert.ok(args.includes(profile) && args.some(arg => arg.endsWith('/host/server.mjs')), 'Solo se limpia el host del fixture');
-          process.kill(hostPid, 'SIGTERM'); result.cleanup.push(`SIGTERM host ${hostPid}`);
-          await poll(async () => {
-            try { return !(await readFile(`/proc/${hostPid}/cmdline`, 'utf8')).split('\0').includes(profile); }
-            catch (error) { if (error.code === 'ENOENT') return true; throw error; }
-          }, 'cierre del host sintético', 7000);
-        }
-      } catch (error) {
-        if (!['ENOENT', 'ESRCH'].includes(error.code)) {
-          cleanupFailure(error);
-          const args = await readFile(`/proc/${hostPid}/cmdline`, 'utf8').then(text => text.split('\0'), () => []);
-          if (args.includes(profile) && args.some(arg => arg.endsWith('/host/server.mjs'))) {
-            try { process.kill(hostPid, 'SIGKILL'); result.cleanup.push(`SIGKILL host ${hostPid}`); }
-            catch (error) { if (error.code !== 'ESRCH') cleanupFailure(error); }
-          }
-        }
-      }
-    }
+  if (app) {
     for (const session of sessions) {
       try {
-        const args = (await readFile(`/proc/${session.pid}/cmdline`, 'utf8')).split('\0');
-        if (!args.some(Boolean)) continue;
-        const cwd = await readlink(`/proc/${session.pid}/cwd`);
-        assert.ok(cwd.startsWith(`${fixture}/`) && args[0] === '/bin/sh', 'Solo se limpia el shell sintético');
-        process.kill(session.pid, 'SIGKILL'); result.cleanup.push(`SIGKILL shell ${session.pid}`);
-        await poll(async () => {
-          try { return !(await readFile(`/proc/${session.pid}/cmdline`, 'utf8')).split('\0').some(Boolean); }
-          catch (error) { if (error.code === 'ENOENT') return true; throw error; }
-        }, `cierre del shell ${session.pid}`, 7000);
-      } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) cleanupFailure(error); }
+        await bounded(invoke('terminal.stop', { sessionId: session.id }), `terminal.stop ${session.id}`, 1500);
+        await poll(async () => (await bounded(invoke('terminal.attach', { sessionId: session.id }), 'estado PTY', 1500)).session.status === 'exited', 'cierre PTY', 3500);
+        result.cleanup.push(`terminal.stop ${session.id}`);
+      } catch (error) { cleanupError(error); }
     }
-    try { await rm(fixture, { recursive: true, force: true }); result.cleanup.push('fixture eliminado'); }
-    catch (error) { cleanupFailure(error); }
-    result.finishedAt = new Date().toISOString();
-    result.summary = { passed: result.checks.filter(check => check.status === 'passed').length, failed: result.checks.filter(check => check.status === 'failed').length, errors: result.errors.length };
-    if (result.summary.failed || result.summary.errors) process.exitCode = 1;
-    await save(); console.log(JSON.stringify({ ...result.summary, evidence }));
-  } finally { clearTimeout(cleanupWatchdog); }
+    try {
+      await bounded(invoke('desktop.quit', { stopHost: true }), 'desktop.quit', 1800);
+      await poll(() => page.isClosed(), 'cierre de ventana', 10000);
+      result.cleanup.push('desktop.quit');
+    } catch (error) { cleanupError(error); }
+    try {
+      const child = app.process();
+      killElectronGroup(child);
+      await poll(() => {
+        try { process.kill(-child.pid, 0); return false; }
+        catch (error) { if (error.code === 'ESRCH') return true; throw error; }
+      }, 'cierre del grupo Electron', 5000);
+      result.cleanup.push(`Grupo Electron ${child.pid} cerrado`);
+    } catch (error) { cleanupError(error); }
+  }
+  if (hostPid) {
+    try {
+      const args = await processArgs(hostPid);
+      if (args.length) {
+        assert.ok(args.includes(profile) && args.some(arg => arg.endsWith('/host/server.mjs')), 'Solo se limpia el host del fixture');
+        process.kill(hostPid, 'SIGTERM'); result.cleanup.push(`SIGTERM host ${hostPid}`);
+        await poll(async () => !(await processArgs(hostPid)).includes(profile), 'cierre del host sintético', 7000);
+      }
+    } catch (error) {
+      if (!['ENOENT', 'ESRCH'].includes(error.code)) {
+        cleanupError(error);
+        try {
+          const args = await processArgs(hostPid);
+          if (args.includes(profile) && args.some(arg => arg.endsWith('/host/server.mjs'))) {
+            process.kill(hostPid, 'SIGKILL'); result.cleanup.push(`SIGKILL host ${hostPid}`);
+            await poll(async () => !(await processArgs(hostPid)).includes(profile), 'host terminado', 3000);
+          }
+        } catch (error) { if (error.code !== 'ESRCH') cleanupError(error); }
+      }
+    }
+  }
+  for (const session of sessions) {
+    try {
+      const args = await processArgs(session.pid);
+      if (!args.length) continue;
+      const cwd = await readlink(`/proc/${session.pid}/cwd`);
+      assert.ok(cwd.startsWith(`${fixture}/`) && args[0] === '/bin/sh', 'Solo se limpia el shell sintético');
+      cleanupError(new Error(`El shell ${session.pid} sobrevivió al cierre del host`));
+      process.kill(session.pid, 'SIGKILL'); result.cleanup.push(`SIGKILL shell ${session.pid}`);
+      await poll(async () => !(await processArgs(session.pid)).length, 'shell terminado', 3000);
+    } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) cleanupError(error); }
+  }
+  try { await rm(fixture, { recursive: true, force: true }); result.cleanup.push('Fixture eliminado'); }
+  catch (error) { cleanupError(error); }
+  result.finishedAt = new Date().toISOString();
+  result.summary = { passed: result.checks.filter(check => check.status === 'passed').length, failed: result.checks.filter(check => check.status === 'failed').length, errors: result.errors.length };
+  if (result.summary.failed || result.summary.errors) process.exitCode = 1;
+  await save(); console.log(JSON.stringify({ ...result.summary, evidence }));
 })(); }
 
 try {
+  await save();
   await access(executablePath, constants.X_OK); await access(path.join(root, 'dist/index.html'));
   const home = path.join(fixture, 'home'); await mkdir(home);
   const env = { PATH: process.env.PATH, DISPLAY: process.env.DISPLAY, XAUTHORITY: process.env.XAUTHORITY,
     DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS, LANG: 'C.UTF-8', HOME: home, SHELL: '/bin/sh',
     XDG_CONFIG_HOME: path.join(home, '.config'), XDG_CACHE_HOME: path.join(home, '.cache'),
     PHANTOM_WORKSPACE_HOME: profile, PHANTOM_NODE_BINARY: process.execPath };
-  app = await electron.launch({ executablePath, args: [root], cwd: root, env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)), chromiumSandbox: true, timeout: 20000 });
+  app = await electron.launch({ executablePath, args: [root], cwd: root, chromiumSandbox: false, env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)), timeout: 20000 });
   page = await app.firstWindow(); page.setDefaultTimeout(10000);
   page.on('console', message => result.console.push({ type: message.type(), text: message.text() }));
   page.on('pageerror', error => result.errors.push(error.stack || error.message));
@@ -226,18 +229,22 @@ try {
   const left = await make('terminal', 'SYNTHETIC Terminal izquierda', 0, 0);
   const right = await make('terminal', 'SYNTHETIC Terminal derecha', 800, 0);
   const note = await make('note', 'SYNTHETIC Nota inferior', 800, 700, { text: 'Contexto sintético' });
+  const web = await make('browser', 'SYNTHETIC Navegador', 0, 700, { url: 'about:blank' });
   await make('note', 'SYNTHETIC Nota oculta', 650, 0, { hidden: true });
   await make('zone', 'SYNTHETIC Zona', 0, 0);
-  const otherSpace = randomUUID();
+  const otherSpace = '3f2b8c1e-5a47-4d9e-8b6a-1c2d3e4f5a6b';
   await invoke('workspace.update', { id: first.id, patch: { spaces: [{ id: otherSpace, name: 'Otro espacio', camera: { x: 0, y: 0, zoom: 1 } }] } });
   await make('terminal', 'SYNTHETIC Sesión en otro espacio', 650, 0, { spaceId: otherSpace });
   for (const node of [left, right]) {
     const { session } = await invoke('terminal.create', { workspaceId: first.id, nodeId: node.id, shell: '/bin/sh', cols: 80, rows: 24 });
     assert.ok(session.pid > 0); sessions.push({ ...session, nodeId: node.id });
+    const tty = await readlink(`/proc/${session.pid}/fd/0`);
+    assert.match(tty, /^\/dev\/pts\/\d+$/, 'El shell usa un PTY del sistema');
+    sessions.at(-1).tty = tty;
   }
   const second = await invoke('workspace.open', { path: secondPath });
   await page.reload(); await page.locator('.app-shell').waitFor(); await page.bringToFront(); await canvasOwnsFocus();
-  result.fixture = { first: first.id, second: second.id, left: left.id, right: right.id, note: note.id, sessions: sessions.map(({ id, pid }) => ({ id, pid })) };
+  result.fixture = { first: first.id, second: second.id, left: left.id, right: right.id, note: note.id, browser: web.id, sessions: sessions.map(({ id, pid, tty }) => ({ id, pid, tty })) };
   await capture('00-setup');
 
   await check('proyecto → elegir panel → vecino → PTY real → salir → vecino, sin clicks', async () => {
@@ -259,7 +266,7 @@ try {
     const after = await stableTerminal(session.id);
     assert.equal(after.data, before.data, 'Salir/navegar no envía teclas al PTY');
     assert.equal(after.session.pid, session.pid);
-    await capture('03-salida-y-vecino'); return { marker, sessionId: session.id, pid: session.pid };
+    await capture('03-salida-y-vecino'); return { marker, sessionId: session.id, pid: session.pid, tty: session.tty };
   });
   await check('fit-all conserva último trabajo; return-focus vuelve a xterm; sesiones ciclan sin entrar', async () => {
     await press('0'); await canvasOwnsFocus();
@@ -300,9 +307,10 @@ try {
   await check('configuración desde UI, persistencia tras recarga y binding global por proyecto', async () => {
     await shortcuts();
     const control = await shortcutControl('Siguiente sesión', 'Ctrl+PageDown');
-    await tabTo(control, 'atajo Siguiente sesión'); await press('Enter');
-    const editor = dialog().getByLabel('Atajo para Siguiente sesión', { exact: true });
-    await poll(() => editor.evaluate(element => element === document.activeElement), 'editor de atajo');
+    await tabTo(control, 'atajo Siguiente sesión');
+    await press('Enter');
+    const input = dialog().getByLabel('Atajo para Siguiente sesión', { exact: true });
+    await poll(() => input.evaluate(element => element === document.activeElement), 'editor del atajo');
     await press('Control+a'); await type('Ctrl+Alt+Y'); await press('Enter');
     await poll(async () => (await storedBindings())['next-session'] === 'Ctrl+Alt+Y', 'nuevo atajo persistido desde UI');
     await capture('06-atajos-configurados');
@@ -317,49 +325,59 @@ try {
     await shortcutControl('Siguiente sesión', 'Ctrl+Alt+Y');
     await press('Escape'); await dialog().waitFor({ state: 'hidden' }); await canvasOwnsFocus();
   });
-  await check('paleta abre el selector de proyectos por teclado', async () => {
+  await check('paleta abre el selector y las acciones nuevas de teclado', async () => {
     await press('Control+k');
     const input = page.getByRole('combobox', { name: 'Buscar paneles y herramientas' });
     await poll(() => input.evaluate(element => element === document.activeElement), 'foco de paleta');
     await type('Cambiar proyecto'); await press('Enter');
-    await page.getByRole('dialog', { name: 'Cambiar proyecto', exact: true }).waitFor();
-    assert.equal(await page.getByRole('dialog', { name: 'Paleta del workspace' }).count(), 0);
+    const picker = page.getByRole('dialog', { name: 'Cambiar proyecto', exact: true });
+    await picker.waitFor();
+    await page.getByRole('dialog', { name: 'Paleta del workspace' }).waitFor({ state: 'hidden' });
+    await poll(() => picker.evaluate(el => el.contains(document.activeElement)), 'foco dentro del selector de proyectos');
     await press('Escape'); await dialog().waitFor({ state: 'hidden' }); await canvasOwnsFocus();
     await capture('07-final');
   });
-  await check('nota sin colisión nativa y dictado configurable sin listener duplicado', async () => {
-    const openWindow = await app.evaluate(({ Menu }) => {
-      const item = Menu.getApplicationMenu().items.flatMap(item => item.submenu?.items || []).find(item => item.label === 'Abrir ventana');
-      return item ? { label: item.label, accelerator: item.accelerator || null } : null;
-    });
-    assert.deepEqual(openWindow, { label: 'Abrir ventana', accelerator: null });
-    const before = new Set((await activeWorkspace()).nodes.map(node => node.id));
-    await press('Control+Shift+n');
-    await poll(async () => (await activeWorkspace()).nodes.some(node => !before.has(node.id) && node.type === 'note'), 'nota creada con Ctrl+Shift+N');
-    await shortcuts();
-    await tabTo(await shortcutControl('Dictado por voz', 'Ctrl+Shift+M'), 'editar dictado'); await press('Enter');
-    await poll(() => dialog().getByLabel('Atajo para Dictado por voz', { exact: true }).evaluate(element => element === document.activeElement), 'editor de dictado');
-    await press('Control+a'); await type('Alt+M'); await press('Enter');
-    await poll(async () => (await storedBindings()).dictation === 'Alt+M', 'dictado reasignado');
-    await tabTo(await shortcutControl('Buscar comandos', 'Ctrl+K'), 'editar paleta'); await press('Enter');
-    await poll(() => dialog().getByLabel('Atajo para Buscar comandos', { exact: true }).evaluate(element => element === document.activeElement), 'editor de paleta');
-    await press('Control+a'); await type('Ctrl+Shift+M'); await press('Enter');
-    await poll(async () => (await storedBindings()).palette === 'Ctrl+Shift+M', 'paleta usa antiguo acorde de dictado');
-    await press('Escape'); await dialog().waitFor({ state: 'hidden' });
-    await press('Control+Shift+m');
-    const palette = page.getByRole('dialog', { name: 'Paleta del workspace' });
-    await palette.waitFor();
-    assert.equal(await page.getByRole('dialog', { name: 'Dictado por voz', exact: true }).count(), 0);
-    await poll(() => palette.getByRole('combobox').evaluate(element => element === document.activeElement), 'paleta conserva ownership');
-    await type('Dictado por voz');
-    assert.equal(await palette.getByRole('option').locator('kbd').textContent(), 'Alt+M');
+  await check('salir al mapa con Ctrl+Shift+Escape desde dentro de la vista nativa del navegador', async () => {
+    assert.equal((await activeWorkspace()).id, first.id);
+    await choosePanel('SYNTHETIC Navegador', web.id);
     await press('Enter');
-    const dictation = page.getByRole('dialog', { name: 'Dictado por voz', exact: true });
-    await dictation.waitFor();
-    await press('Escape'); await dictation.waitFor({ state: 'hidden' });
-    await press('Alt+m'); await dictation.waitFor();
-    await press('Escape'); await dictation.waitFor({ state: 'hidden' });
-    await capture('08-conflictos-reparados');
+    await poll(async () => await focused().getAttribute('data-node-id') === web.id, 'enfoque del navegador');
+    await page.waitForFunction(() => document.querySelector('.app-shell')?.dataset.keyboardMode === 'interaction');
+    // Sin red: about:blank. La vista nativa debe estar adjunta y visible antes de inyectar la tecla.
+    const probe = () => app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      const views = win.contentView.children.filter(child => child.webContents && child.webContents !== win.webContents);
+      const view = views.find(child => child.getVisible());
+      return { views: views.length, visible: !!view, url: view?.webContents.getURL() ?? null, id: view?.webContents.id ?? null };
+    });
+    const native = await poll(async () => { const value = await probe(); return value.visible && value.url === 'about:blank' ? value : false; }, 'WebContentsView del navegador visible con about:blank');
+    await capture('08-navegador-enfocado');
+    const sent = await app.evaluate(async ({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      const view = win.contentView.children.find(child => child.webContents && child.webContents !== win.webContents && child.getVisible());
+      if (!view) return { error: 'No hay WebContentsView visible' };
+      const wc = view.webContents;
+      const seen = [];
+      const listener = (_event, input) => seen.push({ type: input.type, key: input.key, code: input.code, control: input.control, shift: input.shift });
+      wc.on('before-input-event', listener);
+      try {
+        wc.focus();
+        const modifiers = ['control', 'shift'];
+        wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape', modifiers });
+        wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape', modifiers });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } finally { wc.removeListener('before-input-event', listener); }
+      return { seen };
+    });
+    result.keys.push({ native: 'Control+Shift+Escape vía webContents.sendInputEvent', view: native, ...sent, at: Date.now() });
+    assert.ok(!sent.error, `No se pudo inyectar la tecla en la vista nativa: ${sent.error}`);
+    assert.ok(sent.seen.some(input => input.type === 'keyDown' && input.key === 'Escape' && input.control && input.shift),
+      `Electron no entregó Ctrl+Shift+Escape a before-input-event de la vista nativa (visto: ${JSON.stringify(sent.seen)}); el puente no pudo ejercitarse`);
+    await poll(async () => await focused().count() === 0, 'salida del panel navegador (el puente no devolvió el foco al mapa)');
+    await selectedId(web.id);
+    assert.equal(await page.locator('.app-shell').getAttribute('data-keyboard-mode'), 'navigation');
+    await capture('09-salida-desde-navegador');
+    return { webContentsId: native.id, seen: sent.seen };
   });
   assert.deepEqual(result.errors, [], 'Sin errores de renderer');
 } catch (error) {

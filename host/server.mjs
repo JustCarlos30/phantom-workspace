@@ -4,7 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
-import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome, pushAttention } from './store.mjs';
+import { Store, assert, object, text, canonicalFolder, validateState, validateSessionDefaults, NODE_TYPES, dataHome, pushAttention } from './store.mjs';
 import { applySubagent, validateSubagentOp } from './subagents.mjs';
 import { Terminals } from './terminals.mjs';
 import { Chats, validateChat, validateModel, permissionPatch, applyPatch, assertNewChatPolicy } from './chats.mjs';
@@ -24,8 +24,10 @@ import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
-import { wakeMessage, createWakeLimit, wakeTarget } from './run-wake.mjs';
+import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
+import { createHostEvents, EVENTS_METHOD } from './workspace-events.mjs';
 import { startPatch, finishPatch, cardNode } from './run-binding.mjs';
+import { createRunWatch, createNoticeLimit, buildRun, stepLine, amendNotice, AMEND_STEP } from './run-watch.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
@@ -85,7 +87,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
+  const hostEvents=createHostEvents({broadcast:event=>broadcast(event)});
   const emit=event=>{
+    try{if(store&&!closingPromise)hostEvents.feed(event,sessionId=>terminals?.sessions.find(s=>s.id===sessionId)?.nodeId);}catch{}
     const terminalExit=event.type==='terminal.exit',toolFinish=event.type==='tool.status'&&['failed','completed'].includes(event.status);
     const runId=terminalExit?event.sessionId:event.id;
     if((terminalExit||toolFinish)&&runId&&store) {
@@ -101,24 +105,62 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     try{
       const r=event.result;
       if(store&&!closingPromise&&event.type==='tool.status'&&event.status==='running'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string')bindRunStart(r,event.workspaceId).catch(()=>{});
-      const target=store&&!closingPromise?wakeTarget(event,wakeSeen):null;
-      if(target?.via==='chat'){if(chats)wakeChat(target,r).catch(()=>{});}
-      else if(target)wakeTerminal(target,r).catch(()=>{});
+      if(store&&!closingPromise&&event.type==='tool.status'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string'&&typeof r.taskId==='string'){
+        const target={id:r.id,taskId:r.taskId,workspaceId:event.workspaceId??r.workspaceId,nodeId:r.origin.nodeId,via:r.origin.via==='chat'?'chat':'terminal',startedAt:r.createdAt};
+        if(event.status==='running')runWatch.track(target);
+        else if(['completed','failed','stopped'].includes(event.status)){runWatch.untrack(r.id);finishCard(target,r).catch(()=>{});}
+      }
+      if(store&&!closingPromise)runWake.accept(event);
     }catch{}
     try{const step=store&&!closingPromise?planTarget(event):null;if(step)planChain(step).catch(()=>{});}catch{}
     // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
     if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
   };
   // A chat that launched a Phantom run hears once when it ends; capped per node until the user writes again.
-  const wakeSeen=new Set(),wakeLimit=createWakeLimit(4);
-  const wakeChat=async(target,controller)=>{
-    const w=store.getWorkspace(target.workspaceId),node=target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.data?.chat?.provider);
-    if(!node)return;
-    let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:w.id,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
-    applyFinish(w.id,node.id,target.taskId,controller,task);
-    if(closingPromise||!wakeLimit.allow(node.id))return;
-    await chats.send(store.getWorkspace(w.id),node,wakeMessage({taskId:target.taskId,controller,task}));
+  const wakeLimit=createWakeLimit(4);
+  const wakeNode=target=>{
+    const w=store.getWorkspace(target.workspaceId);
+    return target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');
   };
+  const runWake=createRunWake({
+    ready:(target,recipient)=>{
+      if(closingPromise||recipient.cancelled)return false;
+      if(target.via==='chat')return !chats.running(target.nodeId);
+      const s=terminals.get(recipient.sessionId);return s?.status==='running'&&Boolean(terminals.foreground(s.id)?.agent);
+    },
+    prepare:target=>{
+      let node;try{node=wakeNode(target);}catch{}
+      return {node,chat:JSON.stringify(node?.data.chat),thread:chats.nodes[target.nodeId]?.threads?.[node?.data.chat?.provider],sessionId:node?.data.sessionId};
+    },
+    deliver:async(target,controller,recipient)=>{
+      let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
+      if(closingPromise||recipient.cancelled)return {};
+      const node=wakeNode(target),main=target.nodeId.startsWith('phantom:');
+      if(!node||(!main&&node!==recipient.node)||JSON.stringify(node.data.chat)!==recipient.chat||node.data.sessionId!==recipient.sessionId||chats.nodes[target.nodeId]?.threads?.[node.data.chat?.provider]!==recipient.thread)return {reason:'El destinatario cambió o se cerró'};
+      const message=wakeMessage({taskId:target.taskId,controller,task});
+      if(target.via==='chat'){
+        if(!node.data.chat?.provider)return {reason:'El chat ya no tiene agente configurado'};
+        if(chats.running(node.id)||chats.turns.size+chats.operations.size>=16||chats.get(node).queue.length)return {retry:true,reason:'El chat sigue ocupado; no se pudo entregar el aviso'};
+        if(!wakeLimit.available(node.id))return {reason:'Tope de avisos automáticos alcanzado'};
+        await chats.send(store.getWorkspace(target.workspaceId),node,message);
+        wakeLimit.allow(node.id);
+        return {};
+      }
+      let session;try{session=terminals.get(node.data.sessionId);}catch{}
+      if(!session||session.status!=='running'||session.nodeId!==node.id)return {reason:'El PTY no está disponible; no se puede continuar esta sesión'};
+      if(!terminals.foreground(session.id)?.agent)return {retry:true,reason:'No hay un agente en primer plano; aviso sin entregar'};
+      if(!wakeLimit.available(node.id))return {reason:'Tope de avisos automáticos alcanzado'};
+      try{terminals.write(session.id,message+'\r');}catch(error){return {retry:true,reason:error.message};}
+      wakeLimit.allow(node.id);
+      return {};
+    },
+    blocked:(target,reason)=>{
+      if(closingPromise)return;
+      let w;try{w=store.getWorkspace(target.workspaceId);}catch{return;}
+      const now=new Date().toISOString(),item={id:randomUUID(),eventKey:`wake-blocked:${target.id}`,title:`Continuación bloqueada para ${target.taskId}: ${reason}`,source:'phantom',ref:target.id,runId:target.id,status:'failed',createdAt:now,observedAt:now};
+      mutate(w.id,()=>pushAttention(w,item));broadcast({type:'attention.new',workspaceId:w.id,item});
+    },
+  });
   // End of a run: a terminal card still bound to that task shows review/blocked, whether it was told by chat or by PTY.
   const applyFinish=(workspaceId,nodeId,taskId,controller,task)=>{
     if(controller?.action!=='run')return;
@@ -128,6 +170,40 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     validateAgent(patch);
     mutate(workspaceId,()=>{const current=store.getWorkspace(workspaceId).nodes.find(n=>n.id===nodeId);if(current?.data.agent?.cardId===taskId)current.data.agent={...current.data.agent,...patch};});
   };
+  // Live follow-up: card step/run refreshed from the same events view as phantom.events health; sparse notices to the orchestrator.
+  const fetchHealth=async target=>{const a=await routeIntegration('phantom.events',{workspaceId:target.workspaceId,id:target.taskId,view:'health'});if(!a?.handled)throw new Error('Phantom no está disponible');return a.result;};
+  const applyLive=(target,{step,run})=>{
+    if(target.nodeId.startsWith('phantom:'))return true;
+    let node;try{node=store.getWorkspace(target.workspaceId).nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');}catch{return false;}
+    if(!node)return false;
+    if(node.data.agent?.cardId!==target.taskId)return true;
+    const patch={step,run,updatedAt:new Date().toISOString()};validateAgent(patch);
+    mutate(target.workspaceId,()=>{const current=store.getWorkspace(target.workspaceId).nodes.find(n=>n.id===target.nodeId);if(current?.data.agent?.cardId===target.taskId)current.data.agent={...current.data.agent,...patch};});
+    return true;
+  };
+  const noticeLimit=createNoticeLimit({max:6});
+  const deliverNotice=async(target,kind,message)=>{
+    if(closingPromise)return {};
+    let node;try{node=wakeNode(target);}catch{}
+    if(!node)return {};
+    if(target.via==='chat'){
+      if(!node.data.chat?.provider||chats.running(node.id)||chats.turns.size+chats.operations.size>=16||chats.get(node).queue.length)return {};
+      await chats.send(store.getWorkspace(target.workspaceId),node,message);return {delivered:true};
+    }
+    let session;try{session=terminals.get(node.data.sessionId);}catch{}
+    if(!session||session.status!=='running'||session.nodeId!==node.id||!terminals.foreground(session.id)?.agent)return {};
+    try{terminals.write(session.id,message+'\r');return {delivered:true};}catch{return {};}
+  };
+  const runWatch=createRunWatch({fetchHealth,fetchTask:async target=>{const a=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});return a?.handled?a.result:undefined;},apply:applyLive,notify:deliverNotice,limit:noticeLimit,onTick:()=>runWake.flush()});
+  runWatch.start();
+  // The run ended: the card always gets its final state, whatever happens to the notice or its recipient.
+  const finishCard=async(target,controller)=>{
+    if(closingPromise)return;
+    try{const run=buildRun({health:await fetchHealth(target),taskId:target.taskId,startedAt:target.startedAt});applyLive(target,{step:stepLine(run),run});}catch{}
+    let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
+    if(closingPromise)return;
+    applyFinish(target.workspaceId,target.nodeId,target.taskId,controller,task);
+  };
   // A terminal that launches a run gets the task bound and "working" on its card; the same mutation path as terminal.agent.update.
   const bindRunStart=async(r,workspaceId)=>{
     const answer=await routeIntegration('phantom.detail',{workspaceId,topic:'tasks',id:r.taskId});
@@ -136,24 +212,6 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     mutate(workspaceId,()=>{const current=cardNode(store.getWorkspace(workspaceId).nodes,r.origin);if(!current)return;
       if(patch.cardId!==current.data.agent?.cardId&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(patch.cardTitle);if(named)current.title=named;}
       current.data.agent={...current.data.agent,...patch};});
-  };
-  // At the end the card shows review/blocked, and a live terminal with a recognized foreground agent is told; capped like chats.
-  const wakeExhausted=new Set();
-  const wakeTerminal=async(target,controller)=>{
-    let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
-    if(closingPromise)return;
-    let node;try{node=store.getWorkspace(target.workspaceId).nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');}catch{}
-    if(!node)return;
-    applyFinish(target.workspaceId,node.id,target.taskId,controller,task);
-    let session;try{session=node.data.sessionId?terminals.get(node.data.sessionId):null;}catch{}
-    if(!session||session.status!=='running'||session.nodeId!==node.id||!terminals.foreground(session.id)?.agent)return;
-    if(!wakeLimit.allow(node.id)){
-      if(wakeExhausted.has(node.id))return;wakeExhausted.add(node.id);
-      const w=store.getWorkspace(target.workspaceId),now=new Date().toISOString(),item={id:randomUUID(),eventKey:`wake-exhausted:${node.id}:${target.id}`,title:`El encargo ${target.taskId} terminó y nadie lo atendió (tope de avisos alcanzado)`,source:'phantom',ref:target.id,runId:target.id,status:'completed',createdAt:now,observedAt:now};
-      mutate(w.id,()=>{pushAttention(store.getWorkspace(w.id),item);});broadcast({type:'attention.new',workspaceId:w.id,item});
-      return;
-    }
-    terminals.write(session.id,wakeMessage({taskId:target.taskId,controller,task})+'\r');
   };
   // A finished Phantom run backing a terminal plan's running phase closes it and, with chain, launches the next registered one.
   const planSeen=new Set();
@@ -182,17 +240,17 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const envRelease=(workspaceId,sessionId,nodeId)=>envChain=envChain.then(async()=>{
     let w;try{w=store.getWorkspace(workspaceId);}catch{return;}
     if(!(w.envOwners||[]).some(e=>(sessionId&&e.ownerSessionId===sessionId)||(nodeId&&e.ownerNodeId===nodeId)))return;
-    try{const answer=await routeIntegration('env.release',{workspaceId,sessionId,nodeId});if(answer?.handled)closeEnvBrowsers(workspaceId,answer.result?.removed);}catch{}
+    try{const answer=await routeIntegration('env.release',{workspaceId,sessionId,nodeId});if(answer?.handled){const result=answer.result;for(const group of result?.removedEnvironments??[{services:result?.removed}])closeEnvBrowsers(workspaceId,group.services,group.environmentId);}}catch{}
   });
-  const closeEnvBrowsers=(workspaceId,names)=>{
+  const closeEnvBrowsers=(workspaceId,names,environmentId)=>{
     if(!names?.length)return;
-    const gone=n=>n.type==='browser'&&names.includes(n.data?.envService);
+    const gone=n=>n.type==='browser'&&names.includes(n.data?.envService)&&(n.data?.envEnvironmentId??null)===(environmentId??null);
     if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);w.nodes=w.nodes.filter(n=>!gone(n));});
   };
   async function envBrowser(w,sender,service) {
-    const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name);
+    const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name&&(n.data?.envEnvironmentId??null)===(service.environmentId??null));
     if(existing){if(existing.data.url!==service.url)await invoke('node.update',{workspaceId:w.id,id:existing.id,patch:{data:{...existing.data,url:service.url}}});return existing.id;}
-    const node=await invoke('node.create',{workspaceId:w.id,type:'browser',title:`Entorno: ${service.name}`,...handoffPosition(store.getWorkspace(w.id)),data:{url:service.url,agentTerminal:sender.id,envService:service.name}});
+    const node=await invoke('node.create',{workspaceId:w.id,type:'browser',title:`Entorno: ${service.name}`,...handoffPosition(store.getWorkspace(w.id)),data:{url:service.url,agentTerminal:sender.id,envService:service.name,...(service.environmentId?{envEnvironmentId:service.environmentId}:{})}});
     return node.id;
   }
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
@@ -207,16 +265,17 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); markChanged(workspaceId); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;
   const inFlightIntegrations=new Set();
-  const routeIntegration=async(method,payload)=>{
+  const routeIntegration=async(method,payload,envCwd)=>{
     const request=(async()=>{
       if(!integration) {const module=await (integrationLoad??=import('../integrations/index.mjs'));integration=module.handleIntegration;shutdownIntegration??=module.shutdownIntegrations;}
       assert(!closingPromise,'Host is shutting down');
-      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.running(nodeId),sessions:terminals.sessions.filter(s=>s.status==='running').map(s=>terminals.descriptor(s))});
+      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.turns.has(nodeId),sessions:terminals.sessions.map(s=>terminals.descriptor(s)),...(envCwd!==undefined?{envCwd}:{})});
     })();inFlightIntegrations.add(request);try{return await request;}finally{inFlightIntegrations.delete(request);}
   };
   async function invoke(method,p={}) {
     assert(!closingPromise,'Host is shutting down');
     text(method,'method',128); object(p);
+    if(method===EVENTS_METHOD) return hostEvents.query(p,{session:id=>terminals.sessions.find(s=>s.id===id),workspaces:()=>store.state.workspaces});
     if(method==='mobile.status') return mobile.status();
     if(method==='mobile.start') return mobile.start(p);
     if(method==='mobile.stop') return mobile.stop();
@@ -259,10 +318,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const {validatePluginSettings}=await import('../src/plugins/registry.js');const settings=validatePluginSettings(p.id,p.settings);
       return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId);w.plugins={...w.plugins,[p.id]:{...w.plugins?.[p.id],...settings,config:w.plugins?.[p.id]?.config??{}}};w.updatedAt=new Date().toISOString();return settings;});
     }
-    if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
+    if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces','sessionDefaults'].includes(key),'Unsupported workspace patch');const patch={...p.patch};if(Object.hasOwn(patch,'sessionDefaults')&&patch.sessionDefaults!==null)patch.sessionDefaults={...validateSessionDefaults(patch.sessionDefaults)};Object.assign(w,patch,{updatedAt:new Date().toISOString()});if(w.sessionDefaults===null)delete w.sessionDefaults;return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
        const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);assertNewChatPolicy(node.data.chat,policy());}
+       if(node.type==='terminal'&&node.data.chat?.provider&&w.sessionDefaults&&!Object.hasOwn(node.data.chat,'permissionMode')&&!Object.hasOwn(node.data.chat,'autoApprove'))node.data={...node.data,chat:{...node.data.chat,...permissionPatch(w.sessionDefaults)}};
        // One orchestrator session per project.
        if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
        w.nodes.push(node);return node;
@@ -306,21 +366,22 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(['terminal.agent.env.list','terminal.agent.env.up','terminal.agent.env.run','terminal.agent.env.down'].includes(method)) {
       const action=method.slice('terminal.agent.env.'.length),sender=terminals.get(p.sessionId),w=store.getWorkspace(sender.workspaceId),from=w.nodes.find(n=>n.id===sender.nodeId);
       assert(from?.type==='terminal','No se encuentra el panel emisor del entorno');
-      const fields=validateEnv(action,p),ask=async(name,extra)=>{const answer=await routeIntegration(name,{workspaceId:w.id,...extra});assert(answer?.handled,'El entorno no está disponible');return answer.result;};
+      assert(typeof sender.cwd==='string'&&path.isAbsolute(sender.cwd),'La sesión no tiene un directorio de entorno válido');
+      const fields=validateEnv(action,p),ask=async(name,extra)=>{const answer=await routeIntegration(name,{workspaceId:w.id,...extra},sender.cwd);assert(answer?.handled,'El entorno no está disponible');return answer.result;};
       if(action==='list'){const result=await ask('env.list');return {...result,services:result.services.map(s=>({...s,mine:s.owner?.ownerSessionId===sender.id}))};}
       assert(sender.status==='running'&&from.data.sessionId===sender.id,'El entorno requiere la sesión viva actual del panel');
       reserveEnv(sender.id);
       const result=await ask(`env.${action}`,{owner:{sessionId:sender.id,nodeId:from.id},actor:'agent',...fields});
       if(action==='up'){result.browsers=[];for(const s of result.services)if(s.url)result.browsers.push({service:s.name,nodeId:await envBrowser(w,sender,s)});}
-      if(action==='down')closeEnvBrowsers(w.id,result.down);
+      if(action==='down')closeEnvBrowsers(w.id,result.down,result.environmentId);
       return result;
     }
     // UI: observe the environment and bring a service down (any lifecycle) from the Entorno panel.
     if(method==='env.list'||method==='env.down') {
-      for(const key of Object.keys(p))assert(['workspaceId',...(method==='env.down'?['service']:[])].includes(key),`Clave de entorno desconocida: ${key}`);
+      for(const key of Object.keys(p))assert(['workspaceId',...(method==='env.down'?['service','environmentId']:[])].includes(key),`Clave de entorno desconocida: ${key}`);
       store.getWorkspace(p.workspaceId);
-      const answer=await routeIntegration(method,{workspaceId:p.workspaceId,...(method==='env.down'?{service:p.service,actor:'ui'}:{})});assert(answer?.handled,'El entorno no está disponible');
-      if(method==='env.down')closeEnvBrowsers(p.workspaceId,answer.result.down);
+      const answer=await routeIntegration(method,{workspaceId:p.workspaceId,...(method==='env.down'?{service:p.service,actor:'ui',...(p.environmentId!==undefined?{environmentId:p.environmentId}:{})}:{})});assert(answer?.handled,'El entorno no está disponible');
+      if(method==='env.down')closeEnvBrowsers(p.workspaceId,answer.result.down,answer.result.environmentId);
       return answer.result;
     }
     assert(!method.startsWith('env.'),`Unknown method: ${method}`);
@@ -360,7 +421,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(session.status==='running' && node.data.sessionId===session.id,'Report requires the current live terminal session');
       object(p.patch);for(const key of Object.keys(p.patch)) assert(['step','status'].includes(key),'Reports may only update step and status');
       const patch=structuredClone(p.patch);validateAgent(patch);
-      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return agentContext(w,current,session);});
+      const reported=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return {context:agentContext(w,current,session),agent:current.data.agent};});
+      try{hostEvents.report({workspaceId:w.id,nodeId:node.id,agent:reported.agent});}catch{}
+      return reported.context;
     }
     if(method==='terminal.agent.plan') {
       for(const key of Object.keys(p))assert(['sessionId','op'].includes(key),`Clave de plan desconocida: ${key}`);
@@ -405,15 +468,16 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
     if(method==='terminal.write') {
       // Host-originated notices call terminals.write directly, so this RPC is user input: it restarts the notice cap.
-      try{const s=terminals.get(p.sessionId);wakeLimit.reset(s.nodeId);wakeExhausted.delete(s.nodeId);}catch{}
+      try{const s=terminals.get(p.sessionId);wakeLimit.reset(s.nodeId);noticeLimit.reset(s.nodeId);runWake.reset(s.nodeId);}catch{}
       return terminals.write(p.sessionId,p.data);
     }
     if(method==='terminal.trust') return terminals.trust(p.sessionId);
     if(method==='terminal.resize') return terminals.resize(p.sessionId,p.cols,p.rows);
-    if(method==='terminal.stop') return terminals.stop(p.sessionId);
+    if(method==='terminal.stop') {runWake.cancel(terminals.get(p.sessionId).nodeId);return terminals.stop(p.sessionId);}
     if(method==='terminal.close') {
       const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.id===p.nodeId);
       assert(node?.type==='terminal','Terminal node not found');
+      runWake.cancel(node.id,'La terminal se cerró');
       await terminals.closeNode(node.id);chats.removeNode(node.id);await envRelease(w.id,null,node.id);
       return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
@@ -433,11 +497,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         return chats.compaction(w,node,method==='chat.compact'?'compact':'capabilities');
       }
       // The project's Phantom conversation keeps its settings in the chat store.
-      if(main&&method==='chat.configure') return chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});
+      if(main&&method==='chat.configure') {const result=chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});if(p.provider!==undefined&&p.provider!==node.data.chat.provider)runWake.cancel(node.id,'El proveedor del chat cambió');return result;}
       if(method==='chat.get') return chats.get(node);
-      if(method==='chat.send'){wakeLimit.reset(node.id);return chats.send(w,node,p.text);}
-      if(method==='chat.stop') return chats.stop(node.id);
-      if(method==='chat.clear') return chats.clear(w,node);
+      if(method==='chat.send'){wakeLimit.reset(node.id);noticeLimit.reset(node.id);runWake.reset(node.id);return chats.send(w,node,p.text);}
+      if(method==='chat.stop') {runWake.cancel(node.id);return chats.stop(node.id);}
+      if(method==='chat.clear') {const result=chats.clear(w,node);runWake.cancel(node.id,'La conversación se reinició');return result;}
       if(method==='chat.queue.remove') return chats.removeQueued(w,node,p.id);
       if(method==='chat.queue.send') return chats.sendQueued(w,node,p.id);
       if(method==='chat.models') return chats.models(w,node);
@@ -451,6 +515,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       // model: the choice for the provider in effect after this call; null returns to the CLI's default.
       if(p.model!==undefined&&p.model!==null){validateModel(p.model);const provider=patch.provider===undefined?node.data.chat?.provider:patch.provider;if(provider)assertClientModel(provider,p.model,rules,'chat');}
       assert((p.model===undefined&&p.reasoning===undefined)||!chats.running(node.id),'Detén la respuesta antes de cambiar modelo o effort/variant');
+      if(patch.provider!==undefined&&patch.provider!==node.data.chat?.provider)runWake.cancel(node.id,'El proveedor del chat cambió');
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);assert(current,'Chat card not found');const chat=applyPatch(current.data.chat,patch);for(const [field,key] of [['model','models'],['reasoning','reasoning']])if(p[field]!==undefined){assert(chat.provider,'Elige un agente primero');const values={...chat[key]};if(p[field]===null)delete values[chat.provider];else values[chat.provider]=p[field];chat[key]=values;}validateChat(chat);current.data={...current.data,chat};return current;});
     }
     if(method.startsWith('merge.')) return merges.handle(method,p);
@@ -484,6 +549,15 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     });
     if(method==='host.shutdown') {setTimeout(()=>close().catch(error=>console.error(error.message)),30);return {ok:true};}
     const answer=await routeIntegration(method,p);assert(answer?.handled,`Unknown method: ${method}`);
+    if(method==='phantom.control'&&p.action==='amend'&&answer.result?.action==='amend'){
+      try{
+        const w=store.getWorkspace(p.workspaceId),node=w.nodes.find(n=>n.type==='terminal'&&n.data.agent?.cardId===p.id);
+        if(node){
+          const delivered=await deliverNotice({workspaceId:w.id,nodeId:node.id,via:'terminal'},'amend',amendNotice(p.id,answer.result));
+          if(!delivered?.delivered)mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);if(current?.data.agent?.cardId===p.id)current.data.agent={...current.data.agent,step:AMEND_STEP,updatedAt:new Date().toISOString()};});
+        }
+      }catch{}
+    }
     // The full task catalog (no query filter) is what proves a unique match.
     if(method==='phantom.list'&&p.topic==='tasks'&&!p.query&&answer.result?.available&&Array.isArray(answer.result.items)) autoBind(p.workspaceId,answer.result.items);
     return answer.result;
@@ -505,6 +579,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   function close() {
     if(closingPromise)return closingPromise;
+    runWatch.stop();runWake.close();hostEvents.close();
     closingPromise=(async()=>{
       try {
         try { await Promise.all([mobile?.stop(),android?.stop()]); } finally {

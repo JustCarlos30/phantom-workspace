@@ -1,13 +1,11 @@
 import React from 'react';
+import { expect, userEvent, within } from 'storybook/test';
 import BrowserPanel from '../components/BrowserPanel';
-import RepositoryPanel from '../components/Repository';
-import BranchesPanel from '../components/Branches';
-import IncorporacionesPanel from '../components/Incorporaciones';
 import { PhantomCards } from '../components/PhantomCards';
 import { PhantomSkills } from '../components/PhantomSkills';
 import MemoryCard from '../components/MemoryCard';
 import { Markdown as SkillsMarkdown } from '../components/SkillsMarkdown';
-import CommandCenterPanel from '../components/CommandCenter';
+import { ToolPanel } from '../components/ToolPanels';
 import { demo, Panel } from './decorators';
 import { markdown, date } from './fixtures';
 import { BeforeAfter, Page, materialArg } from './proposals-kit';
@@ -24,8 +22,7 @@ const H = 720;
 const Host = ({ children }) => <div className="px-panels-host">{children}</div>;
 const browser = { id: 'browser-demo', type: 'browser', data: { url: 'https://example.invalid', reader: true } };
 const memory = { id: 'memory-demo', kind: 'decision', title: 'Decisión sintética', body: markdown, scope: '.', space: 'project', revision: 1, state: 'active', updatedAt: date, evidence: [] };
-/* Envoltorio real de ToolPanels.jsx (ToolPanel + ToolContent): .tw-tool-panel > .tw-content[.is-flush]. */
-const Tool = ({ flush, children }) => <div className="tw-tool-panel"><div className={`tw-content${flush ? ' is-flush' : ''}`}>{children}</div></div>;
+const Tool = ({ type }) => <ToolPanel {...demo} node={{ id: `story-${type}`, type, data: {} }} />;
 const pluginPanel =node => <Host><div className="plugin-surface"><Panel>{node}</Panel></div></Host>;
 
 const navegador = () => <Host><Panel><BrowserPanel {...demo} node={browser} active={false} /></Panel></Host>;
@@ -39,7 +36,7 @@ export const Navegador = {
   </Page>,
 };
 
-const repositorio = () => <Host><Panel><Tool flush><RepositoryPanel {...demo} /></Tool></Panel></Host>;
+const repositorio = () => <Host><Panel><Tool type="repo" /></Panel></Host>;
 export const Repositorio = {
   render: ({ material }) => <Page title="Repositorio" problem="Archivos, grupos por carpeta y diff van en cajas con contorno dentro del panel; cada nivel añade un borde.">
     <BeforeAfter height={H} material={material} before={repositorio()} after={repositorio()} changes={[
@@ -50,7 +47,7 @@ export const Repositorio = {
   </Page>,
 };
 
-const ramas = () => <Host><Panel><Tool flush><BranchesPanel {...demo} /></Tool></Panel></Host>;
+const ramas = () => <Host><Panel><Tool type="branches" /></Panel></Host>;
 export const Ramas = {
   render: ({ material }) => <Page title="Ramas" problem="Búsqueda, filtros, grupos y filas de rama llevan cada uno su borde; los filtros parecen botones secundarios.">
     <BeforeAfter height={H} material={material} before={ramas()} after={ramas()} changes={[
@@ -62,7 +59,7 @@ export const Ramas = {
 };
 
 /* ---------- Incorporaciones ---------- */
-const incorporaciones = () => <Host><Panel><Tool><IncorporacionesPanel {...demo} /></Tool></Panel></Host>;
+const incorporaciones = () => <Host><Panel><Tool type="incorporaciones" /></Panel></Host>;
 export const Incorporaciones = {
   render: ({ material }) => <Page title="Incorporaciones" problem="La cola de integración apila secciones y elementos con contorno; el aviso de desactivado es otra caja dentro del panel.">
     <BeforeAfter height={H} material={material} before={incorporaciones()} after={incorporaciones()} changes={[
@@ -117,7 +114,7 @@ export const Markdown = {
 };
 
 /* ---------- Centro de mando ---------- */
-const centro = () => <Host><Panel><Tool><CommandCenterPanel {...demo} /></Tool></Panel></Host>;
+const centro = () => <Host><Panel><Tool type="command-center" /></Panel></Host>;
 export const CentroDeMando = {
   render: ({ material }) => <Page title="Centro de mando" problem="Cabecera, avisos, barra de herramientas, filtros y secciones son cajas apiladas; la frescura de datos compite como metadato ruidoso.">
     <BeforeAfter height={H} material={material} before={centro()} after={centro()} changes={[
@@ -126,8 +123,22 @@ export const CentroDeMando = {
       '«Frecuencia de actualización» y su selector en una sola fila etiqueta–valor.',
       'Frescura en una línea de apoyo en tinta terciaria; el aviso de desactualizado conserva su color sin peso de título.',
       'Buscador y filtro alineados al margen, 12 px entre ellos y 20 px arriba.',
-      'Encargos como filas tonales (12×16 px, radio de fila, 4 px entre filas): título en titular limitado a 2 líneas, metadatos en apoyo, ruta e ID en mono terciaria.',
+      'Encargos como filas tonales (12×16 px, radio de fila, 4 px entre filas): título completo, metadatos en apoyo, ruta e ID en mono terciaria.',
       'Secciones y avisos sin contorno.',
     ]} />
   </Page>,
+  play: async ({ canvasElement }) => {
+    const stage = canvasElement.querySelector('.px-after .px-panels-host');
+    stage.style.maxWidth = '320px';
+    try {
+      const panel = within(stage);
+      const search = await panel.findByRole('textbox', { name: 'Buscar tareas' });
+      await userEvent.click(search);
+      await userEvent.type(search, 'sintético');
+      await expect(search).toHaveFocus();
+      await expect(search).toHaveValue('sintético');
+      await userEvent.selectOptions(panel.getByRole('combobox', { name: 'Filtrar tareas' }), 'blocked');
+      await expect(panel.getByRole('combobox', { name: 'Filtrar tareas' })).toHaveValue('blocked');
+    } finally { stage.style.maxWidth = ''; }
+  },
 };

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COMMANDS, resolveBindings, validateBindings, matchCommand, formatBinding } from './workspace-commands.mjs';
 import { panelShortcut } from './panel-shortcuts.mjs';
+import { readFileSync } from 'node:fs';
 import { nativeMenuShortcuts, nativeBindingReservation } from '../../shared/keyboard-reservations.mjs';
 
 const bindings = resolveBindings();
@@ -12,7 +13,7 @@ const ctrlShift = key => eventFor(key, { ctrlKey: true, shiftKey: true });
 
 test('el catálogo publica los IDs pactados, defaults únicos y metadatos de UI', () => {
   assert.deepEqual(COMMANDS.map(command => command.id), [
-    'palette', 'projects', 'panels', 'dictation', 'left', 'right', 'up', 'down', 'next-session', 'previous-session',
+    'palette', 'projects', 'panels', 'left', 'right', 'up', 'down', 'next-session', 'previous-session', 'next-attention',
     'enter-panel', 'leave-panel', 'fit-all', 'return-focus', 'shortcuts',
     'create-terminal', 'create-browser', 'create-note', 'create-zone',
   ]);
@@ -24,6 +25,19 @@ test('el catálogo publica los IDs pactados, defaults únicos y metadatos de UI'
   }
   assert.equal(new Set(Object.values(bindings)).size, COMMANDS.length);
   assert.deepEqual(validateBindings().conflicts, []);
+});
+
+test('next-attention existe, tiene binding único y no genera conflictos', () => {
+  const command = COMMANDS.find(item => item.id === 'next-attention');
+  assert.ok(command);
+  assert.equal(command.title, 'Siguiente sesión que necesita atención');
+  assert.equal(command.group, 'Navegación');
+  assert.equal(command.scope, 'global');
+  assert.equal(command.defaultBinding, 'Ctrl+Shift+A');
+  assert.equal(Object.values(bindings).filter(binding => binding === command.defaultBinding).length, 1);
+  assert.deepEqual(validateBindings({ 'next-attention': 'Ctrl+Shift+A' }).conflicts, []);
+  assert.equal(matchCommand(ctrlShift('A'), bindings), 'next-attention');
+  assert.equal(matchCommand(ctrlShift('a'), bindings, { editable: true }), 'next-attention');
 });
 
 test('los modificadores son exactos; Ctrl no implica Meta ni ignora Alt/Shift', () => {
@@ -212,22 +226,6 @@ test('mantiene los atajos de creación Ctrl y la compatibilidad Cmd de panelShor
   }
 });
 
-test('dictation participa en duplicados, intercambio, rebinding y desactivación', () => {
-  const rejected = validateBindings({ palette: 'shift+control+m' });
-  assert.deepEqual(rejected.bindings, bindings);
-  assert.ok(rejected.conflicts.some(conflict => conflict.reason === 'duplicate' && conflict.ids.includes('palette') && conflict.ids.includes('dictation')));
-  assert.equal(matchCommand(ctrlShift('m'), rejected.bindings), 'dictation');
-  const swapped = validateBindings({ palette: 'Ctrl+Shift+M', dictation: 'Ctrl+K' });
-  assert.deepEqual(swapped.conflicts, []);
-  assert.equal(matchCommand(ctrlShift('m'), swapped.bindings), 'palette');
-  assert.equal(matchCommand(ctrl('k'), swapped.bindings), 'dictation');
-  const rebound = resolveBindings({ dictation: 'Alt+M' });
-  assert.equal(matchCommand(ctrlShift('m'), rebound), null);
-  assert.equal(matchCommand(eventFor('m', { altKey: true }), rebound), 'dictation');
-  assert.equal(matchCommand(ctrlShift('m'), resolveBindings({ dictation: null })), null);
-  assert.equal(formatBinding(rebound.dictation), 'Alt+M');
-});
-
 test('rechaza reservas nativas canónicas y conserva salida y configuración recuperables', () => {
   const modifier = process.platform === 'darwin' ? 'Meta' : 'Ctrl';
   for (const key of ['W', 'Q', 'Z', 'X', 'C', 'V', 'A', 'R']) {
@@ -241,7 +239,7 @@ test('rechaza reservas nativas canónicas y conserva salida y configuración rec
     assert.equal(result.conflicts[0].reason, 'native-reservation');
   }
   for (const { accelerator, title } of Object.values(nativeMenuShortcuts())) {
-    for (const id of ['palette', 'leave-panel', 'shortcuts', 'left', 'dictation']) {
+    for (const id of ['palette', 'leave-panel', 'shortcuts', 'left']) {
       const result = validateBindings({ [id]: accelerator.toLowerCase() });
       assert.equal(result.bindings[id], bindings[id]);
       const requiredFunctionKey = accelerator === 'F11' && ['leave-panel', 'shortcuts'].includes(id);
@@ -258,10 +256,10 @@ test('rechaza reservas nativas canónicas y conserva salida y configuración rec
   }
 });
 
-test('reservas compartidas distinguen plataforma y dejan Ctrl+Shift+N para crear nota', () => {
+test('reservas compartidas distinguen plataforma y no chocan con los defaults', () => {
   for (const platform of ['linux', 'win32', 'darwin']) {
     const menu = nativeMenuShortcuts(platform);
-    assert.equal(nativeBindingReservation('Ctrl+Shift+N', platform), null);
+    for (const command of COMMANDS) assert.equal(nativeBindingReservation(command.defaultBinding, platform), null, command.id);
     assert.equal(nativeBindingReservation('Meta+Shift+N', platform), null);
     assert.equal(menu.close.accelerator, platform === 'darwin' ? 'Meta+W' : 'Ctrl+W');
     assert.equal(menu.redo.accelerator, platform === 'darwin' ? 'Shift+Meta+Z' : 'Ctrl+Y');
@@ -274,4 +272,13 @@ test('reservas compartidas distinguen plataforma y dejan Ctrl+Shift+N para crear
   assert.equal(nativeBindingReservation('Meta+W', 'linux'), null);
   assert.equal(nativeBindingReservation('Ctrl+W', 'darwin'), null);
   assert.equal(matchCommand(ctrlShift('n'), validateBindings({ 'create-note': 'Ctrl+Shift+N' }).bindings), 'create-note');
+});
+
+test('el menú nativo toma sus aceleradores de las reservas y deja libres Ctrl+Shift+N/Z', () => {
+  const source = readFileSync(new URL('../../desktop/main.mjs', import.meta.url), 'utf8');
+  const menu = source.slice(source.indexOf('Menu.setApplicationMenu'), source.indexOf(']));', source.indexOf('Menu.setApplicationMenu')));
+  assert.match(source, /nativeMenuShortcuts\(process\.platform\)/);
+  assert.doesNotMatch(menu, /accelerator:\s*'/);
+  assert.doesNotMatch(menu, /\{ role: '/);
+  assert.match(menu, /\{ label: 'Abrir ventana', click:/);
 });

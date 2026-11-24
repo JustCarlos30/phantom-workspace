@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { expect, userEvent, within } from 'storybook/test';
 import Settings from '../components/Settings';
 import { Appearance } from '../components/Appearance';
 import ActivityNotch, { ActivityTray } from '../components/ActivityNotch';
@@ -24,27 +25,6 @@ const H = 720;
 const types = [['note', 'Nota', NoteIcon, 'Contexto de texto', 'space'], ['terminal', 'Terminal', TerminalIcon, 'Sesión local', 'space']];
 /* Contenedor con transform: ancla dentro del escenario los overlays fijos. */
 const Host = ({ children }) => <div className="px-right-host">{children}</div>;
-/* Los modales reales se montan con createPortal en <body>: se copia su DOM (inerte) dentro del escenario y se oculta el original, para ver dos copias. */
-function Contained({ selector, children }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    let clone = null, original = null;
-    const frame = requestAnimationFrame(() => {
-      original = [...document.body.querySelectorAll(`:scope > ${selector}`)].find(node => !node.dataset.pxTaken) || null;
-      if (!original || !ref.current) return;
-      original.dataset.pxTaken = 'true';
-      clone = original.cloneNode(true);
-      delete clone.dataset.pxTaken;
-      clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
-      clone.setAttribute('inert', '');
-      clone.setAttribute('aria-hidden', 'true');
-      ref.current.appendChild(clone);
-      original.style.display = 'none';
-    });
-    return () => { cancelAnimationFrame(frame); clone?.remove(); if (original) { original.style.display = ''; delete original.dataset.pxTaken; } };
-  }, [selector]);
-  return <div ref={ref} className="px-right-host">{children}</div>;
-}
 
 /* ---------- Inspector ---------- */
 const inspector = () => <Host><InspectorPanel {...demo} tab="playground" /></Host>;
@@ -165,21 +145,46 @@ function Indicator() {
   const voice = { status: 'recording', level: 0.4, mode: 'live', live: { confirmed: 'Transcripción sintética.', partial: 'Texto en curso…' }, cancel: noop };
   return <Host><section className="catalog-sample pc" aria-label="Fixture sintético de dictado (SYNTHETIC)"><div className="pc-composer" data-dictating><div className="pc-field"><div className="pc-input" data-preview><VoiceTranscript voice={voice} draft="Borrador." /><textarea aria-label="Transcripción sintética" readOnly value={dictationPreview(voice, 'Borrador.')} /></div><div className="pc-controls"><VoiceActivity voice={voice} onFinish={noop} hint="Esc descarta · Enter envía" /></div></div></div></section></Host>;
 }
-const dictation = () => <Contained selector=".voice-backdrop"><VoiceDictation {...demo} target={{ workspaceId: workspace.id, label: 'Sin campo seleccionado', kind: 'none' }} /></Contained>;
+function DictationView({ vista, material }) {
+  const [open, setOpen] = useState(false);
+  const after = vista === 'propuesta';
+  useEffect(() => {
+    if (!after || !open) return undefined;
+    const body = document.body;
+    body.classList.add('px-after', 'px-material');
+    body.dataset.variant = material;
+    return () => { body.classList.remove('px-after', 'px-material'); delete body.dataset.variant; };
+  }, [after, material, open]);
+  return <>
+    <Tag today={!after} />
+    <p>Usa el control «Vista» para alternar el estilo del diálogo real.</p>
+    <button type="button" onClick={() => setOpen(true)}>Abrir dictado</button>
+    {open && <VoiceDictation {...demo} onClose={() => setOpen(false)} target={{ workspaceId: workspace.id, label: 'Sin campo seleccionado', kind: 'none' }} />}
+  </>;
+}
 export const Voz = {
-  render: ({ material }) => <Page title="Voz" problem="El indicador de dictado y la ventana de dictado suman contornos, medidor con fondo y dos botones de distinto peso.">
+  args: { vista: 'propuesta' },
+  argTypes: { vista: { control: 'inline-radio', options: ['hoy', 'propuesta'], name: 'Vista' } },
+  render: ({ material, vista }) => <Page title="Voz" problem="El indicador de dictado y la ventana de dictado suman contornos, medidor con fondo y dos botones de distinto peso.">
     <Section label="Indicador en el compositor">
-      <BeforeAfter height={280} material={material} before={<Indicator />} after={<Indicator />} changes={[
+      <BeforeAfter historical height={280} material={material} before={<Indicator />} after={<Indicator />} changes={[
         'Mismo VoiceActivity real dentro del compositor isla: aro de 1 px, sin anillo grueso.',
         'Descartar plano y terminar como primaria marfil, ambos circulares de 36 px.',
         'Medidor sin fondo propio; barras en tinta.',
       ]} />
     </Section>
     <Section label="Dictado">
-      <BeforeAfter stacked contain height={H} material={material} before={dictation()} after={dictation()} changes={[
-        'Mismo VoiceDictation real con material cenital, sin borde.',
-        'Controles circulares planos y primaria marfil.',
-      ]} />
+      <DictationView vista={vista} material={material} />
     </Section>
   </Page>,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Abrir dictado' }));
+    const dialog = await within(document.body).findByRole('dialog', { name: 'Dictado por voz' });
+    const close = within(dialog).getByRole('button', { name: 'Cerrar dictado' });
+    await expect(close).toHaveFocus();
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Transcripción editable' }), 'Texto sintético');
+    await userEvent.click(close);
+    await expect(within(document.body).queryByRole('dialog', { name: 'Dictado por voz' })).not.toBeInTheDocument();
+  },
 };

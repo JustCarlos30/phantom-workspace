@@ -2,7 +2,7 @@ import React from 'react';
 import ChatCard from '../components/ChatCard';
 import { demo, Panel } from './decorators';
 import { chatNode } from './fixtures';
-import { BeforeAfter, Page, Section, Session, Status } from './proposals-kit';
+import { BeforeAfter, Page, Section, Status } from './proposals-kit';
 import './proposals.css';
 
 export default {
@@ -46,7 +46,7 @@ const CHANGES = [
   'Sin la fila «Contexto de la sesión»: el contexto pasa a un chip dentro de la isla.',
   'Una sola línea de estado viva encima del campo.',
   'Conversación en columna centrada de 720 px.',
-  'Material más separado del lienzo (cenital: #19191d → #0d0d10 con brillo).',
+  'Material vigente: #151518 → #0b0b0d con brillo del 4 % sobre #020203.',
 ];
 
 export const AntesDespues = {
@@ -54,21 +54,23 @@ export const AntesDespues = {
   render: () => <Page title="Antes y después" problem="A la izquierda, el ChatCard real de producción tal como está hoy. A la derecha, el panel de sesión propuesto con material cenital, compositor isla y mensaje en cita.">
     <BeforeAfter height={704} changes={CHANGES}
       before={<Panel><ChatCard {...demo} node={chatNode} /></Panel>}
-      after={<Session material="cenital" message="cita" state="trabajando" />} />
+      after={<Panel><ChatCard {...demo} node={chatNode} /></Panel>} />
   </Page>,
 };
 
 const DECIDED = [
   ['Compositor isla', 'Campo redondeado con todos los controles dentro, aro de 1 px que solo se aclara al enfocar y una sola línea viva de estado.', [['sesiones', 'ChatReposo', 'Chat en reposo'], ['sesiones', 'ChatTrabajando', 'Chat trabajando'], ['sesiones', 'Dictado', 'Dictado']]],
-];
-const PENDING = [
-  ['Aro de foco de la isla', 'Luz (recomendada), blanco como hoy, marfil, acento o sin aro; el foco de teclado de los botones no cambia.', [['feel', 'FocoIsla', 'Foco de la isla']]],
+  ['Aro de foco: luz', 'Con foco el relleno sube y la luz ilumina el aro desde arriba; el foco de teclado de los botones no cambia.', [['feel', 'FocoIsla', 'Foco de la isla']]],
   ['Uso del acento', 'Solo en tu acción primaria, foco/selección e identidad del proyecto; nunca en estados, superficies, lectura ni herramientas.', [['feel', 'Acento', 'Color de acento']]],
   ['Contador de contexto', 'Anillo dentro de la isla junto al modelo, que solo muestra número y aviso al acercarse al límite.', [['feel', 'ContadorContexto', 'Contador de contexto']]],
-  ['Material del objeto', 'Cenital (por defecto), grafito o borde, comparados con el material de hoy desde Controls.', [['fundamentos', 'Material', 'Material'], ['shell', 'Rail', 'Rail']]],
-  ['Mensaje del usuario', 'Cita con barra marfil, como hoy, o burbuja a la derecha con relleno 5 %.', [['sesiones', 'ChatReposo', 'Chat en reposo'], ['sesiones', 'ChatTrabajando', 'Chat trabajando']]],
-  ['Dock unificado', 'Un solo dock centrado; las herramientas del lienzo pasan junto al minimapa.', [['shell', 'Dock', 'Dock'], ['shell', 'Minimapa', 'Minimapa'], ['shell', 'Zoom', 'Zoom']]],
-  ['Cabecera compacta del rail', 'Proyecto y espacio en un solo selector; la atención pasa a ser la primera fila.', [['shell', 'Rail', 'Rail'], ['shell', 'RailFilas', 'Filas del rail']]],
+  ['Material cenital', 'Material del objeto cenital (6·1), integrado en rail, paneles y flotantes.', [['fundamentos', 'Material', 'Material'], ['shell', 'Rail', 'Rail']]],
+  ['Mensaje del usuario como cita', 'Cita con barra marfil de 2 px, sin burbuja.', [['sesiones', 'ChatReposo', 'Chat en reposo'], ['sesiones', 'ChatTrabajando', 'Chat trabajando']]],
+  ['Dock unificado', 'Un solo dock centrado; las herramientas del lienzo pasan junto al minimapa (6·3).', [['shell', 'Dock', 'Dock'], ['shell', 'Minimapa', 'Minimapa'], ['shell', 'Zoom', 'Zoom']]],
+  ['Cabecera compacta del rail', 'Proyecto y espacio en un solo selector; la atención pasa a ser la primera fila (6·4).', [['shell', 'Rail', 'Rail'], ['shell', 'RailFilas', 'Filas del rail']]],
+  ['Bandeja y centro de mando', 'Filas tonales planas y acciones sin caja (6·5).', [['derecha', 'Bandeja', 'Bandeja'], ['paneles', 'CentroDeMando', 'Centro de mando']]],
+];
+const PENDING = [
+  ['Insignias del rail', 'Por estado (integrado hoy, recomendado) o por tipo con la paleta definida; sin confirmar por Carlos.', [['shell', 'RailFilas', 'Filas del rail'], ['fundamentos', 'Insignias', 'Insignias']]],
 ];
 function DecisionList({ items }) {
   return <ul className="px-decisions">{items.map(([title, detail, links]) => <li key={title}>

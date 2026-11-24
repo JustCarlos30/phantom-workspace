@@ -24,6 +24,7 @@ export function CommandPalette({ open, onClose, workspace, bindings, onAction })
       { title: 'Buscar paneles del proyecto', group: 'Navegación', command: 'panels', action: { type: 'panels' } },
       { title: 'Preguntar a Phantom', group: workspace.name, action: { type: 'phantom-chat' } },
       { title: 'Capturar voz o escribir intención', group: workspace.name, action: { type: 'voice' } },
+      { title: 'Dictado por voz · Ctrl/Cmd + Shift + M', group: workspace.name, action: { type: 'dictation' } },
       ...(workspace.nodes || []).map(node => ({ title: node.title || node.type, group: 'En el mapa', action: { type: 'panel', id: node.id } })),
       ...[['terminal', 'Nueva terminal'], ['browser', 'Nuevo navegador'], ['note', 'Nueva nota'], ['zone', 'Nueva zona']].map(([panelType, title]) => ({ title, group: 'Crear', command: `create-${panelType}`, action: { type: 'create', panelType } })),
     ] : []),
