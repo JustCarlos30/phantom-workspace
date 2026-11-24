@@ -114,7 +114,7 @@
 }
 .app-shell :is(.header-controls .icon-button, .canvas-navigation > button, .workspace-header > .rail-toggle):hover:not(:disabled) { background-color: var(--control-hover); }
 .app-shell :is(.header-controls .icon-button, .canvas-navigation > button, .workspace-header > .rail-toggle):active:not(:disabled) { background-color: var(--control-press); }
-.app-shell .canvas-navigation > .zoom-value { width: auto; padding-inline: 10px; border-radius: var(--r-pill); }
+.app-shell .canvas-navigation > .zoom-value { width: auto; min-width: max-content; padding: 0 12px; background-clip: border-box; border-radius: var(--r-pill); white-space: nowrap; overflow: visible; line-height: 1; flex: none; }
 .app-shell .search-command { min-height: var(--control-size); background: var(--control-fill); }
 .app-shell .search-command:hover:not(:disabled) { background: var(--control-hover); }
 .app-shell .search-command:active:not(:disabled) { background: var(--control-press); }
