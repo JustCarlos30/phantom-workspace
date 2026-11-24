@@ -48,3 +48,16 @@ test('antigüedad', () => {
   assert.equal(ageLabel('2026-11-10T12:00:00Z', now), 'hace 10 d');
   assert.equal(ageLabel('nope', now), '');
 });
+
+test('servicios homónimos conservan identidad y ruta para administrar el worktree correcto', () => {
+  const services = ['a', 'b'].map(id => ({ name: 'web', lifecycle: 'persistent', status: 'running', environmentId: id, root: `/worktrees/${id}`, project: `phantom-${id}`, owner: owner() }));
+  const rows = envView({ data: { compose: true, services }, now }).groups[0].rows;
+  assert.notEqual(rows[0].key, rows[1].key);
+  assert.deepEqual(rows.map(r => [r.name, r.environmentId, r.root, r.project, r.canDown]), [
+    ['web', 'a', '/worktrees/a', 'phantom-a', true],
+    ['web', 'b', '/worktrees/b', 'phantom-b', true],
+  ]);
+  const legacy = envRow({ name: 'web', status: 'running' });
+  assert.equal(legacy.environmentId, null);
+  assert.notEqual(legacy.key, rows[0].key);
+});

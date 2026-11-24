@@ -12,14 +12,15 @@ export function ComposeServices({ workspace, api, notify, onOpenPanel }) {
   const view = envView({ data: env.data, loading: env.loading, error: env.error, nodes: workspace.nodes || [] });
   return <Section title="Servicios del compose" action={<Refresh resource={env} />}>
     {view.state !== 'ready' && <p className={view.state === 'error' ? 'tw-error' : 'tw-muted'} role={view.state === 'error' ? 'alert' : 'status'}>{view.message}</p>}
-    {view.groups.map(group => <div key={group.key}><h4 className="tw-muted">{group.title}</h4>{group.rows.map(row => <article className="tw-item" key={row.name}>
+    {view.groups.map(group => <div key={group.key}><h4 className="tw-muted">{group.title}</h4>{group.rows.map(row => <article className="tw-item" key={row.key}>
       <div className="tw-heading"><strong>{row.name}</strong><span className="tw-badge">{row.lifecycleLabel}</span><span className="tw-badge">{row.status}</span></div>
       <small>Dueño: {row.owner}{row.age ? ` · ${row.age}` : ''}</small>
+      {row.root && <small>{row.root}{row.project ? ` · ${row.project}` : ''}</small>}
       {(row.purpose || row.card) && <small>{[row.purpose, row.card && `Card: ${row.card}`].filter(Boolean).join(' · ')}</small>}
       {row.url && <small>{row.url}</small>}
       <div className="tw-row">
         <Button icon={ArrowUpRight} disabled={op.busy || !row.canOpen || !onOpenPanel} onClick={() => op.run(() => onOpenPanel('browser', { url: row.url }, row.name))}>Abrir</Button>
-        <Button icon={Trash2} disabled={op.busy || !row.canDown} onClick={() => op.run(async () => { await api('env.down', { workspaceId: workspace.id, service: row.name }); env.reload(); }, `${row.name}: eliminado`)}>Detener y eliminar</Button>
+        <Button icon={Trash2} disabled={op.busy || !row.canDown} onClick={() => op.run(async () => { await api('env.down', { workspaceId: workspace.id, service: row.name, ...(row.environmentId ? { environmentId: row.environmentId } : {}) }); env.reload(); }, `${row.name}: eliminado`)}>Detener y eliminar</Button>
       </div>
     </article>)}</div>)}
     <OperationState op={op} />

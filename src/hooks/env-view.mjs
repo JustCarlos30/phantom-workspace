@@ -31,6 +31,10 @@ export function envRow(service, { nodes = [], now = Date.now() } = {}) {
   const url = text(service?.url) || (Array.isArray(service?.urls) ? text(service.urls[0]) : '');
   const running = isRunning(service?.status);
   return {
+    key: JSON.stringify([text(service?.environmentId), text(service?.name)]),
+    environmentId: text(service?.environmentId) || null,
+    root: text(service?.root),
+    project: text(service?.project),
     name: text(service?.name) || 'Servicio',
     lifecycle,
     lifecycleLabel: LIFECYCLE_LABELS[lifecycle],
