@@ -4,9 +4,9 @@ import { Activity, AlertCircle, ArrowUp, Check, Compass, GitBranch, GitMerge, Li
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
-import { VoiceActivity, VoiceTranscript, dictationPreview } from './VoiceActivity';
+import { VoiceTranscript, dictationPreview } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
-import { ContextMeter, Message, PermissionRow, ProviderChoices, QueuedMessages, SessionChip, SessionContext, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
+import { ComposerControls, ContextMeter, Message, ModelPicker, PermissionRow, ProviderChoices, QueuedMessages, ReasoningPicker, SessionChip, SessionContext, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
 import PhantomOrchestrator from './PhantomOrchestrator';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude', hint: 'Claude Code en la carpeta del proyecto' }, { id: 'opencode', label: 'OpenCode', hint: 'OpenCode en la carpeta del proyecto' }, { id: 'codex', label: 'Codex', hint: 'Codex en la carpeta del proyecto' }];
@@ -129,16 +129,16 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <div className="pc-controls">
-          <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
-          {voice.status === 'idle' && onTask && <button type="button" className="pc-icon phantom-chat-task" title="Convertir en tarea" aria-label="Convertir el texto en una tarea" disabled={!draft.trim()} onClick={() => onTask(draft.trim())}><ListPlus size={18} /></button>}
-          {voice.status === 'idle' && messages.length > 0 && <SessionChip cwd={workspace.canonicalPath || workspace.name}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionChip>}
-          <span className="pc-bar-space" />
-          <ContextMeter meta={meta} {...compaction.meter} onNew={messages.length ? () => clear().catch(() => {}) : undefined} />
+        <ComposerControls voice={voice} selectors={messages.length > 0 && <>
+          <SessionChip cwd={workspace.canonicalPath || workspace.name}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionChip>
+          <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={!chat || running} />
+          <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} observed={meta.model} disabled={!chat || running} />
+        </>} leading={onTask && <button type="button" className="pc-icon phantom-chat-task" title="Convertir en tarea" aria-label="Convertir el texto en una tarea" disabled={!draft.trim() || voice.status !== 'idle'} onClick={() => onTask(draft.trim())}><ListPlus size={18} /></button>}
+          meter={<ContextMeter meta={meta} {...compaction.meter} onNew={messages.length ? () => clear().catch(() => {}) : undefined} />}>
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : 'Dictar por voz'} aria-label="Dictar por voz" onClick={toggleVoice}><Mic size={18} /></button>}
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected, ready: !!chat })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
-        </div>
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected, ready: !!chat })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
+        </ComposerControls>
       </div>
       {compaction.form}
     </form>

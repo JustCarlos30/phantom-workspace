@@ -280,9 +280,10 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-providers > *, .pc-context-rows > * { position: relative; }
 .pc-providers > * + *::before, .pc-context-rows > * + *::before { content: ''; position: absolute; top: 0; left: var(--divider-inset); right: var(--row-px); height: var(--divider-width); background: var(--divider); pointer-events: none; }
 .pc-providers > :hover::before, .pc-providers > :hover + *::before, .pc-context-rows > :hover::before, .pc-context-rows > :hover + *::before { opacity: 0; }
-.pc-session-context .pc-model-picker { position: relative; display: block; }
-.pc-session-context .pc-models { top: auto; bottom: 100%; max-height: 240px; }
-.pc-session-settings .pc-models { top: auto; bottom: 100%; }
+.pc .pc-session-context .pc-model-picker { position: relative; display: block; }
+.pc-session-context .pc-model.pc-session-row { flex-wrap: nowrap; }
+.pc-session-context .pc-models, .pc-session-pop .pc-models { position: static; width: 100%; max-height: 240px; margin-top: 8px; }
+.pc-session-context .pc-effort-menu { position: static; width: 100%; max-height: 240px; overflow-y: auto; margin-top: 8px; }
 .pc-session-context .pc-session-row { background-color: transparent; box-shadow: none; border-radius: var(--r-row); padding: var(--row-py) var(--row-px); font: var(--t-control); }
 .pc-session-context .pc-session-row:hover:not(:disabled) { background-color: var(--row-hover); }
 .pc-session-context .pc-session-row:active:not(:disabled) { background-color: var(--row-press); }
@@ -292,7 +293,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-folder p { margin: 0; padding: 0 16px 12px 60px; overflow-wrap: anywhere; color: var(--muted); font: var(--t-code); }
 /* «Contexto de la sesión»: a chip in the island; its settings open above the island. */
 .pc-session-settings { flex: 0 1 auto; min-width: 0; }
-.pc-session-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; max-width: 180px; padding: 0 12px 0 10px; border-radius: var(--r-pill); color: var(--muted); font: var(--t-support); list-style: none; cursor: pointer; transition: background-color var(--dur-fast) linear; }
+.pc-session-chip { display: flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 0 12px 0 10px; border-radius: var(--r-pill); color: var(--muted); font: var(--t-support); list-style: none; cursor: pointer; transition: background-color var(--dur-fast) linear; }
 .pc-session-chip::-webkit-details-marker { display: none; }
 .pc-session-chip > svg { flex-shrink: 0; }
 .pc-session-chip > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -306,7 +307,16 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-continuation p { margin: 0; }
 .pc-continuation label { display: flex; flex-direction: column; gap: 4px; }
 .pc-continuation textarea { min-height: 96px; resize: vertical; }
-.pc-session-context .pc-effort { align-self: flex-end; }
+.pc-session-context .pc-effort { flex-direction: column; align-self: stretch; align-items: flex-end; min-width: 0; }
+.pc-project-permissions { display: grid; gap: 8px; padding: 8px var(--row-px) 16px; color: var(--muted); font: var(--t-support); }
+.pc-project-permissions label { display: flex; align-items: flex-start; gap: 8px; min-height: 36px; cursor: pointer; }
+.pc-project-permissions input { flex: none; margin: 2px 0 0; accent-color: var(--on); }
+.pc-project-permissions p { margin: 0; overflow-wrap: anywhere; }
+.pc-project-permissions .is-error { color: var(--danger); }
+.pc-project-permissions button { min-height: 36px; padding: 8px 12px; border-radius: var(--r-ctl); background: var(--control-fill); color: var(--ink); font: inherit; text-align: left; }
+.pc-project-permissions button:hover:not(:disabled) { background: var(--control-hover); }
+.pc-project-permissions button:disabled { opacity: .55; cursor: not-allowed; }
+.pc-project-permissions :is(button, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Composer: one field, its status line inside ---------- */
 .pc-error { display: flex; align-items: flex-start; gap: 6px; margin: 0; padding: 8px 16px; background: var(--error-bg); color: var(--ink); font-size: 12px; line-height: 1.45; flex-shrink: 0; }
@@ -324,21 +334,39 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-composer :is(.pc-queue, .pc-nudge) { width: 100%; max-width: var(--composer-max); margin-inline: auto; }
 .pc-field textarea { display: block; width: 100%; min-height: var(--composer-field-min); flex: none; resize: none; border: 0; background: transparent; color: var(--ink); font: var(--t-control); overflow-y: auto; overscroll-behavior: contain; transition: none; caret-color: var(--accent); }
 .pc-field :is(textarea, .voice-live) { padding: 8px 12px; border-radius: var(--r-ctl); }
-.pc-field textarea::placeholder { color: var(--ink-3); }
+.pc-field textarea::placeholder { color: var(--ink-3); white-space: nowrap; }
 .pc-field textarea:focus-visible { outline: 0; }
 .pc-input { position: relative; min-width: 0; }
 .pc-input[data-preview] textarea { color: transparent; caret-color: transparent; }
 .pc-input[data-preview] textarea::placeholder { color: transparent; }
-/* Inside the island: conversation and session on the left; context, model,
-   effort and the actions on the right. There is no footer below. */
 .pc-field { container: pc-isle / inline-size; }
 .pc-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 0; color: var(--muted); font: var(--t-support); cursor: default; }
-.pc-controls > .pc-model-picker { flex: 0 1 auto; max-width: 200px; }
-@container pc-isle (max-width: 520px) {
-  .pc-session-chip > span, .pc-controls .pc-model > span, .pc-context-low { display: none; }
-  .pc-session-chip, .pc-controls .pc-model { padding: 0 8px; }
+.pc-controls:has(> .pc-selectors) { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: normal; }
+.pc-selectors { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; }
+.pc-selectors:empty { display: none; }
+.pc-selectors > * { min-width: 0; max-width: 100%; }
+.pc-selectors > .pc-model-picker > .pc-model, .pc-selectors > .pc-effort > .pc-reasoning { width: 100%; height: 36px; padding-inline: 8px; }
+.pc-selectors > .pc-model-picker > .pc-model { flex-wrap: nowrap; align-items: center; }
+.pc-selectors > .pc-effort .pc-reasoning-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pc-selectors > .pc-effort > .pc-reasoning > .pc-reasoning-label { display: none; }
+.pc-composer-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; padding-bottom: 24px; }
+.pc-composer-tools, .pc-composer-send { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; }
+.pc-composer-send { justify-content: flex-end; }
+.pc-composer-actions button { flex-shrink: 0; }
+.pc-composer-actions .pc-context-wrap { position: static; }
+.pc-composer-actions .pc-context-panel { max-width: 100%; max-height: min(400px, 60vh); overflow-y: auto; }
+.pc-selectors > .pc-effort > .pc-effort-menu { max-height: min(320px, 60vh); overflow-y: auto; }
+@container pc-isle (max-width: 400px) {
+  .pc-selectors { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .pc-selectors > .pc-session-settings { grid-column: 1 / -1; }
+  .pc-composer-actions .pc-context-low { display: none; }
 }
-@container pc-isle (max-width: 400px) { .pc-controls > .pc-effort { display: none; } }
+@container pc-isle (max-width: 520px) {
+  .pc-composer-actions { grid-template-columns: minmax(0, 1fr); }
+}
+@media (pointer: coarse) {
+  .pc-selectors > .pc-session-settings > .pc-session-chip, .pc-selectors > .pc-model-picker > .pc-model, .pc-selectors > .pc-effort > .pc-reasoning, .pc-composer-tools, .pc-composer-send { min-height: 44px; }
+}
 /* One line: the model name truncates before anything wraps. */
 .pc-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .pc-settings > .pc-model-picker { flex: 0 1 auto; min-width: 72px; }
@@ -430,7 +458,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @container (max-width: 560px) { .pc-location { display: none; } }
-@container (max-width: 440px) { .pc-permission > span { display: none; } .pc-permission { padding: 0 8px; } }
+@container (max-width: 440px) { .pc-permission:not(.pc-session-row) > span { display: none; } .pc-permission:not(.pc-session-row) { padding: 0 8px; } }
 @container (max-width: 440px) {
   .pc-column, .pc.is-focused .pc-column { padding: 20px 14px 16px; }
   .tv-head { flex-wrap: wrap; gap: 4px 8px; }
@@ -525,6 +553,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-effort-menu [role="option"] { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 12px; border-radius: var(--r-ctl); color: var(--ink); font: var(--t-control); font-weight: 400; cursor: pointer; }
 .pc-effort-menu [role="option"].is-active { background: var(--fill-2); }
 .pc-effort-menu [role="option"] > small { color: var(--muted); font: var(--t-micro); font-weight: 400; }
+.pc-effort-menu h4, .pc-effort-menu [role="option"] > :is(span, small) { min-width: 0; overflow-wrap: anywhere; }
 .pc-effort-menu [role="option"] > svg { margin-left: auto; color: var(--pc-hue, var(--ink)); }
 .pc-effort-menu:focus-visible [role="option"].is-active { box-shadow: inset 0 0 0 1px var(--hairline); }
 .pc-effort-note { max-width: 240px; margin: 6px 0 2px; padding: 4px 9px; color: var(--muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
@@ -619,13 +648,13 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-context-cap { margin: -4px 0 0; color: var(--muted); font-size: 11px; }
 .pc-context-cap.is-active { color: var(--ink-3); font-weight: 500; }
 
-.pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic, .pc-send) { width: var(--control-size); height: var(--control-size); border: 0; border-radius: 50%; box-shadow: none; }
-.pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic) { background: var(--control-fill); color: var(--ink); }
-.pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic):hover:not(:disabled) { background: var(--control-hover); }
-.pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic):active:not(:disabled) { background: var(--control-press); }
+.pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send) > :is(.pc-icon, .phantom-chat-mic, .pc-send) { width: var(--control-size); height: var(--control-size); border: 0; border-radius: 50%; box-shadow: none; }
+.pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send) > :is(.pc-icon, .phantom-chat-mic) { background: var(--control-fill); color: var(--ink); }
+.pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send) > :is(.pc-icon, .phantom-chat-mic):hover:not(:disabled) { background: var(--control-hover); }
+.pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send) > :is(.pc-icon, .phantom-chat-mic):active:not(:disabled) { background: var(--control-press); }
 .pc.pc .pc-send:hover:not(:disabled):not(.is-stop) { background: var(--primary-hover); }
 .pc.pc .pc-send:active:not(:disabled):not(.is-stop) { background: var(--primary-press); }
 .pc.pc .pc-send:disabled { background: var(--control-fill); color: var(--ink-3); }
 .pc:has(.pc-session-new) > .pc-composer { background: transparent; }
-@media (pointer: coarse) { .pc.pc .pc-composer .pc-controls > :is(.pc-icon, .phantom-chat-mic, .pc-send) { min-width: 44px; min-height: 44px; } }
+@media (pointer: coarse) { .pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send, .voice-activity) > :is(.pc-icon, .phantom-chat-mic, .pc-send, .voice-discard, .voice-finish) { min-width: 44px; min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .pc-session-row, .pc .spinning { animation: none !important; transition: none !important; } }

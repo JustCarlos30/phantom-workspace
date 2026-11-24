@@ -67,6 +67,35 @@ const PERMISSION_LABELS = { ask: { claude: 'Pregunta todo', other: 'Solo lectura
 const NEXT_MODE = { ask: 'auto', auto: 'full', full: 'ask' };
 export const permissionLabel = (mode, provider) => provider === 'opencode' && mode === 'ask' ? 'Con aprobación' : PERMISSION_LABELS[mode]?.[provider === 'claude' ? 'claude' : 'other'] || mode;
 
+export function ProjectPermissions({ workspace, api, mode, provider, disabled }) {
+  const [saved, setSaved] = useState(workspace.sessionDefaults?.permissionMode ?? null);
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const pending = useRef(false);
+  const checkbox = useRef(null), restoreFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (busy) return;
+    if (restoreFocus.current && document.activeElement === document.body) checkbox.current?.focus({ preventScroll: true });
+    restoreFocus.current = false;
+  }, [busy]);
+  useEffect(() => { setSaved(workspace.sessionDefaults?.permissionMode ?? null); setError(''); }, [workspace.id, workspace.sessionDefaults?.permissionMode]);
+  const save = async value => {
+    if (pending.current || disabled) return;
+    restoreFocus.current = document.activeElement === checkbox.current;
+    pending.current = true; setBusy(true); setError('');
+    try {
+      await api('workspace.update', { id: workspace.id, patch: { sessionDefaults: value === null ? null : { permissionMode: value } } });
+      setSaved(value);
+    } catch (e) { setError(e.message); }
+    finally { pending.current = false; setBusy(false); }
+  };
+  return <div className="pc-project-permissions" aria-busy={busy}>
+    <label><input ref={checkbox} type="checkbox" checked={saved !== null} disabled={disabled || busy} onChange={e => save(e.target.checked ? mode : null)} /><span>Usar estos permisos en nuevas conversaciones de este proyecto</span></label>
+    <p role="status">{busy ? 'Guardando…' : saved !== null ? `Guardado para nuevas conversaciones: ${permissionLabel(saved, provider)}.` : 'Sin permisos recordados para nuevas conversaciones.'} Las conversaciones existentes conservan sus permisos.</p>
+    {saved !== null && saved !== mode && <button type="button" disabled={disabled || busy} onClick={() => save(mode)}>Guardar permisos actuales: {permissionLabel(mode, provider)}</button>}
+    {error && <p className="is-error" role="alert">No se pudieron guardar los permisos: {error}</p>}
+  </div>;
+}
+
 // The card's permission mode, cycled with one button: Pregunta todo → Autónomo → Total.
 export function PermissionSwitch({ mode, provider, descriptions = AUTO_APPROVE, disabled, onChange, row = false }) {
   const Shield = mode === 'full' ? ShieldAlert : mode === 'auto' ? ShieldCheck : ShieldOff;
@@ -488,8 +517,9 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
     document.addEventListener('pointerdown', outside, true);
     return () => { stale = true; document.removeEventListener('pointerdown', outside, true); };
   }, [open, api, workspace.id, node.id]);
+  const close = () => { setOpen(false); root.current?.querySelector('button')?.focus({ preventScroll: true }); };
   const choose = async model => {
-    setOpen(false);
+    close();
     if (model === selected) return;
     try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, model }); } catch (e) { notify?.(e.message, 'error'); }
   };
@@ -497,8 +527,8 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
   const groups = []; for (const item of items) { const last = groups.at(-1); if (last?.name === item.group) last.items.push(item); else groups.push({ name: item.group, items: [item] }); }
   const custom = query.trim() && !catalog?.items.some(item => item.id === query.trim()) ? query.trim() : '';
   const shown = selected || observed;
-  return <div ref={root} className="pc-model-picker" onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
-    <button type="button" className={`pc-model ${shown ? '' : 'is-empty'}${row ? ' pc-session-row' : ''}`} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} title={selected ? `Modelo elegido para ${label}: ${selected}` : observed ? `Modelo predeterminado de ${label}: ${observed}` : `Se usa el modelo predeterminado de ${label}`} onClick={() => setOpen(value => !value)}>
+  return <div ref={root} className="pc-model-picker" onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); close(); } }}>
+    <button type="button" className={`pc-model ${shown ? '' : 'is-empty'}${row ? ' pc-session-row' : ''}`} aria-label={`Modelo de ${label}: ${shown || 'predeterminado'}`} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} title={selected ? `Modelo elegido para ${label}: ${selected}` : observed ? `Modelo predeterminado de ${label}: ${observed}` : `Se usa el modelo predeterminado de ${label}`} onClick={() => setOpen(value => !value)}>
       {row ? <><span className="pc-session-badge is-model"><Cpu size={18} aria-hidden="true" /></span><span className="pc-session-label">Modelo</span><span className="pc-session-value">{shown || 'Predeterminado'}</span><ChevronRight size={16} aria-hidden="true" /></> : <><ProviderGlyph provider={provider} size={14} /><span>{shown || 'modelo predeterminado'}</span><ChevronDown size={14} aria-hidden="true" /></>}
     </button>
     {open && <div className="pc-models" role="dialog" aria-label={`Modelo de ${label}`}>
@@ -772,6 +802,7 @@ export function SessionContext({ node, workspace, api, notify, provider, label, 
     <div className="pc-context-rows">
       <details className="pc-folder"><summary className="pc-session-row"><span className="pc-session-badge is-folder"><Folder size={18} aria-hidden="true" /></span><span className="pc-session-label">Carpeta</span><span className="pc-session-value pc-mono" title={cwd}>{cwd}</span><ChevronRight size={16} aria-hidden="true" /></summary><p>{cwd}{branch && <><br />{AUTO_BRANCH.test(branch) ? 'Copia propia de esta sesión' : `Rama: ${branch}`}</>}</p></details>
       <PermissionSwitch row mode={permissionMode} provider={provider} descriptions={descriptions} disabled={!ready} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
+      <ProjectPermissions key={workspace.id} workspace={workspace} api={api} mode={permissionMode} provider={provider} disabled={!ready} />
       <ModelPicker row node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!ready || running} />
     </div>
     <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!ready || running} />
@@ -830,10 +861,23 @@ export function SessionChip({ cwd, children }) {
   }, [open]);
   const name = String(cwd || '').split('/').filter(Boolean).at(-1) || 'Sesión';
   return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
-    onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
-    <summary className="pc-session-chip" aria-label="Contexto de la sesión" title={cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}</span></summary>
+    onKeyDown={e => { if (e.key === 'Escape' && root.current.open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
+    <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}`} title={cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}</span></summary>
     <div className="pc-session-pop">{children}</div>
   </details>;
+}
+
+export function ComposerControls({ selectors, leading, meter, voice, children }) {
+  return <div className="pc-controls">
+    <div className="pc-selectors" role="group" aria-label="Configuración de la conversación">{selectors}</div>
+    <div className="pc-composer-actions">
+      <div className="pc-composer-tools">{leading}{meter}</div>
+      <div className="pc-composer-send">
+        <VoiceActivity voice={voice} onFinish={voice.stop} hint="Esc descarta · Enter envía" />
+        {children}
+      </div>
+    </div>
+  </div>;
 }
 
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
@@ -964,18 +1008,16 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <div className="pc-controls">
-          <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
-          {voice.status === 'idle' && <button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={startNew}><MessageSquarePlus size={18} /></button>}
-          {voice.status === 'idle' && messages.length > 0 && <SessionChip cwd={locationOf(node, workspace).cwd}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>}
-          <span className="pc-bar-space" />
-          <ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />
-          {voice.status === 'idle' && messages.length > 0 && <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />}
-          {voice.status === 'idle' && messages.length > 0 && <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />}
+        <ComposerControls voice={voice} selectors={messages.length > 0 && <>
+          <SessionChip cwd={locationOf(node, workspace).cwd}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>
+          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
+          <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
+        </>} leading={<button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button>}
+          meter={<ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />}>
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : `Dictar a ${label}`} aria-label={`Dictar a ${label}`} onClick={voice.start}><Mic size={18} /></button>}
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
-        </div>
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
+        </ComposerControls>
       </div>
       {compaction.form}
     </form>
