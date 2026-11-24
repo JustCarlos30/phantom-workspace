@@ -45,11 +45,12 @@ Rail, panel, inspector y dock comparten **degradado vertical sutil y un único a
 
 | Token del producto | Actual → nuevo | Fuente |
 |---|---|---|
-| `--object-top`, `--object-bottom` | `∅` → `#0f0f11`, `#070708` | 05/06 `--obj-top`, `--obj-bot` |
-| `--object-fill` | `∅` → `linear-gradient(var(--object-top), var(--object-bottom))` | `.box` |
+| `--object-top`, `--object-bottom` | `#0f0f11`, `#070708` → `#151518`, `#0b0b0d` | 05/06 `--obj-top`, `--obj-bot`; Etapa 6·1 |
+| `--object-sheen` | `∅` → `radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)` | Etapa 6·1, luz cenital |
+| `--object-fill` | `linear-gradient(var(--object-top), var(--object-bottom))` → `var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))` | `.box`; Etapa 6·1 |
 | `--object-ring-width` | `∅` (borde CSS de 1 px) → `1px` | `--ring` |
-| `--object-edge-top` | `∅` (hairline uniforme) → `color-mix(in srgb, #fff 22%, transparent)` | `--edge-top` |
-| `--object-edge-bottom` | `∅` → `color-mix(in srgb, #fff 6%, transparent)` | `--edge-bot` |
+| `--object-edge-top` | `color-mix(in srgb, #fff 22%, transparent)` → `color-mix(in srgb, #fff 26%, transparent)` | `--edge-top`; Etapa 6·1 |
+| `--object-edge-bottom` | `color-mix(in srgb, #fff 6%, transparent)` → `color-mix(in srgb, #fff 7%, transparent)` | `--edge-bot`; Etapa 6·1 |
 | `--object-ring` | `∅` → `linear-gradient(var(--object-edge-top), var(--object-edge-bottom))` | `.box::before` |
 | `--r-obj`, `--r-isle` | `14px`, `26px` → `24px`, `24px` | `--r-outer`; dock conserva píldora |
 | `--shadow-chrome` | `0 1px 2px #00000066, 0 18px 40px -20px #000000cc` → `0 1px 2px #000, 0 16px 32px -16px #000` | `--shadow` |
@@ -59,6 +60,8 @@ Rail, panel, inspector y dock comparten **degradado vertical sutil y un único a
 | `--glass-sheen`, `--workplane-wash` | `none`; `linear-gradient(135deg, color-mix(in srgb, var(--accent) 2%, transparent), transparent)` → ambos `var(--object-fill)` | Degradado vertical neutro |
 | `--workplane`, `--glass-filter` | `color-mix(in srgb, var(--surface) 80%, transparent)`; `none` → `var(--surface)`; `none` | Sin blur ni transmisión de color |
 
+Etapa 6·1 (aprobada por Carlos tras el laboratorio Propuestas): material cenital; sustituye los valores de los mocks 05/06.
+
 Receta ejecutable del aro: pseudo-elemento con `position:absolute; inset:0; border-radius:inherit; padding:var(--object-ring-width); pointer-events:none`, fondo `var(--object-ring)`, máscara `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`, `-webkit-mask-composite:xor; mask-composite:exclude`. En el mock ocupa z-index **3** y la cometa **4**. Quitar el borde/outline de selección anterior para no sumar contornos. No reemplazar `background-color` por un valor de tipo imagen: el degradado va en `background-image` o en el shorthand correspondiente.
 
 Las cabeceras dejan ver este material; ningún cuerpo opaco heredado debe taparlo por completo. Revisar las reglas tardías de canvas, sidebar, shell, settings y terminal, no solo el primer `:root`. Los objetos flotantes auxiliares adoptan el mismo contorno; el comportamiento y dueño de los menús sigue en `src/menus.css`.
@@ -67,7 +70,7 @@ Las cabeceras dejan ver este material; ningún cuerpo opaco heredado debe taparl
 
 **Nivel 1:** objeto, único contenedor con aro, degradado y radio grande. **Nivel 2:** un relleno plano interior donde se lee salida o se escribe. No anidar otro pozo, burbuja, tarjeta de actividad o tarjeta que solo agrupa. El resto se separa con espacio, tipografía y divisores de **1 px**.
 
-Excepción declarada: los grupos del inspector de Configuración son planos y sin aro. En 06, hilo y compositor son dos zonas contiguas del mismo nivel interior: el compositor cierra el pozo a sangre con un paso tonal y un divisor; no es una caja flotante dentro de él. El textarea queda transparente sobre esa banda. Las pistas de controles, radios e insignias son partes del control, no nuevos contenedores de contenido.
+Excepción declarada: los grupos del inspector de Configuración son planos y sin aro. En 06, hilo y compositor eran dos zonas contiguas del mismo nivel interior separadas por paso tonal y divisor. Etapa 6·2a (aprobada por Carlos tras el laboratorio Propuestas): compositor isla; sustituye la banda a sangre del mock 06. El compositor comparte el pozo del hilo y su campo es una isla con relleno blanco 3 % y aro inset de 1 px: excepción declarada a esta regla, porque es la superficie de escritura y no agrupa contenido. El textarea queda transparente dentro de la isla. Las pistas de controles, radios e insignias son partes del control, no nuevos contenedores de contenido.
 
 | Token del producto | Actual → nuevo | Uso |
 |---|---|---|
@@ -176,6 +179,10 @@ Filas sobre el rail, sin tarjetas por sesión. Título en una línea con elipsis
 
 Rail expandido: top/bottom/left 12 px, padding 12 px, alto disponible con scroll de la lista. Fila de 56 px, padding horizontal 16 px, columna de insignia 32 px y gap 12 px. Cabecera de proyecto: padding `4px 16px 0`. Pie: gap 8 y padding izquierdo 16 px. El nombre del proyecto no compite con otro título de marca.
 
+**Etapa 6·4 (aprobada por Carlos tras el laboratorio Propuestas).** Sin rótulo de marca: la cabecera del rail (`div.brand.rail-head`) es una sola fila selector «proyecto / espacio» — disco de 32 px con iniciales y nombre truncado, «/» en tinta terciaria, el espacio como segmento de texto con chevrón (sin relleno en reposo, realce tonal al pasar) y al final contraer/cerrar. Ambos menús se despliegan a todo el ancho del rail bajo esa fila y siguen siendo excluyentes. «Te necesitan» es la primera fila bajo la cabecera, con el lenguaje de las sesiones y dentro de la navegación por flechas: tinta terciaria en «Todo en orden», texto y numeral ámbar con pendientes (nunca fondo). La fila superior es un solo objeto de 48 px desde el borde del rail hasta el margen derecho: identidad en una línea «proyecto / espacio» (ruta en el `title`), «Guardado» como check silencioso y la campana solo con el rail contraído o estrecho.
+
+**Etapa 6·5 (aprobada por Carlos tras el laboratorio Propuestas).** Lado derecho y paneles: se trasladan a producción solo las reglas `.px-after` de `src/stories/proposals-right.css` y `proposals-panels.css` cuyos selectores existen en el JSX real y cambian lo visible. Centro de mando con ritmo 16/8/20/4 px, frescura en una línea de apoyo y encargos como filas tonales; bandeja «Te necesitan» con segmento plano, filas tonales y una sola primaria marfil; Configuración con campos de aro 1 px que se aclara al enfocar y secundarios planos; Repositorio, Ramas, Incorporaciones y Memoria sin cajas anidadas, filtros de ramas como segmento plano y primarias marfil. Deltas de presupuesto en DESIGN.md («Presupuesto 6·5»).
+
 `SidebarPanels` ya llama `onJump` y `onFocus` por separado. Mantenerlo. `buildSessionRows` ya conserva identificadores, títulos completos, orden estable y recursos asociados. Añadir solo el dato temporal que falta, usando `timeOf`/`ago` existentes; sin fecha válida, omitir tiempo. No inventar antigüedad ni un estado «trabajando» porque una terminal siga abierta.
 
 ### 9. Sesión por dentro
@@ -197,12 +204,15 @@ Rail expandido: top/bottom/left 12 px, padding 12 px, alto disponible con scroll
 | `--prose-ink` | `∅` (mensaje `--ink`) → `#d9d6cf` | 06 `.prose` |
 | `--t-code`, `--t-terminal-preview` | `∅` → `400 12px/16px var(--mono)`, `400 12px/18px var(--mono)` | 06 / 05, respectivamente |
 | `--composer-field-min`, `--composer-gap` | `∅` (textarea mínimo 38 px) → `40px`, `12px` | 06 `.field`, `.composer` |
+| `--composer-fill`, `--composer-fill-lit`, `--composer-ring`, `--composer-light-top`, `--composer-max` | `∅` → blanco 3 %, 5 %, 8 %, 30 % (`color-mix`), `720px` | Etapa 6·2a, laboratorio Propuestas `.px-isle` |
 
 Radio vacío: círculo de 20 px con marca interior `inset 0 0 0 1.5px #4e4e50`; seleccionado: plano marfil con punto oscuro de 8 px. Es el dibujo semántico del radio, no un contorno añadido a la fila. Implementarlo con control nativo o semántica radio completa, incluidos flechas, Inicio/Fin, foco y `aria-checked`.
 
 Guía de actividad: ancho 1 px, x = `16px + 32px / 2` = **32 px** respecto a la lista, top 10 px, bottom 18 px. Columna de glifo 32 × 20 px, glifo normal 16 px, Titi 16 px; el fondo de esa columna es el mismo pozo para interrumpir la guía bajo el icono. Fila viva: gap interno 8 px y padding inferior 12 px. La barra usa lima y radio 999; **64 % es fixture**, no progreso por defecto. Sin total medible, mostrar estado textual sin porcentaje fabricado.
 
-**Compositor idéntico en los tres estados:** a sangre al pie, `#0b0b0d`, divisor superior 1 px `#ffffff12`, sin otra caja. Padding exacto de 06: **12 px arriba, 24 derecha, 24 abajo, 28 izquierda**; gap 12 px entre campo y herramientas, 8 px entre herramientas. El campo base mide 40 px en el fixture; `useComposerSize` sigue creciendo y limitando el texto real sin animar altura ni ocultar controles. Cita de usuario: margen horizontal 16 px y final 8 px; con el gap de pila 12 deja 20 px hasta la respuesta. Mono solo para rutas, comandos y cifras; no cambiar la fuente de la terminal interactiva para imitar la previsualización.
+**Compositor idéntico en los tres estados (etapa 6·2a, isla; sustituye la banda a sangre del mock 06):** el compositor comparte el pozo del hilo (`#040405`), sin divisor, con padding **0 24 24**. El campo es una isla centrada de hasta 720 px, radio `--r-obj`, relleno blanco 3 %, aro inset de 1 px blanco 8 % y foco «luz» (relleno 5 % y aro iluminado desde arriba, 120 ms lineal); sin outline en el textarea. Hilo, dock y metadatos comparten la columna de 720 px. Gap 12 px entre campo y herramientas, 8 px entre herramientas. El campo base mide 40 px en el fixture; `useComposerSize` sigue creciendo y limitando el texto real sin animar altura ni ocultar controles. Cita de usuario: margen horizontal 16 px y final 8 px; con el gap de pila 12 deja 20 px hasta la respuesta. Mono solo para rutas, comandos y cifras; no cambiar la fuente de la terminal interactiva para imitar la previsualización.
+
+**Etapa 6·2b (contenido de la isla):** no hay pie bajo la isla; la pista de teclas vive en el `title` de Enviar. Orden de `.pc-controls`: conversación nueva (o «Convertir en tarea» en el chat lateral) y el chip «Contexto de la sesión» a la izquierda; contador de contexto, modelo compacto, effort, micrófono y detener/enviar a la derecha. El chip (carpeta + nombre corto, máx. ~180 px, elipsis) abre un popover sobre la isla con material de objeto; cierra con Escape (devuelve el foco) y con clic fuera. El contador es un anillo de 20 px (pista blanca 12 %, trazo 2 px, tinta neutra, `--danger` solo ≥95 %); el porcentaje aparece ≥70 % y «Queda poco contexto» ≥90 %; sin medición no se dibuja. El aviso de compactación no integrada vive en su panel. Las operaciones reales (compactando, resultado, continuidad de Codex) se dicen en una sola `p.pc-status-line` sobre la isla, solo mientras existan. Container queries sobre la isla: <520 px chip y modelo quedan en icono; <400 px se oculta effort. En la sesión nueva el compositor es transparente como el hilo.
 
 ### 10. Dictado dentro del campo
 
@@ -215,7 +225,7 @@ Sin «Te escucho…», sin «Habla, te escucho…», sin botón textual de cance
 | `--voice-bar-width`, `--voice-bar-gap`, `--voice-bar-radius`, `--voice-bars-height` | `∅` → `3px`, `3px`, `2px`, `16px` | 06 `.bars` |
 | `--voice-caret-width`, `--voice-caret-height`, `--voice-caret-radius` | `∅` → `2px`, `16px`, `1px` | 06 `.caret`, color marfil |
 | `--voice-caret-duration` | `∅` → `1.1s` | Blink `ease-in-out`, opacidad 0 al 50 % |
-| `--voice-composer-divider` | `∅` (borde lima + halo de 2–5 px) → `#ffffff26` | 06 `.composer.dict` |
+| `--voice-composer-divider` | `∅` (borde lima + halo de 2–5 px) → `#ffffff26` | 06 `.composer.dict`; desde 6·2a colorea el aro de la isla |
 
 Barras del fixture: alturas **6, 12, 16, 10, 14, 6 px**; movimiento `.9s ease-in-out infinite alternate`, delays **−.1, −.5, −.3, −.7, −.2, −.6 s**, `scaleY(.45)`→`scaleY(1)`, color `#c6f135`. Estos números describen el mock estático animado. En producción, la entrada ya disponible `voice.level` gobierna el nivel: no simular captura en silencio, permiso pendiente o transcripción. No introducir un nuevo analizador ni otro bucle de audio. Movimiento reducido elimina blink/interpolación; conserva nivel legible, texto y tiempo.
 
@@ -254,9 +264,32 @@ Realce del mismo recorrido del aro, sin escala: opacidad **0 al 0 %, 1 al 18 %, 
 
 Con movimiento reducido, aplicar destino directamente y conservar selección/etiquetas; cometa quieta, ningún destello ni fallback de fundido. Esc respeta prioridades existentes: primero dictado, menú o edición; el shell restaura panel cuando posee la navegación. No robar Esc ni otras teclas a xterm con entrada activa. Preservar retorno de foco, overlays `inert` y oclusión del navegador nativo. La atenuación `.28` de vecinos al maximizar en 05 no se aplica a la mera selección; el producto actual oculta vecinos en foco, por lo que no se exige introducir una nueva capa de paneles inactivos.
 
+**Estándar de movimiento · Etapa 6·6 (aprobada por Carlos tras el laboratorio Propuestas).**
+
+| Duración | Curva | Uso |
+|---|---|---|
+| `--dur-fast` 120 ms | linear | Realce tonal de filas y controles; nunca escala ni desplazamiento |
+| 160 ms | linear | Fondo del interruptor, luz del foco |
+| `--dur-enter` 200 ms | `--ease-settle` | Thumb del interruptor; entrada de un mensaje nuevo en el hilo (opacidad + 4 px con `@starting-style`, solo `opacity`/`transform`) |
+| `--dur-open` 320 ms | `--ease-settle` | Abrir/cerrar menú, bandeja y paleta; maximizar panel con FLIP |
+| `--map-flash-duration` 900 ms | `--ease-settle` | Destello del aro al saltar a un panel |
+| Bucle | — | Solo la cometa de «trabajando» y el spinner |
+
+No se anima: altura del compositor, color de estado, rebote o escala de botones, bucles decorativos. Movimiento reducido desactiva la entrada de mensajes.
+
+### 12b. Acento
+
+Etapa 6·6 (aprobada por Carlos tras el laboratorio Propuestas). El acento elegido en Apariencia (`--accent`, marfil por defecto) significa **«tú y tu acción»**; los colores de estado significan **«el agente»**. Mezclarlos haría que un botón pareciera un estado o al revés.
+
+- **Sí lleva acento** (`--primary: var(--accent)`, tinta `--primary-ink: #141414`; hover `color-mix(in srgb, var(--primary), #fff 12%)`, pulsado `… #000 12%`): enviar del compositor, «Nueva sesión» del dock, la primaria de Configuración y de diálogos, `caret-color` del compositor y campos, foco de teclado, enlaces en prosa y selección de texto.
+- **Nunca lleva acento**: estados (lima `--working`, ámbar `--attention`, `--danger`, `--success`), superficies y rellenos de objeto, texto de lectura, iconos de herramientas, interruptores y segmentados (siguen marfil `--on`).
+- Contraste de `#141414` sobre los acentos disponibles (cálculo WCAG a mano): azul `#5b9cff` ≈ 7,2:1, rojo `#f27670` ≈ 6,7:1, verde `#65ba83` ≈ 7,8:1; naranja `#f3a45b` y marfil `#f2f0eb`, más claros, quedan por encima. Todos superan AA.
+
 ### 13. Dock con aire y sistema de cajas
 
 Dock de **64 px**, a **24 px** del borde inferior y de cualquier panel. Un solo objeto píldora, Titi, «Nueva sesión» primaria y acciones secundarias circulares. Mantener accesibles las herramientas actuales aunque sus accesos se plieguen; no eliminar funciones para copiar el número de botones del fixture.
+
+> **Etapa 6·3 (aprobada por Carlos tras el laboratorio Propuestas): un solo nivel abajo.** La franja inferior tiene una sola fila: `--canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h))` (112 px también en mapa). El dock queda solo, centrado en el espacio a la izquierda de las herramientas del lienzo (`--dock-x`); la navegación (48 px) se ancla abajo a la derecha, alineada por abajo con el dock y separada al menos 24 px; el minimapa flota 12 px encima de ella sobre la esquina del escenario. Sin lanzador de Phantom en la barra (sigue en la cabecera). El segmentado muestra V/H/C en densidad `full`.
 
 | Token del producto | Actual → nuevo | Fuente |
 |---|---|---|
@@ -285,7 +318,7 @@ Quedan derogadas, para las familias anteriores, estas reglas vigentes:
 2. **Planos `#050505` / `#080808` / `#0d0d0d` / `#151515` / `#1d1d1d`**, y la premisa de menús como único plano elevado: nueva escalera y material común. Los menús conservan navegación, selección textual y dueño CSS; no se añade una nueva lógica de menú.
 3. **Atención sin contorno** y prohibición absoluta de categorías coloreadas: atención lleva aro ámbar de objeto; insignias usan OKLCH. Sigue prohibido el lavado ámbar de superficies y pozos.
 4. **Selección con borde de acento, halo u outline separado**, contornos rojos de error, órbita verde de éxito, cabeza blanca con `drop-shadow` y ondas alrededor de paneles: sustituir por la regla 4. Estado no equivale a selección.
-5. **«Dentro no hay líneas»**, burbujas de usuario, tarjetas de subagente/encargo como agrupación y campo del compositor con halo: divisores/guía, cita y compositor a sangre. Mantener detalle y acciones reales.
+5. **«Dentro no hay líneas»**, burbujas de usuario, tarjetas de subagente/encargo como agrupación y campo del compositor con halo: divisores/guía, cita y compositor isla (etapa 6·2a: aro inset y foco «luz», no halo exterior). Mantener detalle y acciones reales.
 6. **Controles sin relleno en reposo para toda la isla**, sombra de tecla/pozo y escala .96/.97/.98 con resorte: tres niveles planos, secundarios con relleno y feedback tonal sin movimiento.
 7. **Radios 8/14/26, rail 252, inspector 360, dock 56, botones de dock 36 y margen inferior 16**: medidas de las tablas. El título de 17/22 pasa a 15/20 en estas familias.
 8. **Orbe de voz, «Te escucho…», cancelación textual y aura espectral**: medidor y transcripción dentro del campo. Se conservan los contratos de audio, envío explícito e inserción segura en terminal.

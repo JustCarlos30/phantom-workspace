@@ -9,6 +9,8 @@ import { subscribeSession } from '../hooks/useWorkspace';
 import { createTerminalStream } from '../hooks/terminalStream';
 import { writeOwnedTerminalInput } from '../hooks/inputOwnership';
 import AgentIdentity from './AgentIdentity';
+import PlanPhases from './PlanPhases';
+import { planSummary } from '../hooks/plan-view.mjs';
 import { AgentState, ProviderBadge, effectiveStatus, locationOf, providerOf, sessionLabel } from './TerminalCard';
 import { useTerminalTail } from '../hooks/useTerminalTail';
 import { formatSince, useNow } from '../hooks/terminalPulse.mjs';
@@ -184,13 +186,13 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     resizeRef.current?.();
   }, [fontSize]);
   useEffect(() => {
-    if (overview || (!focusRequested && !active) || !activeRef.current || status !== 'running') return;
+    if (inputBlocked || overview || (!focusRequested && !active) || !activeRef.current || status !== 'running') return;
     const element = document.activeElement;
     if (element?.closest('.inspector-host,.project-name-editor,.title-button')) return;
     if (element?.closest('input,textarea,select,[contenteditable="true"]') && !element.closest('.xterm')) return;
     terminal.current?.focus();
     // Opening/closing a nonmodal surface must not take focus from its controls.
-  }, [focusRequested, active, status, overview]);
+  }, [focusRequested, active, status, overview, inputBlocked]);
   const preparing = !sessionId && node.data?.launchState === 'creating';
   const setupActive = setup && ['queued', 'checking', 'installing'].includes(setup.status);
   const setupFailed = setup && ['failed', 'cancelled'].includes(setup.status);
@@ -227,6 +229,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
       <span className="pt-session" role="status"><i className={`status-dot ${status}`} aria-hidden="true" />{statusLabel}</span>
     </div>
     <AgentIdentity node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} />
+    {planSummary(node.data?.plan) && <details className="plan-phases-toggle pt-plan"><summary>Plan<PlanPhases plan={node.data.plan} compact /></summary><PlanPhases plan={node.data.plan} /></details>}
     {(setupActive || setupFailed) && <section className={`terminal-setup ${setupFailed ? 'has-error' : ''}`} aria-label="Preparación de dependencias">
       <div className="terminal-setup-heading"><span role="status">{setupActive ? (setup.status === 'installing' ? 'Instalando dependencias…' : 'Preparando dependencias…') : setup.status === 'cancelled' ? 'Preparación cancelada' : 'No se pudieron instalar las dependencias'}</span>{setupActive && <progress aria-label="Instalación en curso" />}{setupFailed && status === 'running' && <button onClick={() => api('terminal.setup.retry', { sessionId }).then(session => setSetup(session.setup)).catch(e => notify(e.message, 'error'))}>Reintentar instalación</button>}</div>
       <small>La terminal y el agente ya están disponibles. Los comandos del proyecto pueden requerir que termine la instalación.</small>

@@ -25,6 +25,15 @@ test('las reglas de admisión de contrato aparecen en terminalPolicy y phantomIn
   assert.ok(phantomInstructions({ name: 'p', canonicalPath: '/tmp/p', nodes: [] }).includes(POLICY_HINTS.contract));
 });
 
+test('la política incluye la regla de corte paralelo exactamente una vez', () => {
+  const texts = [
+    terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' }),
+    phantomInstructions({ name: 'Project', canonicalPath: '/project' }),
+  ];
+  for (const text of texts) assert.equal(text.split(POLICY_HINTS.parallel).length - 1, 1);
+  for (const needle of ['coordination.maxConcurrency', 'disjoint files', '`dependencies`']) assert.ok(POLICY_HINTS.parallel.includes(needle));
+});
+
 function temporary(t, cleanup = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-policy-test-'));
   if (cleanup) t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -237,11 +246,12 @@ test('agent run and runs use host controllers with workspace identity or termina
   for (const identity of [
     { PHANTOM_WORKSPACE_ID: 'workspace' },
     { PHANTOM_WORKSPACE_ID: 'workspace', PHANTOM_TERMINAL_SESSION_ID: 'session' },
+    { PHANTOM_WORKSPACE_ID: 'inconsistent-other-project', PHANTOM_TERMINAL_SESSION_ID: 'session' },
     { PHANTOM_TERMINAL_SESSION_ID: 'session' },
   ]) {
     const env = { ...identity, PHANTOM_WORKSPACE_SOCKET: socketPath };
-    const workspaceId = identity.PHANTOM_WORKSPACE_ID || 'terminal-workspace';
-    const contextCalls = identity.PHANTOM_WORKSPACE_ID ? [] : [{ method: 'terminal.agent.context', payload: { sessionId: 'session' } }];
+    const workspaceId = identity.PHANTOM_TERMINAL_SESSION_ID ? 'terminal-workspace' : identity.PHANTOM_WORKSPACE_ID;
+    const contextCalls = identity.PHANTOM_TERMINAL_SESSION_ID ? [{ method: 'terminal.agent.context', payload: { sessionId: 'session' } }] : [];
     for (const model of [undefined, 'provider/model']) {
       calls.length = 0;
       assert.deepEqual(await agentCLI(['run', 'task-id', ...(model ? [model] : [])], env), descriptor);
@@ -421,6 +431,21 @@ test('PTY creation fails usefully on malformed host inline config without spawni
   restore();
   assert.equal(host.terminals.live.size, 0);
   assert.deepEqual(await host.invoke('terminal.list', { workspaceId: workspace.id }), []);
+});
+
+test('terminal PTY env does not inherit PHANTOM_WORKSPACE_ID from the app process', async t => {
+  const root = temporary(t, false), output = path.join(root, 'workspace-id');
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const previous = process.env.PHANTOM_WORKSPACE_ID;
+  process.env.PHANTOM_WORKSPACE_ID = 'app-workspace';
+  let terminal;
+  try { terminal = await host.invoke('terminal.create', { workspaceId: workspace.id, shell: '/bin/sh' }); }
+  finally { if (previous === undefined) delete process.env.PHANTOM_WORKSPACE_ID; else process.env.PHANTOM_WORKSPACE_ID = previous; }
+  await host.invoke('terminal.write', { sessionId: terminal.session.id, data: `printf '%s' "\${PHANTOM_WORKSPACE_ID-unset}" > '${output}'\n` });
+  await until(() => fs.existsSync(output) && fs.readFileSync(output, 'utf8') !== '');
+  assert.equal(fs.readFileSync(output, 'utf8'), 'unset');
 });
 
 // A fake agent that records its argv, one argument per NUL-terminated record.

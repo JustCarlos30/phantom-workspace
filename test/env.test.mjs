@@ -130,7 +130,7 @@ test('up rechaza nombres invÃ¡lidos, desconocidos y servicios ephemeral con dueÃ
   assert.ok(!f.docker.calls.some(a => a.includes('up')));
   await f.call('env.up', { owner: f.owner('s1'), service: 'web' });
   await assert.rejects(f.call('env.up', { owner: f.owner('s2'), service: 'web' }), /otra terminal/);
-  f.context.sessions = [{ id: 's2' }];
+  f.context.sessions = [{ id: 's1', status: 'exited' }, { id: 's2', status: 'running' }];
   await f.call('env.up', { owner: f.owner('s2'), service: 'web' });
   assert.equal(f.workspace.envOwners.find(e => e.service === 'web').ownerSessionId, 's2');
   f.context.sessions = [{ id: 's1' }, { id: 's2' }];

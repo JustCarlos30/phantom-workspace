@@ -357,10 +357,24 @@ function DataSettings({ api, refresh, notify }) {
   const info = useResource(api, 'system.info', {});
   const [history, setHistory] = useState(false), [incoming, setIncoming] = useState(null);
   const op = useOperation(notify);
+  const exportAll = async () => {
+    const outcome = await op.run(async () => {
+      const data = await api('storage.export', { includeHistory: history });
+      if (new Blob([JSON.stringify(data)]).size > 16 * 1024 * 1024) {
+        throw new Error(history
+          ? 'La exportación supera 16 MB. Desactiva «Incluir historial al exportar» e inténtalo de nuevo.'
+          : 'La exportación supera el límite de 16 MB.');
+      }
+      return api('desktop.export', { data });
+    });
+    if (!outcome?.ok) return;
+    if (outcome.value?.path) notify?.(`Exportación guardada en ${outcome.value.path}`, 'success');
+    else notify?.('Exportación cancelada: no se guardó ningún archivo.', 'info');
+  };
   return <>
     <Group title="Respaldo">
       <Row label="Incluir historial al exportar"><Switch label="Incluir historial al exportar" checked={history} onChange={setHistory} /></Row>
-      <Row label="Exportar todo a un archivo"><button type="button" className="st-btn" disabled={op.busy} onClick={() => op.run(async () => { const data = await api('storage.export', { includeHistory: history }); await api('desktop.export', { data }); }, 'Exportación lista')}>Exportar…</button></Row>
+      <Row label="Exportar todo a un archivo"><button type="button" className="st-btn" disabled={op.busy} onClick={exportAll}>{op.busy ? 'Exportando…' : 'Exportar…'}</button></Row>
       <Row label="Importar desde un archivo" hint={incoming ? `${incoming.name} · listo para importar` : undefined}>
         {incoming ? <><button type="button" className="st-btn" disabled={op.busy} onClick={() => setIncoming(null)}>Descartar</button><button type="button" className="st-btn is-primary" disabled={op.busy} onClick={() => op.run(async () => { await api('storage.import', { data: incoming.data }); await refresh?.(); setIncoming(null); }, 'Datos importados')}>Importar</button></>
           : <label className="st-btn st-file">Elegir…<input type="file" accept="application/json,.json" aria-label="Elegir archivo para importar" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) op.run(async () => { if (file.size > 20 * 1024 * 1024) throw new Error('El archivo supera 20 MB.'); let data; try { data = JSON.parse(await file.text()); } catch { throw new Error('El archivo no es una exportación válida.'); } setIncoming({ name: file.name, data }); }); }} /></label>}

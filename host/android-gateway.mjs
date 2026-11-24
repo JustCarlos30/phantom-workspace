@@ -252,6 +252,7 @@ export class AndroidGateway {
     const status = await this.command('status');
     const device = status.devices?.find(item => item.id === id);
     check(device && ['pending', 'approved'].includes(device.state), 'Dispositivo no disponible');
+    check(device.state !== 'pending' || (typeof device.sas === 'string' && /^\d{6}$/.test(device.sas)), 'Falta el código de verificación del teléfono');
     const args = ['--id', id, '--grants', JSON.stringify(grants),
       ...(acknowledgeAgentAuthority ? ['--acknowledge-agent-authority'] : [])];
     return this.command(device.state === 'pending' ? 'approve' : 'permissions', args);

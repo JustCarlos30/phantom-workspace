@@ -13,7 +13,7 @@ function StatusPill({ status }) {
   return <span className={`pc-pill pc-${statusTone(status)}`}><i aria-hidden="true" />{statusLabel(status)}</span>;
 }
 
-function CardForm({ existing, workspace, api, notify, onSaved, onClose }) {
+export function CardForm({ existing, workspace, api, notify, onSaved, onClose }) {
   // The UI edits commands and budget as plain fields; the contract model keeps JSON.
   const [form, setForm] = useState(() => {
     const base = existing ? cardFormOf(existing) : emptyCardForm();
@@ -288,7 +288,7 @@ function useCatalog(api, workspaceId, reading) {
   return { ...state, reload: read, fresh, seen };
 }
 
-function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy, where }) {
+export function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun, busy, where }) {
   const metaId = useId();
   const decide = card.zone === 'decide', live = card.zone === 'live';
   const line = live ? lastLine(card.controller?.output) : '';

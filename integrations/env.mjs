@@ -26,7 +26,7 @@ function store(context, id, fn) {
   w.envOwners = fn(w.envOwners ?? []);
   context.persist?.();
 }
-const isLive = (context, sessionId) => !!sessionId && (context.sessions || []).some(s => s.id === sessionId);
+const isLive = (context, sessionId) => !!sessionId && (context.sessions || []).some(s => s.id === sessionId && (s.status ?? 'running') === 'running');
 const environmentId = root => createHash('sha256').update(root).digest('hex');
 const inEnvironment = (entry, scope) => (entry.environmentId ?? null) === (scope.environmentId ?? null);
 async function environment(context, workspaceId, cwd) {
