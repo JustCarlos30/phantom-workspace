@@ -27,11 +27,11 @@ export const HOST_METHODS = new Set([
   'plugins.list', 'plugins.update', 'plugins.status', 'plugins.models',
   'review.projects', 'review.export', 'review.add', 'review.list', 'review.resolve',
   // Incorporaciones: the renderer observes and toggles; queue actions belong to terminal sessions.
-  'merge.status', 'merge.configure',
+  'merge.status', 'merge.configure', 'merge.retry', 'merge.withdraw',
   // Ramas: the user's own Git decisions from the panel; the host never forces or discards.
   'branch.overview', 'branch.commit', 'branch.integrate', 'branch.update', 'branch.abort', 'branch.publish', 'branch.remove',
   // Repositorio: graph, diffs and edits of existing text files inside the project's own worktrees.
-  'repo.graph', 'repo.commit', 'repo.diff', 'repo.files', 'repo.file.read', 'repo.file.write',
+  'repo.graph', 'repo.commit', 'repo.diff', 'repo.changes', 'repo.files', 'repo.file.read', 'repo.file.write',
   'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control',
   'providers.list', 'providers.models', 'providers.configure',
   'plugin.get', 'plugin.update',
