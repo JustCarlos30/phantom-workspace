@@ -68,7 +68,7 @@ El padre ejecuta el job por el controlador de Entorno, tras la publicación conj
 "$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" env run keyboard-e2e --timeout 900
 ```
 
-El arranque prepara únicamente los permisos del directorio de evidencia montado y baja a UID/GID `node` antes de iniciar D-Bus/Xvfb y el test. El helper `chrome-sandbox` conserva propietario root y modo 4755; el lanzamiento solicita explícitamente `chromiumSandbox: true`. No hay flags de desactivación ni un servidor de desarrollo. El host PTY usa el Node del contenedor y el renderer compilado de `dist/`.
+El arranque prepara únicamente los permisos del directorio de evidencia montado y baja a UID/GID `node` antes de iniciar D-Bus/Xvfb y el test. El helper `chrome-sandbox` conserva propietario root y modo 4755, pero el sandbox de Chromium se desactiva únicamente en este job (`chromiumSandbox: false`): con los permisos por defecto del contenedor no puede crear namespaces ("Failed to move to new namespace", "Zygote process exited prematurely"). El límite de aislamiento es el contenedor: sin red ni secretos, usuario `node` no root y fixtures sintéticas. No hay un servidor de desarrollo. El host PTY usa el Node del contenedor y el renderer compilado de `dist/`.
 
 `test/keyboard-navigation.mjs` usa el bridge real y dos carpetas sintéticas. Solo el setup crea proyectos, paneles, espacios y dos PTY `/bin/sh` por IPC; después la navegación y configuración usan `page.keyboard`, sin clicks, `fill`, focos programáticos ni reemplazo del bridge. Las recargas del harness comprueban persistencia; las lecturas por IPC/DOM son observaciones de resultados. El recorrido incluye:
 

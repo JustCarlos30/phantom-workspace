@@ -209,7 +209,7 @@ try {
     DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS, LANG: 'C.UTF-8', HOME: home, SHELL: '/bin/sh',
     XDG_CONFIG_HOME: path.join(home, '.config'), XDG_CACHE_HOME: path.join(home, '.cache'),
     PHANTOM_WORKSPACE_HOME: profile, PHANTOM_NODE_BINARY: process.execPath };
-  app = await electron.launch({ executablePath, args: [root], cwd: root, chromiumSandbox: true, env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)), timeout: 20000 });
+  app = await electron.launch({ executablePath, args: [root], cwd: root, chromiumSandbox: false, env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)), timeout: 20000 });
   page = await app.firstWindow(); page.setDefaultTimeout(10000);
   page.on('console', message => result.console.push({ type: message.type(), text: message.text() }));
   page.on('pageerror', error => result.errors.push(error.stack || error.message));
