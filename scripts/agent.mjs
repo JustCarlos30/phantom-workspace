@@ -1,6 +1,7 @@
 import net from 'node:net';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { EVENTS_METHOD } from '../shared/workspace-events.mjs';
 
 export function invokeAgent(method, payload, socketPath, timeout=10000) {
   if (!socketPath) return Promise.reject(new Error('Ejecuta este comando dentro de una terminal nueva de Phantom Workspace.'));
@@ -35,6 +36,7 @@ const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|worki
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
   +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"\n'
   +'Fases: phases show | phases set ARCHIVO.json|- | phases start KEY [TASK_ID] | phases task KEY TASK_ID | phases done KEY ["nota"] | phases block KEY "motivo" | phases reset KEY | phases clear\n'
+  +'Eventos: events [CURSOR]\n'
   +'Hooks: subagent (lee el evento de Claude Code por stdin)';
 // Incorporaciones: [payload from arguments, argument check]. Orchestrator actions carry its token.
 const MERGE={
@@ -86,6 +88,12 @@ export async function main(args=process.argv.slice(2), env=process.env) {
     if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
     return invokeAgent(`terminal.agent.env.${sub}`,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...payload},env.PHANTOM_WORKSPACE_SOCKET,wait);
   }
+  if(args[0]==='events') {
+    const [,cursor]=args;
+    if(args.length>2||(cursor!==undefined&&!/^[A-Za-z0-9_-]{1,200}$/.test(cursor)))throw new Error(USAGE);
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    return invokeAgent(EVENTS_METHOD,{principal:{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},...(cursor===undefined?{}:{cursor})},env.PHANTOM_WORKSPACE_SOCKET);
+  }
   if(['launch','processes','output','stop'].includes(args[0])) {
     const [action,...rest]=args;
     let payload={},method=`terminal.agent.${action}`;
@@ -124,7 +132,7 @@ export async function main(args=process.argv.slice(2), env=process.env) {
   if ((!merge && !['context','report','bind','projects','handoff','run','runs'].includes(action)) || (action==='projects'&&rest.length) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512)) || (action==='run' && (rest.length<1 || rest.length>2 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512 || (rest.length===2 && (!rest[1].trim() || /[\x00-\x1f\x7f]/.test(rest[1]) || rest[1].length>200)))) || (action==='runs' && rest.length)) throw new Error(USAGE);
   const handoff=action==='handoff'?handoffArguments(rest):null;
   if(action==='run' || action==='runs') {
-    let workspaceId=env.PHANTOM_WORKSPACE_ID;
+    let workspaceId=env.PHANTOM_TERMINAL_SESSION_ID?undefined:env.PHANTOM_WORKSPACE_ID;
     if(!workspaceId) {
       if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
       const context=await invokeAgent('terminal.agent.context',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},env.PHANTOM_WORKSPACE_SOCKET);

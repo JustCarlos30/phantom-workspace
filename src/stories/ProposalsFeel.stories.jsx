@@ -1,8 +1,9 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Check, CircleAlert, CircleCheck, CircleX, Loader, SquareTerminal, StickyNote, Bot, Wrench } from 'lucide-react';
-import { ContextMeter } from '../components/ChatCard';
-import { noop } from './fixtures';
-import { BeforeAfter, Composer, Page, Section, Session, Tag } from './proposals-kit';
+import ChatCard, { ContextMeter } from '../components/ChatCard';
+import { demo, Panel } from './decorators';
+import { chatNode, noop } from './fixtures';
+import { BeforeAfter, Composer, Page, Section, Tag } from './proposals-kit';
 import './proposals-feel.css';
 
 export default {
@@ -33,7 +34,7 @@ export const FocoIsla = {
       <Section label="Las cinco variantes enfocadas (foco forzado)">
         <div className="pf-grid pf-forced">
           {RINGS.map(([key, label, why, today, rec]) => <article key={key} className="pf-card">
-            <header><strong>{label}</strong>{today && <Tag today />}{rec && <span className="pf-chip" data-kind="rec">RECOMENDADA</span>}</header>
+            <header><strong>{label}</strong>{today && <Tag today historical />}{rec && <span className="pf-chip" data-kind="rec">RECOMENDADA</span>}</header>
             <p>{why}</p>
             <Composer focus={key} />
           </article>)}
@@ -91,7 +92,7 @@ export const Acento = {
           </nav>
           <div className="pf-scope">
             <p className="pf-prose">SYNTHETIC · Selecciona este texto o abre la <a href="#guia" onClick={event => event.preventDefault()}>guía del dock</a> para ver el acento en enlace y selección.</p>
-            <Session />
+            <Panel><ChatCard {...demo} node={chatNode} /></Panel>
           </div>
         </div>
       </Section>
@@ -137,7 +138,7 @@ export const ContadorContexto = {
   argTypes: { uso: { control: 'inline-radio', options: USES, name: 'Uso (%)' } },
   render: ({ uso }) => <Page title="Contador de contexto" problem="El contador vive fuera de la isla, desalineado de los controles y con una presencia constante aunque quede mucho contexto.">
     <div className="pf-scope">
-      <BeforeAfter height={360}
+      <BeforeAfter historical height={360}
         before={<div className="pf-before-meter"><ContextMeter meta={{ contextSource: 'claude:request-v1', contextTokens: uso / 100 * WINDOW, contextWindow: WINDOW }} onCompact={noop} onNew={noop} /><Composer /></div>}
         after={<div className="pf-before-meter"><Composer meter={<Meter uso={uso} />} /></div>}
         changes={[

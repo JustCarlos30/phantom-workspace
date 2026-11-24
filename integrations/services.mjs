@@ -3,6 +3,7 @@ import { readdir, readFile, readlink, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { workspaceRoot, inside, observedAt, readBounded } from './common.mjs';
 import { dockerList } from './docker.mjs';
+import { managedPortsDarwin } from '../host/process-inspect.mjs';
 
 export function serviceURL(value) {
   if (typeof value !== 'string' || value.length > 8192) throw new Error('Invalid service URL');
@@ -16,6 +17,7 @@ export function serviceURL(value) {
 export async function managedPorts(context, workspace, root) {
   const sessions = (context.sessions ?? []).filter(s => s.workspaceId === workspace.id && s.status === 'running' && Number.isSafeInteger(s.pid));
   if (!sessions.length) return [];
+  if (process.platform === 'darwin') return managedPortsDarwin(sessions, root, inside);
   const deadline = Date.now() + 2500;
   const processes = new Map();
   const entries = (await readdir('/proc')).filter(n => /^\d+$/.test(n)).slice(0, 16000);

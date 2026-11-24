@@ -4,14 +4,16 @@ import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { catalog } from '../src/stories/catalog.mjs';
+import { inspectRepository, validateStoryIndex } from '../scripts/storybook-inventory.mjs';
 import { assertFormGeometry, assertVisibleFocus, assertActionsReachable } from './ui-refinement.mjs';
 
 const root = resolve('storybook-static');
 const index = JSON.parse(await readFile(resolve(root, 'index.json'), 'utf8'));
 const stories = Object.values(index.entries).filter((entry) => entry.type === 'story');
 assert.ok(stories.length, 'El build no contiene stories');
-assert.equal(stories.length, 118, 'Conservar las 101 stories previas y los 17 escenarios de compositor/permisos/voz');
-assert.equal(catalog.length, 64, 'Conservar las 64 fuentes del catálogo');
+const inventory = await inspectRepository();
+assert.deepEqual(inventory.errors, [], 'Cobertura del catálogo sobre las fuentes actuales');
+assert.deepEqual(validateStoryIndex(inventory.stories, index), [], 'Igualdad exacta de IDs AST/índice');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.gif': 'image/gif' };
 const server = createServer(async (req, res) => {
   try {
@@ -41,6 +43,7 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error' && !message.text().includes('Failed to load resource')) errors.push(message.text()); });
   const failures = [];
+  const coveredSources = new Set();
   const externalRequests = [];
   await mkdir('.test-artifacts', { recursive: true });
   await page.route('**/*', route => {
@@ -57,8 +60,18 @@ try {
     await page.waitForFunction(() => document.body.classList.contains('sb-show-main'), null, { timeout: 15_000 });
     await page.waitForFunction(id => document.documentElement.dataset.catalogRendered === id, story.id, { timeout: 15_000 });
     await page.waitForTimeout(120);
-    assert.ok(await page.locator('#storybook-root button, #storybook-root input, #storybook-root svg, #storybook-root canvas, #storybook-root p, #storybook-root h1, #storybook-root table, #storybook-root summary, [role="dialog"]').count(), `${story.id}: sin render de contenido`);
-    for (const entry of catalog.filter(entry => entry.story === story.id)) await page.locator(entry.selector).first().waitFor({ state: 'visible', timeout: 2000 });
+    assert.ok(await page.locator('#storybook-root, [role="dialog"]').evaluateAll(roots => roots.some(root => [...root.querySelectorAll('button, input, select, textarea, svg, canvas, p, h1, h2, h3, h4, h5, h6, li, dt, dd, pre, summary')].some(el => {
+      const rect = el.getBoundingClientRect();
+      if (!el.checkVisibility() || !rect.width || !rect.height) return false;
+      if (el.matches('input, select, textarea')) return Boolean(el.getAttribute('aria-label') || el.labels?.length || el.getAttribute('placeholder') || el.value);
+      if (el.matches('canvas')) return el.width > 0 && el.height > 0;
+      if (el.matches('svg')) return Boolean(el.querySelector('path, circle, rect, line, polyline, polygon, ellipse, text, use'));
+      return Boolean(el.textContent.trim() || el.getAttribute('aria-label'));
+    }))), `${story.id}: sin render de contenido semántico`);
+    for (const entry of catalog.filter(entry => entry.story === story.id)) {
+      await page.locator(entry.selector).first().waitFor({ state: 'visible', timeout: 2000 });
+      coveredSources.add(entry.source);
+    }
     assert.equal(await page.locator('#storybook-error-message').isVisible(), false, `${story.id}: error de render`);
     assert.deepEqual(await page.evaluate(() => window.__storybookHost?.unknown), [], `${story.id}: llamadas sin fixture`);
     assert.deepEqual(errors, [], `${story.id}: errores de página`);
@@ -66,6 +79,7 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.screenshot({ path: `.test-artifacts/${story.id}-compacto.png` });
+    assert.deepEqual(await page.evaluate(() => window.__storybookHost?.unknown), [], `${story.id}: llamadas sin fixture en compacto`);
     assert.deepEqual(errors, [], `${story.id}: errores en compacto`);
     console.log(`PASS ${story.id}`);
     } catch (error) {
@@ -75,30 +89,52 @@ try {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
   }
   assert.equal(failures.length, 0, failures.join('\n\n'));
+  assert.deepEqual([...coveredSources].sort(), catalog.map(entry => entry.source).sort(), 'Cada fuente del catálogo debe tener un selector visible');
+  console.log(`PASS inventario: ${stories.length} IDs AST/índice y ${coveredSources.size} fuentes cubiertas`);
   const action = stories.find((entry) => entry.exportName === 'Accion');
   assert.ok(action, 'Falta la story de interacción');
   await page.goto(`${base}/iframe.html?id=${encodeURIComponent(action.id)}&viewMode=story`);
   await page.getByRole('button', { name: 'Reintentar' }).click();
   await page.getByText('Intentos: 1').waitFor();
-  const visit = async id => {
-    await page.goto(`${base}/iframe.html?id=${encodeURIComponent(id)}&viewMode=story`);
-    await page.waitForFunction(id => document.documentElement.dataset.catalogRendered === id, id);
+  const assertClean = async context => {
+    assert.deepEqual(await page.evaluate(() => window.__storybookHost?.unknown), [], `${context}: llamadas sin fixture`);
+    assert.deepEqual(errors, [], `${context}: errores de página`);
   };
-  for (const width of [1440, 390, 320]) {
+  const visit = async (id, host = 'catalog') => {
+    await assertClean(`Antes de ${id}`);
+    await page.goto(`${base}/iframe.html?id=${encodeURIComponent(id)}&viewMode=story&args=host:${host}`);
+    await page.waitForFunction(id => document.documentElement.dataset.catalogRendered === id, id);
+    await assertClean(id);
+  };
+  for (const { width, panelWidth, host } of [
+    { width: 1440, host: 'catalog' },
+    { width: 1440, panelWidth: 390, host: 'canvas' },
+    { width: 1440, panelWidth: 320, host: 'inspector' },
+    { width: 390, host: 'catalog' },
+    { width: 320, host: 'catalog' },
+  ]) {
     await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
     for (const id of ['ajustes--configuracion', 'ajustes--git', 'ajustes--voz', 'ajustes--conexiones', 'phantom--nueva-card', 'phantom--nueva-skill']) {
-      await visit(id);
+      const composition = host === 'inspector' && id.startsWith('ajustes') ? 'sheet' : host;
+      await visit(id, composition);
+      if (panelWidth) {
+        const panel = page.locator(composition === 'canvas' ? '.canvas-node' : composition === 'sheet' ? '.inspector-host.settings-sheet' : '.tw-inspector').first();
+        await panel.evaluate((el, value) => { el.style.width = `${value}px`; }, panelWidth);
+        await page.waitForFunction(({ selector, width }) => Math.abs(document.querySelector(selector).getBoundingClientRect().width - width) < 1, { selector: composition === 'canvas' ? '.canvas-node' : composition === 'sheet' ? '.inspector-host.settings-sheet' : '.tw-inspector', width: panelWidth });
+      }
       if (id === 'ajustes--configuracion' && await page.locator('.st-pane').isHidden()) await page.getByRole('button', { name: 'Agentes', exact: true }).click();
       for (const details of await page.locator('.st-details, .pc-advanced').all()) await details.evaluate(el => { el.open = true; });
-      const context = `${id}/${width}`;
+      const context = `${id}/${width}/${composition}${panelWidth ? `-${panelWidth}` : ''}`;
       await assertFormGeometry(page, context);
       const input = page.locator('.st-input:not([type=number]), .pc-form input, .pc-form textarea').filter({ visible: true }).first();
       await assertVisibleFocus(page, input, context);
       if (id.startsWith('ajustes')) await input.fill('Borrador visual');
       await assertActionsReachable(page, page.locator(id.startsWith('ajustes') ? '.st-save' : '.pc-form-actions').first(), context);
-      await page.screenshot({ path: `.test-artifacts/smoke-form-${id}-${width}-actions.png` });
+      await assertClean(context);
+      await page.screenshot({ path: `.test-artifacts/smoke-form-${id}-${width}-${composition}-actions.png` });
     }
   }
+  console.log('PASS formularios, paneles estrechos de escritorio, móvil, foco y acciones');
   await page.setViewportSize({ width: 1440, height: 900 });
   await visit('catálogo--inventario');
   assert.equal(await page.locator('.catalog-stage').evaluate(el => getComputedStyle(el).fontSize), '14px');
@@ -148,11 +184,16 @@ try {
   await note.fill('Nota editada desde el smoke');
   assert.equal(await note.inputValue(), 'Nota editada desde el smoke');
   await visit('voz--dictado');
+  assert.ok(await page.evaluate(() => window.__storybookHost.calls.some(c => c.method === 'voice.stream.warm')), 'El dictado prepara el modelo sintético');
   await page.getByRole('button', { name: 'Grabar dictado' }).click();
   await page.getByRole('alert').waitFor();
-  assert.equal(await page.evaluate(() => window.__storybookHost.calls.some(c => c.method.startsWith('voice.stream'))), false, 'No se debe iniciar audio nativo');
+  assert.equal(await page.evaluate(() => window.__storybookHost.calls.some(c => c.method.startsWith('voice.') && !['voice.stream.warm', 'voice.status'].includes(c.method))), false, 'Preparar el modelo no debe iniciar streaming ni enviar audio');
+  assert.equal(await page.getByRole('button', { name: 'Grabar dictado' }).isEnabled(), true, 'El rechazo del micrófono libera la grabación');
   await visit('conversaciones--chat');
+  const initialDraft = await page.locator('.pc-composer textarea').inputValue();
+  assert.notEqual(initialDraft, 'Borrador que no debe filtrarse', 'El montaje inicial no contiene el borrador de aislamiento');
   await page.locator('.pc-composer textarea').fill('Borrador que no debe filtrarse');
+  assert.equal(await page.locator('.pc-composer textarea').inputValue(), 'Borrador que no debe filtrarse', 'El borrador cambia antes del desmontaje');
   await page.evaluate(() => {
     window.__oldHost = window.__storybookHost;
     window.__oldHost.model.settings.syntheticMutation = true;
@@ -162,14 +203,18 @@ try {
   assert.deepEqual(await page.evaluate(() => ({ disposed: window.__oldHost.disposed, listeners: window.__oldHost.subscriptions, same: window.__oldHost === window.__storybookHost, mutation: Boolean(window.__storybookHost.model.settings.syntheticMutation) })), { disposed: true, listeners: 0, same: false, mutation: false });
   await page.evaluate(() => window.__STORYBOOK_ADDONS_CHANNEL__.emit('setCurrentStory', { storyId: 'conversaciones--chat' }));
   await page.waitForFunction(() => document.documentElement.dataset.catalogRendered === 'conversaciones--chat');
-  assert.equal(await page.locator('.pc-composer textarea').inputValue(), '', 'El borrador de voz/chat se aísla por montaje');
+  assert.equal(await page.locator('.pc-composer textarea').inputValue(), initialDraft, 'El borrador de voz/chat se aísla por montaje y restaura el estado inicial de la story');
+  await assertClean('Aislamiento por montaje');
   const blocked = await page.evaluate(async () => {
     try { await window.__storybookHost.invoke('unregistered.method'); return false; }
     catch (error) { return error.message.includes('desconocido'); }
   });
   assert.equal(blocked, true, 'El host debe rechazar métodos no registrados');
+  assert.deepEqual(await page.evaluate(() => window.__storybookHost.unknown), ['unregistered.method'], 'El rechazo queda registrado');
   assert.equal(await page.evaluate(async () => { try { await fetch('https://example.invalid/host'); return false; } catch (error) { return error.message.includes('aislada'); } }), true, 'Fetch externo bloqueado antes de red');
-  await visit('catálogo--inventario');
+  await page.goto(`${base}/iframe.html?id=catálogo--inventario&viewMode=story`);
+  await page.waitForFunction(() => document.documentElement.dataset.catalogRendered === 'catálogo--inventario');
+  await assertClean('Host nuevo tras rechazo desconocido');
   await page.getByRole('searchbox', { name: 'Buscar fuente, símbolo o escenario' }).fill('EmptyState.jsx');
   await page.getByRole('link', { name: 'Panel · principal', exact: true }).click();
   await page.waitForURL(url => url.pathname === '/' && url.searchParams.get('path') === '/story/primitivas--panel');
@@ -180,6 +225,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: '.test-artifacts/storybook-compacto.png' });
   assert.deepEqual(errors, [], 'Errores de página');
+  console.log('PASS acciones, aislamiento de voz/chat, desconocidos y red');
   console.log(`${stories.length} stories comprobadas`);
   })(), new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('El smoke excedió el tiempo límite')), 240_000); })]);
 } finally {

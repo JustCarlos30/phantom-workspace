@@ -63,7 +63,20 @@ export function buildSessionRows(nodes = [], sessions = {}, now = Date.now()) {
     const owner = node.type === 'browser' && owners.get(node.data?.agentTerminal);
     (owner ? owner.resources : resources).push(node);
   }
-  const priority = row => row.needsYou ? 0 : row.tone === 'working' ? 1 : 2;
-  rows.sort((a, b) => priority(a) - priority(b));
+  rows.sort((a, b) => sessionPriority(a) - sessionPriority(b));
   return { rows, resources };
+}
+
+export const sessionPriority = row => row.needsYou ? 0 : row.tone === 'working' ? 1 : 2;
+
+const sessionGroups = [
+  { key: 'attention', label: 'Necesitan tu atención' },
+  { key: 'working', label: 'Trabajando' },
+  { key: 'rest', label: 'En reposo' },
+];
+
+export function groupSessionRows(rows = []) {
+  return sessionGroups
+    .map((group, index) => ({ ...group, rows: rows.filter(row => sessionPriority(row) === index) }))
+    .filter(group => group.rows.length);
 }

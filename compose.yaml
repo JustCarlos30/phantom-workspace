@@ -19,16 +19,32 @@ services:
       dockerfile: Dockerfile.storybook
     ports:
       - target: 80
-        published: "6006"
+        published: "${STORYBOOK_PORT:-0}"
         host_ip: 127.0.0.1
         protocol: tcp
         app_protocol: http
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/index.json"]
       interval: 30s
       timeout: 5s
       retries: 3
-    restart: unless-stopped
+    restart: "no"
     x-phantom:
       lifecycle: ephemeral
       purpose: "Preview de componentes UI"
+      card: "task_a9eee333-3f66-4acd-88f2-892b2628c921"
+  keyboard-e2e:
+    profiles: [keyboard-test]
+    build:
+      context: .
+      dockerfile: Dockerfile.keyboard-test
+    init: true
+    shm_size: 1gb
+    volumes:
+      - type: bind
+        source: /tmp/phantom-keyboard-e2e
+        target: /tmp/phantom-keyboard-e2e
+    restart: "no"
+    x-phantom:
+      lifecycle: ephemeral
+      purpose: "Job de navegación por teclado · Electron, PTY real y evidencia sintética en /tmp"

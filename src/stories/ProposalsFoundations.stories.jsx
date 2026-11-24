@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { Copy, Inbox, Pencil, Plus, Search, Settings2, Trash2, X } from 'lucide-react';
 import AsciiField from '../components/AsciiField';
 import PixelField from '../components/PixelField';
@@ -36,9 +36,9 @@ function Pixels() {
 export const Fondos = {
   render: ({ material }) => <Page title="Fondos" problem="El lienzo, la retícula y los objetos tienen luminancias muy próximas: en pantallas oscuras el objeto se funde con el fondo y los campos ASCII y de píxeles compiten con el contenido.">
     <Section label="Lienzo, retícula y ambiente">
-      <BeforeAfter height={420} material={material} before={<Ambient />} after={<Ambient />} changes={[
-        'Lienzo casi negro (#070709) y retícula de puntos un poco más tenue.',
-        'El objeto usa el material cenital: más claro arriba y brillo del 6 %, con más separación del lienzo.',
+      <BeforeAfter historical height={420} material={material} before={<Ambient />} after={<Ambient />} changes={[
+        'Lienzo #020203 y retícula de puntos.',
+        'Material vigente: #151518 → #0b0b0d y brillo cenital del 4 %.',
         'Misma caja y mismos datos SYNTHETIC en ambas columnas.',
       ]} />
     </Section>
@@ -59,9 +59,9 @@ export const Fondos = {
 const notch = () => <div className="px-fd-dock"><div className="create-dock activity-dock"><ActivityNotch activity={activity} open={false} onToggle={noop} /></div></div>;
 
 export const Material = {
-  render: ({ material }) => <Page title="Material" problem="Los objetos de hoy usan un relleno plano casi igual al lienzo; cada componente resuelve su contorno por su cuenta.">
+  render: ({ material }) => <Page title="Material" problem="Comparación de muestras sintéticas y variantes del material vigente.">
     <Section label="Caja-objeto">
-      <BeforeAfter height={340} material={material} before={<Specimen />} after={<Specimen />} changes={[
+      <BeforeAfter historical height={340} material={material} before={<Specimen />} after={<Specimen />} changes={[
         'Una sola receta de material por custom properties (--object-top, --object-bottom, --object-fill, --object-ring).',
         'Cenital por defecto; el control «Material» permite ver hoy, grafito y borde.',
       ]} />
@@ -175,6 +175,7 @@ export const Campos = {
 /* ---------- Selectores ---------- */
 function Selectors() {
   const [on, setOn] = useState(true), [mode, setMode] = useState('uno'), [pick, setPick] = useState('a');
+  const radioName = useId();
   return <div className="px-fd-stack">
     <P.Group title="Controles de plugins">
       <P.Row label="Activar ejemplo"><P.Switch label="Activar ejemplo" checked={on} onChange={setOn} /></P.Row>
@@ -182,7 +183,7 @@ function Selectors() {
       <P.Row label="Modo"><P.Segmented label="Modo de ejemplo" value={mode} options={[['uno', 'Uno'], ['dos', 'Dos'], ['tres', 'Tres']]} onChange={setMode} /></P.Row>
     </P.Group>
     <fieldset className="px-fd-radios"><legend>Esfuerzo (radio nativo)</legend>
-      {[['a', 'Bajo'], ['b', 'Medio'], ['c', 'Alto']].map(([id, name]) => <label key={id}><input type="radio" name="px-fd-effort" checked={pick === id} onChange={() => setPick(id)} />{name}</label>)}
+      {[['a', 'Bajo'], ['b', 'Medio'], ['c', 'Alto']].map(([id, name]) => <label key={id}><input type="radio" name={radioName} checked={pick === id} onChange={() => setPick(id)} />{name}</label>)}
     </fieldset>
   </div>;
 }
@@ -213,7 +214,7 @@ function Menu() {
 
 export const Menus = {
   render: ({ material }) => <Page title="Menús" problem="El menú contextual usa vidrio grueso distinto del material de los objetos y filas de 30 px con radio de control.">
-    <BeforeAfter height={320} material={material} before={<Menu />} after={<Menu />} changes={[
+    <BeforeAfter historical height={320} material={material} before={<Menu />} after={<Menu />} changes={[
       'El menú usa el material del objeto y la sombra de cromo.',
       'Filas de 36 px con realce tonal de radio 12, sin anillos.',
       'Divisor de 1 px como fondo, no como borde.',

@@ -56,6 +56,7 @@ window.mountComposer = async ({ surface = 'card', width = 320, saved = null, fai
       if (method === 'chat.models') return { items: [{ id: 'claude-modelo-sintetico-con-un-nombre-muy-largo', group: 'Modelos sintéticos' }] };
       if (method === 'state.get') return { settings: {} };
       if (method === 'phantom.controllers') return { items: [] };
+      if (method === 'repo.changes') return { files: [], base: 'main', truncated: false };
       if (method === 'voice.stream.warm' || method === 'voice.stream.cancel') return {};
       if (method === 'voice.stream.start') return { sessionId: 'synthetic-audio' };
       if (method === 'voice.stream.push') return { confirmed: 'Texto sintético', partial: 'para revisar…' };

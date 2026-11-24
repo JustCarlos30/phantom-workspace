@@ -186,13 +186,13 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     resizeRef.current?.();
   }, [fontSize]);
   useEffect(() => {
-    if (overview || (!focusRequested && !active) || !activeRef.current || status !== 'running') return;
+    if (inputBlocked || overview || (!focusRequested && !active) || !activeRef.current || status !== 'running') return;
     const element = document.activeElement;
     if (element?.closest('.inspector-host,.project-name-editor,.title-button')) return;
     if (element?.closest('input,textarea,select,[contenteditable="true"]') && !element.closest('.xterm')) return;
     terminal.current?.focus();
     // Opening/closing a nonmodal surface must not take focus from its controls.
-  }, [focusRequested, active, status, overview]);
+  }, [focusRequested, active, status, overview, inputBlocked]);
   const preparing = !sessionId && node.data?.launchState === 'creating';
   const setupActive = setup && ['queued', 'checking', 'installing'].includes(setup.status);
   const setupFailed = setup && ['failed', 'cancelled'].includes(setup.status);

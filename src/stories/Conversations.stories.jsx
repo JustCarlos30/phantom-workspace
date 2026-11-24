@@ -1,4 +1,5 @@
 import React from 'react';
+import { expect, userEvent, within } from 'storybook/test';
 import TerminalPanel from '../components/TerminalPanel';
 import TerminalCard from '../components/TerminalCard';
 import ChatCard, { PermissionSwitch, ContextMeter, QueuedMessages } from '../components/ChatCard';
@@ -6,17 +7,27 @@ import PhantomChat from '../components/PhantomChat';
 import PhantomOrchestrator from '../components/PhantomOrchestrator';
 import { demo, Panel } from './decorators';
 import { terminalNode, chatNode, noop } from './fixtures';
-import { within, userEvent } from 'storybook/test';
 
 export default { title: 'Conversaciones', parameters: { docs: { description: { component: 'Conversaciones y motor xterm reales. Salida, mensajes y permisos sintéticos; ninguna sesión de agente ni PTY se inicia.' } } } };
 export const Terminal = { render: () => <Panel><TerminalPanel {...demo} node={terminalNode} active /></Panel> };
 export const TarjetaTerminal = { render: () => <Panel><TerminalCard {...demo} node={terminalNode} onOpen={noop} /></Panel> };
-export const Chat = { render: () => <Panel><ChatCard {...demo} node={chatNode} /></Panel> };
-export const ChatVacio = { ...Chat, parameters: { host: { scenario: 'empty' } } };
-export const ChatCargando = { ...Chat, parameters: { host: { scenario: 'loading' } } };
-export const ChatError = { ...Chat, parameters: { host: { scenario: 'error' } } };
-export const ChatTrabajando = { ...Chat, parameters: { host: { scenario: 'working' } } };
-export const ChatAtencion = { ...Chat, parameters: { host: { scenario: 'attention' } } };
+export const Chat = {
+  render: () => <Panel><ChatCard {...demo} node={chatNode} /></Panel>,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = await canvas.findByRole('textbox', { name: /^Mensaje para / });
+    await userEvent.click(input);
+    await userEvent.type(input, 'Mensaje sintético');
+    await expect(input).toHaveFocus();
+    await expect(input).toHaveValue('Mensaje sintético');
+    await expect(canvas.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
+  },
+};
+export const ChatVacio = { render: Chat.render, parameters: { host: { scenario: 'empty' } } };
+export const ChatCargando = { render: Chat.render, parameters: { host: { scenario: 'loading' } } };
+export const ChatError = { render: Chat.render, parameters: { host: { scenario: 'error' } } };
+export const ChatTrabajando = { render: Chat.render, parameters: { host: { scenario: 'working' } } };
+export const ChatAtencion = { render: Chat.render, parameters: { host: { scenario: 'attention' } } };
 export const ChatDesconectado = { render: () => <Panel><ChatCard {...demo} node={chatNode} connected={false} /></Panel> };
 export const Dock = { render: () => <Panel><PhantomChat {...demo} status={{ tone: 'idle', orchestrator: null }} /></Panel> };
 export const Orquestador = { render: () => <Panel><PhantomOrchestrator {...demo} status={{ tone: 'working', orchestrator: { id: chatNode.id, title: 'Orquestador sintético', agent: 'working', step: 'Revisando el catálogo', chat: true } }} /></Panel> };
@@ -43,6 +54,7 @@ function ComposerExample({ width, surface, saveError = false, saved = null }) {
       window.__storybookHost.emit({ type: 'chat.update', reset: true, workspaceId: project.id, nodeId: payload.nodeId });
       return next;
     }
+    if (method === 'repo.changes') return { files: [], base: 'main', truncated: false };
     const result = await demo.api(method, payload);
     return method === 'chat.get' ? { ...result, ...current.current, meta: { ...result.meta, contextSource: 'claude:request-v1', contextTokens: 150000, contextWindow: 200000 } } : result;
   }, [project.id, saveError]);

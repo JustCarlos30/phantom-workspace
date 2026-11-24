@@ -11,6 +11,7 @@ const measurements = [];
 const results = [];
 const artifacts = '.test-artifacts';
 const checkboxName = 'Usar estos permisos en nuevas conversaciones de este proyecto';
+const barPermission = '.pc-selectors > .pc-permission';
 const barModel = '.pc-selectors > .pc-model-picker > .pc-model';
 const barReasoning = '.pc-selectors > .pc-effort > .pc-reasoning';
 const barModels = '.pc-selectors > .pc-model-picker > .pc-models';
@@ -102,7 +103,7 @@ async function geometry(page, surface, width, state, menu = null) {
     const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
     const visible = el => el.checkVisibility() && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
     const field = document.querySelector('.pc-field'), bounds = rect(field);
-    const targets = [...field.querySelectorAll('.pc-selectors > .pc-session-settings > summary, .pc-selectors > .pc-model-picker > button, .pc-selectors > .pc-effort > button, .pc-composer-actions button')].filter(visible);
+    const targets = [...field.querySelectorAll('.pc-selectors > .pc-session-settings > summary, .pc-selectors > .pc-permission, .pc-selectors > .pc-model-picker > button, .pc-selectors > .pc-effort > button, .pc-composer-actions button')].filter(visible);
     const controls = targets.map(el => ({ name: el.getAttribute('aria-label') || el.title || el.textContent, ...rect(el), disabled: el.disabled }));
     const overlaps = [];
     for (let i = 0; i < controls.length; i++) for (let j = i + 1; j < controls.length; j++) {
@@ -210,7 +211,9 @@ test('Geometría: 320/480/640/960, menús completos, controles clicables y foco 
       await page.keyboard.press('Escape');
       await focusAt(page, '.pc-session-chip', surface, width, 'Escape desde contexto');
       await page.keyboard.press('Tab');
-      await focusAt(page, barModel, surface, width, 'Tab desde contexto a modelo');
+      await focusAt(page, barPermission, surface, width, 'Tab desde contexto a permisos');
+      await page.keyboard.press('Tab');
+      await focusAt(page, barModel, surface, width, 'Tab desde permisos a modelo');
       await page.keyboard.press('Enter');
       await page.getByRole('textbox', { name: 'Buscar modelo' }).waitFor();
       await focusAt(page, `${barModels} input`, surface, width, 'Enter abre búsqueda de modelo');

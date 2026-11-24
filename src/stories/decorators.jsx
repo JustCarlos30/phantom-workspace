@@ -4,7 +4,15 @@ import { installHost, api } from './host-mock';
 import { workspace, state, noop, done, plugin } from './fixtures';
 
 export const demo = { workspace, state, api, notify: noop, refresh: done, flush: done, onClose: noop, onOpenPanel: noop, onChange: noop, onFocus: noop, onSelect: noop, onRelaunch: noop, connected: true, plugin };
-export function Panel({ children }) { return <div className="catalog-panel">{children}</div>; }
+export function Panel({ children, width, height, host = 'catalog', plugin = false }) {
+  const content = plugin ? <div className="plugin-surface">{children}</div> : children;
+  return <div className="catalog-panel" data-host={host} style={{ width, height }}>
+    {host === 'canvas' ? <section className="canvas-node catalog-panel-node"><div className="node-body"><div className="tw-tool-panel">{content}</div></div></section>
+      : host === 'inspector' ? <aside className="tw-inspector catalog-panel-inspector">{content}</aside>
+      : host === 'sheet' ? <div className="inspector-host settings-sheet"><aside className="tw-inspector is-settings" aria-label="Configuración">{content}</aside></div>
+      : content}
+  </div>;
+}
 
 export function catalogDecorator(Story, context) {
   return <VoiceProvider workspaceId={demo.workspace.id} api={demo.api} connected><div className={`catalog-stage${context.id === 'ajustes--cliente-movil' ? '' : ' app-shell'}${context.id === 'identidad--mascota' ? ' studio-character' : ''}`} data-story={context.id}><Story /></div></VoiceProvider>;

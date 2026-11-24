@@ -322,7 +322,7 @@ test('workplanes and wells are opaque without blur and composer height never ani
 test('E5 session rows, quote and activity use two surface levels and measured progress only', () => {
   const canvas = sheets.find(sheet => sheet.name === 'src/canvas-ui.css').css;
   const chat = sheets.find(sheet => sheet.name === 'src/chat.css').css;
-  const source = readFileSync(path.join(root, 'src/components/ChatCard.jsx'), 'utf8');
+  const source = ['src/components/ChatCard.jsx', 'src/components/chat/ChatPermissions.jsx', 'src/components/chat/ChatPickers.jsx', 'src/components/chat/ChatTools.jsx'].map(file => readFileSync(path.join(root, file), 'utf8')).join('\n');
   for (const [name, value] of Object.entries({ 'session-row-height': '64px', 'choice-col': '20px', 'radio-dot': '8px', 'activity-row-height': '40px', 'activity-row-py': '8px', 'progress-height': '4px', 'progress-track': '#2c2c2d', 'quote-width': '2px', 'quote-inset': '12px', 'quote-gap': '8px', 'composer-field-min': '40px', 'composer-gap': '12px', 'prose-ink': '#d9d6cf', 't-code': '400 12px/16px var(--mono)' }))
     assert.equal(rootDeclarations(canvas, `--${name}`)[0], value);
   assert.match(source, /AGENT_MODES\.filter\(mode => enabled\.includes\(mode.id\)\)/);
@@ -466,7 +466,7 @@ test('materials retire the old activity glint and keep auxiliary status indicato
   assert.match(trace, /stroke-dasharray: var\(--L\) calc\(100px - var\(--L\)\)/);
   assert.match(trace, /\.studio-concentration[\s\S]*animation-play-state: paused/);
   assert.match(trace, /prefers-reduced-motion: reduce[\s\S]*animation: none !important/);
-  const source = readFileSync(path.join(root, 'src/components/Canvas.jsx'), 'utf8');
+  const source = ['src/components/Canvas.jsx', 'src/components/canvas/CanvasNode.jsx'].map(file => readFileSync(path.join(root, file), 'utf8')).join('\n');
   assert.doesNotMatch(source, /PixelField|PIXEL_KIND/);
   assert.match(source, /state === 'working' && <ActivityTrace/);
   for (const state of ['working', 'error', 'success']) assert.match(canvas, new RegExp(`\\.canvas-node\\.pulse-${state}\\s*\\{\\s*--pulse:`));

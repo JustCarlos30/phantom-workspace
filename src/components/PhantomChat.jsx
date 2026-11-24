@@ -6,7 +6,7 @@ import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceTranscript, dictationPreview } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
-import { ComposerControls, ContextMeter, Message, ModelPicker, PermissionRow, ProviderChoices, QueuedMessages, ReasoningPicker, SessionChip, SessionContext, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
+import { ComposerControls, ContextMeter, Message, ModelPicker, PermissionRow, PermissionSwitch, ProviderChoices, QueuedMessages, ReasoningPicker, SessionChip, SessionContext, configurePermission, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
 import PhantomOrchestrator from './PhantomOrchestrator';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude', hint: 'Claude Code en la carpeta del proyecto' }, { id: 'opencode', label: 'OpenCode', hint: 'OpenCode en la carpeta del proyecto' }, { id: 'codex', label: 'Codex', hint: 'Codex en la carpeta del proyecto' }];
@@ -129,8 +129,9 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <ComposerControls voice={voice} selectors={messages.length > 0 && <>
+        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
           <SessionChip cwd={workspace.canonicalPath || workspace.name}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionChip>
+          <PermissionSwitch mode={permissionMode} provider={active} descriptions={PERMISSIONS} disabled={!chat} onChange={configurePermission(api, workspace, pickerNode, notify)} />
           <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={!chat || running} />
           <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} observed={meta.model} disabled={!chat || running} />
         </>} leading={onTask && <button type="button" className="pc-icon phantom-chat-task" title="Convertir en tarea" aria-label="Convertir el texto en una tarea" disabled={!draft.trim() || voice.status !== 'idle'} onClick={() => onTask(draft.trim())}><ListPlus size={18} /></button>}
