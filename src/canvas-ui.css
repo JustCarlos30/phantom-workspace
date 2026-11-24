@@ -1167,7 +1167,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2
   pointer-events: none;
 }
 .app-shell .canvas .canvas-view-controls .canvas-navigation {
-  position: relative; inset: auto; max-width: var(--tools-column); overflow-x: auto; pointer-events: auto;
+  position: relative; inset: auto; max-width: 100%; overflow-x: auto; pointer-events: auto;
 }
 .canvas-view-controls .canvas-navigation > * { flex-shrink: 0; }
 .app-shell .canvas .canvas-view-controls .canvas-minimap {
