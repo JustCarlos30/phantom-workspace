@@ -118,8 +118,8 @@
 .app-shell .activity-dock .dock-main .dock-action:active:not(:disabled) { background-color: var(--control-press); background-clip: content-box; scale: none; }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary { flex-direction: row; width: auto; padding: 0 18px; gap: 8px; border-radius: var(--r-pill); background: var(--on); color: var(--on-ink); }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary > span { display: inline; position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
-.app-shell .activity-dock .dock-main .dock-action.dock-primary:hover:not(:disabled) { background-color: var(--on-hover); color: var(--on-ink); }
-.app-shell .activity-dock .dock-main .dock-action.dock-primary:active:not(:disabled) { background-color: var(--on-press); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:hover:not(:disabled) { background-color: var(--on-hover); background-clip: border-box; color: var(--on-ink); }
+.app-shell .activity-dock .dock-main .dock-action.dock-primary:active:not(:disabled) { background-color: var(--on-press); background-clip: border-box; }
 .app-shell .activity-dock .dock-main .dock-action.dock-primary:disabled,
 .app-shell :is(.workspace-header, .canvas-navigation, .focus-return) button:disabled { background-color: var(--control-fill); color: var(--ink-3); opacity: 1; }
 .app-shell .activity-dock .dock-main button.dock-action.dock-hub { width: var(--dock-control-size); min-width: var(--dock-control-size); height: var(--dock-control-size); padding: 0; border-radius: 50%; background: var(--control-fill); color: var(--ink); justify-content: center; }
@@ -148,7 +148,7 @@
   .app-shell .activity-dock .activity-strip button { min-height: var(--target); }
   .app-shell .activity-dock .dock-main .dock-action,
   .app-shell .activity-dock .dock-main button.dock-action.dock-hub { min-width: var(--target); height: var(--target); padding: 2px; background-clip: content-box; }
-  .app-shell .activity-dock .dock-main .dock-action.dock-primary { padding: 2px 18px; background-clip: content-box; }
+  .app-shell .activity-dock .dock-main .dock-action.dock-primary { padding: 2px 18px; background-clip: border-box; }
   .app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main button.dock-action.dock-hub { padding: 2px; background-clip: content-box; }
 }
 @media (prefers-reduced-motion: reduce) {
