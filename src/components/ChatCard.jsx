@@ -9,6 +9,7 @@ import { useVoiceDraft } from './VoiceProvider';
 import { Mic } from 'lucide-react';
 import { formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
+import { sessionChipLabel } from '../hooks/sessionChipLabel.mjs';
 import PlanPhases from './PlanPhases';
 import TouchedFiles from './TouchedFiles.jsx';
 import { planSummary } from '../hooks/plan-view.mjs';
@@ -150,13 +151,15 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
   return '';
 }
 
+export const configurePermission = (api, workspace, node, notify) => next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'));
+
 export function SessionContext({ node, workspace, api, notify, provider, label, model, permissionMode, descriptions, running, ready = true }) {
   const { cwd, branch } = locationOf(node, workspace);
   return <section className="pc-session-section pc-session-context" aria-label="Contexto de la sesión">
     <h3>Contexto</h3>
     <div className="pc-context-rows">
       <details className="pc-folder"><summary className="pc-session-row"><span className="pc-session-badge is-folder"><Folder size={18} aria-hidden="true" /></span><span className="pc-session-label">Carpeta</span><span className="pc-session-value pc-mono" title={cwd}>{cwd}</span><ChevronRight size={16} aria-hidden="true" /></summary><p>{cwd}{branch && <><br />{AUTO_BRANCH.test(branch) ? 'Copia propia de esta sesión' : `Rama: ${branch}`}</>}</p></details>
-      <PermissionSwitch row mode={permissionMode} provider={provider} descriptions={descriptions} disabled={!ready} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
+      <PermissionSwitch row mode={permissionMode} provider={provider} descriptions={descriptions} disabled={!ready} onChange={configurePermission(api, workspace, node, notify)} />
       <ModelPicker row node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!ready || running} />
     </div>
     <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!ready || running} />
@@ -205,7 +208,7 @@ export function useCompaction({ chat, connected, capabilities, compact, continue
 }
 
 // «Contexto de la sesión» as a chip in the island; its settings open above it.
-export function SessionChip({ cwd, children }) {
+export function SessionChip({ cwd, branch, workspaceName, children }) {
   const root = useRef(null), [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -213,10 +216,10 @@ export function SessionChip({ cwd, children }) {
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [open]);
-  const name = String(cwd || '').split('/').filter(Boolean).at(-1) || 'Sesión';
+  const { name, own } = sessionChipLabel({ cwd, branch, workspaceName });
   return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
     onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
-    <summary className="pc-session-chip" aria-label="Contexto de la sesión" title={cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}</span></summary>
+    <summary className="pc-session-chip" aria-label="Contexto de la sesión" title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></summary>
     <div className="pc-session-pop">{children}</div>
   </details>;
 }
@@ -360,7 +363,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
         <div className="pc-controls">
           <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
           {voice.status === 'idle' && <button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={startNew}><MessageSquarePlus size={18} /></button>}
-          {voice.status === 'idle' && messages.length > 0 && <SessionChip cwd={locationOf(node, workspace).cwd}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>}
+          {voice.status === 'idle' && messages.length > 0 && <><SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip><PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} /></>}
           {voice.status === 'idle' && <TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} />}
           <span className="pc-bar-space" />
           <ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />
