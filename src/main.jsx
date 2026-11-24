@@ -1,5 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { installBrowserKeyBridge } from './hooks/browserKeyBridge.js';
+installBrowserKeyBridge();
 async function mount() {
   if (window.location.pathname === '/mobile' && !window.phantom) {
     const { default: MobileApp } = await import('./components/MobileApp.jsx');

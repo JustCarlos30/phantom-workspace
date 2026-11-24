@@ -1,8 +1,24 @@
 import { constants } from 'node:fs';
-import { open } from 'node:fs/promises';
-import { authorizedPath } from './security.mjs';
+import { open, realpath } from 'node:fs/promises';
+import path from 'node:path';
+import { authorizedPath, isWithin, validateID } from './security.mjs';
 
 const MAX_BYTES = 12 * 1024 * 1024;
+
+// Roots for raster preview only: the given roots, /tmp/opencode, and the
+// browser-artifacts directory of each registered workspace (never dataDir itself).
+export async function imagePreviewRoots(roots, workspaces, dataDir) {
+  const result = [...roots, '/tmp/opencode'];
+  const canonicalData = await realpath(dataDir);
+  for (const workspace of workspaces || []) {
+    try {
+      validateID(workspace.id);
+      const root = await realpath(path.join(dataDir, 'browser-artifacts', workspace.id));
+      if (isWithin(root, canonicalData) && root !== canonicalData) result.push(root);
+    } catch { /* No known directory grants no access. */ }
+  }
+  return result;
+}
 
 export async function readLocalImage(filename, roots) {
   const target = await authorizedPath(filename, roots);

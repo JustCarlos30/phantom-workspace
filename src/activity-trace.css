@@ -1,0 +1,42 @@
+/* Cometa A, on the object's ring. */
+.canvas-node > .activity-trace {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 4;
+  pointer-events: none;
+}
+.canvas-node > .activity-trace > rect {
+  x: calc(var(--trace-width) / 2);
+  y: calc(var(--trace-width) / 2);
+  width: calc(100% - var(--trace-width));
+  height: calc(100% - var(--trace-width));
+  rx: calc(var(--r-obj) * var(--ov, 1) - var(--trace-width) / 2);
+  ry: calc(var(--r-obj) * var(--ov, 1) - var(--trace-width) / 2);
+  fill: none;
+  stroke: var(--working);
+  stroke-width: var(--trace-width);
+  stroke-linecap: butt;
+  pointer-events: none;
+  stroke-dasharray: var(--L) calc(100px - var(--L));
+  stroke-dashoffset: var(--L);
+}
+/* Important, scoped animation shorthands preserve the timeline under the
+   studio-wide concentration reset. The separate play-state pauses it. */
+.canvas-node > .activity-trace[data-state="pulse-working"] > rect {
+  animation: trace-orbit var(--trace-duration) linear infinite !important;
+}
+.canvas-node > .activity-trace[data-state="pulse-working"] > .activity-trace__head {
+  stroke: var(--working-head);
+  stroke-linecap: round;
+}
+.studio-concentration .canvas-node > .activity-trace[data-state] > rect,
+.canvas-node > .activity-trace[data-state]:is([data-hidden="true"], [data-visible="false"]) > rect {
+  animation-play-state: paused !important;
+}
+@keyframes trace-orbit { from { stroke-dashoffset: var(--L); } to { stroke-dashoffset: calc(var(--L) - 100px); } }
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node > .activity-trace[data-state] > rect { animation: none !important; }
+}

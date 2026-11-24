@@ -21,7 +21,7 @@ export async function discoverLocalVoice(context = {}) {
   try { config = JSON.parse(await readFile(configPath, 'utf8')); } catch { throw new Error(`JSON de voz local inválido: ${configPath}`); }
   if (config.schemaVersion !== 1 || !Array.isArray(config.argv)) throw new Error(`Configuración de voz local incompatible: ${configPath}`);
   await localTemplate({ localWhisperCommand: JSON.stringify(config.argv) });
-  return { localWhisperCommand: JSON.stringify(config.argv), nativeAudio: config.engine === 'faster-whisper' && config.nativeAudio === true, gpuLibraryPath: config.gpuLibraryPath };
+  return { localWhisperCommand: JSON.stringify(config.argv), discoveredRuntime: true, nativeAudio: config.engine === 'faster-whisper' && config.nativeAudio === true, gpuLibraryPath: config.gpuLibraryPath };
 }
 
 export async function shutdownVoice() {
@@ -35,10 +35,10 @@ function intent(text, workspaceId) {
   if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT) throw new Error('Dictado vacío o demasiado largo (máximo 32768 caracteres)');
   const normalized = text.trim().replace(/\s+/g, ' ');
   const patterns = [
-    ['task', /^(?:(?:crea|crear|añade|añadir|agrega|agregar)\s+(?:una?\s+)?tarea|(?:create|add)\s+(?:a\s+)?task|tarea|task)\b\s*[:,-]?\s*/iu],
-    ['decision', /^(?:(?:registra|registrar|crea|crear|añade|añadir)\s+(?:una\s+)?decisi[oó]n|(?:record|create|add)\s+(?:a\s+)?decision|decisi[oó]n|decision)\b\s*[:,-]?\s*/iu],
-    ['open', /^(?:abre|abrir|open)\b\s*[:,-]?\s*/iu],
-    ['search', /^(?:busca|buscar|search(?:\s+for)?|find)\b\s*[:,-]?\s*/iu],
+    ['task', /^(?:(?:crea|crear|añade|añadir|agrega|agregar)\s+(?:una?\s+)?tarea|(?:create|add)\s+(?:a\s+)?task|apunta|anota|recuérdame|pendiente|tarea|task)\b\s*[:,-]?\s*/iu],
+    ['decision', /^(?:(?:registra|registrar|crea|crear|añade|añadir)\s+(?:una\s+)?decisi[oó]n|(?:record|create|add)\s+(?:a\s+)?decision|decidimos|acordamos|decisi[oó]n|decision)\b\s*[:,-]?\s*/iu],
+    ['open', /^(?:ve a|navega a|abrir página|abre|abrir|open)\b\s*[:,-]?\s*/iu],
+    ['search', /^(?:encuentra|localiza|busca|buscar|search(?:\s+for)?|find)\b\s*[:,-]?\s*/iu],
   ];
   let action = 'task', body = normalized;
   for (const [candidate, prefix] of patterns) {
@@ -47,6 +47,57 @@ function intent(text, workspaceId) {
   if (!body) throw new Error('El intent necesita contenido después del comando');
   // Literal drafts only: shell fragments, URLs and selectors are never evaluated.
   return { workspaceId, action, text: body, ...(['task', 'decision'].includes(action) ? { title: body.slice(0, 240) } : { query: body }) };
+}
+
+export async function classifyIntent(text, workspaceId, settings = {}) {
+  const rules = intent(text, workspaceId);
+  const fallback = fallbackReason => ({ ...rules, provider: 'rules', ...(fallbackReason ? { fallbackReason } : {}) });
+  const provider = settings.voiceIntentProvider ?? 'rules';
+  if (!['rules', 'claude'].includes(provider)) throw new Error('Proveedor de intención inválido: rules o claude');
+  if (provider === 'rules') return fallback();
+  if (!process.env.ANTHROPIC_API_KEY) return fallback('Falta ANTHROPIC_API_KEY en el host');
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 15_000);
+  try {
+    const model = settings.voiceIntentModel || 'claude-haiku-5-5';
+    if (typeof model !== 'string' || model.length > 128) throw new Error();
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', redirect: 'error', signal: abort.signal,
+      headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model, max_tokens: 512,
+        messages: [{ role: 'user', content: text }],
+        tools: [{ name: 'classify_intent', description: 'Clasifica el dictado como borrador para revisión, sin ejecutar acciones.', input_schema: {
+          type: 'object', properties: { action: { type: 'string', enum: ['task', 'decision', 'open', 'search'] }, title: { type: 'string', maxLength: 240 }, query: { type: 'string', maxLength: 1000 } }, required: ['action'], additionalProperties: false,
+        } }], tool_choice: { type: 'tool', name: 'classify_intent' } }),
+    });
+    if (!response.ok) { await response.body?.cancel(); return fallback('Claude no disponible (error HTTP)'); }
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error();
+    const chunks = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > 64 * 1024) throw new Error();
+        chunks.push(Buffer.from(value));
+      }
+    } finally { await reader.cancel().catch(() => {}); }
+    const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const tools = data.content?.filter(item => item.type === 'tool_use');
+    if (tools?.length !== 1 || tools[0].name !== 'classify_intent') throw new Error();
+    const input = tools[0].input;
+    if (!input || typeof input !== 'object' || Array.isArray(input) || !['task', 'decision', 'open', 'search'].includes(input.action)
+      || Object.keys(input).some(key => !['action', 'title', 'query'].includes(key))) throw new Error();
+    for (const [key, max] of [['title', 240], ['query', 1000]]) {
+      if (input[key] !== undefined && (typeof input[key] !== 'string' || !input[key].trim() || input[key].length > max)) throw new Error();
+    }
+    const key = ['task', 'decision'].includes(input.action) ? 'title' : 'query';
+    if (!input[key]) throw new Error();
+    return { workspaceId, action: input.action, text: text.trim(), [key]: input[key], provider: 'claude' };
+  } catch { return fallback('Claude no disponible o respuesta inválida'); }
+  finally { clearTimeout(timer); }
 }
 
 function decodeAudio(payload) {
@@ -81,7 +132,7 @@ async function localTemplate(settings) {
     : 'Transcripción local no disponible. Ejecuta npm run setup:voice para instalar el motor aislado sin credenciales; también puedes configurar localWhisperCommand (argv JSON)');
 }
 
-async function transcribeLocal(audio, settings, directory, cwd, signal) {
+async function transcribeLocal(audio, settings, directory, cwd, signal, allowEmpty = false) {
   const template = await localTemplate(settings);
   let input = path.join(directory, `audio.${audio.extension}`);
   await writeFile(input, audio.bytes, { mode: 0o600 });
@@ -90,12 +141,18 @@ async function transcribeLocal(audio, settings, directory, cwd, signal) {
     const ffmpeg = await executableOnPath('ffmpeg');
     if (!ffmpeg) throw new Error('Este formato requiere ffmpeg en el host para convertirlo a WAV');
     const wav = path.join(directory, 'audio.wav');
-    const converted = await runCommand(ffmpeg, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-protocol_whitelist', 'file,pipe', '-y', '-i', input, '-t', '120', '-ar', '16000', '-ac', '1', '-fs', '8000000', wav], { cwd, signal, timeoutMs: 20_000, outputLimit: 8192 });
+    const converted = await runCommand(ffmpeg, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-protocol_whitelist', 'file,pipe', '-y', '-i', input, '-ar', '16000', '-ac', '1', '-fs', '64000000', wav], { cwd, signal, timeoutMs: 20_000, outputLimit: 8192 });
     if (converted.code !== 0) throw new Error(`ffmpeg no pudo convertir el audio (código ${converted.code})`);
     input = wav;
   }
   const [executable, ...args] = template.map(arg => arg.replaceAll('{input}', input).replaceAll('{outputDir}', directory));
+  if (settings.discoveredRuntime) {
+    const language = settings.voiceLanguage ?? 'es';
+    if (typeof language !== 'string' || !/^(auto|[a-z]{2,3})$/.test(language)) throw new Error('Idioma del dictado inválido');
+    if (language !== 'auto') args.push('--language', language);
+  }
   const env = { ...process.env };
+  if (settings.discoveredRuntime) env.HF_HUB_OFFLINE = '1';
   if (settings.gpuLibraryPath) env.LD_LIBRARY_PATH = [settings.gpuLibraryPath, env.LD_LIBRARY_PATH].filter(Boolean).join(path.delimiter);
   const result = await runCommand(executable, args, { cwd, env, signal, timeoutMs: 60_000, outputLimit: 64 * 1024 });
   if (result.code !== 0) throw new Error(`Motor local falló (código ${result.code}). Revisa el runtime local o ejecuta npm run setup:voice`);
@@ -115,11 +172,15 @@ async function transcribeLocal(audio, settings, directory, cwd, signal) {
     }
     text = chunks.join('\n');
   }
-  return { text: validateText(text), provider: 'local' };
+  return { text: validateText(text, allowEmpty), provider: 'local' };
 }
 
-function validateText(text) {
-  if (typeof text !== 'string' || !text.trim()) throw new Error('El motor no produjo texto de transcripción');
+// A silent dictation segment legitimately has no text; a whole request without text is an error.
+function validateText(text, allowEmpty = false) {
+  if (typeof text !== 'string' || !text.trim()) {
+    if (allowEmpty && typeof text === 'string') return '';
+    throw new Error('El motor no produjo texto de transcripción');
+  }
   if (text.length > MAX_TEXT) throw new Error('Transcripción supera 32768 caracteres');
   return text.trim();
 }
@@ -134,7 +195,7 @@ function apiURL(settings) {
   return url;
 }
 
-async function transcribeAPI(audio, settings, signal) {
+async function transcribeAPI(audio, settings, signal, allowEmpty = false) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('Transcripción API no disponible: falta OPENAI_API_KEY en el entorno del host');
   const url = apiURL(settings);
@@ -162,15 +223,26 @@ async function transcribeAPI(audio, settings, signal) {
   } finally { await reader.cancel().catch(() => {}); }
   let data;
   try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('Proveedor no devolvió JSON válido'); }
-  return { text: validateText(data.text), provider: 'openai' };
+  return { text: validateText(data.text, allowEmpty), provider: 'openai' };
 }
 
 export async function handleVoice(method, payload = {}, context = {}) {
+  if (method === 'voice.stream.recover') {
+    // One bounded segment per call; the spool (not the renderer) holds the audio.
+    const { workspace, cwd } = await requireWorkspace(payload, context);
+    const transcribeSegment = async wav => (await transcribe({ bytes: wav, mime: 'audio/wav', extension: 'wav' }, context, workspace, cwd, { quiet: true, allowEmpty: true })).text;
+    return handleVoiceStream(method, payload, context, transcribeSegment);
+  }
   if (method.startsWith('voice.stream.')) return handleVoiceStream(method, payload, context);
   if (!['voice.transcribe', 'voice.intent'].includes(method)) return { handled: false };
   const { workspace, cwd } = await requireWorkspace(payload, context);
-  if (method === 'voice.intent') return { handled: true, result: intent(payload.text, workspace.id) };
+  if (method === 'voice.intent') return { handled: true, result: await classifyIntent(payload.text, workspace.id, context.state?.settings ?? context.state?.data?.settings ?? {}) };
   const audio = decodeAudio(payload);
+  return { handled: true, result: await transcribe(audio, context, workspace, cwd) };
+}
+
+// One owned, abortable transcription of already-validated audio.
+async function transcribe(audio, context, workspace, cwd, { quiet = false, allowEmpty = false } = {}) {
   if (active.size >= 4) throw new Error('Demasiadas transcripciones activas (máximo 4)');
   const settings = context.state?.settings ?? context.state?.data?.settings ?? {};
   const provider = settings.voiceProvider || 'auto';
@@ -182,7 +254,7 @@ export async function handleVoice(method, payload = {}, context = {}) {
   const timer = setTimeout(() => abort.abort(), 90_000);
   job.done = (async () => {
     let directory, manager;
-    const emit = event => manager?.emit(context, { ...event, id, workspaceId: workspace.id, source: 'voice' });
+    const emit = event => { if (!quiet) manager?.emit(context, { ...event, id, workspaceId: workspace.id, source: 'voice' }); };
     try {
       manager = await getRunManager(context, cwd, workspace.id);
       if (abort.signal.aborted) throw new Error('Transcripción detenida');
@@ -192,9 +264,9 @@ export async function handleVoice(method, payload = {}, context = {}) {
       const useAPI = provider === 'openai' || (provider === 'auto' && !settings.localWhisperCommand && !discovered && process.env.OPENAI_API_KEY);
       emit({ type: 'tool.output', data: `Transcripción ${useAPI ? 'API' : 'local'} iniciada\n` });
       const localSettings = discovered ? { ...settings, ...discovered } : settings;
-      const result = useAPI ? await transcribeAPI(audio, settings, abort.signal) : await transcribeLocal(audio, localSettings, directory, cwd, abort.signal);
+      const result = useAPI ? await transcribeAPI(audio, settings, abort.signal, allowEmpty) : await transcribeLocal(audio, localSettings, directory, cwd, abort.signal, allowEmpty);
       emit({ type: 'tool.status', status: 'completed', result: { provider: result.provider } });
-      return { handled: true, result: { ...result, workspaceId: workspace.id } };
+      return { ...result, workspaceId: workspace.id };
     } catch (error) {
       emit({ type: 'tool.status', status: abort.signal.aborted ? 'stopped' : 'failed', error: error.message });
       throw error;

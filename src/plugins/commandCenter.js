@@ -40,7 +40,7 @@ export function createCommandCenterMonitor({ api, workspaceId, interval = 4000, 
     try {
       const result = await api('phantom.list', { workspaceId, topic: 'tasks' });
       if (!valid()) return;
-      if (!result || result.available === false) throw new Error(result?.reason || 'Phantom no está disponible.');
+      if (!result || result.available === false) throw new Error(result?.reason ? `Phantom no está disponible: ${result.reason.replace(/^Phantom unavailable: /, '')}` : 'Phantom no está disponible.');
       if (!Array.isArray(result.items) || (result.controllers !== undefined && !Array.isArray(result.controllers))) throw new Error('Catálogo Phantom inválido.');
       const controllers = (result.controllers || []).map(controller => liveControllers.get(controller.id) || controller);
       for (const controller of liveControllers.values()) if (!controllers.some(item => item.id === controller.id) && result.items.some(item => item.id === controller.taskId)) controllers.push(controller);

@@ -1,35 +1,121 @@
-/* Canvas UI: the canvas is the whole window and every piece of chrome floats
-   over it as an opaque island (Figma UI3 / Miro). Loaded after studio.css,
-   so this file is also the system layer: one radius scale, one elevation
-   ladder, one motion curve. Working planes stay opaque (DESIGN.md). */
+/* Canvas UI: shared opaque object material, geometry and motion tokens. */
 :root {
   /* Radius: three shapes. A control, an object you can move, an island that
      floats. --r-mark is for marks under 20px (kbd, checkbox, scrollbar) and
      --r-pill for chips; neither is a surface. test/design-tokens.test.mjs
      fails on any other value. */
   --r-mark: 4px;
-  --r-ctl: 8px;
-  --r-obj: 14px;
-  --r-isle: 22px;
+  --r-ctl: 12px;
+  --r-row: 12px;
+  --row-air: 2px;
+  --r-obj: 24px;
+  --r-isle: 24px;
   --r-pill: 999px;
   /* Edge: one hairline. An object draws its own edge once; nothing inside it
      draws another. */
-  --hairline: color-mix(in srgb, #fff 8%, transparent);
-  /* Shadow: two, plum-black, never a halo. Rest is an object lying on the
-     canvas; float is anything above it (chrome, menus, a card being dragged
-     or selected). */
-  --shadow-rest: 0 1px 2px #05030a80, 0 14px 30px -16px #05030ad9;
-  --shadow-float: 0 2px 6px #05030a73, 0 30px 68px -24px #05030af2;
-  /* Glass: chrome only. Working planes stay opaque. */
-  --glass: color-mix(in srgb, var(--surface) 64%, transparent);
-  --glass-thick: color-mix(in srgb, var(--surface) 84%, transparent);
-  --glass-filter: blur(28px) saturate(170%);
-  /* Motion: one curve, two speeds. */
+  --hairline: color-mix(in srgb, #fff 10%, transparent);
+  --object-top: #151518;
+  --object-bottom: #0b0b0d;
+  --object-sheen: radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%);
+  --object-fill: var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom));
+  --object-ring-width: 1px;
+  --object-edge-top: color-mix(in srgb, #fff 26%, transparent);
+  --object-edge-bottom: color-mix(in srgb, #fff 7%, transparent);
+  --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
+  --selected-edge-top: color-mix(in srgb, #fff 36%, transparent);
+  --selected-edge-bottom: color-mix(in srgb, #fff 10%, transparent);
+  --working-head: #e2ff7a;
+  --attention-ring: color-mix(in srgb, var(--attention) 80%, transparent);
+  --trace-width: 1.5px;
+  --trace-duration: 5.6s;
+  --dur-open: 320ms;
+  --ease-settle: cubic-bezier(.22, 1, .36, 1);
+  --map-flash-duration: 900ms;
+  --map-flash-ink: #ffffffb3;
+  --motion-reduced-duration: 0ms;
+  --shadow-chrome: 0 1px 2px #000, 0 16px 32px -16px #000;
+  --shadow-rim: none;
+  --shadow-key: none;
+  --shadow-well: none;
+  --shadow-rest: var(--shadow-chrome);
+  --shadow-float: var(--shadow-chrome);
+  --shadow-workplane-rest: var(--shadow-chrome);
+  --shadow-workplane-lift: var(--shadow-chrome);
+  --glass-tint: #0b0b0c;
+  --glass: var(--surface);
+  --glass-thick: var(--surface);
+  --glass-filter: none;
+  --ink-on-glass: #a8a6a0;
+  --glass-sheen: var(--object-fill);
+  --on: #ece6d8;
+  --on-ink: #141414;
+  --on-hover: #f6f1e6;
+  --on-press: #d6d0c2;
+  --primary: var(--accent);
+  --primary-hover: color-mix(in srgb, var(--primary), #fff 12%);
+  --primary-press: color-mix(in srgb, var(--primary), #000 12%);
+  --control-size: 36px;
+  --dock-control-size: 40px;
+  --control-fill: #ffffff14;
+  --control-hover: #ffffff1f;
+  --control-press: #ffffff0a;
+  --seg-height: 36px;
+  --seg-pad: 4px;
+  --seg-gap: 4px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --row-hover: #ffffff0a;
+  --row-press: #00000040;
+  --row-selected: #1d1d20;
+  --row-selected-hover: color-mix(in srgb, var(--row-selected), #fff 4%);
+  --row-selected-press: color-mix(in srgb, var(--row-selected), #000 25%);
+  --badge-steel: oklch(0.64 0.11 250);
+  --badge-mint: oklch(0.64 0.10 165);
+  --badge-honey: oklch(0.64 0.11 85);
+  --badge-coral: oklch(0.64 0.11 30);
+  --badge-violet: oklch(0.64 0.10 300);
+  --badge-petrol: oklch(0.64 0.10 210);
+  --badge-neutral: oklch(0.36 0.008 260);
+  --badge-working: #5d7521;
+  --badge-attention: #b5872f;
+  --badge-size: 32px;
+  --badge-ink: #fff;
+  --box-pad: 12px;
+  --interior-flat: #111113;
+  --r-group: calc(var(--r-obj) - var(--box-pad));
+  --section-gap: 8px;
+  --group-gap: 12px;
+  --row-py: 12px;
+  --row-px: 16px;
+  --row-gap: 12px;
+  --icon-col: 32px;
+  --divider: #ffffff12;
+  --divider-width: 1px;
+  --divider-inset: calc(var(--row-px) + var(--icon-col) + var(--row-gap));
+  --control-off: #4e4e50;
+  --settings-switch-width: 44px;
+  --settings-switch-height: 26px;
+  --settings-switch-thumb: 20px;
+  --settings-slider-height: 32px;
+  --identity-size: 40px;
+  --identity-inset: 4px;
+  --identity-glyph-size: 16px;
+  --identity-ink: var(--on);
+  --rail-group-inset: 20px;
+  --rail-gap: 8px;
+  --workplane: var(--surface);
+  --workplane-wash: var(--object-fill);
+  --well: #040405;
+  --well-raised: #0b0b0d;
+  --well-terminal: #040405;
+  --ease-spring: var(--ease-settle);
+  --dur-spring: var(--dur-open);
   --ease-out: cubic-bezier(.16, 1, .3, 1);
-  --dur-fast: 140ms;
+  --dur-fast: 120ms;
+  --dur-enter: 200ms;
   --dur: 240ms;
   --island: var(--glass);
-  --island-hover: var(--fill-2);
+  --island-hover: var(--fill-3);
   /* Spacing: one 4px rhythm. Gutter between islands and window edges is s-3. */
   --s-1: 4px;
   --s-2: 8px;
@@ -37,11 +123,62 @@
   --s-4: 16px;
   --s-5: 24px;
   --s-6: 32px;
-  --gutter: var(--s-3);
-  --rail-width: 252px;
-  --inspector-width: 360px;
-  --dot: color-mix(in srgb, var(--ink) 16%, transparent);
-  --dot-major: color-mix(in srgb, var(--ink) 26%, transparent);
+  --glyph-primary: 18px;
+  --glyph-secondary: 16px;
+  --glyph-stroke: 1.75;
+  --target: 40px;
+  --row-simple: 44px;
+  --row-detail: 56px;
+  --gutter: 12px;
+  --rail-width: 272px;
+  --dock-h: 64px;
+  --dock-clearance: 24px;
+  --dock-pad: 12px;
+  --dock-gap: 12px;
+  --inspector-width: 320px;
+  --dot: color-mix(in srgb, #f2f0eb 5%, transparent);
+  /* Neutral planes keep identity and state accents local. */
+  --bg: #020203;
+  --surface: #0b0b0c;
+  --surface-2: #111113;
+  --surface-3: #1d1d20;
+  --menu: var(--surface);
+  --menu-edge: color-mix(in srgb, #fff 13%, transparent);
+  --ink: #f2f0eb;
+  --muted: #a8a6a0;
+  --ink-3: #8b8983;
+  --terminal-bg: #040405;
+  --terminal-ink: #e1dfda;
+  --scroll-thumb: color-mix(in srgb, #fff 16%, transparent);
+  /* Type: seven roles, three weights (400, 500, 600). */
+  --t-display: 600 24px/30px var(--sans);
+  --t-title: 600 15px/20px var(--sans);
+  --t-headline: 600 14px/22px var(--sans);
+  --t-body: 400 14px/20px var(--sans);
+  --t-code: 400 12px/16px var(--mono);
+  --t-terminal-preview: 400 12px/18px var(--mono);
+  --session-row-height: 64px;
+  --panel-header-session: 56px;
+  --choice-col: 20px;
+  --radio-dot: 8px;
+  --activity-row-height: 40px;
+  --activity-row-py: 8px;
+  --progress-height: 4px;
+  --progress-track: #2c2c2d;
+  --quote-width: 2px;
+  --quote-inset: 12px;
+  --quote-gap: 8px;
+  --prose-ink: #d9d6cf;
+  --composer-field-min: 40px;
+  --composer-gap: 12px;
+  --composer-fill: color-mix(in srgb, #fff 3%, transparent);
+  --composer-fill-lit: color-mix(in srgb, #fff 5%, transparent);
+  --composer-ring: color-mix(in srgb, #fff 8%, transparent);
+  --composer-light-top: color-mix(in srgb, #fff 30%, transparent);
+  --composer-max: 720px;
+  --t-control: 500 14px/20px var(--sans);
+  --t-support: 400 12px/16px var(--sans);
+  --t-micro: 500 12px/16px var(--sans);
 }
 
 
@@ -72,9 +209,6 @@
 .button,
 .icon-button,
 .rail-heading button,
-.project-item,
-.project-initials,
-.open-folder,
 .rail-bottom>button,
 .search-command,
 .canvas-navigation button,
@@ -99,7 +233,6 @@
 .canvas-popover>button,
 .canvas-zoom-presets button,
 .background-upload,
-.accent-options button,
 .activity-tray button:not(.icon-button),
 .activity-base input,
 .plugin-surface .tw-section,
@@ -123,8 +256,7 @@
 .panel-index,
 .context-menu,
 .toast,
-.canvas-popover,
-.background-option { border-radius: var(--r-obj); }
+.canvas-popover { border-radius: var(--r-obj); }
 .tw-palette,
 .app-dialog,
 .attention-tray,
@@ -147,24 +279,44 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 
 /* ---------- Shell: full-bleed canvas ---------- */
 .app-shell { position: relative; overflow: hidden; background: var(--bg); }
-.main-workspace { position: absolute; inset: 0; }
-.workspace-body { position: absolute; inset: 0; }
-.canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
+/* The desktop entry also imports styles.css independently of App's CSS chunk.
+   Outrank its legacy flex/relative layout regardless of stylesheet load order.
+   A relative region keeps its full flex width when focus adds a left inset;
+   an absolute region shrinks, so the stage's ResizeObserver sees the free area. */
+.app-shell .main-workspace { position: absolute; inset: 0; }
+.app-shell .workspace-body { position: absolute; inset: 0; }
+.app-shell .canvas-region { position: absolute; inset: 0; transition: left var(--dur) var(--ease-out), right var(--dur) var(--ease-out); }
+.app-shell[data-focus-moving] .canvas-region { transition: none; }
 
-.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
+.project-rail, .workspace-header, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
 .context-menu, .toast, .canvas-busy, .connection-error {
-  background: var(--island);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-float);
+  background: var(--object-fill) var(--surface);
+  border: 0;
+  box-shadow: var(--shadow-chrome);
 }
-.canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-float); }
+.canvas-popover, .tool-picker, .panel-index, .context-menu, .toast { box-shadow: var(--shadow-chrome); }
+
+.activity-notch, .dock-main, .toast { position: relative; }
+:is(.canvas-node, .project-rail, .workspace-header, .activity-notch,
+    .dock-main, .activity-dock, .canvas-navigation, .canvas-minimap, .inspector-host,
+    .focus-return, .toast, .canvas-busy, .connection-error, .zone-selection,
+    .group-selection, .activity-tray, .attention-tray, .tw-palette, .tw-voice,
+    .app-dialog, .phantom-chat, .agent-editor)::before {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
+  background: var(--object-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.activity-dock .dock-main::before, .activity-dock .activity-notch::before { content: none; }
 
 /* ---------- Left rail: floating island ---------- */
 @media (min-width: 851px) {
   .project-rail {
     position: absolute; left: var(--gutter); top: var(--gutter); bottom: var(--gutter);
-    width: var(--rail-width); border-radius: var(--r-obj); padding: 12px 10px 10px;
+    width: var(--rail-width); border-radius: var(--r-obj); padding: var(--box-pad);
     transition: width var(--dur) var(--ease-out), bottom var(--dur) var(--ease-out), border-radius var(--dur) var(--ease-out);
     overflow: hidden;
   }
@@ -174,36 +326,28 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   .rail-collapsed .project-rail { bottom: auto; width: auto; max-width: 340px; padding: 8px; display: flex; flex-direction: row; align-items: center; gap: 4px; }
   .rail-collapsed .project-rail > :not(.brand):not(.rail-collapsed-project) { display: none; }
   .rail-collapsed .brand { padding: 0; }
-  .rail-collapsed .brand > span:not(.brand-mark) { display: none; }
+  .rail-collapsed .brand > :is(.context-switcher, .rail-head-separator) { display: none; }
   .rail-collapsed .rail-collapse { margin-left: 0; order: 3; }
   .rail-collapsed .workspace-identity { display: none; }
   .rail-collapsed .workspace-header { left: auto; }
 }
 .rail-collapse, .rail-collapsed-project { display: none; }
 @media (min-width: 851px) {
-  .rail-collapsed .rail-collapsed-project { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 4px; border-radius: var(--r-ctl); font-size: 12px; font-weight: 600; color: var(--ink); min-width: 0; }
-  .rail-collapsed-project:hover { background: var(--island-hover); }
-  .rail-collapsed-project > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rail-collapsed-project .project-initials { width: 24px; height: 24px; border-radius: var(--r-ctl); background: var(--accent-soft); color: var(--accent); }
+  .rail-collapsed .rail-collapsed-project { display: flex; }
 }
 @media (max-width: 850px) { .project-rail { border-radius: 0 var(--r-obj) var(--r-obj) 0; } }
-.project-item, .rail-panel-row, .open-folder, .rail-bottom > button, .rail-map-action, .studio-appearance-button { border-radius: var(--r-ctl); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.project-item:hover, .rail-panel-row:hover, .rail-bottom > button:hover { background: var(--island-hover); }
-.project-item.active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.open-folder { border-color: var(--hairline); background: transparent; }
-.open-folder:hover { background: var(--island-hover); border-color: var(--hairline); }
-.studio-appearance-button { border-top: 0; background: var(--island-hover); }
 
-/* ---------- Top bar: two islands over the canvas ---------- */
+/* ---------- Top bar: one object over the canvas ---------- */
 .workspace-header {
   position: absolute; top: var(--gutter); right: var(--gutter); left: calc(var(--gutter) * 2 + var(--rail-width));
-  height: 48px; min-height: 48px; padding: 0; background: transparent; border: 0; z-index: 28; pointer-events: none;
+  height: 48px; min-height: 48px; padding: 0; border: 0; border-radius: var(--r-obj); z-index: 28;
   transition: left var(--dur) var(--ease-out);
 }
-.workspace-header > * { pointer-events: auto; }
-.workspace-identity { flex: 0 1 auto; min-width: 0; max-width: 46%; height: 48px; padding: 8px 16px; border-radius: var(--r-obj); display: flex; flex-direction: column; justify-content: center; }
-.workspace-path { margin-top: 2px; }
-.header-controls { height: 48px; padding: 0 8px; border-radius: var(--r-obj); gap: 4px; margin-left: auto; }
+.workspace-identity { flex: 0 1 auto; min-width: 0; max-width: 60%; height: 100%; padding: 0 8px 0 16px; display: flex; align-items: center; }
+.workspace-identity .breadcrumb { min-width: 0; }
+.identity-separator { flex-shrink: 0; color: var(--ink-3); }
+.identity-space { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.header-controls { height: 100%; padding: 0 8px; gap: 4px; margin-left: auto; }
 .header-controls .icon-button { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 .header-controls .icon-button:hover { background: var(--island-hover); }
 .search-command { height: 32px; border-radius: var(--r-ctl); background: var(--island-hover); border-color: transparent; margin-right: 4px; }
@@ -220,11 +364,17 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .connection-error { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); z-index: 29; border-radius: var(--r-obj); }
 
 /* ---------- Canvas: world-space dot grid ---------- */
+/* The camera rewrites these every frame. Registered as non-inherited so a pan
+   restyles the canvas alone instead of re-inheriting through every panel. */
+@property --grid-size { syntax: '<length>'; inherits: false; initial-value: 24px; }
+@property --grid-major { syntax: '<length>'; inherits: false; initial-value: 96px; }
+@property --grid-x { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --grid-y { syntax: '<length>'; inherits: false; initial-value: 0px; }
 .canvas {
   background-color: transparent;
-  background-image: radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px), radial-gradient(circle, var(--dot) .9px, transparent 1.2px);
-  background-size: var(--grid-major, 96px) var(--grid-major, 96px), var(--grid-size, 24px) var(--grid-size, 24px);
-  background-position: var(--grid-x, 0) var(--grid-y, 0), var(--grid-x, 0) var(--grid-y, 0);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
+  background-size: var(--grid-size, 24px) var(--grid-size, 24px);
+  background-position: var(--grid-x, 0) var(--grid-y, 0);
 }
 .studio-no-grid .canvas, .canvas.focus-mode { background-image: none; }
 .canvas:focus-visible { outline: 0 !important; }
@@ -232,20 +382,34 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 
 /* ---------- Panels: soft, rounded, lift on drag ---------- */
 .canvas-node {
-  border-radius: var(--r-obj); border: 1px solid var(--hairline); background: var(--surface);
+  border-radius: var(--r-obj); border: 0; background: var(--object-fill) var(--surface);
   box-shadow: var(--shadow-rest);
   transition: box-shadow var(--dur) var(--ease-out), border-color var(--dur-fast) var(--ease-out), outline-color var(--dur-fast) var(--ease-out);
-  outline: 2px solid transparent; outline-offset: 3px;
 }
 .canvas-node:hover:not(.focused) { border-color: color-mix(in srgb, var(--ink) 18%, transparent); }
-.canvas-node.selected { border-color: color-mix(in srgb, var(--accent) 70%, transparent); outline: 2px solid var(--accent); outline-offset: 3px; }
+.canvas-node.selected { --object-ring: linear-gradient(var(--selected-edge-top), var(--selected-edge-bottom)); }
+.canvas-node[data-panel-state="attention"]::before { background: var(--attention-ring); }
+.canvas-node::after {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
+  background: var(--map-flash-ink); opacity: 0;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.canvas-node[data-panel-state="attention"]::after { background: var(--attention-ring); }
+.canvas-node.map-flash::after { animation: map-flash var(--map-flash-duration) var(--ease-settle); }
+@keyframes map-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+.canvas-node > .node-header > .panel-state { flex: none; color: var(--muted); font: var(--t-support); white-space: nowrap; }
+.canvas-node > .node-header > .panel-state[data-state="attention"] { color: var(--attention); }
+.canvas-node > .node-header > .panel-state[data-state="error"] { color: var(--danger); }
 .canvas-node.is-dragging { box-shadow: var(--shadow-float); border-color: var(--hairline); z-index: 6; }
 .canvas-node.focused { border-radius: var(--r-obj); outline: 0; box-shadow: var(--shadow-float); }
 .node-header { height: 40px; min-height: 40px; padding: 0 8px 0 16px; gap: 8px; background: transparent; border-bottom: 1px solid transparent; }
 .node-header .title-button { font-weight: 600; letter-spacing: -.01em; }
 .node-header .icon-button { border-radius: var(--r-ctl); opacity: .7; transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
 .canvas-node:hover .node-header .icon-button, .canvas-node.selected .node-header .icon-button, .node-header .icon-button:focus-visible { opacity: 1; }
-.node-body { background: var(--surface); }
+.node-body { background: transparent; }
 .resize-handle { width: 22px; height: 22px; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 .canvas-node:hover .resize-handle, .canvas-node.selected .resize-handle, .resize-handle:focus-visible { opacity: .85; }
 .note-editor { background: transparent; padding: 16px 18px; line-height: 1.65; font-size: 13px; }
@@ -266,8 +430,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .dock-main button { height: 40px; padding: 0 12px; gap: 7px; border-radius: var(--r-obj); font-size: 12px; color: var(--muted); transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .dock-main button:hover:not(:disabled) { background: var(--island-hover); color: var(--ink); }
 .dock-main button:active:not(:disabled) { background: var(--accent-soft); }
-.dock-main button:first-of-type { background: var(--accent); color: color-mix(in srgb, var(--accent) 12%, #140f1f); }
-.dock-main button:first-of-type:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 12%); color: color-mix(in srgb, var(--accent) 12%, #140f1f); }
+.dock-main button:first-of-type { background: var(--primary); color: var(--primary-ink); }
+.dock-main button:first-of-type:hover:not(:disabled) { background: var(--primary-hover); color: var(--primary-ink); }
 .dock-main button.active { background: var(--accent-soft); color: var(--accent); }
 .dock-main > i { height: 22px; background: var(--hairline); margin: 0 4px; }
 .dock-label { display: none !important; }
@@ -287,9 +451,6 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas-minimap.dragging { cursor: grabbing; }
 .canvas-minimap.dragging .minimap-view { fill: color-mix(in srgb, var(--accent) 14%, transparent); }
 .minimap-node { fill: color-mix(in srgb, var(--ink) 22%, transparent); }
-.minimap-node.type-terminal { fill: color-mix(in srgb, var(--accent) 45%, transparent); }
-.minimap-node.type-browser { fill: color-mix(in srgb, var(--success) 45%, transparent); }
-.minimap-node.type-note { fill: color-mix(in srgb, var(--warning) 45%, transparent); }
 .minimap-node.selected { stroke: var(--accent); stroke-width: 1.5; }
 .minimap-view { fill: color-mix(in srgb, var(--accent) 8%, transparent); stroke: var(--accent); stroke-width: 1.25; }
 @media (max-height: 640px), (max-width: 700px) { .canvas-minimap { display: none; } }
@@ -306,8 +467,9 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   width: var(--inspector-width); min-width: 0; border-radius: var(--r-obj); overflow: hidden;
   animation: materialize var(--dur) var(--ease-out);
 }
+.app-shell .inspector-host { border: 0; }
 .inspector-switcher { border-bottom: 1px solid var(--hairline); }
-.inspector-host .tw-inspector, .inspector-host .appearance-panel { background: transparent; }
+.inspector-host .tw-inspector, .inspector-host .appearance-panel { background: var(--surface); }
 @media (max-width: 850px) { .inspector-host { left: var(--gutter); width: auto; } }
 
 /* ---------- Popovers & menus ---------- */
@@ -319,8 +481,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas-busy { top: 72px; border-radius: var(--r-obj); }
 .toast-stack { bottom: 84px; }
 
-/* The one entrance: a surface condenses out of a haze. Nothing slides in. */
-@keyframes materialize { from { opacity: 0; filter: blur(8px); scale: .985; } }
+/* The entrance fades and rises without blurring text. */
+@keyframes materialize { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) {
   .canvas-node, .canvas-node.is-dragging, .dock-main button, .canvas-region, .project-rail, .workspace-header, .canvas-navigation, .canvas-minimap { transition: none; }
   .canvas-node.is-dragging, .dock-main button:hover:not(:disabled) { transform: none; }
@@ -335,42 +497,19 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
   .app-shell:not(.rail-collapsed) .create-dock { left: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
   .studio-inspector-open .create-dock { left: calc((var(--gutter) + 100% - var(--inspector-width) - var(--gutter)) / 2); }
   .studio-inspector-open:not(.rail-collapsed) .create-dock { left: calc((var(--rail-width) + var(--gutter) * 2 + 100% - var(--inspector-width) - var(--gutter) * 2) / 2); }
-  /* With the inspector open, view controls stack in a column above the toolbar row. */
-  .studio-inspector-open:not(.studio-focused) .canvas-navigation { bottom: 84px; }
-  .studio-inspector-open:not(.studio-focused) .canvas-minimap, .studio-inspector-open:not(.studio-focused) .canvas-popover { bottom: 144px; }
 }
 @media (min-width: 851px) and (max-width: 1360px) { .studio-inspector-open .dock-main button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .studio-inspector-open .dock-main button { padding: 0 11px; } }
 .studio-focused .workspace-identity { flex: 0 0 280px; }
 .focus-return { max-width: 280px; }
 .focus-return > span { min-width: 0; }
-.workspace-identity { padding: 8px 16px; }
-.workspace-identity > * { flex-shrink: 0; }
 .workspace-identity .breadcrumb { height: 18px; }
 @media (min-width: 851px) {
   .brand .rail-collapse { display: inline-flex; }
   .rail-collapsed .project-rail .rail-collapsed-project { display: flex; }
 }
 
-/* ---------- Consistency pass ---------- */
-/* Rail: every action is the same quiet row; only the selected project is filled. */
-.open-folder, .studio-appearance-button, .rail-map-action, .rail-bottom > button {
-  display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%;
-  min-height: 34px; height: auto; margin: 2px 0 0; padding: 0 8px; border: 0; border-radius: var(--r-ctl);
-  background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; text-align: left;
-}
-.open-folder:hover, .studio-appearance-button:hover, .studio-appearance-button.active, .rail-map-action:hover, .rail-bottom > button:hover { background: var(--surface-2); color: var(--ink); border: 0; }
-.open-folder > svg, .studio-appearance-button > svg, .rail-bottom > button > svg, .rail-map-action > svg { color: var(--muted); }
-.open-folder:first-of-type { margin-top: 10px; }
-.studio-appearance-button { margin-top: 8px; padding: 6px 8px; }
-.studio-appearance-button small { margin-top: 2px; }
-.rail-bottom { padding-top: 8px; border-top: 1px solid var(--hairline); }
-.rail-heading { padding: 0 8px 8px; font-size: 11px; letter-spacing: .02em; }
-.project-item.active { background: var(--surface-2); }
-.project-item.active .project-initials { background: var(--accent-soft); color: var(--accent); }
-.rail-panel-row.selected { background: var(--accent-soft); }
-
 /* Minimap: neutral blocks, accent only for what is selected or in view. */
-.minimap-node, .minimap-node.type-terminal, .minimap-node.type-browser, .minimap-node.type-note { fill: color-mix(in srgb, var(--ink) 24%, transparent); }
+.minimap-node, .minimap-node.type-terminal, .minimap-node.type-browser, .minimap-node.type-note { fill: color-mix(in srgb, var(--ink) 18%, transparent); }
 .minimap-node.selected { fill: color-mix(in srgb, var(--accent) 55%, transparent); stroke: none; }
 
 /* Panel headers share one control size. */
@@ -388,83 +527,41 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas, .canvas-region, .workspace-body, .main-workspace { overflow: clip; }
 
 /* ---------- Composition: one anchor for the bottom row ---------- */
-.app-shell { --dock-x: 50%; }
+/* --dock-x is defined with the shelf, at the end of this sheet. */
 @media (min-width: 851px) {
-  .app-shell:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
-  .studio-inspector-open { --dock-x: calc((100% - var(--inspector-width) - var(--gutter)) / 2); }
-  .studio-inspector-open:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
   .app-shell .create-dock, .app-shell .tool-picker { left: var(--dock-x); }
 }
 /* Selection actions float as one island just above the dock, like Figma's selection bar. */
 .zone-selection, .group-selection {
   position: absolute; top: auto; bottom: 84px; z-index: 12; height: 36px; padding: 0 12px; gap: 8px;
-  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-float); color: var(--ink);
+  font-size: 12px; font-weight: 500; border-radius: var(--r-obj); background: var(--object-fill) var(--surface); border: 0; box-shadow: var(--shadow-chrome); color: var(--ink);
   animation: materialize var(--dur) var(--ease-out);
 }
 .zone-selection { left: calc(var(--dock-x) - 4px); transform: translateX(-100%); }
 .group-selection { left: calc(var(--dock-x) + 4px); }
-.zone-selection:hover, .group-selection:hover { background: var(--surface-2); border-color: var(--hairline); }
+.zone-selection:hover, .group-selection:hover { background-color: var(--surface-2); }
 .zone-selection > svg, .group-selection > svg { color: var(--accent); }
 
-/* ---------- Living borders: pulse only when the state is real ----------
-   Colour never paints the box: state lives in the edge, the header pill and
-   the wave field outside the panel. Working is a light that travels around
-   the perimeter; attention swells and settles on the field's 2.4 s bar, in
-   step with each wave it sends outward; failure flashes softly, then holds.
-   All motion is continuous (eased), never stepped. */
-@property --pulse-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
-.canvas-node::after {
-  --edge-w: 1px;
-  content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none; border-radius: inherit; opacity: 0;
-  padding: var(--edge-w);
-  background: var(--pulse, transparent);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-}
+/* State colours are shared with the separately owned activity trace. */
 .canvas-node { transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
-.canvas-node.pulse-working { --pulse: var(--working); border-color: color-mix(in srgb, var(--working) 30%, var(--hairline)); }
-.canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); border-color: color-mix(in srgb, var(--attention) 70%, var(--hairline)); }
-.canvas-node.pulse-error { --pulse: var(--danger); border-color: var(--danger); }
-.canvas-node.pulse-working::after {
-  opacity: .55;
-  background: conic-gradient(from var(--pulse-angle),
-    transparent 0deg,
-    color-mix(in srgb, var(--working) 12%, transparent) 40deg,
-    color-mix(in srgb, var(--working) 60%, transparent) 78deg,
-    color-mix(in srgb, var(--working) 12%, transparent) 104deg,
-    transparent 150deg,
-    transparent 180deg,
-    color-mix(in srgb, var(--working) 6%, transparent) 230deg,
-    color-mix(in srgb, var(--working) 25%, transparent) 258deg,
-    color-mix(in srgb, var(--working) 6%, transparent) 284deg,
-    transparent 330deg);
-  animation: pulse-orbit 4.8s linear infinite;
-}
-.canvas-node.pulse-attention::after { animation: pulse-call 2.4s cubic-bezier(.22, 1, .36, 1) 12.5 forwards; }
-.canvas-node.pulse-turn::after { opacity: .55; animation: pulse-settle 1.2s cubic-bezier(.22, 1, .36, 1) 2; }
-.canvas-node.pulse-error::after { animation: pulse-flash 1s ease-in-out 3 forwards; }
-@keyframes pulse-orbit { to { --pulse-angle: 360deg; } }
-/* Swells at each wave's birth and eases back; after 30 s it holds, half lit. */
-@keyframes pulse-call { 0% { opacity: .35; } 12% { opacity: 1; } 100% { opacity: .35; } }
-@keyframes pulse-settle { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .55; } }
-@keyframes pulse-flash { 0%, 100% { opacity: .4; } 35% { opacity: 1; } }
-/* The same signal echoes on the panel's status dot in the rail and headers. */
-.terminal-activity-status.warning i { animation: dot-call 1.4s var(--ease-out) infinite; }
-@keyframes dot-call { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 60%, transparent); } 60% { box-shadow: 0 0 0 4px transparent; } }
+.canvas-node.pulse-working { --pulse: var(--working); }
+.canvas-node:is(.pulse-attention, .pulse-turn) { --pulse: var(--attention); }
+.canvas-node.pulse-error { --pulse: var(--danger); }
+.canvas-node.pulse-success { --pulse: var(--success); }
 
 /* Background wave field: under the panels, over the dot grid. Antialiased
    vector strokes drawn in CSS pixels at the device pixel ratio. */
-.pixel-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.pixel-field { --attention: transparent; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
 /* ---------- Zones: named areas on the canvas ---------- */
 .canvas-zone {
-  --zone: var(--c-iris);
+  --zone: var(--muted);
   position: absolute; pointer-events: none; border-radius: var(--r-obj);
   background: color-mix(in srgb, var(--zone) 6%, transparent);
   border: 1px solid color-mix(in srgb, var(--zone) 26%, transparent);
   transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.zone-mint { --zone: var(--c-mint); } .zone-amber { --zone: var(--c-sand); } .zone-rose { --zone: var(--c-rose); } .zone-slate { --zone: var(--c-slate); }
+.zone-mint, .zone-amber, .zone-rose, .zone-slate { --zone: var(--muted); }
 .canvas-zone.selected { border-color: var(--zone); outline: 2px solid color-mix(in srgb, var(--zone) 60%, transparent); outline-offset: 3px; }
 .canvas-zone.is-dragging { background: color-mix(in srgb, var(--zone) 10%, transparent); }
 .zone-label {
@@ -486,115 +583,62 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .minimap-node.type-zone { fill: transparent; stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-dasharray: 3 2; }
 
 /* ---------- Spaces: pages of a project in the rail ---------- */
-.rail-spaces { margin-top: var(--s-4); flex-shrink: 0; }
-.space-list { display: flex; flex-direction: column; gap: 2px; max-height: 172px; overflow: auto; }
-.space-row { display: flex; align-items: center; border-radius: var(--r-ctl); transition: background var(--dur-fast) var(--ease-out); }
-.space-row:hover, .space-row.active { background: var(--surface-2); }
-.space-select { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s-3); height: 32px; padding: 0 var(--s-2); font-size: 12px; color: var(--muted); text-align: left; }
-.space-row.active .space-select { color: var(--ink); font-weight: 500; }
-.space-select i { width: 6px; height: 6px; border-radius: 50%; background: var(--hairline); flex-shrink: 0; transition: background var(--dur-fast) var(--ease-out); }
-.space-row.active .space-select i { background: var(--accent); }
-.space-select span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.space-select small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.space-remove { display: grid; place-items: center; width: 24px; height: 24px; margin-right: var(--s-1); border-radius: var(--r-mark); color: var(--muted); opacity: 0; }
-.space-row:hover .space-remove, .space-remove:focus-visible { opacity: 1; }
-.space-remove:hover { color: var(--ink); background: var(--hairline); }
 .space-input { width: 100%; height: 32px; padding: 0 var(--s-2); border-radius: var(--r-ctl); border: 1px solid var(--accent); background: var(--bg); color: var(--ink); font-size: 12px; }
-.rail-collapsed-project em { font-style: normal; font-weight: 500; color: var(--muted); }
-.rail-panels { margin-top: var(--s-4); }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-node:is(.pulse-working, .pulse-attention, .pulse-turn, .pulse-error)::after { animation: none; opacity: .8; }
-  .canvas-node.pulse-working::after { background: var(--working); opacity: .4; }
   .terminal-activity-status.warning i, .zone-selection, .group-selection { animation: none; }
 }
 
 /* ---------- Panels float off the map ----------
    Every panel is a slab lifted above the canvas: a lit top edge, a tight
    contact shadow and a long soft one, so the map reads as the floor below.
-   Selection lifts it further; dragging already uses --elev-lift. */
+   Selection and dragging lift it further with --shadow-float. */
 .canvas-node:not(.focused):not(.is-dragging) { box-shadow: var(--shadow-rest); }
 
 /* =====================================================================
-   Night glass (2026-11-11)
-   The chrome is frosted glass over the canvas, as on the desktop it runs
-   on: translucent indigo, a white hairline, one soft shadow. Working planes
-   (terminal, thread, tool bodies) stay opaque. Controls are flat fills on
-   one white-alpha ladder (--fill…); radii are concentric: an island's radius
+   Opaque object material
+   Chrome and working planes share a vertical gradient, masked ring and
+   black contact shadow. Quiet controls
+   share one white-alpha ladder (--fill…); radii are concentric: an island's radius
    is its inner control radius plus its padding.
    ===================================================================== */
+/* Icons: three sizes, 14 beside support text, 16 in rows and controls, 20 in
+   bars. The stroke compensates the size so they weigh the same. */
 .lucide { stroke-width: 1.75px; }
+.lucide[width="14"] { stroke-width: 2px; }
+.lucide[width="20"] { stroke-width: 1.5px; }
+.pc-title > svg, .sk-title > svg, .rp-brand > svg { width: 18px; height: 18px; }
+/* Terminal preview shares the reading rhythm; alternate screens retain their
+   row/column fit and semantic overview keeps its compact scale. */
+.pt-card:not(.is-overview) .pt-card-screen:not(.is-alternate) pre { font: var(--t-terminal-preview); }
+.pt-card:not(.is-overview) .pt-card-footer { font: var(--t-support); }
+.pt-card:not(.is-overview) .pt-card-action { font: var(--t-control); }
 * { scrollbar-color: var(--scroll-thumb) transparent; }
 ::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: var(--r-pill); }
 ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--ink); }
 kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--muted); font-size: 11px; }
 .tw-inspector, .tw-tool-panel, .tw-palette, .tw-voice, .tw-button, .plugin-surface { font-family: inherit; }
 
-/* ---------- Glass islands ---------- */
-.project-rail, .workspace-identity, .header-controls, .activity-notch, .dock-main, .canvas-navigation,
+/* ---------- Matte islands ---------- */
+.project-rail, .workspace-header, .activity-notch, .dock-main, .canvas-navigation, .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index, .context-menu, .toast, .activity-tray, .attention-tray, .activity-dock, .tw-palette, .tw-voice, .app-dialog { --ink-3: var(--ink-on-glass); --muted: var(--ink-on-glass); }
+.project-rail, .workspace-header, .activity-notch, .dock-main, .canvas-navigation,
 .canvas-minimap, .inspector-host, .focus-return, .canvas-popover, .tool-picker, .panel-index,
 .context-menu, .toast, .canvas-busy, .zone-selection, .group-selection, .activity-tray, .attention-tray {
-  background: var(--glass);
+  background-color: var(--glass);
+  background-image: var(--glass-sheen);
   -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-float);
+  border: 0;
+  box-shadow: var(--shadow-chrome);
 }
-/* Reading planes are thicker glass: what is behind tints them, never shows through. */
-.project-rail, .inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background: var(--glass-thick); }
-.tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-float); }
-.connection-error { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); background: color-mix(in srgb, var(--error-bg) 86%, transparent); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+/* Reading chrome uses a slightly raised opaque charcoal plane. */
+.inspector-host, .tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { background-color: var(--glass-thick); }
+.tool-picker, .panel-index, .context-menu, .canvas-popover, .activity-tray, .attention-tray, .toast { box-shadow: var(--shadow-chrome); }
+.connection-error { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: var(--surface); background-image: var(--object-fill); }
 
 /* ---------- Buttons ---------- */
-.button { height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); font-weight: 550; transition: background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
-.button:hover { background: var(--fill-3); border: 0; }
-.button:active:not(:disabled) { scale: .98; }
-.button.primary, .tw-button.tw-primary { background: var(--accent); color: var(--primary-ink); border-color: transparent; }
-.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), white 14%); }
-.icon-button { border-radius: var(--r-ctl); transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.icon-button:hover { background: var(--fill-2); color: var(--ink); }
-.icon-button.active { background: var(--accent-soft); color: var(--accent); }
-
-/* ---------- Rail ---------- */
-@media (min-width: 851px) { .project-rail { border-radius: var(--r-isle); padding: 12px 10px 10px; } .rail-collapsed .project-rail { border-radius: var(--r-obj); } }
-.brand { font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
-.brand > span:last-of-type > span { font-size: 11px; font-weight: 450; letter-spacing: 0; margin-top: 1px; }
-.brand-mark { border-radius: var(--r-ctl); background: transparent; color: var(--accent); }
-.rail-heading { padding: 0 8px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--muted); }
-.rail-heading button { border-radius: var(--r-ctl); }
-.rail-heading button:hover { background: var(--fill-2); color: var(--ink); }
-.project-list { gap: 2px; }
-.project-item { gap: 10px; padding: 6px 8px; border-radius: var(--r-obj); color: var(--muted); }
-.project-item:hover { background: var(--fill); }
-.project-item.active { background: var(--fill-2); color: var(--ink); }
-.project-item strong { font-size: 13px; font-weight: 550; letter-spacing: -.005em; }
-.project-item small { font-size: 11px; margin-top: 2px; color: var(--muted); opacity: .85; }
-.project-initials { width: 30px; height: 30px; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--muted); font-size: 11px; font-weight: 650; }
-.project-item.active .project-initials { background: var(--accent); color: var(--primary-ink); }
-.project-active-dot { display: none; }
-.open-folder, .studio-appearance-button, .rail-map-action, .rail-bottom > button { min-height: 32px; border-radius: var(--r-ctl); font-size: 13px; }
-.open-folder:hover, .studio-appearance-button:hover, .studio-appearance-button.active, .rail-map-action:hover, .rail-bottom > button:hover { background: var(--fill-2); color: var(--ink); }
-.studio-appearance-button { background: none; }
-.studio-appearance-button small { font-size: 11px; margin-top: 1px; }
-.rail-bottom { border-top-color: var(--hairline); }
-.host-indicator { font-size: 11px; padding: 2px 8px 10px; gap: 8px; }
-.host-indicator i { width: 6px; height: 6px; background: var(--success); }
-.rail-panel-row { margin: 1px 0; border-radius: var(--r-ctl); }
-.rail-panel-row:hover { background: var(--fill); }
-.rail-panel-row > button:first-child { gap: 10px; padding: 7px 8px; font-size: 13px; }
-.rail-panel-row.selected { background: var(--accent-soft); color: var(--ink); }
-.rail-panel-row.selected > button:first-child > svg { color: var(--accent); }
-.rail-panel-focus { border-radius: var(--r-ctl); }
-.rail-panel-label .terminal-activity-status { font-size: 11px; }
-.space-row { border-radius: var(--r-ctl); }
-.space-row:hover { background: var(--fill); }
-.space-row.active { background: var(--fill-2); }
-.space-select { font-size: 13px; gap: 10px; }
-.space-select i { background: var(--fill-3); }
-.space-input { border-radius: var(--r-ctl); background: var(--fill); }
-.rail-collapsed-project:hover { background: var(--fill-2); }
 
 /* ---------- Top bar ---------- */
-.workspace-identity, .header-controls, .activity-notch, .focus-return { border-radius: var(--r-obj); }
+.workspace-header, .activity-notch, .focus-return { border-radius: var(--r-obj); }
 .breadcrumb { font-size: 12px; gap: 7px; }
 .breadcrumb > button, .project-name-editor > button { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
 .workspace-path { font-size: 11px; }
@@ -603,7 +647,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .search-command:hover { background: var(--fill-2); color: var(--ink); }
 .save-state { font-size: 11px; }
 .activity-notch { font-size: 12px; transition: background-color var(--dur-fast) var(--ease-out); }
-.activity-notch:hover, .activity-notch[aria-expanded=true] { background: var(--glass-thick); border-color: var(--hairline); }
+.activity-notch:hover, .activity-notch[aria-expanded=true] { background-color: var(--glass-thick); border-color: var(--hairline); }
 .attention-button i { top: 5px; right: 6px; width: 6px; height: 6px; }
 .focus-return { font-size: 12px; }
 .focus-return button { font-size: 12px; }
@@ -612,17 +656,16 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .canvas-node { border-radius: var(--r-obj); border-color: var(--hairline); }
 .canvas-node:not(.focused):not(.is-dragging) { border-top-color: var(--hairline); box-shadow: var(--shadow-rest); }
 .canvas-node:hover:not(.focused):not(.selected) { border-color: color-mix(in srgb, #fff 22%, transparent); }
-.canvas-node.selected { border-color: var(--accent); outline: 3px solid color-mix(in srgb, var(--accent) 26%, transparent); outline-offset: 0; }
 .canvas-node.selected:not(.focused):not(.is-dragging) { box-shadow: var(--shadow-float); }
 .canvas-node.focused { border-color: var(--hairline); outline: 0; }
-.canvas-node > .node-header { height: 44px; min-height: 44px; padding: 0 8px 0 12px; gap: 10px; background: var(--surface); border-bottom-color: transparent; border-radius: calc(var(--r-obj) - 1px) calc(var(--r-obj) - 1px) 0 0; }
-.node-header .title-button { font-size: calc(12.5px * var(--map-label-scale, 1)); font-weight: 600; letter-spacing: -.01em; }
+.canvas-node > .node-header { height: 44px; min-height: 44px; padding: 0 8px 0 12px; gap: 10px; background: transparent; border-bottom-color: transparent; border-radius: calc(var(--r-obj) - 1px) calc(var(--r-obj) - 1px) 0 0; }
+.node-header .title-button { font-size: calc(13px * var(--map-label-scale, 1)); font-weight: 600; letter-spacing: -.01em; }
 .node-glyph { display: grid; place-items: center; flex-shrink: 0; width: calc(24px * var(--map-label-scale, 1)); height: calc(24px * var(--map-label-scale, 1)); color: var(--muted); }
 .node-glyph > svg { width: calc(14px * var(--map-label-scale, 1)); height: calc(14px * var(--map-label-scale, 1)); }
 .canvas-node.selected .node-glyph { color: var(--accent); }
 .node-header .icon-button { border-radius: var(--r-ctl); }
 .node-header .icon-button:hover { background: var(--fill-2); }
-.mission-chip { border-radius: var(--r-pill); padding: 3px 8px; font-size: 11px; background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.mission-chip { border-radius: var(--r-pill); padding: 3px 8px; font-size: 11px; background: var(--fill-2); color: var(--muted); }
 .note-editor { padding: 16px 18px; line-height: 1.65; }
 .inline-name-input, .node-title input, .project-name-editor .inline-name-input { border-radius: var(--r-ctl); background: var(--fill); border-color: var(--accent); }
 .canvas-zone { border-radius: var(--r-isle); }
@@ -644,7 +687,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .canvas-navigation > i { background: var(--hairline); }
 .canvas-minimap { border-radius: var(--r-obj); }
 .zone-selection, .group-selection { border-radius: var(--r-pill); padding: 0 14px; }
-.zone-selection:hover, .group-selection:hover { background: var(--glass-thick); border-color: var(--hairline); }
+.zone-selection:hover, .group-selection:hover { background-color: var(--glass-thick); border-color: var(--hairline); }
 
 /* ---------- Tool picker: a launcher ---------- */
 .tool-picker { width: 580px; max-width: calc(100% - 24px); border-radius: var(--r-isle); }
@@ -655,8 +698,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tool-picker-list { display: block; padding: 2px 8px 10px; overflow: auto; }
 .tool-group h3 { margin: 0; padding: 12px 10px 5px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
-.tool-item { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 7px 10px 7px 8px; border-radius: var(--r-obj); text-align: left; transition: background-color var(--dur-fast) var(--ease-out); }
-.tool-item:hover:not(:disabled), .tool-item:focus-visible { background: var(--fill-2); }
+.tool-item { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 7px 10px 7px 8px; border-radius: var(--r-row); text-align: left; transition: background-color var(--dur-fast) var(--ease-out); }
+.tool-item:hover:not(:disabled), .tool-item:focus-visible { background: var(--row-hover); }
 .tool-item:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
 .tool-tile { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 34px; color: var(--muted); }
 .tool-item:hover:not(:disabled) .tool-tile, .tool-item:focus-visible .tool-tile { color: var(--ink); }
@@ -694,8 +737,8 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .canvas-popover dt, .canvas-popover dd { font-size: 12px; }
 
 /* ---------- Command palette: spotlight ---------- */
-.app-modal-backdrop, .tw-overlay { background: #07061099; }
-.tw-palette, .tw-voice, .app-dialog { background: var(--glass-thick); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-float); }
+.app-modal-backdrop, .tw-overlay { background: #10101099; }
+.tw-palette, .tw-voice, .app-dialog { position: relative; background-color: var(--glass-thick); background-image: var(--glass-sheen); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 0; border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); }
 .tw-palette { width: min(640px, 100%); }
 .tw-palette-search { gap: 12px; padding: 8px 12px 8px 20px; min-height: 60px; border-bottom-color: var(--hairline); }
 .tw-palette-search > svg { color: var(--muted); }
@@ -714,7 +757,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .inspector-switcher { border-bottom-color: var(--hairline); padding: 10px 10px 10px 12px; }
 .inspector-switcher select { height: 32px; padding: 0 10px; border-radius: var(--r-ctl); background: var(--fill); font-size: 13px; }
 .tw-inspector, .tw-tool-panel { background: transparent; scrollbar-color: var(--scroll-thumb) transparent; }
-.canvas-node .tw-tool-panel { background: var(--surface); }
+.canvas-node .tw-tool-panel { background: transparent; }
 .tw-inspector { border-inline-start: 0; }
 .tw-section + .tw-section, .tw-item, .tw-list-row, .tw-table th, .tw-table td, .tw-target, .inc-section, .inc-item, .activity-row, .activity-tray-scroll > section, .activity-footer, .cc-task, .cc-events li, .cc-detail, .plugin-entry { border-color: var(--hairline); }
 .tw-inspector-header h2, .tw-section h3, .tw-voice h2 { font-weight: 600; letter-spacing: -.015em; }
@@ -725,9 +768,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tw-field > input:hover, .tw-field > select:hover, .tw-field > textarea:hover { background: var(--fill-2); }
 .tw-field > input:focus-visible, .tw-field > select:focus-visible, .tw-field > textarea:focus-visible, .agent-editor input:focus-visible, .agent-editor select:focus-visible { outline: 0; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .tw-field input[type="file"]::file-selector-button { border: 0; border-radius: var(--r-ctl); background: var(--fill-3); }
-.tw-button { border-color: transparent; border-radius: var(--r-ctl); background: var(--fill-2); font-weight: 550; }
-.tw-button:hover:not(:disabled) { background: var(--fill-3); border-color: transparent; }
-.tw-button:active:not(:disabled) { background: var(--fill-3); }
 .tw-tabs { gap: 2px; padding: 2px; margin-bottom: 14px; border-radius: var(--r-ctl); background: var(--fill); width: fit-content; max-width: 100%; }
 .tw-tabs .tw-button { min-height: 26px; padding: 3px 11px; border-radius: var(--r-ctl); background: none; color: var(--muted); }
 .tw-tabs .tw-button:hover:not(:disabled) { background: none; color: var(--ink); }
@@ -737,12 +777,12 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .tw-field > .tw-code-input { font-family: var(--mono); }
 .tw-error, .tw-warning { border: 0; border-radius: var(--r-obj); padding: 10px 12px; }
 .tw-error { background: var(--error-bg); color: var(--danger); }
-.tw-warning { background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
+.tw-warning { background: var(--fill-2); color: var(--warning); }
 .tw-details > summary { color: var(--ink); }
 .tw-step { border-inline-start-color: var(--hairline); }
 .tw-action-editor { border-color: var(--hairline); border-radius: var(--r-obj); }
 .tw-table th { background: none; }
-.plugin-surface .tw-section, .plugin-surface .tw-item { border-color: var(--hairline); border-radius: var(--r-obj); background: var(--fill); }
+.plugin-surface .tw-section, .plugin-surface .tw-item { border-radius: var(--r-obj); background: transparent; }
 .plugin-surface .plugin-board-column { background: var(--fill); border-radius: var(--r-obj); }
 .inc-now { border-radius: var(--r-ctl); }
 .inc code, .inc-files ul, .cc-section pre { font-family: var(--mono); }
@@ -757,25 +797,22 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .terminal-activity-status i { width: 6px; height: 6px; }
 
 /* ---------- Appearance ---------- */
-.appearance-panel h2 { font-weight: 600; }
-.background-option { border-color: var(--hairline); border-radius: var(--r-obj); padding: 5px 5px 9px; }
-.background-option:hover { border-color: var(--hairline); background: var(--fill); }
-.background-option[aria-pressed=true] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.background-option[aria-pressed=true] > svg { color: var(--accent); }
+.appearance-panel h2 { font: var(--t-title); }
 .background-preview { border-radius: var(--r-ctl); }
 .background-upload { border: 1px dashed var(--hairline); border-radius: var(--r-obj); }
-.accent-options button { border-radius: var(--r-ctl); }
-.accent-options button:hover, .accent-options button[aria-pressed=true] { background: var(--fill-2); }
 .grid-toggle, .appearance-footer { border-top-color: var(--hairline); }
 
 /* ---------- First run ---------- */
 .desktop-required .app-mark { border-radius: var(--r-obj); }
 
 /* ---------- Agent identity editor ---------- */
-.agent-editor { background: var(--surface-2); border: 1px solid var(--hairline); }
+.agent-editor { --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom)); background: var(--object-fill) var(--surface); border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; }
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: var(--object-fill); }
+}
+@media (prefers-contrast: more) {
+  :root { --glass: var(--surface); --glass-thick: var(--surface); --glass-filter: none; --ink-on-glass: #b0aea8; --glass-sheen: var(--object-fill); --hairline: color-mix(in srgb, #fff 22%, transparent); --object-edge-top: color-mix(in srgb, #fff 32%, transparent); --object-edge-bottom: color-mix(in srgb, #fff 12%, transparent); --selected-edge-top: color-mix(in srgb, #fff 44%, transparent); --selected-edge-bottom: color-mix(in srgb, #fff 20%, transparent); }
 }
 
 /* Focus bar and activity pill never wrap or clip their leading icon. */
@@ -783,11 +820,6 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .focus-return button { white-space: nowrap; flex-shrink: 0; }
 .studio-focused .workspace-identity { flex: 0 0 340px; }
 .activity-notch { justify-content: flex-start; }
-/* Narrow desktop with the rail open: view controls sit above the dock row instead of under it. */
-@media (min-width: 851px) and (max-width: 1180px) {
-  .app-shell:not(.rail-collapsed):not(.studio-focused) .canvas-navigation { bottom: 84px; }
-  .app-shell:not(.rail-collapsed):not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: 144px; }
-}
 
 /* =====================================================================
    Lienzo (2026-11-11)
@@ -798,7 +830,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    lightest but highest. Supersedes the docked "Proporción y aire" layer.
    ===================================================================== */
 :root {
-  --gutter: 16px;
+  --gutter: 12px;
   --bar: 48px;                                   /* height of a top-row island */
   --top-clear: calc(var(--gutter) * 2 + var(--bar)); /* first free line under the top row */
 }
@@ -807,45 +839,56 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   /* Rail: an object, not a column. It grows with what the project holds and
      stops one gap short of the bottom edge; the canvas shows beneath it. */
   .app-shell:not(.rail-collapsed) .project-rail {
-    left: var(--gutter); top: var(--gutter); bottom: auto; height: auto; margin: 0;
+    left: var(--gutter); top: var(--gutter); bottom: var(--gutter); height: auto; margin: 0;
     max-height: calc(100% - var(--gutter) * 2); width: var(--rail-width);
-    padding: 4px 10px 10px; border: 1px solid var(--hairline); border-radius: var(--r-isle);
-    box-shadow: var(--shadow-float);
+    padding: var(--box-pad); border: 0; border-radius: var(--r-isle);
+    box-shadow: var(--shadow-chrome);
   }
-  .app-shell:not(.rail-collapsed) .brand { height: 48px; flex-shrink: 0; margin: 0 0 8px; padding: 0 2px 0 6px; border: 0; }
+  .app-shell:not(.rail-collapsed) .brand { min-height: 48px; flex-shrink: 0; margin: 0; padding: 0; border: 0; }
 
   /* Collapsed: the rail folds into a pill that sits where the rail began. */
   .rail-collapsed .project-rail {
     left: var(--gutter); top: var(--gutter); bottom: auto; height: var(--bar); width: auto; max-width: 340px; margin: 0;
-    padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+    padding: 0 8px; border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
 
-  /* Top row: no strip. Title and controls are two separate objects; the space
-     between them is canvas, and it takes clicks and pans like canvas. */
-  .workspace-header, .rail-collapsed .workspace-header {
+  /* Top row: one bar from the rail's edge to the right margin. Identity and
+     controls are groups inside it, not boxes of their own. */
+  .workspace-header {
     top: var(--gutter); left: calc(var(--gutter) * 2 + var(--rail-width)); right: var(--gutter);
     height: var(--bar); min-height: var(--bar); padding: 0; gap: 8px;
-    background: transparent; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; pointer-events: none;
+    border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome);
   }
-  .rail-collapsed .workspace-header { left: var(--gutter); }
-  .workspace-identity, .header-controls {
-    height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
-  }
-  .workspace-identity { padding: 0 18px; max-width: min(44%, 520px); }
+  /* Collapsed: the identity hides and the bar shrinks to its controls, right-aligned. */
+  .rail-collapsed .workspace-header { left: auto; }
+  .workspace-identity, .header-controls { height: 100%; }
+  .workspace-identity { padding: 0 8px 0 18px; max-width: min(60%, 520px); }
+}
+/* Top bar is exactly one --bar tall; identity is a single line. In focus the
+   bar shrinks to its controls on the right and never covers .focus-return. */
+.app-shell .workspace-header {
+  box-sizing: border-box; height: var(--bar); min-height: var(--bar); max-height: var(--bar);
+  padding-block: 0; display: flex; flex-wrap: nowrap; align-items: center;
+}
+.app-shell .workspace-header > * { max-height: 100%; align-self: center; }
+.app-shell .workspace-identity { flex-direction: row; align-items: center; }
+.app-shell .workspace-identity .breadcrumb { height: auto; max-height: 100%; }
+.app-shell .workspace-path { display: none; }
+.app-shell.studio-focused .workspace-header { left: auto; }
+.app-shell.studio-focused .workspace-identity { display: none; }
+@media (min-width: 851px) {
   .header-controls { padding: 0 8px; }
-  /* The rail already names the project; the title keeps name + path, not a fake breadcrumb. */
-  .workspace-identity .breadcrumb > svg, .workspace-identity .breadcrumb > span { display: none; }
 
   /* Focus mode: the stage starts one gap after the rail and stops before the inspector. */
   .studio-focused:not(.rail-collapsed) .canvas-region { left: calc(var(--gutter) * 2 + var(--rail-width) - 12px); }
   .studio-focused.studio-inspector-open .canvas-region { right: calc(var(--gutter) * 2 + var(--inspector-width) - 12px); }
-  .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float); z-index: 29; }
+   .focus-return { top: var(--gutter); left: 12px; height: var(--bar); max-width: 340px; padding: 0 16px; border: 0; border-radius: var(--r-obj); box-shadow: var(--shadow-chrome); z-index: 29; }
 
   /* Inspector: the rail's counterweight. It hangs under the controls it was
      opened from, inset on every side. */
   .inspector-host {
     top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); width: var(--inspector-width);
-    border: 1px solid var(--hairline); border-radius: var(--r-isle); box-shadow: var(--shadow-float);
+    border: 0; border-radius: var(--r-isle); box-shadow: var(--shadow-chrome);
   }
   .studio-inspector-open .canvas-navigation, .studio-inspector-open .canvas-minimap, .studio-inspector-open .canvas-popover { right: calc(var(--inspector-width) + var(--gutter) * 2); }
   .studio-focused.studio-inspector-open :is(.canvas-navigation, .canvas-popover) { right: var(--gutter); }
@@ -863,17 +906,15 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   .studio-inspector-open.rail-collapsed .tool-picker { left: calc((100% - var(--inspector-width) - var(--gutter)) / 2); }
 }
 @media (max-width: 850px) {
-  .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0; background: transparent; border: 0; pointer-events: none; }
-  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: var(--bar); border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float); background: var(--island); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+  .workspace-header { top: var(--gutter); left: var(--gutter); right: var(--gutter); height: var(--bar); min-height: var(--bar); padding: 0 0 0 4px; border: 0; border-radius: var(--r-obj); }
+  .workspace-header > .rail-toggle, .workspace-identity, .header-controls { height: 100%; border: 0; }
   .workspace-header > .rail-toggle { width: var(--bar); flex-shrink: 0; }
   .header-controls { padding: 0 6px; }
   .inspector-host { top: var(--top-clear); right: var(--gutter); bottom: var(--gutter); left: var(--gutter); border-radius: var(--r-isle); }
-  .project-rail { top: var(--gutter); left: var(--gutter); height: calc(100% - var(--gutter) * 2); border-radius: var(--r-isle); }
+  .project-rail { top: var(--gutter); left: var(--gutter); width: var(--rail-width); padding: var(--box-pad); height: calc(100% - var(--gutter) * 2); border-radius: var(--r-isle); }
   .panel-index-button { top: var(--top-clear); left: var(--gutter); }
 }
 
-/* Rail rows: one quiet list. No filled tile for an action that is not a selection. */
-.studio-appearance-button { background: transparent; }
 
 /* Bottom row: one baseline and one gutter for everything that floats. */
 .create-dock, .canvas-navigation { bottom: var(--gutter); }
@@ -892,20 +933,18 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* Activity and creation share one quiet, bottom-centred working surface. */
 .activity-dock {
   display: flex; flex-direction: column; max-width: calc(100% - 24px);
-  background: var(--glass); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
-  border: 1px solid var(--hairline); border-radius: var(--r-obj); box-shadow: var(--shadow-float);
+  background-color: var(--glass); background-image: var(--glass-sheen); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
+  border: 0; border-radius: var(--r-pill); box-shadow: var(--shadow-chrome);
 }
 .activity-dock.activity-open { z-index: 46; }
 @media (min-width: 851px) {
-  .app-shell:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + var(--gutter) + 100%) / 2); }
-  .app-shell.studio-inspector-open:not(.rail-collapsed) { --dock-x: calc((var(--rail-width) + 100% - var(--inspector-width)) / 2); }
-  .app-shell.studio-inspector-open.rail-collapsed { --dock-x: calc((100% - var(--inspector-width)) / 2); }
   .app-shell.studio-focused :is(.create-dock, .tool-picker) { left: 50%; }
 }
 .activity-dock .activity-strip {
-  display: flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 2px;
-  padding: 6px 6px 0; min-height: 36px;
+  display: flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 8px 0; min-height: 48px;
 }
+.activity-dock .activity-strip .activity-notch { height: 44px; min-height: 44px; padding: 0 12px; gap: 8px; }
 .activity-dock .activity-strip button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 30px; min-height: 30px; padding: 0 8px; border: 0; border-radius: var(--r-ctl);
@@ -914,25 +953,24 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 }
 .activity-dock .activity-notch { flex: 1; min-width: 0; }
 .activity-dock .activity-notch strong { overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
-.activity-dock .activity-notch.needs-you strong { color: var(--attention); }
+.activity-dock .activity-notch.needs-you strong { color: var(--ink); }
 .activity-dock .activity-strip button:hover, .activity-dock .activity-strip button[aria-expanded=true] { background: var(--fill-2); color: var(--ink); }
 .activity-dock .activity-summary-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .activity-dock .dock-main { justify-content: center; background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .activity-tray {
-  top: auto; right: auto; bottom: calc(var(--gutter) + 100px);
+  top: auto; right: auto; bottom: calc(var(--gutter) + var(--dock-h) + 12px);
   left: clamp(min(50%, 299px), var(--dock-x), calc(100% - min(50%, 299px))); transform: translateX(-50%);
   max-height: calc(100dvh - var(--top-clear) - 112px);
 }
-.activity-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--hairline); }
-.activity-tray .activity-filters button { background: none; color: var(--muted); }
-.activity-tray .activity-filters button[aria-pressed=true] { background: var(--fill-2); color: var(--ink); }
+.activity-filters { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 4px; padding: 8px 16px; }
+.activity-tray .activity-filters button { min-width: 0; max-width: 100%; min-height: 32px; padding: 6px 8px; border-radius: var(--r-ctl); background: none; color: var(--muted); text-align: left; }
+.activity-tray .activity-filters button > span { overflow-wrap: anywhere; }
+.activity-tray .activity-filters button[aria-pressed=true] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.activity-filter-check { visibility: hidden; }
+.activity-filters [aria-pressed=true] .activity-filter-check { visibility: visible; color: var(--accent); }
 .activity-tray-scroll > section:first-of-type { border-top: 0; }
-.tool-picker { bottom: calc(var(--gutter) + 100px); max-height: calc(100% - 172px); }
-.zone-selection, .group-selection { bottom: calc(var(--gutter) + 100px); }
-@media (min-width: 851px) and (max-width: 1180px) {
-  .app-shell:not(.rail-collapsed):not(.studio-focused) .canvas-navigation { bottom: 124px; }
-  .app-shell:not(.rail-collapsed):not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: 184px; }
-}
+.tool-picker { bottom: calc(var(--gutter) + var(--dock-h) + 12px); max-height: calc(100% - 172px); }
+.zone-selection, .group-selection { bottom: calc(var(--gutter) + var(--dock-h) + 12px); }
 @media (max-width: 650px) {
   .activity-dock .activity-strip button { padding-inline: 6px; gap: 4px; }
   .activity-dock .activity-unread { display: none; }
@@ -943,7 +981,7 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    Every action has the same weight: drawn icon over a short word, like a
    design tool's toolbar. No tinted pill marks one action as "primary"; the
    row reads left to right and the word is always there to say what it does. */
-.activity-dock .dock-main { height: auto; gap: 2px; padding: 6px; }
+.activity-dock .dock-main { height: auto; gap: 8px; padding: 8px; }
 .activity-dock .dock-main .dock-action {
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   min-width: 64px; height: 52px; padding: 0 10px; border-radius: var(--r-obj);
@@ -951,10 +989,10 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out);
 }
 .activity-dock .dock-main .dock-action > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; line-height: 1; white-space: nowrap; }
-.activity-dock .dock-main .dock-action svg { transition: translate var(--dur) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.activity-dock .dock-main .dock-action svg { transition: color var(--dur-fast) linear; }
 .activity-dock .dock-main .dock-action:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); transform: none; }
-.activity-dock .dock-main .dock-action:hover:not(:disabled) svg { translate: 0 -1px; color: var(--accent); }
-.activity-dock .dock-main .dock-action:active:not(:disabled) { background: var(--fill-3); scale: .96; }
+.activity-dock .dock-main .dock-action:hover:not(:disabled) svg { color: inherit; }
+.activity-dock .dock-main .dock-action:active:not(:disabled) { background: var(--control-press); }
 .activity-dock .dock-main .dock-action.active { background: var(--fill-3); color: var(--ink); }
 .activity-dock .dock-main .dock-action.active svg { color: var(--accent); }
 .activity-dock .dock-main .dock-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -972,29 +1010,20 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* Activity strip: what needs you is the only loud thing in the dock. The
    other readings stay quiet counts until there is something to act on. */
 .activity-dock .activity-strip .activity-notch.needs-you {
-  flex: 0 1 auto; padding-inline: 10px 8px; color: var(--attention);
-  background: color-mix(in srgb, var(--attention) 14%, transparent);
+  flex: 0 1 auto; padding-inline: 10px 8px; color: var(--ink);
 }
-.activity-dock .activity-strip .activity-notch.needs-you strong { font-weight: 600; }
+.activity-dock .activity-strip .activity-notch.needs-you > svg { color: var(--attention); }
+.activity-dock .activity-strip .activity-notch.needs-you > .notch-dot { background: var(--attention); opacity: 1; }
+.activity-dock .activity-strip .activity-notch.needs-you strong { font-weight: 500; }
 .activity-dock .activity-strip .activity-notch.needs-you:hover, .activity-dock .activity-strip .activity-notch.needs-you[aria-expanded=true] {
-  background: color-mix(in srgb, var(--attention) 22%, transparent); color: var(--attention);
+  background: var(--fill-2); color: var(--ink);
 }
-.activity-dock .activity-strip:has(.needs-you) .activity-summary-action { color: color-mix(in srgb, var(--muted) 80%, transparent); }
+.activity-dock .activity-strip:has(.needs-you) .activity-summary-action { color: var(--muted); }
 /* The ghost in the notch: the brand mark with a mood. Its eyes and grin are
    the only things that change, and only with real state (Glyphs.jsx). */
 .phantom-face { flex-shrink: 0; overflow: visible; }
-.phantom-face-eyes { transform-box: fill-box; transform-origin: center; }
-.phantom-face.is-asleep { opacity: .55; }
-.phantom-face.is-grin { color: var(--attention); }
-.phantom-face-grin { stroke-dasharray: 7; }
-@media (prefers-reduced-motion: no-preference) {
-  .phantom-face.is-calm .phantom-face-eyes { animation: face-blink 7s linear infinite; }
-  .phantom-face.is-grin .phantom-face-eyes { animation: face-glow 2.4s var(--ease-out) infinite; }
-  .phantom-face.is-grin .phantom-face-grin { animation: face-grin 420ms var(--ease-out) both; }
-}
-@keyframes face-blink { 0%, 95.5%, 100% { transform: scaleY(1); } 97.5% { transform: scaleY(.12); } }
-@keyframes face-glow { 0% { opacity: 1; } 55% { opacity: .5; } 100% { opacity: 1; } }
-@keyframes face-grin { from { stroke-dashoffset: 7; } }
+/* Expressions are still: source changes, never a timer, drive the face.
+   This also keeps concentration and reduced-motion equally quiet. */
 /* The dock is a little taller with labels; what opens above it clears it. */
 .activity-tray, .tool-picker, .zone-selection, .group-selection { bottom: calc(var(--gutter) + 112px); }
 .tool-picker { max-height: calc(100% - 184px); }
@@ -1003,45 +1032,37 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
    Focus ladder: background and cards (2026-11-11)
    Attention has three steps, and background and cards move together:
    · Map — the atmosphere sits behind the work; cards are slabs lifted off it.
-   · Selection — the chosen card keeps full light; other cards and the
-     atmosphere step back without turning translucent (Opaque Work Rule).
+    · Selection — the chosen card brightens its ring; all reading stays stable.
+     Only atmosphere steps back.
    · Focus mode — the panel alone (unchanged: atmosphere at 12 %).
    ===================================================================== */
 
 /* Background: a vignette keeps the eye on the working area. It lives on the
    canvas, above the atmosphere and the grid, so art and dots fade at the edges. */
 .canvas {
+  z-index: 1;
   background-image:
     radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%),
-    radial-gradient(circle, var(--dot-major) 1.1px, transparent 1.4px),
-    radial-gradient(circle, var(--dot) .9px, transparent 1.2px);
-  background-size: 100% 100%, var(--grid-major, 96px) var(--grid-major, 96px), var(--grid-size, 24px) var(--grid-size, 24px);
-  background-position: 0 0, var(--grid-x, 0) var(--grid-y, 0), var(--grid-x, 0) var(--grid-y, 0);
-  background-repeat: no-repeat, repeat, repeat;
+    radial-gradient(var(--dot) 1px, transparent 1.2px);
+  background-size: 100% 100%, var(--grid-size, 24px) var(--grid-size, 24px);
+  background-position: 0 0, var(--grid-x, 0) var(--grid-y, 0);
+  background-repeat: no-repeat, repeat;
 }
 .studio-no-grid .canvas { background-image: radial-gradient(ellipse 72% 78% at 54% 46%, transparent 40%, #00000059 78%, #0000008c 100%); }
+.app-shell.studio-concentration .canvas { background-image: none; }
 .canvas.focus-mode { background-image: none; }
-
-/* Gengar is atmosphere, not a subject: smaller, anchored in the corner, toned
-   down and dissolved into the plum haze toward the centre of the map. */
-.studio-gengar:not(.studio-personal) .canvas-region::before {
-  background-size: clamp(200px, 38%, 480px) auto, cover, cover;
-  background-position: right 1% bottom 4%, center, center;
-  filter: saturate(.68) brightness(.78);
-  -webkit-mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
-  mask-image: radial-gradient(ellipse 80% 95% at 100% 92%, #000 30%, #0008 62%, transparent 92%);
-}
 
 /* Selection quiets the atmosphere one step; focus mode keeps its own value. */
 .app-shell:not(.studio-focused) .canvas-region:has(.canvas-node.selected)::before {
   opacity: calc(var(--background-intensity, .55) * .55);
 }
+.app-shell.studio-concentration .canvas-region:has(.canvas-node.selected)::before { opacity: calc(var(--background-intensity, .55) * .12); }
 
 /* Cards: an opaque slab with one hairline and one shadow. At rest it lies on
    the canvas; selected or dragged it floats. */
 .canvas-node {
   border-color: var(--hairline);
-  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out), outline-color var(--dur-fast) var(--ease-out), filter var(--dur) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out), outline-color var(--dur-fast) var(--ease-out);
 }
 .canvas-node:not(.focused):not(.is-dragging):not(:is(.pulse-attention, .pulse-turn)) {
   box-shadow: var(--shadow-rest);
@@ -1050,27 +1071,28 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
   box-shadow: var(--shadow-float);
 }
 
-/* Spotlight: with a card selected, the rest step back by light, not by
-   transparency. Hover, keyboard focus and cards that need you stay lit. */
-.canvas:not(.focus-mode):has(.canvas-node.selected) .canvas-node:not(.selected):not(:hover):not(:focus-within):not(:is(.pulse-attention, .pulse-turn, .pulse-error)) {
-  filter: brightness(.7) saturate(.72);
+/* Selection never changes the luminance or saturation of neighbouring text. */
+.canvas .canvas-node[data-type="terminal"] {
+  /* All map/state selectors resolve these locally, regardless of specificity. */
+  --shadow-rest: var(--shadow-workplane-rest);
+  --shadow-float: var(--shadow-workplane-lift);
+  background-color: var(--workplane); background-image: var(--workplane-wash); opacity: 1; filter: none;
+  -webkit-backdrop-filter:none; backdrop-filter:none;
+  box-shadow: var(--shadow-workplane-rest);
+}
+.canvas .canvas-node[data-type="terminal"]:is(.selected, .focused, .is-dragging) {
+  box-shadow: var(--shadow-workplane-lift);
 }
 .canvas-zone { transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), opacity var(--dur) var(--ease-out); }
 .canvas:not(.focus-mode):has(.canvas-node.selected) .canvas-zone:not(.selected) { opacity: .7; }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-node, .canvas-zone { transition: none; }
-}
-
-/* Lienzo: inspector-open stacking must win over the shared bottom-row baseline above. */
-@media (min-width: 851px) {
-  .studio-inspector-open:not(.studio-focused) .canvas-navigation { bottom: calc(var(--gutter) + 108px); }
-  .studio-inspector-open:not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: calc(var(--gutter) + 108px + 56px); }
+  .canvas .canvas-node, .canvas .canvas-node.focused, .canvas-zone { transition: none; animation: none; }
 }
 
 /* =====================================================================
    Acabado (2026-11-12)
-   Same night glass, finished edges. Three rules: what is chosen is
+   Same matte charcoal, finished edges. Three rules: what is chosen is
    unmistakable, every border closes cleanly on its own radius, and every
    state change eases on the one curve instead of snapping.
    ===================================================================== */
@@ -1086,22 +1108,17 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* Legacy one-offs collapse onto the tokens. */
 .rail-panel-focus { transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 
-/* Selection: one clear ring instead of a faint one. The outline always
-   exists at the same width and offset, so selecting only fades its colour
-   in (no jump of width or offset), and the full border goes accent rather
-   than lighting just the top edge. */
-.canvas-node { outline: 3px solid transparent; outline-offset: 0; }
-.canvas-node.selected { border-color: var(--accent); outline-color: color-mix(in srgb, var(--accent) 34%, transparent); }
+.canvas .canvas-node { border: 0; outline: 0; }
+.canvas .canvas-node.selected { outline: 0; }
 .canvas-node.selected .title-button { color: var(--ink); }
 /* Focus mode is the stage itself: no selection chrome, a calm even edge.
    (A coloured top border on a 16px radius fades into the corners and reads
    as a rendering fault.) */
-.canvas-node.focused { border-color: var(--hairline); outline-color: transparent; }
-/* The arrival clip follows the card's real radius, so corners never square
-   off and snap back when the animation ends. */
-@keyframes focus-return {
-  from { clip-path: inset(0 0 3% 0 round var(--r-obj)); filter: brightness(.97); }
-  to { clip-path: inset(0 round var(--r-obj)); filter: brightness(1); }
+.canvas .canvas-node.focused { border-color: var(--hairline); outline-color: transparent; }
+.canvas .canvas-node.focused { animation: none; }
+.canvas-node { transform-origin: 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .canvas .canvas-node.map-flash::after { animation: none !important; }
 }
 
 /* Writing surfaces inside a card: the caret is the focus signal. A square
@@ -1116,3 +1133,203 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 /* Keyboard focus: the ring sits a hair closer so it reads as the control's
    own edge, not a frame floating around it. */
 button:focus-visible, a:focus-visible, summary:focus-visible { outline-offset: 2px; }
+
+/* The orchestrator's card names its role beside the title. */
+.node-role { flex-shrink: 0; margin-left: 6px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font: var(--t-micro); letter-spacing: .02em; white-space: nowrap; }
+.canvas-node[data-role="orchestrator"]:not(.selected) { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.canvas-node[data-role="orchestrator"] .node-title { display: flex; align-items: center; }
+.canvas-node[data-role="orchestrator"] .title-button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .canvas-region::before { display: none; }
+}
+
+/* One level below the stage (etapa 6·3). The shelf holds a single row: the
+   dock, centred in the room left of the view tools, and the tools anchored
+   bottom right on the dock's baseline. The minimap floats over the stage's
+   corner just above them. Panning can never put work under the shelf. */
+.app-shell {
+  --canvas-shelf: calc(var(--dock-clearance) * 2 + var(--dock-h)); --shelf-left: 0px; --shelf-right: 0px;
+  --tools-column: clamp(264px, 100% - var(--shelf-left) - var(--shelf-right) - var(--gutter) * 2 - 880px, 480px); --nav-space: calc(var(--tools-column) + 24px);
+  --shelf-inset: var(--gutter);
+  --dock-room: calc(100% - var(--shelf-left) - var(--shelf-right) - var(--shelf-inset) - var(--gutter) - var(--nav-space));
+  --dock-x: calc(var(--shelf-left) + var(--shelf-inset) + var(--dock-room) / 2);
+}
+@media (min-width: 851px) {
+  .app-shell:not(.rail-collapsed) { --shelf-left: calc(var(--rail-width) + var(--gutter)); --shelf-inset: 24px; }
+  .app-shell.studio-inspector-open { --shelf-right: calc(var(--inspector-width) + var(--gutter)); }
+}
+.app-shell.studio-focused { --shelf-left: 0px; --shelf-right: 0px; --nav-space: 0px; --shelf-inset: var(--gutter); }
+.canvas-stage { position: absolute; inset: 0 var(--shelf-right) var(--canvas-shelf) var(--shelf-left); overflow: clip; }
+.canvas-view-controls {
+  position: absolute; right: calc(var(--shelf-right) + var(--gutter)); bottom: var(--dock-clearance); z-index: 12;
+  max-width: var(--tools-column); display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+  pointer-events: none;
+}
+.app-shell .canvas .canvas-view-controls .canvas-navigation {
+  position: relative; inset: auto; max-width: 100%; overflow-x: auto; pointer-events: auto;
+}
+.canvas-view-controls .canvas-navigation > * { flex-shrink: 0; }
+.app-shell .canvas .canvas-view-controls .canvas-minimap {
+  position: relative; inset: auto; display: block; flex-shrink: 0; pointer-events: auto;
+}
+.app-shell .canvas .canvas-view-controls .canvas-popover { position: absolute; top: auto; bottom: calc(48px + 12px); right: 0; max-width: none; pointer-events: auto; }
+.app-shell .canvas-region .create-dock {
+  left: var(--dock-x); bottom: var(--dock-clearance);
+  max-width: var(--dock-room);
+}
+.create-dock .dock-main { overflow-x: auto; justify-content: safe center; }
+.create-dock .dock-main > * { flex-shrink: 0; }
+.dock-more-menu { position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 1; min-width: 172px; padding: 6px; background: var(--island); border-radius: var(--r-isle); box-shadow: var(--shadow-chrome); pointer-events: auto; }
+.dock-more-menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 0 10px; border-radius: var(--r-obj); color: var(--ink); text-align: left; }
+.dock-more-menu button:hover:not(:disabled) { background: var(--fill-2); }
+.app-shell .canvas-region :is(.zone-selection, .group-selection) { bottom: calc(var(--canvas-shelf) + 8px); }
+
+/* Controls respond tonally; spatial motion belongs to the objects. */
+:is(.button, .icon-button, .tw-button, .activity-dock .dock-main .dock-action,
+    .dock-main button, .dock-action, .canvas-navigation button, .project-rail button,
+    .header-controls button, .workspace-identity button, .activity-strip button,
+    .focus-return button, .zone-selection, .group-selection, .context-menu > button,
+    .tool-item, .canvas-popover button, .panel-index button, .toast button,
+    .activity-tray button, .attention-tray button, .tw-palette button,
+    .inspector-host button, .app-dialog button, .tw-voice button,
+    .pc-agent button, .pc-composer button, .pd-composer button,
+    .pc-send, .pc-modes button, .pc-field button, .pd-tabs button) {
+  transition: background-color var(--dur-fast) linear, color var(--dur-fast) linear, opacity var(--dur-fast) linear;
+}
+:is(.button, .icon-button, .tw-button, .activity-dock .dock-main .dock-action,
+    .dock-main button, .dock-action, .canvas-navigation button, .project-rail button,
+    .header-controls button, .workspace-identity button, .activity-strip button,
+    .focus-return button, .zone-selection, .group-selection, .context-menu > button,
+    .tool-item, .canvas-popover button, .panel-index button, .toast button,
+    .activity-tray button, .attention-tray button, .tw-palette button,
+    .inspector-host button, .app-dialog button, .tw-voice button,
+    .pc-agent button, .pc-composer button, .pd-composer button,
+    .pc-send, .pc-modes button, .pc-field button, .pd-tabs button):active:not(:disabled) {
+  scale: none;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: linear;
+}
+
+.pc-send:not(:disabled) { box-shadow: var(--shadow-key); }
+.phantom-chat .pc-send:not(:disabled):not(.is-stop) {
+  background-image: none;
+}
+.phantom-chat .pc-send:not(.is-stop):hover:not(:disabled) {
+  background-image: none;
+}
+.pc-modes, .pd-tabs, .tw-tabs { box-shadow: var(--shadow-well); }
+.pc-modes::before, .pd-tabs button[aria-selected="true"],
+.activity-dock .dock-main .dock-action.active, .dock-main button.active,
+.canvas-navigation button:is([aria-pressed="true"], [aria-expanded="true"]) { box-shadow: var(--shadow-key); }
+.pc-send:active:not(:disabled),
+.pd-tabs button[aria-selected="true"]:active:not(:disabled),
+.activity-dock .dock-main .dock-action.active:active:not(:disabled), .dock-main button.active:active:not(:disabled),
+.canvas-navigation button:is([aria-pressed="true"], [aria-expanded="true"]):active:not(:disabled),
+.pc-modes:has(button[aria-checked="true"]:active:not(:disabled))::before { box-shadow: var(--shadow-well); }
+.pc-modes::before { transition: transform var(--dur-spring) var(--ease-spring), background-color var(--dur) var(--ease-out); }
+
+.canvas-popover, .tool-picker, .canvas-minimap, .inspector-host, .panel-index,
+.context-menu, .toast, .activity-tray, .attention-tray, .tw-palette, .tw-voice,
+.app-dialog, .zone-selection, .group-selection {
+  animation: materialize var(--dur-spring) var(--ease-spring);
+}
+/* Composer menus are chrome; the reading and writing planes stay matte. */
+.pc .pc-agent-menu, .pc .pc-models, .pc .pc-effort-menu,
+.phantom-chat .pc-agent-menu, .phantom-chat .pc-models, .phantom-chat .pc-effort-menu {
+  --ink-3: var(--ink-on-glass); --muted: var(--ink-on-glass);
+  background-color: var(--glass-thick); background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+  box-shadow: var(--shadow-chrome);
+  animation: materialize var(--dur-spring) var(--ease-spring);
+}
+
+.pc .pc-models, .phantom-chat .pc-models { background: var(--menu); }
+
+/* Selection is a solid light key; real buttons rest on a quiet veil. Rows,
+   icon buttons and toolbar controls rest on nothing: the island is their box.
+   The rail, top bar, navigation and dock own their states in sidebar.css and
+   shell.css. */
+.button { height: 34px; padding: 0 14px; }
+.button, .tw-button { border: 0; border-radius: var(--r-ctl); background: var(--fill); box-shadow: none; font-weight: 550; }
+.button:hover, .tw-button:hover:not(:disabled) { background: var(--fill-3); }
+.button.primary, .tw-button.tw-primary { background: var(--primary); background-image: none; color: var(--primary-ink); box-shadow: none; }
+.button.primary:hover, .tw-button.tw-primary:hover:not(:disabled) { background: var(--primary-hover); color: var(--primary-ink); }
+.button.primary:active:not(:disabled), .tw-button.tw-primary:active:not(:disabled) { background: var(--primary-press); }
+.icon-button { width: var(--control-size); height: var(--control-size); border-radius: 50%; }
+.icon-button:not(.active):hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+:is(.tw-button, .button, .icon-button):disabled,
+:is(.tw-button, .button, .icon-button):disabled:hover { background: var(--control-fill); color: var(--ink-3); }
+:is(.tw-button, .button, .icon-button):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (pointer: coarse) {
+  :is(.tw-button, .button, .icon-button) { min-height: 44px; min-width: 44px; }
+}
+.icon-button.active,
+.tw-tabs .tw-button[aria-pressed="true"],
+.activity-tray .activity-filters button[aria-pressed=true],
+.tw-palette-results li[aria-selected="true"] button {
+  background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key);
+  --muted: var(--on-ink); --ink-3: var(--on-ink);
+}
+.activity-filters [aria-pressed=true] .activity-filter-check,
+.tw-palette-results li[aria-selected="true"] small { color: var(--on-ink); }
+.tw-tabs .tw-button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--fill-3); }
+.inspector-host .tw-inspector, .inspector-host .appearance-panel { background: transparent; }
+
+/* Children expose the object's material; reading wells remain opaque. */
+.canvas .canvas-node > .node-header,
+.canvas .canvas-node > .node-body { background: transparent; }
+.app-shell .canvas-node > .node-header .session-watch[aria-pressed="true"] { display: inline-flex; opacity: 1; color: var(--attention); background: var(--fill-2); }
+.canvas-node.overview > .node-header > .session-watch { display: inline-flex; }
+.app-shell .spinning { animation: none; }
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root { --workplane: var(--surface); --workplane-wash: var(--object-fill); --well: #040405; --well-raised: #0b0b0d; --well-terminal: #040405; }
+}
+
+.app-shell { font: var(--t-body); }
+.button, .tw-button, .search-command, .focus-return button,
+.tool-search input, .index-search input, .inspector-switcher select,
+.canvas-popover > button, .canvas-zoom-presets button,
+.appearance-footer .button { font: var(--t-control); }
+.note-editor { font: var(--t-body); }
+.tw-inspector-header h2, .tw-section h3, .tw-voice h2 { font: var(--t-title); }
+.workspace-path, .save-state, .mission-chip, .index-type, .index-footer,
+.tool-group h3, .context-title, kbd, .background-option,
+.background-upload small, .grid-toggle small, .appearance-footer p,
+.appearance-panel .interface-scale p, .accent-options button { font: var(--t-support); }
+.breadcrumb > button, .project-name-editor > button, .tool-item strong,
+.index-item strong, .tw-field > label { font: var(--t-control); }
+.app-shell .activity-dock .dock-main button.dock-action { font: var(--t-control); }
+.app-shell button.search-command { font: var(--t-control); }
+.activity-dock .activity-notch { font: var(--t-support); }
+.dock-main button:first-of-type { background: transparent; color: var(--muted); }
+.dock-main button:first-of-type:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
+.dock-main button.active { background: var(--fill-3); color: var(--accent); }
+
+@keyframes materialize-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  :is(button, .zone-selection, .group-selection):active:not(:disabled) { scale: none !important; }
+  :is(button, .zone-selection, .group-selection) { transition-property: background-color, color, border-color, opacity !important; transition-timing-function: linear !important; transition-duration: 60ms !important; }
+  .pc-modes::before { transition: background-color 60ms linear; }
+  .canvas-popover, .tool-picker, .canvas-minimap, .inspector-host, .panel-index,
+  .context-menu, .toast, .activity-tray, .attention-tray, .tw-palette, .tw-voice,
+  .app-dialog, .zone-selection, .group-selection { animation: materialize-fade 60ms linear; animation-duration: 60ms !important; }
+  .pc .pc-agent-menu, .pc .pc-models, .pc .pc-effort-menu,
+  .phantom-chat .pc-agent-menu, .phantom-chat .pc-models, .phantom-chat .pc-effort-menu {
+    animation: materialize-fade 60ms linear;
+    animation-duration: 60ms !important;
+  }
+}
+
+/* Native selects share one chevron and one quiet transition. A data URI cannot
+   read tokens: the stroke is --muted. !important keeps the chevron when a
+   panel sets the `background`/`padding` shorthands on its own select. */
+select:not([multiple]):not([size]) {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-inline-end: 28px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%238b8983' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 9px center !important; background-size: 12px 12px !important;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+select:disabled { cursor: not-allowed; }

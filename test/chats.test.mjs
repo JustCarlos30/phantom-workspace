@@ -4,11 +4,64 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHost } from '../host/server.mjs';
-import { applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
+import { Chats, applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
 import { mergeChat } from '../src/hooks/chatState.js';
+import { handleIntegration } from '../integrations/index.mjs';
 
 const until = async fn => { const end = Date.now() + 5000; while (Date.now() < end) { if (await fn()) return; await new Promise(r => setTimeout(r, 25)); } throw new Error('Timed out'); };
 const turn = () => ({ message: { parts: [] }, sessionId: null, streamed: new Set(), freshText: true, cwd: '/repo', error: '' });
+test('Codex aggregate usage never becomes occupied context', () => {
+  const t = turn();
+  t.contextTokens = 164000;
+  applyCodexEvent(t, { type: 'turn.completed', usage: { input_tokens: 160000, cached_input_tokens: 100000, output_tokens: 4000 } });
+  assert.equal(t.contextTokens, 164000);
+  assert.equal(t.contextSource, undefined);
+  assert.equal(t.usage.outputTokens, 4000);
+});
+
+test('Claude keeps only complete latest root request readings', () => {
+  const t = turn(), usage = { input_tokens: 80000, cache_read_input_tokens: 20000, cache_creation_input_tokens: 100, output_tokens: 50 };
+  const apply = usage => applyClaudeEvent(t, { type: 'assistant', message: { usage } });
+  apply(usage);
+  assert.equal(t.contextTokens, 100150);
+  applyClaudeEvent(t, { type: 'assistant', parent_tool_use_id: 'child', message: { usage: { ...usage, input_tokens: 999999 } } });
+  assert.equal(t.contextTokens, 100150);
+  apply({ ...usage, input_tokens: 1 });
+  assert.equal(t.contextTokens, 20151);
+  for (const invalid of [undefined, {}, { input_tokens: 1, output_tokens: 2 }, ...[NaN, Infinity, -1, null].map(output_tokens => ({ ...usage, output_tokens }))]) {
+    apply(usage); apply(invalid);
+    assert.equal(t.contextTokens, 100150);
+    assert.equal(t.contextSource, 'claude:request-v1');
+  }
+  applyClaudeEvent(t, { type: 'stream_event', event: { type: 'message_start', message: { usage: { ...usage, input_tokens: 4 } } } });
+  assert.equal(t.contextTokens, 20154);
+  t.model = 'claude-x';
+  applyClaudeEvent(t, { type: 'result', modelUsage: { 'claude-x[1m]': { contextWindow: 1000000 } } });
+  assert.equal(t.contextWindow, 1000000);
+});
+
+test('Reload invalidates legacy metadata and clear removes measured context', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-context-'));
+  let chats;
+  t.after(() => { clearInterval(chats.timer); fs.rmSync(root, { recursive: true, force: true }); });
+  const node = { id: 'n', data: { cwd: root, chat: { provider: 'codex' } } };
+  fs.writeFileSync(path.join(root, 'chats.json'), JSON.stringify({ n: { threads: { codex: { messages: [], meta: { contextTokens: 164000, contextWindow: 200000, costUsd: 1 } }, claude: { messages: [], meta: { contextSource: 'claude:request-v1', contextTokens: 84000, contextWindow: 200000 } } } } }));
+  chats = new Chats({ dir: root }, () => {});
+  assert.deepEqual(chats.get(node).meta, { costUsd: 1 });
+  node.data.chat.provider = 'claude';
+  assert.equal(chats.get(node).meta.contextTokens, 84000);
+  chats.clear({ id: 'w' }, node);
+  assert.deepEqual(chats.get(node).meta, {});
+  chats.save(); clearInterval(chats.timer);
+  chats = new Chats({ dir: root }, () => {});
+  assert.deepEqual(chats.get(node).meta, {});
+  node.data.chat.provider = 'codex';
+  assert.deepEqual(chats.get(node).meta, { costUsd: 1 });
+  chats.thread(node.id, 'codex').meta = { contextSource: 'codex:request-v1', contextTokens: 144871, contextWindow: 258400 };
+  chats.save(); clearInterval(chats.timer);
+  chats = new Chats({ dir: root }, () => {});
+  assert.equal(chats.get(node).meta.contextTokens, 144871);
+});
 test('Codex folds lifecycle events without duplicating updates and reports failures', () => {
   const t = turn();
   applyCodexEvent(t, { type: 'thread.started', thread_id: 'thread-1' });
@@ -16,44 +69,39 @@ test('Codex folds lifecycle events without duplicating updates and reports failu
   applyCodexEvent(t, { type: 'item.completed', item: { id: 'c', type: 'command_execution', command: 'npm test', exit_code: 1, aggregated_output: 'failed' } });
   for (const type of ['item.updated', 'item.completed']) applyCodexEvent(t, { type, item: { id: 'a', type: 'agent_message', text: 'Listo' } });
   applyCodexEvent(t, { type: 'turn.completed', usage: { input_tokens: 100, output_tokens: 20 } });
-  assert.equal(t.sessionId, 'thread-1'); assert.equal(t.message.parts.length, 2); assert.equal(t.message.parts[0].status, 'error'); assert.equal(t.message.parts[1].text, 'Listo'); assert.equal(t.contextTokens, 120);
+  assert.equal(t.sessionId, 'thread-1'); assert.equal(t.message.parts.length, 2); assert.equal(t.message.parts[0].status, 'error'); assert.equal(t.message.parts[1].text, 'Listo'); assert.equal(t.contextTokens, undefined);
   applyCodexEvent(t, { type: 'turn.failed', error: { message: 'sin crédito' } }); assert.equal(t.error, 'sin crédito');
 });
 
-test('Codex launches, resumes and persists independent effort settings through host API', async t => {
+test('Claude-only policy: new Codex/OpenCode chats are refused, a stored legacy chat stays readable but cannot run', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-'));
-  const bin = fixture(root, 'codex', `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'thread-1'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:JSON.stringify({input,args:process.argv.slice(2)})}});out({type:'turn.completed',usage:{input_tokens:10,output_tokens:2}});});`);
+  const ran = path.join(root, 'ran');
+  const bin = fixture(root, 'codex', `require('fs').writeFileSync(${JSON.stringify(ran)},'x');`);
   const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
   t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
   await host.invoke('settings.update', { patch: { codexPath: bin } });
   const w = await host.invoke('workspace.open', { path: root });
-  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
-  const ref = { workspaceId: w.id, nodeId: node.id };
-  await host.invoke('chat.configure', { ...ref, reasoning: 'high', model: 'gpt-test' });
-  await assert.rejects(host.invoke('chat.configure', { ...ref, reasoning: '--bad' }), /inválido/);
-  for (let i = 0; i < 2; i++) {
-    await host.invoke('chat.send', { ...ref, text: '-hello' });
-    await until(async () => !(await host.invoke('chat.get', ref)).running);
-    const chat = await host.invoke('chat.get', ref), reply = JSON.parse(chat.messages.at(-1).parts[0].text);
-    assert.equal(chat.sessionId, 'thread-1'); assert.equal(reply.input, '-hello');
-    assert.ok(reply.args.includes('model_reasoning_effort="high"')); assert.equal(reply.args.includes('resume'), i === 1);
-    assert.ok(reply.args.includes('sandbox_mode="read-only"'));
-  }
-  await host.invoke('chat.configure', { ...ref, provider: 'opencode', reasoning: 'custom-variant' });
-  await host.invoke('chat.configure', { ...ref, provider: 'codex' });
-  const state = await host.invoke('state.get');
-  assert.equal(state.workspaces.find(item => item.id === w.id).nodes.find(item => item.id === node.id).data.chat.reasoning.codex, 'high');
+  for (const provider of ['codex', 'opencode']) await assert.rejects(host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider } } }), /Claude Code/);
+  await assert.rejects(host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude', models: { claude: 'gpt-test' } } } }), /no es Claude Code/);
+  // A legacy node already stored with Codex: history is readable, new execution is blocked, nothing spawns.
+  const legacy = { id: 'legacy', type: 'terminal', title: 'old', x: 0, y: 0, width: 640, height: 640, groupId: null, data: { cwd: root, chat: { provider: 'codex' } } };
+  host.store.getWorkspace(w.id).nodes.push(legacy);
+  host.chats.thread('legacy', 'codex').messages.push({ id: 'm', role: 'user', parts: [{ type: 'text', text: 'antes' }], status: 'done' });
+  assert.equal((await host.invoke('chat.get', { workspaceId: w.id, nodeId: 'legacy' })).messages[0].parts[0].text, 'antes');
+  await assert.rejects(host.invoke('chat.send', { workspaceId: w.id, nodeId: 'legacy', text: 'hola' }), /Claude Code/);
+  await assert.rejects(host.invoke('chat.models', { workspaceId: w.id, nodeId: 'legacy' }), /Claude Code/);
+  assert.equal(fs.existsSync(ran), false, 'no legacy engine process was started');
+  assert.equal((await host.invoke('chat.get', { workspaceId: w.id, nodeId: 'legacy' })).messages.length, 1, 'history kept after the refusal');
   assert.ok(providerArgs('claude', { message: 'x', reasoning: 'max' }).includes('--effort'));
-  assert.equal(providerArgs('opencode', { message: 'x', reasoning: 'custom-variant' })[0], 'serve');
 });
 test('chat turns get the canvas browser bridge: stable per card, live only while the turn runs', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-chat-browser-'));
-  const bin = fixture(root, 'codex', `const fs=require('fs'),path=require('path');process.stdin.resume();process.stdin.on('end',()=>{const e=process.env,cred=path.join(path.dirname(e.PHANTOM_BROWSER_ENDPOINT||'/x'),'browser-terminals',(e.PHANTOM_BROWSER_SESSION||'x')+'.json');const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'thread-1'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:JSON.stringify({cli:e.PHANTOM_BROWSER_CLI,session:e.PHANTOM_BROWSER_SESSION,workspace:e.PHANTOM_BROWSER_WORKSPACE,token:Boolean(e.PHANTOM_BROWSER_TOKEN),shims:(e.PATH||'').split(':')[0]===e.PHANTOM_BROWSER_SHIMS,credential:fs.existsSync(cred),cred})}});setTimeout(()=>out({type:'turn.completed',usage:{input_tokens:1,output_tokens:1}}),300);});`);
+  const bin = fixture(root, 'claude', `const fs=require('fs'),path=require('path');process.stdin.resume();process.stdin.on('end',()=>{const e=process.env,cred=path.join(path.dirname(e.PHANTOM_BROWSER_ENDPOINT||'/x'),'browser-terminals',(e.PHANTOM_BROWSER_SESSION||'x')+'.json');const out=o=>console.log(JSON.stringify(o));out({type:'system',subtype:'init',session_id:'sid-b'});out({type:'assistant',message:{id:'m1',content:[{type:'text',text:JSON.stringify({cli:e.PHANTOM_BROWSER_CLI,session:e.PHANTOM_BROWSER_SESSION,workspace:e.PHANTOM_BROWSER_WORKSPACE,token:Boolean(e.PHANTOM_BROWSER_TOKEN),shims:(e.PATH||'').split(':')[0]===e.PHANTOM_BROWSER_SHIMS,credential:fs.existsSync(cred),cred})}]}});setTimeout(()=>out({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'sid-b',usage:{output_tokens:1}}),300);});`);
   const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
   t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
-  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  await host.invoke('settings.update', { patch: { claudePath: bin } });
   const w = await host.invoke('workspace.open', { path: root });
-  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'codex' } } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude' } } });
   const ref = { workspaceId: w.id, nodeId: node.id };
   const sessions = [];
   for (let i = 0; i < 2; i++) {
@@ -73,11 +121,380 @@ test('chat turns get the canvas browser bridge: stable per card, live only while
 });
 
 // Stand-in agent CLIs: executables that print a recorded event stream.
+test('Codex ya no arranca: la medición del rollout no se alcanza por una ejecución nueva', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-context-'));
+  const home = path.join(root, 'codex-home'), dir = path.join(home, 'sessions', '2025', '02', '03');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'rollout-date-session-12345678.jsonl');
+  const bin = fixture(root, 'codex', `const fs=require('fs');process.stdin.resume();process.stdin.on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'session-12345678'});fs.writeFileSync(${JSON.stringify(file)},JSON.stringify({type:'event_msg',payload:{type:'token_count',info:{last_token_usage:{total_tokens:144871},model_context_window:258400}}})+'\\n');out({type:'turn.completed',usage:{input_tokens:999999,output_tokens:9}});});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  host.chats.codexHome = home;
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  // Claude-only policy: new Codex chats are refused before any process starts.
+  await assert.rejects(host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { chat: { provider: 'codex' } } }), /Claude Code/);
+  assert.equal(fs.existsSync(file), false, 'the Codex executable never ran');
+});
+
+test('Codex habilitado: el chat arranca y mide el rollout; al deshabilitarlo el hilo queda legible pero bloqueado', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-enabled-'));
+  const home = path.join(root, 'codex-home'), dir = path.join(home, 'sessions', '2025', '02', '03');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'rollout-date-session-12345678.jsonl');
+  const bin = fixture(root, 'codex', `const fs=require('fs');process.stdin.resume();process.stdin.on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'session-12345678'});out({type:'item.completed',item:{id:'a',type:'agent_message',text:'Hola desde Codex'}});fs.writeFileSync(${JSON.stringify(file)},JSON.stringify({type:'event_msg',payload:{type:'token_count',info:{last_token_usage:{total_tokens:144871},model_context_window:258400}}})+'\\n');out({type:'turn.completed',usage:{input_tokens:999999,output_tokens:9}});});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  host.chats.codexHome = home;
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  const w = await host.invoke('workspace.open', { path: root });
+  await host.invoke('providers.configure', { providers: { codex: { enabled: true } } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { cwd: root, chat: { provider: 'codex' } } });
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  await assert.rejects(host.invoke('chat.configure', { ...ref, model: 'claude-sonnet-4' }), /solo con Claude Code/);
+  await host.invoke('chat.send', { ...ref, text: 'hola' });
+  await until(async () => !(await host.invoke('chat.get', ref)).running);
+  let chat = await host.invoke('chat.get', ref);
+  assert.equal(chat.sessionId, 'session-12345678'); assert.equal(chat.messages.at(-1).parts[0].text, 'Hola desde Codex');
+  assert.equal(chat.meta.contextTokens, 144871);
+  await host.invoke('providers.configure', { providers: { codex: { enabled: false } } });
+  await assert.rejects(host.invoke('chat.send', { ...ref, text: 'otra' }), /Habilita Codex/);
+  await assert.rejects(host.invoke('chat.models', ref), /Habilita Codex/);
+  chat = await host.invoke('chat.get', ref);
+  assert.equal(chat.messages.length, 2, 'history stays readable and the refused message is not recorded');
+});
+
 function fixture(dir, name, body) {
   const file = path.join(dir, name);
   fs.writeFileSync(file, `#!${process.execPath}\n${body}`, { mode: 0o755 });
   return file;
 }
+
+async function failedRunFixture(t, { terminal = false, spawnFailure = false, initializationFailure } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-failed-wake-'));
+  const agent = fixture(root, 'agent', initializationFailure
+    ? `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'thread.started',thread_id:'wake-session'});setTimeout(()=>{if(input==='first'){out({type:'turn.failed',error:{message:'turn failed'}});return;}out({type:'item.completed',item:{id:'answer',type:'agent_message',text:input}});out({type:'turn.completed',usage:{output_tokens:1}});},500);});`
+    : `let input='';process.stdin.on('data',d=>input+=d).on('end',()=>{const out=o=>console.log(JSON.stringify(o));out({type:'system',subtype:'init',session_id:'wake-session'});setTimeout(()=>{if(input==='first') {out({type:'result',is_error:true,result:'turn failed',session_id:'wake-session'});return;}out({type:'assistant',message:{content:[{type:'text',text:input}]}});out({type:'result',is_error:false,session_id:'wake-session'});},500);});`);
+  const cli = path.join(root, 'inert.mjs'); fs.writeFileSync(cli, '// inert');
+  const events = [];
+  let spawns = 0, lastEvent, host, hostEmit;
+  host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: (method, payload, context) => handleIntegration(method, payload, {
+    ...context,
+    execFile: async (_file, args) => {
+      if (args.includes('show')) return { stdout: JSON.stringify({ id: 'task_rejected', status: 'ready', contract: { workspace: spawnFailure ? root : path.join(root, 'foreign'), checks: [] } }) };
+      throw new Error('Not a Git workspace');
+    },
+    spawn: () => { spawns++; throw new Error('fixture spawn failed'); },
+    emit: event => { events.push(event); lastEvent = event; hostEmit = context.emit; context.emit(event); },
+  }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await host.invoke('settings.update', { patch: initializationFailure ? { codexPath: agent } : { claudePath: agent } });
+  if (initializationFailure) await host.invoke('providers.configure', { providers: { codex: { enabled: true } } });
+  const w = await host.invoke('workspace.open', { path: root });
+  await host.invoke('plugins.update', { workspaceId: w.id, id: 'phantom', patch: { config: { phantomPath: initializationFailure === 'cli' ? path.join(root, 'missing.mjs') : cli } } });
+  if (initializationFailure === 'data') await host.invoke('settings.update', { patch: { phantomData: root } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: terminal ? {} : { cwd: root, chat: { provider: initializationFailure ? 'codex' : 'claude' } } });
+  const stored = host.store.getWorkspace(w.id).nodes.find(n => n.id === node.id);
+  stored.data.sessionId = 'fixture-session';
+  host.terminals.sessions.push({ id: 'fixture-session', nodeId: node.id, workspaceId: w.id, status: terminal ? 'running' : 'lost', snapshot: '', seq: 0 });
+  const ref = { workspaceId: w.id, nodeId: node.id };
+  if (!terminal) await host.invoke('chat.send', { ...ref, text: 'first' });
+  return { host, ref, node: stored, events, spawns: () => spawns, repeat: () => hostEmit(lastEvent),
+    run: (extra = {}) => host.invoke('phantom.control', { workspaceId: w.id, id: 'task_rejected', action: 'run', sessionId: 'fixture-session', ...extra }),
+    get: () => host.invoke('chat.get', ref) };
+}
+
+test('rechazo antes de spawn continúa el chat con PTY lost y causa real, sin mensaje manual', async t => {
+  const f = await failedRunFixture(t);
+  await assert.rejects(f.run(), /Phantom task belongs to another workspace/);
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  const chat = await f.get();
+  assert.match(chat.messages.at(-1).parts[0].text, /Motivo informado.*Phantom task belongs to another workspace/);
+  assert.equal(f.spawns(), 0);
+  assert.equal(f.host.terminals.get('fixture-session').status, 'lost');
+  assert.equal(f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers.length, 1);
+});
+
+test('fallo síncrono de spawn emite un único aviso y permite continuidad', async t => {
+  const f = await failedRunFixture(t, { spawnFailure: true });
+  await assert.rejects(f.run(), /fixture spawn failed/);
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  assert.match((await f.get()).messages.at(-1).parts[0].text, /fixture spawn failed/);
+  assert.equal(f.spawns(), 1);
+  assert.equal(f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers.length, 1);
+});
+
+test('CLI inexistente continúa Codex con PTY lost, causa real y un único intento sin run nativo', async t => {
+  const f = await failedRunFixture(t, { initializationFailure: 'cli' });
+  const results = await Promise.allSettled([f.run(), f.run()]);
+  for (const result of results) {
+    assert.equal(result.status, 'rejected');
+    assert.match(result.reason.message, /Phantom CLI not found.*missing\.mjs/);
+  }
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  const chat = await f.get();
+  assert.equal(chat.provider, 'codex');
+  assert.match(chat.messages.at(-1).parts[0].text, /Motivo informado.*Phantom CLI not found.*missing\.mjs/);
+  assert.equal(f.host.terminals.get('fixture-session').status, 'lost');
+  assert.equal(f.spawns(), 0);
+  assert.equal(f.events.length, 1, 'detail consultado por wake no emite otro aviso');
+  const [attempt] = f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers;
+  assert.equal(attempt.kind, 'attempt');
+  assert.equal(attempt.status, 'failed');
+  assert.deepEqual(attempt.origin, { nodeId: f.node.id, via: 'chat' });
+  assert.equal('pid' in attempt, false);
+  assert.equal('runId' in attempt, false);
+  assert.equal('backend' in attempt, false);
+  f.repeat();
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal((await f.get()).messages.length, chat.messages.length);
+  assert.equal(f.host.store.getWorkspace(f.ref.workspaceId).phantomControllers.length, 1);
+});
+
+test('configuración de datos inválida antes de control conserva la causa y continúa Codex sin spawn', async t => {
+  const f = await failedRunFixture(t, { initializationFailure: 'data' });
+  await assert.rejects(f.run(), /Integration state must be outside workspace/);
+  await until(async () => (await f.get()).messages.filter(m => m.role === 'assistant').length === 2 && !f.host.chats.running(f.node.id));
+  assert.match((await f.get()).messages.at(-1).parts[0].text, /Motivo informado.*Integration state must be outside workspace/);
+  assert.equal(f.spawns(), 0);
+  assert.equal(f.events.length, 1);
+});
+
+test('CLI inexistente: consultas, stop, cancel y entradas inválidas no despiertan otros chats', async t => {
+  const f = await failedRunFixture(t, { initializationFailure: 'cli' });
+  for (const extra of [{ id: '-invalid' }, { id: 'bad\u0000id' }, { workspaceId: 'unknown' }]) await assert.rejects(f.run(extra));
+  for (const method of ['phantom.detail', 'phantom.events', 'phantom.controllers']) {
+    await assert.rejects(f.host.invoke(method, { workspaceId: f.ref.workspaceId, topic: 'tasks', id: 'task_rejected' }), /Phantom CLI not found/);
+  }
+  assert.equal((await f.host.invoke('phantom.list', { workspaceId: f.ref.workspaceId, topic: 'tasks' })).available, false);
+  assert.equal((await f.host.invoke('plugins.status', { workspaceId: f.ref.workspaceId, id: 'phantom' })).available, false);
+  for (const action of ['stop', 'cancel']) await assert.rejects(f.run({ action }), /Phantom CLI not found/);
+  assert.equal(f.events.length, 0);
+  f.host.terminals.sessions.push({ id: 'foreign-session', nodeId: f.node.id, workspaceId: `${f.ref.workspaceId}-foreign`, status: 'running', snapshot: '', seq: 0 });
+  for (const sessionId of ['unknown', 'bad\u0000id', 42, 'foreign-session']) await assert.rejects(f.run({ sessionId }), /Phantom CLI not found/);
+  assert.equal(f.events.length, 4);
+  assert.ok(f.events.every(event => !event.result.origin));
+  await until(() => !f.host.chats.running(f.node.id));
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal((await f.get()).messages.filter(m => m.role === 'assistant').length, 1);
+  assert.equal(f.spawns(), 0);
+});
+
+test('la cola avanza tras error de turno sin otro mensaje manual', async t => {
+  const f = await failedRunFixture(t);
+  await f.host.invoke('chat.send', { ...f.ref, text: 'next' });
+  await until(async () => { const chat = await f.get(); return !chat.running && !chat.queue.length; });
+  const chat = await f.get();
+  assert.equal(chat.messages[1].status, 'error');
+  assert.equal(chat.messages.at(-1).parts[0].text, 'next');
+});
+
+test('stop entre el final fallido y el drenaje cancela el siguiente turno hasta reanudarlo', async t => {
+  const f = await failedRunFixture(t);
+  const emit = f.host.chats.emit;
+  let stopping;
+  f.host.chats.emit = event => {
+    emit(event);
+    if (event.nodeId === f.node.id && event.running === false && event.messages?.some(message => message.status === 'error')) stopping = f.host.invoke('chat.stop', f.ref);
+  };
+  await f.host.invoke('chat.send', { ...f.ref, text: 'next' });
+  await until(() => Boolean(stopping));
+  await stopping;
+  await new Promise(resolve => setImmediate(resolve));
+  const chat = await f.get();
+  assert.equal(chat.running, false);
+  assert.equal(chat.messages.length, 2);
+  assert.deepEqual(chat.queue.map(item => item.text), ['next']);
+  await f.host.invoke('chat.queue.send', f.ref);
+  await until(async () => { const current = await f.get(); return !current.running && !current.queue.length; });
+  assert.equal((await f.get()).messages.at(-1).parts[0].text, 'next');
+});
+
+test('entrega temporal fallida se reintenta con una sola escritura efectiva y deduplica el evento', async t => {
+  const f = await failedRunFixture(t, { terminal: true });
+  let attempts = 0, writes = 0;
+  f.host.terminals.foreground = () => ({ agent: true });
+  f.host.terminals.write = () => { if (++attempts === 1) throw new Error('temporarily busy'); writes++; };
+  await assert.rejects(f.run(), /another workspace/);
+  f.repeat();
+  await until(() => writes === 1);
+  f.repeat();
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal(attempts, 2); assert.equal(writes, 1); assert.equal(f.spawns(), 0);
+});
+
+test('stop cancela aviso pendiente; ownership rechazado no relanza ni duplica el run', async t => {
+  const f = await failedRunFixture(t, { terminal: true });
+  let writes = 0;
+  f.host.terminals.foreground = () => ({ agent: false });
+  f.host.terminals.write = () => { writes++; };
+  await assert.rejects(f.run(), /another workspace/);
+  await f.host.invoke('terminal.stop', { sessionId: 'fixture-session' });
+  f.host.terminals.foreground = () => ({ agent: true });
+  await new Promise(resolve => setTimeout(resolve, 1200));
+  assert.equal(writes, 0); assert.equal(f.spawns(), 0);
+  const w = f.host.store.getWorkspace(f.ref.workspaceId);
+  assert.equal(w.phantomControllers.length, 1);
+  assert.equal(w.attention.filter(item => item.eventKey.startsWith('wake-blocked:')).length, 1);
+});
+
+test('PTY perdido sin chat produce bloqueo visible permanente, deduplicado y sin restaurar procesos', async t => {
+  const f = await failedRunFixture(t, { terminal: true });
+  // The run came from a live agent; its PTY disappears before delivery.
+  let release;
+  const original = f.host.terminals.get.bind(f.host.terminals);
+  f.host.terminals.get = id => { const session = original(id); session.status = 'lost'; release = true; return session; };
+  await assert.rejects(f.run(), /another workspace/);
+  await until(() => release && f.host.store.getWorkspace(f.ref.workspaceId).attention.some(item => item.eventKey.startsWith('wake-blocked:')));
+  f.repeat();
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  const w = f.host.store.getWorkspace(f.ref.workspaceId);
+  assert.equal(w.attention.filter(item => item.eventKey.startsWith('wake-blocked:')).length, 1);
+  assert.match(w.attention.find(item => item.eventKey.startsWith('wake-blocked:')).title, /PTY no está disponible/);
+  assert.equal(f.spawns(), 0);
+});
+
+async function codexContinuation(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-codex-continuation-'));
+  const bin = fixture(root, 'codex', `
+const fs = require('fs');
+const mode = fs.existsSync('scenario.json') ? JSON.parse(fs.readFileSync('scenario.json')) : 'success';
+if (process.argv.includes('--help')) {
+  if (mode === 'help-fail') process.exit(2);
+  console.log('Usage: codex exec [OPTIONS]\\nCommands:\\n resume');
+} else {
+  let prompt = ''; process.stdin.setEncoding('utf8');
+  process.stdin.on('data', chunk => prompt += chunk);
+  process.stdin.on('end', () => {
+    fs.writeFileSync('continuation.json', JSON.stringify({ argv: process.argv.slice(2), prompt, pid: process.pid }));
+    const out = event => console.log(JSON.stringify(event));
+    if (mode !== 'no-session') out({ type: 'thread.started', thread_id: mode === 'same-session' ? 'old-session-12345678' : 'new-session-12345678' });
+    if (mode === 'hold') { setInterval(() => {}, 1000); return; }
+    if (mode === 'truncated') return;
+    if (mode === 'fail') { out({ type: 'turn.failed', error: { message: 'fixture failure' } }); process.exitCode = 1; return; }
+    out({ type: 'item.completed', item: { id: 'answer', type: 'agent_message', text: 'Resumen recibido' } });
+    out({ type: 'turn.completed', usage: { output_tokens: 2 } });
+  });
+}
+`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  host.chats.codexHome = path.join(root, 'no-user-rollouts');
+  await host.invoke('settings.update', { patch: { codexPath: bin } });
+  await host.invoke('providers.configure', { providers: { codex: { enabled: true } } });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', data: { cwd: root, chat: { provider: 'codex' } } });
+  const ref = { workspaceId: workspace.id, nodeId: node.id }, thread = host.chats.thread(node.id, 'codex');
+  thread.sessionId = 'old-session-12345678';
+  thread.meta = { model: 'gpt-test', contextTokens: 190000, contextSource: 'codex:request-v1' };
+  thread.grants = ['exact-existing-grant'];
+  thread.messages = Array.from({ length: 402 }, (_, i) => ({ id: `old-${i}`, role: 'user', parts: [{ type: 'text', text: `historial ${i}` }], status: 'done' }));
+  return { root, host, ref, thread,
+    scenario: value => fs.writeFileSync(path.join(root, 'scenario.json'), JSON.stringify(value)),
+    get: () => host.invoke('chat.get', ref),
+    proceed: () => host.invoke('chat.continue', { ...ref, summary: 'Objetivo, decisiones y pendientes revisados.' }),
+    idle: () => until(() => !host.chats.running(node.id)),
+    transport: () => JSON.parse(fs.readFileSync(path.join(root, 'continuation.json'))) };
+}
+
+test('Codex: continuidad explícita crea sesión comprobada con modelo observado y conserva historial, resumen y permisos', async t => {
+  const f = await codexContinuation(t), before = structuredClone(f.thread.messages);
+  const capability = await f.host.invoke('chat.compaction.capabilities', f.ref);
+  assert.equal(capability.kind, 'continuation');
+  assert.equal(fs.existsSync(path.join(f.root, 'continuation.json')), false);
+  await assert.rejects(f.host.invoke('chat.compact', f.ref), /no tiene compactación verificada/);
+  await assert.rejects(f.host.invoke('chat.continue', { ...f.ref, summary: ' ' }), /resumen/);
+  await f.proceed(); await f.idle();
+  const chat = await f.get(), record = chat.continuations.at(-1), transport = f.transport();
+  assert.equal(record.status, 'done'); assert.equal(chat.sessionId, 'new-session-12345678');
+  assert.equal(record.fromSessionId, 'old-session-12345678'); assert.equal(record.toSessionId, chat.sessionId);
+  assert.deepEqual(record.capability, capability);
+  assert.equal(record.model, 'gpt-test'); assert.match(record.summary, /pendientes revisados/);
+  assert.equal(transport.argv.includes('resume'), false);
+  assert.equal(transport.argv[transport.argv.indexOf('--model') + 1], 'gpt-test');
+  assert.ok(transport.argv.includes('sandbox_mode="read-only"'));
+  assert.match(transport.prompt, /este resumen no concede permisos nuevos/);
+  assert.match(transport.prompt, /pendientes revisados/);
+  assert.deepEqual(chat.messages.slice(0, before.length), before);
+  assert.deepEqual(f.thread.grants, ['exact-existing-grant']); assert.equal(chat.mode, 'ask');
+  assert.equal(chat.meta.contextTokens, undefined); assert.deepEqual(chat.compactions, []);
+  const persisted = JSON.parse(fs.readFileSync(f.host.chats.filename))[f.ref.nodeId].threads.codex;
+  assert.deepEqual(persisted.continuations, chat.continuations);
+  await f.host.invoke('chat.send', { ...f.ref, text: 'siguiente' }); await f.idle();
+  assert.ok(f.transport().argv.includes('resume')); assert.ok(f.transport().argv.includes('new-session-12345678'));
+  assert.deepEqual((await f.get()).messages.slice(0, before.length), before, 'subsequent turns preserve visible history');
+});
+
+test('permisos peligrosos: llevan danger, ignoran grants previos y "always" no guarda grant', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-danger-'));
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const chats = host.chats, node = { id: 'danger-node' };
+  const live = { finished: false, cwd: root, mode: 'full', message: { parts: [] }, schedule() {}, pending: new Map(), thread: { grants: ['Bash:git reset'] } };
+  chats.gates.set('tok', live); chats.turns.set(node.id, live);
+  const ask = command => chats.requestPermission({ token: 'tok', tool_name: 'Bash', input: { command } });
+  // A grant for the same key does not approve a dangerous request.
+  const pending = ask('git reset --hard');
+  const part = live.message.parts.at(-1);
+  assert.equal(part.danger, true); assert.equal(part.status, 'pending'); assert.equal(part.key, 'Bash:git reset'); assert.match(part.reason, /^Puede romper algo/);
+  chats.answerPermission(node, part.id, 'always');
+  assert.equal((await pending).behavior, 'allow'); assert.equal(part.status, 'allowed');
+  assert.deepEqual(live.thread.grants, ['Bash:git reset']);
+});
+
+test('Codex: fallo de sondeo no cambia sesión; ID ausente, repetido o turno incompleto nunca acreditan continuidad', async t => {
+  for (const mode of ['help-fail', 'no-session', 'same-session', 'truncated', 'fail']) {
+    const f = await codexContinuation(t); f.scenario(mode);
+    if (mode === 'help-fail') {
+      await assert.rejects(f.proceed());
+      assert.equal(f.thread.continuations, undefined);
+      assert.equal(f.thread.sessionId, 'old-session-12345678');
+      assert.equal(f.thread.meta.contextTokens, 190000);
+      assert.equal(fs.existsSync(path.join(f.root, 'continuation.json')), false);
+    } else {
+      await f.proceed(); await f.idle();
+      const chat = await f.get();
+      assert.equal(chat.continuations.at(-1).status, 'error', mode);
+      assert.match(chat.continuations.at(-1).error, /no confirmó|fixture failure/);
+      assert.equal(chat.messages[0].id, 'old-0');
+      assert.equal(chat.messages.at(-1).status, 'error');
+      if (mode === 'no-session' || mode === 'same-session') assert.equal(chat.sessionId, 'old-session-12345678');
+    }
+  }
+});
+
+test('Codex: cola y sesión ocupada impiden continuidad; cancelar conserva origen, resumen e historial', async t => {
+  const f = await codexContinuation(t);
+  f.thread.queue = [{ id: 'queued', text: 'espera' }];
+  await assert.rejects(f.proceed(), /cola/);
+  assert.equal(fs.existsSync(path.join(f.root, 'continuation.json')), false);
+  f.thread.queue = []; f.scenario('hold');
+  await f.proceed();
+  await until(() => fs.existsSync(path.join(f.root, 'continuation.json')));
+  await assert.rejects(f.proceed(), /ocupada/);
+  await f.host.invoke('chat.stop', f.ref); await f.idle();
+  const chat = await f.get(), record = chat.continuations.at(-1);
+  assert.equal(record.status, 'stopped'); assert.match(record.summary, /revisados/);
+  assert.equal(record.fromSessionId, 'old-session-12345678');
+  assert.equal(chat.messages[0].id, 'old-0'); assert.equal(chat.messages.at(-1).status, 'stopped');
+  assert.throws(() => process.kill(f.transport().pid, 0), /ESRCH/);
+});
+
+test('Reinicio marca operaciones interrumpidas sin éxito y recupera el origen de continuidad', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-compaction-restart-'));
+  const original = { id: 'old', parts: [{ type: 'text', text: 'historial' }], status: 'done' };
+  fs.writeFileSync(path.join(root, 'chats.json'), JSON.stringify({ n: { threads: {
+    opencode: { sessionId: 'native', messages: [original], compactions: [{ id: 'c', status: 'running' }] },
+    codex: { sessionId: null, messages: [original], continuations: [{ id: 's', status: 'running', fromSessionId: 'source', summary: 'resumen preservado' }] },
+  } } }));
+  const chats = new Chats({ dir: root }, () => {});
+  t.after(async () => { await chats.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  assert.equal(chats.thread('n', 'opencode').compactions[0].status, 'interrupted');
+  const codex = chats.thread('n', 'codex');
+  assert.equal(codex.continuations[0].status, 'interrupted'); assert.equal(codex.sessionId, 'source');
+  assert.equal(codex.continuations[0].summary, 'resumen preservado');
+  assert.deepEqual(codex.messages, [original]);
+});
 
 test('Claude stream folds partial text, tool calls and results into one reply', () => {
   const t = turn(), stream = event => ({ type: 'stream_event', event });
@@ -149,7 +566,7 @@ test('OpenCode events become text and tool parts; arguments resume the right ses
   const t = turn();
   applyOpenCodeEvent(t, { type: 'step_start', sessionID: 'ses_1', part: { type: 'step-start' } });
   applyOpenCodeEvent(t, { type: 'tool_use', sessionID: 'ses_1', part: { tool: 'glob', callID: 'c1', state: { status: 'completed', input: { pattern: 'a.txt' }, output: '/repo/a.txt' } } });
-  applyOpenCodeEvent(t, { type: 'step_finish', sessionID: 'ses_1', part: { tokens: { total: 14915, output: 13, reasoning: 28 }, cost: .01 } });
+  applyOpenCodeEvent(t, { type: 'step_finish', sessionID: 'ses_1', part: { sessionID: 'ses_1', tokens: { total: 14915, output: 13, reasoning: 28 }, cost: .01 } });
   applyOpenCodeEvent(t, { type: 'text', sessionID: 'ses_1', part: { text: 'Listo.' } });
   applyOpenCodeEvent(t, { type: 'error', error: { name: 'APIError', data: { message: 'Límite alcanzado' } } });
   assert.deepEqual(t.message.parts, [{ type: 'tool', id: 'c1', name: 'glob', detail: 'a.txt', status: 'done', output: '/repo/a.txt' }, { type: 'text', text: 'Listo.' }]);
@@ -171,6 +588,9 @@ test('OpenCode events become text and tool parts; arguments resume the right ses
   assert.doesNotThrow(() => validateChat({ permissionMode: 'full' })); assert.throws(() => validateChat({ permissionMode: 'yolo' }), /permisos/);
   assert.ok(!providerArgs('claude', { message: 'secreto' }).includes('secreto'));
   assert.deepEqual(providerArgs('claude', { model: 'opus', message: 'x' }).slice(-2), ['--model', 'opus']);
+  // A stored harness-qualified model reaches the CLI as a bare name; a non-Claude one is refused before any spawn.
+  assert.deepEqual(providerArgs('claude', { model: 'claude-code/haiku', message: 'x' }).slice(-2), ['--model', 'haiku']);
+  for (const bad of ['openai/gpt-5', 'opencode/free', 'provider/legacy']) assert.throws(() => providerArgs('claude', { model: bad, message: 'x' }), /no es Claude Code/);
   assert.throws(() => validateChat({ models: { claude: '--dangerously-skip-permissions' } }), /Modelo/); assert.throws(() => validateChat({ models: { gpt: 'x' } }), /provider/);
   assert.equal(toolDetail({ command: 'npm   test\n--watch' }), 'npm test --watch');
   assert.throws(() => validateChat({ provider: 'gpt' }), /provider/); assert.throws(() => validateChat({ shell: true }), /Unknown/);
@@ -190,7 +610,7 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
     const resume=process.argv.indexOf('--resume');
     if(input==='cuelga'){out({type:'system',subtype:'init',session_id:'sid-1'});setInterval(()=>{},1000);return;}
     out({type:'system',subtype:'init',session_id:'sid-1'});
-    out({type:'assistant',message:{id:'m1',model:'claude-x',usage:{input_tokens:5000,output_tokens:9},content:[{type:'text',text:'eco:'+input+' resume:'+(resume<0?'no':process.argv[resume+1])+(process.argv.includes('--model')?' modelo:'+process.argv[process.argv.indexOf('--model')+1]:'')+' modo:'+(process.argv.includes('acceptEdits')?'editar':'preguntar')+' cwd:'+process.cwd()}]}});
+    out({type:'assistant',message:{id:'m1',model:'claude-x',usage:{input_tokens:5000,cache_read_input_tokens:0,cache_creation_input_tokens:0,output_tokens:9},content:[{type:'text',text:'eco:'+input+' resume:'+(resume<0?'no':process.argv[resume+1])+(process.argv.includes('--model')?' modelo:'+process.argv[process.argv.indexOf('--model')+1]:'')+' modo:'+(process.argv.includes('acceptEdits')?'editar':'preguntar')+' cwd:'+process.cwd()}]}});
     out({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'sid-1',duration_ms:1200,total_cost_usd:.25,usage:{output_tokens:9},modelUsage:{'claude-x':{contextWindow:200000}}});});`);
   const opencode = fixture(root, 'opencode', `${out}if(process.argv[2]==='models'){console.log('openai/gpt-x\\nopencode/free-y\\nruido sin barra');process.exit(0);}out({type:'text',sessionID:'ses_9',part:{text:'oc:'+process.argv.at(-1)+' pwd:'+(process.env.PWD===process.cwd())}});console.error('fallo del proveedor');process.exit(3);`);
   let host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
@@ -208,40 +628,40 @@ test('chat card: configure, streamed turn, resume, stop, per-provider threads, p
   await idle();
   let chat = await host.invoke('chat.get', ref);
   assert.equal(chat.sessionId, 'sid-1'); assert.deepEqual(chat.messages.map(m => [m.role, m.status]), [['user', 'done'], ['assistant', 'done']]);
-  assert.equal(chat.messages[1].parts[0].text, `eco:hola resume:no modo:preguntar cwd:${fs.realpathSync(root)}`);
+  assert.equal(chat.messages[1].parts[0].text, `eco:hola resume:no modelo:sonnet modo:preguntar cwd:${fs.realpathSync(root)}`);
+  // The rest of the test covers the CLI default path.
+  await host.invoke('settings.update', { patch: { routing: { enabled: false } } });
   assert.ok(events.some(e => e.type === 'chat.update' && e.running === false && e.messages[0].status === 'done'));
 
   // Layout saves must not drop the chat selection; permission is per card.
   await host.invoke('node.update', { workspaceId: w.id, id: node.id, patch: { data: { fontSize: 14 } } });
   await host.invoke('chat.configure', { ...ref, autoApprove: true });
-  await host.invoke('chat.send', { ...ref, text: 'sigue' }); await idle();
+   const secondStart = events.length;
+   await host.invoke('chat.send', { ...ref, text: 'sigue' }); await idle();
+   assert.ok(events.slice(secondStart).filter(e => e.type === 'chat.update').every(e => e.meta.contextTokens === 5009 && e.meta.contextWindow === 200000));
   chat = await host.invoke('chat.get', ref);
   assert.match(chat.messages[3].parts[0].text, /^eco:sigue resume:sid-1 modo:editar/);
-  assert.deepEqual(chat.meta, { model: 'claude-x', contextTokens: 5009, contextWindow: 200000, costUsd: .5, turns: 2 });
+  assert.deepEqual(chat.meta, { model: 'claude-x', contextSource: 'claude:request-v1', contextTokens: 5009, contextWindow: 200000, costUsd: .5, turns: 2 });
   assert.deepEqual([chat.messages[3].model, chat.messages[3].usage], ['claude-x', { durationMs: 1200, costUsd: .25, outputTokens: 9 }]);
 
   // The model is chosen per provider and returns to the default with null.
   await assert.rejects(host.invoke('chat.configure', { ...ref, model: '-x' }), /Modelo/);
   await host.invoke('chat.configure', { ...ref, model: 'opus' });
   assert.equal((await host.invoke('chat.get', ref)).model, 'opus'); assert.deepEqual((await host.invoke('chat.models', ref)).items.map(m => m.id), ['fable', 'opus', 'sonnet', 'haiku']);
-  await host.invoke('chat.send', { ...ref, text: 'con modelo' }); await idle();
+   const changedStart = events.length;
+   await host.invoke('chat.send', { ...ref, text: 'con modelo' }); await idle();
+   assert.equal(events.slice(changedStart).find(e => e.type === 'chat.update').meta.contextWindow, undefined);
   assert.match((await host.invoke('chat.get', ref)).messages.at(-1).parts[0].text, /resume:sid-1 modelo:opus modo:editar/);
   await host.invoke('chat.configure', { ...ref, model: null }); assert.equal((await host.invoke('chat.get', ref)).model, null);
   await host.invoke('chat.send', { ...ref, text: 'cuelga' });
-  await assert.rejects(host.invoke('chat.configure', { ...ref, provider: 'opencode' }), /Detén/);
+  await assert.rejects(host.invoke('chat.configure', { ...ref, model: 'sonnet' }), /Detén/);
   await host.invoke('chat.stop', ref); await idle();
   assert.equal((await host.invoke('chat.get', ref)).messages.at(-1).status, 'stopped');
 
-  // Each provider keeps its own thread; a failed turn reports the CLI's stderr.
-  await host.invoke('chat.configure', { ...ref, provider: 'opencode' });
-  assert.deepEqual((await host.invoke('chat.get', ref)).messages, []);
-  assert.deepEqual((await host.invoke('chat.models', ref)).items, [{ id: 'openai/gpt-x', group: 'openai' }, { id: 'opencode/free-y', group: 'opencode' }]);
-  assert.equal((await host.invoke('chat.get', ref)).model, null);
-  await host.invoke('chat.send', { ...ref, text: 'ping' }); await idle();
-  chat = await host.invoke('chat.get', ref);
-  assert.equal(chat.messages[1].parts.length, 0); assert.equal(chat.messages[1].status, 'error'); assert.match(chat.messages[1].error, /fallo del proveedor/);
-  await host.invoke('chat.clear', ref);
-  assert.deepEqual((await host.invoke('chat.get', ref)).messages, []);
+  // Claude-only policy: switching a card to another engine is refused with an actionable error and nothing changes.
+  for (const provider of ['opencode', 'codex']) await assert.rejects(host.invoke('chat.configure', { ...ref, provider }), /Claude Code/);
+  assert.equal((await host.invoke('chat.get', ref)).provider, 'claude');
+  assert.equal((await host.invoke('chat.get', ref)).messages.length, 8);
 
   await host.close(); host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
   await host.invoke('chat.configure', { ...ref, provider: 'claude' });
@@ -269,8 +689,8 @@ test('status line readings are compact and never invent a context window', async
   assert.deepEqual([30116, 1000000, 200000, 999, 1500000].map(formatTokens), ['30.1k', '1M', '200k', '999', '1.5M']);
   assert.deepEqual([6198, 42000, 72500].map(formatDuration), ['6.2 s', '42 s', '1 min 13 s']);
   assert.deepEqual([.3277, .004].map(formatCost), ['$0.33', '<$0.01']);
-  assert.deepEqual(contextUse({ contextTokens: 50000, contextWindow: 200000 }), { tokens: 50000, window: 200000, ratio: .25 });
-  assert.deepEqual(contextUse({ contextTokens: 14915 }), { tokens: 14915, window: null, ratio: null });
+  assert.deepEqual(contextUse({ contextSource: 'claude:request-v1', contextTokens: 50000, contextWindow: 200000 }), { tokens: 50000, window: 200000, ratio: .25 });
+  assert.deepEqual(contextUse({ contextSource: 'opencode:request-v1', contextTokens: 14915 }), { tokens: 14915, window: null, ratio: null });
   assert.equal(contextUse({}), null);
 });
 
@@ -303,12 +723,12 @@ test('the project\'s Phantom chat runs in the project folder with its identity, 
   await host.invoke('chat.configure', { ...ref, reasoning: 'high' });
   assert.equal((await host.invoke('chat.get', ref)).reasoning.claude, 'high');
   await assert.rejects(host.invoke('chat.configure', { ...ref, reasoning: 'invalid' }), /Effort/);
-  await host.invoke('chat.configure', { ...ref, provider: 'codex', model: 'gpt-test', reasoning: 'xhigh' });
+  await assert.rejects(host.invoke('chat.configure', { ...ref, provider: 'codex', model: 'gpt-test', reasoning: 'xhigh' }), /Claude Code/);
+  await assert.rejects(host.invoke('chat.configure', { ...ref, model: 'gpt-test' }), /no es Claude Code/);
   chat = await host.invoke('chat.get', ref);
-  assert.equal(chat.provider, 'codex'); assert.equal(chat.model, 'gpt-test');
-  assert.equal(chat.reasoning.codex, 'xhigh');
+  assert.equal(chat.provider, 'claude'); assert.notEqual(chat.model, 'gpt-test');
   await host.invoke('chat.configure', { ...ref, reasoning: null });
-  assert.equal((await host.invoke('chat.get', ref)).reasoning.codex, undefined);
+  assert.equal((await host.invoke('chat.get', ref)).reasoning.claude, undefined);
   await host.invoke('chat.configure', { ...ref, provider: 'claude' });
   // The permission switch is stored with the thread.
   await host.invoke('chat.configure', { ...ref, autoApprove: true });
@@ -361,4 +781,20 @@ test('messages written while the agent works wait their turn; a stop pauses the 
   await host.invoke('chat.queue.send', { ...ref, id: first });
   await until(async () => { const chat = await get(); return !chat.running && !chat.queue.length; });
   assert.deepEqual((await replies()).slice(-2), ['eco:cinco', 'eco:cuatro']);
+});
+
+test('OpenCode catalog reads the variants each model accepts from verbose output', () => {
+  const out = [
+    'openai/gpt-x', JSON.stringify({ id: 'gpt-x', variants: { none: {}, low: {}, high: { reasoningEffort: 'high' }, 'bad variant': {} } }, null, 2),
+    '\x1b[2mopencode/plain\x1b[0m', JSON.stringify({ id: 'plain', limit: { context: 1 } }, null, 2),
+    'acme/broken', '{ not json',
+    'openai/gpt-x', '{}',
+    'ruido sin barra',
+  ].join('\n');
+  assert.deepEqual(openCodeModels(out), [
+    { id: 'openai/gpt-x', group: 'openai', variants: ['none', 'low', 'high'] },
+    { id: 'opencode/plain', group: 'opencode' },
+    { id: 'acme/broken', group: 'acme' },
+  ]);
+  assert.deepEqual(openCodeModels('a/one\nb/two\n'), [{ id: 'a/one', group: 'a' }, { id: 'b/two', group: 'b' }]);
 });

@@ -1,41 +1,44 @@
-import { useEffect, useState } from 'react';
-import { subscribe } from './useWorkspace';
+import { useEffect, useRef, useState } from 'react';
+import * as workspace from './useWorkspace';
+import { structuralShare } from './structuralShare.js';
+import { createTailPoller } from './tailPoller.js';
+
+export function shareTerminalTail(previous, next) {
+  return structuralShare(previous, next);
+}
+
+export function shouldResetTerminalTail(previousSessionId, sessionId) {
+  return previousSessionId !== sessionId;
+}
 
 // Phantom's map card never mounts xterm. It reads a plain-text tail parsed by
-// the host's headless terminal, refreshed on output (throttled) and on a slow
-// heartbeat so the detected agent stays current while the screen is idle.
-const THROTTLE_MS = 350, HEARTBEAT_MS = 5000;
+// the host's headless terminal. Views of the same session and line count share
+// one poller (output-driven reads plus a slow heartbeat).
+const pollers = new Map();
+const pollerFor = (sessionId, lines, api) => {
+  const key = `${sessionId}:${lines}`;
+  let entry = pollers.get(key);
+  if (!entry || entry.api !== api) {
+    entry = { api, poller: createTailPoller({ sessionId, lines, invoke: api, subscribeSession: workspace.subscribeSession }) };
+    pollers.set(key, entry);
+  }
+  return entry.poller;
+};
 
 export function useTerminalTail({ sessionId, api, lines = 12, enabled = true, connected = true }) {
   const [tail, setTail] = useState(null);
   const [error, setError] = useState('');
+  const previousSessionId = useRef(sessionId);
   useEffect(() => {
-    setTail(null); setError('');
+    if (shouldResetTerminalTail(previousSessionId.current, sessionId)) {
+      setTail(null); setError('');
+    }
+    previousSessionId.current = sessionId;
     if (!sessionId || !enabled || !connected) return;
-    let disposed = false, inflight = false, again = false, timer = null, last = 0;
-    const load = async () => {
-      if (inflight) { again = true; return; }
-      inflight = true; last = Date.now();
-      try {
-        const value = await api('terminal.tail', { sessionId, lines });
-        if (!disposed) { setTail(value); setError(''); }
-      } catch (e) { if (!disposed) setError(e.message); }
-      finally {
-        inflight = false;
-        if (again && !disposed) { again = false; schedule(); }
-      }
-    };
-    const schedule = () => {
-      if (timer || disposed) return;
-      timer = setTimeout(() => { timer = null; load(); }, Math.max(0, THROTTLE_MS - (Date.now() - last)));
-    };
-    const off = subscribe(event => {
-      if (event.sessionId !== sessionId) return;
-      if (event.type === 'terminal.output' || event.type === 'terminal.exit' || event.type === 'session.changed') schedule();
+    return pollerFor(sessionId, lines, api).subscribe(value => {
+      if (value.error !== undefined) setError(value.error);
+      else { setTail(previous => shareTerminalTail(previous, value)); setError(''); }
     });
-    const heartbeat = setInterval(schedule, HEARTBEAT_MS);
-    load();
-    return () => { disposed = true; off(); clearTimeout(timer); clearInterval(heartbeat); };
   }, [sessionId, api, lines, enabled, connected]);
   return { tail, error };
 }

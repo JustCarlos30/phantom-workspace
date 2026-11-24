@@ -1,0 +1,141 @@
+/* Menus, selects and popovers: the only owner of what opens above a surface.
+   Loaded last. One voice per menu:
+   1. The plane shares the opaque object gradient and masked ring.
+   2. Options rest in secondary ink on nothing. The single fill is the row
+      under the pointer or the keyboard.
+   3. The current value is primary ink, medium weight and a mark. Never a fill.
+   4. Search, group labels, counts and shortcuts stay in tertiary ink.
+   Separators are 1px gradients, not borders: no new drawn edges. */
+
+/* ---------- Plane ---------- */
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index, .usage-popover),
+::picker(select) {
+  --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
+  background-color: var(--menu); background-image: var(--object-fill);
+  border: 0;
+  box-shadow: var(--shadow-chrome);
+  --muted: #a8a6a0; --ink-3: #8b8983;
+}
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index, .usage-popover)::before,
+::picker(select)::before {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
+  background: var(--object-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-effort-menu) { gap: 0; padding: 6px; border-radius: var(--r-obj); }
+.app-shell .context-menu { width: 264px; }
+.app-shell .pc-agent-menu { width: 300px; }
+
+/* ---------- Rows ---------- */
+.app-shell .context-menu > button,
+.app-shell .pc-agent-menu > button,
+.app-shell .pc-models-list > button,
+.app-shell .pc-effort-menu [role="option"],
+.app-shell .project-rail :is(.project-item, .space-row, .open-folder) {
+  min-height: 34px; border-radius: var(--r-ctl); background: none; box-shadow: none;
+  color: var(--muted); font: var(--t-control); font-weight: 400;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.app-shell :is(.context-menu > button, .pc-models-list > button, .pc-effort-menu [role="option"]) { padding: 0 var(--s-2) 0 10px; }
+.app-shell .project-rail .space-select { height: 34px; min-height: 34px; padding: 0 var(--s-2) 0 10px; font: inherit; }
+.app-shell .project-rail .project-item { min-height: 48px; padding: 0 var(--s-2); gap: 10px; }
+.app-shell .project-rail .open-folder { padding: 0 10px; }
+.app-shell .pc-agent-menu > button { min-height: 46px; padding: 0 var(--s-2) 0 10px; }
+
+/* The one fill: pointer or keyboard. */
+.app-shell .context-menu > button:is(:hover, :focus-visible),
+.app-shell .pc-agent-menu > button:is(:hover, :focus-visible),
+.app-shell .pc-models-list > button:is(:hover, :focus-visible),
+.app-shell .pc-effort-menu [role="option"].is-active,
+.app-shell .project-rail :is(.project-item, .space-row, .open-folder):is(:hover, :focus-visible),
+.app-shell .project-rail .space-row:focus-within {
+  background: var(--fill-2); color: var(--ink); outline: 0;
+}
+.app-shell .pc-effort-menu:focus-visible [role="option"].is-active { box-shadow: none; }
+
+/* The current value: ink, weight and a mark. */
+.app-shell .pc-agent-menu > button[aria-checked="true"],
+.app-shell .pc-models-list > button[aria-selected="true"],
+.app-shell .pc-effort-menu [role="option"][aria-selected="true"],
+.app-shell .project-rail :is(.project-item.active, .space-row.active) { color: var(--ink); font-weight: 500; }
+.app-shell .pc-agent-menu > button[aria-checked="true"]:not(:hover, :focus-visible),
+.app-shell .pc-models-list > button[aria-selected="true"]:not(:hover, :focus-visible),
+.app-shell .pc-effort-menu [role="option"][aria-selected="true"]:not(.is-active),
+.app-shell .project-rail :is(.project-item.active, .space-row.active):not(:hover, :focus-within) { background: none; box-shadow: none; }
+.app-shell :is(.pc-agent-menu > button, .pc-models-list > button, .pc-effort-menu [role="option"]) > svg:last-child { color: var(--ink); }
+.app-shell .project-rail .space-select i { background: transparent; }
+.app-shell .project-rail .space-row.active .space-select i { background: var(--ink); }
+.app-shell .project-rail .project-item strong { font: inherit; }
+
+/* ---------- Tertiary: labels, hints, counts ---------- */
+.app-shell :is(.pc-models-list, .pc-effort-menu) h4,
+.app-shell .context-menu .context-title {
+  margin: 0; padding: 10px 10px var(--s-1); color: var(--ink-3); font: var(--t-support); letter-spacing: 0;
+}
+.app-shell .pc-agent-menu > button > span { font: inherit; gap: 0; }
+.app-shell .pc-agent-menu > button small,
+.app-shell .pc-effort-menu [role="option"] > small,
+.app-shell .project-rail .project-item small,
+.app-shell .project-rail .space-select small { color: var(--ink-3); font: var(--t-support); opacity: 1; }
+.app-shell .project-rail .project-item small { font-family: var(--mono); font-size: 11px; }
+.app-shell .context-menu > button > svg { color: var(--ink-3); }
+.app-shell .context-menu > button:is(:hover, :focus-visible) > svg { color: var(--ink); }
+.app-shell :is(.pc-models-list, .context-menu-panel) :is(p, .context-empty) { color: var(--ink-3); font: var(--t-support); }
+
+/* ---------- Search: a quiet first line, not a second control ---------- */
+.app-shell .context-search,
+.app-shell .pc-models > input {
+  height: 38px; margin: 0; padding: 0 16px; border-radius: 0; outline: 0; box-shadow: none;
+  background: linear-gradient(var(--hairline), var(--hairline)) left bottom / 100% 1px no-repeat;
+  color: var(--ink-3); caret-color: var(--accent);
+}
+.app-shell .context-search { margin: -6px -6px 6px; padding: 0 16px; gap: var(--s-2); }
+.app-shell .context-search:focus-within, .app-shell .pc-models > input:focus-visible { outline: 0; box-shadow: none; }
+.app-shell .context-search input, .app-shell .pc-models > input { color: var(--ink); font: var(--t-control); font-weight: 400; }
+.app-shell :is(.context-search input, .pc-models > input)::placeholder { color: var(--ink-3); opacity: 1; }
+.app-shell .context-search svg { opacity: 1; width: 16px; }
+.app-shell .project-rail .open-folder > svg { width: 16px; flex-shrink: 0; }
+.app-shell .project-rail .space-select i { margin: 0 5px; }
+.app-shell .pc-models-list { padding: 6px; }
+.app-shell .context-menu-panel :is(.project-list, .space-list) { gap: 0; }
+
+/* Reusable separator: 1px line in the border token between groups. */
+.menu-separator, [role="separator"].menu-separator {
+  flex-shrink: 0; height: var(--divider-width, 1px); margin: var(--s-1) var(--s-2); border: 0; background: var(--hairline);
+}
+.app-shell .pc-models-list > button, .app-shell .pc-effort-menu [role="option"] { min-height: 34px; }
+
+/* A closing action (new space, open folder) sits under its own line. */
+.app-shell .project-rail .context-menu-panel > .open-folder {
+  margin-top: 6px; border-radius: var(--r-ctl);
+  background-image: linear-gradient(var(--hairline), var(--hairline)); background-size: 100% 1px; background-position: center top; background-repeat: no-repeat;
+}
+
+/* ---------- Native selects: the same trigger and the same menu ---------- */
+select:not([multiple]):not([size]) { appearance: base-select; -webkit-appearance: base-select; display: inline-flex; align-items: center; color: var(--ink); }
+select:not([multiple]):not([size])::picker-icon { display: none; }
+::picker(select) {
+  appearance: base-select;
+  margin: var(--s-1) 0; padding: 6px; min-width: max(anchor-size(width), 160px); max-height: min(320px, 60vh);
+  border: 0; border-radius: var(--r-obj);
+  color: var(--muted); font: var(--t-control); font-weight: 400;
+}
+select option {
+  display: flex; align-items: center; gap: var(--s-2); min-height: 34px; padding: 0 var(--s-2) 0 10px;
+  border-radius: var(--r-ctl); background: none; color: var(--muted); font: var(--t-control); font-weight: 400; cursor: pointer;
+}
+select option:is(:hover, :focus-visible) { background: var(--fill-2); color: var(--ink); outline: 0; }
+select option:checked { color: var(--ink); font-weight: 500; }
+select option:checked:not(:hover, :focus-visible) { background: none; }
+select option:disabled { color: var(--ink-3); opacity: .6; cursor: default; }
+select option::checkmark {
+  content: ""; order: 1; margin-left: auto; width: 14px; height: 14px; flex-shrink: 0; background: var(--ink);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7.5 5.8 10 11 4.2'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7.5 5.8 10 11 4.2'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+select option:not(:checked)::checkmark { visibility: hidden; }
+
+/* ---------- Selection on the minimap ---------- */
+.app-shell .minimap-node.selected { fill: color-mix(in srgb, var(--accent) 36%, transparent); }

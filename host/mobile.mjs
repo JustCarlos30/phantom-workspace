@@ -1,342 +1,341 @@
 import https from 'node:https';
 import os from 'node:os';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { Chats } from './chats.mjs';
-import { loadIdentity } from './mobile-identity.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { randomBytes, randomUUID, createHash, timingSafeEqual, createPublicKey, verify } from 'node:crypto';
+import { Chats, chatMode } from './chats.mjs';
+import { mobileTLS } from './mobile-tls.mjs';
 import { MobileAudit } from './mobile-audit.mjs';
-import { secret, hash, fail, check, string, exact, deviceKey, challenge, verifyProof, bounded } from './mobile-auth.mjs';
 
-const pick = (v, keys) => Object.fromEntries(keys.filter(k => v?.[k] !== undefined).map(k => [k, v[k]]));
-const READ = new Set(['sessions.list', 'terminal.list', 'chat.get', 'terminal.attach']);
-export const CAPABILITIES = ['read', 'chat.send', 'terminal.write', 'chat.stop', 'terminal.stop', 'chat.permission.answer', 'chat.question.answer'];
-const MIGRATION_STYLE = ':root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b0910;color:#eee9f4;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:760px;margin:auto;padding:24px 16px;overflow-wrap:anywhere}h1{font-size:22px;letter-spacing:-.025em}h2{font-size:18px}p{color:#a69bb7}';
-const STYLE_HASH = Buffer.from(hash(MIGRATION_STYLE), 'hex').toString('base64');
-export const MIGRATION_PAGE = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Phantom · acceso móvil</title><style>${MIGRATION_STYLE}</style><main><h1>Phantom</h1><h2>Se necesita la app nativa</h2><p>El acceso móvil está migrando al protocolo seguro v2. El navegador no permite operar sesiones ni vincular dispositivos.</p><p>La futura app oficial fijará el certificado verificado desde el escritorio y firmará cada acción con autenticación biométrica del sistema. Esta fase implementa la base de seguridad; la app nativa todavía no está disponible.</p></main></html>`;
+const DIST = fileURLToPath(new URL('../dist', import.meta.url));
+const MAX_CHAT_TEXT = 2_000_000;
+const MAX_RPC_BODY = 8 * 1024 * 1024;
+const hash = value => createHash('sha256').update(value).digest('hex');
+const secret = () => randomBytes(32).toString('base64url');
+const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
+const check = (value, message = 'Solicitud no válida') => { if (!value) fail(400, message); };
+const string = (value, max = 256) => typeof value === 'string' && value.length > 0 && value.length <= max;
+const pick = (value, keys) => Object.fromEntries(keys.filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));
+const MIME = { '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon' };
+
 export function mobileInterfaces() {
-  return Object.entries(os.networkInterfaces()).flatMap(([name, entries]) => entries.filter(i => i.family === 'IPv4' && !i.internal && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(i.address)).map(i => ({ name, address: i.address })));
+  return Object.entries(os.networkInterfaces()).flatMap(([name, entries]) => entries
+    .filter(item => item.family === 'IPv4' && !item.internal && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(item.address))
+    .map(item => ({ name, address: item.address })));
 }
+
+// No source-tree fallback. Freeze the build's canonical asset allowlist at activation.
+function buildAssets(root) {
+  check(fs.realpathSync(root) === path.resolve(root), 'El build no puede ser un enlace');
+  const assets = new Map();
+  function add(relative, route) {
+    const file = path.join(root, relative), stat = fs.lstatSync(file);
+    check(stat.isFile() && !stat.isSymbolicLink() && fs.realpathSync(file) === file, 'Asset no canónico');
+    assets.set(route, { file, stat, type: relative === 'index.html' ? 'text/html; charset=utf-8' : MIME[path.extname(file)] });
+  }
+  add('index.html', '/mobile');
+  function walk(relative) {
+    for (const item of fs.readdirSync(path.join(root, relative), { withFileTypes: true })) {
+      const next = path.join(relative, item.name);
+      if (item.isSymbolicLink()) continue;
+      if (item.isDirectory()) walk(next);
+      else if (item.isFile() && MIME[path.extname(next)]) add(next, '/' + next.split(path.sep).join('/'));
+    }
+  }
+  walk('assets');
+  return assets;
+}
+
 function chatView(view) {
-  // Bound before traversing or serializing user/model text; never copy metadata.
-  const result = { provider: view.provider, running: !!view.running, truncated: (view.messages || []).length > 100 || (view.messages || []).slice(-100).some(m => (m.parts || []).length > 40),
-    messages: (view.messages || []).slice(-100).map(m => ({ ...pick(m, ['id', 'role', 'status']), parts: (m.parts || []).slice(0, 40).map(p => {
-      const part = pick(p, ['type', 'id', 'text', 'name', 'tool', 'detail', 'status', 'reason']);
-      if (p.type === 'question') {
-        bounded(p.questions, 32000);
-        part.questions = (p.questions || []).slice(0, 20).map(q => ({ ...pick(q, ['question', 'multiple']), options: (q.options || []).slice(0, 20).map(o => pick(o, ['label', 'description'])) }));
-      }
-      return part;
-    }) })) };
-  bounded(result); return result;
+  return {
+    provider: view.provider, running: !!view.running,
+    truncated: (view.messages || []).length > 200 || (view.messages || []).some(m => (m.parts || []).length > 100),
+    messages: (view.messages || []).slice(-200).map(message => ({
+      ...pick(message, ['id', 'role', 'status', 'error']),
+      parts: (message.parts || []).slice(0, 100).map(part => {
+        if (part.type === 'question') return { ...pick(part, ['type', 'id', 'status']), questions: (part.questions || []).map(q => ({ question: String(q.question).slice(0, 4000), options: (q.options || []).map(o => pick(o, ['label', 'description'])), multiple: !!q.multiple })) };
+        return pick(part, ['type', 'id', 'text', 'name', 'tool', 'detail', 'status', 'reason']);
+      }),
+    })),
+    queue: (view.queue || []).map(item => pick(item, ['id', 'text'])),
+  };
 }
 
 export class MobileAccess {
-  constructor({ store, terminals, chats, dataDir, now = Date.now, pairingTTL = 120000, sessionTTL = 3600000 }) {
-    Object.assign(this, { store, terminals, chats, dataDir, now });
-    this.pairingTTL = Math.min(pairingTTL, 120000); this.sessionTTL = Math.min(sessionTTL, 3600000);
-    this.auditLog = new MobileAudit(dataDir);
-    this.devices = new Map(); this.challenges = new Map(); this.sessions = new Map(); this.buckets = new Map(); this.sockets = new Set(); this.secureSockets = new Set(); this.active = 0;
-  }
-  event(method, outcome, reason, device, extra = {}) {
-    try { this.auditLog.append({ timestamp: this.now(), workspaceId: this.workspaceId, deviceId: device?.id, method, outcome, reason, ...extra }); this.auditError = null; }
-    catch { this.auditError = 'No se pudo registrar la auditoría; consulta el escritorio'; fail(503, this.auditError); }
-  }
-  expire() {
-    const now = this.now();
-    if (this.pair?.expiresAt <= now) this.pair = null;
-    for (const [id, c] of this.challenges) if (c.expiresAt <= now) this.challenges.delete(id);
-    for (const [key, s] of this.sessions) if (s.expiresAt <= now) this.sessions.delete(key);
-    for (const [key, b] of this.buckets) if (b.until <= now) this.buckets.delete(key);
-    for (const [id, d] of this.devices) if (d.state !== 'approved' && d.createdAt + 120000 <= now) this.devices.delete(id);
+  constructor({ dataDir, store, terminals, chats, openssl = 'openssl', distDir = DIST, now = Date.now, pairingTTL = 120000, approvalTTL = 60000, sessionTTL = 8 * 3600000 }) {
+    Object.assign(this, { dataDir, store, terminals, chats, openssl, distDir, now, pairingTTL, approvalTTL, sessionTTL });
+    this.audit = new MobileAudit(dataDir);
+    this.devices = new Map(); this.pending = new Map(); this.sockets = new Set(); this.tlsSockets = new Set(); this.active = 0; this.pairAttempts = [];
   }
   status() {
     this.expire();
-    let auditError = this.auditError || null, activity = [];
-    try { activity = this.auditLog.list(); } catch { auditError = 'No se puede leer la auditoría'; }
-    return { enabled: !!this.server, interfaces: mobileInterfaces(), workspaceId: this.workspaceId ?? null, url: this.origin ? `${this.origin}/mobile` : null,
-      identity: this.tls?.public ?? null, pairingExpiresAt: this.pair?.expiresAt ?? null, capabilities: CAPABILITIES,
-      nodes: this.workspaceId ? [this.chats.mainNode(this.workspace()), ...this.workspace().nodes.filter(n => n.type === 'terminal')].map(n => ({ id: n.id, title: n.title, main: n.id === Chats.mainId(this.workspace()) || n.data?.role === 'orchestrator' })) : [],
-      devices: [...this.devices.values()].map(d => pick(d, ['id', 'name', 'fingerprint', 'state', 'createdAt', 'lastAuthenticatedAt', 'permissionVersion', 'grants'])), activity, auditError };
+    return { enabled: !!this.server, interfaces: mobileInterfaces(), workspaceId: this.workspaceId ?? null,
+      url: this.origin ? `${this.origin}/mobile` : null, tls: this.server ? { fingerprint: this.fingerprint } : null,
+      pairingExpiresAt: this.pair?.expiresAt ?? null,
+      pending: [...this.pending.values()].filter(p => p.state === 'pending').map(p => pick(p, ['id', 'name', 'sas', 'remoteAddress', 'expiresAt'])),
+      devices: [...this.devices.values()].map(d => pick(d, ['id', 'name', 'createdAt', 'expiresAt', 'lastSeenAt'])) };
+  }
+  expire() {
+    if (this.pair && this.pair.expiresAt <= this.now()) { this.pair = null; this.record('pairing.expire'); }
+    for (const [id, request] of this.pending) {
+      if (['pending', 'approved'].includes(request.state) && request.expiresAt <= this.now()) { request.state = 'expired'; delete request.publicKey; this.record('pairing.request.expire', request); }
+      if (request.expiresAt + 60000 <= this.now()) this.pending.delete(id);
+    }
+    for (const [key, device] of this.devices) if (device.expiresAt <= this.now()) this.removeDevice(key, 'device.expire');
+  }
+  record(method, device, remoteAddress = null, result = 'ok', target = {}, phase) {
+    const ids = Object.fromEntries(['nodeId', 'sessionId'].filter(key => string(target?.[key], 256)).map(key => [key, target[key]]));
+    try {
+      this.audit.append({ time: new Date(this.now()).toISOString(), deviceId: device?.id ?? null, deviceName: device?.name ?? null,
+        remoteAddress: remoteAddress ?? device?.remoteAddress ?? null, method, ...ids, result, ...(phase ? { phase } : {}) });
+    } catch (cause) { throw Object.assign(new Error('No se pudo guardar la auditoría móvil', { cause }), { status: 503 }); }
+  }
+  auditLog() {
+    try { return { events: this.audit.list(100).reverse() }; }
+    catch (cause) { throw Object.assign(new Error('No se pudo leer la auditoría móvil', { cause }), { status: 503 }); }
   }
   pairing() {
     check(this.server, 'Activa primero el acceso móvil');
-    const code = secret(); this.event('pairing', 'issued', 'desktop');
-    this.pair = { digest: hash(code), expiresAt: this.now() + this.pairingTTL }; return { code, expiresAt: this.pair.expiresAt };
+    const code = secret(); this.pair = { digest: hash(code), expiresAt: this.now() + this.pairingTTL };
+    return { code, link: `${this.origin}/mobile#pair=${code}`, expiresAt: this.pair.expiresAt };
   }
-  async identity({ regenerate = false, address } = {}) {
-    check(typeof regenerate === 'boolean');
-    if (!regenerate) return this.tls?.public ?? null;
-    check(!this.server && !this.starting && !this.stopping && !this.identityChanging, 'Desactiva antes de regenerar la identidad');
-    this.validAddress(address);
-    this.event('identity', 'regenerated', 'desktop'); this.clearAccess();
-    this.identityChanging = true;
-    try { this.tls = await loadIdentity(this.dataDir, address, true); return this.tls.public; }
-    finally { this.identityChanging = false; }
+  decide({ id } = {}, state) {
+    check(string(id), 'Solicitud no válida'); this.expire();
+    const request = this.pending.get(id);
+    if (!request) fail(404, 'Solicitud no encontrada');
+    check(request.state === 'pending', 'Solicitud caducada o ya resuelta');
+    if (state === 'approved' && this.devices.size + [...this.pending.values()].filter(p => p.state === 'approved').length >= 8) fail(429, 'Revoca un dispositivo antes de emparejar otro');
+    this.record(state === 'approved' ? 'pairing.approve' : 'pairing.reject', request);
+    request.state = state; if (state === 'rejected') delete request.publicKey;
+    return this.status();
   }
-  validAddress(address) { check(address === '127.0.0.1' || mobileInterfaces().some(i => i.address === address), 'Elige una interfaz LAN IPv4 privada detectada'); }
+  approve(payload) { return this.decide(payload, 'approved'); }
+  reject(payload) { return this.decide(payload, 'rejected'); }
   async start({ workspaceId, address, port = 0 } = {}) {
-    check(!this.server && !this.starting && !this.stopping && !this.identityChanging, 'El acceso móvil ya está activo o cambiando de estado');
-    this.store.getWorkspace(workspaceId); this.validAddress(address);
-    check(Number.isInteger(port) && (port === 0 || port >= 1024 && port <= 65535), 'Puerto no válido');
+    check(!this.server && !this.starting && !this.stopping, 'El acceso móvil ya está activo o cambiando de estado');
+    this.store.getWorkspace(workspaceId);
+    check(address === '127.0.0.1' || mobileInterfaces().some(item => item.address === address), 'Elige una interfaz LAN IPv4 privada detectada');
+    check(Number.isInteger(port) && (port === 0 || (port >= 1024 && port <= 65535)), 'Puerto no válido');
     this.starting = true;
-    let finish; this.startDone = new Promise(resolve => { finish = resolve; });
-    let server;
+    let finishStart; this.startDone = new Promise(resolve => { finishStart = resolve; });
     try {
-      this.tls = await loadIdentity(this.dataDir, address);
-      server = https.createServer({ key: this.tls.key, cert: this.tls.cert, minVersion: 'TLSv1.2', maxVersion: 'TLSv1.3' }, (req, res) => this.handle(req, res));
-      server.requestTimeout = 10000; server.headersTimeout = 5000; server.keepAliveTimeout = 2000; server.maxRequestsPerSocket = 100; server.maxHeadersCount = 32;
+      this.assets = buildAssets(this.distDir);
+      this.workspaceId = workspaceId;
+      const tls = await mobileTLS(this.dataDir, address, this.openssl);
+      const server = https.createServer(tls, (req, res) => this.handle(req, res));
+      this.fingerprint = tls.fingerprint;
+      server.requestTimeout = 10000; server.headersTimeout = 5000; server.keepAliveTimeout = 2000; server.maxRequestsPerSocket = 100;
       server.on('connection', socket => {
         if (this.sockets.size >= 32) { socket.destroy(); return; }
-        this.sockets.add(socket); socket.setTimeout(15000, () => socket.destroy()); socket.on('close', () => this.sockets.delete(socket));
+        this.sockets.add(socket); socket.setTimeout(15000, () => socket.destroy());
+        socket.on('close', () => this.sockets.delete(socket));
       });
-      server.on('secureConnection', socket => { this.secureSockets.add(socket); socket.on('close', () => this.secureSockets.delete(socket)); });
+      server.on('secureConnection', socket => {
+        this.tlsSockets.add(socket); socket.on('close', () => this.tlsSockets.delete(socket));
+      });
       await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, address, resolve); });
-      this.workspaceId = workspaceId; this.server = server; this.origin = `https://${address}:${server.address().port}`;
-      this.timer = setInterval(() => this.expire(), 1000); this.timer.unref();
+      try { this.record('mobile.start'); }
+      catch (error) { await new Promise(resolve => server.close(resolve)); throw error; }
+      this.server = server; this.origin = `https://${address}:${server.address().port}`;
+      this.timer = setInterval(() => { try { this.expire(); } catch { /* Expired credentials remain unusable; retry logging on next request. */ } }, 1000); this.timer.unref();
       return { ...this.status(), pairing: this.pairing() };
-    } catch (e) {
-      clearInterval(this.timer); this.clearAccess(); this.server = null; this.origin = null; this.workspaceId = null;
-      for (const socket of this.sockets) socket.destroy();
-      if (server?.listening) await new Promise(resolve => server.close(resolve)); throw e;
-    }
-    finally { this.starting = false; finish(); }
+    } finally { this.starting = false; finishStart(); }
   }
-  clearAccess() { this.pair = null; this.devices.clear(); this.sessions.clear(); this.challenges.clear(); this.buckets.clear(); }
+  removeDevice(key, method = 'device.revoke') {
+    const device = this.devices.get(key); this.devices.delete(key);
+    for (const socket of this.tlsSockets) if (socket.mobileDevices?.has(device?.id)) socket.destroy();
+    this.record(method, device);
+  }
+  revoke({ id } = {}) {
+    check(string(id), 'Dispositivo no válido');
+    for (const [key, device] of this.devices) if (device.id === id) this.removeDevice(key);
+    return this.status();
+  }
   async stop() {
     if (this.stopping) return this.stopping;
     this.stopping = (async () => {
       if (this.starting) await this.startDone;
-      clearInterval(this.timer); this.clearAccess(); const server = this.server; this.server = null; this.origin = null; this.workspaceId = null;
-      for (const socket of this.sockets) socket.destroy();
-      if (server) await new Promise(resolve => server.close(resolve)); return this.status();
+      clearInterval(this.timer); this.pair = null; this.devices.clear(); this.pending.clear(); this.pairAttempts = [];
+      const server = this.server; this.server = null; this.origin = null; this.workspaceId = null;
+      for (const socket of [...this.tlsSockets, ...this.sockets]) socket.destroy();
+      if (server) { await new Promise(resolve => server.close(resolve)); this.record('mobile.stop'); }
+      return this.status();
     })();
     try { return await this.stopping; } finally { this.stopping = null; }
   }
-  revoke({ id } = {}) {
-    check(string(id)); const d = this.devices.get(id); let auditError;
-    try { this.event('revoke', 'revoked', 'desktop', d); } catch (e) { auditError = e; }
-    this.devices.delete(id);
-    for (const [key, s] of this.sessions) if (s.deviceId === id) this.sessions.delete(key);
-    for (const [key, c] of this.challenges) if (c.deviceId === id) this.challenges.delete(key);
-    for (const socket of this.secureSockets) if (socket.mobileDevice === id) socket.destroy();
-    if (auditError) throw auditError; return this.status();
-  }
-  permissions({ id, grants, acknowledgeAgentAuthority = false } = {}, approving = false) {
-    const d = this.devices.get(id); check(d && (approving ? d.state === 'pending' : d.state === 'approved'), 'Dispositivo no disponible');
-    check(Array.isArray(grants) && grants.length <= 64, 'Selecciona sesiones y capacidades explícitamente');
-    const normalized = [], seen = new Set(), authorityNodes = new Set();
-    for (const g of grants) {
-      exact(g, ['nodeId', 'capabilities']); const node = this.node(g.nodeId);
-      check(!seen.has(g.nodeId)); seen.add(g.nodeId);
-      check(Array.isArray(g.capabilities) && g.capabilities.length > 0 && g.capabilities.length <= CAPABILITIES.length && g.capabilities.every(c => CAPABILITIES.includes(c)) && g.capabilities.includes('read'));
-      if (node.id === Chats.mainId(this.workspace()) || node.data?.role === 'orchestrator') {
-        check(acknowledgeAgentAuthority === true, 'El orquestador actúa con permisos reales del agente; confirma expresamente'); authorityNodes.add(node.id);
-      }
-      normalized.push({ nodeId: g.nodeId, capabilities: [...new Set(g.capabilities)] });
-    }
-    this.event(approving ? 'approve' : 'grants', 'accepted', 'desktop', d);
-    d.grants = normalized; d.authorityNodes = authorityNodes; d.permissionVersion++; d.state = 'approved';
-    for (const [key, c] of this.challenges) if (c.deviceId === id) this.challenges.delete(key);
-    return this.status();
-  }
-  approve(p) { return this.permissions(p, true); }
-  audit() { return this.auditLog.list(); }
-  bucket(category, key, limit) {
-    const id = `${category}:${key}`; let b = this.buckets.get(id);
-    if (!b) { if (this.buckets.size >= 2048) fail(429, 'Límite temporal de clientes'); b = { count: 0, until: this.now() + 60000 }; this.buckets.set(id, b); }
-    if (++b.count > limit) fail(429, 'Demasiadas solicitudes; espera un minuto');
-  }
-  issue(fields) {
-    if (this.challenges.size >= 128) fail(429, 'Demasiados desafíos pendientes');
-    const c = challenge(this.tls.public, this.now(), fields); this.challenges.set(c.challengeId, c);
-    return pick(c, ['challengeId', 'bytes', 'expiresAt']);
-  }
-  consume(body, kind, device) {
-    exact(body, ['challengeId', 'signature']);
-    const c = this.challenges.get(body.challengeId);
-    if (!c || c.kind !== kind || c.expiresAt <= this.now() || c.deviceId !== device.id || c.hostId !== this.tls.public.hostId || c.fingerprint !== this.tls.public.fingerprint || c.workspaceId !== this.workspaceId) fail(401, 'Desafío caducado, consumido o ajeno');
-    // Consume even a failed proof. One challenge, one attempt, no async gap.
-    this.challenges.delete(c.challengeId); verifyProof(device.key, c.bytes, body.signature); return c;
-  }
-  session(req, allowIdle = false) {
-    const auth = req.headers.authorization || '';
-    const s = /^Bearer [A-Za-z0-9_-]{43}$/.test(auth) && this.sessions.get(hash(auth.slice(7)));
-    const d = s && this.devices.get(s.deviceId);
-    if (!d || d.state !== 'approved' || s.expiresAt <= this.now() || (!allowIdle && this.now() - s.authenticatedAt >= 600000)) fail(401, 'Acceso bloqueado, caducado o revocado; firma un nuevo inicio de sesión');
-    req.socket.mobileDevice = d.id; return { d, s };
-  }
-  async body(req) {
+  async body(req, max = 65536) {
     check(req.headers['content-type'] === 'application/json', 'Se requiere JSON');
-    if (Number(req.headers['content-length']) > 65536) fail(413, 'Entrada demasiado grande');
-    let size = 0; const chunks = [];
-    // A normal async iterator destroys the stream when the size check throws,
-    // preventing the peer from receiving the 413 response. Keep the stream open
-    // for that response; Connection: close and server timeouts bound its life.
-    for await (const chunk of req.iterator({ destroyOnReturn: false })) { size += chunk.length; if (size > 65536) fail(413, 'Entrada demasiado grande'); chunks.push(chunk); }
-    let body; try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch { fail(400, 'JSON no válido'); }
-    exact(body, Object.keys(body || {})); bounded(body, 65536); return body;
+    if (Number(req.headers['content-length']) > max) fail(413, 'Entrada demasiado grande');
+    let size = 0, chunks = [];
+    for await (const chunk of req) { size += chunk.length; if (size > max) fail(413, 'Entrada demasiado grande'); chunks.push(chunk); }
+    req.rawBody = Buffer.concat(chunks);
+    let value; try { value = JSON.parse(req.rawBody.toString()); } catch { fail(400, 'JSON no válido'); }
+    check(value && typeof value === 'object' && !Array.isArray(value)); return value;
   }
   async handle(req, res) {
-    res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Connection', 'close');
-    res.setHeader('Content-Security-Policy', `default-src 'none'; style-src 'sha256-${STYLE_HASH}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
-    let counted = false, device, auditMethod = 'transport', auditNode;
-    const json = (status, data) => { if (!res.destroyed) { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); } };
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+    res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Connection', 'close');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+    let counted = false, paired = false, auditDevice = null, action = null;
+    const json = (status, value) => { if (!res.destroyed) { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); } };
     try {
       if (!this.server || req.headers.host !== new URL(this.origin).host || (req.headers.origin && req.headers.origin !== this.origin) || ['cross-site', 'same-site'].includes(req.headers['sec-fetch-site'])) fail(403, 'Origen no autorizado');
       if (this.active >= 8) fail(429, 'Demasiadas solicitudes simultáneas');
-      counted = true; this.active++; this.expire();
-      if (req.method === 'GET' && req.url === '/mobile') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(MIGRATION_PAGE); return; }
-      if (req.method !== 'POST' || !req.url.startsWith('/api/v2/')) fail(404, 'Ruta no disponible');
-      // Web pages never participate in native enrollment or action signing.
-      if (req.headers.origin || req.headers['sec-fetch-mode']) fail(403, 'Se necesita la app nativa');
-      const route = req.url.slice(8), ip = req.socket.remoteAddress;
-      if (['pair', 'pair/prove', 'login', 'login/challenge', 'read', 'action', 'action/challenge', 'receipt'].includes(route)) auditMethod = route;
-      if (['pair', 'pair/prove'].includes(route)) this.bucket('pair-ip', ip, 10);
-      else if (['login/challenge', 'login'].includes(route)) this.bucket('auth-ip', ip, 30);
-      else { ({ d: device } = this.session(req)); this.bucket('rpc-device', device.id, 120); this.bucket('rpc-ip', ip, 600); }
-      const body = await this.body(req);
-      if (!this.server) fail(401, 'Acceso desactivado');
-      if (route === 'pair') {
-        exact(body, ['code', 'name', 'publicKey']);
-        if (!string(body.code, 128) || !this.pair || this.pair.expiresAt <= this.now() || !timingSafeEqual(Buffer.from(hash(body.code)), Buffer.from(this.pair.digest))) fail(401, 'Código caducado, usado o incorrecto');
-        check(string(body.name, 80) && !/[\x00-\x1f\x7f]/.test(body.name));
-        const key = deviceKey(body.publicKey);
-        if (this.devices.size >= 8) fail(429, 'Revoca un dispositivo antes de emparejar otro');
-        if (this.challenges.size >= 128) fail(429, 'Demasiados desafíos');
-        const d = { id: randomUUID(), name: body.name, ...key, state: 'proving', createdAt: this.now(), grants: [], permissionVersion: 0, receipts: new Map() };
-        this.event('pair', 'started', 'code-accepted', d); this.pair = null; this.devices.set(d.id, d);
-        const proof = this.issue({ kind: 'pair', deviceId: d.id, workspaceId: this.workspaceId, nodeId: null, sessionId: null, method: 'pair', payload: { publicKey: body.publicKey, name: body.name }, requestId: randomUUID(), permissionVersion: 0 });
-        json(200, { deviceId: d.id, ...proof }); return;
-      }
-      if (route === 'pair/prove') {
-        exact(body, ['deviceId', 'challengeId', 'signature']); const d = this.devices.get(body.deviceId);
-        if (!d || d.state !== 'proving') fail(401, 'Vinculación no disponible');
-        device = d;
-        this.consume(pick(body, ['challengeId', 'signature']), 'pair', d);
-        this.event('pair', 'pending', 'proof-valid', d); d.state = 'pending'; d.createdAt = this.now();
-        json(200, { deviceId: d.id, state: 'pending', requiresDesktopApproval: true }); return;
-      }
-      if (route === 'login/challenge') {
-        exact(body, ['deviceId']); const d = this.devices.get(body.deviceId);
-        if (!d || d.state !== 'approved') fail(401, 'Requiere aprobación en escritorio');
-        device = d;
-        this.bucket('auth-device', d.id, 15);
-        json(200, this.issue({ kind: 'login', deviceId: d.id, workspaceId: this.workspaceId, nodeId: null, sessionId: null, method: 'login', payload: {}, requestId: randomUUID(), permissionVersion: d.permissionVersion })); return;
-      }
-      if (route === 'login') {
-        exact(body, ['deviceId', 'challengeId', 'signature']); const d = this.devices.get(body.deviceId);
-        if (!d || d.state !== 'approved') fail(401, 'Dispositivo revocado o no aprobado');
-        device = d;
-        const c = this.consume(pick(body, ['challengeId', 'signature']), 'login', d); check(c.permissionVersion === d.permissionVersion, 'Permisos cambiados');
-        if (this.sessions.size >= 64) fail(429, 'Demasiadas sesiones');
-        this.event('login', 'accepted', 'signature-valid', d);
-        for (const [key, s] of this.sessions) if (s.deviceId === d.id) this.sessions.delete(key);
-        const token = secret(), s = { deviceId: d.id, authenticatedAt: this.now(), expiresAt: this.now() + this.sessionTTL };
-        this.sessions.set(hash(token), s); d.lastAuthenticatedAt = this.now(); json(200, { token, expiresAt: s.expiresAt, idleExpiresAt: s.authenticatedAt + 600000 }); return;
-      }
-      // Recheck after body I/O: revoke/stop/grants may have run meanwhile.
-      const { d, s } = this.session(req); device = d;
-      if (route === 'read') {
-        exact(body, ['method', 'payload']); const p = body.payload ?? {}; const node = this.authorize(d, body.method, p, true);
-        auditMethod = body.method; auditNode = node?.id;
-        const permissionVersion = d.permissionVersion;
-        const result = await this.read(body.method, p, d); this.session(req);
-        if (d.permissionVersion !== permissionVersion) fail(403, 'Los permisos cambiaron durante la lectura');
-        this.authorize(d, body.method, p, true); bounded(result); json(200, { result }); return;
-      }
-      if (route === 'action/challenge') {
-        exact(body, ['method', 'payload', 'requestId']); check(string(body.requestId, 128) && /^[A-Za-z0-9_-]+$/.test(body.requestId), 'Identidad de acción no válida');
-        const node = this.authorize(d, body.method, body.payload, false);
-        auditMethod = body.method; auditNode = node.id;
-        if (d.receipts.has(body.requestId)) fail(409, 'Consulta el recibo; no repitas la acción');
-        if (d.receipts.size >= 256) fail(429, 'Límite de acciones alcanzado; revoca y vuelve a vincular');
-        json(200, this.issue({ kind: 'action', deviceId: d.id, workspaceId: this.workspaceId, nodeId: node.id, sessionId: body.payload.sessionId ?? null, method: body.method, payload: body.payload, requestId: body.requestId, permissionVersion: d.permissionVersion })); return;
-      }
-      if (route === 'action') {
-        const issued = this.challenges.get(body.challengeId);
-        if (issued?.deviceId === d.id && issued.kind === 'action') { auditMethod = issued.method; auditNode = issued.nodeId; }
-        const c = this.consume(body, 'action', d);
-        check(c.permissionVersion === d.permissionVersion, 'Permisos cambiados');
-        const node = this.authorize(d, c.method, c.payload, false);
-        check(node.id === c.nodeId && (c.payload.sessionId ?? null) === c.sessionId, 'La sesión cambió de nodo; solicita otro desafío');
-        if (d.receipts.has(c.requestId)) fail(409, 'Acción ya consumida; consulta el recibo');
-        if (d.receipts.size >= 256) fail(429, 'Límite de acciones alcanzado');
-        // Record before audit and effect, including failures. No automatic retry.
-        const receipt = { requestId: c.requestId, state: 'pending' }; d.receipts.set(c.requestId, receipt);
-        let admitted = false;
+      this.active++; counted = true; this.expire();
+      if (req.method === 'GET') {
+        const asset = this.assets.get(req.url);
+        if (!asset) fail(404, 'Ruta no disponible');
+        if (fs.realpathSync(asset.file) !== asset.file) fail(404, 'Asset no disponible');
+        const fd = fs.openSync(asset.file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         try {
-          this.event(c.method, 'admitted', 'signature-valid', d, { workspaceId: c.workspaceId, nodeId: node.id, requestId: c.requestId });
-          admitted = true;
-          // There is no await between this final scope check and invoking the effect.
-          const pending = this.effect(c.method, c.payload, node);
-          s.authenticatedAt = this.now(); d.lastAuthenticatedAt = this.now();
-          await pending; receipt.state = 'completed';
-          try { this.event(c.method, 'completed', 'effect-returned', d, { workspaceId: c.workspaceId, nodeId: node.id, requestId: c.requestId }); }
-          catch { receipt.state = 'uncertain'; receipt.reason = 'audit-unavailable-after-effect'; fail(503, 'Efecto realizado; fallo de auditoría. Consulta el recibo y el escritorio; no repitas'); }
-        } catch (e) {
-          if (receipt.state === 'pending') {
-            receipt.state = 'uncertain'; receipt.reason = !admitted ? 'audit-admission-failed' : 'effect-failed-or-uncertain';
-            if (admitted) this.event(c.method, 'uncertain', 'effect-failed-or-uncertain', d, { workspaceId: c.workspaceId, nodeId: node.id, requestId: c.requestId });
-          }
-          throw e;
-        }
-        json(200, { receipt }); return;
+          const stat = fs.fstatSync(fd);
+          if (!stat.isFile() || ['ino', 'dev', 'size', 'mtimeMs'].some(k => stat[k] !== asset.stat[k])) fail(404, 'El build cambió; reactiva el acceso');
+          res.writeHead(200, { 'Content-Type': asset.type }); res.end(fs.readFileSync(fd));
+        } finally { fs.closeSync(fd); }
+        return;
       }
-      if (route === 'receipt') { exact(body, ['requestId']); const receipt = d.receipts.get(body.requestId); if (!receipt) fail(404, 'Recibo no disponible'); json(200, { receipt }); return; }
-      fail(404, 'Ruta no disponible');
-    } catch (e) {
-      try { this.event(auditMethod, 'rejected', `status-${e.status || 400}`, device, { nodeId: auditNode }); } catch { /* admission failures still deny */ }
-      json(e.status || 400, { error: e.status ? e.message : 'La operación no se pudo completar; consulta el escritorio' });
-    } finally { if (counted) this.active--; }
+      if (req.method !== 'POST' || req.headers.origin !== this.origin) fail(403, 'Origen no autorizado');
+      if (req.url === '/api/pair') {
+        this.pairAttempts = this.pairAttempts.filter(time => time > this.now() - 60000);
+        if (this.pairAttempts.length >= 10) fail(429, 'Demasiados intentos; espera un minuto');
+        this.pairAttempts.push(this.now());
+        const body = await this.body(req);
+        this.expire();
+        if (!this.server) fail(401, 'Acceso desactivado');
+        if (!string(body.code, 128) || !this.pair || !timingSafeEqual(Buffer.from(hash(body.code)), Buffer.from(this.pair.digest))) fail(401, 'Código caducado, usado o incorrecto; genera otro en Ajustes');
+        if (this.devices.size >= 8) fail(429, 'Revoca un dispositivo antes de emparejar otro');
+        const jwk = body.publicKey;
+        check(jwk && typeof jwk === 'object' && !Array.isArray(jwk) && Object.keys(jwk).length === 4 && Object.keys(jwk).every(k => ['kty', 'crv', 'x', 'y'].includes(k)) && jwk.kty === 'EC' && jwk.crv === 'P-256' && /^[A-Za-z0-9_-]{43}$/.test(jwk.x) && /^[A-Za-z0-9_-]{43}$/.test(jwk.y), 'Llave pública P-256 no válida');
+        try { createPublicKey({ key: jwk, format: 'jwk' }); } catch { fail(400, 'Llave pública P-256 no válida'); }
+        if ([...this.pending.values()].filter(p => ['pending', 'approved'].includes(p.state)).length >= 4 || this.pending.size >= 64) fail(429, 'Demasiadas solicitudes pendientes');
+        this.pair = null;
+        const poll = secret(), request = { id: randomUUID(), name: typeof body.name === 'string' ? body.name.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 80) : 'Móvil', publicKey: { ...jwk }, remoteAddress: req.socket.remoteAddress, sas: String(createHash('sha256').update(`${body.code}\n${jwk.x}.${jwk.y}`).digest().readUInt32BE(0) % 1000000).padStart(6, '0'), expiresAt: this.now() + this.approvalTTL, pollDigest: hash(poll), state: 'pending', requests: [] };
+        this.record('pairing.request', request); paired = true; this.pending.set(request.id, request);
+        json(200, { requestId: request.id, poll, expiresAt: request.expiresAt }); return;
+      }
+      if (req.url === '/api/pair/status') {
+        const body = await this.body(req); this.expire();
+        const request = string(body.requestId) && this.pending.get(body.requestId);
+        if (!this.server || !request || !string(body.poll, 128) || !timingSafeEqual(Buffer.from(hash(body.poll)), Buffer.from(request.pollDigest))) fail(401, 'Solicitud no autorizada');
+        request.requests = request.requests.filter(t => t > this.now() - 60000);
+        if (request.requests.length >= 60) fail(429, 'Demasiadas consultas; espera un minuto'); request.requests.push(this.now());
+        if (request.state === 'pending') { json(200, { state: 'pending', expiresAt: request.expiresAt }); return; }
+        if (request.state !== 'approved') { json(200, { state: request.state }); return; }
+        const token = secret(), device = { ...pick(request, ['id', 'name', 'publicKey', 'remoteAddress']), createdAt: this.now(), expiresAt: this.now() + this.sessionTTL, lastSeenAt: this.now(), requests: [], actions: new Map(), signatures: new Map() };
+        this.record('pairing', device); this.pending.delete(request.id); this.devices.set(hash(token), device);
+        (req.socket.mobileDevices ??= new Set()).add(device.id);
+        json(200, { state: 'approved', token, expiresAt: device.expiresAt }); return;
+      }
+      if (req.url !== '/api/rpc') fail(404, 'Ruta no disponible');
+      const authorization = req.headers.authorization || '';
+      const device = /^Bearer [A-Za-z0-9_-]{43}$/.test(authorization) && this.devices.get(hash(authorization.slice(7)));
+      if (!device) fail(401, 'Acceso caducado o revocado; vuelve a emparejar');
+      (req.socket.mobileDevices ??= new Set()).add(device.id);
+      device.requests = device.requests.filter(time => time > this.now() - 60000);
+      if (device.requests.length >= 120) fail(429, 'Demasiadas solicitudes; reconecta en un minuto');
+      device.requests.push(this.now());
+      const body = await this.body(req, MAX_RPC_BODY);
+      const time = req.headers['x-phantom-time'], signature = req.headers['x-phantom-signature'];
+      if (typeof time !== 'string' || !/^\d{1,16}$/.test(time) || Math.abs(this.now() - Number(time)) > 30000 || typeof signature !== 'string' || !/^[A-Za-z0-9_-]{86}$/.test(signature)) fail(401, 'Firma de dispositivo requerida o caducada');
+      const signatureBytes = Buffer.from(signature, 'base64url'), signatureDigest = hash(signatureBytes);
+      for (const [key, expiresAt] of device.signatures) if (expiresAt < this.now()) device.signatures.delete(key);
+      if (signatureBytes.length !== 64 || device.signatures.has(signatureDigest) || device.signatures.size >= 256) fail(401, 'Firma repetida o no válida');
+      let valid = false;
+      try { valid = verify('sha256', Buffer.from(`${time}\n${req.url}\n${hash(req.rawBody)}`), { key: createPublicKey({ key: device.publicKey, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, signatureBytes); } catch {}
+      if (!valid) fail(401, 'Firma de dispositivo no válida');
+      device.signatures.set(signatureDigest, Number(time) + 30000);
+      device.lastSeenAt = this.now();
+      auditDevice = device;
+      if (['chat.send', 'chat.stop', 'chat.permission.answer', 'chat.question.answer', 'terminal.write', 'terminal.stop'].includes(body.method)) {
+        action = { method: body.method, target: pick(body.payload, ['nodeId', 'sessionId']) };
+        // Persist authorization intent before any side effect, then its actual outcome.
+        this.record(action.method, device, req.socket.remoteAddress, 'ok', action.target, 'accepted');
+      }
+      // Re-check after body I/O: a desktop revocation/stop cannot authorize a queued write.
+      if (!this.devices.has(hash(authorization.slice(7))) || device.expiresAt <= this.now()) fail(401, 'Acceso revocado');
+      const result = await this.rpc(body, device, action, req.socket.remoteAddress);
+      if (Buffer.byteLength(JSON.stringify(result)) > 2 * 1024 * 1024) fail(413, 'Hilo demasiado grande para móvil; consulta el escritorio');
+      json(200, { result });
+    } catch (error) {
+      try {
+        if (action && !action.handled) this.record(action.method, auditDevice, req.socket.remoteAddress, 'error', action.target, 'completed');
+        if (req.url === '/api/pair' && !paired && error.status === 401) this.record('pairing', null, req.socket.remoteAddress, 'error');
+      } catch { error = Object.assign(new Error('No se pudo guardar la auditoría móvil'), { status: 503 }); }
+      json(error.status || 400, { error: error.status ? error.message : 'La operación no se pudo completar; consulta la sesión en escritorio' });
+    }
+    finally { if (counted) this.active--; }
   }
   workspace() { return this.store.getWorkspace(this.workspaceId); }
   node(id) {
-    const w = this.workspace(), n = id === Chats.mainId(w) ? this.chats.mainNode(w) : w.nodes.find(n => n.id === id);
-    if (!n || n.type !== 'terminal') fail(403, 'Sesión fuera del proyecto autorizado'); return n;
-  }
-  terminal(id) {
-    const s = this.terminals.sessions.find(s => s.id === id && s.workspaceId === this.workspaceId);
-    if (!s) fail(403, 'Sesión fuera del proyecto autorizado'); this.node(s.nodeId); return s;
-  }
-  authorize(d, method, p, read) {
-    if (!string(method, 128) || (read ? !READ.has(method) : !CAPABILITIES.includes(method) || method === 'read')) fail(403, 'Método móvil no permitido');
-    const fields = { 'sessions.list': [], 'terminal.list': [], 'chat.get': ['nodeId'], 'terminal.attach': ['sessionId'], 'chat.send': ['nodeId', 'text'], 'chat.stop': ['nodeId'], 'terminal.write': ['sessionId', 'data'], 'terminal.stop': ['sessionId'], 'chat.permission.answer': ['nodeId', 'requestId', 'decision'], 'chat.question.answer': ['nodeId', 'requestId', 'answers'] };
-    exact(p, [...fields[method], 'workspaceId']);
-    if (p.workspaceId !== undefined && p.workspaceId !== this.workspaceId) fail(403, 'Proyecto no autorizado');
-    if (method === 'sessions.list' || method === 'terminal.list') return null;
-    const node = method.startsWith('chat.') ? this.node(p.nodeId) : this.node(this.terminal(p.sessionId).nodeId);
-    if (!this.hasGrant(d, node, read ? 'read' : method)) fail(403, 'Nodo o capacidad no autorizados');
-    if (method.startsWith('chat.')) check(node.data?.chat?.provider, 'Esta sesión no tiene chat configurado');
-    if (method === 'chat.send') check(string(p.text, 32000) && p.text.trim());
-    if (method === 'terminal.write') check(string(p.data, 16000));
-    if (method === 'chat.permission.answer') check(string(p.requestId, 128) && ['allow', 'deny'].includes(p.decision));
-    if (method === 'chat.question.answer') {
-      check(string(p.requestId, 128));
-      if (p.answers !== null) { exact(p.answers, Object.keys(p.answers || {})); check(Object.keys(p.answers).length <= 20 && Object.entries(p.answers).every(([k, v]) => string(k, 4000) && (string(v, 4000) || Array.isArray(v) && v.length <= 20 && v.every(x => string(x, 4000))))); }
-    }
+    const w = this.workspace();
+    const node = id === Chats.mainId(w) ? this.chats.mainNode(w) : w.nodes.find(item => item.id === id);
+    if (!node || node.type !== 'terminal') fail(403, 'Sesión fuera del proyecto autorizado');
     return node;
   }
-  async read(method, p, d) {
-    const w = this.workspace(), nodes = [this.chats.mainNode(w), ...w.nodes.filter(n => n.type === 'terminal')].filter(n => this.hasGrant(d, n, 'read'));
-    const ids = new Set(nodes.map(n => n.id));
+  session(id) {
+    const session = this.terminals.sessions.find(item => item.id === id && item.workspaceId === this.workspaceId);
+    if (!session) fail(403, 'Sesión fuera del proyecto autorizado');
+    this.node(session.nodeId); return session;
+  }
+  async rpc({ method, payload = {}, requestId }, device, action, remoteAddress) {
+    check(string(method, 128), 'Método no válido');
+    check(payload && typeof payload === 'object' && !Array.isArray(payload));
+    if (payload.workspaceId !== undefined && payload.workspaceId !== this.workspaceId) fail(403, 'Proyecto no autorizado');
     if (method === 'sessions.list') {
-      return { workspace: pick(w, ['id', 'name']), sessions: nodes.map(n => ({ nodeId: n.id, title: n.title, kind: n.data?.chat?.provider ? 'chat' : 'terminal', provider: n.data?.chat?.provider ?? null,
-        terminals: this.terminals.sessions.filter(s => s.workspaceId === w.id && s.nodeId === n.id).slice(0, 64).map(s => pick(s, ['id', 'status', 'createdAt'])) })) };
+      check(Object.keys(payload).every(key => key === 'workspaceId'));
+      const w = this.workspace();
+      const nodes = [this.chats.mainNode(w), ...w.nodes.filter(n => n.type === 'terminal')];
+      return { workspace: { id: w.id, name: w.name }, sessions: nodes.map(n => ({ nodeId: n.id, title: n.title, kind: n.data?.chat?.provider ? 'chat' : 'terminal', provider: n.data?.chat?.provider ?? null,
+        terminals: this.terminals.sessions.filter(s => s.workspaceId === w.id && s.nodeId === n.id).map(s => pick(s, ['id', 'status', 'createdAt'])) })) };
     }
-    if (method === 'terminal.list') return this.terminals.sessions.filter(s => s.workspaceId === this.workspaceId && ids.has(s.nodeId)).slice(0, 256).map(s => pick(s, ['id', 'nodeId', 'status', 'createdAt']));
-    if (method === 'chat.get') return chatView(this.chats.get(this.node(p.nodeId)));
-    const v = await this.terminals.tail(p.sessionId, 40); const result = pick(v, ['status', 'seq', 'lines', 'text']); bounded(result); return result;
-  }
-  hasGrant(d, node, capability) {
-    if ((node.id === Chats.mainId(this.workspace()) || node.data?.role === 'orchestrator') && !d.authorityNodes?.has(node.id)) return false;
-    return d.grants.some(g => g.nodeId === node.id && g.capabilities.includes(capability));
-  }
-  effect(method, p, node) {
-    if (method === 'chat.send') return this.chats.send(this.workspace(), node, p.text);
-    if (method === 'chat.stop') return this.chats.stop(node.id);
-    if (method === 'chat.permission.answer') return this.chats.answerPermission(node, p.requestId, p.decision);
-    if (method === 'chat.question.answer') return this.chats.answerQuestion(node, p.requestId, p.answers);
-    if (method === 'terminal.write') return this.terminals.write(p.sessionId, p.data);
-    if (method === 'terminal.stop') return this.terminals.stop(p.sessionId);
-    fail(403, 'Método móvil no permitido');
+    const allowed = {
+      'chat.get': ['nodeId'], 'chat.send': ['nodeId', 'text'], 'chat.stop': ['nodeId'],
+      'chat.permission.answer': ['nodeId', 'requestId', 'decision'], 'chat.question.answer': ['nodeId', 'requestId', 'answers'],
+      'terminal.list': [], 'terminal.attach': ['sessionId'], 'terminal.write': ['sessionId', 'data'], 'terminal.stop': ['sessionId'],
+    };
+    if (!Object.hasOwn(allowed, method)) fail(403, 'Método móvil no permitido');
+    check(Object.keys(payload).every(key => [...allowed[method], 'workspaceId'].includes(key)), 'Campo no permitido');
+    const node = method.startsWith('chat.') ? this.node(payload.nodeId) : null;
+    if (node) check(node.data?.chat?.provider, 'Esta sesión no tiene chat configurado');
+    if (method.startsWith('terminal.') && method !== 'terminal.list') this.session(payload.sessionId);
+    if (method === 'chat.get') return chatView(this.chats.get(node));
+    if (method === 'terminal.list') return this.terminals.sessions.filter(s => s.workspaceId === this.workspaceId && this.workspace().nodes.some(n => n.id === s.nodeId)).map(s => pick(s, ['id', 'nodeId', 'status', 'createdAt']));
+    if (method === 'terminal.attach') {
+      // Plain, bounded screen snapshot, replaced on each poll rather than replayed.
+      const view = await this.terminals.tail(payload.sessionId, 40);
+      return pick(view, ['status', 'seq', 'lines', 'text']);
+    }
+    check(string(requestId, 128), 'Cada acción requiere una identidad');
+    const signature = JSON.stringify({ method, payload }), existing = device.actions.get(requestId);
+    if (existing) { check(existing.signature === signature, 'Identidad de acción reutilizada'); if (action) action.handled = true; return existing.promise; }
+    // Never evict a recorded action during the bearer lifetime: an uncertain
+    // response must not turn into a second write. Re-pair when this budget is spent.
+    if (device.actions.size >= 256) fail(429, 'Límite de acciones alcanzado; vuelve a emparejar');
+    if (action) action.handled = true;
+    const promise = Promise.resolve().then(async () => {
+      try {
+        if (![...this.devices.values()].includes(device) || device.expiresAt <= this.now()) fail(401, 'Acceso revocado');
+        const current = node ? this.node(payload.nodeId) : null;
+        if (method.startsWith('terminal.')) this.session(payload.sessionId);
+        if (method === 'chat.send') { check(string(payload.text, MAX_CHAT_TEXT) && payload.text.trim()); await this.chats.send(this.workspace(), current, payload.text); }
+        if (method === 'chat.stop') await this.chats.stop(current.id);
+        if (method === 'chat.permission.answer') {
+          check(['allow', 'deny'].includes(payload.decision));
+          if (payload.decision === 'allow' && (chatMode(current) === 'full' || this.chats.turns.get(current.id)?.mode === 'full')) fail(403, 'Los permisos en modo full solo se autorizan desde el escritorio');
+          await this.chats.answerPermission(current, payload.requestId, payload.decision);
+        }
+        if (method === 'chat.question.answer') await this.chats.answerQuestion(current, payload.requestId, payload.answers === undefined ? null : payload.answers);
+        if (method === 'terminal.write') { check(string(payload.data, 16000)); await this.terminals.write(payload.sessionId, payload.data); }
+        if (method === 'terminal.stop') await this.terminals.stop(payload.sessionId);
+        this.record(method, device, remoteAddress, 'ok', payload, 'completed');
+        return { ok: true };
+      } catch (error) {
+        this.record(method, device, remoteAddress, 'error', payload, 'completed');
+        throw error;
+      }
+    });
+    device.actions.set(requestId, { signature, promise }); return promise;
   }
 }

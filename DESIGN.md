@@ -1,80 +1,85 @@
 ---
 name: Phantom Workspace
-description: Night glass — a personal spatial workspace; frosted chrome over the canvas, opaque working planes.
+description: Negro profundo, aro único, sesión por dentro y dictado en el campo; etapas 1–5 del sistema visual v2.
 colors:
-  accent: "#a78bda"
-  accent-soft: "color-mix(in srgb, var(--accent) 15%, var(--surface))"
-  accent-mint: "#7cc9a0"
-  accent-amber: "#e3bf86"
-  accent-rose: "#e9a0bf"
-  accent-cyan: "#6fe3f2"
-  bg: "#0b0910"
-  surface: "#131019"
-  surface-2: "#1c1725"
-  surface-3: "#292133"
-  ink: "#eee9f4"
-  muted: "#a69bb7"
-  hairline: "color-mix(in srgb, #fff 8%, transparent)"
+  accent: "#f2f0eb"
+  accent-soft: "color-mix(in srgb, var(--accent) 17%, transparent)"
+  action: "#c6f135"
+  bg: "#020203"
+  surface: "#0b0b0c"
+  surface-2: "#111113"
+  surface-3: "#1d1d20"
+  menu: "var(--surface)"
+  object-top: "#151518"
+  object-bottom: "#0b0b0d"
+  object-sheen: "radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)"
+  object-fill: "var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))"
+  object-ring-width: "1px"
+  object-edge-top: "color-mix(in srgb, #fff 26%, transparent)"
+  object-edge-bottom: "color-mix(in srgb, #fff 7%, transparent)"
+  object-ring: "linear-gradient(var(--object-edge-top), var(--object-edge-bottom))"
+  selected-edge-top: "color-mix(in srgb, #fff 36%, transparent)"
+  selected-edge-bottom: "color-mix(in srgb, #fff 10%, transparent)"
+  menu-edge: "color-mix(in srgb, #fff 13%, transparent)"
+  ink: "#f2f0eb"
+  muted: "#a8a6a0"
+  ink-3: "#8b8983"
+  hairline: "color-mix(in srgb, #fff 10%, transparent)"
   fill: "color-mix(in srgb, #fff 5%, transparent)"
   fill-2: "color-mix(in srgb, #fff 9%, transparent)"
   fill-3: "color-mix(in srgb, #fff 14%, transparent)"
-  glass: "color-mix(in srgb, var(--surface) 64%, transparent)"
-  glass-thick: "color-mix(in srgb, var(--surface) 84%, transparent)"
-  rail: "#131019"
-  terminal-bg: "#0e0b13"
-  terminal-ink: "#ddd5e9"
-  primary-ink: "#130d1e"
-  note: "#211d2c"
-  danger: "#ee788a"
-  success: "#7cc9a0"
-  warning: "#e9b46a"
+  glass-tint: "#0b0b0c"
+  glass: "var(--surface)"
+  glass-thick: "var(--surface)"
+  glass-filter: "none"
+  glass-sheen: "var(--object-fill)"
+  ink-on-glass: "#a8a6a0"
+  on: "#ece6d8"
+  on-ink: "#141414"
+  on-hover: "#f6f1e6"
+  on-press: "#d6d0c2"
+  control-fill: "#ffffff14"
+  control-hover: "#ffffff1f"
+  control-press: "#ffffff0a"
+  row-hover: "#ffffff0a"
+  row-press: "#00000040"
+  row-selected: "#1d1d20"
+  badge-neutral: "oklch(0.36 0.008 260)"
+  badge-working: "#5d7521"
+  badge-attention: "#b5872f"
+  workplane: "var(--surface)"
+  workplane-wash: "var(--object-fill)"
+  well: "#040405"
+  well-raised: "#0b0b0d"
+  well-terminal: "#040405"
+  rail: "var(--surface)"
+  terminal-bg: "#040405"
+  terminal-ink: "#e1dfda"
+  primary-ink: "#141414"
+  note: "var(--surface-2)"
+  danger: "#f27670"
+  success: "#65ba83"
+  warning: "var(--attention)"
+  working: "#c6f135"
+  attention: "#f5c04a"
   error-bg: "color-mix(in srgb, var(--danger) 15%, var(--surface))"
-  mission-bg: "color-mix(in srgb, var(--success) 14%, var(--surface))"
-  mission-ink: "var(--success)"
+  mission-bg: "var(--fill-2)"
+  mission-ink: "var(--muted)"
 typography:
-  headline:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "18px"
-    fontWeight: 600
-    letterSpacing: "-.025em"
-  title:
-    fontFamily: "system-ui, sans-serif"
-    fontSize: "15px"
-    fontWeight: 650
-    lineHeight: 1.4
-  body:
-    fontFamily: "system-ui, sans-serif"
-    fontSize: "13px"
-    lineHeight: 1.5
-  appearance-body:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "12px"
-    lineHeight: 1.7
-  label:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "12px"
-    fontWeight: 600
-  support:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "11px"
-  micro:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "10px"
-  panel-title:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-    fontSize: "calc(11px * var(--map-label-scale,1))"
-    fontWeight: 600
-    lineHeight: 1.1
-  tool-button:
-    fontFamily: "system-ui, sans-serif"
-    fontSize: "12px"
-    fontWeight: 500
-    lineHeight: 1.4
+  sans: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+  display: "600 24px/30px var(--sans)"
+  title: "600 15px/20px var(--sans)"
+  headline: "600 14px/22px var(--sans)"
+  body: "400 14px/20px var(--sans)"
+  control: "500 14px/20px var(--sans)"
+  support: "400 12px/16px var(--sans)"
+  micro: "500 12px/16px var(--sans)"
 rounded:
   mark: "4px"
-  ctl: "8px"
-  obj: "14px"
-  isle: "22px"
+  ctl: "12px"
+  row: "12px"
+  obj: "24px"
+  isle: "24px"
   pill: "999px"
 spacing:
   compact: "4px"
@@ -88,137 +93,381 @@ spacing:
   section: "24px"
 components:
   button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.primary-ink}"
-    rounded: "{rounded.button}"
-    padding: "0 13px"
-    height: "35px"
+    backgroundColor: "{colors.on}"
+    textColor: "{colors.on-ink}"
+    rounded: "{rounded.ctl}"
+    padding: "0 14px"
+    height: "34px"
   button-secondary:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "{colors.fill}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.button}"
-    padding: "0 13px"
-    height: "35px"
+    rounded: "{rounded.ctl}"
+    padding: "0 14px"
+    height: "34px"
   tool-button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.primary-ink}"
-    typography: "{typography.tool-button}"
-    rounded: "{rounded.field}"
+    backgroundColor: "{colors.on}"
+    textColor: "{colors.on-ink}"
+    rounded: "{rounded.ctl}"
     padding: "6px 10px"
   tool-button-secondary:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "{colors.fill}"
     textColor: "{colors.ink}"
-    typography: "{typography.tool-button}"
-    rounded: "{rounded.field}"
+    rounded: "{rounded.ctl}"
     padding: "6px 10px"
   tool-field:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "{colors.fill}"
     textColor: "{colors.ink}"
-    typography: "{typography.body}"
-    rounded: "{rounded.field}"
+    rounded: "{rounded.ctl}"
     padding: "7px 9px"
     width: "100%"
   project-item-active:
-    backgroundColor: "{colors.surface-2}"
+    backgroundColor: "transparent"
     textColor: "{colors.ink}"
-    rounded: "{rounded.button}"
-    padding: "8px"
+    rounded: "{rounded.ctl}"
+    padding: "0 10px"
     width: "100%"
   panel-row-selected:
-    backgroundColor: "{colors.accent-soft}"
-    textColor: "{colors.accent}"
-    typography: "{typography.support}"
-    rounded: "{rounded.icon}"
+    backgroundColor: "{colors.surface-3}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.ctl}"
   tool-badge:
-    backgroundColor: "{colors.surface-2}"
+    backgroundColor: "{colors.fill-2}"
     textColor: "{colors.muted}"
-    rounded: "{rounded.badge}"
-    padding: "2px 6px"
+    rounded: "{rounded.pill}"
+    padding: "2px 8px"
   canvas-node:
     backgroundColor: "{colors.surface}"
-    rounded: "{rounded.node}"
+    backgroundImage: "{colors.object-fill}"
+    rounded: "{rounded.obj}"
   background-option:
     textColor: "{colors.ink}"
-    typography: "{typography.support}"
-    rounded: "{rounded.preset}"
+    rounded: "{rounded.obj}"
     padding: "5px 5px 9px"
 ---
 
 
 # Design System: Phantom Workspace
 
-Este documento tiene una sola capa. Si una regla cambia, se edita aquí y en `test/design-tokens.test.mjs` en el mismo cambio; no se añaden secciones «vigentes» al final. El historial de las capas anteriores (Studio, Vidrio nocturno, Lienzo, Acabado) está en git.
+Este documento describe las etapas 1–5 de [docs/design-v2.md](docs/design-v2.md), incluida «Sesión por dentro y dictado», basadas en la dirección visual aprobada por Carlos y los mocks 05/06. Sustituye el material mate, los planos translúcidos, los contornos de estado anteriores, las recetas de rail/controles/configuración, la identidad visible Gengar, las burbujas/tarjetas de conversación y el orbe de dictado. Las restricciones estáticas viven en `test/design-tokens.test.mjs`; los resultados de checks y el cierre pertenecen al controlador. La interfaz usa español.
 
 ## Reglas
 
-Tres reglas deciden casi todo. Las dos primeras las vigila `npm test`.
+### Paleta negra y menús (2026-11-16)
 
-1. **Una caja por objeto.** Solo dibuja contorno lo que se puede mover o lo que flota: panel, zona, rail, islas, dock, menús. Dentro de un objeto se separa con espacio, tipografía y un paso de tono; nunca con líneas. Como mucho un nivel de relleno interior: el control donde se escribe o se elige (campo del compositor, pista del segmentado, pozo de código o de terminal).
-2. **El peso lo da el estado.** En reposo un panel es tono, una hairline y `--shadow-rest`. Seleccionado o arrastrado flota (`--shadow-float`) y toma el acento. Lo que te necesita emite: borde ámbar y ondas en el lienzo. Un borde de color siempre significa algo que está pasando.
-3. **Lo fantasma es comportamiento y material.** Las superficies se materializan y se dispersan, no se deslizan. Las sombras son ciruela, no negras. Hay un solo personaje, la marca Phantom, y vive en un solo lugar: el notch de actividad. No hay mascotas en estados vacíos ni ilustración decorativa.
+- Atención: `--attention #f5c04a`. Lo que te necesita no pinta superficies: el ámbar identifica la etiqueta y el aro exterior del panel, y las marcas compactas existentes del rail, dock y campana. Sin velos ni píldoras ámbar. En la bandeja, los discos de icono son `--fill-2` con el icono en el tono del estado. Ámbar significa intervención requerida; lima `--working #c6f135` significa trabajo real. Ámbar se distingue del verde apagado de éxito `#65ba83` y del rojo de error.
+- La misma restricción rige en todos los paneles, incluidos terminal, chat, referencias, Skills y voz, también mediante aliases (`--warning`, `--tone`, `--pc-caution`). Los pozos no reciben lavados ni bordes ámbar. Las excepciones son el aro exterior enmascarado del panel (E2) y el disco de estado del rail (E3), nunca sus superficies. Atención no dibuja halos ni ondas de fondo. Las categorías de Configuración usan insignias OKLCH estables (E4), sin teñir el grupo. Los switches activos son `--on` marfil con indicador `--on-ink` oscuro. Verde de éxito significa éxito real (o adiciones en un diff), nunca selección o acción armada. Acento inicial/cursor: `#f2f0eb`; tecla primaria: `#ece6d8`. Las preferencias personales, sus migraciones y ANSI se conservan.
+
+Escalera E1: lienzo `#020203` < pozo `#040405` < base de objeto `#0b0b0c`; relleno interior `#111113`, selección de fila `#1d1d20`. Rail, paneles, inspector, dock y flotantes comparten degradado vertical `#151518` → `#0b0b0d` con luz cenital tenue arriba-izquierda (`--object-sheen`), aro degradado de 1 px y sombra negra de contacto. El pozo es más oscuro que el objeto, no que el lienzo.
+
+Tres tintas reales: `--ink #f2f0eb` (lo elegido y lo que se lee), `--muted #a8a6a0` (opciones y texto secundario, también en chrome), `--ink-3 #8b8983` (etiquetas, pistas, contadores). Marfil para teclas y selección; lima (trabajando), ámbar (te necesita), verde y rojo solo significan estado.
+
+Menús, selects y ventanas emergentes (`src/menus.css`, único dueño, cargado al final): (1) base opaca `--menu: var(--surface)`, imagen `--object-fill` y aro enmascarado `--object-ring`, radio `--r-obj`, relleno 6 px; (2) las opciones descansan en `--muted` sin relleno, filas de 34 px (46–48 px con segunda línea), radio `--r-ctl`; (3) un solo relleno, `--fill-2`, para la fila bajo el puntero o el teclado; (4) el valor actual es `--ink`, peso 500 y su marca (check o punto), nunca un relleno ni un borde; (5) la búsqueda es la primera línea del menú, sin caja ni anillo, separada por una línea de 1 px; títulos de grupo, pistas y contadores en `--ink-3` sin negrita; (6) la acción de cierre (Nuevo espacio, Abrir carpeta) va bajo su propia línea; (7) los `<select>` nativos usan `appearance: base-select` y abren el mismo menú, con el chevrón del disparador en `--ink-3`.
+
+La selección de un panel aclara el mismo aro: blanco al 36 % arriba y 10 % abajo, sin borde, outline ni halo adicional. El foco de teclado de los controles conserva su señal independiente. El aro no intercepta acciones (`pointer-events:none`).
+
+### Formularios de Configuración, Cards y Skills (2026-11-18)
+
+- Cards y Skills conservan campos de texto, textarea y selects con `--surface-2` y borde de 1 px `--hairline`. Configuración (E4, revisado en 6·5) usa fondo transparente sin borde y aro `inset 0 0 0 1px` de tinta al 12 % que se aclara al 40 % al enfocar. Todas estas familias usan radio `--r-ctl`, padding 8×12 px y altura mínima de 38 px. Texto a la izquierda; cantidades a la derecha. Controles en `--t-control`, comandos/identidades en mono 12/20 y ayudas en `--t-support`.
+- Hover de Configuración cambia el relleno a `--control-hover`; Cards/Skills cambian el borde a `--muted`, solo en controles habilitados y editables. Foco de teclado: contorno de 2 px `--accent`, offset 2 px. Solo lectura mantiene selección/copiar y foco, con tinta `--muted`; disabled usa opacidad .55 y cursor de indisponibilidad, también dentro de fieldsets, sin hover activo.
+- Búsquedas y filtros compuestos tienen una sola superficie: la caja exterior recibe borde y foco, el input/select interior es transparente. Las pistas de búsqueda usan el tipo de apoyo de 12 px. A ≤340 px de contenedor, Skills prioriza el texto del buscador sobre su icono decorativo y reduce el inset de filtros a 8 px. Los menús abiertos siguen perteneciendo a `menus.css`.
+- Configuración usa grupos planos de nivel 2, `--interior-flat:#111113`, radio 12 px, sin aro ni degradado; Detalles comparte ese plano. Filas de al menos 60 px, padding 12×16 px, gap 12 px y etiqueta/ayuda separados por 4 px. Los formularios embebidos se limitan a 720 px; en compacto apilan campos largos y conservan scroll, foco y acciones. Las filas apiladas mantienen una sola columna sin wrapping lateral ni bases flex porcentuales de altura; los comandos largos se ajustan al ancho disponible conservando su texto seleccionable y copiable.
+- Creación de Card/Skill: columna editable de hasta 640 px, 8 px entre label/campo/ayuda, 16 px entre campos y pares, y 24 px desde el encabezado. Grupos separados con espacio; las acciones envuelven y permanecen dentro del scroll. La misma regla rige en canvas e inspector; `panels.css` deja estos campos a su dueño en `plugins.css`.
+
+Evidencia y límites: `docs/ui-refinement.md`. Estas reglas describen implementación; no acreditan aprobación visual humana.
+
+### Refinamiento aprobado el 2026-11-15
+
+La paleta histórica de carbón queda sustituida por los negros de E1. Marfil `#f2f0eb`, lima `#c6f135` para trabajo, ámbar `#f5c04a` para atención, verde `#65ba83` para éxito y rojo `#f27670` para peligro conservan su semántica. El dock descansa neutro; insignias y Titi siguen sus tokens específicos.
+
+El chrome y los paneles son opacos, con degradado vertical neutro, sin blur, aura ni resplandor exterior.
+Un aro degradado enmascarado y una sombra negra de contacto separan cada objeto del canvas.
+Las teclas activas son marfil con tinta oscura; el color se reserva al estado.
+Los tipos de panel comparten tono neutro y se distinguen por glifo y etiqueta.
+El acento por defecto es marfil; se conservan las elecciones guardadas y las migraciones existentes.
+
+Tipografía vigente: contenido/sidebar/botones 14 px, estados/metadatos 12 px, título de proyecto 15/20 px; pesos 400/500/600, familia Inter/SF/system existente sin fuentes remotas. El sidebar usa tinta secundaria sin la opacidad adicional .72; el proyecto es su único título, los encabezados son micro sin icono y las filas utilitarias pesan 400. El estado no encoge: los metadatos contiguos se truncan antes que «Pide permiso». Targets 40/44 px y filas 44/56 px permanecen tokenizados.
+
+En el sidebar, la base es `--surface` opaca con `--object-fill`; selección es `--row-selected` con texto `--ink`. La insignia conserva color y glifo al seleccionar, pasar y pulsar; ya no hay punto superpuesto. «Te necesitan» es el resumen numeral; «Pide permiso» conserva el significado específico entregado por el modelo. El apoyo es «tipo · estado · tiempo», en tinta secundaria. `buildSessionRows` reutiliza `timeOf`/`ago` sobre la sesión, omite el tiempo sin fecha válida y conserva título completo, nodo, modelo, orden estable y ownership. El estado no se recorta: los metadatos contiguos pueden elidirse y su texto completo queda en el título y la descripción accesible. No se derivan nuevos estados ni autorizaciones.
+
+Tokens del sidebar: glifo principal 18 px/trazo 1,75, secundario 16 px; disco plano de 32 px; target de escritorio 40 px y táctil 44 px; fila de sesión/recurso 56 px y utilitaria 44 px. Ritmo 4/8/12/16 px. Las ventanas bajas conservan estos targets y permiten scroll. Los logos SVG mantienen sus siluetas compartidas y se centran en el disco; los sprites pixelados conservan sus dimensiones enteras. ARIA, foco, teclado y callbacks permanecen en los controles existentes.
+
+Estas reglas y el frontmatter prevalecen sobre las descripciones históricas de materiales, colores, tipografía, teclas y rail. Los checks del contrato corresponden al controlador. `design-capture design-v2-e3` incorpora estados sintéticos identificados, hover/pulsado/selección, rail de 272, filas de 56, discos de 32, glifos de 18, estado sin clipping, dock de 64 y aire de 24; también ventana 1100 × 760 y puntero grueso. Las capturas son evidencia únicamente después de ejecutarse el check.
+
+`node test/design-capture.mjs <etiqueta>` construye con Vite y `root`/`outDir` absolutos del worktree, y exige que los artefactos locales coincidan con la salida generada antes de lanzar Electron. Registra el hash de HEAD y carga todas sus fuentes CSS/JS/JSX/MJS de `src` como «antes»; reconstruye después las fuentes actuales con otro perfil aislado. Conserva escenas de ajustes, atención sintética, materiales, pozos neutros y estados E2, y añade las mediciones E3. Los archivos son `/tmp/opencode/design-<etiqueta>-before-*.png` y `/tmp/opencode/design-<etiqueta>-*.png`; solo son evidencia tras ejecutar el check. El detector de pintura mide el rail real, con el umbral previo. El cierre de procesos propios y el plazo total están acotados; un fallo restaura el build actual.
+
+Tres reglas deciden casi todo. Las pruebas de tokens expresan restricciones estáticas de las dos primeras y del material.
+
+1. **Una caja por objeto.** Solo dibuja aro lo que se puede mover o lo que flota: panel, zona, rail, islas, dock, menús. Dentro se separa con espacio, tipografía, divisores de 1 px y un paso tonal. Filas directamente sobre el rail; controles primarios marfil, secundarios con relleno y fantasmas transparentes. Sin bordes de caja ni relieve en los controles del shell. Como mucho un nivel de contenido interior; la pista de un segmentado y una insignia son partes del control.
+2. **El peso lo da el estado.** Todos los objetos usan `--shadow-chrome`: `--shadow-rest`, `--shadow-float` y las dos elevaciones de trabajo son aliases de esa misma sombra negra. Selección aclara el aro existente; foco de teclado conserva su señal independiente. El trabajo real usa lima; atención ámbar, error rojo y éxito verde. La revisión de la capa SVG de actividad corresponde a E2.
+3. **Material común.** Chrome y planos de trabajo comparten base opaca, degradado vertical y aro enmascarado de 1 px. Los pozos son opacos y no transmiten el color de imágenes de fondo. Sin backdrop-filter, aura ni resplandor del material. `--shadow-key`, `--shadow-well` y `--shadow-rim` son `none`. Los controles responden con tono, sin escala ni desplazamiento; la revisión de identidad corresponde a E4.
+
+### Estado de terminal
+
+La fila «ahora» reúne marca cuadrada de 6 px, paso legible a 13 px y antigüedad a 12 px con fecha y fuente en el título; overview conserva su resumen sin hora.
+La píldora de trabajo usa una marca cuadrada pixelada; lima `--working` para trabajo y ámbar `--attention` para atención.
+La línea actual usa una marca lima trabajando y ámbar al pedir permiso o ceder el turno. Solo trabajo recibe borde superior y lavado lima estático del 7 %; atención conserva el pozo neutro, sin lavado ni anillo. Su etiqueta ámbar descansa sobre `--fill-2`; la acción primaria es marfil.
+No hay animación continua: solo `materialize` al cambiar de paso, desactivada con movimiento reducido.
 
 ### Tokens (`src/canvas-ui.css`, bloque `:root`)
 
 | Token | Valor | Uso |
 |---|---|---|
-| `--r-ctl` | 8 px | Controles: botones, campos, filas, pozos interiores |
-| `--r-obj` | 14 px | Objetos: paneles, menús, popovers, barras |
-| `--r-isle` | 22 px | Islas que flotan: rail, inspector, paleta |
+| `--r-ctl` / `--r-row` | 12 px | Controles y realce rectangular de filas |
+| `--r-obj` | 24 px | Objetos: paneles, menús, popovers, barras |
+| `--r-isle` | 24 px | Islas que flotan: rail, inspector, paleta; dock en píldora |
 | `--r-mark` | 4 px | Marcas de menos de 20 px: kbd, casilla, scrollbar. No es una superficie |
 | `--r-pill` | 999 px | Chips y estados. No es una superficie |
-| `--hairline` | blanco al 8 % | El único borde. Lo dibuja el objeto, una vez |
-| `--shadow-rest` | ciruela, corta | Un objeto apoyado en el lienzo |
-| `--shadow-float` | ciruela, larga | Todo lo que está por encima: chrome, menús, panel seleccionado o arrastrado |
+| `--bg` / `--terminal-bg` | `#020203` / `#040405` | Lienzo negro y terminal |
+| `--surface` / `--surface-2` / `--surface-3` | `#0b0b0c` / `#111113` / `#1d1d20` | Base de objeto / campos / selección de fila |
+| `--object-top` / `--object-bottom` | `#151518` / `#0b0b0d` | Extremos del degradado vertical |
+| `--object-sheen` | `radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #fff 4%, transparent), transparent 60%)` | Luz cenital tenue arriba-izquierda |
+| `--object-fill` | `var(--object-sheen), linear-gradient(var(--object-top), var(--object-bottom))` | Lista de imágenes, separada de la base opaca |
+| `--object-ring-width` | 1 px | Aro enmascarado; overview compensa el zoom con `--ov` |
+| `--object-edge-top` / `--object-edge-bottom` | blanco al 26 % / 7 % | Extremos del aro |
+| `--object-ring` | `linear-gradient(var(--object-edge-top), var(--object-edge-bottom))` | Único contorno del objeto |
+| `--selected-edge-top` / `--selected-edge-bottom` | blanco al 36 % / 10 % | Selección sobre el mismo recorrido |
+| `--hairline` | blanco al 10 % | Divisores y bordes interiores existentes |
+| `--shadow-chrome` | `0 1px 2px #000, 0 16px 32px -16px #000` | Sombra negra de contacto común |
+| `--shadow-key` / `--shadow-well` / `--shadow-rim` | `none` | Sin relieve de control |
+| `--glass-tint` | `#0b0b0c` | Negro independiente del acento |
+| `--glass` / `--glass-thick` | ambos `var(--surface)` | Bases opacas |
+| `--menu` | `var(--surface)` | Base del mismo material, bajo control de menus.css |
+| `--menu-edge` | blanco al 13 % | Compatibilidad; no dibuja otro contorno |
+| `--glass-filter` | `none` | Chrome sin blur |
+| `--glass-sheen` | `var(--object-fill)` | Degradado vertical neutro |
+| `--ink-3` / `--muted` | `#8b8983` / `#a8a6a0`; los menús conservan estos tres niveles también en chrome | Metadatos, texto secundario e iconos en reposo |
+| `--ink-on-glass` | `#a8a6a0`; `#b0aea8` con transparencia reducida o contraste aumentado | Tinta secundaria local del chrome |
+| `--on` / `--on-ink` | `#ece6d8` / `#141414` | Primaria y segmento seleccionado |
+| `--on-hover` / `--on-press` | `#f6f1e6` / `#d6d0c2` | Feedback de primaria |
+| `--control-fill` / `--control-hover` / `--control-press` | `#ffffff14` / `#ffffff1f` / `#ffffff0a` | Secundaria plana |
+| `--row-hover` / `--row-press` | `#ffffff0a` / `#00000040` | Fila completa, sin movimiento |
+| `--control-size` / `--dock-control-size` | 36 / 40 px | Diámetros pintados; área de interacción independiente |
+| `--seg-height` / `--seg-pad` / `--seg-gap` | 36 / 4 / 4 px | Segmentos de 28 px, radio píldora |
+| `--rail-width` / `--gutter` | 272 / 12 px | Rail expandido y margen exterior |
+| `--dock-h` / `--dock-clearance` | 64 / 24 px | Alto de dock y aire inferior/con paneles |
+| `--workplane` | `var(--surface)` | Base opaca de conversación/terminal |
+| `--workplane-wash` | `var(--object-fill)` | Mismo degradado del chrome |
+| `--well` | `#040405` | Pozo opaco del chat lateral |
+| `--well-raised` | `#0b0b0d` | Campo de escritura opaco |
+| `--well-terminal` | `#040405` | Hilo de chat del canvas y salida de terminal opacos |
+| `--ease-spring` / `--dur-spring` | `var(--ease-settle)` / `var(--dur-open)` | Aliases de compatibilidad; sin rebote |
+| `--dur-fast` | 120 ms | Transición tonal lineal de controles/filas |
+| `--shadow-rest` / `--shadow-float` | `var(--shadow-chrome)` | Mismo contacto en reposo, selección, arrastre y foco |
+| `--shadow-workplane-rest` / `--shadow-workplane-lift` | `var(--shadow-chrome)` | Aliases de compatibilidad para conversaciones y terminales |
+| `--action` | `#c6f135` | Acción de estado; alias de `--working` |
+| `--working` | `#c6f135` | Trabajo en curso |
+| `--attention` | `#f5c04a` | Permiso/pregunta pendientes, turno que necesita al usuario |
 
-`test/design-tokens.test.mjs` falla si: un `border-radius` usa otro valor (se admiten `0`, `50%`, `em` y los ajustes concéntricos `calc(token - 1px)`); un `box-shadow` no es `--shadow-rest`, `--shadow-float` o un anillo de estado (desplazamiento y desenfoque cero); reaparece un token retirado (`--line`, `--hairline-strong`, `--elev-*`, `--r-xs…xl`, `--object-*`, `--shadow-popover`, etc.); o una hoja supera su presupuesto de bordes en `test/design-budget.json`. El presupuesto solo baja: al quitar bordes, se reduce el número en el mismo cambio.
+`test/design-tokens.test.mjs` restringe radios, sombras, tokens retirados y presupuesto exacto por hoja. E1 exige negros, degradado opaco, aro único, sombra común y ausencia de blur. E2 permite cometa de trabajo, realce finito y aro ámbar; E3 añade insignias planas de estado y paleta estable, rail/controles/segmentado/hover/dock, conservando rastreo transitivo de aliases. E4 exige grupos planos, controles sin borde, geometría de switches, contacto exclusivo del slider, paleta de categorías y Titi compartido con claves heredadas. Mantiene AA de 4,5:1 para texto y 3:1 para indicadores, incluidas escritura, imagen blanca, teclas e insignias. Conserva las restricciones de compositor, preferencias, ANSI y modelos indicadas en `docs/design-v2.md`. Las aserciones estáticas no acreditan ejecución ni aceptación visual.
 
-Sin side-tabs: un borde lateral de color no marca tipo ni categoría (el tipo de memoria se lee en su glifo y etiqueta con tono). Skills usa el glifo de libro de `PanelIcons.js`, no el emblema genérico de IA.
+Sin pestañas laterales de color para categorías: el tipo se lee en glifo y etiqueta. Skills usa libro; `ShellIcons.jsx` exporta `BookIcon` y lo asocia a `phantom-skills`.
 
-Estado del presupuesto: la card de chat y terminal ya cumple la regla 1 (`chat.css` 25 → 14, `terminal.css` 7 → 1); al quitar los side-tabs bajaron `branches.css`, `memory.css` y `repository.css`. El resto de hojas conserva su cifra de partida y está pendiente: `plugins.css`, `styles.css`, `repository.css` y `skills.css` son las más cargadas.
+Presupuesto E1 con el mismo algoritmo `drawnEdges` (declaraciones `border`, incluidos divisores y bordes transparentes; máscaras no cuentan):
 
-## Material y paleta
+| Hoja | Antes → E1 | Delta y motivo |
+|---|---|---|
+| `canvas-ui.css` | 20 → 7 | −13: dos reglas comunes de islas, `.canvas-node`, `.zone-selection/.group-selection`, `.tw-palette/.tw-voice/.app-dialog`, `.agent-editor`, rail expandido y contraído, `.workspace-identity/.header-controls`, `.focus-return`, `.inspector-host`, cabecera responsive y `.activity-dock`; sus bordes pasan al aro único |
+| `chat.css` | 13 → 10 | −3: `.pc-agent-menu`, `.pc-models`, `.pc-effort-menu`; aro común de menú |
+| `sidebar.css` | 1 → 0 | `.context-menu-panel`; aro común |
+| `phantom-chat.css` | 1 → 0 | `.phantom-chat`; aro común |
+| `menus.css` | 1 → 0 | `::picker(select)`; aro enmascarado |
+| `studio.css` / `terminal.css` | 7 / 1 → 7 / 1 | Sin delta |
 
-- **Planos.** Ciruela casi negra `--bg #0b0910`; trabajo `--surface #131019`; elevación `--surface-2 #1c1725` y `--surface-3 #292133`. Texto `--ink #eee9f4`, secundario `--muted #a69bb7`. Terminal opaca `--terminal-bg #0e0b13`. Nunca negro puro.
-- **Rellenos.** Una escalera blanca-alfa: `--fill` 5 %, `--fill-2` 9 %, `--fill-3` 14 %. Sin degradados, luces interiores ni relieve en controles.
-- **Acento.** Violeta `#a78bda` (clave `lilac`) para selección, foco y acción. Iris, Menta, Ámbar, Rosa y Cian siguen disponibles por proyecto.
-- **Estados.** `--working` azul frío, `--attention` ámbar (te necesita), `--danger` rojo rosado, `--success` menta. Cada estado tiene un valor; los fondos se derivan con `color-mix`. El acento no se usa para estado.
-- **Vidrio.** Solo el chrome: `--glass` (64 %) o `--glass-thick` (84 %) con `--glass-filter`. Los planos de trabajo (terminal, hilo, paneles) son opacos. `prefers-reduced-transparency` lo vuelve todo opaco.
-- **Tipografía.** `--sans` Inter → SF Pro → sistema; `--mono` Monaspace Neon → GeistMono → JetBrains Mono, solo para código, rutas y medidas. Chrome a 12–13 px, mínimo 10 px, siempre en píxeles enteros (sin medios píxeles). Las etiquetas van en caja natural, peso 600 y `--muted`; nunca en mayúsculas con tracking. Iconos lucide y `PanelIcons.js` con trazo 1,75.
-- **Atmósfera.** El fondo es por proyecto (Gengar, Aurora, Marea, Brasa, Grafito o imagen propia). El preset Gengar usa el arte oficial local (`assets/gengar-source.md`) como atmósfera atenuada, no como marca: la identidad es el glifo Phantom. El arte no se redistribuye fuera de uso personal.
+En E1, shell y settings conservaban cero declaraciones contadas; E4 introduce los deltas siguientes, sin margen para etapas futuras.
+
+Delta E3: `sidebar.css` **0 → 1**, por `border-block: var(--row-air) solid transparent` del selector compartido `.rail-attention, .rail-map-action, .rail-panel-row`. Son 2 px transparentes arriba/abajo, 4 px de aire entre realces; no dibujan contorno. El divisor entre grupos es un pseudo-elemento de 1 px y opacidad transitoria, sin alterar el espacio. `canvas-ui.css` conserva **7**, `shell.css` **0** y el resto conserva los recuentos exactos anteriores.
+
+Delta E4: `settings.css` **0 → 2** por los dos `border-block` transparentes de `.st-nav li button` y `.st-row` (aire de interacción, sin contorno). Divisores de listas/categorías/Detalles: pseudo-elementos de 1 px, no bordes de caja; la sangría es 60 px con insignia y 16 px sin ella. `studio.css` **7 → 5**: `.interface-scale select` y `.background-option` pierden sus bordes. Se retiran también outlines de selección de muestras, que no contaban en el algoritmo. `canvas-ui.css` queda en **7**, `identity.css` y `shell.css` en **0**. Los demás valores de `test/design-budget.json` permanecen exactos. El contacto del slider se permite solo en `.st-slider`; no sirve de excepción para grupos ni botones.
+
+Delta E5: `chat.css` **10 → 8**. Se retiran cinco bordes de caja: `.pc-field`, `.pc-ask`, `.pc-question`, `.pc-option` y `.pc-option-input`; se incorporan tres declaraciones: barra marfil de `.pc-message.is-user`, divisor superior de `.pc-composer` y aire transparente `border-block` de `.pc-session-row`. Las guías de actividad y divisores entre filas son pseudo-elementos de 1 px, sin aro ni sombra. Se conservan los otros cinco bordes de contenido (pasos, razonamiento, cita Markdown, imagen y división entre preguntas). `canvas-ui.css` conserva **7**, `terminal.css` **1**, `phantom-chat.css` y `voice.css` **0**. El presupuesto no contiene holgura.
+
+Delta etapa 6·2a: `chat.css` **8 → 7**. Se retira el divisor superior de `.pc-composer`: el compositor comparte el pozo del hilo y la isla se distingue por relleno y aro `box-shadow` inset, sin bordes nuevos.
+
+Delta de `.pc-card`: `plugins.css` **8 → 7**. Se elimina su borde para quitar la caja interior; hover y selección se expresan con los tonos compartidos `--row-hover` y `--row-selected`, sin añadir bordes.
+
+E5 amplía las restricciones a la lectura 14/20, cita sin burbuja, insignias estables de sesión, actividad sin tarjetas, compositor a sangre, vista previa independiente del borrador y medidor de nivel real. `test/subagent-card-width.test.mjs` conserva min-width cero, columna `minmax(0,1fr)` y contención de descendientes; añade ausencia de tarjeta y wrapping del estado. Los umbrales AA permanecen y se incluye `--prose-ink:#d9d6cf`.
+
+`test/design-capture.mjs design-v2-e5` incorpora `session-new`, `session-working` y `session-dictating`, cada una a 1520×980 y 1100×760, además de progreso medido y dictado con movimiento reducido. Usa componentes del build con conversaciones, subagentes y respuestas ASR marcadas **SYNTHETIC**, audio de oscilador WebAudio y perfil aislado. Comprueba receta común en mapa/foco/lateral, ausencia de porcentaje sin total, detalles con teclado, barras en silencio, cancelación conservando borrador y Enter repetido con una única entrega final. `voice-desktop.mjs` añade X/Esc/cambio de proyecto con resultado tardío, conserva errores/permisos e inserción revisada sin Enter; los scripts de compositor y planos usan el build de Vite. Estas son comprobaciones declaradas: su ejecución, capturas resultantes y cierre los informa Phantom.
+
+## Arquitectura de información
+
+Dirección aprobada por Carlos el 2026-11-14 («que todo se sienta fácil», referencia One UI y Apple). Mocks en `.impeccable/mocks/dx/`.
+
+**Una línea por estado, una acción por fila.** Cada fila lleva un título humano (el nombre de la sesión, nunca un UUID), una palabra de estado, una línea de detalle y como mucho una acción principal. Lo técnico (rutas, identificadores, JSON, salida cruda) vive detrás de un `<details>` llamado «Detalles». La interfaz no explica lo que no hace.
+
+**Ramas.** Filtro por estado con contadores y grupo «Ya en main» plegable con su limpieza. Las acciones en lote viven en la cabecera de su grupo; los avisos ok son efímeros (6 s). En estrecho, el chip baja bajo el texto y la acción permanece a la derecha.
+
+**Cinco destinos, no veinticinco paneles.** El dock separa crear (Terminal, Navegador, Nota, Zona) de ir (Trabajo, Git, Servicios, Contexto, Automatizar). Cada destino es un panel con pestañas (`src/hooks/hubs.mjs`); los tipos de panel anteriores siguen siendo válidos para lienzos guardados y abren su destino en la pestaña correspondiente.
+
+| Destino | Pestañas |
+|---|---|
+| Trabajo | Tareas · Borradores · Misiones |
+| Git | Ramas · Historial · Cola |
+| Entorno | Este proyecto · Docker · Todos los proyectos |
+| Contexto | Documentos y memoria · Skills |
+| Automatizar | Secuencias · Navegador · Código |
+
+«Este proyecto» es el tablero del entorno (`Environment.jsx`): abre con una línea de estado, el porqué y un botón principal; después Cómo arrancar (scripts de `package.json`, también de la copia propia de la sesión), Procesos vivos (absorbe la antigua pestaña Procesos; el tipo `processes` abre esta pestaña), Puertos y sitios (salud real con `probe`, cada 15 s), Preparación de las copias de sesión (con Reintentar) y Pruebas de integración. Lo técnico va plegado en «Detalles».
+
+`App.jsx` reutiliza el panel existente de cada destino al abrirlo. `ToolPanels.jsx` recuerda la pestaña elegida en localStorage (`phantom.hub.${type}`, por tipo de destino); una petición explícita de pestaña prevalece sobre ese recuerdo. Las aperturas dirigidas a una tarea (`cardId`), referencia (`ref`) o panel (`focusNodeId`) conservan su destino dedicado en lugar de convertirse en un panel unificado.
+
+**Una bandeja.** Rail y campana abren «Te necesitan»; la campana de la barra superior solo aparece con el rail contraído o estrecho, cuando la fila del rail no está visible, con vistas Pendientes, En curso y Hoy. Pendientes separa «Decide ahora» (permisos, preguntas, tareas o sesiones bloqueadas y problemas de integración) de «Cuando puedas» (ramas listas, cambios sin guardar en la base y cola sin nadie integrando). El contador compartido solo cuenta «Decide ahora»; el modelo evita repetir la misma sesión entre fuentes cuando ya está representada. Una sola pendiente queda abierta a la vez, inicialmente la primera: muestra el tiempo de espera, un extracto de lo último que dijo el agente y permite responder en la fila cuando la terminal espera texto. Los permisos de chat muestran el comando completo y se aprueban o rechazan en la fila; las preguntas ofrecen sus opciones o llevan al chat/sesión. Los permisos de terminal se resuelven en la sesión. La bandeja usa una columna, sin «Tu plan»; los límites viven en Configuración. El control del dock añade la pendiente más urgente y su antigüedad. Las demás acciones abren la tarea, sesión, Git o el orquestador; abrir la bandeja no resuelve pendientes. Sin conexión se indica el estado y se desactivan las respuestas; una fuente fallida muestra aviso y Reintentar.
+
+**Una Configuración**, por categorías, con filas agrupadas. Las fuentes del proyecto se «conectan»; la palabra plugin no aparece en la interfaz.
+
+### Vocabulario
+
+| Se dice | No se dice |
+|---|---|
+| integrar · Cola | incorporar, Incorporaciones, merge, solicitud |
+| sin guardar · Guardar | WIP, sin commitear, commit (como verbo de botón) |
+| sesión | vista, proceso, descriptor |
+| main · la carpeta del proyecto | checkout, rama de integración, base |
+| copia propia de la sesión | worktree |
+| Te necesitan | atención, avisos, bandeja de actividad |
+
+Estados de una rama, y solo estos: Trabajando · Sin guardar · Lista · En cola · Integrando · Conflicto · En main.
+
+## Material y planos · Etapa 1
+
+- **Bases opacas.** Lienzo `#020203`, pozo `#040405`, objeto `#0b0b0c`, relleno interior `#111113`, selección de fila `#1d1d20`. Studio y canvas declaran la misma paleta. El fallback de xterm usa `#040405`, conservando cursor, selección, preferencias y ANSI.
+- **Objeto común.** Rail, paneles, inspector, dock y flotantes usan `--object-fill`: degradado vertical `#151518` → `#0b0b0d` con luz cenital `--object-sheen` sobre base opaca. `--glass`, `--glass-thick`, `--workplane` y `--menu` son aliases de `--surface`; `--glass-sheen` y `--workplane-wash` son aliases de la imagen. No se asigna una imagen a `background-color`. Radio exterior 24 px; dock conserva píldora. Cabeceras y `.node-body` transparentes dejan ver el material.
+- **Aro único.** Pseudo-elemento `::before`, absoluto, `inset:0`, radio heredado, padding de 1 px, z-index 3 y `pointer-events:none`. Fondo `linear-gradient(var(--object-edge-top), var(--object-edge-bottom))`, blanco al 26 % arriba y 7 % abajo. Máscara `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`, `-webkit-mask-composite:xor; mask-composite:exclude`. Sustituye el borde exterior; no se añade outline de selección. Los elementos interiores del dock no duplican su aro. Los menús son propiedad de `src/menus.css` y restablecen el aro neutro aunque se abran dentro de un panel seleccionado.
+- **Selección y foco.** El panel seleccionado aclara el mismo aro a 36 %/10 %, sin aumentar su grosor ni añadir halo. Overview conserva la compensación de zoom semántico. Las acciones y sus focos siguen operativos; el centro transparente de la máscara no cubre texto ni controles. Seleccionar un panel no atenúa ni filtra la lectura de sus vecinos.
+- **Contacto.** `0 1px 2px #000, 0 16px 32px -16px #000` para todos los objetos, incluidos reposo, selección, arrastre y foco. Sin backdrop-filter, aura ni resplandor del material. Las elevaciones anteriores son aliases y los tokens de relieve de control son `none`.
+- **Pozos.** Hilo lateral, hilo del canvas y salida de terminal: `#040405` opaco. Escritura: `#0b0b0d` opaco, contigua al hilo, con campo transparente. Una imagen blanca detrás no penetra en la lectura. El canvas permanece transparente sobre la base/arte ambiental permitido entre objetos.
+- **Tintas y controles.** Se conservan `--ink #f2f0eb`, `--muted #a8a6a0`, `--ink-3 #8b8983`, estados y acentos guardados. E3 lleva `--on` a `#ece6d8`, con `--on-ink #141414`. Selección de rail usa `--row-selected`. Menús conservan tinta, peso y marca del valor actual, con relleno solo en hover/teclado.
+- **Accesibilidad.** Se mantienen `prefers-reduced-transparency: reduce` y `prefers-contrast: more`: bases y pozos opacos, sin filtro, tinta secundaria de chrome `#b0aea8`. Contraste aumentado eleva el aro a 32 %/12 % (seleccionado 44 %/20 %) y hairline a 22 %. Transparencia reducida oculta la atmósfera `::before`; el arte `::after` conserva su control de personaje. Los umbrales siguen en 4,5:1 para texto y 3:1 para indicadores.
+- **Tipografía.** `--sans` Inter → SF Pro → sistema, sin descargas remotas; `--mono` para código, rutas y cifras. Display 24/30·600, Título 15/20·600, Headline 14/22·600, Lectura 14/20·400, Control 14/20·500, Apoyo 12/16·400 y Micro 12/16·500. Actividad en código: 12/16; previsualización de terminal: 12/18. La fuente de xterm conserva su configuración.
+- **Atmósfera.** Se conservan Marea, Brasa, Grafito e imagen propia; Gengar/Aurora antiguos migran a Grafito sin gradientes violetas por defecto. Los degradados opcionales se localizan arriba a la derecha (82 % × 80 %) y abajo a la izquierda (64 % × 64 %), sin repetición. La imagen propia usa `cover` centrado. Ambiente y personaje tienen intensidades independientes. «Mostrar Titi» controla la única mascota de escena: bienvenida/vacío o dock. El fondo ya no duplica identidad; los assets heredados permanecen en el repositorio. La atmósfera permanece inmóvil incluso con una preferencia de pulso guardada.
+
+## Iconos
+
+`src/components/ShellIcons.jsx` define geometría propia sobre retícula de 24 px, con variante de línea (`strokeWidth=1.75`, extremos y uniones redondos) y silueta sólida monocroma con vaciados `evenodd`. El tamaño predeterminado es 20 px. Incluye terminal, chat, nota, sitio, imagen, zona, selección, mano, minimapa, encuadrar, actividad, recursos, mapa, plugins, comandos, libro, tareas, Git y herramientas del shell. `SHELL_ICONS` asigna tipos; `SHELL_LINE_ICONS` y `SHELL_SOLID_ICONS` permiten elección explícita.
+
+La variante automática pasa a sólida con `.active`, `aria-pressed`, `aria-current`, `aria-expanded` o fila seleccionada. `variant="line"` fuerza línea y `active` fuerza sólido. Las insignias del rail fijan línea: seleccionar no cambia la silueta ni su tinta blanca. Reutilizan `ProviderGlyph`/`ShellIcons`, a 18 px/trazo 1,75, sin asterisco ni emblema genérico. El glifo de cabecera de un panel seleccionado/enfocado conserva su comportamiento previo.
+
+Lucide continúa en controles auxiliares: 14 px/trazo 2, 16 px/trazo 1,75 y 20 px/trazo 1,5; las cabeceras de herramientas conservan ajustes de 18 px. Los SVG decorativos son `aria-hidden`; el nombre accesible lo aporta el control.
 
 ## Lienzo y chrome
 
-- El canvas va de borde a borde; el chrome son objetos apoyados sobre él con un único hueco `--gutter` de 16 px.
-- **Rail:** 252 px, radio `--r-isle`, alto según contenido; contraído es una píldora de 48 px.
-- **Fila superior:** título y controles son dos islas de 48 px (`--bar`); entre ellas hay canvas. `--top-clear` es la primera línea libre.
-- **Inspector:** contrapeso del rail, 360 px, cuelga bajo los controles.
-- **Dock:** lecturas de actividad arriba y fila de herramientas abajo en un mismo objeto, sin línea entre ambas. Botones de 64×52 px, icono sobre palabra, sin acción primaria teñida.
-- **Retícula:** puntos en espacio-mundo; duplican el paso por debajo de 14 px. El viewport no se desplaza: solo la cámara.
+El material es el de E1; rail, controles y dock adoptan E3. Configuración adopta el inspector y los grupos planos de E4.
+
+- El canvas va de borde a borde; `--gutter` es 12 px. En foco, los insets del rail e inspector reducen el ancho disponible sin desplazar un plano completo fuera del viewport. El dock reserva su aire propio de 24 px.
+- **Rail:** 272 px, radio 24 px, padding 12 px, gap 8 px y top/bottom/left de 12 px. La lista usa el alto disponible y scroll; contraído conserva su píldora. `src/sidebar.css` es dueño del interior: sesiones/recursos de 56 px, insignia de 32, inset horizontal de 16 y gap de 12. Título de una línea con elipsis y original accesible; apoyo tipo/estado/tiempo. Las filas descansan directamente sobre el rail. Los divisores solo separan grupos, con inset superior de 20 px, y se ocultan sin cambiar espacio al interactuar con las filas vecinas. Sin marca: la cabecera (`div.brand.rail-head`) es una fila de dos líneas de 56 px (`--row-detail`) en grid `32px minmax(0,1fr) auto` —disco de 32 px a la izquierda; arriba el nombre del proyecto (`--t-control` 600, una línea con elipsis) y debajo el espacio como texto de apoyo (`--t-support`, tinta secundaria, chevrón pequeño, sin relleno en reposo, realce tonal al pasar, 24 px visuales con área táctil completa); a la derecha contraer o cerrar— sin «/» (la barra superior conserva «proyecto / espacio») y ancla ambos menús a todo el ancho del rail. «Te necesitan» es la primera fila bajo ella (terciaria en reposo, texto y numeral ámbar con pendientes). Pie con gap 8 y padding izquierdo 16.
+- **Hover y pulsado:** rectángulo a todo el ancho, radio 12 px y aire de 2 px arriba/abajo. Hover `#ffffff0a`, pulsado `#00000040`, selección `#1d1d20`, selección-hover mezcla blanca al 4 %, selección-pulsado negra al 25 %. Transición tonal de 120 ms linear; no escala, desplazamiento ni cambio de insignia. El estado y `aria-current` se conservan. Clic sigue llamando `onJump`; la acción de maximizar llama `onFocus` por separado. Doble clic de cabecera y propiedad PTY conservan sus contratos.
+- **Controles del shell:** `src/shell.css` gobierna fila superior, navegación y dock. Primario marfil/tinta oscura, secundario circular de 36 px con un paso de relleno (40 en dock), fantasma transparente hasta hover. Ningún control recibe aro, borde visible o sombra de tecla. El foco de teclado conserva outline de 2 px; filas y acciones dentro de scroll lo dibujan hacia dentro para evitar recortes. Los objetivos efectivos siguen en 40/44 px, independientes del diámetro pintado. `control-segmented` comparte pista de 36, padding/gap de 4, segmentos de 28 y radio píldora entre las herramientas del canvas y la primitiva `Segmented`: seleccionado marfil, pulsado `--on-press`; no seleccionado `--row-hover`/`--row-press`. Disabled conserva bloqueo, relleno `--control-fill` y tinta `--ink-3`.
+- **Fila superior:** una sola barra de 48 px (`--bar`) con el material y el aro de los objetos, desde el borde del rail hasta el margen derecho; identidad («proyecto / espacio» en una línea, ruta en el `title`) y controles son grupos sin caja. «Guardado» es un check silencioso; guardando y errores muestran el texto. En modo foco y con el rail contraído la identidad se oculta y la barra se reduce a los controles, alineada a la derecha, sin cubrir «Volver al mapa» ni la cabecera del panel; mide siempre `--bar` de alto. `--top-clear` es la primera línea libre.
+- **Inspector:** contrapeso del rail, 320 px. Configuración ocupa top/right/bottom 12 px; las otras herramientas mantienen su cabecera y posición bajo los controles.
+- **Franja inferior:** `.canvas-stage` reserva `2 × --dock-clearance + --dock-h` (112 px) en mapa y en foco: un solo nivel. Dock y navegación quedan fuera del recorte; la cámara no coloca contenido interactivo bajo esas islas. El minimapa flota sobre la esquina inferior derecha del escenario y puede ocultarse. La franja conserva la atmósfera, sin otra caja. El grupo de herramientas cede antes que el dock: `--tools-column` es lo que sobra tras un dock completo (264–480 px), y el grupo baja a `compact`/`tight` antes de que el dock pierda la muesca de actividad.
+- **Dock:** objeto píldora único de 64 px, a 24 px del borde inferior y con al menos 24 px libres frente a los paneles. Padding/gap de 12 px; «Nueva sesión» primaria de 40 px, padding 0/18 y gap 8; acciones secundarias circulares de 40. Se conserva el catálogo completo de creación/hubs/Más, con scroll de acciones cuando falta ancho y menú fuera del recorte. En mapa ocupa solo su fila, centrado (`--dock-x`) en el espacio a la izquierda de la navegación; su `max-width` resta la reserva de la navegación y 24 px de separación, y ambos se pliegan por `data-fit` antes de solaparse. En foco se centra en todo el ancho. Con Phantom o inspector (≤1700 px) el minimapa se oculta y la navegación sigue abajo a la derecha. El área táctil de los controles crece a 44 px sin reducir el tamaño del dock.
+
+### Insignias y paleta · Etapa 3
+
+Modo implementado en este mandato: **por estado**. Gris vidrio en reposo/terminó/error con el glifo del tipo; lima apagada al trabajar; ámbar apagado cuando te necesita, con prioridad sobre trabajo. Círculo de 32 px, glifo blanco de 18 px/trazo 1,75, sin degradado, brillo ni aro. Transición de color de 200 ms linear únicamente al cambiar estado; inmóvil con movimiento reducido.
+
+La especificación describe «por estado» como **predeterminado recomendado, pendiente de confirmación de Carlos frente a por tipo**; este mandato pide implementarlo sin añadir preferencia ni interfaz de elección. La paleta queda definida para etapas posteriores con los literales aprobados, **sin afirmar croma idéntico**:
+
+| Token | Valor | Conceptos de la referencia |
+|---|---|---|
+| `--badge-steel` | `oklch(0.64 0.11 250)` | Codex, carpeta/repositorio, retícula |
+| `--badge-mint` | `oklch(0.64 0.10 165)` | OpenCode, permisos |
+| `--badge-honey` | `oklch(0.64 0.11 85)` | Notas/documentos, avisos |
+| `--badge-coral` | `oklch(0.64 0.11 30)` | Claude, sonido de error |
+| `--badge-violet` | `oklch(0.64 0.10 300)` | Voz, modelo, sonido de fin |
+| `--badge-petrol` | `oklch(0.64 0.10 210)` | Terminal/navegador, animación de sesión |
+| `--badge-neutral` | `oklch(0.36 0.008 260)` | Reposo/sin clasificar |
+| `--badge-working` / `--badge-attention` | `#5d7521` / `#b5872f` | Estado del rail, no superficie |
+
+`src/panels.css` es el dueño del aspecto de los paneles de herramientas (`tw-*` dentro de `.canvas-node`), Skills, barra del navegador y nota.
+- **Retícula:** `radial-gradient(var(--dot) 1px, transparent 1.2px)`, tinta `#f2f0eb` al 5 %, paso base 24 × 24 px; sin retícula mayor superpuesta. Conserva el anclaje al espacio-mundo y duplica el paso por debajo de 14 px. El viewport no se desplaza: solo la cámara.
 - **Ritmo:** múltiplos de 4 px (`--s-1`…`--s-6`).
 
 ## Card de chat y terminal
 
+El hilo y la terminal nunca se desplazan en horizontal; los bloques de código conservan su propio scroll.
+
 La card es la caja. Dentro no hay líneas:
 
-- **Cabecera** (44 px): mismo tono que la card, sin costura. Glifo del tipo, título, acciones.
-- **Identidad:** selector de agente y carpeta en una fila, sin fondo propio.
-- **Hilo:** a sangre. Turnos separados por 28 px. Pasos de herramientas, subagentes, bloques de código y salidas son pozos de un tono (`--fill` o un paso sobre `--terminal-bg`) con `--r-ctl`, sin borde ni cabecera subrayada. Las guías de 1 px de razonamiento y pasos anidados se conservan: indican anidamiento, no contienen.
-- **Segmentado** Claude · OpenCode · Codex · Terminal: pista `--fill`; el segmento activo se tiñe con el tono del proveedor. Sin anillos.
-- **Compositor:** el único relleno interior (`--surface-2`, `--r-obj`). El borde es transparente hasta que tiene foco; entonces toma el tono del proveedor con un anillo de 3 px. Modelo, Effort y permisos son texto con hover, no chips rellenos. Debajo, sin fondo: contexto, costo y pista de teclado.
-- **Terminal:** el pozo de salida se distingue por tono. Su borde superior es transparente y solo se colorea con estado (azul trabajando, ámbar te necesita).
-- **Preguntas y permisos pendientes** sí llevan borde de color: es estado. Resueltos, lo pierden.
+- **Cabecera:** sesión interior de 56 px; conserva el encabezado exterior y su estado, sin apilar otra cabecera de identidad. «Conversación nueva» sigue accesible en los controles del compositor. La sesión interior reutiliza `ActivityTrace` con duración 7 s y longitudes 14/10/6/3/1,2 px, sin modificar observadores ni suspensión; mapa de terminal y zoom semántico conservan la receta E2.
+- **Nueva sesión:** proveedores habilitados por la política en filas de 64 px con insignia plana de 32 px y radio de 20 px; flechas, Inicio/Fin y `aria-checked`. Un proveedor histórico no habilitado se identifica como historial y no se ofrece como opción. La receta `control-segmented` común se usa para Chat/Terminal. No se crean catálogos ni capacidades a partir del mock.
+- **Contexto:** Carpeta, Permisos y Modelo son filas etiqueta–valor–chevrón con borde derecho común. Carpeta despliega la ruta y rama reales; no ofrece un cambio de destino ficticio. Permisos conserva su ciclo y descripciones; Modelo conserva catálogo, errores y elección explícita. Effort/Variant sigue disponible. Al existir mensajes, estos controles se pliegan en «Contexto de la sesión», un chip píldora dentro de la isla (carpeta + nombre corto) cuyo contenido abre como popover sobre la isla; Escape o clic fuera lo cierran.
+- **Hilo:** pozo opaco a sangre, Lectura 14/20 y prosa `#d9d6cf`. El mensaje propio es una cita con barra marfil de 2 px, padding izquierdo 12, margen horizontal 16 y final 8 px, sin burbuja. Pila de 12 px. Modelo, tiempo y costo disponibles se dicen una vez al pie del turno; tiempo vivo durante trabajo, duración medida al finalizar y hora como fallback. Copiar sigue disponible.
+- **Actividad:** filas de 40 px, padding 8×16, glifo de 16 en columna 32×20 y guía de 1 px en x=32, de top 10 a bottom 18. Phantom usa `PhantomGlyph`, Titi operativo quieto. Herramientas, subagentes y encargos no reciben tarjetas; conservan estado, errores, instrucciones, resultados, pasos y enlaces, con `<details>` nativo. Una fila viva resume el turno; el seguimiento de checks solo dibuja progreso cuando `state.total > 0`, con valor `state.passed` y máximo real. El número de pasos observados no se convierte en porcentaje.
+- **Compositor (etapa 6·2a, isla):** el compositor comparte el pozo opaco del hilo (`--well-terminal`; `--well` en el chat lateral), sin divisor, con padding **0 24px 24px**. Dentro, el campo es una isla centrada de ancho máximo `--composer-max` (720 px): radio `--r-obj`, relleno blanco 3 % (`--composer-fill`), aro de 1 px por `box-shadow` inset (`--composer-ring`) y padding 12/12/8. Foco «luz»: con `:focus-within` el relleno sube a 5 % y un pseudo-elemento enmascarado ilumina el aro desde arriba (`--composer-light-top`), 120 ms lineal y sin transición con movimiento reducido. Gap campo/controles 12 px y gap de controles 8 px, idénticos en canvas, foco y lateral. Enviar/confirmar marfil y controles secundarios circulares de 36 px (target de 44 px con puntero grueso). Columna del hilo, dock, línea de estado, cola y aviso comparten el ancho máximo de 720 px.
+- **Contenido de la isla (etapa 6·2b):** no hay pie. «Conversación nueva» sigue en la isla, seguida del chip «Contexto de la sesión»; a la derecha, el contador de contexto (anillo de 20 px, número desde 70 %, aviso desde 90 %, rojo solo desde 95 %, nada sin medición), modelo compacto y effort (con mensajes), micrófono y detener/enviar. La pista de teclas pasa al `title` de Enviar. Las operaciones reales de compactación y continuidad se dicen en una única línea de estado sobre la isla; el aviso de compactación no integrada vive en el panel del contador. Por debajo de 520 px de isla chip y modelo quedan en icono; por debajo de 400 px se oculta effort. En la sesión nueva el compositor es transparente como el hilo.
+- **Tamaño compartido:** `ChatCard`, `PhantomChat` y el compositor del orquestador usan `useComposerSize`. Campo mínimo de 40 px; el máximo conserva el límite del 45 % y la reserva de hilo del hook. El valor observado incluye la vista previa para ajustar altura, sin modificar el borrador. Texto con scroll interno; controles fuera de él; altura sin animación.
+- **Chat lateral:** mismo material vertical de objeto, hilo y compositor contiguos de nivel 2. Proveedor y contexto comparten las filas de sesión; Chat/Orquestador comparte la receta del segmentado. Sugerencias, cola y conversión explícita en tarea siguen accesibles.
+- **Plugins, Skills y Repository:** título de herramienta 15 px/600, icono de cabecera 18 px; títulos de sección y etiquetas en caja natural, 12 px/600 y tono secundario; cuerpo 13 px; glifos Lucide con trazo 1,75. Sin contornos interiores redundantes en cabeceras, segmentados y pozos; se conservan estados, contenido, foco y rutas de navegación.
+- **Terminal:** el pozo de salida se distingue por tono. Su borde superior es transparente y solo se colorea lima trabajando; atención permanece como marca y etiqueta sobre plano neutro.
+- **Preguntas y permisos pendientes:** estado escrito y acciones explícitas, sin caja ni borde decorativo. Las opciones conservan controles nativos, validación, disabled y foco visible.
 - **Zoom semántico:** por debajo del 45 % la card es una ficha (título, estado, tres líneas de salida); por debajo del 25 %, título y estado.
 
-## Estados, pulsos y notch
+## Panel de Phantom
 
-- **Escalera de foco.** Mapa: viñeta suave y atmósfera. Selección: la card elegida conserva su luz y flota; las demás bajan a `brightness(.7) saturate(.72)` y la atmósfera al 55 %. Foco: atmósfera al 12 %, sin retícula. Lo que te necesita nunca se atenúa.
-- **Bordes vivos.** Trabajando: una luz azul recorre el perímetro cada 3,2 s. Te necesita: borde ámbar en el compás de 2,4 s; a los 30 s queda fijo. Error: tres destellos y borde rojo.
-- **Campo de ondas** (`PixelField.jsx`): el estado se propaga por el lienzo como un sonar con la forma del panel. En reposo no pinta nada.
-- **Notch.** `PhantomFace` (`Glyphs.jsx`) es la marca con ánimo; solo cambian ojos y sonrisa, y solo con estado real: `asleep` host desconectado (ojos cerrados), `unsure` lecturas viejas o con error (un ojo cerrado), `calm` nada pendiente (parpadea cada 7 s), `grin` algo te necesita (ojos encendidos en ámbar, sonríe; late en el compás de 2,4 s). El texto siempre acompaña al glifo.
+Isla a la derecha, espejo geométrico del rail: `--r-isle`, hueco `--gutter`, material vertical y sombra común de objeto, sin backdrop-filter. El espacio de trabajo cede su ancho. Cabecera de 56 px, «Phantom» en Título y contexto en Apoyo; ámbar si necesita al usuario. Conserva Chat y Orquestador, cola de incorporaciones y conversión explícita en tarea. Proveedor, contexto, campo y controles usan la presentación E5 descrita arriba.
+
+## Estados y «Bordes vivos»
+
+- **Jerarquía E2.** Solo «Te necesita» colorea el aro de 1 px: `--attention-ring`, ámbar al 80 %, sin relleno ni resplandor. Trabajo conserva aro neutro y cometa lima. «Terminó», «Error» y «En reposo» conservan aro neutro. Las cinco palabras permanecen en la cabecera; trabajo, fin y reposo usan `--muted`, atención `--attention` y error `--danger`.
+- **Selección.** Aclara el mismo aro (blanco 36 % arriba, 10 % abajo), sin outline ni doble contorno. Atención prevalece y mantiene `aria-current`. Los vecinos conservan lectura y luminosidad. Foco oculta vecinos; no cambia la geometría persistida.
+- **Cometa A.** `ActivityTrace.jsx` se monta únicamente trabajando: cinco rectángulos SVG, `pathLength="100"`, inset x/y de 0,75 px, ancho/alto 100 % − 1,5 px y rx/ry de 23,25 px (ajustados al radio del zoom semántico). Trazo de 1,5 px, sin relleno ni filtro, z-index 4 sobre el aro de z-index 3. Longitudes cola→cabeza: 26, 18, 11, 6 y 2,5 px; opacidades .06, .14, .28, .55 y 1. Cada capa usa `stroke-dasharray:var(--L) calc(100px - var(--L))`, offset de `var(--L)` a `calc(var(--L) - 100px)` en 5,6 s, continuo lineal. Solo la cabeza usa extremos redondos y `--working-head:#e2ff7a`; cola `--working`.
+- **Fuente y precedencia.** `terminalBorderState.mjs` y los estados canónicos permanecen intactos. Un `pulse-turn` de terminal que solicita respuesta es atención; la respuesta de chat meramente no leída se presenta como «Terminó», aunque conserve su pulso canónico. Permiso/pregunta pendiente prevalece sobre trabajo. Error de chat/encargo se presenta como error, nunca éxito; terminar un proceso revoca trabajo o permisos antiguos.
+- **Suspensión.** IntersectionObserver y visibilidad del documento pausan la cometa; Concentración conserva su fase sin movimiento. Al pasar a reposo se desmonta. Movimiento reducido deja cometa quieta y palabra legible, sin flash ni fundido de sustitución. Canvas ya no monta `PixelField`: no hay ondas ni halos exteriores. El motor y su mapa de señales permanecen disponibles sin refactorización.
+- **Mapa y foco.** «Ver en el mapa» selecciona y realza el mismo recorrido del aro durante 900 ms (opacidad 0→1 al 18 %→0), sin escala; atención conserva ámbar y texto. Maximizar/doble clic y retorno/Esc hacen FLIP desde el rectángulo real, 320 ms con `cubic-bezier(.22,1,.36,1)`; cancelan ante cambio de destino o desmontaje. Movimiento reducido aplica destino directo. Retorno restaura foco y selección, respeta menús/edición/dictado y no roba teclas a xterm. La oclusión del navegador nativo se mantiene durante la transición.
+- **Presupuesto E2.** No se añaden declaraciones `border`: canvas 7, terminal 1 y activity-trace 0. `test/design-budget.json` conserva exactamente el presupuesto E1; el realce usa una máscara coincidente, no un segundo aro desplazado.
+
+## Notch
+
+`ActivityNotch.jsx` muestra el estado del proyecto junto a integraciones, límites y avisos. Conserva el conteo ante lecturas antiguas o fallidas y añade «desactualizado» con la causa. El texto principal es «Host desconectado», «Recuperando actividad…», el número que necesita al usuario, «En curso» o «Actividad». Abrir el notch muestra la bandeja de pendientes; no resuelve nada. El ámbar distingue atención y el texto acompaña siempre al sprite o a su glifo de respaldo.
+
+El notch usa texto en `--ink` y una marca ámbar en el punto o glifo, sin anillo ni tinte ámbar de superficie; hover y apertura usan relleno neutro `--fill-2`.
+
+**Bandeja «Te necesitan» · Etapa 6·5.** Pendientes / En curso / Hoy son un segmento plano sin pozo: activa con `--row-hover` y tinta plena, las demás en `--muted`; el contador de pendientes es solo texto ámbar. Cada `.activity-item` es una fila tonal de radio `--r-row`, transparente en reposo y `--row-hover` al pasar, sin caja ni borde. Las acciones son planas (`--row-hover` al pasar) y la única primaria es marfil `--on`/`--on-ink`, sin `--shadow-key`.
+
+**Centro de mando · Etapa 6·5.** Título en `--t-title`; Pausar / Actualizar / Desactivar en píldoras planas con 8 px entre sí y 16 px bajo el título. «Frecuencia de actualización» y su selector forman una fila etiqueta–valor. La frescura es una línea de apoyo `--t-support` en `--ink-3` (el aviso de desactualizado conserva `--warning`). Buscador y filtro a 20 px arriba y 12 px entre ellos, con aro interior de 1 px (12 %) que se aclara al 40 % al enfocar. Cada encargo es una fila `12px 16px`, radio `--r-row`, 4 px entre filas y `--row-hover` al pasar; título `--t-headline` a dos líneas, metadatos `--t-support` y ruta/ID en `--mono` `--ink-3`.
+
+**Presupuesto 6·5 (deltas de bordes).**
+- `src/plugins.css` 9→8: `.plugin-preference select, .cc-filters select, .cc-filters input` cambia `border: 1px solid var(--hairline)` por aro `inset 0 0 0 1px` (campo isla).
+- `src/activity.css` 3→2: `.activity-tray button:not(.icon-button)` retira `border: 1px solid transparent`; las acciones son planas.
+- `src/repository.css` 11→9: `.rp-button` (botón plano en píldora) y `.rp-file-bar` (cabecera sin divisor) retiran su borde.
+- `src/memory.css` 5→4: `.mem-chips>span` deja de ser caja anidada; queda como texto de apoyo.
+- `src/settings.css` sin cambio de recuento: `.st :is(.st-input, .st-select)` pasa de relleno a aro de 1 px (12 %→40 % al enfocar, sin anillo de foco grueso); `.st-btn` secundario plano; Guardar sigue siendo la única primaria.
+- Ramas e Incorporaciones (0 bordes): `.br-filter` es segmento plano (activo `--row-hover`, no marfil); `.br-button`/`.inc-button` planos y `.is-primary` marfil sin `--shadow-key`.
+
+**Presupuesto vigente tras trasladar 6·1–6·6.** Material, isla del compositor, dock, rail, bandeja/centro de mando, acento, foco «luz», contador de contexto y cita ya están integrados. Recuento con `drawnEdges` sobre las hojas actuales: `activity` 2, `branches` 0, `canvas-ui` 7, `chat` 7, `agent-identity` 3, `incorporaciones` 0, `markdown-table` 4, `memory` 4, `menus` 0, `phantom-chat` 0, `plugins` 7, `references` 8, `repository` 9, `research-reader` 1, `sidebar` 1, `settings` 2, `skills` 4, `studio` 5, `styles` 24, `terminal` 1, `tools` 14, `video-log` 4, `video-review` 3; el resto 0. Es exactamente lo que fija `test/design-budget.json`: los deltas de 6·1–6·6 ya están absorbidos y no queda holgura ni delta pendiente. Los tests de tokens verifican el recuento.
+
+`activityMood` prioriza `asleep` (host desconectado), `unsure` (fuente no fresca), `grin` (necesita al usuario), `working` (trabajo real) y `calm` (reposo). `PhantomFace` renderiza el rig existente `TitiGhost` en canvas HiDPI, cuerpo `--identity-ink:var(--on)` y render pixelado. El notch del dock recibe la identidad solo en una escena poblada con personaje habilitado: 28×28 px y margen izquierdo de 4 px. En vacío o con «Mostrar Titi» apagado usa `CircleDot`; texto y acciones de actividad permanecen disponibles. El rail no añade otra mascota.
+
+## Acento · Etapa 6·6
+
+El acento de Apariencia (`--accent`, marfil por defecto) significa «tú y tu acción»; los colores de estado significan «el agente». Por eso nunca comparten papel.
+
+- **Sí:** `--primary: var(--accent)` con `--primary-ink: #141414` (AA ≥ 6,7:1 sobre todos los acentos) en enviar del compositor (`.pc-send`), «Nueva sesión» (`.dock-primary`), `.st-btn.is-primary`, `.button.primary` y primarias de diálogo; hover/pulsado `--primary-hover`/`--primary-press` (mezcla 12 % con blanco/negro). `caret-color: var(--accent)` en compositor, paleta y campos de Configuración; foco, enlaces de prosa y selección.
+- **Nunca:** estados (`--working`, `--attention`, `--danger`, `--success`), superficies, texto de lectura, iconos de herramientas, interruptores y segmentados (marfil `--on`). `test/design-tokens.test.mjs` prohíbe `var(--accent|--primary)` en selectores de estado e interruptor.
 
 ## Movimiento
 
-Una curva (`--ease-out`), dos velocidades (`--dur-fast` 140 ms, `--dur` 240 ms). Una sola entrada, `@keyframes materialize`: opacidad, desenfoque de 8 px y escala .985 → 1. `Presence.jsx` hace lo mismo al montar y, al desmontar, dispersa (desenfoque 12 px, escala 1.02). Nada se desliza. El paneo conserva su inercia. `prefers-reduced-motion` deja solo el fundido.
+| Duración | Curva | Uso |
+|---|---|---|
+| `--dur-fast` 120 ms | linear | Realce tonal de filas y controles; sin escala ni desplazamiento |
+| 160 ms | linear | Fondo del interruptor, luz del foco |
+| `--dur-enter` 200 ms | `--ease-settle` | Thumb del interruptor; entrada de mensaje nuevo (`@starting-style`, opacidad + 4 px) |
+| `--dur-open` 320 ms | `--ease-settle` | Menú, bandeja, paleta; maximizar con FLIP |
+| 900 ms | `--ease-settle` | Destello del aro al saltar a un panel |
+| bucle | — | Solo cometa de «trabajando» y spinner |
+
+No se anima: altura del compositor, color de estado, rebotes/escala de botones, bucles decorativos. Movimiento reducido desactiva la entrada de mensajes.
+
+E3 sustituye el hundimiento y el resorte de controles por feedback tonal de 120 ms linear, sin escala ni desplazamiento. `--ease-spring`/`--dur-spring` quedan como aliases de asentamiento/320 ms para compatibilidad. Rail y controles del shell aplican cambios inmediatamente con movimiento reducido. Las transiciones espaciales del objeto siguen el contrato E2; los controles internos aún no migrados pertenecen a sus etapas respectivas.
+
+`Presence.jsx` conserva las entradas/salidas de otras superficies (200/120 ms); los paneles no compiten con FLIP al entrar y salen con opacidad durante 160 ms, sin blur ni escala. Con movimiento reducido, Presence aplica duración 0 ms. Los overlays salientes conservan `inert`. El paneo conserva su inercia.
+
+Ambiente y luces permanecen estáticos incluso con «Pulso ambiental» guardado. Concentración atenúa ambiente/personaje al 12 %, oculta retícula y detiene animación CSS decorativa. `useSpriteMotion` se conserva en `GengarMascot.jsx` y autoriza movimiento de Titi solo con intersección, visibilidad CSS efectiva, documento visible, ausencia de ancestro inert, movimiento permitido y Concentración desactivada. `calm`/`asleep` y los glifos funcionales usan pose quieta sin rAF; suspender o desmontar cancela el frame del rig. El módulo histórico exporta ahora la mascota Titi; no carga PNG/GIF. La quietud se exige en los scripts E4, sin atribuir resultados antes de ejecutarlos.
+
+El dictado comparte `VoiceActivity` y `VoiceTranscript`. La transcripción vive en el campo: borrador previo y confirmado en tinta, parcial en secundaria; la vista previa no se guarda ni se concatena en cada actualización. Una píldora de 36 px, padding horizontal 12 y gap 8, contiene micrófono, seis barras redondeadas y tiempo transcurrido. Barras de 3 px, gap 3 y radio tokenizado de 2 px, altura gobernada únicamente por `voice.level`; silencio, permiso pendiente y transcripción no simulan captura. X secundaria descarta; palomita primaria termina. El chat dice «Esc descarta · Enter envía». No hay orbe, aura, blink, mensaje de escucha ni cancelación textual.
+
+Captura y envío reutilizan `useVoiceRecorder`, `mergeDictation`, `sendAction` y `canSubmit`. Enter/palomita detienen y arman una sola entrega final; repetir Enter durante transcripción no duplica el envío. X/Esc desarman y conservan el borrador previo; cambio de proyecto/destino invalida resultados tardíos. La presentación mantiene foco en el campo al reemplazar el botón de micrófono. Permisos, errores, avisos y exclusión entre superficies siguen visibles. Movimiento reducido elimina interpolación de barras; no se crea ningún rAF decorativo. El reloj usa un intervalo solo mientras graba. La captura global conserva destino y foco protegido; terminal requiere revisar e insertar texto literal, sin Enter añadido ni secuencias de control. «Voz e intención» conserva interpretación y aplicación explícitas.
 
 ## Estados vacíos
 
@@ -227,6 +476,7 @@ Una curva (`--ease-out`), dos velocidades (`--dur-fast` 140 ms, `--dur` 240 ms).
 - **Tamaños:** `panel` (predeterminado) reserva 40 px para el icono, con SVG de 24 px, título de 15 px y cuerpo de 13 px; `hero` reserva 64 px, SVG de 32 px y título de 24 px (22 px a ≤850 px de ancho; 21 px e icono de 48 px a ≤650 px de alto); `compact` reserva 24 px, SVG de 16 px, título de 12 px y cuerpo de 11 px.
 - **Retícula:** ritmo de 4 px mediante los tokens de espaciado: separación interna de 8 px (12 px en `hero`), padding vertical de 24 px (8 px en `compact`) y horizontal de 16 px por defecto. Descripciones y pistas se limitan a 44ch; las acciones pueden envolver. `--empty-inset` adapta el margen interior a cada panel: 8 px en los grupos del rail, 17 px en el índice de paneles, 16 px en selectores y 12 px en los grupos laterales del repositorio.
 - **Alineación:** `hero` y `panel` centran horizontalmente caja y contenido en su contenedor; `hero` ocupa el canvas mediante `inset: 0`. `compact` alinea el contenido a la izquierda con el contenido/encabezado del panel, incorporando su inset. Se usan `min-width: 0`, límites de ancho y ajuste de texto para contener el contenido.
+- **Identidad de entrada:** bienvenida y canvas sin paneles visibles usan Titi de 88×88 px (66×66 px a altura ≤699 px) cuando está habilitado el personaje; sin personaje conservan carpeta/capas como respaldo. La caja del icono se adapta al rig. La mascota es `aria-hidden`, con título, explicación y acciones en español aportados por `EmptyState`. No hay otra mascota en dock, rail, cabecera/vacío del chat o fondo de la misma escena. Los pequeños `PhantomGlyph` funcionales son quietos, de 16 px en la app.
 
 `test/empty-states-desktop.mjs` implementa mediciones en Electron y host aislados a 1520×980 y 1100×760: centros y bordes con tolerancia de ±2 px, overflow horizontal sin tolerancia y capturas `/tmp/opencode/empty-states-*.png`. Incluye bienvenida, Skills/Plugins sin proyecto, canvas sin paneles, ambos grupos del rail, índice vacío y chat nuevo; exige esos casos y examina los demás `.empty-state` visibles. Esto describe la prueba; los resultados corresponden a los checks del controlador.
 
@@ -241,47 +491,91 @@ El Markdown del chat renderiza enlaces como acciones de teclado/puntero, no text
 
 La lectura pasa por `desktop.previewImage`: solo archivos raster de hasta 12 MB dentro de proyectos, artefactos autorizados o `/tmp/opencode` (capturas locales del agente). No se carga `file://` directamente en Chromium ni se amplía la CSP. Enlaces HTTP(S) abren el navegador del sistema; otros archivos usan la apertura local ya autorizada. Esquemas ejecutables y archivos remotos no generan acciones. Verificación: `test/local-images.test.mjs` y `test/markdown-links-desktop.mjs`.
 
-### Controls, navigation and fields
+### Controles, navegación y campos
 
-Shell actions retain 35px height, 0 13px padding and weight 550. Secondary hover uses the raised plane and muted border. Primary actions use accent fill/dark ink with the lighter hover mix. Shell icon controls are 29px squares; node-header controls retain compensated width and 32px height. Tool buttons remain a separate 12px/500/1.4 primitive, minimum 32px high, 6px 10px padding; disabled opacity is .55 (shell .42). Tool secondary press uses accent wash.
+Los controles del shell siguen las medidas y niveles E3 descritos arriba; las primarias usan `--on`/`--on-ink`. Los formularios y cabeceras internas conservan sus contratos hasta su etapa. Los campos permanecen etiquetados; carga, error, vacío y no disponible conservan mensajes distintos y ligados a sus fuentes.
 
-Project navigation uses continuous name rows with plain folder icons and an active dot, without initial avatars or nested cards. Paths stay available in the native tooltip and accessible description rather than dominating each row. The selected project uses raised graphite plus `aria-current`. Panel rows provide map selection and a separate compact focus action, visible on hover, focus-within, when pressed, and on non-hover devices; selected rows use accent wash and `aria-current`. Long names truncate visually while keeping full accessible labels. Folder, Plugins, appearance, settings and commands are borderless rows; a single footer seam separates utilities from project content. Connection retains a text label beside its status dot.
+Las filas de proyectos y paneles truncan nombres largos conservando etiquetas y rutas accesibles. La selección usa velo neutro y `aria-current`, con acento local en el glifo del panel. El acceso independiente a foco aparece por hover, foco de teclado, estado pulsado o dispositivo sin hover. Arriba/abajo e Inicio/Fin desplazan foco y revelan destino sin activarlo; Enter/Espacio activan, Tab conserva el recorrido nativo. Carpetas y utilidades no añaden contornos de fila. Conexión conserva texto junto a su punto de estado.
 
-The drawer traps Tab/Shift+Tab, starts at its close control, closes on Escape or scrim activation and restores the opening control's focus after the inert-state commit, unless an action has already moved focus to its destination. Its closed state is inert; the main workspace is inert while it is open. Existing overlay policy blocks PTY input and obscures native browser content while the drawer is active. Desktop layout reserves the rail's full width and insets instead of overlaying the canvas. Project and panel lists contain scroll chaining and suppress horizontal scrolling. The map action and creation dock remain explicit routes. Tool fields are labelled, full width, minimum 34px high, padded 7px 9px with seam border. Error/loading/empty/unavailable states remain distinct and source-backed.
+El drawer retiene Tab/Shift+Tab, empieza en cerrar, cierra con Escape o scrim y restaura el foco de apertura salvo navegación explícita. Cerrado es inert; abierto vuelve inert el workspace y bloquea entrada PTY/oculta navegador nativo mediante la política de overlays existente. El rail de escritorio reserva ancho e insets. Mientras un control del rail tiene foco, el canvas bloquea la apropiación automática de entrada por la terminal; al salir del rail libera esa propiedad y un clic en terminal puede recuperarla.
 
-Sidebar verification entry point: `node test/sidebar-floating.mjs`, using an isolated Electron/host profile, synthetic long names and overflowing project/panel lists. It exercises project/panel selection (including drawer routes and the last overflowing panel), focus/map return, appearance, Plugins, keyboard, drawer and working-region clearance, explicitly checks name truncation, observes typed input through the real PTY attachment and checks that drawer input does not reach it. Inspector close actions target the switcher so duplicated contextual close controls remain unambiguous. Captures are written beneath `/tmp/opencode/phantom-sidebar-*`. It invokes the Impeccable detector once at the end via an argv spawn. This describes the test implementation, not an observed pass or a new visual approval; the controller owns execution and check results.
+El foco de teclado usa contorno de 2 px; en filas el offset es −2 px para no recortarlo. La nota usa el caret sin segundo contorno interior. xterm conserva cursor y entrada propios. El campo del compositor ya no dibuja outline marfil (`outline: 0` explícito): su foco es la luz del aro de la isla y el paso tonal del relleno; los botones y `summary` conservan su outline de teclado. Dictar cambia el aro de la isla a `#ffffff26`, sin halo. Los selects nativos comparten chevrón `--muted` y transición `--dur-fast`.
 
-Within project and panel lists, Up/Down and Home/End move focus and reveal the destination in the scrollable list without activating it. Enter/Space activate the focused button; Tab retains native traversal, including each separate panel-focus action. The sidebar interaction script exercises these focus-only routes with overflowing lists. These are implementation details, pending controller checks for this continuation.
+### Configuración, Apariencia y persistencia local
 
-While a rail control has keyboard focus, the canvas receives blocked terminal-input ownership so activating a terminal row cannot auto-focus the PTY and interrupt Tab traversal. Leaving the rail releases that ownership; clicking the terminal can reclaim input. This desktop navigation ownership does not obscure the native browser; drawer and overlay occlusion still use the existing separate policy.
+`Settings.jsx` reúne la configuración en el inspector no modal de 320 px, a 12 px de arriba, derecha y abajo, con padding de 12 px. Sustituye la hoja centrada de 960 px; participa en la reserva operativa del inspector para dock, navegación y foco, sin modificar geometría persistida de nodos. Se cierra con X o Escape. El botón del rail y la acción `settings` de la paleta abren Configuración; `appearance` abre Apariencia y la ruta anterior `plugins` abre Conexiones (`Inspector.jsx`). En compacto se muestra la lista de categorías y luego su contenido con regreso a Configuración. Los paneles embebidos conservan adaptación por contenedor (dos columnas desde 620 px), scroll y lectura mediante `state.get` si falta el estado. Apariencia solo aparece cuando recibe sus controles desde `App.jsx`.
 
-Keyboard focus remains a 2px current-accent outline: shell buttons/tab stops offset 3px, shell fields -1px, tool controls 3px, note field -3px. Inside the rail the outline is inset (-2px) to stay visible at scroll boundaries. xterm owns cursor/input focus and suppresses generic helper-textarea/screen outlines.
+#### Lenguaje de Apariencia · Etapa 4
 
-### Appearance and local persistence
+- Grupos planos `#111113`, radio concéntrico `24 − 12 = 12 px`, gap 12 px y títulos de apoyo con gap 8 px. Cabeceras de 32 px, margen superior 4 px e inset izquierdo 16 px. No hay aro ni degradado interior de grupo.
+- Categorías existentes: discos de 32 px y glifos blancos de 18 px/trazo 1.75, sin cambio de silueta/color al interactuar. Git/repositorio y Datos/carpeta usan acero; Voz usa violeta; conceptos sin asignación en la tabla aprobada usan neutral. Se conserva la paleta literal L=0.64, C=0.10/0.11, sin normalizarla.
+- Columna de icono de 32 px, gap 12 px y padding horizontal 16 px: icono a 28 px del exterior, etiqueta con insignia a 72 px. Divisores finos con sangría 60 px en categorías, 16 px en filas sin icono; valores y controles al mismo borde derecho. Hover/pulsado sobre toda la fila, radio 12 px, sin escala/desplazamiento; se ocultan por opacidad los divisores vecinos.
+- Switch 44×26 px, thumb de 20 px a 3 px del borde y recorrido 18 px; apagado `#4e4e50`, encendido marfil/oscuro. Fondo 160 ms linear, thumb 200 ms de asentamiento. Botones y campos sin borde ni relieve; foco visible y estados disabled/readonly conservados. Objetivos táctiles de al menos 44 px con puntero grueso.
+- Los dos ranges existentes usan píldora de 32 px, icono interior, pista `linear-gradient(#323234,#222224)`, relleno `linear-gradient(#ece6d8,#cfcac0)` y contacto `inset 0 1px 0 #ffffff14`, sin aro. El input nativo conserva etiqueta, teclado, límites 0–100 y persistencia. La escala de interfaz conserva su select y catálogo real.
 
-Available from the rail, contextual selector and command palette; it occupies the nonmodal inspector. Presets: **Aurora** (violet/teal), **Marea** (petroleum/blue), **Brasa** (warm graphite), **Grafito** (no atmosphere). Presets are CSS gradients, with intentionally illustrative preview gradients rather than pixel-identical miniature canvas crops. Selected options use an accent border, checkmark and `aria-pressed`. Accent options are named/checkmarked Iris, Menta, Ámbar and Rosa. Intensity has numeric output, grid has a labelled checkbox, and reset restores Aurora/Iris/grid on/55%/no image.
+**Decisiones del orquestador sujetas a revisión de Carlos:** se admite exclusivamente la especialización del slider aprobada en Apariencia; «un solo fantasma por escena» cuenta la mascota, no los glifos pequeños de operación. Los controles ficticios del mock (animar sesiones, avisos, sonidos y escala 80–130) no se crean ni se conectan. La preferencia de personaje conserva `gengar`/`gengarIntensity`, versión y migraciones; cambia el nombre visible a Titi. Los assets heredados y `useSpriteMotion` se conservan. Estas decisiones delimitan E4; no acreditan aprobación de la implementación ni completan E5.
 
-Preferences synchronously save to localStorage under `phantom:studio:${workspaceId || 'default'}` on this machine/browser profile, separate from host workspace JSON. Switching projects loads the target project's settings rather than copying the previous entry. Invalid JSON falls back to defaults; load validates preset/accent keys, boolean grid, finite intensity clamped 0–100, and image data URL shape/length. A failed localStorage write reports an error and does not apply the attempted state change. This is not cloud sync or a durability guarantee beyond local storage.
+| Categoría | Contenido implementado |
+|---|---|
+| Agentes | «Proveedores»: una fila por proveedor detectado (Claude Code, OpenCode, Codex) con estado real de sesión, interruptor de habilitar (Claude no se deshabilita si es el único) y motivo si no está disponible, con «Detectar» y reintento. «Motor por área» (Chats, Encargos, Tareas, Juez): agente y modelo solo entre proveedores habilitados; el agente por defecto y el modelo de tareas viven aquí. Shell de sesiones nuevas; activación de tareas y memoria de Phantom por proyecto, ejecutable y carpeta de datos |
+| Git e integración | Integración automática y comando de pruebas antes de integrar, por proyecto |
+| Apariencia | Fondo, acento, escala de interfaz, ambiente, personaje, concentración y retícula |
+| Voz | Proveedor, modelo, URL de API, comando local y salida del motor; comando para instalar o actualizar el motor local |
+| Teléfono | `MobileSettings` y `AndroidGatewaySettings` usan grupos y filas como el resto de Configuración, con estado, conexión, vinculación y permisos por dispositivo |
+| Conexiones | Bitácora de videos desde Markdown y su apertura; Convenciones cuando su fuente está lista, por proyecto |
+| Datos y respaldo | Exportación con historial opcional, selección y confirmación de importación JSON, carpeta de datos |
+| Avanzado | Cerrar solo la ventana o detener todo y salir, con confirmación si hay actividad; versión y detalles del equipo |
 
-Optional uploads accept PNG/JPEG/WebP MIME types up to 2×1024×1024 bytes; `createImageBitmap` must decode the file before FileReader produces a data URL. Reload accepts only matching base64 image data URLs shorter than 2,800,000 characters. File type/size, read/decode and save failures have visible actionable errors; save failure also notifies through the hook. The file control disables while loading. The project-keyed appearance component invalidates outstanding requests on unmount; reset invalidates them too. Choosing a preset clears the image; removing the image preserves the selected preset. Local data images layer above the CSS atmosphere, cover/center the canvas and receive the same intensity/focus attenuation. No shipping raster assets were added; review screenshots and runtime browser captures are evidence/content, not brand assets.
+Los campos de texto se editan como borradores con Guardar y Descartar; los selectores e interruptores guardan al cambiar. Shell y voz usan `settings.update`; los proveedores habilitados y los motores por área se guardan en `settings.providers` y `settings.executionDefaults` (contrato en `docs/provider-engines.md`); la preferencia de card nueva sigue en localStorage como `phantom.cardMode`. La configuración de Phantom actualiza valores propios del proyecto con `plugins.update` cuando ya existen y usa los ajustes generales para los demás. Conexiones usa `plugins.update` y Git `merge.configure`, ambos con el proyecto explícito; Git y Conexiones piden abrir un proyecto si falta. Los fallos de carga y guardado conservan mensajes visibles. Estas rutas de persistencia son distintas de las preferencias locales de Apariencia descritas a continuación.
 
-### Spatial work and product constraints
+Las opciones de fondo de Apariencia usan CSS con previsualizaciones ilustrativas. Selección con check y `aria-pressed`; acentos Azul, Naranja, Verde, Rojo y Marfil. Intensidad ambiental y presencia de Titi tienen salida numérica independiente; «Mostrar Titi», «Pulso ambiental», «Concentración» y retícula son controles `role="switch"` etiquetados. Restablecer devuelve Grafito/Marfil/retícula ON/ambiente 55 %/personaje OFF al 55 %/pulso OFF/concentración OFF/sin imagen.
 
-#### Canvas navigation controls
+Las muestras seleccionadas usan check y tinta, sin outline persistente: los fondos añaden el relleno neutro de selección. La muestra de fondo seleccionada conserva un outline de 2 px y offset de 3 px exclusivamente con `:focus-visible`. Los discos de acento conservan sus colores guardados y el check oscuro; la señal de foco de teclado permanece independiente.
 
-Selection is the default tool: drag empty canvas to select intersecting panels; Shift adds to the selection. The hand tool (H), held Space outside editing targets, or middle-button drag pans across panel content. V returns to selection. Normal wheel input inside a panel remains with its content; Ctrl/Cmd/Alt + wheel zooms around the cursor in map mode. Trackpad deltas pan the background and pinch events use cursor-anchored zoom. Focus mode retains panel-owned scrolling and input.
+Las preferencias se guardan sincrónicamente en localStorage bajo `phantom:studio:${workspaceId || 'default'}`, por proyecto y perfil local. Cambiar proyecto carga sus preferencias sin copiarlas del anterior. La versión 4 migra Lilac/Iris/Cyan a Azul, Mint a Verde, Amber a Naranja y Rose a Rojo; fondos retirados Gengar/Aurora pasan a Grafito. Conserva imágenes válidas, booleanos explícitos del personaje, intensidades y campos desconocidos. Sin elección explícita, el personaje queda OFF. La normalización es idempotente; la lectura no sobrescribe el original y el siguiente cambio guarda v4. JSON inválido recupera defaults; claves, booleanos, intensidades finitas 0–100 e imagen se validan. Un fallo al escribir notifica y no aplica el cambio. Es almacenamiento local, no sincronización cloud.
 
-The floating navigation toolbar groups selection/hand, zoom, fit and a discoverable gesture guide. It is 42px high with 32px controls, current-accent pressed states and tabular zoom numerals. The zoom popover offers 25/50/100/150%, fit-all (0) and fit-selection (2); 1 restores 100%, and +/− zoom around the viewport center. Below 1270px the toolbar moves to a second row (top 62px, popovers 112px) to clear panel-count and grouping actions. At wider sizes it remains top 17px. Inspector-aware right positioning is retained.
+La imagen propia admite PNG/JPEG/WebP de hasta 2×1024×1024 bytes, decodificados con `createImageBitmap` antes de producir la data URL. La recarga solo acepta data URLs base64 del tipo permitido menores de 2.800.000 caracteres. Los fallos de tipo, tamaño, lectura, decodificación y guardado tienen mensajes visibles; el campo se desactiva durante la carga. Desmontar o restablecer invalida solicitudes pendientes. Elegir fondo elimina la imagen; quitar imagen conserva el fondo elegido. La imagen local se superpone a la atmósfera, centrada y con `cover`, bajo la atenuación ambiental; Titi ocupa su único emplazamiento independiente. Las capturas de revisión son evidencia de ejecución, no assets de marca.
 
-Camera input accumulates synchronously in a ref and renders once per animation frame. Persistence is staged after 180ms idle, on pointer release, blur or the existing before-flush protocol, with explicit workspace identity. Discrete navigation interpolates for 180ms with cubic ease-out and is interruptible; reduced motion applies the target directly. Memoized tool bodies avoid camera-only rerenders. Geometry previews commit their latest ref on release.
+### Trabajo espacial y propiedad de entrada
 
-Verification: `node test/canvas-controls.mjs` passed eight interaction/layout checks on isolated Electron/host fixtures, including an 80-event input burst, camera reload persistence, cursor anchoring, editor ownership, hand/Space navigation, area selection, keyboard button semantics, exact animated zoom and narrow-inspector clearance. Captures in `/tmp/opencode/phantom-canvas-DRVUgg/` were inspected at desktop and narrow desktop sizes; they use synthetic notes. `node test/desktop-motion.mjs` passed ten lifecycle/motion checks and `node --test src/hooks/*.test.mjs` passed 29 tests. These checks establish tested behavior, not sustained frame-rate measurements. The detector returned only existing palette-literal advisories in `studio.css`.
+Selección es la herramienta predeterminada: arrastrar canvas vacío selecciona paneles intersectados y Shift añade. Mano (H), Espacio mantenido fuera de edición o botón central permiten paneo sobre contenido; V vuelve a selección. La rueda normal dentro de un panel pertenece a su contenido; Ctrl/Cmd/Alt+rueda hace zoom alrededor del cursor en mapa. Trackpad y pinch conservan paneo y zoom anclado; foco conserva scroll/entrada del panel.
 
-Preserve camera/layout identity separately from temporary focus geometry and names separately from canonical project paths. Canvas navigation yields to editing targets including xterm. Terminal writes require an active writable stream and actual focus in that terminal; ordinary Space, Escape, Ctrl+C, `0` and letters remain terminal input. Ctrl/Cmd+Shift+Enter is the explicit panel-focus route. Inspector fields never proxy keystrokes into the PTY; the inspector is nonmodal and clicking a visible terminal can reclaim ownership. Blocking surfaces and disconnected transport still block terminal ownership; inspector/native-browser occlusion remains separate from terminal blocking.
+La navegación agrupa selección, mano y comentarios en el segmentado E3, junto a zoom, encuadre, minimapa y guía. Barra de 48 px, secundarios de 36 px pintados y numerales tabulares. El popover ofrece 25/50/100/150 %, encuadrar todo (0) y selección (2); 1 restaura 100 % y +/− usa el centro del área operativa. La navegación es un grupo compacto abajo a la derecha, alineado por abajo con el dock, con el minimapa 12 px encima; en densidad `full` el segmentado muestra V/H/C como `<kbd>`. Los controles permiten scroll horizontal si falta ancho. Los popovers abren encima del grupo, alineados a la derecha, y cierran por Escape/clic exterior.
 
-Only focused, unobscured browser panels display the native view; overview captures and their missing states remain runtime content. Phantom remains authoritative for native cards/decisions/skills; workspace layout, references, drafts and notes remain app-owned. Keep source/save errors visible and relaunch explicit after exited/lost sessions; background customization does not change lifecycle semantics or promise recovery of unacknowledged edits.
+Encuadre y minimapa usan el área operativa medida, con 72 px libres arriba y 16 px abajo. Al estabilizar un resize se reencuadran mediante cámara los paneles visibles que exceden el área, sin alterar coordenadas/dimensiones persistidas; los deliberadamente fuera de pantalla permanecen fuera. Tab sobre un panel recortado lo encuadra. Foco usa insets laterales de 12 px, y=72 px y altura del stage menos 88 px; volver a mapa al mismo tamaño conserva cámara.
+
+La entrada de cámara se acumula en ref y renderiza una vez por frame de entrada. Persiste tras 180 ms de inactividad, al soltar, blur o protocolo de flush, con identidad de proyecto explícita. La navegación discreta interpola 180 ms y admite interrupción; movimiento reducido aplica destino directamente. Los cuerpos memorizados evitan rerenders por cámara; las previsualizaciones geométricas confirman el último ref al soltar.
+
+Identidad de cámara/layout y nombres se conservan separados de geometría temporal de foco y rutas canónicas. La navegación cede a edición, incluido xterm. Escribir en terminal exige stream activo escribible y foco real: Espacio, Escape, Ctrl+C, `0` y letras pertenecen a terminal. Ctrl/Cmd+Shift+Enter es la ruta explícita a foco de panel. El inspector no modal no reenvía teclas al PTY. Superficies bloqueantes y transporte desconectado mantienen el bloqueo; la oclusión del navegador nativo tiene política separada.
+
+Solo un navegador enfocado y no oculto muestra su vista nativa; overview y ausencias siguen siendo contenido de ejecución. Phantom conserva autoridad sobre Cards/Decisiones/Skills; layout, referencias, borradores y notas son de la aplicación. Los errores de fuente/guardado permanecen visibles y relanzar una sesión terminada/perdida es explícito.
 
 
 ## Verificación
 
-`npm test` incluye las reglas de tokens. `node test/design-capture.mjs <etiqueta>` (tras `npm run build`) abre Electron real con un proyecto sintético y escribe capturas en `/tmp/opencode/design-<etiqueta>-*.png` para comparar antes y después.
+Checks del mandato E4, a cargo de Phantom:
+
+```text
+npx vite build
+node --test test/design-tokens.test.mjs
+node test/design-capture.mjs design-v2-e4
+node test/terminal-borders-smoke.mjs
+node --test test/appearance-preferences.test.mjs test/interface-scale.test.mjs test/execution-policy.test.mjs test/public-settings.test.mjs test/project-identity.test.mjs test/session-glyphs.test.mjs
+```
+
+Los scripts de escritorio cargan el build; el controlador ejecuta `npx vite build` antes. Esta edición no declara resultados de checks ni aprobación visual. `design-capture` conserva sus escenas E1–E3 y añade inspector, grupos planos, paleta estable, hover/pulsado, switches, teclado del slider, navegación entre categorías y conteo de identidad en vacío/mapa. `titi-visual` y `ui-refinement` cargan el catálogo estático de Storybook y requieren ese build propio; `gengar-identity-desktop` conserva el nombre de transición y sirve un fixture aislado de componentes con Vite/Chromium, sin confundirlo con integración Electron.
+
+Las mediciones geométricas E3 admiten 1/64 px de cuantización al aplicar el zoom de Electron; los tokens se comprueban con igualdad exacta. La comparación E4 de reposo/pulsado espera el fin de la apertura del inspector y mantiene igualdad exacta de rectángulos; sus insets se miden respecto al contenedor de posicionamiento, no al wrapper `display:contents` de Presence. El foco exige `:focus-visible`, trazo sólido y token de 2 px, contemplando su ajuste a píxeles físicos. El «antes» registra recortes históricos; el «después» exige estado sin recorte.
+
+`npm test` incluye las restricciones de tokens/materiales y las pruebas de preferencias importadas por `test/design-tokens.test.mjs`. Estas últimas cubren normalización, migración, validación, conservación de preferencias y claves por proyecto. Las comprobaciones estáticas de contraste cubren planos y pozos opacos incluso sobre blanco, selección/hover/pulsado del rail, teclas activas y glifos sobre los discos de estado, conservando los umbrales AA.
+
+Las herramientas de captura y scripts de escritorio son evidencia complementaria solo si se ejecutan y revisan sus resultados:
+
+- `node test/design-capture.mjs <etiqueta>`, tras build: capturas `/tmp/opencode/design-<etiqueta>-*.png`.
+- `node test/solid-workplanes-desktop.mjs`: materiales calculados, elevaciones, texto de vecinos, foco y controles en conversaciones/terminales; su nombre no convierte en opacos los nuevos planos.
+- `node test/spectral-ui.mjs`: estados, mapa/selección/foco, acciones IPC sintéticas, hit-testing, separación de chrome y preferencias de accesibilidad; capturas `/tmp/opencode/spectral-ui-*`.
+- `node test/unified-design-desktop.mjs`: compositores, preferencias heredadas, Titi único, concentración, movimiento reducido y errores del renderer; capturas `/tmp/opencode/unified-design-*`.
+- `node test/gengar-identity-desktop.mjs`, `node test/titi-visual.mjs` y `node test/ui-refinement.mjs`: rig compartido, quietud y emplazamientos; contención, foco, disabled/readonly y acciones de formularios.
+- `node test/empty-states-desktop.mjs`, `node test/sidebar-floating.mjs`, `node test/canvas-controls.mjs` y `node test/desktop-motion.mjs`: geometría de vacíos, navegación/foco, propiedad PTY y ciclo de movimiento.
+
+La integración debe distinguir la cobertura declarada de estos scripts de su ejecución y de la revisión visual humana. El controlador comunica los checks y el padre integra y revisa el conjunto; las decisiones E4 indicadas arriba siguen sujetas a revisión de Carlos.

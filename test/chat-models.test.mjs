@@ -43,26 +43,20 @@ test('OpenCode respeta cwd, PWD, binario, ANSI y caché por contexto', async t =
   const make = label => `const fs=require('fs');fs.appendFileSync(${JSON.stringify(log)},${JSON.stringify(label)}+':'+process.cwd()+':'+process.env.PWD+'\\n');
     if(process.argv[2]!=='models')process.exit(2);
     process.stdout.write('\\x1b[32m${label}/one\\x1b[0m\\r\\n${label}/one\\r\\n${label}/two\\r\\nruido');`;
-  const a = fixture('oc-a', make('a')), b = fixture('oc-b', make('b'));
-  store.state.settings.opencodePath = a;
+  store.state.settings.opencodePath = fixture('oc-a', make('a'));
   const card = node('opencode'); card.data.cwd = dir;
-  assert.deepEqual((await chats.models(workspace, card)).items, [{ id: 'a/one', group: 'a' }, { id: 'a/two', group: 'a' }]);
-  await chats.models(workspace, card);
-  card.data.cwd = path.join(root, 'missing'); await chats.models(workspace, card);
-  store.state.settings.opencodePath = b; card.data.cwd = dir;
-  assert.equal((await chats.models(workspace, card)).items[0].id, 'b/one');
-  store.state.settings.opencodePath = a; await chats.models(workspace, card);
-  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [`a:${dir}:${dir}`, `a:${root}:${root}`, `b:${dir}:${dir}`]);
+  // Claude-only: el catálogo OpenCode ya no se consulta ni se ejecuta el binario.
+  await assert.rejects(chats.models(workspace, card), /Claude/);
+  assert.equal(fs.existsSync(log), false);
 });
 
 test('OpenCode reintenta catálogos vacíos y errores', async t => {
   const { root, store, chats, fixture, workspace, node } = setup(t);
   const state = path.join(root, 'state');
   store.state.settings.opencodePath = fixture('oc', `const fs=require('fs'),p=${JSON.stringify(state)};const n=fs.existsSync(p)?Number(fs.readFileSync(p)):0;fs.writeFileSync(p,String(n+1));if(n===0)console.log('vacío');else if(n===1){console.error('falló');process.exit(3);}else console.log('ok/model');`);
-  await assert.rejects(chats.models(workspace, node('opencode')), /catálogo está vacío/);
-  await assert.rejects(chats.models(workspace, node('opencode')), /OpenCode no pudo/);
-  assert.equal((await chats.models(workspace, node('opencode'))).items[0].id, 'ok/model');
-  assert.equal(fs.readFileSync(state, 'utf8'), '3');
+  await assert.rejects(chats.models(workspace, node('opencode')), /Claude/);
+  await assert.rejects(chats.models(workspace, node('opencode')), /Claude/);
+  assert.equal(fs.existsSync(state), false);
 });
 
 test('Codex negocia protocolo, pagina, filtra y deduplica por model', async t => {
@@ -75,13 +69,12 @@ test('Codex negocia protocolo, pagina, filtra y deduplica por model', async t =>
     else process.exit(7);`));
   store.state.settings.codexPath = bin;
   const card = node('codex'); card.data.cwd = dir;
+  // Claude-only: chats.models rechaza Codex sin ejecutar su binario; el protocolo se prueba directo.
+  await assert.rejects(chats.models(workspace, card), /Claude/);
+  assert.equal(fs.existsSync(log), false);
   const expected = [{ id: 'test-one', group: 'Codex' }, { id: 'test-two', group: 'Codex' }];
-  assert.deepEqual((await chats.models(workspace, card)).items, expected);
-  assert.deepEqual((await chats.models(workspace, card)).items, expected);
-  card.data.cwd = '/missing-phantom-cwd'; await chats.models(workspace, card);
-  store.state.settings.codexPath = fixture('codex-b', rpc(`send({id:m.id,result:{data:[{model:'another'}],nextCursor:null}});`));
-  assert.equal((await chats.models(workspace, card)).items[0].id, 'another');
-  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [`${dir}:${dir}`, `${root}:${root}`]);
+  assert.deepEqual(await codexModels(bin, dir), expected);
+  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [`${dir}:${dir}`]);
 });
 
 test('Codex informa binario ausente, error RPC y salida prematura', async t => {
@@ -99,10 +92,10 @@ test('Codex no cachea vacío ni error y permite reintentar', async t => {
     if(n===0) send({id:m.id,result:{data:[],nextCursor:null}});
     else if(n===1) send({id:m.id,error:{message:'temporal'}});
     else send({id:m.id,result:{data:[{model:'recovered'}],nextCursor:null}});`));
-  await assert.rejects(chats.models(workspace, node('codex')), /vacío/);
-  await assert.rejects(chats.models(workspace, node('codex')), /temporal/);
-  assert.equal((await chats.models(workspace, node('codex'))).items[0].id, 'recovered');
-  await chats.models(workspace, node('codex'));
+  await assert.rejects(codexModels(store.state.settings.codexPath, root), /vacío/);
+  await assert.rejects(codexModels(store.state.settings.codexPath, root), /temporal/);
+  assert.equal((await codexModels(store.state.settings.codexPath, root))[0].id, 'recovered');
+  await assert.rejects(chats.models(workspace, node('codex')), /Claude/);
   assert.equal(fs.readFileSync(state, 'utf8'), '3');
 });
 

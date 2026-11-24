@@ -1,17 +1,16 @@
 /* Phantom terminal: a Phantom-drawn card on the map, the xterm engine only in focus.
    One quiet identity row, a full-bleed output well, a slim footer. Who answers
-   (Claude · OpenCode · Terminal) is a segmented control; every provider keeps
-   one glyph and one hue wherever it appears. */
+   (Claude · OpenCode · Terminal) is a segmented control with neutral chrome. */
 :root {
   --mono: "Monaspace Neon", "GeistMono Nerd Font", "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", monospace;
   --pt-working: var(--working);
   --pt-blocked: var(--attention);
   --pt-review: var(--attention);
   --pt-idle: var(--muted);
-  --hue-claude: var(--accent);
-  --hue-opencode: var(--c-mint);
-  --hue-codex: var(--c-sky);
-  --hue-agent: var(--c-iris);
+  --hue-claude: var(--ink);
+  --hue-opencode: var(--ink);
+  --hue-codex: var(--ink);
+  --hue-agent: var(--ink);
   --hue-shell: var(--muted);
 }
 
@@ -27,19 +26,15 @@
 .pt-provider { display: inline-flex; align-items: center; gap: .55em; min-width: 0; max-width: 100%; color: var(--ink); font-size: 1em; font-weight: 550; line-height: 1; white-space: nowrap; }
 .pt-provider > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .pt-provider.is-shell, .pt-provider.is-process { color: var(--muted); font-family: var(--mono); font-weight: 450; }
-.pt-state { display: inline-flex; align-items: center; gap: .5em; height: 1.9em; padding: 0 .75em 0 .65em; border-radius: var(--r-pill); background: color-mix(in srgb, currentColor 13%, transparent); color: var(--pt-idle); font-size: 1em; font-weight: 550; white-space: nowrap; }
+.pt-state { display: inline-flex; align-items: center; gap: .5em; height: 1.9em; padding: 0 .75em 0 .65em; border-radius: var(--r-pill); background: var(--fill-2); color: var(--pt-idle); font-size: 1em; font-weight: 550; white-space: nowrap; }
 .pt-state > i { width: .5em; height: .5em; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .pt-state.is-working { color: var(--pt-working); }
+.pt-state.is-working > i { border-radius: 0; }
 .pt-state.is-blocked { color: var(--pt-blocked); }
 .pt-state.is-review { color: var(--pt-review); }
-.pt-state:is(.is-approval, .is-turn) { color: var(--attention); background: color-mix(in srgb, var(--attention) 18%, transparent); }
-.pt-state.is-approval { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 45%, transparent); }
+.pt-state:is(.is-approval, .is-turn) { color: var(--attention); }
 .pt-state.is-idle { background: none; padding: 0; }
-@media (prefers-reduced-motion: no-preference) {
-  .pt-state.is-working > i { animation: pt-breathe 1.8s var(--ease-out) infinite; }
-  .pt-state.is-approval > i { animation: pt-breathe 1.3s var(--ease-out) infinite; }
-}
-@keyframes pt-breathe { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 60% { opacity: .75; box-shadow: 0 0 0 .35em transparent; } }
+/* Static state dots keep real status visible without a repaint loop. */
 .pt-focus .status-dot, .pt-card .status-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--muted); flex-shrink: 0; }
 .pt-focus .status-dot.running, .pt-card .status-dot.running { background: var(--success); }
 .pt-focus .status-dot.connecting, .pt-card .status-dot.connecting { background: var(--warning); }
@@ -48,22 +43,81 @@
 /* Header joins the identity block for terminal nodes. */
 .canvas-node:has(> .node-body > .pt-card) > .node-header,
 .canvas-node:has(> .node-body > .pt-focus) > .node-header { border-bottom-color: transparent; }
-/* Agent state lives in the card identity; the header copy would repeat it. */
-.canvas-node:has(> .node-body > :is(.pt-card, .pt-focus)) > .node-header > .terminal-activity-status { display: none; }
 
 /* ---------- Map card ---------- */
+.pt-card, .terminal-panel.pt-focus, .terminal-host { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .pt-card { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); color: var(--ink); cursor: default; }
 .pt-card-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 2px 14px 14px; font-size: 12px; flex-shrink: 0; }
 .pt-card-identity > .pt-state { margin-left: auto; }
 .pt-card-step { flex-basis: 100%; margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; text-wrap: pretty; }
+.pt-card-now { display: flex; align-items: baseline; gap: 8px; flex-basis: 100%; min-width: 0; }
+.pt-card-now > i { width: 6px; height: 6px; flex-shrink: 0; align-self: flex-start; margin-top: 7px; border-radius: 0; background: var(--ink-3); }
+.pt-card-now[data-tone="working"] > i { background: var(--working); }
+.pt-card-now[data-tone="attention"] > i { background: var(--attention); }
+.pt-card-now > .pt-card-step { flex: 1; min-width: 0; animation: materialize var(--dur) var(--ease-out); }
+.pt-card-now > time, .pt-bar-since { color: var(--ink-3); font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .pt-card-now > .pt-card-step { animation: none; } }
+/* ---------- Progreso de run Phantom (node.data.agent.run) ---------- */
+.pt-run { --run-tone: var(--ink-3); flex-basis: 100%; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--surface-2); font-size: 12px; color: var(--muted); }
+.pt-run[data-tone="working"] { --run-tone: var(--working); }
+.pt-run[data-tone="attention"] { --run-tone: var(--attention); }
+.pt-run[data-tone="review"] { --run-tone: var(--success); }
+.pt-run[data-tone="error"] { --run-tone: var(--danger); }
+.pt-run-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pt-run-phase { color: var(--run-tone); font-weight: 600; flex-shrink: 0; }
+.pt-run-activity { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+.pt-run-times { flex-shrink: 0; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pt-run-warning { margin: 0; color: var(--attention); font-weight: 600; }
+.pt-run-warning[data-level="alert"] { color: var(--danger); }
+.pt-run-children { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pt-run-children li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pt-run-children li > span { font-family: var(--mono); color: var(--ink); flex-shrink: 0; }
+.pt-run-children li > em { font-style: normal; color: var(--ink-3); flex-shrink: 0; }
+.pt-run-children li > small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+.pt-run-blocker { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pt-run-blocker > strong { color: var(--danger); }
+.pt-run-blocker p { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.pt-run-blocker .pt-run-remedy { color: var(--muted); }
+.pt-run-blocker .pt-run-error { color: var(--danger); }
+.pt-run-command { display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px; background: var(--terminal-bg); }
+.pt-run-command code { font: 11.5px/1.4 var(--mono); color: var(--terminal-ink); overflow-wrap: anywhere; }
+.pt-run-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ink); }
+.pt-run-toggle { align-self: flex-start; padding: 0; background: none; border: 0; color: var(--muted); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.pt-run-toggle:hover { color: var(--ink); }
+.pt-run-toggle:focus-visible, .pt-run-log:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pt-run-log { margin: 0; max-height: 132px; overflow: auto; padding: 6px 8px; background: var(--terminal-bg); color: var(--terminal-ink); font: 11.5px/18px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.pt-run.is-flash { animation: pt-run-flash 1.4s var(--ease-out, ease-out); }
+@keyframes pt-run-flash { 0% { background: color-mix(in srgb, var(--success) 35%, var(--surface-2)); } 100% { background: var(--surface-2); } }
+@media (prefers-reduced-motion: reduce) { .pt-run.is-flash { animation: none; } }
+/* ---------- Agent plan (node.data.plan); list reuses .pd-deleg-plan ---------- */
+.plan-phases-compact { display: flex; align-items: baseline; gap: 8px; flex-basis: 100%; min-width: 0; font-size: 12px; color: var(--muted); }
+.plan-phases-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-phases-progress { flex-shrink: 0; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.plan-phases[data-tone="working"] .plan-phases-label { color: var(--working); }
+.plan-phases[data-tone="blocked"] .plan-phases-label { color: var(--attention); }
+.plan-phases-list { padding: 0; }
+.plan-phase-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.plan-phase-mark { flex-shrink: 0; width: 1em; color: var(--ink-3); text-align: center; }
+.plan-phase[data-status="running"] .plan-phase-mark { color: var(--working); }
+.plan-phase[data-status="blocked"] .plan-phase-mark, .plan-phase-note { color: var(--attention); }
+.plan-phase[data-status="done"] { color: var(--muted); }
+.plan-phase > small { padding-left: calc(1em + 6px); color: var(--ink-3); }
+.plan-phase-task { font-family: var(--mono); font-size: 11px; }
+.plan-phases-toggle { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.plan-phases-toggle > summary { display: flex; align-items: baseline; gap: 8px; min-width: 0; cursor: pointer; list-style: none; font-size: 12px; color: var(--muted); }
+.plan-phases-toggle > summary::-webkit-details-marker { display: none; }
+.plan-phases-toggle > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
+.plan-phases-toggle > summary > .plan-phases-compact { flex: 1; }
+.pt-plan, .pc-plan { flex-shrink: 0; max-height: 40vh; overflow: auto; padding: 6px 14px; }
 .pt-card-screen { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px 16px 14px; background: var(--terminal-bg); border-top: 1px solid transparent; overflow: hidden; }
 .pt-card-screen pre { margin: 0; font: 11.5px/18px var(--mono); color: var(--terminal-ink); white-space: pre; overflow: hidden; text-overflow: clip; user-select: text; }
 .pt-card-screen:not(.is-alternate) pre { margin-left: -8px; padding-left: 8px; }
 .pt-card-line { position: relative; opacity: .68; }
 .pt-card-line.is-current { color: var(--terminal-ink); opacity: 1; }
 .pt-card-line.is-current::before { content: ''; position: absolute; left: -8px; top: 1px; width: 2px; height: 14px; border-radius: var(--r-mark); background: var(--accent); pointer-events: none; }
-.pt-card[data-agent="working"] > .pt-card-screen { border-top-color: color-mix(in srgb, var(--working) 45%, transparent); }
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) > .pt-card-screen { border-top-color: color-mix(in srgb, var(--attention) 55%, transparent); }
+.pt-card[data-agent="working"] > .pt-card-screen { border-top-color: color-mix(in srgb, var(--working) 45%, transparent); background-image: linear-gradient(to bottom, color-mix(in srgb, var(--working) 7%, transparent), transparent 28px); }
+.pt-card[data-agent="working"] .pt-card-line.is-current::before { background: var(--working); }
+.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-line.is-current::before { background: var(--attention); }
 .pt-card-screen.is-alternate { justify-content: flex-start; container-type: size; -webkit-mask-image: none; mask-image: none; }
 .pt-card-screen.is-alternate pre { font-size: clamp(5px, min(calc((100cqh - 2px) / var(--rows) / 1.4), calc(100cqw / var(--cols) / .6)), 12px); line-height: 1.4; }
 .pt-card-status { margin: auto 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -73,11 +127,7 @@
 .pt-card-location > svg { flex-shrink: 0; }
 .pt-card-location > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pt-card-action { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border-radius: var(--r-ctl); color: var(--ink); font-size: 12px; font-weight: 550; white-space: nowrap; flex-shrink: 0; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.pt-card-action:hover { background: var(--fill-2); }
-.pt-card-action.is-primary { background: var(--fill-2); color: var(--ink); }
-.pt-card-action.is-primary:hover { background: var(--accent); color: var(--primary-ink); }
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary { background: color-mix(in srgb, var(--attention) 16%, var(--fill-2)); color: var(--attention); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 30%, transparent); }
-.pt-card:is([data-agent="approval"], [data-agent="turn"]) .pt-card-action.is-primary:hover { background: color-mix(in srgb, var(--attention) 26%, var(--fill-2)); }
+.pt-card-action:hover { background: var(--fill-3); }
 .pt-card-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Far zoom: see "Semantic zoom" below. */
 .pt-card.is-overview { justify-content: flex-start; }
@@ -87,7 +137,7 @@
 
 /* ---------- Focused terminal ---------- */
 .terminal-panel.pt-focus { background: var(--terminal-bg); padding: 0; color: var(--ink); container-type: inline-size; }
-.pt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 52px; padding: 4px 16px 12px; background: var(--surface); flex-shrink: 0; }
+.pt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 52px; padding: 8px 16px; background: var(--surface); flex-shrink: 0; }
 .pt-bar-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex: 1; min-width: 0; font-size: 12px; }
 .pt-context { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0 16px 8px; background: var(--surface); color: var(--muted); font-size: 12px; flex-shrink: 0; }
 .pt-context .pt-chip { display: inline-flex; flex: 1; min-width: 0; max-width: none; padding: 0; background: transparent; }
@@ -115,13 +165,15 @@
 .pt-focus .terminal-host { flex: 1; min-height: 0; border: 0; border-radius: 0; background: var(--terminal-bg); }
 .pt-focus .terminal-host > .xterm { padding: 16px 16px 12px 22px; background: var(--terminal-bg); }
 .pt-focus .terminal-host .xterm-viewport { background-color: var(--terminal-bg); scrollbar-color: var(--scroll-thumb) var(--terminal-bg); }
+/* A terminal wraps; it never scrolls sideways. */
+.terminal-host .xterm-viewport { overflow-x: hidden; }
+.terminal-host .xterm-scrollable-element > .scrollbar.horizontal { display: none; }
 .pt-focus .terminal-setup { background: var(--surface-2); color: var(--ink); }
 .pt-focus .terminal-setup small { color: var(--muted); }
 .pt-focus .terminal-setup button { border: 0; border-radius: var(--r-pill); padding: 4px 11px; background: var(--fill-2); }
 /* An inline line under the prompt, not a card inside the panel. */
 .pt-focus .terminal-message { position: static; flex-shrink: 0; margin: 0; padding: 8px 12px 8px 22px; background: var(--surface); border: 0; border-radius: 0; color: var(--ink); font-size: 12px; }
 .pt-focus .terminal-message button { min-height: 28px; padding: 0 11px; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font-size: 12px; }
-.pt-focus .terminal-message button:hover:not(:disabled) { background: var(--accent); color: var(--primary-ink); }
 .pt-focus .terminal-message button:disabled { opacity: .4; cursor: not-allowed; }
 .terminal-history-end { position: absolute; right: 22px; bottom: 18px; z-index: 2; display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 13px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--ink); font-size: 12px; box-shadow: var(--shadow-float); }
 .terminal-history-end:hover { background: var(--surface-3); }
@@ -133,9 +185,7 @@
    Below the overview tier the card stops being a shrunken window and becomes a
    map tile. Chrome is sized in screen pixels through --ov (= 1 / zoom) so the
    hairline stays one pixel, labels stay readable and nothing turns to dust. */
-.canvas-node.overview { --ov: var(--overview-scale, 1); border-width: calc(1px * var(--ov)); border-radius: calc(var(--r-ctl) * var(--ov)); background: var(--surface); }
-.canvas-node.overview.selected { outline: calc(2px * var(--ov)) solid var(--accent); outline-offset: calc(2px * var(--ov)); }
-.canvas-node.overview::after { --edge-w: calc(2px * var(--ov)); }
+.canvas-node.overview { --ov: var(--overview-scale, 1); --object-ring-width: calc(1px * var(--ov)); border-radius: calc(var(--r-obj) * var(--ov)); background: var(--object-fill) var(--surface); }
 .canvas-node.overview > .node-header { height: calc(32px * var(--ov)); min-height: calc(32px * var(--ov)); padding: 0 calc(10px * var(--ov)); gap: calc(6px * var(--ov)); border-bottom: 0; border-radius: 0; background: transparent; cursor: grab; }
 .canvas-node.overview > .node-header .title-button { font-size: calc(13px * var(--ov)); line-height: 1.2; padding: 0; }
 .canvas-node.overview .node-glyph { width: calc(16px * var(--ov)); height: calc(16px * var(--ov)); }
@@ -156,3 +206,15 @@
 /* Farthest tier: a label you can find, nothing more. */
 .canvas-node.compact .pt-card-step, .canvas-node.compact .pt-card-glimpse, .canvas-node.compact .mission-chip { display: none; }
 .canvas-node.compact .pt-card-identity .pt-state { font-size: 1em; }
+
+/* Headers expose the object's material; output stays opaque. */
+.pt-card, .terminal-panel.pt-focus, .pt-bar, .pt-context,
+.pt-focus .agent-identity, .pt-focus .terminal-message { background: transparent; }
+.pt-card-screen, .pt-focus .terminal-host, .pt-card-glimpse { background: var(--well-terminal); }
+.pt-card-glimpse { opacity: 1; }
+.pt-focus .terminal-host > .xterm, .pt-focus .terminal-host .xterm-viewport { background-color: transparent; }
+.pt-card-action { background: var(--fill); }
+.pt-card-action.is-primary, .pt-card-action.is-primary:hover,
+.pt-focus .terminal-message button:hover:not(:disabled) {
+  background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key);
+}

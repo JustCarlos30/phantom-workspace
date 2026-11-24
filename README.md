@@ -2,6 +2,18 @@
 
 App de escritorio local para organizar **terminales, navegador, sesiones, tareas y contexto por proyecto**. Versión 0.1 para Linux x64.
 
+## Catálogo oficial de componentes
+
+```sh
+npm run storybook
+```
+
+Abre **http://127.0.0.1:6006**. Storybook muestra los componentes reales en español, fundamentos computados, estados y una matriz buscable de fuentes y cobertura. Las 12 familias usan datos sintéticos y un host aislado. **Catálogo → Inventario** distingue escenarios renderizados, símbolos privados y límites nativos.
+
+También está declarado como servicio Docker en `compose.yaml`, descubrible por **Sitios / Servicios**. Inicio manual: `docker compose up -d --build storybook`; parada: `docker compose down`; registros: `docker compose logs -f storybook`. El puerto se publica solo en loopback. La ejecución npm y Docker usan el mismo puerto: usa una a la vez.
+
+Guías: [Storybook, fixtures y comprobaciones](docs/storybook.md) · [Mapa de componentes y propuestas](docs/component-inventory.md). El catálogo no inicia el host de escritorio ni ejecuta Git, PTY, agentes o micrófono real.
+
 ## Abrir
 
 ```sh
@@ -23,6 +35,26 @@ Incluye Electron, Node, Chromium de Playwright y Phantom 0.5. El paquete fue pro
 3. Arrastra una cabecera para ordenar; arrastra la esquina para cambiar tamaño. **Ctrl + rueda** sobre el fondo cambia zoom; **0** ajusta el mapa cuando el foco está en el canvas.
 4. Enfoca un panel y usa **Volver al mapa** o **Ctrl + Mayús + Enter** para regresar. La lista permite encontrar paneles fuera de la cámara y recuperar vistas ocultas.
 5. **Ctrl + K** abre la paleta. El inspector derecho ofrece contexto, tareas, sesiones, Git, servicios y otras herramientas junto a la terminal.
+
+### Sitios globales
+
+**Sitios** en la navegación lateral y en la paleta, y **Servicios → Todos los proyectos**, reúnen los servicios Compose con resumen de actividad, filtro por proyecto, búsqueda por nombre de proyecto o servicio y **Solo en marcha**. Busca `compose.yaml`, `compose.yml`, `docker-compose.yaml` o `docker-compose.yml` en cada raíz. Los proyectos sin Compose comparten una lista compacta con orientación para añadirlo; Phantom no genera Dockerfiles. La consulta no inicia servicios. **Iniciar** ejecuta Compose `up -d` para servicios que no están en marcha; **Detener** y **Reiniciar** usan `stop` y `restart` para los que están en marcha, sin borrar volúmenes. **Registro** se abre bajo el servicio ya creado y permite actualizarlo. Cada URL puede abrirse fuera y, desde el hub Servicios, también en el navegador interno con **Abrir aquí**. Los contenedores no dependen de la terminal ni de mantener abierta la vista.
+
+La URL se muestra para puertos TCP publicados con `app_protocol: http` o `https`, o cuyo puerto interno es 80 o 443; no se presupone que otros puertos sean HTTP. Solo se muestran bindings efectivos de contenedores existentes. Se comprueba que el daemon sea local y que todos los contenedores del proyecto pertenezcan a la raíz y al archivo Compose detectado. Si hay varios proyectos Compose en una raíz o configuraciones adicionales, se indica el conflicto en vez de elegir o adoptar contenedores. Los proyectos todavía sin contenedores usan un nombre Compose estable derivado de su ruta. Los errores de un proyecto no ocultan los demás.
+
+Las pruebas declaradas son `node --test test/sites.test.mjs test/integrations.test.mjs`, `npm run build` y `node test/sites-desktop.mjs`: la prueba Electron emplea perfil, repositorios y ejecutable Docker sintéticos y guarda su captura en `/tmp/phantom-sites-ui-*`. Los resultados corresponden al controlador.
+
+### Dictado por voz
+
+**Dictado por voz**, en la barra de proyectos, y **Ctrl/Cmd + Shift + M** abren el dictado global. Primero enfoca un campo editable o una terminal; el destino y la selección quedan fijados al abrirlo. Las letras normales y los atajos propios de escritura mantienen su comportamiento. La paleta **Ctrl + K** también ofrece Dictado y **Capturar voz o escribir intención**.
+
+Pulsa **Grabar dictado**, después **Detener y transcribir**. Revisa la **Transcripción editable** y pulsa **Insertar en campo** o **Insertar en terminal**. En terminal se comprueba que la misma sesión siga conectada y admita escritura; los saltos de línea y controles se convierten en espacios y **no se envía Enter**. Cambiar de foco no cambia el destino. Si el campo cambió durante la captura, se conserva su borrador y se pide revisar la transcripción.
+
+ChatCard, Phantom y orquestador tienen micrófono propio: añaden la transcripción al borrador, sin enviar mensajes. Sus borradores permanecen en esta ventana al cerrar/reabrir o cambiar de pestaña, separados por proyecto y conversación; recargar la ventana los descarta. Solo hay un dictado activo, desde el permiso del micrófono hasta el final de la transcripción. **Cancelar audio**, Escape o cerrar la captura descartan el resultado pendiente y liberan el micrófono; cambiar de proyecto o desmontar el destino también cancela la captura.
+
+Las ondas violetas responden al nivel real de audio; **Transcribiendo** indica que el micrófono está apagado. Movimiento reducido conserva texto y nivel mediante opacidad, sin movimiento de ondas. El límite por fragmento es **2 minutos o 1 MiB**. Los errores muestran cómo recuperar permisos o configurar el proveedor existente; no se descarga ni se configura un runtime al dictar.
+
+Prueba declarada: `node test/voice-desktop.mjs`, después del build, usa Electron y perfil aislados, audio WebAudio grabado por MediaRecorder y una transcripción **explícitamente sintética**. No evalúa precisión de reconocimiento ni usa el micrófono personal. Las capturas y el informe se escriben en `/tmp/opencode/voice-desktop-*` a 1520×980 y 1100×760. El controlador ejecuta los checks y comunica sus resultados.
 
 ### Plugin Phantom · Centro de mando
 
@@ -61,19 +93,27 @@ Pruebas declaradas: `node --test test/references.test.mjs test/canvas-cli.test.m
 
 ### Conexión móvil en la misma Wi-Fi
 
-En **Ajustes → Conexión móvil local**, elige una interfaz LAN IPv4 privada y pulsa **Activar para el proyecto actual**. El puerto `0` elige uno disponible; también puedes indicar uno entre 1024 y 65535. El listener usa exclusivamente **HTTPS TLS ≥1.2**, prefiriendo TLS 1.3. No se configura ningún túnel ni firewall; las redes que aíslan dispositivos pueden impedir la conexión.
+En el escritorio, abre **Configuración → Teléfono → Opciones avanzadas → Sin app: navegador del teléfono** y pulsa **Mostrar QR**. En la misma Wi-Fi: **escanea el QR → compara el código de seis dígitos → pulsa Vincular en el escritorio**. El navegador avisará del certificado: comprueba la huella mostrada por Phantom frente a la del navegador. En **Sin cámara** puedes copiar la dirección y pegar el código temporal; requiere la misma aprobación. La red y el puerto se eligen automáticamente; si hay varias interfaces puedes cambiarlos en el desplegable. No se configura ningún túnel ni firewall. Si la Wi-Fi aísla dispositivos, la conexión entre ellos no estará disponible.
 
-**Esta fase implementa la base de seguridad y el protocolo v2; la app nativa y su biometría real por acción todavía no están disponibles.** `/mobile` y el componente web legado sólo informan de la migración. No permiten vincular, leer sesiones ni ejecutar acciones. Los endpoints y tokens antiguos no son compatibles.
+La conexión usa exclusivamente **HTTPS**, con certificado local autofirmado y huella visible. El secreto del QR viaja en el fragmento de la dirección, que el teléfono borra al cargar; no llega al GET ni al Referer. Caduca a los dos minutos, sirve una sola vez y se renueva automáticamente en el panel. La solicitud de aprobación caduca en 60 segundos. El teléfono calcula localmente el código de comparación y crea una llave ECDSA P-256 privada no extraíble en IndexedDB. Cada petición RPC exige el bearer y una firma con esa llave, con ventana de 30 segundos y rechazo de firmas repetidas. Cada dispositivo obtiene acceso por ocho horas, revocable en Configuración → Teléfono. Desactivar o cerrar el host corta las conexiones y olvida códigos, pendientes y dispositivos. Reiniciar el host deja este acceso apagado; cerrar solo la ventana del escritorio conserva el host y su acceso activo.
 
-El escritorio muestra identidad estable por dirección, certificado público y huella SHA256. **Verifica esa huella desde el escritorio y comparte el bootstrap por un canal fuera de banda**: la futura app oficial debe fijar el certificado antes de enviar el código separado de 256 bits, un uso y 120 segundos. Nunca aceptar certificados arbitrarios. Si la identidad falta parcialmente, está dañada o caducó, la activación falla; regenerarla requiere una acción explícita e invalida dispositivos. Cambiar de dirección exige volver a vincular.
+La vista móvil es independiente del canvas: lista únicamente sesiones del proyecto autorizado, permite leer y enviar mensajes, parar un turno y responder permisos/preguntas explícitamente. La cola existente se ve pero se gestiona desde el escritorio. Conserva la posición de lectura y ofrece **Volver al final**. El texto y los detalles de herramientas se muestran como texto, sin vistas previas de archivos locales. El hilo está acotado a los últimos 200 mensajes y 100 partes por mensaje; respuestas de más de 2 MiB requieren consultar el escritorio.
 
-El protocolo exige una clave P256 y prueba de posesión antes de mostrar la solicitud pendiente. Desde Ajustes se aprueba el dispositivo seleccionando **nodos y capacidades**; al seleccionar un nodo sólo se marca lectura. El chat principal/orquestador queda excluido y requiere reconocimiento expreso de que actúa con permisos reales del agente. Enviar chat, escribir terminal, detener y responder permisos/preguntas son capacidades independientes. **El control de terminal no es un sandbox.** No se ofrece gestión remota de archivos, Git, host ni nodos.
+Las terminales existentes ofrecen una pantalla reciente en texto (hasta 40 líneas de historial, o la pantalla alternativa acotada), entrada enviada exclusivamente con **Enviar** y **Parar** para terminar el proceso. La salida reemplaza la captura anterior; no se reproduce ni se reenvía entrada. Visitar/restaurar una sesión no crea procesos. No es un emulador táctil completo ni modifica el tamaño de la terminal del escritorio.
 
-Sesiones y dispositivos viven en memoria: token máximo una hora y bloqueo tras diez minutos desde la última autenticación firmada; las consultas no prolongan ese plazo. Cada mutación requiere su propio desafío firmado, exacto y de un uso (60 segundos), y genera un recibo consultable. Una respuesta perdida no autoriza reenvío automático. La auditoría local privada y rotada registra identificadores, sin códigos, tokens ni cuerpos; si falla antes de admitir una mutación, ésta no se ejecuta. Revocar o apagar corta conexiones y olvida accesos; reiniciar deja el acceso apagado. Cerrar sólo la ventana conserva el host activo.
+Las lecturas se actualizan cada dos segundos sin solaparse y se pausan al ocultar la página. Los errores detienen la consulta y ofrecen **Reconectar**; ninguna escritura se reintenta automáticamente. Si se pierde el acuse, consulta el hilo al reconectar antes de enviar de nuevo. Revocación, caducidad o pérdida de la llave en IndexedDB requieren otro emparejamiento. El bearer se conserva en `sessionStorage` de esa pestaña y junto a la llave en IndexedDB; viaja en `Authorization`, nunca en la dirección. No hay cookies ni secretos persistidos en el host. Hay límites de ocho dispositivos, cuatro solicitudes pendientes y 256 acciones por dispositivo; al agotarlos, revoca/empareja de nuevo según indique el error.
 
-El servidor verifica posesión de clave, no que un cliente modificado haya usado hardware o huella: no hay attestation remota. El cliente oficial deberá usar Android Keystore/BiometricPrompt auth-per-use o Secure Enclave, sin downgrade a claves JavaScript. Véase [el modelo de amenazas y protocolo wire exacto](docs/mobile-security.md).
+Pruebas declaradas: `test/mobile.test.mjs` usa hosts y builds sintéticos aislados, escuchando solo en loopback; cubre autenticación, caducidad, alcance, límites, rutas y acciones idempotentes. `node test/mobile-browser.mjs`, tras el build, usa Chromium a 390×844 y 360 px con el host/HTTP/autenticación reales y motores de conversación/terminal sintéticos, sin modelos ni shells. El script escribe capturas y resultados en `/tmp/phantom-mobile-evidence`. Los resultados de los checks corresponden al controlador.
 
-Pruebas declaradas: `test/mobile.test.mjs` usa HTTPS real, CA/certificado fixture validados, firmas y perfiles temporales; cubre alcance, replay, revocación, caducidad, límites y auditoría. `test/mobile-browser.mjs` verifica la página de migración y el componente desktop real con un bridge exclusivo de prueba y fixture local; sus capturas se escriben en `/tmp/phantom-mobile-secure-evidence`. El controlador ejecuta e informa los checks.
+#### App Android
+
+Abre **Configuración → Teléfono** para vincular la app con el gateway del repo independiente `phantom-mobile`, sin usar la terminal. En **Opciones avanzadas** puedes guardar su ruta y consultar la versión de Node detectada (requiere **Node >= 26**). La ruta guardada tiene prioridad sobre `PHANTOM_MOBILE_REPO` y el repo hermano `../phantom-mobile`; `PHANTOM_MOBILE_NODE` permite seleccionar el binario Node del host.
+
+1. Pulsa **Vincular teléfono** en Phantom.
+2. Escanea el único QR con la app Phantom en Android: incluye la identidad del host y el código temporal, sin copiar datos. El teléfono debe estar en la misma red; puedes usar su hotspot si la Wi-Fi aísla clientes.
+3. Pulsa **Permitir** en el escritorio tras leer los permisos. El clic reconoce explícitamente la autoridad del agente.
+
+Puedes conceder lectura del chat principal, envío de mensajes, parada de turnos y lectura de herramientas del proyecto. El acceso al chat principal exige reconocer que el teléfono actuará con la autoridad del agente. **Actualizar permisos reemplaza los anteriores** por la selección del formulario; también puedes revocar dispositivos o detener el gateway. Los datos privados del gateway se guardan separados de los del escritorio. Al detener el host se detiene su gateway; al reiniciarlo se pierden las vinculaciones, pero se conserva la identidad TLS.
 
 ### Sesiones y cierre
 
@@ -217,11 +257,17 @@ Para preparar otro perfil/equipo con Python3 y soporte venv:
 
 ```sh
 npm run setup:voice
+# Recomendado para dictado en vivo con GPU CUDA:
+npm run setup:voice -- --model large-v3-turbo --device cuda --replace
 # Alternativa de menor tamaño:
 node scripts/setup-voice.mjs --model tiny
 ```
 
-El instalador mantiene dependencias y modelos en el directorio propio de la app y respeta una configuración previa. Ajustes permite otro comando local o un proveedor compatible configurado por el host. Las API keys no viajan al renderer. La prueba de audio usó voz sintética; el micrófono personal se utiliza al pulsar Grabar y conceder acceso.
+El instalador mantiene dependencias y modelos en el directorio propio de la app y respeta una configuración previa; `--replace` guarda una copia de la configuración anterior. Admite `tiny`, `base`, `small`, `medium`, `large-v3` y `large-v3-turbo`. Las descargas solo ocurren durante la instalación explícita; el dictado local trabaja offline, sin descargas implícitas.
+
+En Ajustes → Dictado puedes elegir **Idioma del dictado** (Español, Inglés o Automático) y añadir **Vocabulario** de proyectos o términos (máximo 500 caracteres). En los detalles puedes ajustar **Pausa para cerrar frase (ms)** entre 300 y 2000 (por defecto 700) y **Sensibilidad de voz (VAD)** entre 0.2 y 0.8 (por defecto 0.5). Cambiar estos ajustes recrea el motor en el siguiente dictado.
+
+**Interpretar comandos con** permite reglas locales (por defecto) o Claude. Claude requiere `ANTHROPIC_API_KEY` en el entorno del host; si falta o falla la petición, se usan las reglas locales. El modelo puede configurarse mediante `voiceIntentModel` (por defecto `claude-haiku-5-5`). La interpretación con Claude envía el texto dictado a su API; siempre produce un borrador para revisión, sin ejecutar acciones automáticamente. Ajustes permite otro comando local o un proveedor compatible configurado por el host. Las API keys no viajan al renderer. La prueba de audio usó voz sintética; el micrófono personal se utiliza al pulsar Grabar y conceder acceso.
 
 ## Datos y configuración
 

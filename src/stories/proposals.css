@@ -1,0 +1,16 @@
+/* Propuestas/Resumen: solo lo específico del inventario y las decisiones. El kit vive en proposals-kit.css. */
+
+.px-inventory { width: 100%; border-collapse: collapse; font: var(--t-body); color: var(--ink); }
+.px-inventory th, .px-inventory td { padding: 8px 12px; text-align: left; vertical-align: middle; }
+.px-inventory thead th { font: var(--t-micro); color: var(--muted); }
+.px-inventory tbody th { font: var(--t-control); color: var(--ink); width: 40%; }
+.px-inventory tbody td:nth-child(2) { width: 20%; }
+.px-inventory tbody tr > * { background-image: linear-gradient(var(--divider), var(--divider)); background-size: 100% var(--divider-width); background-repeat: no-repeat; background-position: top; }
+.px-inventory a, .px-decision-links a { font: var(--t-support); font-family: var(--mono); color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.px-inventory a:hover, .px-decision-links a:hover { color: var(--ink); }
+
+.px-decisions { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-width: 720px; }
+.px-decisions li { display: grid; gap: 4px; padding: 12px 16px; border-radius: var(--r-row); background: var(--row-hover); }
+.px-decisions strong { font: var(--t-headline); color: var(--ink); }
+.px-decisions p { margin: 0; font: var(--t-body); color: var(--prose-ink); }
+.px-decision-links { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 4px; }

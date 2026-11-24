@@ -38,19 +38,17 @@ son contenido del usuario y pueden contener información sensible, incluida en l
 exportaciones según sus opciones. Los rechazos de tipo de estas preferencias no
 necesitan interpolar sus valores; la exportación simplemente omite tipos inválidos.
 
-## Límites y estado pendiente
+## Límites
 
 Esta proyección no cifra archivos ni implementa protección frente a root o a
 procesos del mismo usuario. Los permisos locales del directorio y del socket no
 constituyen esa defensa.
 
-Se han observado los dispositivos `/dev/tpm0` y `/dev/tpmrm0`, pero el backend TPM
-no está configurado ni validado. No se declara TPM, HSM ni KMS implementado:
-KMS/HSM requieren un proveedor real, una política y pruebas de integración.
-
-La migración móvil permanece bloqueada en
-`task_5c40f049-1e25-4d9b-b201-a5e27560d2c0`. Sus borradores son el baseline de
-este trabajo; esta protección de settings no acredita completar esa migración.
+El equipo tiene `/dev/tpm0` y `/dev/tpmrm0` y `npm run probe:tpm` sella y abre un
+secreto sintético con `systemd-creds` (`host+tpm2`, PCR7), pero ninguna clave ni
+credencial de Phantom usa el TPM. No se declara TPM, HSM ni KMS implementado:
+KMS/HSM requieren un proveedor real, una política y pruebas de integración. El
+diagnóstico y lo que falta para usar el TPM están en `docs/desktop-tpm.md`.
 
 ## Pruebas del cambio
 

@@ -1,5 +1,7 @@
 import net from 'node:net';
+import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { EVENTS_METHOD } from '../shared/workspace-events.mjs';
 
 export function invokeAgent(method, payload, socketPath, timeout=10000) {
   if (!socketPath) return Promise.reject(new Error('Ejecuta este comando dentro de una terminal nueva de Phantom Workspace.'));
@@ -13,9 +15,29 @@ export function invokeAgent(method, payload, socketPath, timeout=10000) {
     socket.once('end',()=>finish(new Error('Se cerró la conexión con el host.')));
   });
 }
-const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review]\n'
+export function subagentOp(payload) {
+  if(!payload || typeof payload!=='object' || Array.isArray(payload))return null;
+  const {hook_event_name:event,tool_use_id:id}=payload;
+  const valid=value=>typeof value==='string'&&value.length>0;
+  if(event==='SessionStart'||event==='SessionEnd')return {op:'reset'};
+  if(event==='SubagentStop')return valid(payload.agent_id)?{op:'end',agentId:payload.agent_id}:null;
+  if(payload.tool_name!=='Agent'||!valid(id))return null;
+  if(event==='PreToolUse') {
+    const input=payload.tool_input;
+    return {op:'start',id,type:typeof input?.subagent_type==='string'?input.subagent_type.slice(0,80):'',description:typeof input?.description==='string'?input.description.replace(/[\s\x00-\x1f\x7f-\x9f]+/g,' ').trim().slice(0,240):'',background:input?.run_in_background===true};
+  }
+  if(event==='PostToolUse')return payload.tool_response?.status==='async_launched'&&valid(payload.tool_response.agentId)?{op:'background',id,agentId:payload.tool_response.agentId}:{op:'end',id};
+  return event==='PostToolUseFailure'?{op:'end',id}:null;
+}
+const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review] | run ID [MODELO] | runs\n'
+  +'Encargos: projects | handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)\n'
+  +'Procesos: launch [--title TÍTULO] "COMANDO" | processes | output ID [LÍNEAS] | stop ID\n'
+  +'Entorno (Docker compose): env list | env up SERVICIO|--profile P | env run JOB [--timeout S] | env down [SERVICIO]\n'
   +'Incorporaciones (terminal): queue | submit ["Resumen"] | withdraw\n'
-  +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"';
+  +'Incorporaciones (sesión orquestadora): plan "Texto" | order ID [ID…] | note ID "Texto" | merge ID | reject ID "Motivo"\n'
+  +'Fases: phases show | phases set ARCHIVO.json|- | phases start KEY [TASK_ID] | phases task KEY TASK_ID | phases done KEY ["nota"] | phases block KEY "motivo" | phases reset KEY | phases clear\n'
+  +'Eventos: events [CURSOR]\n'
+  +'Hooks: subagent (lee el evento de Claude Code por stdin)';
 // Incorporaciones: [payload from arguments, argument check]. Orchestrator actions carry its token.
 const MERGE={
   queue:{method:'merge.queue',valid:rest=>!rest.length,payload:()=>({})},
@@ -27,10 +49,105 @@ const MERGE={
   merge:{method:'merge.run',token:true,timeout:200000,valid:rest=>rest.length===1,payload:rest=>({id:rest[0]})},
   reject:{method:'merge.reject',token:true,valid:rest=>rest.length===2,payload:rest=>({id:rest[0],reason:rest[1]})},
 };
+function handoffArguments(args) {
+  const payload={},seen=new Set();let source;
+  for(let i=0;i<args.length;i++) {
+    const arg=args[i];
+    if(arg.startsWith('--')) {
+      const key=arg.slice(2);
+      if(!['project','title','agent','file'].includes(key)||seen.has(key)||i+1>=args.length||args[i+1].startsWith('-'))throw new Error(USAGE);
+      seen.add(key);const value=args[++i];
+      if(key==='file'){if(source)throw new Error(USAGE);source={file:value};}else payload[key]=value;
+    } else {
+      if(source||(arg.startsWith('-')&&arg!=='-'))throw new Error(USAGE);
+      source=arg==='-'?{stdin:true}:{brief:arg};
+    }
+  }
+  if(!source||(payload.agent!==undefined&&!['claude','codex','opencode','none'].includes(payload.agent)))throw new Error(USAGE);
+  return {...payload,brief:source.stdin?fs.readFileSync(0,'utf8'):source.file?fs.readFileSync(source.file,'utf8'):source.brief};
+}
 export async function main(args=process.argv.slice(2), env=process.env) {
+  if(args[0]==='subagent') {
+    try {
+      if(args.length!==1)return;
+      const chunks=[];let size=0;
+      for await(const chunk of process.stdin){size+=Buffer.byteLength(chunk);if(size>1024*1024){process.stdin.destroy();return;}chunks.push(chunk);}
+      const op=subagentOp(JSON.parse(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk))).toString('utf8')));
+      if(op&&env.PHANTOM_TERMINAL_SESSION_ID&&env.PHANTOM_WORKSPACE_SOCKET)await invokeAgent('terminal.agent.subagent',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,op},env.PHANTOM_WORKSPACE_SOCKET,3000);
+    } catch {}
+    return;
+  }
+  if(args[0]==='env') {
+    const [,sub,...rest]=args,word=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(value);
+    let payload={},wait=15000;
+    if(sub==='list'&&!rest.length){/* sin argumentos */}
+    else if(sub==='up'&&((rest.length===1&&word(rest[0]))||(rest.length===2&&rest[0]==='--profile'&&word(rest[1])))){payload=rest.length===1?{service:rest[0]}:{profile:rest[1]};wait=360000;}
+    else if(sub==='run'&&(rest.length===1||(rest.length===3&&rest[1]==='--timeout'&&/^\d+$/.test(rest[2])&&Number(rest[2])>=1&&Number(rest[2])<=3600))&&word(rest[0])){payload={job:rest[0],...(rest.length===3?{timeout:Number(rest[2])}:{})};wait=((payload.timeout??600)+60)*1000;}
+    else if(sub==='down'&&rest.length<=1&&(!rest.length||word(rest[0]))){payload=rest.length?{service:rest[0]}:{};wait=150000;}
+    else throw new Error(USAGE);
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    return invokeAgent(`terminal.agent.env.${sub}`,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...payload},env.PHANTOM_WORKSPACE_SOCKET,wait);
+  }
+  if(args[0]==='events') {
+    const [,cursor]=args;
+    if(args.length>2||(cursor!==undefined&&!/^[A-Za-z0-9_-]{1,200}$/.test(cursor)))throw new Error(USAGE);
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    return invokeAgent(EVENTS_METHOD,{principal:{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},...(cursor===undefined?{}:{cursor})},env.PHANTOM_WORKSPACE_SOCKET);
+  }
+  if(['launch','processes','output','stop'].includes(args[0])) {
+    const [action,...rest]=args;
+    let payload={},method=`terminal.agent.${action}`;
+    const line=(value,max)=>typeof value==='string'&&value.trim()&&value.trim().length<=max&&!/[\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(value);
+    if(action==='launch') {
+      const titled=rest.length===3&&rest[0]==='--title';
+      if(!(rest.length===1||titled)||!line(rest.at(-1),2000)||rest.at(-1).startsWith('-')||(titled&&(!line(rest[1],120)||rest[1].length>120)))throw new Error(USAGE);
+      payload={command:rest.at(-1),...(titled?{title:rest[1]}:{})};
+    } else if(action==='processes') {
+      if(rest.length)throw new Error(USAGE);
+    } else {
+      if(rest.length<1||rest.length>(action==='output'?2:1)||!line(rest[0],512)||rest[0].startsWith('-')||(rest.length===2&&(!/^\d+$/.test(rest[1])||Number(rest[1])<1||Number(rest[1])>400)))throw new Error(USAGE);
+      method=`terminal.agent.process.${action}`;
+      payload={id:rest[0],...(rest.length===2?{lines:Number(rest[1])}:{})};
+    }
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    return invokeAgent(method,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...payload},env.PHANTOM_WORKSPACE_SOCKET,action==='launch'?60000:10000);
+  }
+  if(args[0]==='phases') {
+    const [,sub,...rest]=args,word=value=>typeof value==='string'&&value.length>0&&!value.startsWith('-');
+    let op;
+    if(sub==='show'&&!rest.length)op=null;
+    else if(sub==='set'&&rest.length===1&&(rest[0]==='-'||word(rest[0]))){let spec;try{spec=JSON.parse(fs.readFileSync(rest[0]==='-'?0:rest[0],'utf8'));}catch(error){throw new Error(`Plan JSON inválido: ${error.message}`);}op={...spec,type:'set'};}
+    else if(sub==='start'&&(rest.length===1||rest.length===2)&&rest.every(word))op={type:'start',key:rest[0],...(rest[1]?{taskId:rest[1]}:{})};
+    else if(sub==='task'&&rest.length===2&&rest.every(word))op={type:'task',key:rest[0],taskId:rest[1]};
+    else if(sub==='done'&&(rest.length===1||rest.length===2)&&word(rest[0]))op={type:'done',key:rest[0],...(rest.length===2?{note:rest[1]}:{})};
+    else if(sub==='block'&&rest.length===2&&word(rest[0]))op={type:'block',key:rest[0],note:rest[1]};
+    else if(sub==='reset'&&rest.length===1&&word(rest[0]))op={type:'reset',key:rest[0]};
+    else if(sub==='clear'&&!rest.length)op={type:'clear'};
+    else throw new Error(USAGE);
+    if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+    if(!op)return (await invokeAgent('terminal.agent.context',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},env.PHANTOM_WORKSPACE_SOCKET)).plan??null;
+    return invokeAgent('terminal.agent.plan',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,op},env.PHANTOM_WORKSPACE_SOCKET);
+  }
   const [action,...rest]=args,merge=Object.hasOwn(MERGE,action??'')?MERGE[action]:null;
-  if ((!merge && !['context','report','bind'].includes(action)) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512))) throw new Error(USAGE);
+  if ((!merge && !['context','report','bind','projects','handoff','run','runs'].includes(action)) || (action==='projects'&&rest.length) || (merge && !merge.valid(rest)) || (action==='report' && (!rest[0] || !['idle','working','blocked','review'].includes(rest[1]||'working'))) || (action==='bind' && (rest.length!==1 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512)) || (action==='run' && (rest.length<1 || rest.length>2 || !rest[0].trim() || rest[0].startsWith('-') || /[\x00-\x1f\x7f]/.test(rest[0]) || rest[0].length>512 || (rest.length===2 && (!rest[1].trim() || /[\x00-\x1f\x7f]/.test(rest[1]) || rest[1].length>200)))) || (action==='runs' && rest.length)) throw new Error(USAGE);
+  const handoff=action==='handoff'?handoffArguments(rest):null;
+  if(action==='run' || action==='runs') {
+    let workspaceId=env.PHANTOM_TERMINAL_SESSION_ID?undefined:env.PHANTOM_WORKSPACE_ID;
+    if(!workspaceId) {
+      if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+      const context=await invokeAgent('terminal.agent.context',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},env.PHANTOM_WORKSPACE_SOCKET);
+      workspaceId=context.workspaceId;
+    }
+    if(action==='runs') return invokeAgent('phantom.controllers',{workspaceId},env.PHANTOM_WORKSPACE_SOCKET);
+    return invokeAgent('phantom.control',{workspaceId,id:rest[0],action:'run',...(env.PHANTOM_TERMINAL_SESSION_ID?{sessionId:env.PHANTOM_TERMINAL_SESSION_ID}:env.PHANTOM_WORKSPACE_ID?{main:true}:{}),...(rest.length===2?{model:rest[1]}:{})},env.PHANTOM_WORKSPACE_SOCKET,60000);
+  }
+  // The project's Phantom conversation orchestrates without a terminal: it reads the queue and runs token commands by workspace.
+  if(!env.PHANTOM_TERMINAL_SESSION_ID && merge && env.PHANTOM_WORKSPACE_ID && (merge.token || action==='queue')) {
+    if(action==='queue') return invokeAgent('merge.status',{workspaceId:env.PHANTOM_WORKSPACE_ID},env.PHANTOM_WORKSPACE_SOCKET);
+    return invokeAgent(merge.method,{workspaceId:env.PHANTOM_WORKSPACE_ID,token:env.PHANTOM_MERGE_TOKEN??'',...merge.payload(rest)},env.PHANTOM_WORKSPACE_SOCKET,merge.timeout);
+  }
   if(!env.PHANTOM_TERMINAL_SESSION_ID)throw new Error('Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace.');
+  if(handoff)return invokeAgent('terminal.agent.handoff',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...handoff},env.PHANTOM_WORKSPACE_SOCKET,60000);
   if(merge) return invokeAgent(merge.method,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...(merge.token?{token:env.PHANTOM_MERGE_TOKEN??''}:{}),...merge.payload(rest)},env.PHANTOM_WORKSPACE_SOCKET,merge.timeout);
   if(action==='bind') {
     const context=await invokeAgent('terminal.agent.context',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID},env.PHANTOM_WORKSPACE_SOCKET);
@@ -38,4 +155,4 @@ export async function main(args=process.argv.slice(2), env=process.env) {
   }
   return invokeAgent(`terminal.agent.${action}`,{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,...(action==='report'?{patch:{step:rest[0],status:rest[1]||'working'}}:{})},env.PHANTOM_WORKSPACE_SOCKET);
 }
-if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href)main().then(value=>console.log(JSON.stringify(value,null,2)),error=>{console.error(error.message);process.exitCode=1;});
+if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href)main().then(value=>{if(process.argv[2]!=='subagent')console.log(JSON.stringify(value,null,2));},error=>{if(process.argv[2]!=='subagent'){console.error(error.message);process.exitCode=1;}});

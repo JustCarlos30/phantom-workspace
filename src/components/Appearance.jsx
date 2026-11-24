@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ImagePlus, RotateCcw, X } from 'lucide-react';
+import { Check, Sun } from 'lucide-react';
 import { ACCENTS, BACKGROUNDS } from '../hooks/useAppearance';
-import gengarArtwork from '../../assets/gengar.png';
+import { INTERFACE_SCALES } from '../hooks/interfaceScale';
+import { Group, Row, Switch } from './PluginPrimitives';
 
-export function Appearance({ appearance, update, reset, workspace }) {
+// Apariencia, as a category of Configuración: every change applies at once.
+export function Appearance({ appearance, update, reset, workspace, interfaceScale }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const request = useRef(0);
@@ -23,17 +25,38 @@ export function Appearance({ appearance, update, reset, workspace }) {
     } catch { if (version === request.current) setError('No se pudo leer la imagen. Prueba con otro archivo.'); }
     finally { if (version === request.current) setLoading(false); }
   }
-  return <section className="appearance-panel" aria-label="Apariencia del workspace">
-    <h2>Tu espacio, a tu manera</h2>
-    <p>Un fondo propio para orientarte. Superficies nítidas para trabajar.</p>
-    <fieldset><legend>Fondo del canvas</legend><div className="background-options">{BACKGROUNDS.map(([key, name, description]) => <button key={key} className={`background-option ${key}`} aria-pressed={!appearance.image && appearance.background === key} title={description} onClick={() => update({ background: key, image: '' })}><span className="background-preview" aria-hidden="true">{key === 'gengar' && <img src={gengarArtwork} alt="" />}</span><span>{name}</span>{!appearance.image && appearance.background === key && <Check size={13} />}</button>)}</div></fieldset>
-    <label className="background-upload"><ImagePlus size={16} /><span>{loading ? 'Leyendo imagen…' : 'Elegir mi imagen'}<small>PNG, JPG o WebP · hasta 2 MB</small></span><input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Elegir imagen de fondo" onChange={upload} disabled={loading} /></label>
-    {appearance.image && <div className="uploaded-background"><img src={appearance.image} alt="Fondo personal seleccionado" /><span>Tu imagen local</span><button className="icon-button" aria-label="Quitar imagen de fondo" onClick={() => update({ image: '' })}><X size={15} /></button></div>}
-    {error && <p className="appearance-error" role="alert">{error}</p>}
-    <fieldset><legend>Color de acento</legend><div className="accent-options">{ACCENTS.map(([key, name, color]) => <button key={key} aria-label={`Acento ${name}`} aria-pressed={appearance.accent === key} style={{ '--swatch': color }} onClick={() => update({ accent: key })}><span>{appearance.accent === key && <Check size={14} />}</span>{name}</button>)}</div></fieldset>
-    <label className="intensity-label" htmlFor="background-intensity">Intensidad del fondo <output>{appearance.intensity}%</output></label>
-    <input id="background-intensity" className="intensity-range" type="range" min="0" max="100" value={appearance.intensity} onChange={e => update({ intensity: Number(e.target.value) })} />
-    <label className="grid-toggle"><span>Retícula de puntos<small>Una referencia para organizar tus paneles</small></span><input type="checkbox" checked={appearance.grid} onChange={e => update({ grid: e.target.checked })} /></label>
-    <div className="appearance-footer"><p>Se guarda en este equipo{workspace ? ` para ${workspace.name}` : ''}. Al enfocar un panel, el fondo se atenúa automáticamente.</p><button className="button" onClick={() => { request.current++; setLoading(false); setError(''); reset(); }}><RotateCcw size={14} /> Restablecer apariencia</button></div>
-  </section>;
+  return <div className="st-appearance">
+    {interfaceScale && <Group title="Interfaz">
+      <Row label="Tamaño" hint="Toda la app y las terminales, en este equipo" htmlFor="interface-scale">
+        <select id="interface-scale" className="st-select" value={interfaceScale.scale} disabled={interfaceScale.loading} aria-busy={interfaceScale.loading} onChange={event => interfaceScale.update(Number(event.target.value))}>
+          {INTERFACE_SCALES.map(scale => <option key={scale} value={scale}>{scale}%{scale === 115 ? ' (predeterminado)' : ''}</option>)}
+        </select>
+      </Row>
+      {interfaceScale.error && <p className="st-error" role="alert">{interfaceScale.error}</p>}
+    </Group>}
+    <Group title="Fondo">
+      <div className="st-block"><div className="background-options" role="group" aria-label="Fondo del lienzo">{BACKGROUNDS.map(([key, name, description]) => <button type="button" key={key} className={`background-option ${key}`} aria-pressed={!appearance.image && appearance.background === key} title={description} onClick={() => update({ background: key, image: '' })}><span className="background-preview" aria-hidden="true" /><span>{name}</span>{!appearance.image && appearance.background === key && <Check size={13} />}</button>)}</div></div>
+      <Row label="Tu imagen" hint="PNG, JPG o WebP · hasta 2 MB">
+        {appearance.image && <><img className="st-thumb" src={appearance.image} alt="Fondo personal seleccionado" /><button type="button" className="st-btn" aria-label="Quitar imagen de fondo" onClick={() => update({ image: '' })}>Quitar</button></>}
+        <label className="st-btn st-file">{loading ? 'Leyendo…' : 'Elegir…'}<input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Elegir imagen de fondo" onChange={upload} disabled={loading} /></label>
+      </Row>
+      {error && <p className="st-error" role="alert">{error}</p>}
+      <div className="st-row st-slider-row"><label htmlFor="background-intensity">Intensidad</label><output htmlFor="background-intensity">{appearance.intensity}%</output><div className="st-slider" style={{ '--range-value': `${appearance.intensity}%` }}><span className="st-slider-fill" /><Sun size={16} aria-hidden="true" /><input id="background-intensity" className="st-range" type="range" min="0" max="100" value={appearance.intensity} onChange={e => update({ intensity: Number(e.target.value) })} /></div></div>
+    </Group>
+    <Group title="Color de acento">
+      <div className="st-block"><div className="accent-options" role="group" aria-label="Color de acento">{ACCENTS.map(([key, name, color]) => <button type="button" key={key} aria-label={`Acento ${name}`} aria-pressed={appearance.accent === key} style={{ '--swatch': color }} onClick={() => update({ accent: key })}><span>{appearance.accent === key && <Check size={14} />}</span>{name}</button>)}</div></div>
+    </Group>
+    <Group title="Titi">
+      <Row label="Mostrar Titi"><Switch label="Mostrar Titi" checked={appearance.gengar} onChange={gengar => update({ gengar })} /></Row>
+      <div className="st-row st-slider-row"><label htmlFor="gengar-intensity">Presencia</label><output htmlFor="gengar-intensity">{appearance.gengarIntensity}%</output><div className="st-slider" style={{ '--range-value': `${appearance.gengarIntensity}%` }}><span className="st-slider-fill" /><Sun size={16} aria-hidden="true" /><input id="gengar-intensity" className="st-range" type="range" min="0" max="100" disabled={!appearance.gengar} value={appearance.gengarIntensity} onChange={e => update({ gengarIntensity: Number(e.target.value) })} /></div></div>
+    </Group>
+    <Group title="Lienzo">
+      <Row label="Pulso ambiental" hint="Animación lenta del fondo"><Switch label="Pulso ambiental" checked={appearance.pulse} onChange={pulse => update({ pulse })} /></Row>
+      <Row label="Concentración" hint="Atenúa el fondo y a Titi"><Switch label="Concentración" checked={appearance.concentration} onChange={concentration => update({ concentration })} /></Row>
+      <Row label="Retícula de puntos"><Switch label="Retícula de puntos" checked={appearance.grid} onChange={grid => update({ grid })} /></Row>
+    </Group>
+    <Group>
+      <Row label="Restablecer apariencia" hint={workspace ? `Solo la de ${workspace.name}` : undefined}><button type="button" className="st-btn" onClick={() => { request.current++; setLoading(false); setError(''); reset(); }}>Restablecer</button></Row>
+    </Group>
+  </div>;
 }

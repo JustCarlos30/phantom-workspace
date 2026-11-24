@@ -1,45 +1,64 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Synchronous durable admission before an effect: no event-loop gap between
-// permission/revocation checks, journal admission and invoking the operation.
 export class MobileAudit {
-  constructor(dataDir) {
-    this.dir = path.join(dataDir, 'mobile-audit');
-    fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    if (fs.lstatSync(this.dir).isSymbolicLink()) throw new Error('Auditoría no canónica');
-    fs.chmodSync(this.dir, 0o700); this.file = path.join(this.dir, 'events.jsonl');
-  }
+  constructor(dataDir) { this.file = path.join(dataDir, 'mobile-audit.jsonl'); }
   append(event) {
-    const safe = {};
-    for (const key of ['timestamp', 'deviceId', 'workspaceId', 'nodeId', 'method', 'outcome', 'reason', 'requestId']) {
-      if (typeof event[key] === 'string') safe[key] = event[key].replace(/[\x00-\x1f\x7f]/g, '').slice(0, 128);
-      else if (key === 'timestamp' && Number.isFinite(event[key])) safe[key] = event[key];
-    }
-    if (fs.existsSync(this.file) && fs.lstatSync(this.file).size >= 256 * 1024) {
-      fs.rmSync(this.file + '.2', { force: true });
-      if (fs.existsSync(this.file + '.1')) fs.renameSync(this.file + '.1', this.file + '.2');
-      fs.renameSync(this.file, this.file + '.1');
-    }
-    const fd = fs.openSync(this.file, fs.constants.O_RDWR | fs.constants.O_APPEND | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW, 0o600);
+    const line = Buffer.from(JSON.stringify(event) + '\n');
+    const open = () => {
+      const fd = fs.openSync(this.file, fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW, 0o600);
+      try {
+        const stat = fs.fstatSync(fd);
+        if (!stat.isFile() || stat.uid !== process.getuid() || stat.nlink !== 1 || (stat.mode & 0o7777) !== 0o600) throw new Error('Auditoría móvil insegura');
+        return fd;
+      } catch (error) { fs.closeSync(fd); throw error; }
+    };
+    let fd = open();
     try {
-      fs.fchmodSync(fd, 0o600);
-      const size = fs.fstatSync(fd).size;
-      if (size) {
-        const tail = Buffer.alloc(1); fs.readSync(fd, tail, 0, 1, size - 1);
-        if (tail[0] !== 10) throw new Error('Auditoría truncada; requiere revisión local');
+      if (fs.fstatSync(fd).size + line.length > 1024 * 1024) {
+        fs.closeSync(fd); fd = undefined;
+        fs.renameSync(this.file, this.file + '.1');
+        fd = open();
       }
-      const bytes = Buffer.from(JSON.stringify(safe) + '\n'); let offset = 0;
-      while (offset < bytes.length) { const count = fs.writeSync(fd, bytes, offset, bytes.length - offset); if (!count) throw new Error('Auditoría incompleta'); offset += count; }
+      let offset = 0;
+      while (offset < line.length) {
+        const written = fs.writeSync(fd, line, offset, line.length - offset);
+        if (!written) throw new Error('Escritura de auditoría incompleta');
+        offset += written;
+      }
       fs.fsyncSync(fd);
-    } finally { fs.closeSync(fd); }
+    } finally { if (fd !== undefined) fs.closeSync(fd); }
   }
-  list() {
-    if (!fs.existsSync(this.file)) return [];
-    const fd = fs.openSync(this.file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    try {
-      if (!fs.fstatSync(fd).isFile() || fs.fstatSync(fd).size > 264 * 1024) throw new Error('Auditoría fuera de límite');
-      return fs.readFileSync(fd, 'utf8').trim().split('\n').filter(Boolean).slice(-100).map(line => JSON.parse(line));
-    } finally { fs.closeSync(fd); }
+  // Read-only view for the desktop: same ownership checks as append, bounded tail
+  // reads and a fixed field projection, so nothing beyond the logged schema leaves.
+  list(limit = 100) {
+    const events = [];
+    for (const file of [this.file, this.file + '.1']) {
+      if (events.length >= limit) break;
+      let fd;
+      try { fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW); }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      try {
+        const stat = fs.fstatSync(fd);
+        if (!stat.isFile() || stat.uid !== process.getuid() || stat.nlink !== 1 || (stat.mode & 0o7777) !== 0o600) throw new Error('Auditoría móvil insegura');
+        const size = Math.min(stat.size, TAIL), buffer = Buffer.alloc(size);
+        let read = 0;
+        while (read < size) { const count = fs.readSync(fd, buffer, read, size - read, stat.size - size + read); if (!count) break; read += count; }
+        const lines = buffer.subarray(0, read).toString('utf8').split('\n');
+        if (stat.size > size) lines.shift();
+        const parsed = [];
+        for (const line of lines) {
+          if (!line) continue;
+          let value; try { value = JSON.parse(line); } catch { continue; }
+          if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+          parsed.push(Object.fromEntries(FIELDS.filter(key => typeof value[key] === 'string').map(key => [key, value[key].slice(0, 256)])));
+        }
+        events.unshift(...parsed.slice(-(limit - events.length)));
+      } finally { fs.closeSync(fd); }
+    }
+    return events;
   }
 }
+
+const TAIL = 256 * 1024;
+const FIELDS = ['time', 'deviceId', 'deviceName', 'remoteAddress', 'method', 'nodeId', 'sessionId', 'result', 'phase'];

@@ -27,7 +27,7 @@ export function loopbackRequest(url, { method = 'GET', headers, body, signal } =
 // `opencode run` answers permission.asked with reject before a host can ask
 // the user. Own a loopback server instead and answer through its HTTP API.
 // The caller owns the process group; this transport never starts a model CLI.
-export async function driveOpenCode(child, { cwd, sessionId, message, model, reasoning, password, onEvent, onPermission, onQuestion, signal: callerSignal }) {
+export async function driveOpenCode(child, { cwd, sessionId, message, model, reasoning, password, onEvent, onPermission, onQuestion, operation = 'message', signal: callerSignal }) {
   const controller = new AbortController(), signal = callerSignal ? AbortSignal.any([controller.signal, callerSignal]) : controller.signal;
   let base, reader, failure, mainError, completed = false, buffer = '';
   const stopped = new Promise(resolve => child.once('close', resolve));
@@ -98,6 +98,21 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
     catch (error) { if (error instanceof SyntaxError) error.transient = false; throw error; }
   });
   const seen = new Map(), requests = new Set(), sessions = new Set(sessionId ? [sessionId] : []);
+  const models = new Map();
+  const emitModel = info => {
+    if (info?.sessionID !== sessionId || info.role !== 'assistant' || !info.providerID || !info.modelID) return;
+    const model = `${info.providerID}/${info.modelID}`;
+    if (models.has(model)) return;
+    models.set(model, (async () => {
+      let contextWindow;
+      try {
+        const config = await getJSON('/config/providers');
+        const value = config.providers?.find(provider => provider.id === info.providerID)?.models?.[info.modelID]?.limit?.context;
+        if (Number.isFinite(value) && value > 0) contextWindow = value;
+      } catch { /* Model limits are optional. */ }
+      if (!signal.aborted) onEvent({ type: 'model', sessionID: sessionId, model, ...(contextWindow ? { contextWindow } : {}) });
+    })());
+  };
   const errorMessage = error => String(error?.data?.message || error?.message || error?.name || 'OpenCode terminó con error');
   const emitPart = part => {
     if (!part?.id || !sessions.has(part.sessionID)) return;
@@ -115,6 +130,7 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
   };
   const handle = event => {
     const p = event.properties || {};
+    if (event.type === 'message.updated') emitModel(p.info);
     if (event.type === 'session.created' && sessions.has(p.info?.parentID)) sessions.add(p.info.id);
     if (event.type === 'message.part.updated') emitPart(p.part);
     // Child failures belong to the parent's task tool. Even main errors can
@@ -148,6 +164,28 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
   };
   try {
     base = await ready;
+    let capability;
+    if (operation !== 'message') {
+      const doc = await getJSON('/doc');
+      const endpoint = doc.paths?.['/session/{sessionID}/summarize']?.post;
+      const schema = endpoint?.requestBody?.content?.['application/json']?.schema;
+      if (!schema?.properties?.providerID || !schema?.properties?.modelID || !schema?.properties?.auto) throw new Error('Esta instalación no expone la API nativa session.summarize compatible');
+      capability = { kind: 'native', source: 'opencode:/doc', version: doc.info?.version ?? null };
+      if (operation === 'capabilities') return capability;
+      if (operation !== 'compact' || !sessionId || !model) throw new Error('Compactación: faltan sesión o modelo explícito');
+      const config = await getJSON('/config');
+      const agents = await getJSON('/agent');
+      // Compaction may override the requested model with its agent's model.
+      const override = config.agent?.compaction?.model;
+      const agentModel = agents.find(agent => agent.name === 'compaction')?.model;
+      const effective = override || (agentModel && `${agentModel.providerID}/${agentModel.modelID}`) || model;
+      if (effective !== model) throw new Error('El modelo del agente de compactación difiere del modelo elegido; revisa la configuración de OpenCode');
+      const [providerID, ...id] = model.split('/');
+      const providers = await getJSON('/config/providers');
+      if (!providers.providers?.find(provider => provider.id === providerID)?.models?.[id.join('/')]) throw new Error('El modelo elegido no está disponible en esta instalación de OpenCode');
+      const status = await getJSON('/session/status');
+      if (status[sessionId] && status[sessionId].type !== 'idle') throw new Error('La sesión de OpenCode está ocupada');
+    }
     if (sessionId) await request(`/session/${encodeURIComponent(sessionId)}`);
     else {
       const session = await (await request('/session', {})).json();
@@ -196,6 +234,21 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
       }
     })().catch(error => { if (!signal.aborted) abort(error); });
     const [providerID, ...modelID] = (model || '').split('/');
+    if (operation === 'compact') {
+      const route = `/session/${encodeURIComponent(sessionId)}`;
+      const before = await getJSON(`${route}/message`);
+      const ids = new Set(before.map(message => message.info?.id));
+      const accepted = await (await request(`${route}/summarize`, { providerID, modelID: modelID.join('/'), auto: false }, false)).json();
+      const after = await getJSON(`${route}/message`);
+      const fresh = after.filter(message => !ids.has(message.info?.id));
+      const marker = fresh.find(message => message.parts?.some(part => part.type === 'compaction'));
+      const summary = fresh.find(message => message.info?.role === 'assistant' && message.info.parentID === marker?.info?.id && message.info.providerID === providerID && message.info.modelID === modelID.join('/') && message.info.summary === true && message.info.time?.completed && !message.info.error && message.parts?.some(part => part.type === 'text' && part.text?.trim()));
+      if (accepted !== true || !summary || !marker || mainError || failure) throw new Error(mainError ? errorMessage(mainError) : 'OpenCode no confirmó un resumen nativo completo; el resultado queda sin verificar');
+      completed = true;
+      controller.abort();
+      await reader.cancel().catch(() => {}); await reading;
+      return { ...capability, sessionId, summaryId: summary.info.id, compactionId: marker.info.id, summary: summary.parts.filter(part => part.type === 'text').map(part => part.text).join('\n') };
+    }
     const result = await (await request(`/session/${encodeURIComponent(sessionId)}/message`, {
       parts: [{ type: 'text', text: message }],
       ...(model ? { model: { providerID, modelID: modelID.join('/') } } : {}),
@@ -204,6 +257,8 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
     // The HTTP result also contains final parts: fill gaps if the last SSE
     // packet and the prompt response arrive in different event-loop turns.
     for (const part of result.parts || []) emitPart(part);
+    emitModel(result.info);
+    await Promise.all(models.values());
     if (result.info?.error) onEvent({ type: 'error', error: { message: [...new Set([errorMessage(result.info.error), ...(mainError ? [errorMessage(mainError)] : [])])].join('\n') } });
     if (failure) throw failure;
     completed = true;
@@ -211,7 +266,7 @@ export async function driveOpenCode(child, { cwd, sessionId, message, model, rea
     await reader.cancel().catch(() => {}); await reading;
   } catch (error) {
     if (error.code === 'ENOENT') throw error;
-    throw new Error(`OpenCode: ${[...new Set([failure?.message || error.message, ...(mainError ? [errorMessage(mainError)] : [])])].join('\n')}`, { cause: error });
+    throw new Error(`OpenCode: ${[...new Set([failure?.message || (callerSignal?.aborted ? callerSignal.reason?.message : '') || error.message, ...(mainError ? [errorMessage(mainError)] : [])])].join('\n')}`, { cause: error });
   } finally {
     controller.abort();
     await reader?.cancel().catch(() => {});

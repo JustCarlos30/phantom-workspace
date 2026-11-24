@@ -21,11 +21,11 @@ test('TPM probe pins executable, TPM2/PCR7, private pipes and resource bounds; c
   const f = fixture();
   try {
     assert.deepEqual(probeDesktopTPM({ runner: f.runner }), {
-      ok: true, stage: 'roundtrip', reason: 'systemd-tpm2-pcr7-roundtrip-only',
+      ok: true, stage: 'roundtrip', reason: 'systemd-host-tpm2-pcr7-roundtrip-only',
     });
     assert.equal(f.calls.length, 2);
     const common = ['--user', '--no-ask-password', '--name=phantom-capability-probe'];
-    assert.deepEqual(f.calls[0].args, [...common, '--with-key=tpm2', '--tpm2-pcrs=7', 'encrypt', '-', '-']);
+    assert.deepEqual(f.calls[0].args, [...common, '--with-key=host+tpm2', '--tpm2-pcrs=7', 'encrypt', '-', '-']);
     assert.deepEqual(f.calls[1].args, [...common, '--refuse-null', 'decrypt', '-', '-']);
     assert.equal(f.calls[0].options.input.length, 32);
     assert.equal(f.calls[1].options.input, f.buffers[1]);

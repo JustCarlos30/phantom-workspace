@@ -5,22 +5,25 @@ import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { verifyReviewRender } from '../integrations/video-review.mjs';
 import { safePath } from '../integrations/common.mjs';
+import { validateInterfaceScale } from '../shared/interface-scale.mjs';
 
 export const INVOKE_CHANNEL = 'phantom:invoke';
 export const EVENT_CHANNEL = 'phantom:event';
 export const HOST_METHODS = new Set([
   'system.info', 'state.get', 'settings.update', 'limits.read',
-  'mobile.status', 'mobile.start', 'mobile.stop', 'mobile.pairing', 'mobile.revoke',
-  'mobile.approve', 'mobile.permissions', 'mobile.audit', 'mobile.identity',
+  'mobile.status', 'mobile.start', 'mobile.stop', 'mobile.pairing', 'mobile.revoke', 'mobile.approve', 'mobile.reject', 'mobile.audit',
+  'android.status', 'android.configure', 'android.start', 'android.link', 'android.stop', 'android.pairing', 'android.bootstrap', 'android.approve', 'android.revoke',
   'workspace.open', 'workspace.select', 'workspace.update', 'workspace.relocate',
   'node.create', 'node.update', 'node.remove',
-  'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.resize', 'terminal.stop', 'terminal.close',
+  'terminal.setup.retry', 'terminal.create', 'terminal.list', 'terminal.attach', 'terminal.tail', 'terminal.write', 'terminal.trust', 'terminal.resize', 'terminal.stop', 'terminal.close',
   'terminal.agent.update', 'terminal.agent.context', 'terminal.agent.report', 'opencode.sessions',
-  'chat.get', 'chat.configure', 'chat.send', 'chat.stop', 'chat.clear', 'chat.queue.remove', 'chat.queue.send', 'chat.models', 'chat.permission.answer', 'chat.question.answer',
+  'chat.get', 'chat.configure', 'chat.send', 'chat.stop', 'chat.clear', 'chat.compaction.capabilities', 'chat.compact', 'chat.continue', 'chat.queue.remove', 'chat.queue.send', 'chat.models', 'chat.permission.answer', 'chat.question.answer',
   'task.create', 'task.update', 'task.remove', 'mission.create', 'mission.update', 'mission.remove',
   'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read', 'skills.catalog', 'skills.read',
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',
   'git.inspect', 'services.list', 'services.pin', 'services.remove', 'docker.list', 'docker.logs', 'docker.action',
+  // Entorno: el renderer observa y baja servicios; subir y ejecutar jobs es de las terminales.
+  'env.list', 'env.down',
   'plugins.list', 'plugins.update', 'plugins.status', 'plugins.models',
   'review.projects', 'review.export', 'review.add', 'review.list', 'review.resolve',
   // Incorporaciones: the renderer observes and toggles; queue actions belong to terminal sessions.
@@ -30,10 +33,11 @@ export const HOST_METHODS = new Set([
   // Repositorio: graph, diffs and edits of existing text files inside the project's own worktrees.
   'repo.graph', 'repo.commit', 'repo.diff', 'repo.files', 'repo.file.read', 'repo.file.write',
   'phantom.list', 'phantom.detail', 'phantom.events', 'phantom.controllers', 'phantom.create', 'phantom.update', 'phantom.control',
+  'providers.list', 'providers.models', 'providers.configure',
   'plugin.get', 'plugin.update',
   'automation.start', 'automation.list', 'automation.stop', 'automation.trace',
   'playground.run', 'playground.stop', 'playground.list', 'voice.transcribe', 'voice.intent',
-  'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel',
+  'voice.stream.start', 'voice.stream.push', 'voice.stream.finish', 'voice.stream.cancel', 'voice.stream.warm', 'voice.stream.recover',
   // Canvas board: references (image, video, link) and comment pins.
   'reference.add', 'reference.link', 'reference.identity', 'comment.add', 'comment.reply', 'comment.update', 'comment.remove', 'comment.retry',
 ]);
@@ -100,10 +104,11 @@ export function byteRange(header, size) {
   return start <= end && start < size ? { start, end } : false;
 }
 export const LOCAL_METHODS = new Set([
-  'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.previewImage',
+  'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.openBrowser', 'desktop.previewImage',
   'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady', 'desktop.notify',
+  'desktop.interfaceScale.get', 'desktop.interfaceScale.set',
   'browser.attach', 'browser.bounds', 'browser.navigate', 'browser.back', 'browser.forward',
-  'browser.reload', 'browser.detach', 'browser.capture',
+  'browser.reload', 'browser.detach', 'browser.capture', 'browser.inspect',
 ]);
 
 export function validateJSON(value, maxBytes = 1024 * 1024) {
@@ -144,6 +149,13 @@ export function validateInvocation(method, payload) {
   const large = ['storage.import', 'desktop.export', 'voice.transcribe'].includes(method);
   // A pasted image travels as base64: 12 MB of pixels is about 16 MB of text.
   validateJSON(payload, method === 'reference.add' ? 17 * 1024 * 1024 : large ? 16 * 1024 * 1024 : 1024 * 1024);
+  if (method === 'desktop.interfaceScale.get' || method === 'desktop.interfaceScale.set') {
+    const keys = Object.keys(payload);
+    if (method.endsWith('.get') ? keys.length !== 0 : keys.length !== 1 || keys[0] !== 'scale') {
+      throw new Error('Payload de escala no válido');
+    }
+    if (method.endsWith('.set')) validateInterfaceScale(payload.scale);
+  }
   if (method === 'desktop.closeReady') validateCloseReady(payload);
   if (method === 'desktop.notify') {
     if (Object.keys(payload).some(key => !['title', 'body', 'target'].includes(key))
@@ -153,6 +165,29 @@ export function validateInvocation(method, payload) {
       throw new Error('Notificación desktop no válida');
     }
   }
+}
+
+export const EXPORT_MAX_BYTES = 16 * 1024 * 1024;
+
+export function normalizeExportPath(filePath) {
+  if (typeof filePath !== 'string' || !filePath) return null;
+  return filePath.toLowerCase().endsWith('.json') ? filePath : `${filePath}.json`;
+}
+
+export function checkExportSize(data, maxBytes = EXPORT_MAX_BYTES) {
+  const text = JSON.stringify(data);
+  if (text === undefined) throw new Error('Exportación debe contener JSON válido');
+  if (Buffer.byteLength(text) > maxBytes) {
+    throw new Error('La exportación supera 16 MB. Desactiva «Incluir historial al exportar» e inténtalo de nuevo.');
+  }
+  return text;
+}
+
+// Maps a save dialog result to the outcome reported to the renderer.
+export function classifyExportResult(result, written) {
+  if (!result || result.canceled || !result.filePath) return { status: 'cancelled' };
+  const destination = normalizeExportPath(result.filePath);
+  return written ? { status: 'saved', path: destination } : { status: 'pending', path: destination };
 }
 
 export function validateCloseReady(payload, outstandingId = payload?.requestId) {
@@ -215,6 +250,14 @@ export function clampBounds(bounds, viewport) {
   const right = Math.max(x, Math.min(width, Math.floor(bounds.x + bounds.width)));
   const bottom = Math.max(y, Math.min(height, Math.floor(bounds.y + bounds.height)));
   return { x, y, width: right - x, height: bottom - y };
+}
+
+// DOM bounds are CSS pixels; native child views use window DIPs. Spatial canvas
+// transforms are already included by getBoundingClientRect, so apply only UI zoom.
+export function nativeUIBounds(bounds, factor) {
+  clampBounds(bounds, { width: 0, height: 0 });
+  if (typeof factor !== 'number' || !Number.isFinite(factor) || factor < 1 || factor > 1.5) throw new Error('Factor de interfaz no válido');
+  return Object.fromEntries(['x', 'y', 'width', 'height'].map(key => [key, bounds[key] * factor]));
 }
 
 export function validateID(value) {

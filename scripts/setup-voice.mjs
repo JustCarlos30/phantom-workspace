@@ -2,16 +2,18 @@
 // Explicit installation only. No network or processes run when imported.
 // State path: <PHANTOM_WORKSPACE_HOME or XDG_STATE_HOME/phantom-workspace>/voice-runtime.
 import { access, chmod, copyFile, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { constants, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executableOnPath, runCommand, stateDirectory } from '../integrations/run-manager.mjs';
 
-export const HELP = `Usage: node scripts/setup-voice.mjs [--data <app-state-dir>] [--model base|tiny|small] [--device cpu|cuda] [--replace]
+export const MODEL_REPOS = Object.freeze(JSON.parse(readFileSync(new URL('./transcribe.py', import.meta.url), 'utf8').match(/^MODEL_REPOS = (.+)$/m)[1]));
+
+export const HELP = `Usage: node scripts/setup-voice.mjs [--data <app-state-dir>] [--model ${Object.keys(MODEL_REPOS).join('|')}] [--device cpu|cuda] [--replace]
 Installs Python venv + faster-whisper + multilingual model in app data.
 Default: ${stateDirectory()}/voice-runtime (outside project folders).
-Model provenance: https://huggingface.co/Systran/faster-whisper-{base,tiny}
+Model provenance: Systran/faster-whisper-<model>; large-v3-turbo: mobiuslabsgmbh/faster-whisper-large-v3-turbo (https://huggingface.co).
 Python dependency: https://pypi.org/project/faster-whisper/ (isolated venv only).
 Existing config is preserved unless --replace is supplied; replacement keeps a backup.
 An explicit settings.voiceProvider/localWhisperCommand has precedence over discovery.
@@ -23,7 +25,7 @@ export function parseArgs(argv) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') options.help = true;
     else if (arg === '--data' && argv[index + 1] && !argv[index + 1].startsWith('--')) options.dataDir = path.resolve(argv[++index]);
-    else if (arg === '--model' && ['base', 'tiny', 'small'].includes(argv[index + 1])) options.model = argv[++index];
+    else if (arg === '--model' && Object.hasOwn(MODEL_REPOS, argv[index + 1])) options.model = argv[++index];
     else if (arg === '--device' && ['cpu', 'cuda'].includes(argv[index + 1])) options.device = argv[++index];
     else if (arg === '--replace') options.replace = true;
     else throw new Error(`Argumento inválido: ${arg}\n${HELP}`);
@@ -36,7 +38,7 @@ async function exists(filename) {
 }
 
 export async function setupVoice({ dataDir = stateDirectory(), model = 'base', device = 'cpu', replace = false } = {}) {
-  if (!['base', 'tiny', 'small'].includes(model)) throw new Error('Modelo permitido: base, tiny o small');
+  if (!Object.hasOwn(MODEL_REPOS, model)) throw new Error(`Modelos permitidos: ${Object.keys(MODEL_REPOS).join(', ')}`);
   if (!['cpu', 'cuda'].includes(device)) throw new Error('Dispositivo permitido: cpu o cuda');
   const computeType = device === 'cuda' ? 'int8_float16' : 'int8';
   const root = path.resolve(dataDir);
@@ -63,7 +65,8 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base', d
   const lock = await open(path.join(runtime, 'setup.lock'), 'wx', 0o600).catch(error => { throw new Error(error.code === 'EEXIST' ? `Hay otro setup activo o un lock antiguo: ${path.join(runtime, 'setup.lock')}. Compruébalo antes de reintentar.` : error.message); });
   const engine = path.join(runtime, 'engines', `${model}-${randomUUID()}`);
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 600_000);
+  // GPU libraries (~700 MB) and large models (~1.6 GB) need long downloads on slow links.
+  const timer = setTimeout(() => abort.abort(), 3_600_000);
   let installed = false;
   try {
     await lock.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
@@ -83,7 +86,7 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base', d
     await execute(venvPython, ['-I', '-m', 'pip', '--isolated', '--disable-pip-version-check', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'faster-whisper==1.2.1', 'av>=14,<17'], 300_000);
     let gpuLibraryPath;
     if (device === 'cuda') {
-      await execute(venvPython, ['-I', '-m', 'pip', '--isolated', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'nvidia-cublas-cu12', 'nvidia-cudnn-cu12==9.*'], 300_000);
+      await execute(venvPython, ['-I', '-m', 'pip', '--isolated', 'install', '--no-input', '--no-cache-dir', '--index-url', 'https://pypi.org/simple', 'nvidia-cublas-cu12', 'nvidia-cudnn-cu12==9.*'], 1_200_000);
       gpuLibraryPath = (await execute(venvPython, ['-I', '-c', 'import sysconfig,os; p=sysconfig.get_paths()["purelib"]; print(os.path.join(p,"nvidia/cublas/lib")+":"+os.path.join(p,"nvidia/cudnn/lib"))'], 10_000)).trim();
       env.LD_LIBRARY_PATH = [gpuLibraryPath, env.LD_LIBRARY_PATH].filter(Boolean).join(path.delimiter);
     }
@@ -93,8 +96,12 @@ export async function setupVoice({ dataDir = stateDirectory(), model = 'base', d
     const streaming = path.join(engine, 'voice-stream.py');
     await copyFile(new URL('./voice-stream.py', import.meta.url), streaming, constants.COPYFILE_EXCL);
     await chmod(streaming, 0o600);
+    // Sibling helper the streaming worker imports.
+    const helper = path.join(engine, 'voice_text.py');
+    await copyFile(new URL('./voice_text.py', import.meta.url), helper, constants.COPYFILE_EXCL);
+    await chmod(helper, 0o600);
     const hardwareArgs = ['--device', device, '--compute-type', computeType];
-    const prepared = await execute(venvPython, ['-I', runner, '--prepare', '--model', model, '--cache-dir', path.join(engine, 'cache', 'hub'), ...hardwareArgs], 300_000);
+    const prepared = await execute(venvPython, ['-I', runner, '--prepare', '--model', model, '--cache-dir', path.join(engine, 'cache', 'hub'), ...hardwareArgs], 1_800_000);
     const provenance = JSON.parse(prepared.trim().split('\n').at(-1));
     const argv = [venvPython, '-I', runner, '{input}', '{outputDir}', '--model', provenance.modelPath, ...hardwareArgs];
     const streamArgv = [venvPython, '-I', '-u', streaming, '--model', provenance.modelPath, ...hardwareArgs];

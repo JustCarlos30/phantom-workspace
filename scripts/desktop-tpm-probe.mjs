@@ -46,7 +46,7 @@ export function probeDesktopTPM({ runner = spawnSync } = {}) {
     return result;
   };
   try {
-    const encrypted = run([...common, '--with-key=tpm2', '--tpm2-pcrs=7', 'encrypt', '-', '-'], plaintext);
+    const encrypted = run([...common, '--with-key=host+tpm2', '--tpm2-pcrs=7', 'encrypt', '-', '-'], plaintext);
     const encryptFailure = failure(encrypted);
     if (encryptFailure) return { ok: false, stage, reason: encryptFailure };
     stage = 'decrypt';
@@ -56,7 +56,7 @@ export function probeDesktopTPM({ runner = spawnSync } = {}) {
     if (decrypted.stdout.length !== plaintext.length || !timingSafeEqual(plaintext, decrypted.stdout)) {
       return { ok: false, stage, reason: 'roundtrip-mismatch' };
     }
-    return { ok: true, stage: 'roundtrip', reason: 'systemd-tpm2-pcr7-roundtrip-only' };
+    return { ok: true, stage: 'roundtrip', reason: 'systemd-host-tpm2-pcr7-roundtrip-only' };
   } catch {
     return { ok: false, stage, reason: 'runner-error' };
   } finally {

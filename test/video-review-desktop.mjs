@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Controller-owned entry point: real production Electron, IPC, host, media
 // decoder and private persistence. Only the file picker and provider executable
@@ -202,6 +203,6 @@ try {
       if (cmd.includes(profile)) { await Promise.race([invoke('host.shutdown').catch(() => {}), delay(2000)]); try { process.kill(host, 'SIGTERM'); } catch {} }
     }
     if (app) await Promise.race([app.close().catch(() => {}), delay(2000)]);
-    if (child?.exitCode === null && child?.signalCode === null) child.kill('SIGKILL');
+    killElectronGroup(child);
   } finally { await detector(); }
 }

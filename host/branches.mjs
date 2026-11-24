@@ -5,13 +5,14 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { git, hostGitEnv } from './merge-guard.mjs';
 import { checksFor, runChecks } from './checks.mjs';
+import { closeBlockedTasks } from '../integrations/phantom.mjs';
 
 const execute = promisify(execFile);
 
 // Ramas: one view of every local branch of the project repository, the worktree
 // that holds it, the terminal that owns it and the work it still carries
 // (uncommitted files, commits not yet in the base). Git is the only source;
-// nothing is cached. Actions are the user's own decisions from the panel:
+// immutable object queries are briefly cached. Actions are the user's own decisions from the panel:
 // they never discard work and never force.
 const MAX_FILES = 200, MAX_BRANCHES = 200;
 const real = target => { try { return canonicalFolder(target); } catch { return null; } };
@@ -48,14 +49,15 @@ const summarizeChanges = changes => changes.reduce((counts, change) => {
   return counts;
 }, {});
 // git() trims stdout, which would eat the first status column (" M path"); read this one raw.
-async function status(cwd) {
+async function readStatus(cwd) {
   const { stdout } = await execute('git', ['-C', cwd, '--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=normal'], { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024, env: hostGitEnv() });
   return parseStatus(stdout);
 }
+const status = readStatus;
 
 // Unsaved files whose content is already byte-identical in the base: the worktree
 // is only out of date there, nothing would be lost. Deletions count when the base lacks the path too.
-async function markInBase(source, baseOid, tree, changes) {
+async function markInBase(source, baseOid, tree, changes, git) {
   if (!changes.length) return;
   const listed = await git(source, ['--literal-pathspecs', 'ls-tree', '-r', '-z', baseOid, '--', ...changes.map(change => change.path)]);
   const blobs = new Map(listed.split('\0').filter(Boolean).map(entry => { const tab = entry.indexOf('\t'); return [entry.slice(tab + 1), entry.slice(0, tab).split(' ')[2]]; }));
@@ -79,7 +81,12 @@ export class Branches {
     return { base, branches, trees };
   }
 
-  async overview(w) {
+  overview(w) {
+    return this.merges.polling.read(JSON.stringify(['branch.overview', w, this.terminals.sessions.map(({ nodeId, status }) => [nodeId, status])]), () => this.readOverview(w), 0);
+  }
+  async readOverview(w) {
+    const git = (cwd, args) => this.merges.polling.git(cwd, args);
+    const status = cwd => this.merges.polling.read(JSON.stringify(['status', cwd]), () => this.merges.polling.limit(() => readStatus(cwd)), 0);
     const result = { available: false, base: null, branches: [], observedAt: new Date().toISOString() };
     let repository;
     try { repository = await this.repository(w); } catch (error) { return { ...result, reason: error.message }; }
@@ -107,7 +114,7 @@ export class Branches {
         }
         if (exists) {
           const changes = await status(tree.path); row.changeCount = changes.length; row.changeSummary = summarizeChanges(changes); row.changes = changes.slice(0, MAX_FILES);
-          if (!isBase) { await markInBase(base.source, base.oid, tree.path, row.changes); row.inBase = row.changes.filter(change => change.inBase).length; }
+          if (!isBase) { await markInBase(base.source, base.oid, tree.path, row.changes, git); row.inBase = row.changes.filter(change => change.inBase).length; }
         }
       } catch (error) { row.error = error.message.slice(0, 300); }
       return row;
@@ -156,8 +163,13 @@ export class Branches {
   }
 
   async handle(method, p) {
+    if (method === 'branch.overview') return this.overview(this.store.getWorkspace(p.workspaceId));
+    this.merges.polling.invalidate();
+    try { return await this.act(method, p); }
+    finally { this.merges.polling.invalidate(); }
+  }
+  async act(method, p) {
     const w = this.store.getWorkspace(p.workspaceId);
-    if (method === 'branch.overview') return this.overview(w);
     if (method === 'branch.commit') {
       const message = text(p.message, 'mensaje', 500).trim(); assert(!/[\x00-\x1f\x7f]/.test(message), 'El mensaje debe ser una sola línea');
       const { tree, exists, changes } = await this.target(w, p.branch);
@@ -175,7 +187,7 @@ export class Branches {
       return { branch: p.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']), files: changes.length, ...(merging ? { concluded: 'merge' } : {}) };
     }
     if (method === 'branch.integrate') return this.exclusive(w, async () => {
-      const { base, branch, node } = await this.target(w, p.branch);
+      const { base, branch, node, tree, exists } = await this.target(w, p.branch);
       assert(branch.name !== base.branch, 'Esta es la rama de integración.');
       assert(Number(await git(base.source, ['rev-list', '--count', `${base.oid}..${branch.oid}`])) > 0, `${branch.name} no tiene commits nuevos respecto a ${base.branch}.`);
       assert(!await git(base.source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de integrar.');
@@ -197,7 +209,17 @@ export class Branches {
         const item = this.store.getWorkspace(w.id).integration?.queue?.find(item => item.branch === branch.name && ['queued', 'conflict', 'failed'].includes(item.status) && item.headOid === branch.oid);
         if (item) Object.assign(item, { status: 'merged', mergedOid, finishedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       });
-      return { status: 'merged', branch: branch.name, base: base.branch, mergedOid, checks };
+      // The work of that worktree is in the base now: its blocked Phantom tasks stop waiting. Never affects the merge.
+      const result = { status: 'merged', branch: branch.name, base: base.branch, mergedOid, checks };
+      if (tree && exists) {
+        try {
+          const context = { workspace: w, getWorkspace: id => this.store.getWorkspace(id), state: this.store.state, dataDir: this.store.dataDir, persist: async () => {} };
+          const { closed, failed } = await closeBlockedTasks(context, tree.path);
+          result.closedTasks = closed;
+          if (failed.length) result.closeErrors = failed;
+        } catch (error) { result.closedTasks = []; result.closeErrors = [{ error: error.message }]; }
+      }
+      return result;
     });
     if (method === 'branch.update') {
       const { base, branch, tree, exists, changes, node } = await this.target(w, p.branch);
@@ -222,6 +244,13 @@ export class Branches {
       const conflicts = await this.merge(tree.path, ahead ? ['--no-edit', '-m', `Actualizar desde ${base.branch}`, base.oid] : ['--ff-only', base.oid]);
       if (conflicts) return { status: 'conflict', branch: branch.name, base: base.branch, conflicts };
       return { status: 'updated', branch: branch.name, base: base.branch, oid: await git(tree.path, ['rev-parse', 'HEAD']) };
+    }
+    // Where to work on a branch by hand: its own copy and the command to be on it.
+    if (method === 'branch.terminalTarget') {
+      const { base, branch, tree, exists } = await this.target(w, p.branch);
+      assert(branch.name !== base.branch, 'Esta es la rama de integración; trabaja en el checkout del proyecto.'); assert(exists, 'Esta rama no tiene una copia propia en disco.');
+      const quote = value => /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+      return { branch: branch.name, path: tree.path, command: `cd ${quote(tree.path)} && git switch ${quote(branch.name)}` };
     }
     if (method === 'branch.abort') {
       const { base, branch, tree, exists } = await this.target(w, p.branch);

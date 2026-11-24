@@ -1,141 +1,36 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, Cpu, Check, ChevronDown, ChevronRight, Copy, FileText, Folder, Gauge, GitBranch, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Pencil, Search, ShieldAlert, ShieldCheck, ShieldOff, Square, SquareTerminal, Wrench, X } from 'lucide-react';
+import { useComposerSize } from '../hooks/useComposerSize';
+import { AlertCircle, ArrowUp, Brain, Check, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
-import { contextUse, formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
+import { VoiceActivity, VoiceTranscript, dictationPreview } from './VoiceActivity';
+import { useVoiceDraft } from './VoiceProvider';
+import { Mic } from 'lucide-react';
+import { formatCost, formatDuration, formatElapsed, formatTokens } from '../hooks/chatState';
 import { locationOf } from './TerminalCard';
+import { sessionChipLabel } from '../hooks/sessionChipLabel.mjs';
+import PlanPhases from './PlanPhases';
+import TouchedFiles from './TouchedFiles.jsx';
+import { planSummary } from '../hooks/plan-view.mjs';
 import Markdown, { CopyButton } from './Markdown';
-import ToolOutput from './ToolOutput';
-import { ProviderGlyph, ProviderTile } from './Glyphs';
-import { EFFORTS } from '../../shared/chat-options.mjs';
+import { ProviderTile } from './Glyphs';
+import { phantomRunIds, turnRunIds } from '../hooks/phantom-run-link.mjs';
+import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
+import { runHealthView } from '../hooks/run-health-view.mjs';
+import { runProgressView } from '../hooks/run-progress-view.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
+import { compactionBlocked } from '../hooks/context-view.mjs';
+import { AGENT_MODES, AgentChoices, ModeSwitch, PermissionRow, PermissionSwitch, ProjectPermissions } from './chat/ChatPermissions';
+import { ContextMeter, ContextNudge, ModelPicker, ReasoningPicker } from './chat/ChatPickers';
+import { PhantomRunCard, QuestionCard, SubagentCard, ToolGroup } from './chat/ChatTools';
 
-export const CARD_MODES = [
-  { id: 'claude', key: 'claude', label: 'Claude', hint: 'Conversar con Claude Code en esta carpeta' },
-  { id: 'opencode', key: 'opencode', label: 'OpenCode', hint: 'Conversar con OpenCode en esta carpeta' },
-  { id: 'codex', key: 'codex', label: 'Codex', hint: 'Conversar con Codex en esta carpeta' },
-  { id: null, key: 'shell', label: 'Terminal', hint: 'Usar la sesión de terminal de esta card' },
-];
-const MODE_KEY = 'phantom.cardMode';
-// New cards open in the mode chosen last; chat with Claude until one is chosen.
-export function preferredCardMode() {
-  try { const saved = localStorage.getItem(MODE_KEY); return saved === 'terminal' ? null : ['opencode', 'codex'].includes(saved) ? saved : 'claude'; } catch { return 'claude'; }
-}
-const FULL_LIST = 'sudo, borrar a la fuerza fuera de la carpeta, git push --force o --delete, escribir en ~/.ssh, /etc o los archivos de arranque de la shell, curl | sh y formatear discos';
-const AUTO_APPROVE = {
-  claude: { auto: 'Trabaja sin interrumpirte: edita, ejecuta comandos, instala dependencias, corre tests y usa archivos temporales. Solo te pide permiso aquí para lo delicado: borrar o escribir fuera de su carpeta, commit y push, herramientas MCP externas, servicios y proveedores externos, bases de datos y cambios al sistema.', ask: 'Puede leer todo, pero te pide permiso aquí antes de cada cambio.', full: `Hace todo sin preguntar, también fuera de su carpeta, en la red y con herramientas externas. Solo te pide permiso para una lista corta de acciones peligrosas: ${FULL_LIST}. Git queda protegido por el guardián de Incorporaciones.` },
-  opencode: { auto: 'OpenCode aprueba todo permiso que no esté denegado explícitamente en su configuración.', ask: 'Los permisos que OpenCode solicite aparecen aquí para que puedas aprobarlos o rechazarlos.', full: 'OpenCode aprueba todo permiso que no esté denegado en su configuración (igual que Puede editar). Git queda protegido por el guardián de Incorporaciones.' },
-  codex: { auto: 'Codex puede editar dentro de la carpeta con sandbox workspace-write. Los permisos que requieren confirmación se deniegan en modo headless.', ask: 'Codex usa sandbox de solo lectura y no solicita aprobaciones en modo headless.', full: 'Codex trabaja sin sandbox (danger-full-access): puede escribir fuera de la carpeta y usar la red. No puede preguntar en modo headless. Git queda protegido por el guardián de Incorporaciones.' },
-};
-const PERMISSION_LABELS = { ask: { claude: 'Pregunta todo', other: 'Solo lectura' }, auto: { claude: 'Autónomo', other: 'Puede editar' }, full: { claude: 'Total', other: 'Total' } };
-const NEXT_MODE = { ask: 'auto', auto: 'full', full: 'ask' };
-export const permissionLabel = (mode, provider) => provider === 'opencode' && mode === 'ask' ? 'Con aprobación' : PERMISSION_LABELS[mode]?.[provider === 'claude' ? 'claude' : 'other'] || mode;
+export { rememberPolicy, useEnabledProviders, preferredCardMode, permissionLabel, PermissionSwitch, PermissionRow, ProjectPermissions, ProviderChoices, ModeSwitch } from './chat/ChatPermissions';
+export { ModelPicker, ReasoningPicker, ContextMeter, ContextNudge } from './chat/ChatPickers';
+export { PhantomRunCard, SubagentCard } from './chat/ChatTools';
 
-// The card's permission mode, cycled with one button: Pregunta todo → Autónomo → Total.
-export function PermissionSwitch({ mode, provider, descriptions = AUTO_APPROVE, disabled, onChange }) {
-  const Shield = mode === 'full' ? ShieldAlert : mode === 'auto' ? ShieldCheck : ShieldOff;
-  const text = permissionLabel(mode, provider), next = NEXT_MODE[mode] || 'ask';
-  return <button type="button" className="pc-permission" data-mode={mode} aria-pressed={mode !== 'ask'} disabled={disabled}
-    aria-label={`Permisos: ${text}. Cambiar a ${permissionLabel(next, provider)}`} title={`${descriptions[provider]?.[mode] || ''}\n\nPulsa para cambiar a «${permissionLabel(next, provider)}».`}
-    onClick={() => onChange(next)}><Shield size={13} aria-hidden="true" /><span>{text}</span></button>;
-}
-const PERMISSION_STATUS = { allowed: 'Aprobado', always: 'Aprobado siempre', denied: 'Rechazado', cancelled: 'Sin respuesta' };
-
-// A permission the agent is waiting on, answered in place.
-export function PermissionRow({ part, onAnswer }) {
-  const [busy, setBusy] = useState(false);
-  const pending = part.status === 'pending';
-  const answer = async decision => { setBusy(true); try { await onAnswer?.(part.id, decision); } catch { setBusy(false); } };
-  return <div className={`pc-ask is-${part.status}`} role={pending ? 'group' : undefined} aria-label={pending ? `${part.tool} pide permiso` : undefined}>
-    <span className="pc-ask-icon" aria-hidden="true"><ShieldAlert size={14} /></span>
-    <div className="pc-ask-body">
-      <p><strong>{part.tool}</strong> <span>{part.reason}</span></p>
-      {part.detail && <code title={part.detail}>{part.detail}</code>}
-    </div>
-    {pending
-      ? <div className="pc-ask-actions">
-        <button type="button" disabled={busy} onClick={() => answer('deny')}>Rechazar</button>
-        <button type="button" disabled={busy} title={`No volver a preguntar en esta conversación: ${part.key}`} onClick={() => answer('always')}>Siempre</button>
-        <button type="button" className="is-primary" disabled={busy} onClick={() => answer('allow')}>Aprobar</button>
-      </div>
-      : <span className="pc-ask-state">{PERMISSION_STATUS[part.status] || part.status}</span>}
-  </div>;
-}
-
-// Who answers in this card: shared by the segmented switch and the compact one.
-function useModeChoice({ node, workspace, api, notify, disabled }) {
-  const current = node.data?.chat?.provider ?? null;
-  const [pending, setPending] = useState(undefined);
-  const choosing = useRef(false);
-  const active = pending === undefined ? current : pending;
-  const choose = async id => {
-    if (id === active || choosing.current || disabled) return;
-    choosing.current = true;
-    setPending(id);
-    try {
-      await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, provider: id });
-      try { localStorage.setItem(MODE_KEY, id ?? 'terminal'); } catch { /* per-viewer preference only */ }
-    } catch (e) { setPending(undefined); notify?.(e.message, 'error'); }
-    finally { choosing.current = false; }
-  };
-  useEffect(() => { setPending(undefined); }, [current]);
-  return { active, pending, choosing, choose };
-}
-
-// An agent to chat with, or the plain terminal: the prominent choice.
-export function ModeSwitch({ node, workspace, api, notify, disabled = false }) {
-  const { active, pending, choosing, choose } = useModeChoice({ node, workspace, api, notify, disabled });
-  const navigate = event => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault(); event.stopPropagation();
-    if (disabled || choosing.current) return;
-    const count = CARD_MODES.length;
-    const index = CARD_MODES.findIndex(mode => mode.id === active);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? count - 1 : 1)) % count;
-    event.currentTarget.querySelectorAll('button')[next]?.focus();
-    choose(CARD_MODES[next].id);
-  };
-  const activeMode = CARD_MODES.find(mode => mode.id === active) || CARD_MODES[0];
-  return <div className="pc-modes" data-active={activeMode.key} style={{ '--mode-index': CARD_MODES.indexOf(activeMode), '--mode-count': CARD_MODES.length }} role="radiogroup" aria-label="Quién responde en esta card" aria-busy={pending !== undefined} onKeyDown={navigate} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
-    {CARD_MODES.map(mode => <button key={mode.label} type="button" role="radio" data-provider={mode.key} aria-label={mode.label} tabIndex={active === mode.id ? 0 : -1} aria-checked={active === mode.id} title={mode.hint} disabled={(disabled || pending !== undefined) && active !== mode.id} onClick={() => choose(mode.id)}><ProviderGlyph provider={mode.key} size={16} /><span>{mode.label}</span></button>)}
-  </div>;
-}
-
-// The same choice, compact: "Claude ▾" opening a short menu downward.
-function AgentSwitch({ node, workspace, api, notify, disabled = false }) {
-  const { active, choose } = useModeChoice({ node, workspace, api, notify, disabled });
-  const [open, setOpen] = useState(false);
-  const root = useRef(null), trigger = useRef(null), menu = useRef(null);
-  const mode = CARD_MODES.find(item => item.id === active) || CARD_MODES[0];
-  const items = () => [...(menu.current?.querySelectorAll('[role="menuitemradio"]') || [])];
-  useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
-  useEffect(() => {
-    if (!open) return;
-    (items().find(item => item.getAttribute('aria-checked') === 'true') || items()[0])?.focus({ preventScroll: true });
-    const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside, true);
-    return () => document.removeEventListener('pointerdown', outside, true);
-  }, [open]);
-  const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
-  const onKeyDown = event => {
-    if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); close(); return; }
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) { if (event.key === 'Tab') setOpen(false); return; }
-    event.preventDefault(); event.stopPropagation();
-    if (!open) { if (!disabled && event.key !== 'Home' && event.key !== 'End') setOpen(true); return; }
-    const list = items(), index = list.indexOf(document.activeElement);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? list.length - 1 : (index + (event.key === 'ArrowUp' ? list.length - 1 : 1)) % list.length;
-    list[next]?.focus({ preventScroll: true });
-  };
-  return <div ref={root} className="pc-agent" onKeyDown={onKeyDown} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
-    <button ref={trigger} type="button" className="pc-agent-trigger" aria-haspopup="menu" aria-expanded={open} aria-label={`Quién responde: ${mode.label}`} title="Quién responde en esta card" disabled={disabled} onClick={() => setOpen(value => !value)}>
-      <ProviderGlyph provider={mode.key} size={14} /><span>{mode.label}</span><ChevronDown size={11} aria-hidden="true" />
-    </button>
-    {open && <div ref={menu} className="pc-agent-menu" role="menu" aria-label="Quién responde en esta card">
-      {CARD_MODES.map(item => <button key={item.label} type="button" role="menuitemradio" aria-checked={item.id === active} tabIndex={-1} onClick={() => { close(); choose(item.id); }}>
-        <ProviderGlyph provider={item.key} size={16} /><span>{item.label}<small>{item.hint}</small></span>{item.id === active && <Check size={13} aria-hidden="true" />}
-      </button>)}
-    </div>}
-  </div>;
-}
+// Branches Phantom creates per session are named after an id; show the project instead.
+const AUTO_BRANCH = /^phantom\/terminal-/;
 
 // Seconds since a turn started, ticking only while it runs.
 export function useElapsed(since, active) {
@@ -149,130 +44,9 @@ export function useElapsed(since, active) {
   return active && since ? Math.max(0, now - Date.parse(since)) : 0;
 }
 
-const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^todo/, ListChecks, 'todo']];
-const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
-
-function ToolRow({ part }) {
-  const [, Icon, kind] = toolKind(part.name);
-  const expandable = Boolean(part.output || (kind === 'edit' && part.change));
-  const summary = <>
-    {expandable ? <ChevronRight className="pc-tool-caret" size={12} aria-hidden="true" /> : <span className="pc-tool-caret" aria-hidden="true" />}
-    <span className="pc-tool-kind" data-kind={kind} aria-hidden="true"><Icon size={13} /></span>
-    <span className="pc-tool-name">{part.name}</span>
-    <span className="pc-tool-detail" title={part.detail}>{part.detail}</span>
-    {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
-    {part.status === 'running' && <LoaderCircle className="pc-tool-state is-running" size={12} aria-label="En curso" />}
-    {part.status === 'error' && <span className="pc-tool-state is-error"><X size={12} aria-hidden="true" />falló</span>}
-    {part.status === 'stopped' && <span className="pc-tool-state">detenida</span>}
-    {part.status === 'done' && !part.diff && <Check className="pc-tool-state is-done" size={12} aria-label="Completada" />}
-  </>;
-  if (!expandable) return <li className={`pc-tool is-${part.status}`}><div className="pc-tool-row">{summary}</div></li>;
-  return <li className={`pc-tool is-${part.status}`}><details><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output"><ToolOutput part={part} kind={kind} /></div></details></li>;
-}
-
-// A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
-// OpenCode's task, Codex's spawn_agent). Drawn as its own card in the turn so
-// the user sees who was delegated, what it is doing now and how it ended.
-const AGENT_STATE = { running: 'Trabajando', done: 'Terminó', error: 'Falló', stopped: 'Detenido' };
-function StepState({ status }) {
-  if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={11} aria-label="En curso" />;
-  if (status === 'error') return <X className="pc-tool-state is-error" size={11} aria-label="Falló" />;
-  if (status === 'stopped') return <span className="pc-tool-state">detenido</span>;
-  return <Check className="pc-tool-state is-done" size={11} aria-label="Completado" />;
-}
-export function SubagentCard({ part }) {
-  const agent = part.agent || { steps: [] }, steps = agent.steps || [], total = Math.max(agent.total || 0, steps.length);
-  const running = part.status === 'running', current = running ? steps.findLast(step => step.status === 'running') || steps.at(-1) : null;
-  const hidden = total - steps.length;
-  return <section className={`pc-subagent is-${part.status}`} aria-label={`Subagente${agent.type ? ` ${agent.type}` : ''}: ${part.detail || part.name}`}>
-    <header className="pc-subagent-head">
-      <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={13} /></span>
-      <span className="pc-subagent-label">Subagente</span>
-      {agent.type && <span className="pc-subagent-type">{agent.type}</span>}
-      <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={11} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
-    </header>
-    <p className="pc-subagent-goal" title={part.detail}>{part.detail || part.name}</p>
-    {current && <p className="pc-subagent-now"><span className="pc-tool-name">{current.name}</span><span className="pc-tool-detail" title={current.detail}>{current.detail}</span></p>}
-    {agent.text && <p className="pc-subagent-said" title={agent.text}>{agent.text}</p>}
-    {steps.length > 0 && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Pasos del subagente</summary>
-      <ol className="pc-subagent-steps">
-        {hidden > 0 && <li className="pc-subagent-hidden">{hidden} {hidden === 1 ? 'paso anterior' : 'pasos anteriores'} sin detalle</li>}
-        {steps.map(step => { const [, Icon] = toolKind(step.name); return <li key={step.id} className={`is-${step.status}`}>
-          <Icon size={11} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
-        </li>; })}
-      </ol>
-    </details>}
-    {agent.prompt && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Encargo</summary>
-      <pre className="pc-subagent-prompt">{agent.prompt}</pre>
-    </details>}
-    {part.output && <details className="pc-subagent-more">
-      <summary><ChevronRight size={12} aria-hidden="true" />Resultado</summary>
-      <div className="pc-subagent-output"><ToolOutput part={part} kind="agent" /></div>
-    </details>}
-  </section>;
-}
 const isSubagent = part => part.type === 'tool' && Boolean(part.agent);
 // Sub-agents still at work in a reply, for the "Trabajando" line.
 export const activeSubagents = parts => parts.filter(part => isSubagent(part) && part.status === 'running').length;
-
-const OTHER = '\u0000other';
-const QUESTION_STATUS = { skipped: 'Sin responder · el agente sigue con su criterio', cancelled: 'La respuesta terminó antes de contestar' };
-// AskUserQuestion: the agent is waiting on a choice. Each question is a
-// native radio/checkbox group plus a free answer; the turn resumes on submit.
-function QuestionCard({ part, onReply }) {
-  const [picked, setPicked] = useState(() => part.questions.map(() => []));
-  const [other, setOther] = useState(() => part.questions.map(() => ''));
-  const [busy, setBusy] = useState(false);
-  const pending = part.status === 'pending';
-  const value = i => picked[i].map(label => label === OTHER ? other[i].trim() : label).filter(Boolean).join(', ');
-  const complete = part.questions.every((_, i) => value(i));
-  const toggle = (i, label, multi) => setPicked(all => all.map((list, j) => j !== i ? list : multi ? (list.includes(label) ? list.filter(l => l !== label) : [...list, label]) : [label]));
-  const submit = async answers => {
-    setBusy(true);
-    try { await onReply?.(part.id, answers); } catch { setBusy(false); }
-  };
-  const send = event => { event.preventDefault(); if (complete && !busy) submit(Object.fromEntries(part.questions.map((q, i) => [q.question, value(i)]))); };
-  if (!pending) return <div className={`pc-question is-${part.status}`}>
-    <span className="pc-question-mark" aria-hidden="true"><MessageCircleQuestion size={14} /></span>
-    <div className="pc-question-record">
-      {part.status === 'answered'
-        ? part.questions.map(q => <p key={q.question}><span>{q.header || q.question}</span><strong>{part.answers?.[q.question]}</strong></p>)
-        : <p><span>{part.questions.map(q => q.header || q.question).join(' · ')}</span><em>{QUESTION_STATUS[part.status] || part.status}</em></p>}
-    </div>
-  </div>;
-  return <form className="pc-question is-pending" onSubmit={send} aria-label="El agente te pregunta">
-    <header className="pc-question-head"><span className="pc-question-mark" aria-hidden="true"><MessageCircleQuestion size={14} /></span><strong>{part.questions.length > 1 ? `${part.questions.length} preguntas para ti` : 'Pregunta para ti'}</strong><span>El agente espera tu respuesta</span></header>
-    {part.questions.map((q, i) => {
-      const type = q.multiSelect ? 'checkbox' : 'radio', name = `${part.id}-${i}`;
-      const preview = q.options.find(o => picked[i].includes(o.label) && o.preview)?.preview;
-      return <fieldset key={name} className="pc-question-group" disabled={busy}>
-        <legend>{q.header && <span className="pc-question-chip">{q.header}</span>}{q.question}{q.multiSelect && <small> · elige una o varias</small>}</legend>
-        <div className="pc-question-options">
-          {q.options.map(option => <label key={option.label} className={`pc-option ${picked[i].includes(option.label) ? 'is-picked' : ''}`}>
-            <input type={type} name={name} checked={picked[i].includes(option.label)} onChange={() => toggle(i, option.label, q.multiSelect)} />
-            <span className="pc-option-text"><strong>{option.label}</strong>{option.description && <span>{option.description}</span>}</span>
-          </label>)}
-          <label className={`pc-option is-other ${picked[i].includes(OTHER) ? 'is-picked' : ''}`}>
-            <input type={type} name={name} checked={picked[i].includes(OTHER)} onChange={() => toggle(i, OTHER, q.multiSelect)} />
-            <span className="pc-option-text"><strong>Otra respuesta</strong>
-              <input type="text" className="pc-option-input" aria-label={`Otra respuesta: ${q.question}`} placeholder="Escribe tu respuesta…" value={other[i]}
-                onFocus={() => !picked[i].includes(OTHER) && toggle(i, OTHER, q.multiSelect)}
-                onChange={e => setOther(all => all.map((v, j) => j === i ? e.target.value : v))}
-                onKeyDown={e => e.stopPropagation()} />
-            </span>
-          </label>
-        </div>
-        {preview && <pre className="pc-question-preview" aria-label="Vista previa de la opción elegida">{preview}</pre>}
-      </fieldset>;
-    })}
-    <footer className="pc-question-actions">
-      <button type="button" disabled={busy} onClick={() => submit(null)}>No responder</button>
-      <button type="submit" className="is-primary" disabled={busy || !complete}>{busy ? <LoaderCircle size={13} className="spinning" aria-hidden="true" /> : <ArrowUp size={13} aria-hidden="true" />}Responder</button>
-    </footer>
-  </form>;
-}
 
 // Consecutive tool calls read as one activity block between paragraphs of prose.
 // The AskUserQuestion call itself is drawn by its question card, not as a tool row.
@@ -281,6 +55,8 @@ function groupParts(parts) {
   for (const part of parts) {
     if (part.type === 'tool' && asked.has(part.id)) continue;
     if (isSubagent(part)) { groups.push({ type: 'subagent', part }); continue; }
+    const ids = phantomRunIds(part);
+    if (ids.length) { groups.push({ type: 'phantom', part, ids }); continue; }
     const last = groups.at(-1);
     if (part.type === 'tool' && last?.type === 'tools') last.items.push(part);
     else groups.push(part.type === 'tool' ? { type: 'tools', items: [part] } : part);
@@ -289,21 +65,26 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply }) {
-  if (message.role === 'user') return <div className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></div>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} />;
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
+  if (message.role === 'user') return <blockquote className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></blockquote>;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
   const streaming = message.status === 'streaming', usage = message.usage;
+  const elapsed = useElapsed(message.createdAt, streaming);
+  const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
+  const runIds = turnRunIds(message.parts);
   const delegated = streaming ? activeSubagents(message.parts) : 0;
-  const facts = usage ? [formatDuration(usage.durationMs), usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
-  return <article className={`pc-message is-agent is-${message.status}`}>
-    <header className="pc-turn-head"><span className="pc-avatar" aria-hidden="true"><ProviderGlyph provider={provider} size={13} /></span><strong>{label}</strong>{(message.model || model) && <span className="pc-mono">{message.model || model}</span>}<time dateTime={message.createdAt}>{clock(message.createdAt)}</time></header>
+  const facts = usage ? [usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
+  const stamp = [message.model || model, streaming ? formatElapsed(elapsed) : formatDuration(usage?.durationMs) || clock(message.createdAt), ...facts].filter(Boolean).join(' · ');
+  return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
     {groups.map((group, i) => group.type === 'tools'
-      ? <ul key={i} className="pc-tools" aria-label="Herramientas usadas">{group.items.map(part => <ToolRow key={part.id} part={part} />)}</ul>
+      ? <ToolGroup key={i} items={group.items} />
+      : group.type === 'phantom'
+        ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} />
       : group.type === 'permission'
@@ -311,136 +92,14 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply }) {
       : group.type === 'question'
         ? <QuestionCard key={group.id} part={group} onReply={onReply} />
       : group.type === 'thinking'
-        ? <details key={i} className="pc-thinking"><summary><ChevronRight size={12} aria-hidden="true" />Razonamiento</summary><p>{group.text}</p></details>
+        ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {streaming && <p className="pc-working"><span className="pc-dots" aria-hidden="true"><i /><i /><i /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
+    {runIds.length > 0 && <div className="pc-phantom-final" role="group" aria-label="Estado actual en Phantom">{runIds.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}</div>}
+    {streaming && !waiting && <p className="pc-working" role="status"><span className="pc-tool-mark" aria-hidden="true"><LoaderCircle size={16} /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
-    {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{message.error}</span></p>}
-    {!streaming && (facts.length > 0 || text) && <footer className="pc-turn-foot"><span className="pc-num">{facts.join(' · ')}</span>{text && <CopyButton text={text} label="Copiar respuesta" />}</footer>}
+    {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
+    {(stamp || text) && <footer className="pc-turn-foot">{!streaming && text && <CopyButton text={text} label="Copiar respuesta" />}<time className="pc-num" dateTime={message.createdAt}>{stamp}</time></footer>}
   </article>;
-}
-
-// The model for this provider in this card. The list comes from the provider
-// (OpenCode's catalog, Claude's aliases); any other model name can be typed.
-export function ModelPicker({ node, workspace, api, notify, provider, label, observed, disabled }) {
-  const selected = node.data.chat.models?.[provider] || null;
-  const [open, setOpen] = useState(false), [catalog, setCatalog] = useState(null), [failure, setFailure] = useState(''), [query, setQuery] = useState('');
-  const root = useRef(null), search = useRef(null);
-  useEffect(() => { setOpen(false); setCatalog(null); }, [provider]);
-  useEffect(() => {
-    if (!open) return;
-    setQuery(''); setFailure(''); search.current?.focus({ preventScroll: true });
-    let stale = false;
-    api('chat.models', { workspaceId: workspace.id, nodeId: node.id }).then(value => { if (!stale) setCatalog(value); }, e => { if (!stale) setFailure(e.message); });
-    const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside, true);
-    return () => { stale = true; document.removeEventListener('pointerdown', outside, true); };
-  }, [open, api, workspace.id, node.id]);
-  const choose = async model => {
-    setOpen(false);
-    if (model === selected) return;
-    try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, model }); } catch (e) { notify?.(e.message, 'error'); }
-  };
-  const needle = query.trim().toLowerCase(), items = (catalog?.items || []).filter(item => !needle || item.id.toLowerCase().includes(needle));
-  const groups = []; for (const item of items) { const last = groups.at(-1); if (last?.name === item.group) last.items.push(item); else groups.push({ name: item.group, items: [item] }); }
-  const custom = query.trim() && !catalog?.items.some(item => item.id === query.trim()) ? query.trim() : '';
-  const shown = selected || observed;
-  return <div ref={root} className="pc-model-picker" onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
-    <button type="button" className={`pc-model ${shown ? '' : 'is-empty'}`} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} title={selected ? `Modelo elegido para ${label}: ${selected}` : observed ? `Modelo predeterminado de ${label}: ${observed}` : `Se usa el modelo predeterminado de ${label}`} onClick={() => setOpen(value => !value)}>
-      <ProviderGlyph provider={provider} size={12} /><span>{shown || 'modelo predeterminado'}</span><ChevronDown size={11} aria-hidden="true" />
-    </button>
-    {open && <div className="pc-models" role="dialog" aria-label={`Modelo de ${label}`}>
-      <input ref={search} type="text" value={query} placeholder="Buscar o escribir un modelo…" aria-label="Buscar modelo" spellCheck={false} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const first = custom || items[0]?.id; if (first) choose(first); } }} />
-      <div className="pc-models-list" role="listbox" aria-label="Modelos disponibles">
-        {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={12} aria-hidden="true" />}</button>}
-        {groups.map(group => <React.Fragment key={group.name}><h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={12} aria-hidden="true" />}</button>)}</React.Fragment>)}
-        {custom && <button type="button" role="option" aria-selected={false} onClick={() => choose(custom)}><span>Usar <span className="pc-mono">{custom}</span></span></button>}
-        {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
-        {failure && <p role="alert">{failure}. Puedes escribir el nombre del modelo.</p>}
-        {catalog && !items.length && !custom && <EmptyState size="compact" description="Ningún modelo coincide." />}
-        {catalog?.note && <p>{catalog.note}</p>}
-      </div>
-    </div>}
-  </div>;
-}
-
-// How much of the model's window the conversation occupies, as read from the
-// provider. Without a known window only the occupied tokens are stated.
-export function ReasoningPicker({ node, workspace, api, notify, provider, disabled }) {
-  const selected = node.data.chat.reasoning?.[provider] || '';
-  const [value, setValue] = useState(selected);
-  useEffect(() => { setValue(selected); }, [selected, provider]);
-  const save = async next => {
-    if (next === selected) return;
-    try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, reasoning: next || null }); }
-    catch (error) { setValue(selected); notify?.(error.message, 'error'); }
-  };
-  if (provider === 'opencode') return <label className={`pc-reasoning ${value ? '' : 'is-empty'}`} data-disabled={disabled || undefined}>
-    <Gauge size={12} aria-hidden="true" /><span className="pc-reasoning-label">Variant</span>
-    <input key={provider} aria-label="Variant de OpenCode" title="Variant del modelo; depende del proveedor. Vacío usa el predeterminado." placeholder="auto" value={value} maxLength={64} disabled={disabled} onChange={e => setValue(e.target.value)} onBlur={() => save(value.trim())} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(value.trim()); } }} />
-  </label>;
-  return <EffortMenu key={provider} provider={provider} selected={selected} disabled={disabled} onChoose={save} />;
-}
-
-// Levels as a short ascending meter: the pill reads at a glance, the menu
-// lines every option up against the same scale.
-function EffortMeter({ level, total }) {
-  const bars = Math.min(total, 5), filled = level < 0 ? 0 : Math.max(1, Math.round((level + 1) / total * bars));
-  return <span className="pc-effort-meter" aria-hidden="true">{Array.from({ length: bars }, (_, i) => <i key={i} className={i < filled ? 'is-on' : ''} style={{ height: `${4 + i * 2}px` }} />)}</span>;
-}
-
-function EffortMenu({ provider, selected, disabled, onChoose }) {
-  const levels = EFFORTS[provider] || [], options = ['', ...levels];
-  const [open, setOpen] = useState(false), [active, setActive] = useState(0);
-  const root = useRef(null), list = useRef(null), trigger = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    setActive(Math.max(0, options.indexOf(selected)));
-    list.current?.focus({ preventScroll: true });
-    const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside, true);
-    return () => document.removeEventListener('pointerdown', outside, true);
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
-  const choose = value => { close(); onChoose(value); };
-  const keys = e => {
-    const move = { ArrowDown: 1, ArrowUp: -1 }[e.key];
-    if (move) { e.preventDefault(); setActive(i => (i + move + options.length) % options.length); }
-    else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); setActive(e.key === 'Home' ? 0 : options.length - 1); }
-    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(options[active]); }
-    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-    else if (e.key === 'Tab') setOpen(false);
-  };
-  const level = levels.indexOf(selected);
-  return <div ref={root} className="pc-effort">
-    <button ref={trigger} type="button" className={`pc-reasoning ${selected ? '' : 'is-empty'} ${open ? 'is-open' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-label={`Effort de ${provider}: ${selected || 'auto'}`} title="Esfuerzo de razonamiento; auto usa el predeterminado del proveedor" disabled={disabled}
-      onClick={() => setOpen(value => !value)} onKeyDown={e => { if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); setOpen(true); } }}>
-      <EffortMeter level={level} total={levels.length} />
-      <span className="pc-reasoning-label">Effort</span>
-      <span className="pc-reasoning-value">{selected || 'auto'}</span>
-      <ChevronDown size={11} aria-hidden="true" />
-    </button>
-    {open && <div ref={list} className="pc-effort-menu" role="listbox" tabIndex={-1} aria-label={`Effort de ${provider}`} aria-activedescendant={`pc-effort-${provider}-${active}`} onKeyDown={keys}>
-      <h4>Esfuerzo de razonamiento</h4>
-      {options.map((option, i) => <div key={option || 'auto'} id={`pc-effort-${provider}-${i}`} role="option" aria-selected={option === selected} className={i === active ? 'is-active' : ''} onPointerEnter={() => setActive(i)} onClick={() => choose(option)}>
-        <EffortMeter level={i - 1} total={levels.length} />
-        <span>{option || 'auto'}</span>
-        {!option && <small>predeterminado</small>}
-        {option === selected && <Check size={12} aria-hidden="true" />}
-      </div>)}
-    </div>}
-  </div>;
-}
-
-export function ContextMeter({ meta }) {
-  const use = contextUse(meta);
-  if (!use) return <span className="pc-context is-empty" title="El uso de contexto se conoce tras la primera respuesta">contexto —</span>;
-  const level = use.ratio >= .9 ? 'is-full' : use.ratio >= .7 ? 'is-high' : '';
-  return <span className={`pc-context ${level}`} title={use.window ? `${use.tokens.toLocaleString()} de ${use.window.toLocaleString()} tokens de contexto en uso` : `${use.tokens.toLocaleString()} tokens de contexto en uso; este proveedor no informa el tamaño de la ventana`}>
-    {use.window && <span className="pc-context-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.min(100, use.ratio * 100))}%` }} /></span>}
-    <span>{formatTokens(use.tokens)}{use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}</span>
-    {use.window && <span className="pc-context-share">{use.ratio < .01 ? '<1' : Math.round(use.ratio * 100)}%</span>}
-  </span>;
 }
 
 // Messages written while the agent works, sent one by one when it finishes.
@@ -453,15 +112,15 @@ export function QueuedMessages({ queue, running, connected = true, unqueue, resu
   return <section className={`pc-queue ${paused ? 'is-paused' : ''}`} aria-label="Mensajes en espera">
     <header>
       <span>{paused ? 'En pausa' : 'En espera'} · {queue.length} {queue.length === 1 ? 'mensaje' : 'mensajes'}</span>
-      {paused && <button type="button" disabled={busy || !connected} onClick={() => act(() => resume())}><ArrowUp size={12} aria-hidden="true" />Reanudar</button>}
+      {paused && <button type="button" disabled={busy || !connected} onClick={() => act(() => resume())}><ArrowUp size={14} aria-hidden="true" />Reanudar</button>}
     </header>
     <ol>
       {queue.map((item, index) => <li key={item.id}>
         <span className="pc-queue-num" aria-hidden="true">{index + 1}</span>
         <p title={item.text}>{item.text}</p>
-        {paused && index > 0 && <button type="button" className="pc-icon" disabled={busy || !connected} title="Enviar este ahora" aria-label="Enviar este mensaje ahora" onClick={() => act(() => resume(item.id))}><ArrowUp size={13} /></button>}
-        <button type="button" className="pc-icon" disabled={busy || !connected} title="Editar" aria-label="Sacar de la cola para editar" onClick={() => act(async () => { const { text } = await unqueue(item.id); onEdit?.(text); })}><Pencil size={13} /></button>
-        <button type="button" className="pc-icon" disabled={busy || !connected} title="Quitar" aria-label="Quitar de la cola" onClick={() => act(() => unqueue(item.id))}><X size={13} /></button>
+        {paused && index > 0 && <button type="button" className="pc-icon" disabled={busy || !connected} title="Enviar este ahora" aria-label="Enviar este mensaje ahora" onClick={() => act(() => resume(item.id))}><ArrowUp size={14} /></button>}
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Editar" aria-label="Sacar de la cola para editar" onClick={() => act(async () => { const { text } = await unqueue(item.id); onEdit?.(text); })}><Pencil size={14} /></button>
+        <button type="button" className="pc-icon" disabled={busy || !connected} title="Quitar" aria-label="Quitar de la cola" onClick={() => act(() => unqueue(item.id))}><X size={14} /></button>
       </li>)}
     </ol>
   </section>;
@@ -492,12 +151,115 @@ function useChatPulse({ nodeId, chat, running, waitingOn, last, seen }) {
   return '';
 }
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse }) {
-  const provider = node.data.chat.provider, label = CARD_MODES.find(mode => mode.id === provider)?.label || provider;
-  const { chat, error, send, stop, clear, answer, reply, unqueue, resume } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
-  const [draft, setDraft] = useState('');
+export const configurePermission = (api, workspace, node, notify) => next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'));
+
+export function SessionContext({ node, workspace, api, notify, provider, label, model, permissionMode, descriptions, running, ready = true }) {
+  const { cwd, branch } = locationOf(node, workspace);
+  return <section className="pc-session-section pc-session-context" aria-label="Contexto de la sesión">
+    <h3>Contexto</h3>
+    <div className="pc-context-rows">
+      <details className="pc-folder"><summary className="pc-session-row"><span className="pc-session-badge is-folder"><Folder size={18} aria-hidden="true" /></span><span className="pc-session-label">Carpeta</span><span className="pc-session-value pc-mono" title={cwd}>{cwd}</span><ChevronRight size={16} aria-hidden="true" /></summary><p>{cwd}{branch && <><br />{AUTO_BRANCH.test(branch) ? 'Copia propia de esta sesión' : `Rama: ${branch}`}</>}</p></details>
+      <PermissionSwitch row mode={permissionMode} provider={provider} descriptions={descriptions} disabled={!ready} onChange={configurePermission(api, workspace, node, notify)} />
+      <ProjectPermissions key={workspace.id} workspace={workspace} api={api} mode={permissionMode} provider={provider} disabled={!ready} />
+      <ModelPicker row node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!ready || running} />
+    </div>
+    <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!ready || running} />
+  </section>;
+}
+
+// Compaction for the composer: props for the meter in the island, one status
+// line above it only while something real happens, and Codex's continuation form.
+export function useCompaction({ chat, connected, capabilities, compact, continueSession }) {
+  const [busy, setBusy] = useState(false), [capability, setCapability] = useState(null), [summary, setSummary] = useState('');
+  const pending = useRef(false);
+  useEffect(() => { setCapability(null); setSummary(''); }, [chat?.provider, chat?.sessionId]);
+  const blocked = compactionBlocked(chat, connected), latest = chat?.compactions?.at(-1), continuation = chat?.continuations?.at(-1);
+  const act = async () => {
+    if (blocked || pending.current) return;
+    pending.current = true; setBusy(true);
+    try {
+      const value = await capabilities(); setCapability(value);
+      if (value.kind === 'native') await compact();
+    } catch { /* The hook shows the host error. */ }
+    finally { pending.current = false; setBusy(false); }
+  };
+  const proceed = async () => {
+    if (blocked || pending.current || !summary.trim()) return;
+    pending.current = true; setBusy(true);
+    try { await continueSession(summary); setCapability(null); setSummary(''); }
+    catch { /* Keep the reviewed summary for retry. */ }
+    finally { pending.current = false; setBusy(false); }
+  };
+  const status = [
+    chat?.operation && `${chat.operation === 'compact' ? 'Compactando con la API nativa…' : 'Comprobando capacidades instaladas…'} Puedes detener la operación.`,
+    latest && (latest.status === 'done' ? 'Compactación nativa verificada. La medición se actualizará con la próxima petición; no se calcula ahorro.' : latest.status === 'running' ? 'Compactación en curso.' : `Compactación sin verificar (${latest.status}): ${latest.error || ''}`),
+    continuation && (continuation.status === 'done' ? 'Sesión nueva de Codex confirmada; resumen e historial preservados.' : `Continuidad de Codex: ${continuation.status}${continuation.error ? ` · ${continuation.error}` : ''}`),
+  ].filter(Boolean).join(' · ');
+  return {
+    meter: { running: !!chat?.running || !!chat?.operation || busy, blocked, onCompact: act },
+    status: status ? <p className="pc-status-line" role="status">{status}</p> : null,
+    form: capability?.kind === 'continuation' ? <section className="pc-continuation" aria-label="Continuar Codex con resumen">
+      <p>{capability.reason}</p>
+      <label>Resumen para la sesión nueva (revísalo antes de enviar)<textarea value={summary} disabled={busy} onChange={event => setSummary(event.target.value)} maxLength={32768} /></label>
+      <p>Se enviará este resumen a una sesión nueva con los mismos permisos y modelo. El historial anterior seguirá visible.</p>
+      <button type="button" disabled={!!blocked || busy || !summary.trim()} onClick={proceed}>Crear sesión nueva y enviar resumen</button>
+      <button type="button" disabled={busy} onClick={() => setCapability(null)}>Cancelar</button>
+    </section> : null,
+  };
+}
+
+// «Contexto de la sesión» as a chip in the island; its settings open above it.
+export function SessionChip({ cwd, branch, workspaceName, children }) {
+  const root = useRef(null), [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const outside = e => { if (!root.current?.contains(e.target)) root.current.open = false; };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]);
+  const { name, own } = sessionChipLabel({ cwd, branch, workspaceName });
+  return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
+    onKeyDown={e => { if (e.key === 'Escape' && root.current.open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
+    <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></summary>
+    <div className="pc-session-pop">{children}</div>
+  </details>;
+}
+
+export function ComposerControls({ selectors, leading, meter, voice, hint, children }) {
+  return <div className="pc-controls">
+    <div className="pc-selectors" role="group" aria-label="Configuración de la conversación">{selectors}</div>
+    <div className="pc-composer-actions">
+      <div className="pc-composer-tools">{leading}{meter}</div>
+      <div className="pc-composer-send">
+        <VoiceActivity voice={voice} onFinish={voice.stop} hint={hint} />
+        {children}
+      </div>
+    </div>
+  </div>;
+}
+
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
+  const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
+  const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
+  const [reveal, setReveal] = useState(0);
+  const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
   const [sending, setSending] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const armedRef = useRef(false), draftRef = useRef(draft), submitRef = useRef(null);
+  draftRef.current = draft;
+  const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
+  const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
+    onText: text => {
+      const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
+      arm(false); draftRef.current = merged; setDraft(merged);
+      if (pendingSend) submitRef.current(merged, true);
+    } });
+  const voice = { ...recorderVoice, cancel: () => { arm(false); recorderVoice.cancel(); } };
+  const listening = voice.status === 'recording';
+  const dictating = listening || voice.status === 'transcribing';
+  useLayoutEffect(() => { if (voice.status === 'idle' || !connected || overview) arm(false); }, [voice.status, connected, overview]);
+  useLayoutEffect(() => { arm(false); }, [workspace.id, node.id, provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   // Mirrors the host: inside its own worktree the card works on its own by default.
   const chosen = node.data.chat.permissionMode ?? (typeof node.data.chat.autoApprove === 'boolean' ? (node.data.chat.autoApprove ? 'auto' : 'ask') : null);
@@ -505,96 +267,126 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const waitingOn = messages.flatMap(message => message.parts || []).find(part => (part.type === 'permission' || part.type === 'question') && part.status === 'pending');
   const waiting = waitingOn ? (waitingOn.type === 'question' ? 'Espera tu respuesta' : 'Espera tu permiso') : '';
   const pendingAsks = messages.flatMap(message => (message.parts || []).filter(part => part.type === 'permission' && part.status === 'pending'));
-  const { cwd, folder, branch } = locationOf(node, workspace);
   // Announce transitions only, never the state found on mount.
   const [announcement, setAnnouncement] = useState('');
-  const phase = !running ? 'idle' : waiting ? 'waiting' : 'running', seenPhase = useRef(null);
+  const turnPhase = waiting ? 'waiting' : running ? 'running' : 'idle', seenPhase = useRef(null);
+  // Encargos Phantom lanzados desde este chat: consulta al terminar un turno y cada 3 s mientras haya vivos.
+  const [controllers, setControllers] = useState([]);
+  const [runHealth, setRunHealth] = useState([]);
+  const runs = delegatedRuns(node.id, controllers);
+  const delegation = delegationState(turnPhase, runs);
+  const phase = delegation.phase, liveRuns = runs.live.length;
+  const refreshRuns = useRef(null);
+  refreshRuns.current = async () => {
+    try {
+      const response = await api('phantom.controllers', { workspaceId: workspace.id });
+      if (!Array.isArray(response?.items)) return;
+      setControllers(response.items);
+      const live = delegatedRuns(node.id, response.items).live;
+      const health = await Promise.all(live.map(item => api('phantom.events', { workspaceId: workspace.id, id: item.taskId, view: 'health' }).catch(() => null)));
+      setRunHealth(health.filter(Boolean));
+    } catch { /* Se reintenta en el siguiente ciclo. */ }
+  };
+  useEffect(() => { if (connected && turnPhase === 'idle' && typeof api === 'function') refreshRuns.current(); }, [connected, turnPhase, workspace.id]);
+  useEffect(() => {
+    if (!connected || !liveRuns || typeof api !== 'function') return;
+    const timer = setInterval(() => refreshRuns.current(), 3000);
+    return () => clearInterval(timer);
+  }, [connected, liveRuns, workspace.id]);
+  const [ackedRun, setAckedRun] = useState(null);
+  const finishedRun = delegation.outcome === 'attention' ? runs.latest : null;
+  useEffect(() => { if (seen && finishedRun) setAckedRun(finishedRun.id); }, [seen, finishedRun?.id]);
+  const delegating = phase === 'delegating', healthView = runHealthView(runHealth);
+  const progress = runProgressView(node.data?.agent?.run, Date.now());
+  const delegatingLabel = progress ? `${progress.label}${progress.activity ? ` · ${progress.activity}` : ''}` : healthView.line;
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
     if (before === null || before === phase) return;
-    setAnnouncement(phase === 'running' ? `${label} está respondiendo` : phase === 'waiting' ? `${label} ${waiting.toLowerCase()}` : `${label} terminó de responder`);
+    setAnnouncement(phase === 'running' ? `${label} está respondiendo` : phase === 'waiting' ? `${label} ${waiting.toLowerCase()}` : phase === 'delegating' ? `${label} ${delegatingLabel.toLowerCase()}` : `${label} terminó de responder`);
   }, [phase, chat, label]);
   const last = messages.at(-1);
-  const elapsed = useElapsed(last?.createdAt, running);
-  const pulse = useChatPulse({ nodeId: node.id, chat, running, waitingOn, last, seen });
-  useEffect(() => { onPulse?.(node.id, pulse); }, [onPulse, node.id, pulse]);
+  const basePulse = useChatPulse({ nodeId: node.id, chat, running: running || delegating, waitingOn, last, seen });
+  const pulse = !chat || waitingOn || running || delegating ? basePulse : finishedRun && ackedRun !== finishedRun.id ? 'pulse-attention' : basePulse;
+  const panelState = waitingOn ? 'attention' : running || delegating ? 'working' : error || last?.status === 'error' || finishedRun ? 'error' : last?.role === 'assistant' && last.status === 'done' || delegation.outcome === 'turn' ? 'finished' : 'rest';
+  useEffect(() => { onPulse?.(node.id, pulse, panelState); }, [onPulse, node.id, pulse, panelState]);
   useEffect(() => () => onPulse?.(node.id, ''), [onPulse, node.id]);
   // Follow the reply while the reader is at the end; never yank them back up.
   useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, overview, focused, pendingAsks.length]);
   useEffect(() => { pinned.current = true; }, [provider]);
   useEffect(() => { if (focused) input.current?.focus({ preventScroll: true }); }, [focused, provider]);
-  useLayoutEffect(() => {
-    const el = input.current; if (!el) return;
-    el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, focused ? 220 : 120)}px`;
-  }, [draft, focused, overview]);
-  const submit = async () => {
-    const text = draft.trim();
-    if (!text || sending || !connected) return;
+  const preview = dictationPreview(voice, draft);
+  useComposerSize(input, preview, !overview);
+  const submit = async (value = draftRef.current, fromVoice = false) => {
+    if (sending || !connected) return;
+    if (!fromVoice) {
+      const action = sendAction({ status: voice.status, draft: value, armed: armedRef.current });
+      if (action === 'none') return;
+      if (action === 'stop-and-send' || action === 'await-voice') { arm(true); if (action === 'stop-and-send') voice.stop(); return; }
+      if (voice.status !== 'idle') voice.cancel();
+    }
+    const text = value.trim();
+    if (!text) return;
     setSending(true); pinned.current = true;
     try { await send(text); setDraft(''); } catch { /* Shown inline by the hook. */ }
     finally { setSending(false); }
   };
-  const model = meta.model, cost = Number.isFinite(meta.costUsd) && meta.costUsd > 0 ? formatCost(meta.costUsd) : '';
+  submitRef.current = submit;
+  const model = meta.model;
+  const compaction = useCompaction({ chat, connected, capabilities, compact, continueSession });
+  const startNew = () => clear().catch(() => {});
+  const context =<SessionContext node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} model={model} permissionMode={permissionMode} running={running} ready={!!chat} />;
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
-    return <div className="pt-card pc is-overview" data-agent={running ? 'working' : 'idle'}>
+    return <div className="pt-card pc is-overview" data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
-        {running && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
+        {(running || waiting) && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{plainMarkdown(lastText).slice(-240)}</p>}
+        <PlanPhases plan={node.data?.plan} compact />
       </div>
     </div>;
   }
-  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={running ? 'working' : 'idle'}>
-    <div className="pc-bar">
-      <AgentSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
-      <span className="pc-location" title={cwd}>{branch ? <GitBranch size={12} aria-hidden="true" /> : <Folder size={12} aria-hidden="true" />}<span>{branch ? `${branch} · ${folder}` : folder}</span></span>
-      {running && (waiting
-        ? <span className="pt-state is-approval"><i aria-hidden="true" />{waiting}</span>
-        : <span className="pt-state is-working"><i aria-hidden="true" />Respondiendo<span className="pc-num">{formatElapsed(elapsed)}</span></span>)}
-      <span className="pc-bar-space" />
-      <button type="button" className="pc-icon" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={() => clear().catch(() => {})}><MessageSquarePlus size={16} /></button>
-    </div>
+  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
+    {planSummary(node.data?.plan) && <details className="plan-phases-toggle pc-plan"><summary><PlanPhases plan={node.data.plan} compact /></summary><PlanPhases plan={node.data.plan} /></details>}
     <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}
-        {!messages.length && connected && chat && <EmptyState className="pc-empty" icon={<ProviderTile provider={provider} />} title={`Conversación nueva con ${label}`}>
-          {chat && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />}
-          {chat && <dl className="pc-conversation-facts">
-            <div><dt>Carpeta</dt><dd title={cwd}>{cwd}</dd></div>
-            {branch && <div><dt>Rama</dt><dd>{branch}</dd></div>}
-            <div><dt>Permisos</dt><dd className="is-prose">{AUTO_APPROVE[provider]?.[permissionMode]}</dd></div>
-            <div><dt>Modelo</dt><dd className="is-prose">{node.data.chat.models?.[provider] || `El predeterminado de ${label}`}</dd></div>
-          </dl>}
-        </EmptyState>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} />)}
+        {!messages.length && connected && chat && <div className="pc-session-new">
+          <AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} />
+          <section className="pc-session-section"><h3>Interfaz</h3><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} /></section>
+          {context}
+        </div>}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
+        {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{delegatingLabel}{progress && progress.idle ? ` · inactivo ${progress.idle}` : ''}</span>{(progress?.warning || healthView.warning) && <span className="pc-run-health-warning" role="status">{progress?.warning || healthView.warning}</span>}{progress?.blocker && <span className="pc-run-health-warning" role="alert">{`${progress.blocker.title}: ${progress.blocker.summary}`}</span>}</p>}
       </div>
     </div>
-    {error && <p className="pc-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
+    {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
-    <form className="pc-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
+    <form className="pc-composer" data-dictating={voice.status !== 'idle' || undefined} onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
+      <ContextNudge key={`${node.id}.${chat?.messages?.[0]?.id || 'empty'}`} nodeId={node.id} firstMessageId={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
       <QueuedMessages queue={chat?.queue} running={running} connected={connected} unqueue={unqueue} resume={resume} notify={notify} onEdit={text => { setDraft(withEdited(text)); input.current?.focus({ preventScroll: true }); }} />
+      {compaction.status}
       <div className="pc-field" onPointerDown={e => { e.stopPropagation(); if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
-        <textarea ref={input} rows={1} value={draft} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
-        <div className="pc-controls">
-          <div className="pc-settings">
-            <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={running} />
-            <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} disabled={running} />
-            <PermissionSwitch mode={permissionMode} provider={provider} onChange={next => api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, permissionMode: next }).catch(e => notify?.(e.message, 'error'))} />
-          </div>
-          {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={11} /></button>}
-          {(!running || draft.trim()) && <button type="submit" className="pc-send" title={running ? 'Poner en espera · Enter' : 'Enviar · Enter'} aria-label={running ? 'Poner mensaje en espera' : 'Enviar mensaje'} disabled={!draft.trim() || sending || !connected}><ArrowUp size={15} /></button>}
+        {voice.error && <p className="voice-inline-error" role="alert">{voice.error}</p>}
+        <div className="pc-input" data-preview={voice.status !== 'idle' || undefined}>
+          <VoiceTranscript voice={voice} draft={draft} />
+          <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
+        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
+          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>
+          <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
+          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
+          <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
+        </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} /></>}
+          meter={<ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />}>
+          {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : `Dictar a ${label}`} aria-label={`Dictar a ${label}`} onClick={voice.start}><Mic size={18} /></button>}
+          {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
+        </ComposerControls>
       </div>
-      <div className="pc-meta">
-        <ContextMeter meta={meta} />
-        {cost && <span className="pc-cost" title={`Costo acumulado de esta conversación · ${meta.turns || 0} ${meta.turns === 1 ? 'turno' : 'turnos'}`}>{cost}</span>}
-        <span className="pc-bar-space" />
-        <kbd className="pc-hint">{running ? '↵ poner en espera' : '↵ enviar · ⇧↵ línea'}</kbd>
-      </div>
+      {compaction.form}
     </form>
   </div>;
 }
-import EmptyState from './EmptyState.jsx';

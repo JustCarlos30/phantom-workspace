@@ -21,22 +21,38 @@ En las chat cards el host construye la línea de comandos, así que la política
 
 La política no modifica `AGENTS.md`, `CLAUDE.md` ni la configuración personal/global de ningún agente. Las instrucciones del proyecto mantienen su alcance y el contenido del repositorio no amplía el mandato de una tarea.
 
+## Subagentes de Claude Code
+
+En terminales PTY, el shim añade hooks asíncronos de `SessionStart`, `SessionEnd`, `SubagentStop` y de `PreToolUse`, `PostToolUse`, `PostToolUseFailure` para la herramienta `Agent`. Se suman a los hooks del usuario/proyecto y muestran los subagentes bajo su terminal en Delegación. Solo envían identidad, tipo, descripción y estado: no envían prompts ni mensajes. `PHANTOM_AGENT_HOOKS_OFF=1` los desactiva; un `--settings` propio también los omite. Codex y OpenCode en terminal no reportan subagentes.
+
 ## Política y ejecución controlada
 
-El bootstrap es una instrucción para el agente, no una barrera técnica que impida editar desde cualquier proceso del shell. Phantom CLI es quien controla los efectos, los checks y el cierre del trabajo ejecutado mediante sus comandos nativos `do`/`run`. El vínculo de identidad de una terminal tampoco demuestra por sí solo que exista una ejecución controlada.
+El bootstrap es una instrucción para el agente, no una barrera técnica que impida editar desde cualquier proceso del shell. Hay dos autoridades nativas: **Phantom CLI `do`/`run` controla las ediciones, sus pruebas y el cierre de la tarea; el controlador de Incorporaciones/ramas controla la finalización Git del trabajo aceptado**. El vínculo de identidad de una terminal tampoco demuestra por sí solo que exista una ejecución controlada.
 
 Para cada solicitud de cambio, antes de editar, el agente debe:
 
 1. Consultar el contexto de la terminal y usar su **cwd exacto**, no la raíz del proyecto ni otro worktree.
 2. Determinar si ya está dentro de un `do`/`run` controlado, a partir del mandato/contexto recibido. En ese caso continúa esa tarea, su scope y sus checks, sin crear ni ejecutar tareas anidadas.
 3. En otro caso, consultar la ayuda y el catálogo del CLI nativo y crear o reutilizar una tarea que corresponda a esa solicitud y ese worktree, con rutas escribibles explícitas y checks de aceptación. No debe pedir al usuario que diga «crea una card».
-4. Vincular el ID canónico devuelto por Phantom a la terminal y ejecutar los efectos del trabajo dentro de `do`/`run`, con argumentos y modelo realmente disponibles según la ayuda instalada.
+4. Vincular el ID canónico devuelto por Phantom a la terminal y ejecutar las ediciones y sus pruebas dentro de `do`/`run`, con argumentos y modelo realmente disponibles según la ayuda instalada.
 
 Una **tarea directa** (`kind: task`, `lane: direct`) corresponde a un cambio sencillo y acotado. Una **card coordinada** (`kind: card`, `lane: coordinated`, con coordinación nativa) corresponde a trabajo que requiere coordinación de varios pasos. No todo cambio necesita una card coordinada. Los campos de identidad históricos `cardId` y `cardTitle` conservan, respectivamente, el ID canónico y el objetivo (`contract.goal`) de cualquiera de estas tareas.
 
 Al retomar la misma solicitud se continúa la misma tarea; una solicitud independiente recibe una tarea independiente. Las preguntas de solo lectura no necesitan tareas ni cards. **Abrir un shell vacío no crea automáticamente ninguna card ni tarea.**
 
 Si faltan runtime, modelo, checks requeridos o una decisión material, el agente comunica el bloqueo y reporta `blocked`, en lugar de hacer cambios sin seguimiento. Un reporte o una consulta nunca completan tareas. `review` solo significa listo para revisión; Phantom conserva la autoridad sobre verificación y cierre. No hay un estado `completed` aceptado por el comando de reportes.
+
+### Integración después de la aceptación
+
+Después de que Phantom acepte el trabajo, el padre puede invocar el controlador nativo de Incorporaciones/ramas mediante `agent.mjs merge ID` (ID de la solicitud de incorporación) o `scripts/branches.mjs integrate RAMA`. Debe respetar los roles y autorizaciones existentes y mantener activos los hooks y los checks de integración. La aceptación de la tarea no acredita que la rama esté integrada: el resultado de integración se informa a partir de la respuesta observada del controlador.
+
+Esta finalización Git es una operación del controlador de ramas, separada de `do`/`run`: no se intenta que `do`/`run` modifique `HEAD`, ni se incluyen merges en los checks de aceptación del harness, ni se concede shell al ejecutor. Se mantienen el registro obligatorio, el worktree exacto, los scopes, los checks de aceptación y el cierre nativo de tareas.
+
+No se permite sustituir el controlador por Git directo, desactivar hooks (`--no-verify`, cambios de `core.hooksPath`), retirar el entorno del guard, omitir checks de integración (`--no-checks`, `checks --none`), modificar a mano el estado de cola ni fingir tareas `completed`. Si falta la aceptación o el controlador autorizado no está disponible, se comunica el bloqueo. El padre conserva el encargo de integración pendiente y lo continúa por ese controlador cuando estén disponibles sus requisitos.
+
+## Preflight de contrato
+
+Antes de registrar una tarea, valida su JSON con `node scripts/contract-lint.mjs CONTRATO.json`. El preflight exige archivos exactos no ignorados en `scope`, umbrales para `node --test`, presupuesto de al menos 60000 tokens, tiempo total suficiente, juez con 30000 tokens cuando exista y un worktree limpio. El comando informa un hallazgo por línea y falla si encuentra errores.
 
 ## Comandos y ejemplos
 
@@ -60,6 +76,42 @@ Ejemplos de aplicación:
 - «Coordina la migración y la integración de varios componentes»: card coordinada con scope, checks y coordinación nativa definidos.
 - «¿Qué hace esta función?»: consulta de solo lectura, sin registro obligatorio.
 - «Continúa con el cambio anterior»: consultar contexto y contrato; continuar el mismo ID, sin duplicarlo.
+
+## Atadura y aviso de fin de los runs
+
+Al lanzar `run` desde una terminal, el host ata la tarea a esa terminal (`cardId`, título) y muestra «trabajando». Al terminar, la tarjeta pasa a `review` (tarea `completed`: verificar que funciona y si necesita algo más) o a `blocked` con el motivo (bloqueada, fallida, controlador fallido, estado desconocido o run perdido). Si la terminal fue reatada a otra tarea o desvinculada, no se toca. Es solo el estado visible de la sesión: nunca marca la tarea como completada.
+
+Chats y terminales reciben un aviso automático de fin, una vez por run. En una terminal solo se escribe (mensaje + Enter) si la sesión sigue viva, es la actual del nodo y hay un agente reconocido en primer plano; si no, bastan la tarjeta y el aviso de atención. Tope de 4 avisos por nodo; al agotarlo el host deja un aviso de atención (una vez por nodo). El contador se reinicia con cualquier entrada de usuario a esa terminal (`terminal.write`). Límite: el host no distingue una pulsación humana de otro cliente que escriba por esa misma vía.
+
+## Seguimiento en vivo y avisos intermedios
+
+Mientras un run lanzado desde una terminal o chat sigue `running`, el host consulta cada ~5 s los eventos (la misma vía que `phantom.events` con `view: 'health'`) y actualiza `node.data.agent.step` (línea legible con fase, actividad y tiempo) y `node.data.agent.run` (fase `waiting|agent|checks|repair|judge|children`, actividad, ronda de reparación, hijos, `stalled`/`looping`, últimas 20 líneas de log y `blocker`). Solo se escribe si algo cambia. Una reparación es un `task.running` posterior a `verification.recorded` (ronda +1).
+
+Al terminar, la tarjeta se actualiza **siempre** (`review`/`blocked` y `run` cerrado con su blocker), aunque el aviso final no pueda entregarse. Un aviso final sin agente en primer plano queda diferido y se entrega cuando vuelva a haberlo (respetando el tope de 4 avisos finales).
+
+Avisos intermedios al orquestador (marcados «[Aviso automático de Phantom Workspace; no es un mensaje del usuario]»), solo en transiciones materiales: sin eventos durante ≥3 min (una vez por episodio), bucle detectado, entrada en reparación y bloqueo. Máximo 1 por run cada 3 min y tope propio de 6 por nodo (distinto del tope de avisos finales); sin agente en primer plano no se reintenta: lo refleja la tarjeta.
+
+| Categoría | Autonomía | Qué hacer |
+| --- | --- | --- |
+| `budget` (tokens/turnos/tiempo) | `ask_user` | Preguntar al usuario; si acepta, `phantom amend ID --max-tokens N --reason "…"` y `agent.mjs run ID`. La acción de UI `phantom.control` `amend` (x1.5 sobre `maxTokens`, 500000 si no hay; `reason` obligatorio; solo tareas `blocked`/`ready`) solo se dispara con un clic explícito. |
+| `rate_limit` | `orchestrator` | Esperar a `retryAt` (si se pudo leer con zona America/Mexico_City) y relanzar. |
+| `contract` (pruebas insuficientes, EISDIR/directorios, snapshot, checks que modifican el workspace, regresión previa) | `orchestrator` | Contrato nuevo corregido y cancelar el bloqueado. |
+| `verification` (reparaciones agotadas) | `orchestrator` | Leer `phantom show`/`phantom events`; contrato nuevo con más `maxRepairs` o checks corregidos. |
+| `no_change` | `orchestrator` | Revisar qué hizo el agente y reformular el contrato. |
+| `engine` (modelo/motor no soportado) | `human` | No desbloquear: informar al usuario. |
+| `policy` (git, rutas protegidas, `PHANTOM_GATE_REFUSED` no presupuestario, `policy_changed`) y `unknown` | `human` | No saltarse guardas ni tocar el harness: reportar `blocked` al usuario. |
+
+El motivo del bloqueo es siempre dato: solo elige la categoría; los comandos sugeridos salen de plantillas propias con el ID de tarea validado, nunca del texto del motivo.
+
+## Plan con fases
+
+Para trabajo de varias etapas, el agente declara su plan con `"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" phases set ARCHIVO.json` y enlaza cada encargo con `phases start KEY ID`; el host marca la fase al cerrar el encargo. El plan se ve con datos reales del nodo (`node.data.plan`):
+
+- Tarjeta de terminal y resumen de chat: una línea «Fase N de M · título» con el progreso hechas/total.
+- Panel enfocado y cabecera del chat: un desplegable «Plan» con la lista ordenada de fases, su estado, la nota si está bloqueada y el ID corto del encargo.
+- Rail de sesiones: «Fase N de M» en el apoyo de la fila.
+
+Una fase pendiente sin encargo aparece como «Sin encargo todavía» y no es ejecutable: hasta enlazarle un ID (`phases task KEY ID` o `phases start KEY ID`) la cadena no puede lanzarla.
 
 ## Terminales nuevas y sesiones ya abiertas
 

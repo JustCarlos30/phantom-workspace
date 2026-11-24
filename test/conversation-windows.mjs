@@ -4,10 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHost } from '../host/server.mjs';
+import { build } from 'vite';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Shipping renderer/IPC and real PTYs; only external catalogs are synthetic.
 // No shell commands, models, personal profiles, or repository evidence writes.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+await build({ root });
 await fs.mkdir('/tmp/opencode', { recursive: true });
 const temp = await fs.mkdtemp('/tmp/opencode/conversation-windows-');
 const profile = path.join(temp, 'profile'), project = path.join(temp, 'project');
@@ -41,6 +44,7 @@ const inputBytes = async () => fs.readFile(received, 'utf8');
 async function viewport(width, height) {
   await app.evaluate(({ BrowserWindow }, [w, h]) => {
     const window = BrowserWindow.getAllWindows()[0];
+    window.webContents.setZoomFactor(1);
     window.setMinimumSize(800, 600); window.setContentSize(w, h);
   }, [width, height]);
   await page.waitForFunction(([w, h]) => innerWidth === w && innerHeight === h, [width, height]);
@@ -331,6 +335,24 @@ process.stdout.write('PTY_FIXTURE_READY\\r\\n');
     await zoomNormal();
     await page.getByLabel('Nombre del agente', { exact: true }).press('Escape');
   });
+  await check('sesión nueva: proveedor autorizado, interfaz y compositor idéntico en mapa y foco', async () => {
+    await host.invoke('chat.configure', { workspaceId, nodeId, provider: 'claude' });
+    const input = panel().getByLabel('Mensaje para Claude', { exact: true }); await input.waitFor();
+    await panel().locator('.pc-providers').waitFor();
+    assert.equal(await panel().locator('.pc-providers [role="radio"]').count(), 1);
+    assert.equal(await panel().locator('.pc-providers [role="radio"]').getAttribute('aria-checked'), 'true');
+    assert.deepEqual(await panel().locator('.pc-modes [role="radio"]').allTextContents(), ['Chat', 'Terminal']);
+    const recipe = () => input.evaluate(el => {
+      const composer = el.closest('.pc-composer'), field = composer.querySelector('.pc-field');
+      return { padding: getComputedStyle(composer).padding, field: getComputedStyle(field).backgroundColor !== 'rgba(0, 0, 0, 0)', radius: getComputedStyle(field).borderRadius, shadow: getComputedStyle(field).boxShadow !== 'none', min: getComputedStyle(el).minHeight, controls: getComputedStyle(composer.querySelector('.pc-controls')).gap };
+    });
+    const before = await recipe();
+    assert.deepEqual(before, { padding: '0px 24px 24px', field: true, radius: '24px', shadow: true, min: '40px', controls: '8px' });
+    await panel().getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+    await page.locator('.canvas-node.focused').waitFor();
+    assert.deepEqual(await recipe(), before);
+    await page.locator('.focus-return button').click();
+  });
   await check('sin errores de página', async () => assert.deepEqual(errors, []));
 } catch (error) {
   process.exitCode = 1;
@@ -344,7 +366,7 @@ process.stdout.write('PTY_FIXTURE_READY\\r\\n');
       let timer;
       try { await Promise.race([app.close(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Electron cleanup timeout')), 5000); })]); }
       catch (error) { process.exitCode = 1; errors.push(error.message); console.error(error.message); }
-      finally { clearTimeout(timer); if (appProcess.exitCode === null && appProcess.signalCode === null) appProcess.kill('SIGKILL'); }
+      finally { clearTimeout(timer); killElectronGroup(appProcess); }
     }
   } finally { await host?.close(); }
   await fs.writeFile(path.join(temp, 'evidence.json'), JSON.stringify({ checks, errors, writes, temp }, null, 2));

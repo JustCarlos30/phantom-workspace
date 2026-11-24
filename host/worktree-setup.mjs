@@ -75,6 +75,28 @@ async function prepareElectron(cwd, modules, signal, env, onProgress) {
   if (!electronRuntime(modules)?.ready) throw new Error('Electron se instaló sin su ejecutable (node_modules/electron/dist).');
 }
 
+// Detached groups don't die with this process. If it exits (or gets SIGINT/SIGTERM)
+// mid-install, reap every live group so npm and its lifecycle children aren't orphaned.
+const liveGroups = new Set();
+let reaperInstalled = false;
+function killLiveGroups() {
+  for (const pid of liveGroups) try { process.kill(-pid, 'SIGKILL'); } catch {}
+  liveGroups.clear();
+}
+function installReaper() {
+  if (reaperInstalled) return;
+  reaperInstalled = true;
+  process.once('exit', killLiveGroups);
+  for (const name of ['SIGINT', 'SIGTERM']) {
+    const onSignal = () => {
+      killLiveGroups();
+      // Preserve default termination unless someone else handles this signal.
+      if (process.listenerCount(name) === 0) process.kill(process.pid, name);
+    };
+    process.once(name, onSignal);
+  }
+}
+
 // A detached process group includes npm's lifecycle shells/native builders on Linux.
 // Always reap the group, even if npm exits before a stubborn descendant does.
 function run(cwd, command, args, label, signal, env, onProgress) {
@@ -85,6 +107,7 @@ function run(cwd, command, args, label, signal, env, onProgress) {
       cwd, shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...env, npm_config_update_notifier: 'false' },
     });
+    if (child.pid) { installReaper(); liveGroups.add(child.pid); }
     const groupSignal = signalName => { if (child.pid) try { process.kill(-child.pid, signalName); } catch (error) { if (error.code !== 'ESRCH') failure ||= error; } };
     const stop = () => {
       if (stopped) return;
@@ -109,6 +132,7 @@ function run(cwd, command, args, label, signal, env, onProgress) {
       // Also await the escalation when stdio closed before grandchildren exited.
       await new Promise(r => setTimeout(r, 725));
       clearTimeout(killTimer);
+      liveGroups.delete(child.pid);
       signal.removeEventListener('abort', abort);
       if (failure || code !== 0) reject(new Error(`${failure?.message || `${label} terminó con ${exitSignal || code}`}${tail ? `\n${tail}` : ''}`));
       else resolve();

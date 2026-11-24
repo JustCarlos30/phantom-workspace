@@ -1,0 +1,28 @@
+.agent-run-state { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.agent-run-state.is-live { color: var(--ink); }
+.agent-run-state.is-blocked { color: var(--pc-del, var(--ink)); }
+.titi-ghost { display: block; flex-shrink: 0; image-rendering: pixelated; }
+.app-shell [data-identity] { color: var(--identity-ink); opacity: var(--identity-opacity, .55); }
+.activity-notch [data-identity="dock"] { width: var(--identity-size) !important; height: var(--identity-size) !important; margin-left: var(--identity-inset); }
+.app-shell:not(.rail-collapsed) .activity-dock[data-fit="tight"] .activity-strip:has([data-identity]) { display: flex; }
+.app-shell [data-operation-glyph="titi"] { width: var(--identity-glyph-size) !important; height: var(--identity-glyph-size) !important; }
+.app-shell .canvas-empty .empty-state__icon:has(.titi-mascot) { width: auto; height: auto; }
+.studio-focused [data-identity], .studio-concentration [data-identity] { opacity: calc(var(--identity-opacity, .55) * .12); }
+@media (max-height: 699px) { .canvas-empty .titi-mascot { width: 66px !important; height: 66px !important; } }
+
+/* Both exact silhouettes ship together so chrome can reflect native ARIA state. */
+.app-shell [data-type] { --type: var(--muted); }
+.shell-icon { flex-shrink: 0; color: var(--muted); }
+.shell-icon__solid { display: none; }
+.shell-icon[data-variant="solid"] .shell-icon__line { display: none; }
+.shell-icon[data-variant="solid"] .shell-icon__solid { display: initial; }
+.shell-icon[data-variant="solid"] { color: inherit; }
+:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__line { display: none; }
+:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon__solid { display: initial; }
+:is(button.active, button[aria-pressed="true"], button[aria-current="true"], button[aria-expanded="true"], .rail-panel-row.selected) .shell-icon { color: inherit; }
+.shell-icon[data-variant="line"] > .shell-icon__line { display: initial; }
+.shell-icon[data-variant="line"] > .shell-icon__solid { display: none; }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph:has(.shell-icon) { background: var(--type, var(--on)); color: var(--on-ink); border-radius: var(--r-ctl); box-shadow: var(--shadow-rim); }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon { color: var(--on-ink); }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon__line { display: none; }
+.canvas-node:is(.selected, .focused) > .node-header > .node-glyph .shell-icon__solid { display: initial; }

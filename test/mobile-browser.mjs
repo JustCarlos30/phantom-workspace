@@ -3,98 +3,190 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import https from 'node:https';
-import http from 'node:http';
-import { fileURLToPath } from 'node:url';
-import { X509Certificate, createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { X509Certificate, createHash } from 'node:crypto';
 import { chromium } from 'playwright';
-import { build } from 'vite';
 import { createHost } from '../host/server.mjs';
 
-const evidence = '/tmp/phantom-mobile-secure-evidence';
+// Real host + shipping dist + real HTTPS/auth. Only the chat/terminal engines
+// are controlled fixtures; visiting this test never starts a shell or model.
+const evidence = '/tmp/phantom-mobile-evidence';
 await fs.mkdir(evidence, { recursive: true });
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'phantom-mobile-secure-browser-'));
-const repo = fileURLToPath(new URL('../', import.meta.url));
-let host, browser, local;
-const errors = [], results = [];
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'phantom-mobile-browser-'));
+let host, browser, clock = 0;
+const results = [], errors = [], actions = [], terminalInputs = [];
+const until = async (fn, ms = 5000) => {
+  const end = Date.now() + ms;
+  while (!fn()) {
+    if (Date.now() > end) throw new Error('timeout');
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+};
 try {
-  await fs.mkdir(path.join(root, 'project'));
-  host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
-  const workspace = await host.invoke('workspace.open', { path: path.join(root, 'project') });
-  const node = await host.invoke('node.create', { workspaceId: workspace.id, type: 'terminal', title: 'Sesión de prueba', data: { chat: { provider: 'claude' } } });
-  let effects = 0; host.chats.send = () => { effects++; };
-  assert.equal((await host.invoke('mobile.status')).enabled, false);
-  const access = await host.invoke('mobile.start', { workspaceId: workspace.id, address: '127.0.0.1' });
-  const cert = new X509Certificate(access.identity.certificate);
-  assert.equal(createHash('sha256').update(cert.raw).digest('hex'), access.identity.fingerprint);
-  assert.equal(cert.checkIP('127.0.0.1'), '127.0.0.1'); assert.ok(cert.verify(cert.publicKey));
-  const native = (route, body) => new Promise((resolve, reject) => {
-    const req = https.request(new URL(route, access.url), { method: body ? 'POST' : 'GET', ca: access.identity.certificate, headers: body ? { 'Content-Type': 'application/json' } : {}, agent: false }, res => {
-      let text = ''; res.on('data', c => { text += c; }); res.on('end', () => resolve({ status: res.statusCode, text }));
-    }); req.on('error', reject); req.end(body && JSON.stringify(body));
+  await fs.mkdir(path.join(root, 'project')); await fs.mkdir(path.join(root, 'other'));
+  host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }), mobileOptions: { now: () => Date.now() + clock } });
+  const w = await host.invoke('workspace.open', { path: path.join(root, 'project') });
+  await host.invoke('workspace.update', { id: w.id, patch: { name: 'Proyecto móvil · fixture aislado' } });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', title: 'Conversación de prueba', data: { chat: { provider: 'claude' } } });
+  const terminalNode = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', title: 'Terminal existente · fixture' });
+  const other = await host.invoke('workspace.open', { path: path.join(root, 'other') });
+  await host.invoke('node.create', { workspaceId: other.id, type: 'terminal', title: 'PROYECTO AJENO', data: { chat: { provider: 'claude' } } });
+  const permission = { type: 'permission', id: 'fixture-permission', tool: 'Herramienta de prueba', detail: 'Permiso sintético sin ejecución', reason: 'Decisión explícita', status: 'pending' };
+  const question = { type: 'question', id: 'fixture-question', status: 'pending', questions: [{ question: '¿Qué opción prefieres?', options: [{ label: 'Primera' }, { label: 'Segunda' }] }] };
+  const messages = Array.from({ length: 28 }, (_, i) => ({ id: `history-${i}`, role: i % 2 ? 'assistant' : 'user', status: 'done', parts: [{ type: 'text', text: `Historial sintético ${i}. ` + 'Texto legible en el teléfono. '.repeat(8) }] }));
+  messages.push({ id: 'pending', role: 'assistant', status: 'done', parts: [permission, question, { type: 'text', text: 'Fin del historial inicial.' }] });
+  host.chats.get = () => ({ provider: 'claude', running: false, messages, queue: [] });
+  host.chats.send = async (workspace, current, text) => {
+    assert.equal(workspace.id, w.id); assert.equal(current.id, node.id); actions.push(text);
+    messages.push({ id: `input-${actions.length}`, role: 'user', status: 'done', parts: [{ type: 'text', text }] }, { id: `reply-${actions.length}`, role: 'assistant', status: 'done', parts: [{ type: 'text', text: `Recibido por fixture: ${text}` }] });
+    return { ok: true };
+  };
+  let permissionAnswers = 0, questionAnswers = 0;
+  host.chats.answerPermission = (current, requestId, decision) => { assert.equal(current.id, node.id); assert.equal(requestId, permission.id); assert.equal(decision, 'allow'); permission.status = 'allowed'; permissionAnswers++; };
+  host.chats.answerQuestion = (current, requestId, answers) => { assert.equal(current.id, node.id); assert.equal(requestId, question.id); assert.equal(answers['¿Qué opción prefieres?'], 'Primera'); question.status = 'answered'; questionAnswers++; };
+  const terminal = { id: 'fixture-terminal', workspaceId: w.id, nodeId: terminalNode.id, status: 'running', createdAt: new Date().toISOString(), snapshot: '', seq: 0 };
+  host.terminals.sessions.push(terminal);
+  host.terminals.tail = async id => { assert.equal(id, terminal.id); return { status: terminal.status, seq: terminal.seq, lines: ['Salida sintética existente', ...terminalInputs.map(value => `Entrada recibida: ${value.trim()}`)] }; };
+  host.terminals.write = (id, data) => { assert.equal(id, terminal.id); terminalInputs.push(data); terminal.seq++; return { ok: true }; };
+  host.terminals.stop = id => { assert.equal(id, terminal.id); terminal.status = 'exited'; return { ok: true }; };
+  const access = await host.invoke('mobile.start', { workspaceId: w.id, address: '127.0.0.1', port: 0 });
+  const ca = await fs.readFile(path.join(root, 'state', 'mobile-tls', 'cert.pem'));
+  const certificate = new X509Certificate(ca);
+  assert.equal(access.tls.fingerprint, certificate.fingerprint256);
+  // Node verifies the exact generated certificate and served IP. Chromium trusts
+  // only this fixture key's SPKI, not arbitrary self-signed certificates.
+  const mobileRequest = (url, options = {}) => new Promise((resolve, reject) => {
+    const request = https.request(url, { ...options, ca, agent: false }, response => {
+      try { assert.equal(response.socket.getPeerCertificate().fingerprint256, access.tls.fingerprint); }
+      catch (error) { response.destroy(); reject(error); return; }
+      response.resume(); response.on('error', reject); response.on('end', () => resolve(response.statusCode));
+    });
+    request.on('error', reject); request.end(options.body);
   });
-  assert.equal((await native('/mobile')).status, 200); // actual hostname/CA validation
-  const pair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
-  const paired = JSON.parse((await native('/api/v2/pair', { code: access.pairing.code, name: 'Teléfono fixture', publicKey: pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64url') })).text);
-  assert.equal((await native('/api/v2/pair/prove', { deviceId: paired.deviceId, challengeId: paired.challengeId, signature: sign('sha256', Buffer.from(paired.bytes, 'base64url'), pair.privateKey).toString('base64url') })).status, 200);
-  // Chromium trusts only this fixture's SPKI, never a global certificate bypass.
-  // Node above independently validates the complete pinned cert, SAN and chain.
-  const spki = createHash('sha256').update(cert.publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
-  browser = await chromium.launch({ headless: true, args: [`--ignore-certificate-errors-spki-list=${spki}`] });
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
-  await page.goto(access.url); await page.getByRole('heading', { name: 'Se necesita la app nativa' }).waitFor();
-  assert.equal(await page.locator('button,input,textarea,form,script').count(), 0);
+  assert.equal(await mobileRequest(access.url), 200);
+  const spki = createHash('sha256').update(certificate.publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
+  browser = await chromium.launch({ executablePath: chromium.executablePath(), headless: true, args: [`--ignore-certificate-errors-spki-list=${spki}`] });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+  page.setDefaultTimeout(12000);
+  const screenshot = name => page.screenshot({ path: path.join(evidence, name + '.png'), fullPage: true });
+  const noOverflow = async () => {
+    const metrics = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+    assert.ok(metrics.scroll <= metrics.width && metrics.body <= metrics.width, JSON.stringify(metrics));
+  };
+  const approve = async () => {
+    await page.getByRole('heading', { name: 'Esperando aprobación' }).waitFor();
+    const pending = (await host.invoke('mobile.status')).pending[0]; assert.ok(pending);
+    assert.equal((await page.locator('.mobile-sas').textContent()).replace(/\s/g, ''), pending.sas);
+    await noOverflow(); await screenshot('01-approval');
+    await host.invoke('mobile.approve', { id: pending.id });
+    await page.getByRole('heading', { name: 'Sesiones', exact: true }).waitFor();
+  };
+  const pair = async code => {
+    await page.getByLabel('Código de emparejamiento').fill(code);
+    await page.getByRole('button', { name: 'Emparejar', exact: true }).click();
+    await approve();
+  };
+  await page.goto(access.pairing.link);
+  await page.getByRole('heading', { name: 'Esperando aprobación' }).waitFor();
+  assert.equal(new URL(page.url()).hash, '');
   assert.equal(await page.evaluate(() => typeof window.phantom), 'undefined');
-  await page.screenshot({ path: path.join(evidence, '01-native-required.png'), fullPage: true });
-  await page.setViewportSize({ width: 360, height: 800 });
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await page.screenshot({ path: path.join(evidence, '02-narrow.png'), fullPage: true });
-  const rejected = (await native('/api/rpc', { method: 'chat.send', biometricVerified: true })).status;
-  assert.equal(rejected, 404); assert.equal(effects, 0); results.push('TLS real con CA y SAN validados; página sin controles; legacy rechazado; 390/360 px');
+  await noOverflow(); await screenshot('01-pairing');
+  await approve();
+  const storedKey = await page.evaluate(() => new Promise((resolve, reject) => {
+    const open = indexedDB.open('phantom-mobile', 1); open.onerror = () => reject(open.error);
+    open.onsuccess = () => { const db = open.result, request = db.transaction('keys').objectStore('keys').get('device'); request.onerror = () => reject(request.error); request.onsuccess = () => { resolve({ extractable: request.result.keys.privateKey.extractable, type: request.result.keys.privateKey.type, token: request.result.token }); db.close(); }; };
+  }));
+  assert.equal(storedKey.extractable, false); assert.equal(storedKey.type, 'private');
+  assert.equal(storedKey.token, await page.evaluate(() => sessionStorage.getItem('phantom:mobile:bearer')));
+  await page.reload();
+  await page.getByRole('heading', { name: node.title, exact: true }).waitFor();
+  assert.equal(await page.getByText('PROYECTO AJENO').count(), 0);
+  assert.equal(host.terminals.live.size, 0); assert.equal(actions.length, 0);
+  await screenshot('02-sessions');
+  await page.getByRole('button', { name: 'Abrir conversación · claude' }).last().click();
+  await page.getByText('Fin del historial inicial.', { exact: true }).waitFor();
+  assert.equal(permissionAnswers, 0); assert.equal(questionAnswers, 0);
+  await page.getByRole('button', { name: 'Permitir una vez' }).click();
+  await until(() => permissionAnswers === 1);
+  await page.getByLabel('¿Qué opción prefieres?').fill('Primera');
+  await page.getByRole('button', { name: 'Responder', exact: true }).click();
+  await until(() => questionAnswers === 1);
+  assert.equal(permissionAnswers, 1); assert.equal(questionAnswers, 1);
+  await page.getByLabel('Mensaje', { exact: true }).fill('Hola desde el teléfono');
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByText('Recibido por fixture: Hola desde el teléfono', { exact: true }).waitFor();
+  assert.deepEqual(actions, ['Hola desde el teléfono']);
+  assert.equal(await page.getByText('Hola desde el teléfono', { exact: true }).count(), 1);
+  await noOverflow(); await screenshot('03-chat');
+  await page.locator('.mobile-thread').evaluate(el => { el.scrollTop = 60; el.dispatchEvent(new Event('scroll', { bubbles: true })); });
+  await page.getByRole('button', { name: 'Volver al final' }).waitFor();
+  const before = await page.locator('.mobile-thread').evaluate(el => el.scrollTop);
+  messages.push({ id: 'background-update', role: 'assistant', status: 'done', parts: [{ type: 'text', text: 'Actualización en segundo plano' }] });
+  await page.getByText('Actualización en segundo plano', { exact: true }).waitFor();
+  assert.ok(Math.abs(await page.locator('.mobile-thread').evaluate(el => el.scrollTop) - before) <= 2, 'Polling must preserve the reading position');
+  await page.getByRole('button', { name: 'Volver al final' }).click();
+  results.push('pairing, scoped catalog, explicit prompts, chat send, stable reading scroll');
 
-  // Isolated Vite fixture renders the actual desktop component. This bridge is
-  // local test-only, and forwards only mobile desktop management to the tmp host.
-  const entry = path.join(root, 'fixture.jsx'), bundleDir = path.join(root, 'bundle');
-  await fs.writeFile(entry, `import React from ${JSON.stringify(path.join(repo, 'node_modules/react/index.js'))};
-import {createRoot} from ${JSON.stringify(path.join(repo, 'node_modules/react-dom/client.js'))};
-import MobileSettings from ${JSON.stringify(path.join(repo, 'src/components/MobileSettings.jsx'))};
-import ${JSON.stringify(path.join(repo, 'src/tools.css'))};
-const api=async(method,payload)=>{const r=await fetch('/fixture-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,payload})});const v=await r.json();if(!r.ok)throw Error(v.error);return v;};
-createRoot(document.getElementById('root')).render(<MobileSettings workspace={${JSON.stringify({ id: workspace.id, name: 'Proyecto fixture' })}} api={api}/>);`);
-  await build({ configFile: false, root: repo, logLevel: 'error', define: { 'process.env.NODE_ENV': JSON.stringify('production') }, build: { outDir: bundleDir, emptyOutDir: true, lib: { entry, formats: ['es'], fileName: () => 'fixture.js' }, rollupOptions: { output: { assetFileNames: 'fixture.[ext]' } } } });
-  local = http.createServer(async (req, res) => {
-    try {
-      if (req.url === '/fixture-api' && req.method === 'POST') {
-        let text = ''; for await (const c of req) { text += c; assert.ok(text.length < 65536); }
-        const { method, payload } = JSON.parse(text); assert.ok(['mobile.status', 'mobile.approve', 'mobile.permissions', 'mobile.revoke', 'mobile.stop', 'mobile.pairing'].includes(method));
-        const result = await host.invoke(method, payload); res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(result)); return;
-      }
-      if (['/fixture.js', '/fixture.css'].includes(req.url)) { res.setHeader('Content-Type', req.url.endsWith('.js') ? 'text/javascript' : 'text/css'); res.end(await fs.readFile(path.join(bundleDir, req.url.slice(1)))); return; }
-      res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html lang="es"><link rel="stylesheet" href="/fixture.css"><body style="background:#161616;color:#ddd"><div id="root"></div><script type="module" src="/fixture.js"></script></body></html>');
-    } catch (e) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); }
+  // Drop only the response AFTER the real server accepts this action. There
+  // must be one write, then only reads when the user explicitly reconnects.
+  let dropped = false;
+  await page.route('**/api/rpc', async route => {
+    const request = route.request().postDataJSON();
+    if (request.method === 'chat.send' && !dropped) {
+      dropped = true;
+      const status = await mobileRequest(route.request().url(), { method: 'POST', headers: await route.request().allHeaders(), body: route.request().postData() });
+      assert.equal(status, 200); await route.abort('failed');
+    }
+    else await route.continue();
   });
-  await new Promise(resolve => local.listen(0, '127.0.0.1', resolve));
-  const desktop = await browser.newPage({ viewport: { width: 1280, height: 1000 } }); desktop.on('pageerror', e => errors.push(e.message));
-  await desktop.goto(`http://127.0.0.1:${local.address().port}`);
-  await desktop.getByRole('heading', { name: 'Conexión móvil local' }).waitFor();
-  await desktop.getByRole('button', { name: 'Aprobar dispositivo' }).waitFor();
-  assert.equal(await desktop.getByLabel('Dirección móvil').inputValue(), access.url);
-  assert.equal(await desktop.getByLabel('Identidad del host / SHA256 del certificado').inputValue(), access.identity.fingerprint);
-  assert.equal(await desktop.getByLabel('Sesión de prueba', { exact: true }).isChecked(), false);
-  await desktop.getByLabel('Sesión de prueba', { exact: true }).check();
-  assert.equal(await desktop.getByLabel('Lectura', { exact: true }).isChecked(), true);
-  assert.equal(await desktop.getByLabel('Enviar chat', { exact: true }).isChecked(), false);
-  await desktop.screenshot({ path: path.join(evidence, '03-desktop-pending.png'), fullPage: true });
-  await desktop.getByRole('button', { name: 'Aprobar dispositivo' }).click();
-  await desktop.getByRole('button', { name: 'Guardar permisos' }).waitFor();
-  assert.deepEqual((await host.invoke('mobile.status')).devices[0].grants, [{ nodeId: node.id, capabilities: ['read'] }]);
-  await desktop.getByLabel('Enviar chat', { exact: true }).check(); await desktop.getByRole('button', { name: 'Guardar permisos' }).click();
-  await desktop.getByText('Permisos efectivos:', { exact: false }).filter({ hasText: 'Enviar chat' }).waitFor();
-  await desktop.screenshot({ path: path.join(evidence, '04-desktop-permissions-audit.png'), fullPage: true });
-  await desktop.getByRole('button', { name: 'Revocar', exact: true }).click(); await desktop.getByText('Ningún dispositivo emparejado.').waitFor();
-  assert.equal(effects, 0); assert.deepEqual(errors, []); results.push('Componente desktop real: huellas, aprobación por nodo solo lectura, permisos editables, revocación y actividad');
-  await fs.writeFile(path.join(evidence, 'results.json'), JSON.stringify({ results, errors }, null, 2));
+  await page.getByLabel('Mensaje', { exact: true }).fill('Acuse perdido');
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByRole('button', { name: 'Reconectar', exact: true }).waitFor();
+  assert.equal(actions.filter(text => text === 'Acuse perdido').length, 1);
+  await screenshot('04-uncertain-response');
+  await page.getByRole('button', { name: 'Reconectar', exact: true }).click();
+  await page.getByText('Recibido por fixture: Acuse perdido', { exact: true }).waitFor();
+  await page.unroute('**/api/rpc');
+  assert.equal(actions.filter(text => text === 'Acuse perdido').length, 1);
+  results.push('lost response has no automatic write retry; explicit reconnect reads accepted input');
+
+  await page.getByRole('button', { name: '← Sesiones', exact: true }).click();
+  await page.getByRole('button', { name: /Abrir terminal/ }).click();
+  await page.getByText('Salida sintética existente', { exact: true }).waitFor();
+  assert.equal(terminalInputs.length, 0);
+  await page.getByLabel('Entrada de terminal', { exact: true }).fill('entrada explícita');
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.mobile-thread pre')?.textContent.includes('Entrada recibida: entrada explícita'));
+  assert.deepEqual(terminalInputs, ['entrada explícita\r']);
+  await page.waitForTimeout(2200); assert.equal(terminalInputs.length, 1);
+  await noOverflow(); await screenshot('05-terminal');
+  await page.getByRole('button', { name: 'Parar', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.mobile-session header span')?.textContent === 'exited');
+  assert.equal(host.terminals.live.size, 0);
+  results.push('existing terminal snapshot, explicit input once, explicit stop, no process creation');
+
+  const saved = await page.evaluate(() => ({ token: sessionStorage.getItem('phantom:mobile:bearer'), local: Object.keys(localStorage), url: location.href }));
+  assert.match(saved.token, /^[A-Za-z0-9_-]{43}$/); assert.equal(saved.local.length, 0); assert.ok(!saved.url.includes(saved.token));
+  const devices = (await host.invoke('mobile.status')).devices;
+  await host.invoke('mobile.revoke', { id: devices[0].id });
+  await page.getByRole('heading', { name: 'Emparejar con tu escritorio' }).waitFor();
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('phantom:mobile:bearer')), null);
+  await screenshot('06-revoked');
+  const expired = await host.invoke('mobile.pairing'); clock += 120001;
+  await page.getByLabel('Código de emparejamiento').fill(expired.code);
+  await page.getByRole('button', { name: 'Emparejar', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Código caducado' }).waitFor();
+  const fresh = await host.invoke('mobile.pairing');
+  await page.evaluate(offset => { const OriginalDate = Date; globalThis.Date = class extends OriginalDate { constructor(...args) { super(...(args.length ? args : [OriginalDate.now() + offset])); } static now() { return OriginalDate.now() + offset; } }; }, clock);
+  await pair(fresh.code);
+  await page.setViewportSize({ width: 360, height: 800 }); await noOverflow(); await screenshot('07-narrow-repaired');
+  await host.invoke('mobile.stop');
+  await page.getByRole('button', { name: 'Reconectar', exact: true }).waitFor();
+  await screenshot('08-disconnected');
+  assert.deepEqual(errors, []);
+  results.push('fragment removed, local SAS matches desktop approval, device key in IndexedDB, revocation, expiry, manual re-pair, stop/disconnect, 390px and 360px without overflow');
+  await fs.writeFile(path.join(evidence, 'results.json'), JSON.stringify({ results, actions, terminalInputs, errors }, null, 2));
   console.log(JSON.stringify({ results, evidence }, null, 2));
 } finally {
-  await browser?.close(); if (local) await new Promise(resolve => local.close(resolve)); await host?.close(); await fs.rm(root, { recursive: true, force: true });
+  await browser?.close(); await host?.close(); await fs.rm(root, { recursive: true, force: true });
 }

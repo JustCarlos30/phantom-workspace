@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 // Production Electron + real host. No renderer/API mocks or provider prompts.
 // The controller builds and runs this script; captures survive fixture cleanup.
@@ -23,6 +24,7 @@ const invoke = (method, payload = {}) => page.evaluate(([m, p]) => window.phanto
 async function size(width, height) {
   await app.evaluate(({ BrowserWindow }, [w, h]) => {
     const win = BrowserWindow.getAllWindows()[0];
+    win.webContents.setZoomFactor(1);
     win.setMinimumSize(580, 500);
     win.setContentSize(w, h);
   }, [width, height]);
@@ -31,6 +33,10 @@ async function size(width, height) {
 
 async function inspect(label, required) {
   current = label;
+  assert.equal(await page.locator('[data-identity]').count(), 1, `${label}: one scene mascot`);
+  assert.equal(await page.locator('[data-identity="hero"]').count(), 1, `${label}: empty scene owns identity`);
+  assert.equal(await page.locator('img[src*="gengar"], .activity-notch [data-identity]').count(), 0);
+  await page.waitForFunction(() => [...document.querySelectorAll('.titi-ghost')].every(el => el.dataset.motion === 'stopped'));
   for (const [selector, count] of required) {
     const locator = page.locator(selector);
     await locator.first().waitFor({ state: 'visible' });
@@ -144,19 +150,29 @@ try {
   await page.locator('.app-shell').waitFor();
   host = (await invoke('system.info')).pid;
   assert.equal((await invoke('state.get')).workspaces.length, 0, 'Isolated profile must start with no projects');
+  const showTiti = async () => {
+    await page.getByRole('button', { name: 'Configuración', exact: true }).click();
+    await page.getByRole('button', { name: 'Apariencia', exact: true }).click();
+    await page.getByRole('switch', { name: 'Mostrar Titi', exact: true }).click();
+    await page.getByRole('button', { name: 'Cerrar configuración', exact: true }).click();
+    await page.locator('.inspector-host').waitFor({ state: 'hidden' });
+  };
+  await showTiti();
 
-  // These are real no-project empty states. The built-in plugin registry and
-  // installed Skills are not assumed to be empty on the controller's machine.
+  // The current no-project routes are settings categories with an explicit guard.
   for (const [width, height] of sizes) {
     await size(width, height);
     const suffix = `${width}x${height}`;
     await inspect(`welcome-${suffix}`, [['.welcome-canvas > .empty-state--hero', 1]]);
     await page.getByRole('button', { name: 'Configuración', exact: true }).click();
-    await page.getByLabel('Herramienta contextual').selectOption('skills-catalog');
-    await inspect(`skills-no-project-${suffix}`, [['.tw-inspector .empty-state--panel', 1], ['.welcome-canvas > .empty-state--hero', 1]]);
-    await page.getByLabel('Herramienta contextual').selectOption('plugins');
-    await inspect(`plugins-no-project-${suffix}`, [['.plugin-center > .empty-state--panel', 1], ['.welcome-canvas > .empty-state--hero', 1]]);
-    await page.locator('.inspector-switcher').getByRole('button', { name: 'Cerrar inspector', exact: true }).click();
+    for (const category of ['Git e integración', 'Conexiones']) {
+      await page.getByRole('button', { name: category, exact: true }).click();
+      await page.locator('.st-pane').getByText('Abre un proyecto', { exact: true }).waitFor();
+      assert.equal(await page.locator('.st-pane').evaluate(el => el.scrollWidth <= el.clientWidth), true);
+      await inspect(`${category}-no-project-${suffix}`, [['.welcome-canvas > .empty-state--hero', 1]]);
+      await page.locator('.st-back').click();
+    }
+    await page.getByRole('button', { name: 'Cerrar configuración', exact: true }).click();
     await page.locator('.inspector-host').waitFor({ state: 'hidden' });
   }
 
@@ -169,6 +185,7 @@ try {
   const workspace = state.workspaces.find(item => item.id === state.activeWorkspaceId);
   assert.ok(workspace, 'Empty project must be active');
   assert.equal(workspace.nodes.length, 0, 'Project must have no canvas panels');
+  await showTiti();
   for (const [width, height] of sizes) {
     await size(width, height);
     const suffix = `${width}x${height}`;
@@ -178,14 +195,14 @@ try {
     await inspect(`panel-index-${suffix}`, [...required, ['.panel-index-items > .empty-state--compact', 1]]);
     await page.getByRole('button', { name: 'Cerrar lista', exact: true }).click();
     await page.locator('.panel-index').waitFor({ state: 'hidden' });
-    await page.getByRole('button', { name: 'Abrir chat con Phantom', exact: true }).click();
+    await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
     await inspect(`chat-${suffix}`, [...required, ['.phantom-chat .empty-state--panel', 1]]);
-    await page.locator('.phantom-chat').getByRole('button', { name: 'Cerrar chat con Phantom', exact: true }).click();
+    await page.locator('.phantom-chat').getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();
     await page.locator('.phantom-chat').waitFor({ state: 'hidden' });
   }
   assert.deepEqual(errors, [], `Renderer exceptions: ${errors.join('; ')}`);
   console.log(JSON.stringify({ passed: true, scenarios: checks.length, sizes, tolerancePx: 2,
-    coverage: 'welcome, no-project Skills/Plugins, empty project canvas, both rail groups, panel index, new Phantom chat',
+    coverage: 'welcome, no-project settings guards, empty project canvas, both rail groups, panel index, new Phantom chat; single quiet Titi identity',
     checks, captures, errors }, null, 2));
 } catch (error) {
   await page?.screenshot({ path: path.join(evidence, 'empty-states-failure.png') }).catch(() => {});
@@ -204,7 +221,7 @@ try {
     try {
       if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
     } finally {
-      if (appProcess?.exitCode === null && appProcess?.signalCode === null) appProcess.kill('SIGKILL');
+      killElectronGroup(appProcess);
       await rm(temp, { recursive: true, force: true });
     }
   }

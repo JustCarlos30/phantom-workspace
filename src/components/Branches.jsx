@@ -1,118 +1,156 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownToLine, Check, FolderGit2, GitBranch, GitMerge, Layers, RefreshCw, Save, Search, SquareTerminal, Trash2 } from 'lucide-react';
-import { PANEL_ICONS } from './PanelIcons';
+import { ChevronRight, RefreshCw, Save, Search, X } from 'lucide-react';
 import { ErrorNotice, useOperation, useResource } from './PluginPrimitives';
-import { buildBranches, cardsOf, changeLabel, changeMix, changeTone, commitsText, contentByBranch, filesText, groupByDir, plural, shortBranch, span } from '../hooks/branches-model.mjs';
-import { statusLabel, statusTone } from '../hooks/phantom-desk.mjs';
+import EmptyState from './EmptyState.jsx';
+import { FailureCard, MergeSteps } from './MergePath.jsx';
+import { failureHelp } from '../hooks/failure-help.mjs';
+import { branchPath, buildBranches, cardsOf, changeLabel, changeTone, commitsText, contentByBranch, filesText, plural } from '../hooks/branches-model.mjs';
+import { relativeTime } from '../hooks/repo-graph.mjs';
 import '../branches.css';
 
-// Ramas: every branch of the repository on one rail, with the worktree that
-// holds it and the work it still carries. Actions are explicit, one at a time,
-// and the host refuses anything that would lose work.
-const SkillsIcon = PANEL_ICONS['phantom-skills'];
-const POLL_MS = 8000;
-const REQUEST = { queued: 'En cola de Incorporaciones', merging: 'Incorporándose', conflict: 'Devuelta por conflicto', failed: 'Devuelta: checks fallidos' };
-const when = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+// Ramas: main on top, then one row per branch with a single state, a single
+// line of detail and at most one action. Selecting a row opens its detail:
+// the road to main, the files it changes and what can be done with it.
+// The host refuses anything that would lose work.
+const POLL_MS = 8000, WIDE = 860, FILES_SHOWN = 6;
+const MARK = { added: '+', removed: '−', modified: '~', conflict: '!' };
+const list = (files, more = 2) => `${files.slice(0, more).map(file => file.split('/').pop()).join(', ')}${files.length > more ? ` y ${files.length - more} más` : ''}`;
+const showHistory = onOpenPanel => { window.dispatchEvent(new CustomEvent('phantom:hub-tab', { detail: { type: 'repo', tab: 'repo' } })); onOpenPanel?.('repo', { hubTab: 'repo' }); };
 
-function Track({ row }) {
-  const label = [row.behind && `${commitsText(row.behind)} detrás`, row.ahead && `${commitsText(row.ahead)} propios`, row.changeCount && `${filesText(row.changeCount)} sin guardar`].filter(Boolean).join(', ') || 'al día';
-  return <div className="br-track" role="img" aria-label={`Posición respecto a la base: ${label}`}>
-    <span className="br-seg br-behind" style={{ width: span(row.behind) }}>{row.behind > 0 && row.behind}</span>
-    <span className="br-point" />
-    <span className="br-seg br-ahead" style={{ width: span(row.ahead) }}>{row.ahead > 0 && row.ahead}</span>
-    <span className="br-seg br-unsaved" style={{ width: span(row.changeCount) }}>{row.changeCount > 0 && row.changeCount}</span>
-  </div>;
-}
+function Chip({ row }) { return <span className="br-chip" data-tone={row.tone}>{row.stateLabel}</span>; }
 
-function MixBar({ changes, summary }) {
-  const mix = changeMix(changes, summary);
-  if (!mix.length) return null;
-  return <span className="br-mix" role="img" aria-label={mix.map(kind => `${kind.count} ${kind.label.toLowerCase()}`).join(', ')}>
-    <span className="br-mix-bar">{mix.map(kind => <i key={kind.id} className={`is-${kind.id}`} style={{ flexGrow: kind.count }} />)}</span>
-    {mix.map(kind => <span key={kind.id} className={`br-mix-key is-${kind.id}`}><b>{kind.count}</b> {kind.label.toLowerCase()}</span>)}
-  </span>;
-}
-
-function CardBanner({ cards, onOpenPanel }) {
-  if (!cards.length) return null;
-  return <div className="br-cards">{cards.map(card => <button key={card.id} type="button" className={`br-card${card.bound ? ' is-bound' : ''}`} disabled={!onOpenPanel} onClick={() => onOpenPanel?.('phantom-cards', { cardId: card.id })} title={`${card.bound ? 'Card vinculada a la terminal' : 'Card registrada en este worktree'}\n${card.title}\n${card.id}`}>
-     <Layers size={13} aria-hidden="true" /><span className="br-card-text"><span className="br-card-title">{card.title}</span><span className="br-card-meta">{card.bound ? 'Vinculada a la terminal' : 'En este worktree'} · {card.id}</span></span>
-    {card.status && <span className={`br-card-status is-${statusTone(card.status)}`}>{statusLabel(card.status)}</span>}
-  </button>)}</div>;
-}
-
-function FolderFiles({ items, pathOf = item => item.path, render }) {
-  return <div className="br-folders">{groupByDir(items, pathOf).map(group => <section key={group.dir} className="br-folder">
-    <h6><FolderGit2 size={12} aria-hidden="true" /><span>{group.dir || 'Raíz del repositorio'}</span><b>{group.items.length}</b></h6>
-    <ul>{group.items.map(item => render(item, pathOf(item).split('/').pop()))}</ul>
-  </section>)}</div>;
-}
-
-function FileList({ row, base }) {
-  const total = row.changeCount + row.committedCount;
-  if (!total) return null;
-  return <details className="br-files">
-    <summary><span>Ver archivos · {row.changeCount} sin guardar · {row.committedCount} en commits</span><MixBar changes={row.changes} summary={row.changeSummary} /></summary>
-    {row.changes.length > 0 && <><h5>Sin guardar</h5><FolderFiles items={row.changes} render={(change, name) => <li key={change.path} title={change.originalPath ? `${change.originalPath} → ${change.path}` : change.path}><span className={`br-change br-${changeTone(change.status)}`}>{changeLabel(change.status)}</span><code>{name}</code>{change.inBase && <span className="br-same">Ya en {base}</span>}</li>} />{row.changeCount > row.changes.length && <p className="br-quiet">Resumen de los {row.changes.length} archivos listados; {row.changeCount - row.changes.length} más sin listar.</p>}</>}
-    {row.committed.length > 0 && <><h5>En commits por integrar</h5><FolderFiles items={row.committed} pathOf={file => file} render={(file, name) => <li key={file} title={file}><span className="br-change br-modified">En commit</span><code>{name}</code></li>} />{row.committedCount > row.committed.length && <p className="br-quiet">y {row.committedCount - row.committed.length} más</p>}</>}
-  </details>;
+// Integrating asks once more on the same button: the second click does it.
+function IntegrateButton({ armed, arm, disarm, confirm, busy, label = 'Integrar', wide = false }) {
+  useEffect(() => { if (!armed) return undefined; const timer = setTimeout(disarm, 6000); return () => clearTimeout(timer); }, [armed, disarm]);
+  return <button type="button" className={`br-button is-primary${wide ? ' is-wide' : ''}${armed ? ' is-armed' : ''}`} disabled={busy} onBlur={disarm}
+    onKeyDown={event => { if (event.key === 'Escape' && armed) { event.stopPropagation(); disarm(); } }} onClick={() => armed ? confirm() : arm()}>{armed ? 'Confirmar integrar' : label}</button>;
 }
 
 function SaveForm({ row, base, busy, onSubmit, onCancel }) {
   const [message, setMessage] = useState(`Guardar trabajo de ${row.title}`);
-  const [integrate, setIntegrate] = useState(!row.isBase);
-  return <form className="br-form" onSubmit={event => { event.preventDefault(); onSubmit(message.trim(), integrate && !row.isBase); }}>
-    <label className="br-field"><span>Mensaje del commit</span><input value={message} onChange={event => setMessage(event.target.value)} maxLength={500} required autoFocus /></label>
-    <p className="br-quiet">Se guardan los {filesText(row.changeCount)} de este worktree en un commit de <code>{shortBranch(row.name)}</code>, incluidos los nuevos.{row.running ? ' La terminal tiene una sesión activa: se guarda lo que haya escrito hasta ahora.' : ''}</p>
+  const [integrate, setIntegrate] = useState(false);
+  const both = integrate && !row.isBase;
+  return <form className="br-form" onSubmit={event => { event.preventDefault(); onSubmit(message.trim(), both); }}>
+    <label className="br-field"><span>Mensaje</span><input value={message} onChange={event => setMessage(event.target.value)} maxLength={500} required autoFocus /></label>
     {!row.isBase && <label className="br-check"><input type="checkbox" checked={integrate} onChange={event => setIntegrate(event.target.checked)} />Integrar en {base} al guardar</label>}
-    <div className="br-actions"><button type="submit" className="br-button is-primary" disabled={busy || !message.trim()}><Save size={14} aria-hidden="true" />{integrate && !row.isBase ? `Guardar e integrar en ${base}` : 'Guardar'}</button><button type="button" className="br-button" onClick={onCancel}>Cancelar</button></div>
+    <div className="br-actions"><button type="submit" className="br-button is-primary" disabled={busy || !message.trim()}>{both ? `Guardar e integrar en ${base}` : `Guardar ${filesText(row.changeCount)}`}</button><button type="button" className="br-button" onClick={onCancel}>Cancelar</button></div>
   </form>;
 }
 
-function Row({ row, base, content, catalog, busy, notice, mode, setMode, act, onOpenPanel }) {
-  const open = mode?.id === row.id ? mode.kind : null;
-  const cards = cardsOf(row, content, catalog);
-  const toggle = kind => setMode(open === kind ? null : { id: row.id, kind });
-  return <article className={`br-row br-${row.group}`} aria-label={`Rama ${row.title}`}>
-    <header className="br-row-head">
-      {row.owned && onOpenPanel ? <button type="button" className="br-name is-link" title="Ver esta terminal" onClick={() => onOpenPanel('terminal', { focusNodeId: row.terminal.nodeId })}><SquareTerminal size={14} aria-hidden="true" />{row.title}</button> : <span className="br-name">{row.isBase ? <GitMerge size={14} aria-hidden="true" /> : <GitBranch size={14} aria-hidden="true" />}{row.title}</span>}
-      <span className={`br-where${row.running ? ' is-live' : ''}`}>{row.where}</span>
-      {!row.isBase && <Track row={row} />}
+function Files({ row }) {
+  const [all, setAll] = useState(false);
+  const unsaved = new Set(row.changes.map(change => change.path));
+  const files = [
+    ...row.changes.map(change => ({ path: change.path, tone: changeTone(change.status), label: changeLabel(change.status) })),
+    ...row.committed.filter(file => !unsaved.has(file)).map(file => ({ path: file, tone: 'saved', label: 'Guardado' })),
+  ];
+  const hidden = Math.max(0, row.changeCount - row.changes.length) + Math.max(0, row.committedCount - row.committed.length);
+  if (!files.length) return null;
+  const shown = all ? files : files.slice(0, FILES_SHOWN), rest = files.length - shown.length;
+  return <section className="br-files" aria-label="Archivos cambiados">
+    <h4>Cambios</h4>
+    <ul>{shown.map(file => <li key={file.path} title={file.path}><code>{file.path}</code>{MARK[file.tone] && <span className={`br-mark is-${file.tone}`} title={file.label} aria-label={file.label}>{MARK[file.tone]}</span>}</li>)}</ul>
+    {rest > 0 && <button type="button" className="br-more" onClick={() => setAll(true)}>{filesText(rest + hidden)} más</button>}
+    {!rest && hidden > 0 && <p className="br-quiet">y {filesText(hidden)} más</p>}
+  </section>;
+}
+
+// Which rows get the «¿Qué pasó? / ¿Qué hago?» card: a clash, tests that failed just now,
+// a Git error or unsaved work. A branch that is merely behind is not a failure.
+const helpOf = (row, fail, base) => {
+  if (!(row.state === 'conflict' || fail || row.error || row.state === 'unsaved')) return null;
+  return failureHelp({ ...row, checks: fail?.checks, conflicts: fail?.conflicts?.length ? fail.conflicts : row.conflicts, request: fail?.checks ? 'failed' : row.request }, { base, hasSession: false, queue: false });
+};
+
+// `skip` is the action the row already offers when the detail opens under it.
+// Compact: one state line, why, one main key and the files; the rest folds into Detalles.
+function Detail({ row, base, checks, cards, skills, busy, armed, setArmed, act, setMode, onOpenPanel, onClose, skip, fail }) {
+  const path = branchPath(row, { base, checks });
+  const armKey = `detail:${row.id}`, others = [...new Set((row.overlaps || []).flatMap(item => item.with))];
+  const session = row.owned && onOpenPanel ? () => onOpenPanel('terminal', { focusNodeId: row.terminal.nodeId }) : null;
+  const sub = [row.owned ? row.running ? 'Sesión activa' : 'Sesión en pausa' : 'Sesión cerrada', row.last?.at && `último guardado ${relativeTime(row.last.at)}`].filter(Boolean).join(' · ');
+  const help = helpOf(row, fail, base), inCard = id => help?.acciones.some(action => action.id === id);
+  const onAction = id => id === 'save' ? setMode({ id: row.id, kind: 'save' }) : act(row, id);
+  const button = (label, onClick, quiet = true) => <button type="button" className={`br-button is-wide${quiet ? ' is-quiet' : ''}`} disabled={busy} onClick={onClick}>{label}</button>;
+  const integrate = !help && row.can.integrate && skip !== 'integrate', save = !help && row.can.commit && skip !== 'save';
+  return <div className="br-detail-body">
+    <header className="br-detail-head">
+      <div><h3>{row.title}</h3></div>
+      {onClose && <button type="button" className="br-icon" aria-label="Cerrar detalle" title="Cerrar" onClick={onClose}><X size={14} /></button>}
     </header>
-    {cards.length ? <CardBanner cards={cards} onOpenPanel={onOpenPanel} /> : <p className="br-quiet">Sin Card de Phantom asociada</p>}
-    <p className="br-summary">{row.summary}{row.last?.subject ? <span className="br-quiet"> · último commit: {row.last.subject}{row.last.at ? ` (${when(row.last.at)})` : ''}</span> : null}</p>
-    <p className="br-meta" title={row.worktree?.path || ''}>{row.name ? <code>{row.name}</code> : 'Sin rama'}{row.worktree?.path && <span> · {row.worktree.path}</span>}</p>
-    {(content?.skills.length > 0 || row.request || row.terminal?.step) && <div className="br-chips">
-      {content?.skills.length > 0 && <button type="button" className="br-chip is-button" onClick={() => onOpenPanel?.('skills-catalog')} title={content.skills.map(skill => skill.name).join('\n')}><SkillsIcon size={11} aria-hidden="true" />{plural(content.skills.length, 'Skill', 'Skills')} sin integrar</button>}
-      {row.request && <span className="br-chip">{REQUEST[row.request]}</span>}
-      {row.terminal?.step && <span className="br-chip" title={row.terminal.step}>{row.terminal.step.slice(0, 80)}</span>}
+    <p className="br-state"><Chip row={row} /><span>{row.detail}</span></p>
+    {help && <FailureCard help={help} entry={{ ...row, checks: fail?.checks, conflicts: fail?.conflicts?.length ? fail.conflicts : row.conflicts }} busy={busy} onAction={onAction} />}
+    {row.byHand.abort && <div className="br-halfway"><p className="br-quiet">Hay una puesta al día a medias en su copia.</p>{button('Abortar', () => act(row, 'abort'), false)}</div>}
+    {(integrate || save) && <div className="br-detail-actions">
+      {integrate && <IntegrateButton wide label={`Integrar en ${base}`} busy={busy} armed={armed === armKey} arm={() => setArmed(armKey)} disarm={() => setArmed(null)} confirm={() => act(row, 'integrate')} />}
+      {save && <button type="button" className={`br-button is-wide${integrate ? '' : ' is-primary'}`} disabled={busy} onClick={() => setMode({ id: row.id, kind: 'save' })}>Guardar {filesText(row.changeCount)}</button>}
     </div>}
-    {row.conflicts.length > 0 && <p className="br-warning"><AlertTriangle size={13} aria-hidden="true" />Integrarla chocaría en {row.conflicts.slice(0, 4).join(', ')}{row.conflicts.length > 4 ? '…' : ''}. Resuélvelo en su terminal trayendo {base} a la rama; desde aquí no se fuerza.</p>}
-    {row.overlaps?.length > 0 && <p className="br-overlap">Toca {filesText(row.overlaps.length)} que también cambia {[...new Set(row.overlaps.flatMap(item => item.with))].map(shortBranch).join(', ')}: {row.overlaps.slice(0, 3).map(item => item.path).join(', ')}{row.overlaps.length > 3 ? '…' : ''}. El orden de integración importa.</p>}
-    {row.error && <p className="br-warning">Git no pudo leer esta rama: {row.error}</p>}
-    {!row.exists && row.worktree && <p className="br-warning">La carpeta del worktree ya no existe en disco.</p>}
-    {notice && <p className={`br-notice is-${notice.tone}`} role="status">{notice.tone === 'ok' ? <Check size={13} aria-hidden="true" /> : <AlertTriangle size={13} aria-hidden="true" />}{notice.text}</p>}
-    {row.changeCount > 0 && row.pendingCount === 0 && <p className="br-overlap">Todo lo que tiene sin guardar ya está idéntico en {base}: este worktree solo está desactualizado, no guarda trabajo propio.</p>}
-    <FileList row={row} base={base} />
+    <Files row={row} />
+    <details className="br-details">
+      <summary>Detalles</summary>
+      <MergeSteps path={path} />
+      <p className="br-quiet">{sub}</p>
+      <div className="br-detail-actions">
+        {(row.changeCount > 0 || row.committedCount > 0) && onOpenPanel && button('Ver diferencias', () => showHistory(onOpenPanel))}
+        {row.can.update && !inCard('update') && button(`Poner al día con ${base}`, () => act(row, 'update'))}
+        {row.byHand.resolve && !inCard('resolve') && button('Resolver conflictos en su copia', () => act(row, 'resolve'))}
+        {row.byHand.terminal && onOpenPanel && !inCard('terminal') && button('Abrir terminal en su copia', () => act(row, 'terminal'))}
+        {row.byHand.terminal && button('Copiar comando', () => act(row, 'copy'))}
+        {row.can.commit && !save && !inCard('save') && skip !== 'save' && button(`Guardar ${filesText(row.changeCount)}`, () => setMode({ id: row.id, kind: 'save' }))}
+        {row.can.integrate && !integrate && skip !== 'integrate' && <IntegrateButton wide label={`Integrar en ${base}`} busy={busy} armed={armed === armKey} arm={() => setArmed(armKey)} disarm={() => setArmed(null)} confirm={() => act(row, 'integrate')} />}
+        {session && skip !== 'session' && button('Ir a la sesión', session)}
+        {row.can.remove && skip !== 'remove' && button('Limpiar', () => setMode({ id: row.id, kind: 'remove' }))}
+      </div>
+      {cards.length > 0 && onOpenPanel && <p className="br-links">{cards.slice(0, 2).map(card => <button key={card.id} type="button" className="br-link" title={card.title} onClick={() => onOpenPanel('phantom-cards', { cardId: card.id })}>Ver tarea{cards.length > 1 ? ` · ${card.title}` : ''}</button>)}</p>}
+      <dl>
+        <dt>Rama</dt><dd><code>{row.name || 'Sin rama'}</code></dd>
+        {row.worktree?.path && <><dt>Carpeta</dt><dd><code>{row.worktree.path}</code></dd></>}
+        {row.last?.subject && <><dt>Último guardado</dt><dd>{row.last.subject}</dd></>}
+        {(row.ahead > 0 || row.behind > 0) && <><dt>Respecto a {base}</dt><dd>{[row.ahead > 0 && `${commitsText(row.ahead)} propios`, row.behind > 0 && `le faltan ${row.behind}`].filter(Boolean).join(' · ')}</dd></>}
+        {row.conflicts.length > 0 && <><dt>Chocan con {base}</dt><dd>{row.conflicts.join(', ')}</dd></>}
+        {others.length > 0 && <><dt>También los tocan</dt><dd>{others.join(', ')} · {list(row.overlaps.map(item => item.path), 3)}</dd></>}
+        {skills.length > 0 && <><dt>Skills nuevas</dt><dd>{onOpenPanel ? <button type="button" className="br-link" onClick={() => onOpenPanel('skills-catalog')}>{skills.map(skill => skill.name).join(', ')}</button> : skills.map(skill => skill.name).join(', ')}</dd></>}
+        {row.error && <><dt>Error de Git</dt><dd>{row.error}</dd></>}
+      </dl>
+    </details>
+  </div>;
+}
+
+function Row({ row, base, selected, wide, busy, notice, dismiss, mode, setMode, armed, setArmed, act, select, onOpenPanel, detail }) {
+  const open = mode?.id === row.id ? mode.kind : null, armKey = `row:${row.id}`;
+  const action = open ? null
+    : row.action === 'save' ? <button type="button" className="br-button" disabled={busy} onClick={() => setMode({ id: row.id, kind: 'save' })}><Save size={14} aria-hidden="true" />Guardar</button>
+    : row.action === 'integrate' ? <IntegrateButton busy={busy} armed={armed === armKey} arm={() => setArmed(armKey)} disarm={() => setArmed(null)} confirm={() => act(row, 'integrate')} />
+    : row.action === 'session' && onOpenPanel ? <button type="button" className="br-button" onClick={() => onOpenPanel('terminal', { focusNodeId: row.terminal.nodeId })}>Ir a la sesión</button>
+    : row.action === 'remove' ? <button type="button" className="br-button is-quiet" disabled={busy} onClick={() => setMode({ id: row.id, kind: 'remove' })}>Limpiar</button>
+    : null;
+  return <li className={`br-row${selected ? ' is-selected' : ''}`} data-state={row.state}>
+    <div className="br-line">
+      {row.isBase ? <div className="br-main"><span className="br-title">{row.title}</span><span className="br-sub">{row.detail}</span></div>
+        : <button type="button" className="br-main" aria-expanded={selected} aria-label={`${row.title} · ${row.stateLabel} · ${row.detail}`} onClick={() => select(selected ? null : row.id)}><span className="br-title">{row.title}</span><span className="br-sub">{row.detail}</span></button>}
+      {!(row.isBase && row.state === 'merged') && <Chip row={row} />}
+      <span className="br-slot">{action}</span>
+    </div>
+    {notice && <p className={`br-notice is-${notice.tone}`} role="status"><span>{notice.text}</span>{notice.tone === 'warn' && <button type="button" className="br-icon" aria-label="Descartar aviso" onClick={() => dismiss(row.id)}><X size={12} aria-hidden="true" /></button>}</p>}
     {open === 'save' && <SaveForm row={row} base={base} busy={busy} onCancel={() => setMode(null)} onSubmit={(message, integrate) => act(row, 'save', { message, integrate })} />}
-    {open === 'remove' && <div className="br-form"><p>Se quita el worktree{row.exists ? '' : ' (ya borrado del disco)'} y se borra la rama <code>{row.name}</code>. No se pierde trabajo: no tiene cambios sin guardar y todos sus commits están en {base}.</p><div className="br-actions"><button type="button" className="br-button is-danger" disabled={busy} onClick={() => act(row, 'remove')}><Trash2 size={14} aria-hidden="true" />Limpiar rama y worktree</button><button type="button" className="br-button" onClick={() => setMode(null)}>Cancelar</button></div></div>}
-    {!open && (row.can.commit || row.can.integrate || row.can.update || row.can.remove) && <div className="br-actions">
-      {row.can.commit && <button type="button" className="br-button is-primary" disabled={busy} onClick={() => toggle('save')}><Save size={14} aria-hidden="true" />Guardar cambios…</button>}
-      {row.can.integrate && <button type="button" className={`br-button${row.can.commit ? '' : ' is-primary'}`} disabled={busy} onClick={() => act(row, 'integrate')}><GitMerge size={14} aria-hidden="true" />Integrar {commitsText(row.ahead)} en {base}</button>}
-      {row.can.update && <button type="button" className="br-button" disabled={busy} onClick={() => act(row, 'update')}><ArrowDownToLine size={14} aria-hidden="true" />Poner al día desde {base}</button>}
-      {row.can.remove && <button type="button" className="br-button" disabled={busy} onClick={() => toggle('remove')}><Trash2 size={14} aria-hidden="true" />Limpiar…</button>}
-    </div>}
-  </article>;
+    {open === 'remove' && <div className="br-form"><p>¿Limpiar «{row.title}»? Ya está en {base}.</p><div className="br-actions"><button type="button" className="br-button is-danger" disabled={busy} onClick={() => act(row, 'remove')}>Limpiar</button><button type="button" className="br-button" onClick={() => setMode(null)}>Cancelar</button></div></div>}
+    {selected && !wide && <div className="br-inline">{detail}</div>}
+  </li>;
 }
 
 export default function Branches({ workspace, api, notify, onOpenPanel, active = true }) {
   const enabled = Boolean(workspace?.id);
   const resource = useResource(api, 'branch.overview', { workspaceId: workspace?.id }, { enabled });
-  // Cards and Skills that live in worktrees: optional context, never blocks the Git view.
+  // Tasks and Skills that live in a branch: optional context, never blocks the Git view.
   const cards = useResource(api, 'phantom.list', { workspaceId: workspace?.id, topic: 'tasks' }, { enabled });
   const skills = useResource(api, 'skills.catalog', { workspaceId: workspace?.id }, { enabled });
   const op = useOperation(notify);
   const [query, setQuery] = useState(''), [mode, setMode] = useState(null), [notices, setNotices] = useState({}), [bulk, setBulk] = useState(null);
+  const [selectedId, setSelectedId] = useState(null), [armed, setArmed] = useState(null);
+  const [filter, setFilter] = useState(''), [foldOpen, setFoldOpen] = useState(null), [fails, setFails] = useState({});
+  const timers = useRef(new Map());
+  useEffect(() => () => { for (const timer of timers.current.values()) clearTimeout(timer); }, []);
+  const [root, setRoot] = useState(null), [wide, setWide] = useState(false);
   const { data, reload } = resource;
   const last = useRef(null); if (data) last.current = data;
   const shown = data || last.current;
@@ -121,28 +159,57 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
     const timer = setInterval(() => { if (document.visibilityState === 'visible' && !op.busy) { reload(); cards.reload(); } }, POLL_MS);
     return () => clearInterval(timer);
   }, [enabled, active, reload, op.busy, cards.reload]);
+  // The detail sits beside the list when there is room, and under its row when not.
+  useEffect(() => {
+    if (!root || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(([entry]) => setWide(entry.contentRect.width >= WIDE));
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [root]);
 
   const catalog = cards.data?.available !== false ? cards.data?.items || [] : [];
   const content = useMemo(() => contentByBranch({ cards: catalog, skills: skills.data?.items, baseBranch: shown?.base?.branch }), [cards.data, skills.data, shown?.base?.branch]);
-  const model = useMemo(() => buildBranches(shown, { query, content, cards: catalog }), [shown, query, content, cards.data]);
-  const note = (row, tone, text) => setNotices(old => ({ ...old, [row.id]: { tone, text } }));
+  const model = useMemo(() => buildBranches(shown, { query, filter, content, cards: catalog }), [shown, query, filter, content, cards.data]);
+  useEffect(() => { if (filter && !model.counts[filter]) setFilter(''); }, [filter, model.counts]);
+  const dismiss = id => { clearTimeout(timers.current.get(id)); timers.current.delete(id); setNotices(old => { const next = { ...old }; delete next[id]; return next; }); };
+  const note = (row, tone, text) => {
+    clearTimeout(timers.current.get(row.id)); timers.current.delete(row.id);
+    setNotices(old => ({ ...old, [row.id]: { tone, text } }));
+    if (tone === 'ok') timers.current.set(row.id, setTimeout(() => dismiss(row.id), 6000));
+  };
   const call = (method, row, extra = {}) => api(method, { workspaceId: workspace.id, branch: row.name, ...extra });
+  // What integrating just told us (clash, failed tests with their output) stays visible in the detail.
+  const keep = (row, value) => setFails(old => { const next = { ...old }; if (value) next[row.id] = value; else delete next[row.id]; return next; });
   const settle = (row, result, base, saved = false) => {
-    if (result.status === 'conflict') { note(row, 'warn', `${saved ? 'Guardado en su rama, pero no integrado' : 'No se hizo'}: choca en ${result.conflicts.slice(0, 4).join(', ')}${result.conflicts.length > 4 ? '…' : ''}. El merge se deshizo${saved ? '' : ' y nada cambió'}. Resuélvelo en su terminal trayendo ${base} a la rama.`); return false; }
-    if (result.status === 'checks-failed') { note(row, 'warn', `No se integró: los checks fallaron (${result.checks.command}, código ${result.checks.code}${result.checks.timedOut ? ', tiempo agotado' : ''}). El merge se deshizo y ${base} quedó como estaba.`); return false; }
-    note(row, 'ok', result.status === 'merged' ? `Integrada en ${base}${result.checks ? ` · checks OK (${result.checks.command})` : ''}.` : result.status === 'updated' ? `Al día con ${base}.` : 'Hecho.');
+    if (result.status === 'conflict') { keep(row, { conflicts: result.conflicts }); note(row, 'warn', `${saved ? 'Guardada, pero no integrada' : 'No se integró'}: ${list(result.conflicts)} ${result.conflicts.length > 1 ? 'chocan' : 'choca'} con ${base}.`); return false; }
+    if (result.status === 'checks-failed') { keep(row, { checks: result.checks }); note(row, 'warn', `${saved ? 'Guardada, pero no integrada' : 'No se integró'}: los tests fallaron${Number.isFinite(result.checks?.code) ? ` (código ${result.checks.code})` : ''}. Mira el porqué en el detalle.`); return false; }
+    if (result.status === 'resolving') { keep(row, { conflicts: result.conflicts }); note(row, 'warn', `Hay conflictos en ${list(result.conflicts)}: resuélvelos en su copia y guarda.`); return false; }
+    keep(row, null);
+    note(row, 'ok', result.status === 'merged' ? `Integrada en ${base}${result.checks?.ok ? ' · los tests pasaron' : ''}.` : result.status === 'updated' ? `Al día con ${base}.` : 'Hecho.');
     return true;
+  };
+  const openCopy = async row => {
+    const target = await call('branch.terminalTarget', row);
+    await onOpenPanel?.('terminal', { worktree: { path: target.path, branch: target.branch } }, `Copia · ${row.title}`);
   };
   const act = (row, kind, options = {}) => op.run(async () => {
     const base = model.base;
+    setArmed(null);
     try {
       if (kind === 'save') {
         const saved = await call('branch.commit', row, { message: options.message });
         if (options.integrate) settle(row, await call('branch.integrate', row), base, true);
-        else note(row, 'ok', `${filesText(saved.files)} guardados en un commit de la rama.`);
+        else note(row, 'ok', `${plural(saved.files, 'archivo guardado', 'archivos guardados')}.`);
       } else if (kind === 'integrate') settle(row, await call('branch.integrate', row), base);
       else if (kind === 'update') settle(row, await call('branch.update', row), base);
-      else if (kind === 'remove') { await call('branch.remove', row); notify?.(`Rama ${shortBranch(row.name)} limpiada`, 'success'); }
+      else if (kind === 'resolve') { const result = await call('branch.update', row, { resolve: true }); if (!settle(row, result, base) && result.status === 'resolving') await openCopy(row); }
+      else if (kind === 'abort') { await call('branch.abort', row); keep(row, null); note(row, 'ok', 'Puesta al día abortada: la rama quedó como estaba.'); }
+      else if (kind === 'terminal') await openCopy(row);
+      else if (kind === 'copy') {
+        const target = await call('branch.terminalTarget', row);
+        await navigator.clipboard.writeText(target.command); note(row, 'ok', 'Comando copiado.');
+      }
+      else if (kind === 'remove') { await call('branch.remove', row); notify?.(`«${row.title}» limpiada`, 'success'); }
       setMode(null);
     } finally { await reload(); if (kind !== 'update') skills.reload(); }
   });
@@ -159,47 +226,45 @@ export default function Branches({ workspace, api, notify, onOpenPanel, active =
   });
 
   if (!enabled) return <EmptyState className="tw-empty" description="Abre una carpeta para ver sus ramas." />;
-  if (!shown) return <div className="br-root">{resource.error ? <ErrorNotice error={resource.error} retry={reload} /> : <p className="br-quiet br-pad" role="status">Leyendo ramas y worktrees…</p>}</div>;
+  if (!shown) return <div className="br-root">{resource.error ? <ErrorNotice error={resource.error} retry={reload} /> : <p className="br-quiet br-pad" role="status">Leyendo ramas…</p>}</div>;
   if (!shown.available) return <div className="br-root"><div className="br-pad"><p className="br-warning">{shown.reason || 'Git no está disponible en esta carpeta.'}</p><button type="button" className="br-button" onClick={reload}><RefreshCw size={14} aria-hidden="true" />Reintentar</button></div></div>;
   const baseRow = model.baseRow, base = model.base;
-  return <div className="br-root">
-    <header className="br-head">
-      <div className="br-title"><FolderGit2 size={16} aria-hidden="true" /><div><h2>Ramas</h2><p>{model.total ? `${plural(model.total, 'rama', 'ramas')} además de ${base} · ${filesText(model.unsaved)} sin guardar${model.unsavedInBase ? ` (${model.unsavedInBase} ya en ${base})` : ''} · ${commitsText(model.pending)} por integrar` : `Solo existe ${base}`}</p></div></div>
-      <label className="br-search"><Search size={13} aria-hidden="true" /><input type="search" aria-label="Buscar rama, Card, terminal o archivo" placeholder="Buscar rama, Card o archivo" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} /></label>
-      <button type="button" className="br-icon" aria-label="Actualizar" title="Actualizar" disabled={resource.loading} onClick={() => { reload(); cards.reload(); }}><RefreshCw size={14} className={resource.loading ? 'spinning' : ''} /></button>
-    </header>
-    <div className="br-body">
+  const selected = model.rows.find(row => row.id === selectedId) || null;
+  const select = id => { setSelectedId(id); setArmed(null); };
+  const shared = { base, wide, busy: op.busy, mode, setMode, armed, setArmed, act, select, onOpenPanel, dismiss };
+  const landedOpen = Boolean(query.trim() || filter === 'merged' || model.landed.some(row => row.id === selectedId) || (foldOpen ?? model.landed.length <= 3));
+  const bulkOf = kind => bulk === kind && <div className="br-bulk" role="group">
+    <span>{kind === 'remove' ? `¿Limpiar ${plural(model.removable.length, 'rama', 'ramas')} ya ${model.removable.length === 1 ? 'integrada' : 'integradas'}?` : `¿Poner al día ${plural(model.updatable.length, 'rama', 'ramas')} con ${base}?`}</span>
+    <button type="button" className={`br-button ${kind === 'remove' ? 'is-danger' : 'is-primary'}`} disabled={op.busy} onClick={() => runBulk(kind)}>{kind === 'remove' ? 'Limpiar todas' : 'Poner todas al día'}</button><button type="button" className="br-button" onClick={() => setBulk(null)}>Cancelar</button>
+  </div>;
+  const rowsOf = rows => <ul className="br-group">{rows.map(row => <Row key={row.id} row={row} {...shared} selected={selected?.id === row.id} notice={notices[row.id]} detail={selected?.id === row.id && !wide ? detailOf(row) : null} />)}</ul>;
+  const detailOf = (row, onClose) => <Detail row={row} base={base} checks={shown.checks || ''} cards={cardsOf(row, content.get(row.name || row.worktree?.path), catalog)} skills={content.get(row.name)?.skills || []} busy={op.busy} armed={armed} setArmed={setArmed} act={act} setMode={setMode} onOpenPanel={onOpenPanel} onClose={onClose} skip={onClose ? null : row.action} fail={fails[row.id]} />;
+  return <div className={`br-root${wide && selected ? ' has-detail' : ''}`} ref={setRoot}>
+    <div className="br-list">
+      <div className="br-tools">
+        <label className="br-search"><Search size={14} aria-hidden="true" /><input type="search" aria-label="Buscar rama, tarea o archivo" placeholder="Buscar rama o archivo" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} /></label>
+        <button type="button" className="br-icon" aria-label="Actualizar" title="Actualizar" disabled={resource.loading} onClick={() => { reload(); cards.reload(); }}><RefreshCw size={14} className={resource.loading ? 'spinning' : ''} /></button>
+      </div>
+      {model.filters.length >= 2 && <div className="br-filters" role="group" aria-label="Filtrar por estado">{[{ id: '', label: 'Todas', count: model.matched }, ...model.filters].map(item => <button key={item.id} type="button" className="br-filter" aria-pressed={filter === item.id} onClick={() => setFilter(filter === item.id ? '' : item.id)}>{item.label} <span className="br-filter-count">{item.count}</span></button>)}</div>}
       <ErrorNotice error={op.error} clear={op.clear} />
-      {resource.error && <ErrorNotice error={`No se pudo releer Git: ${resource.error.message}. Se muestra la última lectura.`} retry={reload} />}
-      {baseRow && <section className="br-base" aria-label="Rama de integración">
-        <div className="br-base-main"><span className="br-base-name"><GitMerge size={15} aria-hidden="true" />{base}</span><code>{baseRow.oid.slice(0, 8)}</code><span className="br-quiet">Rama de integración · {baseRow.worktree?.path || 'sin checkout'}</span></div>
-        <CardBanner cards={cardsOf(baseRow, content.get(baseRow.name), catalog)} onOpenPanel={onOpenPanel} />
-        <div className="br-legend" aria-hidden="true"><span><i className="br-behind" />commits que le faltan</span><span><i className="br-ahead" />commits propios</span><span><i className="br-unsaved" />archivos sin guardar</span></div>
-        {baseRow.changeCount > 0 && <div className="br-base-dirty">
-          <p><AlertTriangle size={13} aria-hidden="true" />El checkout del proyecto tiene {filesText(baseRow.changeCount)} sin guardar. Las terminales nuevas parten del último commit y no los ven.</p>
-          <FileList row={baseRow} base={base} />
-          {notices[baseRow.id] && <p className={`br-notice is-${notices[baseRow.id].tone}`} role="status">{notices[baseRow.id].text}</p>}
-          {mode?.id === baseRow.id ? <SaveForm row={baseRow} base={base} busy={op.busy} onCancel={() => setMode(null)} onSubmit={message => act(baseRow, 'save', { message })} /> : <div className="br-actions"><button type="button" className="br-button" disabled={op.busy} onClick={() => setMode({ id: baseRow.id, kind: 'save' })}><Save size={14} aria-hidden="true" />Guardar en {base}…</button></div>}
-        </div>}
-        {shown.integration?.enabled && <p className="br-quiet">Incorporaciones está activo: lo habitual es que la sesión orquestadora integre. Lo que hagas aquí es una decisión directa tuya sobre Git.</p>}
+      {resource.error && <ErrorNotice error={`No se pudo leer Git: ${resource.error.message}`} retry={reload} />}
+      {baseRow && <section className="br-section" aria-label={base}>
+        <ul className="br-group"><Row row={baseRow} {...shared} selected={false} notice={notices[baseRow.id]} detail={null} /></ul>
+        {shown.integration?.enabled && <p className="br-quiet br-under">El orquestador integra las ramas listas</p>}
       </section>}
-      {(model.updatable.length > 0 || model.removable.length > 0) && <section className="br-bulk" aria-label="Orden rápido">
-        {bulk ? <><p>{bulk === 'remove' ? `Se quitan ${plural(model.removable.length, 'worktree y su rama', 'worktrees y sus ramas')}: ${model.removable.map(row => shortBranch(row.name)).join(', ')}. Ninguna tiene terminal en el canvas, cambios sin guardar ni commits fuera de ${base}.` : `Se avanzan ${plural(model.updatable.length, 'rama', 'ramas')} sin trabajo propio hasta ${base} (fast-forward). No toca archivos editados.`}</p>
-          <div className="br-actions"><button type="button" className={`br-button ${bulk === 'remove' ? 'is-danger' : 'is-primary'}`} disabled={op.busy} onClick={() => runBulk(bulk)}>{bulk === 'remove' ? 'Limpiar todas' : 'Poner todas al día'}</button><button type="button" className="br-button" onClick={() => setBulk(null)}>Cancelar</button></div></>
-          : <div className="br-actions">
-            {model.updatable.length > 0 && <button type="button" className="br-button" disabled={op.busy} onClick={() => setBulk('update')}><ArrowDownToLine size={14} aria-hidden="true" />Poner al día {plural(model.updatable.length, 'rama', 'ramas')} sin trabajo</button>}
-            {model.removable.length > 0 && <button type="button" className="br-button" disabled={op.busy} onClick={() => setBulk('remove')}><Trash2 size={14} aria-hidden="true" />Limpiar {plural(model.removable.length, 'rama', 'ramas')} sin terminal</button>}
-          </div>}
+      {model.total > 0 && <section className="br-section" aria-label={model.title}>
+        <div className="br-group-head"><h3 className="br-group-title">{model.title}</h3>{model.updatable.length > 0 && <button type="button" className="br-button is-quiet is-small" aria-label={`Poner al día ${plural(model.updatable.length, 'rama', 'ramas')}`} disabled={op.busy} onClick={() => setBulk('update')}>Poner al día {model.updatable.length}</button>}</div>
+        {bulkOf('update')}
+        {model.active.length > 0 && rowsOf(model.active)}
+        {!model.visible && <EmptyState className="br-quiet" size="compact" description={query.trim() ? <>Ninguna rama coincide con «{query}».</> : 'Ninguna rama en este estado.'} />}
       </section>}
-      {op.busy && <p className="br-quiet" role="status">Trabajando en Git…</p>}
-      {model.total > 0 && !model.visible && <EmptyState className="br-quiet" description={<>Ninguna rama coincide con «{query}».</>} />}
-      {model.groups.filter(group => group.rows.length).map(group => <section key={group.id} className={`br-group br-${group.id}`} aria-label={group.title}>
-        <h3 className="br-group-title" title={group.hint}><i aria-hidden="true" />{group.title}<span>{group.rows.length}</span></h3>
-        <p className="br-quiet br-group-hint">{group.hint}</p>
-        {group.rows.map(row => <Row key={row.id} row={row} base={base} content={content.get(row.name || row.worktree?.path)} catalog={catalog} busy={op.busy} notice={notices[row.id]} mode={mode} setMode={setMode} act={act} onOpenPanel={onOpenPanel} />)}
-      </section>)}
-      {!model.total && <EmptyState className="br-quiet" description="No hay más ramas ni worktrees en este repositorio. Cada terminal nueva crea la suya." />}
+      {model.landed.length > 0 && <section className="br-section" aria-label={`Ya en ${base}`}>
+        <div className="br-group-head"><button type="button" className="br-fold" aria-expanded={landedOpen} onClick={() => setFoldOpen(!landedOpen)}><ChevronRight size={14} aria-hidden="true" />Ya en {base} <span className="br-filter-count">{model.landed.length}</span></button>{model.removable.length > 0 && <button type="button" className="br-button is-quiet is-small" aria-label={`Limpiar ${plural(model.removable.length, 'rama', 'ramas')} ya ${model.removable.length === 1 ? 'integrada' : 'integradas'}`} disabled={op.busy} onClick={() => setBulk('remove')}>Limpiar {model.removable.length}</button>}</div>
+        {bulkOf('remove')}
+        {landedOpen && rowsOf(model.landed)}
+      </section>}
+      {!model.total && <EmptyState className="br-quiet" size="compact" description="Aún no hay ramas. Cada sesión nueva crea la suya." />}
     </div>
+    {wide && selected && <aside className="br-detail" aria-label={`Detalle de ${selected.title}`}>{detailOf(selected, () => select(null))}</aside>}
   </div>;
 }
-import EmptyState from './EmptyState.jsx';

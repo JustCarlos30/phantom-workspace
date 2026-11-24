@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import { codexRolloutPath, codexContextReading, probeCodexCompaction } from './codex-context.mjs';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -8,6 +10,8 @@ import { permissionDecision, phantomCommand, PHANTOM_SCRIPTS, inside, PERMISSION
 import { codexWriteArgs, phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
+import { assertClaudeModel, assertClientAllowed, assertClientModel, CLAUDE_MODEL_ALIASES, DEFAULT_POLICY, executionPolicy, isClaudeLike } from '../shared/execution-policy.mjs';
+import { claudeRoutingArgs, resolveRouting, roleOfChat } from '../shared/routing.mjs';
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
 import { driveOpenCode, openCodeServerEnv } from './opencode-chat.mjs';
 import { codexModels } from './chat-models.mjs';
@@ -22,6 +26,12 @@ export const CHAT_PROVIDERS = {
 };
 const MAX_QUEUE = 20, MAX_MESSAGES = 400, MAX_PART = 200_000, MAX_OUTPUT = 6000, MAX_LINE = 8 * 1024 * 1024, MAX_TURNS = 16;
 
+// New chat settings must name an enabled provider; threads of disabled providers stay readable.
+export function assertNewChatPolicy(patch, policy = DEFAULT_POLICY) {
+  if (patch?.provider !== undefined && patch.provider !== null) assertClientAllowed(patch.provider, policy);
+  for (const [provider, model] of Object.entries(patch?.models ?? {})) assertClientModel(provider, model, policy, 'chat');
+  return patch;
+}
 // A model is passed to the CLI as an argument: an identifier, never a flag.
 export function validateModel(model) {
   assert(typeof model === 'string' && /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(model), 'Modelo inválido');
@@ -66,8 +76,14 @@ export function applyPatch(chat, patch) {
 }
 
 const realpath = value => { try { return fs.realpathSync(value); } catch { return null; } };
-// How a turn handles permissions. 'full': everything except a short list of
-// dangerous actions, which still asks. 'auto': the agent works without
+function inOwnWorktree(node, cwd) {
+  const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
+  return Boolean(tree && here && realpath(tree) === here);
+}
+// How a turn handles permissions. 'full' (Total, YOLO): everything without
+// asking except what can break something (danger(): destructive Git,
+// credentials and .env, installing or changing the system, disks and shutdown),
+// which asks with a red "Puede romper algo" flag. 'auto': the agent works without
 // interruptions and asks only for sensitive actions (destructive, commit and
 // push, external tools and services, databases). 'ask': every change asks.
 // Inside the card's own Phantom worktree the default is 'auto'; elsewhere (the
@@ -76,8 +92,7 @@ const realpath = value => { try { return fs.realpathSync(value); } catch { retur
 export function chatMode(node, cwd) {
   const chosen = explicitMode(node.data?.chat);
   if (chosen) return chosen;
-  const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
-  return tree && here && realpath(tree) === here ? 'auto' : 'ask';
+  return inOwnWorktree(node, cwd) ? 'auto' : 'ask';
 }
 const GATE_SERVER = 'phantom_workspace_chat';
 export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
@@ -94,7 +109,32 @@ export function phantomRequest(permission, patterns) {
 }
 // OpenCode uses its local server; run's noninteractive auto-reject loop must
 // never own the permission replies of a chat card.
-export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions, phantom }) {
+// `opencode models --verbose` prints each model id on its own line followed by
+// its JSON metadata; `variants` names the effort levels that model accepts.
+// Plain output (ids only) still yields the catalog, without variants.
+export function openCodeModels(stdout) {
+  const lines = String(stdout).replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split('\n');
+  const isId = line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/');
+  const items = new Map();
+  for (let i = 0; i < lines.length && items.size < 2000; i++) {
+    const id = lines[i].trim(); if (!isId(id) || items.has(id)) continue;
+    const item = { id, group: id.slice(0, id.indexOf('/')) };
+    let end = i + 1; while (end < lines.length && !isId(lines[end].trim())) end++;
+    const body = lines.slice(i + 1, end).join('\n').trim();
+    if (body.startsWith('{')) {
+      try {
+        const variants = JSON.parse(body)?.variants;
+        if (variants && typeof variants === 'object' && !Array.isArray(variants)) item.variants = Object.keys(variants).filter(name => validReasoning('opencode', name)).slice(0, 20);
+      } catch { /* Metadata is optional; the id is enough to pick the model. */ }
+    }
+    items.set(id, item); i = end - 1;
+  }
+  return [...items.values()];
+}
+
+const cliModel = (model, where) => assertClaudeModel(model, where).slice('claude-code/'.length);
+
+export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = false, access = autoApprove ? 'auto' : 'ask', message, cwd, model, reasoning, gate, instructions, phantom, routing }) {
   assert(Object.hasOwn(CHAT_PROVIDERS, provider), 'Unsupported chat provider');
   if (reasoning) assert(validReasoning(provider, reasoning), 'Effort/variant inválido');
   const sandbox = access === 'full' ? 'danger-full-access' : access === 'auto' ? 'workspace-write' : 'read-only';
@@ -108,10 +148,16 @@ export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = 
     ...(model ? ['--model', model] : []), ...(reasoning ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoning)}`] : []),
     ...(phantom ? ['-c', phantomMcpConfig(phantom)] : []),
     ...(instructions || phantom ? ['-c', `developer_instructions=${JSON.stringify([instructions, phantom && PHANTOM_MCP_HINT].filter(Boolean).join('\n\n'))}`] : []), ...(sessionId ? [sessionId] : []), '-'];
-  if (provider === 'claude') return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+  if (provider === 'claude') {
+    // The CLI takes bare names: a stored «claude-code/sonnet» becomes «sonnet»; anything that is not Claude is refused before spawn.
+    if (model) model = cliModel(model, 'chat');
+    const routed = claudeRoutingArgs(routing?.config, routing?.role, { model, reasoning });
+    model = routed.model ? cliModel(routed.model, 'enrutamiento') : routed.model; reasoning = routed.effort;
+    return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     ...(reasoning ? ['--effort', reasoning] : []),
     ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' || mode === 'full' ? ['--permission-mode', 'acceptEdits'] : []),
-    ...(gate ? ['--mcp-config', JSON.stringify(gateConfig(gate)), '--permission-prompt-tool', GATE_TOOL] : [])];
+    ...(gate ? ['--mcp-config', JSON.stringify(gateConfig(gate)), '--permission-prompt-tool', GATE_TOOL] : []), ...routed.extra];
+  }
   return ['serve', '--hostname', '127.0.0.1', '--port', '0'];
 }
 
@@ -158,6 +204,13 @@ const describeTool = (part, name, input, cwd) => {
   const change = toolChange(name, input); if (change) part.change = change;
 };
 const sum = (...values) => values.reduce((total, value) => total + (Number.isFinite(value) ? value : 0), 0);
+const validTokens = value => Number.isFinite(value) && value >= 0;
+function contextReading(turn, source, values) {
+  const total = values.every(validTokens) ? sum(...values) : undefined;
+  if (!Number.isFinite(total) || total <= 0) return;
+  turn.contextTokens = total;
+  turn.contextSource = source;
+}
 const toolPart = (message, id, name) => {
   let part = message.parts.find(p => p.type === 'tool' && p.id === id);
   if (!part) { part = { type: 'tool', id, name: String(name || 'tool').slice(0, 120), detail: '', status: 'running' }; message.parts.push(part); }
@@ -224,7 +277,12 @@ export function applyClaudeEvent(turn, event) {
   if (event.parent_tool_use_id) return applyClaudeSubagent(turn, event);
   if (event.type === 'stream_event') {
     const e = event.event || {};
-    if (e.type === 'message_start' && e.message?.id) turn.streamed.add(e.message.id);
+    if (e.type === 'message_start') {
+      if (e.message?.id) turn.streamed.add(e.message.id);
+      const usage = e.message?.usage;
+      contextReading(turn, 'claude:request-v1', [usage?.input_tokens, usage?.cache_read_input_tokens, usage?.cache_creation_input_tokens, usage?.output_tokens]);
+      return true;
+    }
     if (e.type === 'content_block_start' && ['text', 'thinking'].includes(e.content_block?.type)) { turn.freshText = true; return false; }
     if (e.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) { appendText(message, e.delta.thinking, turn.freshText, 'thinking'); turn.freshText = false; return true; }
     if (e.type === 'content_block_start' && e.content_block?.type === 'tool_use') { toolPart(message, e.content_block.id, e.content_block.name); return true; }
@@ -235,7 +293,7 @@ export function applyClaudeEvent(turn, event) {
     const streamed = turn.streamed.has(event.message?.id), usage = event.message?.usage;
     if (typeof event.message?.model === 'string') turn.model = event.message.model;
     // The prompt of the latest request is what the conversation occupies now.
-    if (usage) turn.contextTokens = sum(usage.input_tokens, usage.cache_read_input_tokens, usage.cache_creation_input_tokens, usage.output_tokens);
+    contextReading(turn, 'claude:request-v1', [usage?.input_tokens, usage?.cache_read_input_tokens, usage?.cache_creation_input_tokens, usage?.output_tokens]);
     for (const block of event.message?.content || []) {
       if (block.type === 'text' && !streamed && block.text) appendText(message, block.text, true);
       if (block.type === 'thinking' && !streamed && block.thinking) appendText(message, block.thinking, true, 'thinking');
@@ -253,8 +311,9 @@ export function applyClaudeEvent(turn, event) {
   }
   if (event.type === 'result') {
     turn.usage = { durationMs: event.duration_ms, costUsd: event.total_cost_usd, outputTokens: event.usage?.output_tokens, steps: event.num_turns };
-    const windows = Object.entries(event.modelUsage || {}).map(([model, value]) => [model, value?.contextWindow]).filter(([, value]) => Number.isFinite(value));
-    if (windows.length) turn.contextWindow = (windows.find(([model]) => model === turn.model) || windows[0])[1];
+    const key = Object.keys(event.modelUsage || {}).find(key => key.startsWith(`${turn.model}[`) && key.endsWith(']'));
+    const window = (event.modelUsage?.[turn.model] ?? event.modelUsage?.[key])?.contextWindow;
+    if (Number.isFinite(window) && window > 0) turn.contextWindow = window;
     if (event.is_error) turn.error = String(event.result || (event.errors || []).join(' ') || event.subtype || 'El agente terminó con error').slice(0, 2000);
     else if (!message.parts.some(p => p.type === 'text') && typeof event.result === 'string' && event.result) appendText(message, event.result, true);
     return true;
@@ -287,6 +346,12 @@ export function applyOpenCodeEvent(turn, event) {
   const { message } = turn, part = event.part || {};
   if (typeof event.sessionID === 'string') turn.sessionId = event.sessionID;
   if (typeof part.sessionID === 'string' && typeof event.sessionID === 'string' && part.sessionID !== event.sessionID) return applyOpenCodeChild(turn, event, part);
+  if (event.type === 'model') {
+    if (turn.model !== event.model) delete turn.contextWindow;
+    turn.model = event.model;
+    if (Number.isFinite(event.contextWindow) && event.contextWindow > 0) turn.contextWindow = event.contextWindow;
+    return true;
+  }
   if (event.type === 'text' && part.text) { appendText(message, part.text, true); return true; }
   if (event.type === 'tool_use') {
     const tool = toolPart(message, part.callID || part.id, part.tool), state = part.state || {};
@@ -308,7 +373,9 @@ export function applyOpenCodeEvent(turn, event) {
   }
   if (event.type === 'step_finish') {
     const tokens = part.tokens || {};
-    if (Number.isFinite(tokens.total)) turn.contextTokens = tokens.total;
+    if (typeof event.sessionID === 'string' && part.sessionID === event.sessionID) {
+      contextReading(turn, 'opencode:request-v1', Number.isFinite(tokens.total) && tokens.total > 0 ? [tokens.total] : tokens.total === undefined ? [tokens.input, tokens.output, tokens.reasoning, tokens.cache?.read, tokens.cache?.write] : [undefined]);
+    } else contextReading(turn, null, [undefined]);
     turn.usage = { costUsd: sum(turn.usage?.costUsd, part.cost), outputTokens: sum(turn.usage?.outputTokens, tokens.output, tokens.reasoning), steps: sum(turn.usage?.steps, 1) };
     return true;
   }
@@ -323,8 +390,8 @@ export function applyCodexEvent(turn, event) {
   if (event.type === 'thread.started' && typeof event.thread_id === 'string') { turn.sessionId = event.thread_id; return true; }
   if (event.type === 'error' || event.type === 'turn.failed') { turn.error = String(event.error?.message || event.message || 'Codex terminó con error').slice(0, 2000); return true; }
   if (event.type === 'turn.completed') {
+    turn.completed = true;
     const usage = event.usage || {};
-    turn.contextTokens = sum(usage.input_tokens, usage.output_tokens);
     turn.usage = { outputTokens: usage.output_tokens }; return true;
   }
   const item = event.item;
@@ -373,8 +440,9 @@ export function normalizeQuestions(questions) {
 
 export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
-  constructor(store, emit, role = () => ({ env: {}, instructions: '' })) {
-    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.dirty = false; this.closed = false;
+  constructor(store, emit, role = () => ({ env: {}, instructions: '' }), { codexHome } = {}) {
+    this.codexHome = codexHome;
+    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.operations = new Map(); this.drains = new Map(); this.dirty = false; this.closed = false;
     this.filename = path.join(store.dir, 'chats.json');
     this.nodes = {};
     try { if (fs.existsSync(this.filename)) this.nodes = JSON.parse(fs.readFileSync(this.filename, 'utf8')); } catch { this.nodes = {}; }
@@ -389,14 +457,26 @@ export class Chats {
       thread.queue = Array.isArray(thread.queue) ? thread.queue.filter(item => typeof item?.id === 'string' && typeof item.text === 'string' && item.text.trim()).slice(0, MAX_QUEUE) : [];
     }
     this.gates = new Map();
+    for (const entry of Object.values(this.nodes)) for (const thread of Object.values(entry.threads || {})) {
+      for (const record of [...(thread.compactions || []), ...(thread.continuations || [])]) if (record.status === 'running') {
+        record.status = 'interrupted'; record.error = 'Host interrumpido; resultado sin verificar'; record.finishedAt = new Date().toISOString(); this.dirty = true;
+        if (record.fromSessionId && !thread.sessionId) thread.sessionId = record.fromSessionId;
+      }
+    }
     this.timer = setInterval(() => { if (this.dirty) this.save(); }, 2000); this.timer.unref();
   }
   save() { this.dirty = false; atomicJSON(this.filename, this.nodes); }
   thread(nodeId, provider) {
     const entry = this.nodes[nodeId] ??= { threads: {} };
-    return entry.threads[provider] ??= { sessionId: null, messages: [] };
+    const thread = entry.threads[provider] ??= { sessionId: null, messages: [] };
+    if (thread.meta && (thread.meta.contextSource !== `${provider}:request-v1` || !validTokens(thread.meta.contextTokens) || thread.meta.contextTokens <= 0)) {
+      delete thread.meta.contextTokens; delete thread.meta.contextSource; delete thread.meta.contextWindow;
+    }
+    return thread;
   }
-  running(nodeId) { return this.turns.has(nodeId); }
+  running(nodeId) { return this.turns.has(nodeId) || this.operations.has(nodeId); }
+  // Read on every call: providers.configure changes it while the host runs.
+  policy() { return executionPolicy(this.store.state?.settings); }
   // The canvas browser bridge, for chat cards as for PTYs. One stable identity
   // per card so its preview panels survive across turns; the capability itself
   // lives only while a turn runs (written at spawn, revoked at finish).
@@ -410,17 +490,93 @@ export class Chats {
     return { active: Boolean(turn && !turn.finished && turn.workspaceId === workspaceId && turn.browserSession && turn.browserSession === sessionId) };
   }
   get(node) {
-    const provider = node.data.chat?.provider ?? null, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
+    const provider = node.data.chat?.provider ?? null, thread = provider ? this.thread(node.id, provider) : null;
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = null; }
-    return { provider, autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), permissionMode: explicitMode(node.data.chat), mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
+    return { provider, autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), permissionMode: explicitMode(node.data.chat), mode: chatMode(node, cwd), model: (provider && node.data.chat?.models?.[provider]) || null, models: node.data.chat?.models || {}, reasoning: node.data.chat?.reasoning || {}, running: this.running(node.id), operation: this.operations.get(node.id)?.kind ?? null, compactions: thread?.compactions ?? [], continuations: thread?.continuations ?? [], sessionId: thread?.sessionId ?? null, meta: thread?.meta ?? {}, messages: thread?.messages ?? [], queue: thread?.queue ?? [] };
+  }
+  async compaction(workspace, node, kind = 'compact') {
+    assert(['compact', 'capabilities'].includes(kind), 'Operación de contexto inválida');
+    assert(!this.closed, 'Host is shutting down');
+    assert(!this.running(node.id), 'La sesión está ocupada');
+    const provider = node.data.chat?.provider, policy = this.policy();
+    assertClientAllowed(provider, policy);
+    assert(['opencode', 'codex'].includes(provider), 'Compactación explícita no disponible para este proveedor; el historial se conserva');
+    const thread = this.thread(node.id, provider);
+    assert(!thread.queue?.length, 'Vacía o resuelve la cola antes de compactar');
+    assert(kind === 'capabilities' || provider === 'opencode', 'Codex no tiene compactación verificada en este transporte; usa la continuación explícita con resumen');
+    const model = node.data.chat.models?.[provider] || thread.meta?.model;
+    if (model) assertClientModel(provider, model, policy, 'compactación');
+    if (kind === 'compact') { assert(thread.sessionId, 'No hay sesión para compactar'); assert(model, 'Elige un modelo explícito antes de compactar'); }
+    assert(this.turns.size + this.operations.size < MAX_TURNS, 'Demasiados agentes activos');
+    let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
+    const operation = { kind, controller: new AbortController() };
+    this.operations.set(node.id, operation);
+    const publish = () => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: this.running(node.id), operation: this.operations.get(node.id)?.kind ?? null, meta: thread.meta ?? {}, compactions: structuredClone(thread.compactions ?? []), messages: [] });
+    const record = kind === 'compact' ? { id: randomUUID(), sessionId: thread.sessionId, model, status: 'running', startedAt: new Date().toISOString(), before: structuredClone(thread.meta ?? {}) } : null;
+    if (record) { (thread.compactions ??= []).push(record); this.save(); }
+    publish();
+    try {
+      const definition = CHAT_PROVIDERS[provider], bin = this.store.state.settings[definition.setting] || definition.bin;
+      let result;
+      if (provider === 'codex') result = await probeCodexCompaction(bin, cwd, operation.controller.signal);
+      else {
+        const env = openCodeServerEnv({ ...process.env, PWD: cwd });
+        const child = spawn(bin, ['serve', '--hostname', '127.0.0.1', '--port', '0'], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+        child.stdin.on('error', () => {}); child.stdin.end(); child.stderr.resume();
+        operation.child = child;
+        result = await driveOpenCode(child, { cwd, sessionId: thread.sessionId, model, password: env.OPENCODE_SERVER_PASSWORD, operation: kind, signal: operation.controller.signal,
+          onEvent: () => {}, onPermission: async () => ({ behavior: 'deny', message: 'La compactación no autoriza herramientas' }), onQuestion: async () => ({ behavior: 'deny' }) });
+      }
+      operation.controller.signal.throwIfAborted();
+      if (record) {
+        Object.assign(record, result, { status: 'done', finishedAt: new Date().toISOString() });
+        // A summarizer's input is not the size of the next request.
+        delete thread.meta?.contextTokens; delete thread.meta?.contextSource; delete thread.meta?.contextWindow;
+      }
+      return result;
+    } catch (error) {
+      if (record) Object.assign(record, { status: operation.controller.signal.aborted ? 'cancelled' : 'error', error: error.message, finishedAt: new Date().toISOString() });
+      throw error;
+    } finally {
+      this.operations.delete(node.id);
+      if (record) this.save();
+      publish();
+    }
+  }
+  async continueSession(workspace, node, summary) {
+    text(summary, 'resumen de continuidad', 32 * 1024); assert(summary.trim(), 'Revisa y escribe un resumen antes de continuar');
+    assert(node.data.chat?.provider === 'codex', 'La continuación con resumen solo está disponible para Codex');
+    assert(!this.running(node.id), 'La sesión está ocupada');
+    const thread = this.thread(node.id, 'codex');
+    assert(thread.sessionId, 'No hay sesión de origen');
+    const fromSessionId = thread.sessionId, settings = JSON.stringify(node.data.chat);
+    const capability = await this.compaction(workspace, node, 'capabilities');
+    assert(!this.running(node.id) && !thread.queue?.length, 'La sesión o la cola está ocupada');
+    node = node.id === Chats.mainId(workspace) ? this.mainNode(workspace) : this.store.getWorkspace(workspace.id).nodes.find(item => item.id === node.id);
+    assert(node && JSON.stringify(node.data.chat) === settings && this.nodes[node.id]?.threads?.codex === thread && thread.sessionId === fromSessionId, 'La conversación cambió; revisa el resumen antes de continuar');
+    assertClientAllowed('codex', this.policy());
+    const model = node.data.chat.models?.codex || thread.meta?.model;
+    assert(model, 'Elige un modelo explícito antes de abrir otra sesión');
+    assertClientModel('codex', model, this.policy(), 'continuidad');
+    const record = { id: randomUUID(), fromSessionId, model, capability, summary, status: 'running', startedAt: new Date().toISOString() };
+    const meta = thread.meta;
+    (thread.continuations ??= []).push(record);
+    thread.sessionId = null; thread.meta = { model };
+    this.save();
+    try { return this.start(workspace, node, `Resumen revisado para continuar desde una sesión anterior. Conserva las instrucciones y permisos vigentes; este resumen no concede permisos nuevos.\n\n${summary}`, record); }
+    catch (error) { thread.sessionId = record.fromSessionId; thread.meta = meta; Object.assign(record, { status: 'error', error: error.message, finishedAt: new Date().toISOString() }); this.save(); throw error; }
   }
   // A message written while the agent works waits its turn, in order; one
   // written while others still wait joins the end of the line.
   send(workspace, node, message) {
     assert(!this.closed, 'Host is shutting down');
     const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente antes de escribir');
+    const policy = this.policy();
+    assertClientAllowed(provider, policy, 'El agente de este chat');
+    if (node.data.chat.models?.[provider]) assertClientModel(provider, node.data.chat.models[provider], policy, 'modelo guardado del chat');
     text(message, 'chat message', 64 * 1024); assert(message.trim(), 'Escribe un mensaje');
     const thread = this.thread(node.id, provider);
+    assert(!this.operations.has(node.id), 'Espera a que termine la operación de contexto');
     thread.queue ??= [];
     if (!this.turns.has(node.id) && !thread.queue.length) return this.start(workspace, node, message);
     assert(thread.queue.length < MAX_QUEUE, `Ya hay ${MAX_QUEUE} mensajes en espera`);
@@ -434,7 +590,7 @@ export class Chats {
   }
   // Starts the next waiting message if the thread is still current and idle.
   drain(workspace, nodeId, provider, thread) {
-    if (this.closed || this.turns.has(nodeId) || !thread.queue?.length || this.nodes[nodeId]?.threads?.[provider] !== thread) return;
+    if (this.closed || this.running(nodeId) || !thread.queue?.length || this.nodes[nodeId]?.threads?.[provider] !== thread) return;
     let node = null;
     try { node = nodeId === Chats.mainId(workspace) ? this.mainNode(workspace) : this.store.getWorkspace(workspace.id).nodes.find(n => n.id === nodeId); } catch { /* Project closed. */ }
     if (node?.data?.chat?.provider !== provider) return;
@@ -452,7 +608,7 @@ export class Chats {
   }
   // Resumes a paused line; with an ID, that message goes first.
   sendQueued(workspace, node, id) {
-    assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
+    assert(!this.running(node.id), 'El agente todavía está respondiendo');
     const provider = node.data.chat?.provider, thread = provider ? this.nodes[node.id]?.threads?.[provider] : null;
     assert(thread?.queue?.length, 'No hay mensajes en espera');
     if (id !== undefined && id !== null) {
@@ -462,21 +618,28 @@ export class Chats {
     this.drain(workspace, node.id, provider, thread);
     return { ok: true };
   }
-  start(workspace, node, message) {
+  start(workspace, node, message, continuation) {
     const provider = node.data.chat.provider;
-    assert(!this.turns.has(node.id), 'El agente todavía está respondiendo');
-    assert(this.turns.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
+    assertClientAllowed(provider, this.policy(), 'El agente de este chat');
+    if (node.data.chat.models?.[provider]) assertClientModel(provider, node.data.chat.models[provider], this.policy(), 'modelo guardado del chat');
+    assert(!this.running(node.id), 'El agente todavía está respondiendo');
+    assert(this.turns.size + this.operations.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
     const definition = CHAT_PROVIDERS[provider], thread = this.thread(node.id, provider), now = () => new Date().toISOString();
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
     const user = { id: randomUUID(), role: 'user', parts: [{ type: 'text', text: message }], status: 'done', createdAt: now() };
     const reply = { id: randomUUID(), role: 'assistant', provider, parts: [], status: 'streaming', createdAt: now() };
     thread.messages.push(user, reply);
-    if (thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
-    const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
+    if (!thread.continuations?.length && !thread.compactions?.length && thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
+    const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, ownBranch: inOwnWorktree(node, cwd), mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
     const started = Date.now();
+    turn.model = continuation?.model || node.data.chat.models?.[provider] || thread.meta?.model;
     // Session facts as known right now: the turn's own readings over the thread's.
-    const meta = () => ({ ...thread.meta, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextTokens ? { contextTokens: turn.contextTokens } : {}), ...(turn.contextWindow ? { contextWindow: turn.contextWindow } : {}) });
-    const publish = extra => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: this.turns.has(node.id), meta: meta(), messages: [structuredClone(reply)], ...extra });
+    const meta = () => {
+      const value = { ...thread.meta };
+      if (turn.model !== thread.meta?.model) delete value.contextWindow;
+      return { ...value, ...(turn.model ? { model: turn.model } : {}), ...(turn.contextSource ? { contextTokens: turn.contextTokens, contextSource: turn.contextSource } : {}), ...(turn.contextWindow > 0 ? { contextWindow: turn.contextWindow } : {}) };
+    };
+    const publish = extra => this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, sessionId: thread.sessionId, running: this.turns.has(node.id), meta: meta(), messages: [structuredClone(reply)], ...extra });
     const schedule = () => { this.dirty = true; turn.timer ??= setTimeout(() => { turn.timer = null; publish(); }, 40); };
     turn.schedule = schedule;
     const apply = provider === 'claude' ? applyClaudeEvent : provider === 'codex' ? applyCodexEvent : applyOpenCodeEvent;
@@ -489,18 +652,22 @@ export class Chats {
       for (const request of turn.pending.values()) { request.part.status = 'cancelled'; request.resolve({ behavior: 'deny', message: 'La respuesta terminó antes de aprobar el permiso.' }); }
       turn.pending.clear();
       if (turn.sessionId) thread.sessionId = turn.sessionId;
-      const error = failure || turn.error || (!turn.stopped && code ? turn.stderr.trim().split('\n').slice(-6).join('\n').slice(-1500) || `${definition.label} terminó con código ${code}` : '');
+      const error = failure || turn.error || (continuation && (!turn.sessionId || turn.sessionId === continuation.fromSessionId || !turn.completed) ? 'Codex no confirmó una sesión nueva y un turno completo' : '') || (!turn.stopped && code ? turn.stderr.trim().split('\n').slice(-6).join('\n').slice(-1500) || `${definition.label} terminó con código ${code}` : '');
       for (const part of reply.parts) if (part.type === 'tool') settleTool(part, part.status === 'running' ? 'stopped' : part.status);
       reply.status = turn.stopped ? 'stopped' : error ? 'error' : 'done';
       if (error && !turn.stopped) reply.error = error;
       else delete reply.error;
       reply.finishedAt = now();
+      if (continuation) {
+        Object.assign(continuation, { status: reply.status, toSessionId: turn.sessionId || null, finishedAt: reply.finishedAt, ...(error ? { error } : {}) });
+        if (!turn.sessionId) thread.sessionId = continuation.fromSessionId;
+      }
       if (turn.model) reply.model = turn.model;
       reply.usage = { durationMs: Number.isFinite(turn.usage?.durationMs) ? turn.usage.durationMs : Date.now() - started, ...(Number.isFinite(turn.usage?.costUsd) ? { costUsd: turn.usage.costUsd } : {}), ...(turn.usage?.outputTokens ? { outputTokens: turn.usage.outputTokens } : {}) };
       thread.meta = { ...meta(), costUsd: sum(thread.meta?.costUsd, turn.usage?.costUsd), turns: sum(thread.meta?.turns, 1) };
-      this.save(); publish({ running: false });
-      // The line moves on after a clean reply; a stop or a failure pauses it.
-      if (reply.status === 'done') setImmediate(() => { try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } });
+      this.save();
+      if (!turn.stopped) this.drains.set(node.id, setImmediate(() => { this.drains.delete(node.id); try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } }));
+      publish({ running: false, continuations: structuredClone(thread.continuations ?? []) });
       // OpenCode's stream never names the model; its session record does.
       if (provider === 'opencode' && !thread.meta.model && thread.sessionId) execFile(bin, ['export', thread.sessionId], { cwd, env: { ...process.env, PWD: cwd }, timeout: 15000, maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
         try {
@@ -523,7 +690,7 @@ export class Chats {
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
       env = { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) };
       if (provider === 'opencode') env = openCodeServerEnv(env);
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null }),
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: continuation?.model || node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null, ...(provider === 'claude' ? { routing: { role: roleOfChat(node), config: resolveRouting(this.store.state.settings) } } : {}) }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
@@ -534,7 +701,27 @@ export class Chats {
     // Claude reads the prompt from stdin, so any text is safe from flag parsing.
     child.stdin.end(provider === 'claude' || provider === 'codex' ? message : '');
     let buffer = '';
-    const line = raw => { if (!raw.trim()) return; let event; try { event = JSON.parse(raw); } catch { return; } if (event && typeof event === 'object' && apply(turn, event)) schedule(); };
+    let contextRead = Promise.resolve(), lastContextRead = -Infinity;
+    const readContext = () => {
+      lastContextRead = Date.now();
+      contextRead = contextRead.then(async () => {
+        this.codexPaths ??= new Map();
+        const id = turn.sessionId;
+        const file = this.codexPaths.get(id) || await codexRolloutPath(id, this.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
+        if (file) this.codexPaths.set(id, file);
+        const reading = await codexContextReading(file);
+        if (!reading || turn.finished || this.turns.get(node.id) !== turn) return;
+        turn.contextTokens = reading.tokens; turn.contextSource = 'codex:request-v1'; turn.contextWindow = reading.window;
+        schedule();
+      }).catch(() => {});
+    };
+    const line = raw => {
+      if (!raw.trim()) return;
+      let event; try { event = JSON.parse(raw); } catch { return; }
+      if (!event || typeof event !== 'object') return;
+      if (apply(turn, event)) schedule();
+      if (provider === 'codex' && (event.type === 'turn.completed' || event.type === 'item.completed' && Date.now() - lastContextRead >= 2000)) readContext();
+    };
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
     if (provider !== 'opencode') child.stdout.on('data', chunk => {
       buffer += chunk; let index;
@@ -556,16 +743,26 @@ export class Chats {
         return { ...decision, answers: decision.behavior === 'allow' ? decision.updatedInput.questions.map(q => [decision.updatedInput.answers[q.question.slice(0, 1000)]]) : undefined };
       },
     }).then(() => finish(0), error => finish(1, error.code === 'ENOENT' ? `No se encontró «${bin}». Instálalo o define settings.${definition.setting} con su ruta.` : [error.message, turn.stderr.trim().slice(-1500)].filter(Boolean).join('\n')));
-    else child.on('close', code => { line(buffer); buffer = ''; finish(code); });
+    else child.on('close', async code => {
+      line(buffer); buffer = '';
+      if (provider === 'codex') {
+        let timer;
+        await Promise.race([contextRead, new Promise(resolve => { timer = setTimeout(resolve, 1500); })]);
+        clearTimeout(timer);
+      }
+      finish(code);
+    });
     this.dirty = true;
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: true, meta: meta(), messages: [structuredClone(user), structuredClone(reply)], queue: structuredClone(thread.queue ?? []) });
     return { ok: true, messageId: reply.id };
   }
   // Models the selected provider can run. Claude takes aliases for its latest
-  // models (any full model name is also valid); other providers list their catalog.
+  // models (any full model name is also valid); other providers list their
+  // catalog without Claude models, which run only through Claude Code.
   async models(workspace, node) {
     const provider = node.data.chat?.provider; assert(Object.hasOwn(CHAT_PROVIDERS, provider ?? ''), 'Elige un agente primero');
-    if (provider === 'claude') return { provider, items: ['fable', 'opus', 'sonnet', 'haiku'].map(id => ({ id, group: 'Alias del modelo más reciente' })) };
+    assertClientAllowed(provider, this.policy(), 'El agente de este chat');
+    if (provider === 'claude') return { provider, items: CLAUDE_MODEL_ALIASES.map(id => ({ id, group: 'Alias del modelo más reciente' })) };
     let cwd = node.data.cwd; try { assert(cwd && fs.statSync(cwd).isDirectory()); } catch { cwd = workspace.canonicalPath; }
     const definition = CHAT_PROVIDERS[provider], bin = this.store.state.settings[definition.setting] || definition.bin;
     const key = JSON.stringify([provider, bin, cwd]);
@@ -575,11 +772,11 @@ export class Chats {
     let items;
     if (provider === 'codex') items = await codexModels(bin, cwd);
     else {
-      const stdout = await new Promise((resolve, reject) => execFile(bin, ['models'], { cwd, env: { ...process.env, PWD: cwd }, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
-      const ids = stdout.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split('\n').map(line => line.trim()).filter(line => /^[A-Za-z0-9][\w./:@\[\]-]{0,199}$/.test(line) && line.includes('/'));
-      items = [...new Set(ids)].slice(0, 2000).map(id => ({ id, group: id.slice(0, id.indexOf('/')) }));
+      const stdout = await new Promise((resolve, reject) => execFile(bin, ['models', '--verbose'], { cwd, env: { ...process.env, PWD: cwd }, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (error, out) => error ? reject(new Error(error.code === 'ENOENT' ? `No se encontró «${bin}»` : `OpenCode no pudo listar sus modelos: ${error.message.split('\n')[0]}`)) : resolve(out)));
+      items = openCodeModels(stdout);
       if (!items.length) throw new Error('OpenCode no pudo listar sus modelos: el catálogo está vacío');
     }
+    items = items.filter(item => !isClaudeLike(item.id));
     const value = { provider, items }; this.catalogs.delete(key); this.catalogs.set(key, { at: Date.now(), value });
     while (this.catalogs.size > 50) this.catalogs.delete(this.catalogs.keys().next().value);
     return value;
@@ -591,9 +788,9 @@ export class Chats {
     assert(input && typeof input === 'object' && !Array.isArray(input) && JSON.stringify(input).length <= 1024 * 1024, 'Invalid tool input');
     const turn = this.gates.get(token); assert(turn && !turn.finished, 'Permiso fuera de una respuesta en curso');
     if (tool === QUESTION_TOOL) return this.askQuestion(turn, input, toolUseId);
-    const decision = permissionDecision({ tool, input, cwd: turn.cwd, mode: turn.mode });
-    if (decision.allow || turn.thread.grants?.includes(decision.key)) return { behavior: 'allow', updatedInput: input };
-    const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
+    const decision = permissionDecision({ tool, input, cwd: turn.cwd, mode: turn.mode, ownBranch: turn.ownBranch });
+    if (decision.allow || (!decision.danger && turn.thread.grants?.includes(decision.key))) return { behavior: 'allow', updatedInput: input };
+    const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(decision.danger ? { danger: true } : {}), ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
     turn.message.parts.push(part); turn.schedule();
     return new Promise(resolve => turn.pending.set(part.id, { part, input, resolve }));
   }
@@ -649,6 +846,7 @@ export class Chats {
       turn.pending.delete(entry.part.id); entry.part.status = status;
       entry.resolve(status === 'denied' ? { behavior: 'deny', message: 'El usuario rechazó este permiso en Phantom Workspace.' } : { behavior: 'allow', updatedInput: entry.input });
     };
+    if (decision === 'always' && request.part.danger) decision = 'allow';
     if (decision === 'always') {
       turn.thread.grants = [...new Set([...(turn.thread.grants || []), request.part.key])].slice(-200);
       for (const entry of [...turn.pending.values()]) if (entry.part.key === request.part.key) settle(entry, entry === request ? 'always' : 'allowed');
@@ -657,6 +855,9 @@ export class Chats {
     return { ok: true };
   }
   stop(nodeId) {
+    clearImmediate(this.drains.get(nodeId)); this.drains.delete(nodeId);
+    const operation = this.operations.get(nodeId);
+    if (operation) { operation.controller.abort(new Error('Operación de contexto cancelada; resultado sin verificar')); return { ok: true }; }
     const turn = this.turns.get(nodeId);
     if (!turn || turn.stopped) return { ok: true };
     turn.stopped = true;
@@ -667,7 +868,7 @@ export class Chats {
   }
   // Start over: the provider session is forgotten here, never deleted there.
   clear(workspace, node) {
-    assert(!this.turns.has(node.id), 'Detén la respuesta antes de empezar una conversación nueva');
+    assert(!this.running(node.id), 'Detén la respuesta antes de empezar una conversación nueva');
     const provider = node.data.chat?.provider;
     if (provider && this.nodes[node.id]?.threads?.[provider]) { delete this.nodes[node.id].threads[provider]; this.save(); }
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: false, reset: true, meta: {}, messages: [] });
@@ -686,6 +887,10 @@ export class Chats {
     if (provider !== undefined) patch.provider = provider;
     validateChat(patch);
     assert(patch.provider !== null, 'Phantom necesita un agente');
+    const policy = this.policy();
+    if (patch.provider !== undefined) assertClientAllowed(patch.provider, policy);
+    if (model !== undefined || reasoning !== undefined) assertClientAllowed(patch.provider ?? node.data.chat.provider, policy, 'El agente de este chat');
+    if (typeof model === 'string') assertClientModel(patch.provider ?? node.data.chat.provider, model, policy, 'chat de Phantom');
     assert(patch.provider === undefined || patch.provider === node.data.chat.provider || !this.running(node.id), 'Detén la respuesta antes de cambiar de agente');
     if (model !== undefined && model !== null) validateModel(model);
     const entry = this.nodes[node.id] ??= { threads: {} }, chat = applyPatch(node.data.chat, patch);
@@ -706,9 +911,12 @@ export class Chats {
   removeNode(nodeId) { this.stop(nodeId); if (this.nodes[nodeId]) { delete this.nodes[nodeId]; this.save(); } }
   async close() {
     this.closed = true; clearInterval(this.timer);
+    for (const handle of this.drains.values()) clearImmediate(handle);
+    this.drains.clear();
     for (const nodeId of this.turns.keys()) this.stop(nodeId);
+    for (const nodeId of this.operations.keys()) this.stop(nodeId);
     const end = Date.now() + 2500;
-    while (this.turns.size && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 25));
+    while ((this.turns.size || this.operations.size) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 25));
     this.save();
   }
 }

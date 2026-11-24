@@ -10,8 +10,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleIntegration } from '../integrations/index.mjs';
 import { stateHome, command } from '../integrations/common.mjs';
+import { runTimeoutMs, closeBlockedTasks } from '../integrations/phantom.mjs';
+import { services } from '../integrations/services.mjs';
+import { createRunWake, wakeMessage } from '../host/run-wake.mjs';
 
 const exec = promisify(execFile);
+await mkdir('/tmp/opencode', { recursive: true });
 const controllerPreload = fileURLToPath(new URL('../scripts/phantom-fetch.mjs', import.meta.url));
 async function fixture(t, git = false) {
   const home = await mkdtemp('/tmp/opencode/adapters-');
@@ -141,6 +145,19 @@ test('services retain pinned unknown health and use actual Docker bindings', asy
   await f.call('services.remove', { id: pinned.id }); assert.equal(f.workspace.services.length, 0);
 });
 
+test('services.scripts reads package.json of the project and of session copies, skipping unsafe names', async t => {
+  const f = await fixture(t);
+  f.context.execFile = async () => { throw new Error('Docker deliberately disabled'); };
+  await writeFile(path.join(f.root, 'package.json'), JSON.stringify({ scripts: { dev: 'vite', 'bad name; rm -rf /': 'x', 'test:unit': 'node --test' } }));
+  const copy = path.join(f.home, 'copy'); await mkdir(copy);
+  await writeFile(path.join(copy, 'package.json'), JSON.stringify({ scripts: { dev: 'vite --port 1' } }));
+  f.context.sessions.push({ id: 's1', nodeId: 'n1', workspaceId: f.workspace.id, cwd: copy, worktree: { branch: 'x' } }, { id: 's2', workspaceId: 'other', cwd: f.root, worktree: {} });
+  const result = await services('services.scripts', { workspaceId: f.workspace.id }, f.context);
+  assert.deepEqual(result.items.map(i => [i.origin, i.command, i.cwd]), [['project', 'npm run dev', f.root], ['project', 'npm run test:unit', f.root], ['session', 'npm run dev', copy]]);
+  assert.equal((await f.call('services.list', { scripts: true })).scripts.length, 3);
+  assert.equal((await f.call('services.list')).scripts, undefined);
+});
+
 test('Linux /proc service attribution excludes an unrelated listening process', async t => {
   const f = await fixture(t);
   f.context.execFile = async () => { throw new Error('Docker deliberately disabled'); };
@@ -193,6 +210,47 @@ test('native Phantom isolated data: cards, decisions/revisions, immutable skills
   await assert.rejects(f.call('phantom.create', { kind: 'card', input: { ...input, scope: ['outside/x.md'] } }), /Symlink/);
 });
 
+test('Phantom task catalog uses a large buffer and explains output-limit failures', async t => {
+  const f = await fixture(t);
+  f.context.state.settings.phantomPath = process.execPath;
+  let seen, fail = false;
+  f.context.execFile = async (file, args, options) => {
+    if (file === 'git') throw new Error('No Git transport');
+    assert.deepEqual(args.slice(1), ['list', '--json']);
+    seen = options;
+    if (fail) throw new Error('node: stdout maxBuffer length exceeded');
+    return { stdout: '[]', stderr: '' };
+  };
+  const result = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(result.available, true, result.reason);
+  assert.ok(seen.maxBuffer >= 32 * 1024 * 1024);
+  assert.equal(seen.timeout, 30000);
+  assert.equal(seen.cwd, f.root);
+  fail = true;
+  const unavailable = await f.call('phantom.list', { topic: 'tasks' });
+  assert.equal(unavailable.available, false);
+  assert.match(unavailable.reason, /^Phantom unavailable: /);
+  assert.match(unavailable.reason, /catálogo/);
+  assert.doesNotMatch(unavailable.reason, /maxBuffer/);
+});
+
+test('Phantom task catalog reads once with project scope only for Git workspaces and retains family filtering', async t => {
+  for (const git of [true, false]) {
+    const f = await fixture(t, git), calls = [];
+    f.context.state.settings.phantomPath = process.execPath;
+    const raw = [f.root, f.home].map((workspace, i) => ({ id: `task_${i}`, kind: 'task', status: 'ready', contract: { goal: `Task ${i}`, workspace } }));
+    f.context.execFile = async (file, args, options) => {
+      if (file === 'git') return exec(file, args, options);
+      calls.push(args.slice(1));
+      return { stdout: JSON.stringify(raw), stderr: '' };
+    };
+    const result = await f.call('phantom.list', { topic: 'tasks' });
+    assert.equal(result.available, true, result.reason);
+    assert.deepEqual(calls, [git ? ['list', '--workspace', f.root, '--scope', 'project', '--json'] : ['list', '--json']]);
+    assert.deepEqual(result.items.map(item => item.id), ['task_0']);
+  }
+});
+
 test('Phantom task catalog excludes unrelated projects but includes known worktree family', async t => {
   const f = await fixture(t, true);
   // The mocked transport only needs an existing CLI file, independent of any installation.
@@ -213,6 +271,132 @@ test('Phantom task catalog excludes unrelated projects but includes known worktr
   await assert.rejects(f.call('phantom.detail', { topic: 'tasks', id: 'task_2' }), /another workspace/);
 });
 
+test('closeBlockedTasks cancels only blocked tasks of the given worktree and tolerates a failed cancel', async t => {
+  const f = await fixture(t, true);
+  const cliPath = path.join(f.home, 'phantom-cli.mjs');
+  await writeFile(cliPath, '// Inert CLI fixture\n');
+  f.context.state.settings.phantomPath = cliPath;
+  const linked = path.join(f.home, 'linked'); await f.gitCommand(['worktree', 'add', '-b', 'linked', linked]);
+  const task = (id, status, workspace) => ({ id, kind: 'card', status, contract: { goal: id, workspace, lane: 'coordinated' } });
+  const raw = [task('t_blocked', 'blocked', linked), task('t_fails', 'blocked', linked), task('t_ready', 'ready', linked), task('t_running', 'running', linked), task('t_main', 'blocked', f.root)];
+  const cancelled = [];
+  f.context.execFile = async (file, args, options) => {
+    if (file === 'git') return exec(file, args, options);
+    if (args.includes('cancel')) { if (args[2] === 't_fails') throw new Error('cancel refused'); cancelled.push(args[2]); return { stdout: '{}', stderr: '' }; }
+    return { stdout: JSON.stringify(raw), stderr: '' };
+  };
+  f.workspace.plugins = { phantom: { enabled: true, config: { phantomPath: '', phantomData: '', model: '' } } };
+  const result = await closeBlockedTasks(f.context, linked);
+  assert.deepEqual(result.closed, ['t_blocked']); assert.deepEqual(cancelled, ['t_blocked']);
+  assert.deepEqual(result.failed, [{ id: 't_fails', error: 'cancel refused' }]);
+  f.workspace.plugins = { phantom: { enabled: false, config: { phantomPath: '', phantomData: '', model: '' } } };
+  const off = await closeBlockedTasks(f.context, linked);
+  assert.deepEqual([off.closed, off.failed], [[], []]); assert.match(off.reason, /disabled/);
+});
+
+test('Phantom detail reads only bounded authorized run artifacts and preserves both reasons', async t => {
+  const f = await fixture(t);
+  const cli = path.join(f.home, 'cli.mjs'), nativeHome = path.join(f.home, 'native');
+  await writeFile(cli, '// Inert fixture');
+  f.context.state.settings.phantomPath = cli;
+  f.context.state.settings.phantomData = nativeHome;
+  const runId = 'run_3c2a8df1-58a5-4045-94b4-6bf1e19e585b';
+  const dir = path.join(nativeHome, 'artifacts', runId);
+  await mkdir(dir, { recursive: true });
+  const task = { id: 'task_owned', status: 'cancelled', reason: 'Cancelada por Carlos', contract: { workspace: f.root, checks: [{ name: 'build' }] }, run: { id: runId, status: 'failed', reason: 'Baseline falló', turns: 0, result: { artifacts: f.home } } };
+  f.context.execFile = async (file, args) => {
+    if (file === 'git') throw new Error('No worktree family in fixture');
+    assert.ok(args.includes('show'));
+    return { stdout: JSON.stringify(task), stderr: '' };
+  };
+  const read = () => f.call('phantom.detail', { topic: 'tasks', id: task.id });
+  assert.equal((await read()).run.evidence.baseline.available, false);
+  const checks = [{ name: 'build', passed: true, argv: ['npm', 'run', 'build'], durationMs: 120 }, { name: 'voice-desktop', passed: false, argv: ['node', 'test/voice-desktop.mjs'], executedArgv: ['node', 'test/voice-desktop.mjs'], stderr: 'AssertionError captureBoth línea 57: Cancelar audio cubierto por textarea', durationMs: 99 }];
+  const baseline = path.join(dir, 'baseline-checks.json');
+  await writeFile(baseline, JSON.stringify(checks));
+  let result = await read();
+  assert.equal(result.status, 'cancelled'); assert.equal(result.reason, task.reason);
+  assert.equal(result.run.reason, 'Baseline falló'); assert.equal(result.run.turns, 0);
+  assert.deepEqual(result.run.evidence.baseline.checks, checks);
+  assert.ok(result.run.evidence.verification.every(round => !round.available));
+  await writeFile(path.join(dir, 'verification-0.json'), JSON.stringify({ round: 0, passed: true, checks: [checks[0]], snapshot: 'PRIVATE', patch: 'PRIVATE' }));
+  result = await read();
+  assert.equal(result.run.evidence.verification[0].available, true);
+  assert.ok(!JSON.stringify(result.run.evidence).includes('PRIVATE'));
+  for (const value of ['{invalid', '{}', '[null]', 'x'.repeat(2 * 1024 * 1024 + 1)]) {
+    await writeFile(baseline, value);
+    assert.equal((await read()).run.evidence.baseline.available, false);
+  }
+  const external = path.join(f.home, 'external.json'); await writeFile(external, JSON.stringify(checks));
+  await rm(baseline); await symlink(external, baseline);
+  assert.match((await read()).run.evidence.baseline.reason, /Symlink/);
+  await rm(dir, { recursive: true });
+  const outside = path.join(f.home, 'outside-run'); await mkdir(outside);
+  await writeFile(path.join(outside, 'baseline-checks.json'), JSON.stringify(checks));
+  await symlink(outside, dir);
+  assert.match((await read()).run.evidence.baseline.reason, /Symlink/);
+  await rm(dir); await rm(path.dirname(dir), { recursive: true });
+  await symlink(f.home, path.dirname(dir));
+  assert.match((await read()).run.evidence.baseline.reason, /Symlink/);
+  task.run.id = '../external';
+  assert.equal((await read()).run.evidence.available, false);
+  task.contract.workspace = f.home;
+  await assert.rejects(read(), /another workspace/);
+  task.contract.workspace = f.root; task.id = 'task_other';
+  await assert.rejects(f.call('phantom.detail', { topic: 'tasks', id: 'task_owned' }), /ID mismatch/);
+});
+
+test('Phantom detail exposes changed files per round, agent message and patch summary', async t => {
+  const f = await fixture(t);
+  const cli = path.join(f.home, 'cli.mjs'), nativeHome = path.join(f.home, 'native');
+  await writeFile(cli, '// Inert fixture');
+  f.context.state.settings.phantomPath = cli;
+  f.context.state.settings.phantomData = nativeHome;
+  const runId = 'run_3c2a8df1-58a5-4045-94b4-6bf1e19e585b';
+  const dir = path.join(nativeHome, 'artifacts', runId);
+  await mkdir(dir, { recursive: true });
+  const task = { id: 'task_sum', status: 'done', contract: { workspace: f.root, checks: [{ name: 'build' }] }, run: { id: runId, status: 'done' } };
+  f.context.execFile = async (file) => { if (file === 'git') throw new Error('no git'); return { stdout: JSON.stringify(task), stderr: '' }; };
+  const read = () => f.call('phantom.detail', { topic: 'tasks', id: task.id });
+  assert.deepEqual((await read()).run.summary, { message: null, files: [], patch: null, patchTruncated: false });
+  await writeFile(path.join(dir, 'verification-0.json'), JSON.stringify({ round: 0, passed: true, changed: ['a.js', 'b.js'], checks: [{ name: 'build', passed: true }] }));
+  const round = (await read()).run.evidence.verification[0];
+  assert.deepEqual(round.changed, ['a.js', 'b.js']); assert.equal(round.passed, true);
+  await writeFile(path.join(dir, 'response-0.json'), JSON.stringify({ parts: [{ type: 'text', text: 'viejo' }] }));
+  await writeFile(path.join(dir, 'response-1.json'), JSON.stringify({ parts: [{ type: 'text', text: 'uno' }, { type: 'tool', text: 'x' }, { type: 'text', text: 'dos' }] }));
+  await mkdir(path.join(dir, 'revision-0')); await mkdir(path.join(dir, 'revision-1'));
+  await writeFile(path.join(dir, 'revision-0', 'task.patch'), 'diff --git before/old.js after/old.js\n@@ -1 +1 @@\n-x\n+y\n');
+  const patch = 'diff --git before/a.js after/a.js\n--- before/a.js\n+++ after/a.js\n@@ -1,2 +1,3 @@\n-old\n+new\n+more\n keep\ndiff --git before/b.js after/b.js\n--- before/b.js\n+++ after/b.js\n@@ -1 +1 @@\n-gone\n';
+  await writeFile(path.join(dir, 'revision-1', 'task.patch'), patch);
+  let { summary } = (await read()).run;
+  assert.equal(summary.message, 'uno\ndos');
+  assert.deepEqual(summary.files, [{ path: 'a.js', added: 2, removed: 1 }, { path: 'b.js', added: 0, removed: 1 }]);
+  assert.equal(summary.patch, patch); assert.equal(summary.patchTruncated, false);
+  await writeFile(path.join(dir, 'revision-1', 'task.patch'), `${patch}${'+'.repeat(300 * 1024)}\n`);
+  summary = (await read()).run.summary;
+  assert.equal(summary.patchTruncated, true); assert.equal(Buffer.byteLength(summary.patch), 200 * 1024);
+});
+
+test('Phantom list reports supersession and landed commits for blocked tasks', async t => {
+  const f = await fixture(t, true);
+  const cli = path.join(f.home, 'cli.mjs'); await writeFile(cli, '// Inert fixture');
+  f.context.state.settings.phantomPath = cli;
+  const contract = (goal, scope) => ({ goal, workspace: f.root, ...(scope ? { scope } : {}) });
+  const raw = [
+    { id: 'task_old', status: 'blocked', createdAt: '2020-01-01T00:00:00Z', updatedAt: '2020-01-02T00:00:00Z', contract: contract('Viejo', ['README.md']) },
+    { id: 'task_new', status: 'done', createdAt: '2020-02-01T00:00:00Z', updatedAt: '2020-02-01T00:00:00Z', contract: contract('Sustituye task_old') },
+    { id: 'task_none', status: 'blocked', createdAt: '2020-01-01T00:00:00Z', updatedAt: '2020-01-02T00:00:00Z', contract: contract('Otro', ['absent.txt']) }
+  ];
+  f.context.execFile = async (file, args, options) => {
+    if (file === 'git') return exec(file, args, options);
+    return { stdout: JSON.stringify(raw), stderr: '' };
+  };
+  const items = (await f.call('phantom.list', { topic: 'tasks' })).items;
+  assert.deepEqual(items.find(i => i.id === 'task_old').resolution, { supersededBy: { id: 'task_new', status: 'done' }, landed: 1 });
+  assert.deepEqual(items.find(i => i.id === 'task_none').resolution, { supersededBy: null, landed: 0 });
+  assert.equal(items.find(i => i.id === 'task_new').resolution, undefined);
+});
+
 test('Phantom failures never report success and ambiguous writes cannot be blindly retried', async t => {
   const f = await fixture(t, true);
   let writes = 0;
@@ -228,6 +412,17 @@ test('Phantom failures never report success and ambiguous writes cannot be blind
   await assert.rejects(f.call('phantom.control', { id: 'task_x', action: 'stop' }), /owned by this host/);
 });
 
+test('Phantom run timeout defaults to six hours and accepts only integer minutes from 1 to 1440', () => {
+  assert.equal(runTimeoutMs(), 6 * 3600000);
+  assert.equal(runTimeoutMs({}), 6 * 3600000);
+  for (const phantomRunTimeoutMinutes of [undefined, 0, 1441, 2.5, '30']) {
+    assert.equal(runTimeoutMs({ phantomRunTimeoutMinutes }), 6 * 3600000);
+  }
+  for (const phantomRunTimeoutMinutes of [1, 30, 1440]) {
+    assert.equal(runTimeoutMs({ phantomRunTimeoutMinutes }), phantomRunTimeoutMinutes * 60000);
+  }
+});
+
 test('Phantom controllers use host Node argv, owned SIGINT, bounded output and retained events', async t => {
   const f = await fixture(t);
   const task = { id: 'task_owned', kind: 'card', status: 'ready', contract: { workspace: f.root, goal: 'Owned' } };
@@ -239,26 +434,200 @@ test('Phantom controllers use host Node argv, owned SIGINT, bounded output and r
   f.context.spawn = (file, args, options) => {
     assert.equal(file, process.execPath); assert.equal(options.shell, false);
     assert.deepEqual(args.slice(0, 2), ['--import', controllerPreload]); assert.ok(path.isAbsolute(args[1])); assert.ok(path.isAbsolute(args[2]));
-    assert.deepEqual(args.slice(3), ['run', 'task_owned', '--model', 'provider/model;literal', '--json']);
+    assert.deepEqual(args.slice(3), ['run', 'task_owned', '--model', 'claude-code/haiku', '--json']);
     const child = new EventEmitter(); child.pid = 123456; child.stdout = new PassThrough(); child.stderr = new PassThrough();
     child.signals = []; child.kill = signal => { child.signals.push(signal); return true; }; children.push(child); return child;
   };
   const [descriptor, concurrent] = await Promise.all([
-    f.call('phantom.control', { id: task.id, action: 'run', model: 'provider/model;literal' }),
-    f.call('phantom.control', { id: task.id, action: 'run', model: 'provider/model;literal' }),
+    f.call('phantom.control', { id: task.id, action: 'run', model: 'claude-code/haiku' }),
+    f.call('phantom.control', { id: task.id, action: 'run', model: 'claude-code/haiku' }),
   ]);
   assert.equal(concurrent.id, descriptor.id);
   assert.equal(descriptor.status, 'running'); assert.equal(children.length, 1);
+  // The descriptor records what was requested, never a confirmed runtime.
+  assert.equal(descriptor.requestedModel, 'claude-code/haiku'); assert.equal(descriptor.modelSource, 'payload'); assert.equal(descriptor.engine, 'claude-code'); assert.equal(descriptor.observedModel, undefined);
   assert.equal((await f.call('phantom.control', { id: task.id, action: 'verify' })).id, descriptor.id);
+  const foreign = await fixture(t);
+  await assert.rejects(foreign.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller owned by this host/);
+  assert.deepEqual(children[0].signals, []);
   children[0].stdout.write('x'.repeat(1100000));
-  await f.call('phantom.control', { id: descriptor.id, action: 'stop' }); assert.deepEqual(children[0].signals, ['SIGINT']);
+  const stopped = await f.call('phantom.control', { id: descriptor.id, action: 'stop' });
+  assert.equal(stopped.stopRequested, true); assert.deepEqual(children[0].signals, ['SIGINT']);
   children[0].emit('close', 1, 'SIGINT');
-  assert.equal(f.workspace.phantomControllers[0].status, 'failed'); assert.equal(f.workspace.phantomControllers[0].truncated, true); assert.ok(f.workspace.phantomControllers[0].output.length <= 65536);
+  assert.equal(f.workspace.phantomControllers[0].status, 'stopped'); assert.equal(f.workspace.phantomControllers[0].truncated, true); assert.ok(f.workspace.phantomControllers[0].output.length <= 65536);
+  assert.equal(f.workspace.phantomControllers[0].exitCode, 1); assert.equal(f.workspace.phantomControllers[0].signal, 'SIGINT');
   assert.ok(f.context.events.some(e => e.type === 'tool.output' && e.workspaceId === f.workspace.id));
-  assert.ok(f.context.events.some(e => e.type === 'tool.status' && e.status === 'failed'));
+  assert.deepEqual(f.context.events.filter(e => e.type === 'tool.status').map(e => e.status), ['running', 'stopped']);
+  assert.ok(f.context.events.every(e => e.workspaceId === f.workspace.id && e.id === descriptor.id));
+  assert.equal(f.context.events.find(e => e.type === 'tool.status' && e.status === 'stopped').result.stopRequested, true);
+  assert.deepEqual(foreign.context.events, []);
   await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller/);
   assert.equal(f.context.events.filter(e => e.type === 'tool.output').reduce((n, e) => n + Buffer.byteLength(e.data), 0), 1048576);
   const cancel = await f.call('phantom.control', { id: task.id, action: 'cancel' }); assert.equal(cancel.id, task.id); assert.ok(calls.some(args => args.includes('cancel')));
+});
+
+test('Phantom stop ignores late error/close in either order without waking; an unstopped failure wakes once', async t => {
+  for (const scenario of ['stop-error-close', 'stop-close-error', 'failure']) {
+    const f = await fixture(t), children = [], prepared = [], notices = [], blocks = [];
+    const task = { id: 'task_late', kind: 'card', status: 'ready', contract: { workspace: f.root, goal: 'Late controller events' } };
+    const nodeId = 'agent-node', sessionId = 'agent-session';
+    f.context.sessions.push({ id: sessionId, nodeId, workspaceId: f.workspace.id, status: 'running' });
+    const wake = createRunWake({
+      prepare: target => { prepared.push(target); return {}; },
+      deliver: (target, controller) => { notices.push({ target, controller, message: wakeMessage({ taskId: target.taskId, controller }) }); return {}; },
+      blocked: (target, reason) => blocks.push({ target, reason }),
+    });
+    t.after(() => wake.close());
+    const emit = f.context.emit;
+    f.context.emit = event => { emit(event); wake.accept(event); };
+    f.context.execFile = async file => {
+      if (file === 'git') throw new Error('no git');
+      return { stdout: JSON.stringify(task), stderr: '' };
+    };
+    f.context.spawn = () => {
+      const child = new EventEmitter(); child.pid = 123456; child.stdout = new PassThrough(); child.stderr = new PassThrough();
+      child.signals = []; child.kill = signal => { child.signals.push(signal); return true; };
+      children.push(child); return child;
+    };
+    const descriptor = await f.call('phantom.control', { id: task.id, action: 'run', model: 'claude-code/haiku', sessionId });
+    assert.equal(descriptor.status, 'running');
+    assert.deepEqual(descriptor.origin, { nodeId });
+    assert.equal(children.length, 1);
+    assert.deepEqual(prepared, []); assert.deepEqual(notices, []);
+    const child = children[0], stopped = scenario !== 'failure';
+    if (stopped) {
+      const result = await f.call('phantom.control', { id: descriptor.id, action: 'stop' });
+      assert.equal(result.stopRequested, true);
+      assert.deepEqual(child.signals, ['SIGINT']);
+    }
+    if (scenario === 'stop-close-error') child.emit('close', 0, null);
+    child.emit('error', new Error('late controller transport failure'));
+    child.emit('close', 1, 'SIGINT');
+    child.emit('close', 0, null);
+    await Promise.resolve();
+    const statuses = f.context.events.filter(event => event.type === 'tool.status');
+    assert.deepEqual(statuses.map(event => event.status), ['running', stopped ? 'stopped' : 'failed'], scenario);
+    assert.ok(statuses.every(event => event.workspaceId === f.workspace.id && event.id === descriptor.id));
+    assert.deepEqual(statuses[1].result.origin, { nodeId });
+    assert.equal(statuses[1].result.stopRequested, stopped ? true : undefined);
+    assert.equal(f.workspace.phantomControllers.length, 1);
+    assert.deepEqual(f.workspace.phantomControllers[0], statuses[1].result);
+    for (const event of f.context.events) { wake.accept(event); wake.accept(event); }
+    await Promise.resolve();
+    assert.deepEqual(blocks, []);
+    if (stopped) {
+      assert.deepEqual(prepared, []); assert.deepEqual(notices, []);
+    } else {
+      assert.deepEqual(child.signals, []);
+      const target = { id: descriptor.id, nodeId, via: 'terminal', taskId: task.id, workspaceId: f.workspace.id };
+      assert.deepEqual(prepared, [target]);
+      assert.equal(notices.length, 1);
+      assert.deepEqual(notices[0].target, target);
+      assert.deepEqual(notices[0].controller, statuses[1].result);
+      assert.equal(notices[0].controller.error, 'late controller transport failure');
+      assert.match(notices[0].message, /Motivo informado.*late controller transport failure/);
+    }
+    await assert.rejects(f.call('phantom.control', { id: descriptor.id, action: 'stop' }), /No active controller owned by this host/);
+    assert.equal(children.length, 1);
+  }
+});
+
+async function policyRun(t, contract, config = {}) {
+  const f = await fixture(t);
+  const task = { id: 'task_policy', kind: 'card', status: 'ready', contract: { workspace: f.root, goal: 'Policy', ...contract } };
+  const spawned = [];
+  f.context.execFile = async (file) => { if (file === 'git') throw new Error('no git'); return { stdout: JSON.stringify(task), stderr: '' }; };
+  f.context.spawn = (file, args) => {
+    spawned.push(args.slice(3));
+    const child = new EventEmitter(); child.pid = 1; child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => true; return child;
+  };
+  f.workspace.plugins = { phantom: { enabled: true, config: { phantomPath: '', phantomData: '', model: '', ...config } } };
+  return { ...f, task, spawned, run: payload => f.call('phantom.control', { id: task.id, action: 'run', ...payload }) };
+}
+
+test('Claude-only: contract, judge and child models must be Claude even when the payload model is Claude', async t => {
+  for (const [contract, where] of [
+    [{ model: 'opencode/gpt-5' }, /contrato/],
+    [{ model: 'claude-code/sonnet', judge: { model: 'openai/gpt-5' } }, /juez del contrato/],
+    [{ coordination: { children: [{ id: 'a', model: 'claude-code/haiku' }, { id: 'b', model: 'provider/model' }] } }, /hijo b/],
+    [{ coordination: { children: [{ id: 'a', judge: { model: 'gpt-4' } }] } }, /juez del hijo a/],
+  ]) {
+    const f = await policyRun(t, contract);
+    const original = structuredClone(f.task), calls = [], errors = [];
+    const execFile = f.context.execFile;
+    f.context.execFile = (file, args) => { calls.push({ file, args }); return execFile(file, args); };
+    for (const expected of [where, /Claude Code/]) {
+      await assert.rejects(f.run({ model: 'claude-code/sonnet' }), error => {
+        assert.match(error.message, expected); assert.match(error.message, where);
+        errors.push(error.message); return true;
+      });
+    }
+    assert.deepEqual(f.spawned, [], 'no process starts');
+    assert.deepEqual(f.task, original, 'the native task and immutable contract are untouched');
+    assert.ok(calls.some(c => c.args.includes('show')));
+    assert.ok(calls.every(c => c.file === 'git' || c.args.includes('show')), 'native calls only read the task');
+    const attempts = f.workspace.phantomControllers;
+    assert.equal(attempts.length, 2); assert.notEqual(attempts[0].id, attempts[1].id);
+    for (const [index, attempt] of attempts.entries()) {
+      assert.equal(attempt.kind, 'attempt'); assert.equal(attempt.status, 'failed'); assert.equal(attempt.action, 'run');
+      assert.equal(attempt.taskId, f.task.id); assert.equal(attempt.workspaceId, f.workspace.id); assert.equal(attempt.workspacePath, f.root);
+      assert.equal(attempt.error, errors[index]);
+      assert.equal(attempt.pid, undefined); assert.equal(attempt.run, undefined); assert.equal(attempt.runId, undefined);
+    }
+    assert.deepEqual(f.context.events, attempts.map(attempt => ({ type: 'tool.status', workspaceId: f.workspace.id, id: attempt.id, status: 'failed', result: attempt })));
+  }
+});
+
+test('Claude-only: explicit non-Claude payload or stored plugin model blocks; empty falls back to claude-code/sonnet', async t => {
+  let f = await policyRun(t, {});
+  await assert.rejects(f.run({ model: 'openai/gpt-5' }), /no es Claude Code.*claude-code\/sonnet/);
+  assert.deepEqual(f.spawned, []);
+  f = await policyRun(t, {}, { model: 'provider/legacy' });
+  await assert.rejects(f.run({}), /provider\/legacy.*no es Claude Code/);
+  assert.deepEqual(f.spawned, []);
+  f = await policyRun(t, {});
+  const descriptor = await f.run({});
+  assert.deepEqual(f.spawned, [['run', 'task_policy', '--model', 'claude-code/sonnet', '--json']]);
+  assert.equal(descriptor.requestedModel, 'claude-code/sonnet'); assert.equal(descriptor.modelSource, 'default');
+  f = await policyRun(t, { model: 'claude-code/opus' });
+  assert.equal((await f.run({})).requestedModel, 'claude-code/opus');
+  f = await policyRun(t, { model: 'claude-code/opus' }, { model: 'claude-code/haiku' });
+  // The contract's fixed model wins over payload and plugin config, exactly as the harness runtime does.
+  const fixed = await f.run({ model: 'claude-code/sonnet' });
+  assert.equal(fixed.requestedModel, 'claude-code/opus'); assert.equal(fixed.modelSource, 'contract');
+  assert.deepEqual(f.spawned.at(-1), ['run', 'task_policy', '--model', 'claude-code/opus', '--json']);
+  f = await policyRun(t, {}, { model: 'claude-code/haiku' });
+  const payloadWins = await f.run({ model: 'sonnet' });
+  assert.equal(payloadWins.requestedModel, 'claude-code/sonnet'); assert.equal(payloadWins.modelSource, 'payload');
+});
+
+test('OpenCode enabled: provider/model runs on the opencode engine, Claude never goes through it and the area default applies', async t => {
+  const enable = (f, extra = {}) => { f.context.state.settings = { providers: { opencode: { enabled: true } }, ...extra }; };
+  let f = await policyRun(t, {});
+  enable(f);
+  const descriptor = await f.run({ model: 'openai/gpt-5' });
+  assert.deepEqual(f.spawned, [['run', 'task_policy', '--model', 'openai/gpt-5', '--json']]);
+  assert.equal(descriptor.engine, 'opencode'); assert.equal(descriptor.client, 'opencode'); assert.equal(descriptor.modelSource, 'payload');
+  // Claude models keep routing to Claude Code even when OpenCode is enabled.
+  f = await policyRun(t, { judge: { model: 'claude-code/haiku' } }); enable(f);
+  const claude = await f.run({ model: 'sonnet' });
+  assert.equal(claude.engine, 'claude-code'); assert.equal(claude.client, 'claude'); assert.equal(claude.requestedModel, 'claude-code/sonnet');
+  for (const [contract, where] of [
+    [{ model: 'anthropic/claude-sonnet-4' }, /contrato.*solo con Claude Code/],
+    [{ judge: { model: 'openrouter/anthropic/claude-opus' } }, /juez del contrato.*solo con Claude Code/],
+    [{ coordination: { children: [{ id: 'c', model: 'gpt-4' }] } }, /no es válido \(hijo c\)/],
+  ]) {
+    f = await policyRun(t, contract); enable(f);
+    await assert.rejects(f.run({ model: 'openai/gpt-5' }), where);
+    assert.deepEqual(f.spawned, []);
+  }
+  // A configured task default on OpenCode is the default; disabling OpenCode blocks it instead of falling back.
+  f = await policyRun(t, {}); enable(f, { executionDefaults: { task: { client: 'opencode', model: 'openai/gpt-5-mini' } } });
+  const fallback = await f.run({});
+  assert.equal(fallback.requestedModel, 'openai/gpt-5-mini'); assert.equal(fallback.modelSource, 'default'); assert.equal(fallback.engine, 'opencode');
+  f = await policyRun(t, {}); f.context.state.settings = { providers: { opencode: { enabled: false } }, executionDefaults: { task: { client: 'opencode', model: 'openai/gpt-5-mini' } } };
+  await assert.rejects(f.run({}), /Habilita OpenCode/);
+  assert.deepEqual(f.spawned, []);
 });
 
 test('Docker rejects names/images without labels, foreign workdirs and config-file symlink escapes', async t => {

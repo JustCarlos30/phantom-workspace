@@ -9,14 +9,12 @@ import { provisionBrowserTerminal } from './agent-browser.mjs';
 import { bootstrapAgentPolicy, shimmedPath } from './agent-policy.mjs';
 import { prepareWorktree } from './worktree-setup.mjs';
 import { roleEnv, roleOf } from './merge-guard.mjs';
+import { grantClaudeTrust, inheritClaudeTrust } from './claude-trust.mjs';
+import { processIdentity as inspectIdentity, ownedProcesses as inspectOwned, foregroundProcess } from './process-inspect.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
-function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
-function ownedProcesses(pid) {
-  const rows=fs.readdirSync('/proc').filter(v=>/^\d+$/.test(v)).map(processIdentity).filter(Boolean),owned=new Set([pid]);
-  for(let changed=true;changed;) {changed=false;for(const p of rows)if(!owned.has(p.pid)&&(p.session===pid||owned.has(p.parent))){owned.add(p.pid);changed=true;}}
-  return rows.filter(p=>owned.has(p.pid));
-}
+const processIdentity=pid=>inspectIdentity(pid);
+const ownedProcesses=pid=>inspectOwned(pid);
 function signalIdentities(identities,signal) {for(const identity of identities)if(processIdentity(identity.pid)?.start===identity.start)try{process.kill(identity.pid,signal);}catch{}}
 function snapshotOf(entry,session) {
   let lines=1000,data=entry.serializer.serialize({scrollback:lines});
@@ -37,13 +35,8 @@ export function detectAgent(comm,argv=[]) {
   return PATH_AGENTS.find(([fragment])=>joined.includes(fragment))?.[1]??null;
 }
 function foregroundOf(pid) {
-  try {
-    const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8'),tpgid=Number(stat.slice(stat.lastIndexOf(')')+2).split(' ')[5]);
-    if(!(tpgid>0)) return null;
-    const comm=fs.readFileSync(`/proc/${tpgid}/comm`,'utf8').trim();
-    const argv=fs.readFileSync(`/proc/${tpgid}/cmdline`,'utf8').split('\0').filter(Boolean);
-    return {command:comm.slice(0,64),agent:detectAgent(comm,argv),shell:tpgid===pid};
-  } catch { return null; }
+  const fg=foregroundProcess(pid);
+  return fg?{command:fg.comm.slice(0,64),agent:detectAgent(fg.comm,fg.argv),shell:fg.tpgid===pid}:null;
 }
 // Plain-text tail of the parsed screen for Phantom's map card: logical lines
 // (soft wraps rejoined), trailing blank rows dropped. Alternate-screen TUIs
@@ -70,10 +63,17 @@ export function tailLines(terminal,count) {
 // What the screen says about whose turn it is. Agent TUIs print a stable
 // "esc to interrupt" hint while they work and a numbered/yes-no question when
 // they need approval; nothing is inferred beyond those visible signals.
+const TRUST_PROMPT=[/\bquick safety check\b/i,/\bis this a project you (created|trust)\b/i,/\byes, i trust this folder\b/i,/\baccessing workspace:/i];
 const WORKING=/\besc(ape)?\b.{0,4}\b(to )?(interrupt|cancel)\b/i;
 const APPROVAL=[/\bdo you want to (proceed|make|create|run|allow|continue|apply|overwrite|delete)\b/i,/\bwould you like to (run|proceed|allow|make|apply|continue)\b/i,/\ballow (once|always)\b/i,/\bpermission required\b/i,/\brequires? (your )?approval\b/i,/^\s*[❯›>]\s*1\.\s*(yes|allow|approve)\b/i,/\((y\/n|yes\/no)\)|\[(y\/n|Y\/n|y\/N)\]/,/\bpress enter to (continue|confirm)\b/i];
+const recentLines=lines=>lines.filter(l=>l.trim()).slice(-14);
+// Why the screen asks for approval, when it is Claude's folder-trust dialog.
+export function screenReason(lines) {
+  return recentLines(lines).some(l=>TRUST_PROMPT.some(r=>r.test(l)))?'trust':null;
+}
 export function screenSignal(lines) {
-  const recent=lines.filter(l=>l.trim()).slice(-14);
+  const recent=recentLines(lines);
+  if(screenReason(lines)) return 'awaiting_approval';
   if(recent.some(l=>WORKING.test(l))) return 'working';
   if(recent.some(l=>APPROVAL.some(r=>r.test(l)))) return 'awaiting_approval';
   return null;
@@ -85,6 +85,12 @@ export function nextScreenState(previous,signal,agent) {
   return previous?'awaiting_input':null;
 }
 const HIGH_WATER=256*1024,LOW_WATER=64*1024;
+// /proc reads are cheap but frequent: reuse one result per session for a second.
+function cachedForeground(entry) {
+  const now=Date.now();
+  if(!entry.fg||now-entry.fg.at>=1000) entry.fg={at:now,value:foregroundOf(entry.child.pid)};
+  return entry.fg.value;
+}
 export class Terminals {
   constructor(store, emit) {
     this.store = store; this.emit = emit; this.live = new Map(); this.sessions = []; this.dirty = false; this.closingNodes = new Map(); this.creating = new Map(); this.setupControllers = new Map(); this.setupJobs = new Map(); this.closed = false;
@@ -102,8 +108,9 @@ export class Terminals {
       }
     },1000);this.timer.unref();
   }
-  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
+  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,screenStateAt:this.live.get(s.id)?.screenStateAt??null,screenReason:this.live.get(s.id)?.screenReason??null,...(n?{name:n.title,agent:n.data.agent??null,...(n.data.plan?{plan:n.data.plan}:{})}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
+  foreground(id) { const entry=this.live.get(id);return entry&&!entry.exited?foregroundOf(entry.child.pid):null; }
   async create(w, node, options) {
     assert(!this.closed, 'Terminal host is closing');
     assert(!this.setupJobs.has(node.id), 'Las dependencias de esta terminal todavía se están deteniendo');
@@ -122,7 +129,7 @@ export class Terminals {
     assert(!this.sessions.some(s => s.nodeId === node.id && s.status === 'running'), 'Node already has a running terminal');
     assert(this.live.size < 100, 'Too many terminal sessions');
     const size = dimensions(options.cols,options.rows);
-    const shell = options.shell || this.store.state.settings.shell || process.env.SHELL || '/bin/bash'; text(shell,'shell',4096); assert(path.isAbsolute(shell) && fs.statSync(shell).isFile(), 'Shell must be an absolute executable path');
+    const shell = options.shell || this.store.state.settings.shell || process.env.SHELL || (process.platform==='darwin'?'/bin/zsh':'/bin/bash'); text(shell,'shell',4096); assert(path.isAbsolute(shell) && fs.statSync(shell).isFile(), 'Shell must be an absolute executable path');
     const pty = require('node-pty');
     const { Terminal } = require('@xterm/headless'); const { SerializeAddon } = require('@xterm/addon-serialize');
     const directory = await prepareTerminalDirectory(this.store, w, node);
@@ -144,9 +151,10 @@ export class Terminals {
       // Incorporaciones: the policy states the terminal's role and the guard reads it from the environment.
       const integration = w.integration?.enabled ? { role: roleOf(node), base: await this.integrationBase?.(w).catch(() => null) ?? null } : null;
       const policyEnv = { ...await bootstrapAgentPolicy({ stateDir:this.store.dir,workspace:w,env:process.env,nodeId:node.id,sessionId,cwd:directory.cwd,branch,integration }), ...roleEnv({ stateDir:this.store.dir,workspace:w,node,branch }) };
+      if (directory.worktree) await inheritClaudeTrust(this.store, w, directory).catch(() => {});
       signal.throwIfAborted();
       assert(!this.closed && !this.closingNodes.has(node.id), 'Terminal is closing');
-      child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
+      child = pty.spawn(shell, process.platform==='darwin'?['-l']:[], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key!=='PHANTOM_WORKSPACE_ID')),...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
     }
     catch (error) { browser.revoke(); terminal.dispose(); throw error; }
     const s = {id:sessionId,workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',agentReporting:true,...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};
@@ -162,7 +170,7 @@ export class Terminals {
         entry.pumpQueued=true;
         // Coalesce tiny OS reads instead of creating a parser promise/timer per
         // character. One waiting batch plus one in-flight batch is byte-bounded.
-        entry.chain=entry.chain.then(()=>new Promise(r=>setTimeout(r,4))).then(async()=>{
+        entry.chain=entry.chain.then(()=>new Promise(r=>setTimeout(r,16))).then(async()=>{
           const batch=entry.pendingData;entry.pendingData='';entry.pumpQueued=false;
           await new Promise(resolve=>terminal.write(batch,resolve));
           entry.pending-=Buffer.byteLength(batch);s.seq++;entry.snapshotDirty=true;this.dirty=true;
@@ -221,18 +229,18 @@ export class Terminals {
     const result=()=>({session:this.descriptor(s),data:s.snapshot,seq:s.snapshotSeq??s.seq,truncated:!!s.historyTruncated||(fromSeq!==undefined&&fromSeq!==s.seq)}),e=this.live.get(id);
     if(!e)return result();const attached=e.chain.then(()=>{this.capture(s,e);return result();});e.chain=attached.then(()=>{});return attached;
   }
-  tail(id,count=12) {
-    assert(Number.isInteger(count)&&count>=1&&count<=40,'Invalid tail line count');
+  tail(id,count=12,maxCount=40) {
+    assert(Number.isInteger(count)&&count>=1&&count<=maxCount,'Invalid tail line count');
     const s=this.get(id),e=this.live.get(id),base={status:e?s.status:s.status==='running'?'lost':s.status,seq:s.seq,cols:s.cols,rows:s.rows};
-    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:foregroundOf(e.child.pid),screenState:e.screenState??null};
+    if(e&&!e.exited) return {...base,...tailLines(e.terminal,count),foreground:cachedForeground(e),screenState:e.screenState??null,screenReason:e.screenReason??null};
     // Closed sessions: parse the persisted snapshot once per sequence.
     const key=s.snapshotSeq??s.seq,cached=this.tails?.get(id);
-    if(cached?.key===key) return {...base,...cached.value,foreground:null};
+    if(cached?.key===key&&cached.count===count) return {...base,...cached.value,foreground:null};
     const { Terminal } = require('@xterm/headless');
     const terminal=new Terminal({cols:s.cols||80,rows:s.rows||24,scrollback:1000,allowProposedApi:true});
     return new Promise(resolve=>terminal.write(s.snapshot||'',()=>{
       const value=tailLines(terminal,count);terminal.dispose();
-      (this.tails??=new Map()).set(id,{key,value});
+      (this.tails??=new Map()).set(id,{key,count,value});
       resolve({...base,...value,foreground:null});
     }));
   }
@@ -245,15 +253,28 @@ export class Terminals {
       e.screenTimer=null; if(e.exited) return;
       const buffer=e.terminal.buffer.active,lines=[];
       for(let i=Math.max(0,buffer.viewportY);i<buffer.viewportY+e.terminal.rows;i++) lines.push(buffer.getLine(i)?.translateToString(true)??'');
-      const agent=foregroundOf(e.child.pid)?.agent??null;
-      this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent));
+      const agent=cachedForeground(e)?.agent??null;
+      this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent),screenReason(lines));
     },450);
     e.screenTimer.unref?.();
   }
-  setScreenState(s,e,state) {
-    if((e.screenState??null)===state) return;
-    e.screenState=state;
-    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state});
+  setScreenState(s,e,state,reason=null) {
+    if((e.screenState??null)===state&&(e.screenReason??null)===reason) return;
+    if((e.screenState??null)!==state) e.screenStateAt=state===null?null:Date.now();
+    e.screenState=state;e.screenReason=reason;
+    this.emit({type:'session.changed',workspaceId:s.workspaceId,sessionId:s.id,screenState:state,screenStateAt:e.screenStateAt,screenReason:reason});
+  }
+  // Explicit desktop gesture: trust the project, then accept Claude's default option.
+  async trust(id) {
+    const s=this.get(id),e=this.live.get(id);
+    assert(e&&!e.exited&&!e.stopping&&s.status==='running','La terminal no está en ejecución');
+    assert(e.screenReason==='trust','La terminal no está pidiendo confiar en la carpeta');
+    const w=this.store.getWorkspace(s.workspaceId);
+    assert(await grantClaudeTrust(this.store,w),'No se pudo marcar el proyecto como confiable en la configuración de Claude');
+    if(s.worktree) await inheritClaudeTrust(this.store,w,s).catch(()=>{});
+    assert(this.live.get(id)===e&&!e.exited&&!e.stopping,'La terminal no está en ejecución');
+    e.child.write('\r');
+    return {trusted:true};
   }
   async resize(id,cols,rows) {dimensions(cols,rows);const e=this.live.get(id);assert(e&&!e.exited,'Terminal is not running');e.chain=e.chain.then(()=>{if(e.exited)return;const s=this.get(id);e.child.resize(cols,rows);e.terminal.resize(cols,rows);Object.assign(s,{cols,rows});e.snapshotDirty=true;this.capture(s,e);this.save();});await e.chain;return {ok:true};}
   stop(id) {

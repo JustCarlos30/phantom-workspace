@@ -3,14 +3,62 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
+import { createRequire, registerHooks } from 'node:module';
 import { createHost } from '../host/server.mjs';
-import { detectAgent, tailLines, screenSignal, nextScreenState } from '../host/terminals.mjs';
+import { detectAgent, tailLines, screenSignal, screenReason, nextScreenState } from '../host/terminals.mjs';
+
+test('screenReason names only the Claude trust dialog', () => {
+  assert.equal(screenReason(['Accessing workspace: /home/carlosj/project', '', 'Quick safety check: Is this a project you created or one you trust?', '', '❯ No, exit', '  Yes, I trust this folder', 'Enter to confirm · Esc to cancel']), 'trust');
+  assert.equal(screenReason(['Do you trust the files in this folder?', '❯ 1. Yes, I trust this folder', '  2. No, exit']), 'trust');
+  assert.equal(screenReason([' Bash command', ' Do you want to proceed?', ' ❯ 1. Yes', '   2. No']), null);
+  assert.equal(screenReason(['✻ Thinking… (12s · esc to interrupt)', '> ']), null);
+  assert.equal(screenReason(['> ', '  ? for shortcuts']), null);
+});
 
 const require = createRequire(import.meta.url);
 const { Terminal } = require('@xterm/headless');
 async function until(fn, ms = 6000) { const end = Date.now() + ms; while (Date.now() < end) { const value = await fn(); if (value) return value; await new Promise(r => setTimeout(r, 30)); } throw new Error('Timed out'); }
 const write = (terminal, data) => new Promise(resolve => terminal.write(data, resolve));
+
+const rendererImports = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === './useWorkspace' && context.parentURL === new URL('../src/hooks/useTerminalTail.js', import.meta.url).href) {
+      return { url: 'data:text/javascript,export const subscribe = () => () => {};', shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+});
+let shareTerminalTail, shouldResetTerminalTail;
+try {
+  ({ shareTerminalTail, shouldResetTerminalTail } = await import('../src/hooks/useTerminalTail.js'));
+} finally {
+  rendererImports.deregister();
+}
+
+test('the same terminal session does not reset the tail', () => {
+  assert.equal(shouldResetTerminalTail('session-a', 'session-a'), false);
+});
+
+test('a different terminal session resets the tail', () => {
+  assert.equal(shouldResetTerminalTail('session-a', 'session-b'), true);
+  assert.equal(shouldResetTerminalTail('session-a', null), true);
+  assert.equal(shouldResetTerminalTail(null, 'session-a'), true);
+});
+
+test('identical terminal tails retain the previous reference', () => {
+  const previous = { lines: ['hello', '> '], screenState: 'awaiting_input', foreground: { command: 'bash', shell: true } };
+  assert.equal(shareTerminalTail(previous, structuredClone(previous)), previous);
+});
+
+for (const [field, value] of Object.entries({ lines: ['changed'], screenState: 'working', foreground: { command: 'codex', shell: false } })) {
+  test(`a change in terminal tail ${field} produces a new reference`, () => {
+    const previous = { lines: ['hello', '> '], screenState: 'awaiting_input', foreground: { command: 'bash', shell: true } };
+    const next = { ...structuredClone(previous), [field]: value };
+    const shared = shareTerminalTail(previous, next);
+    assert.notEqual(shared, previous);
+    assert.deepEqual(shared, next);
+  });
+}
 
 test('detectAgent recognises agent CLIs by comm, argv and install path', () => {
   assert.equal(detectAgent('opencode', ['opencode']), 'OpenCode');
@@ -54,12 +102,36 @@ test('terminal.tail reads live PTY text without ANSI and replays closed snapshot
   assert.ok(closed.lines.includes('TAIL_GREEN'));
 });
 
+test('terminal.trust refuses a session that is not in the trust dialog without touching the config', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-trust-rpc-')));
+  const previous = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = root;
+  const filename = path.join(root, '.claude.json');
+  const original = JSON.stringify({ projects: { [root]: { hasTrustDialogAccepted: false } } });
+  fs.writeFileSync(filename, original);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => {
+    await host.close(); fs.rmSync(root, { recursive: true, force: true });
+    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = previous;
+  });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const { session } = await host.invoke('terminal.create', { workspaceId: workspace.id, shell: '/bin/sh' });
+  await host.invoke('terminal.write', { sessionId: session.id, data: "echo READY_TRUST\n" });
+  const tail = await until(async () => { const value = await host.invoke('terminal.tail', { sessionId: session.id, lines: 4 }); return value.lines.includes('READY_TRUST') ? value : null; });
+  assert.equal(tail.screenReason, null);
+  await assert.rejects(host.invoke('terminal.trust', { sessionId: session.id }), /no está pidiendo confiar/);
+  assert.equal(fs.readFileSync(filename, 'utf8'), original);
+  assert.equal(fs.existsSync(`${filename}.lock`), false);
+  await host.invoke('terminal.stop', { sessionId: session.id });
+});
+
 test('screenSignal reads whose turn it is from visible agent chrome', () => {
   assert.equal(screenSignal(['✻ Thinking… (12s · esc to interrupt)', '> ']), 'working');
   assert.equal(screenSignal(['• Working (3s • Esc to interrupt)']), 'working');
   assert.equal(screenSignal([' Bash command', ' Do you want to proceed?', ' ❯ 1. Yes', '   2. No']), 'awaiting_approval');
   assert.equal(screenSignal(['Overwrite config? [y/N]']), 'awaiting_approval');
   assert.equal(screenSignal(['Permission required', 'Allow once   Allow always   Reject']), 'awaiting_approval');
+  assert.equal(screenSignal(['Accessing workspace: /home/carlosj/project', '', 'Quick safety check: Is this a project you created or one you trust?', '', '❯ No, exit', '  Yes, I trust this folder', 'Enter to confirm · Esc to cancel']), 'awaiting_approval');
   assert.equal(screenSignal(['> ', '  ? for shortcuts']), null);
   // An old prompt scrolled far above the recent rows is not a live question.
   assert.equal(screenSignal(['Continue? (y/n)', ...Array.from({ length: 20 }, (_, i) => `line ${i}`)]), null);

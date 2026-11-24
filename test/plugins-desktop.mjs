@@ -6,6 +6,7 @@ import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -234,6 +235,6 @@ try {
     }
   }
   if (app) await Promise.race([app.close().catch(() => {}), delay(2500)]);
-  if (electronProcess?.exitCode === null && electronProcess.signalCode === null) electronProcess.kill('SIGKILL');
+  killElectronGroup(electronProcess);
   await fs.rm(temp, { recursive: true, force: true });
 }

@@ -21,11 +21,24 @@ export function provisionBrowserTerminal(dataDir, { sessionId, workspaceId, node
   fs.mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });
   const token = randomBytes(32).toString('hex');
   fs.writeFileSync(filename, JSON.stringify({ token, workspaceId, nodeId }), { mode: 0o600, flag: 'wx' });
-  const inherited = (baseEnv.PATH || '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== browserShims);
+  const inherited = (baseEnv.PATH || (process.platform === 'darwin' ? '/opt/homebrew/bin:' : '') + '/usr/local/bin:/usr/bin:/bin').split(':').filter(dir => dir && dir !== browserShims);
+  let browser = path.join(browserShims, 'xdg-open');
+  const browserLink = path.resolve(dataDir, 'browser-bin', 'xdg-open');
+  try {
+    if (!/\s/.test(browserLink)) {
+      fs.mkdirSync(path.dirname(browserLink), { recursive: true, mode: 0o700 });
+      try { fs.symlinkSync(browser, browserLink); }
+      catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        if (fs.readlinkSync(browserLink) !== browser) { fs.rmSync(browserLink); fs.symlinkSync(browser, browserLink); }
+      }
+      if (fs.readlinkSync(browserLink) === browser) browser = browserLink;
+    }
+  } catch {}
   return { env: { PHANTOM_BROWSER_CLI: browserCLI, PHANTOM_BROWSER_ENDPOINT: endpointFile(dataDir),
     PHANTOM_BROWSER_TOKEN: token, PHANTOM_BROWSER_SESSION: sessionId, PHANTOM_BROWSER_WORKSPACE: workspaceId,
     PHANTOM_BROWSER_SHIMS: browserShims, PHANTOM_BROWSER_ORIGINAL: baseEnv.PHANTOM_BROWSER_ORIGINAL ?? baseEnv.BROWSER ?? '',
-    BROWSER: path.join(browserShims, 'xdg-open'), PATH: [browserShims, ...inherited].join(':') },
+    BROWSER: browser, PATH: [browserShims, ...inherited].join(':') },
   revoke() { fs.rmSync(filename, { force: true }); } };
 }
 

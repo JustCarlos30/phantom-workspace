@@ -1,78 +1,105 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Group, Row, TextRow } from './PluginPrimitives.jsx';
+import PhoneQr from './PhoneQr.jsx';
+import { buildBrowserPairingUrl } from '../phone-pairing.mjs';
 
-const LABELS = { read: 'Lectura', 'chat.send': 'Enviar chat', 'terminal.write': 'Escribir terminal', 'chat.stop': 'Detener chat', 'terminal.stop': 'Detener terminal', 'chat.permission.answer': 'Responder permisos', 'chat.question.answer': 'Responder preguntas' };
-function DevicePermissions({ device, status, busy, run, api }) {
-  const [grants, setGrants] = useState(device.grants || []), [ack, setAck] = useState(false);
-  useEffect(() => { setGrants(device.grants || []); }, [device.permissionVersion]);
-  const toggleNode = (id, enabled) => setGrants(old => enabled ? [...old, { nodeId: id, capabilities: ['read'] }] : old.filter(g => g.nodeId !== id));
-  const toggleCap = (id, cap, enabled) => setGrants(old => old.map(g => g.nodeId === id ? { ...g, capabilities: enabled ? [...g.capabilities, cap] : g.capabilities.filter(c => c !== cap) } : g));
-  return <fieldset disabled={busy}><legend>{device.name} · {device.state === 'approved' ? 'Autorizado' : device.state === 'pending' ? 'Pendiente de aprobación' : 'Esperando prueba de clave'}</legend>
-    <label className="tw-field">Huella de clave del dispositivo<input readOnly value={device.fingerprint} /></label>
-    <p className="tw-muted">Permisos efectivos: {device.grants?.length ? device.grants.map(g => `${status.nodes.find(n => n.id === g.nodeId)?.title || g.nodeId}: ${g.capabilities.map(c => LABELS[c]).join(', ')}`).join(' · ') : 'Ninguna sesión'}</p>
-    {status.nodes.map(node => { const grant = grants.find(g => g.nodeId === node.id); return <div key={node.id} className="tw-section">
-      <label><input type="checkbox" checked={!!grant} onChange={e => toggleNode(node.id, e.target.checked)} /> {node.title}{node.main ? ' · Chat principal / orquestador' : ''}</label>
-      {grant && <div>{status.capabilities.map(cap => <label key={cap} className="tw-field"><span><input type="checkbox" checked={grant.capabilities.includes(cap)} disabled={cap === 'read'} onChange={e => toggleCap(node.id, cap, e.target.checked)} /> {LABELS[cap]}</span></label>)}</div>}
-    </div>; })}
-    {grants.some(g => status.nodes.some(n => n.id === g.nodeId && n.main)) && <label className="tw-field"><span><input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} /> Entiendo que el chat principal / orquestador actúa con los permisos reales del agente.</span></label>}
-    <div className="tw-row"><button className="tw-button tw-primary" disabled={device.state === 'proving'} onClick={() => run(() => api(device.state === 'pending' ? 'mobile.approve' : 'mobile.permissions', { id: device.id, grants, acknowledgeAgentAuthority: ack }))}>{device.state === 'pending' ? 'Aprobar dispositivo' : 'Guardar permisos'}</button>
-      <button className="tw-button tw-danger" onClick={() => run(() => api('mobile.revoke', { id: device.id }))}>Revocar</button></div>
-  </fieldset>;
+export default function MobileSettings({ embedded, ...props }) {
+  return embedded ? <BrowserSettings {...props} /> : null;
 }
 
-export default function MobileSettings({ workspace, api }) {
+function BrowserSettings({ workspace, api }) {
   const [status, setStatus] = useState(null), [address, setAddress] = useState(''), [port, setPort] = useState('0');
   const [pairing, setPairing] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [time, setTime] = useState(Date.now());
-  const lock = useRef(false), mounted = useRef(true);
+  const lock = useRef(false), mounted = useRef(true), generation = useRef(0);
+  const pairingRef = useRef(null);
+  pairingRef.current = pairing;
   useEffect(() => {
-    mounted.current = true; let cancelled = false, timer;
+    mounted.current = true; let cancelled = false, timer, hasPending = false;
     const read = async () => {
-      try {
+      const current = generation.current;
+      if (!lock.current) try {
         const result = await api('mobile.status', {});
-        if (!cancelled) { setStatus(result); setAddress(previous => previous || result.interfaces[0]?.address || ''); }
-      } catch (e) { if (!cancelled) setError(e.message); }
-      if (!cancelled) timer = setTimeout(read, 3000);
+        hasPending = !!result.pending?.length;
+        if (!cancelled && !lock.current && current === generation.current) {
+          setStatus(result); setAddress(previous => result.interfaces.some(item => item.address === previous) ? previous : result.interfaces[0]?.address || '');
+          if (result.enabled && result.workspaceId === workspace?.id && (!pairingRef.current || pairingRef.current.expiresAt !== result.pairingExpiresAt || pairingRef.current.expiresAt <= Date.now())) {
+            lock.current = true;
+            try { const next = await api('mobile.pairing', {}); if (!cancelled && current === generation.current) { pairingRef.current = next; setPairing(next); } } finally { lock.current = false; }
+          }
+          if (!result.enabled) { pairingRef.current = null; setPairing(null); }
+        }
+      } catch (e) { if (!cancelled && current === generation.current) setError(e.message); }
+      if (!cancelled) timer = setTimeout(read, pairingRef.current || hasPending ? 1000 : 3000);
     };
-    read(); const clock = setInterval(() => setTime(Date.now()), 1000);
-    return () => { mounted.current = false; cancelled = true; clearTimeout(timer); clearInterval(clock); };
-  }, [api]);
+    const tick = () => setTime(Date.now());
+    read(); const clock = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { mounted.current = false; cancelled = true; clearTimeout(timer); clearInterval(clock); document.removeEventListener('visibilitychange', tick); };
+  }, [api, workspace?.id]);
   const run = async action => {
-    if (lock.current) return; lock.current = true; setBusy(true); setError('');
+    if (lock.current) return; lock.current = true; generation.current++; setBusy(true); setError('');
     try { await action(); const result = await api('mobile.status', {}); if (mounted.current) setStatus(result); }
     catch (e) { if (mounted.current) setError(e.message); }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   };
+  const show = () => run(async () => {
+    if (!status.enabled) {
+      if (!address) throw new Error('No se detecta una red LAN. Conecta el equipo a una red local.');
+      const result = await api('mobile.start', { workspaceId: workspace.id, address, port: Number(port) });
+      if (mounted.current) setPairing(result.pairing);
+    } else {
+      if (status.workspaceId !== workspace.id) throw new Error('El navegador está activo para otro proyecto. Desactívalo primero.');
+      const result = await api('mobile.pairing', {});
+      if (mounted.current) setPairing(result);
+    }
+  });
   const copy = async value => { if (!navigator.clipboard) throw new Error('Copia el texto seleccionándolo.'); await navigator.clipboard.writeText(value); };
   const expiresAt = pairing?.expiresAt === status?.pairingExpiresAt ? pairing?.expiresAt : null;
-  return <section className="tw-section">
-    <h3>Conexión móvil local</h3>
-    <p className="tw-muted">Base segura v2 para la futura app nativa, todavía no disponible. HTTPS obligatorio y certificado fijado tras verificar la huella desde este escritorio por un canal independiente. El acceso se apaga al reiniciar el host.</p>
-    <p className="tw-muted">El control de terminal no es un sandbox: comandos y respuestas a permisos actúan con los permisos reales del proceso y del agente. El servidor comprueba firmas; sin attestation remota no acredita hardware ni huella de un cliente modificado.</p>
-    {error && <p className="tw-error" role="alert">{error}</p>}
-    {!status ? <p role="status">Consultando acceso móvil…</p> : status.enabled ? <>
-      <p>Activo para {status.workspaceId === workspace?.id ? workspace.name : 'otro proyecto'}.</p>
-      <label className="tw-field">Dirección móvil<input readOnly value={status.url || ''} /></label>
-      <label className="tw-field">Identidad del host / SHA256 del certificado<input readOnly value={status.identity?.fingerprint || ''} /></label>
-      <label className="tw-field">Certificado público<textarea readOnly value={status.identity?.certificate || ''} /></label>
-      <button className="tw-button" disabled={busy} onClick={() => run(() => copy(JSON.stringify({ version: 2, url: status.url, ...status.identity })))}>Copiar bootstrap seguro</button>
-      <div className="tw-row"><button className="tw-button" disabled={busy} onClick={() => run(() => copy(status.url))}>Copiar dirección</button><button className="tw-button tw-danger" disabled={busy} onClick={() => run(async () => { await api('mobile.stop', {}); setPairing(null); })}>Desactivar acceso móvil</button></div>
-      <p className="tw-muted">Comparte identidad y certificado por un canal fuera de banda. La app oficial deberá verificar y fijar este certificado antes de enviar el código separado: 256 bits, un uso, 120 segundos. Un navegador no puede operar.</p>
-      {expiresAt && expiresAt > time ? <><label className="tw-field">Código de emparejamiento<input readOnly value={pairing.code} /></label><p role="status">Caduca en {Math.ceil((expiresAt - time) / 1000)} s</p><button className="tw-button" disabled={busy} onClick={() => run(() => copy(pairing.code))}>Copiar código</button></> : <p>Código usado, caducado o no mostrado en este panel.</p>}
-      <button className="tw-button" disabled={busy} onClick={() => run(async () => setPairing(await api('mobile.pairing', {})))}>Generar nuevo código</button>
-      <h4>Dispositivos autorizados</h4>
-      {!status.devices.length && <p className="tw-muted">Ningún dispositivo emparejado.</p>}
-      {status.devices.map(device => <DevicePermissions key={device.id} {...{ device, status, busy, run, api }} />)}
-      <h4>Actividad local</h4>
-      {status.auditError && <p role="alert">{status.auditError}</p>}
-      {!status.activity.length && <p className="tw-muted">Sin eventos.</p>}
-      {status.activity.slice().reverse().map((event, index) => <p key={index}><small>{new Date(event.timestamp).toLocaleString()} · {event.deviceId || 'Escritorio'} · {event.nodeId || '—'} · {event.method} · {event.outcome} · {event.reason}</small></p>)}
-    </> : <>
-      <p className="tw-muted">Desactivado. Autoriza únicamente las sesiones del proyecto actual.</p>
-      <label className="tw-field">Interfaz Wi-Fi / LAN<select value={address} onChange={e => setAddress(e.target.value)}><option value="">Elige una interfaz privada</option>{status.interfaces.map(item => <option key={item.address} value={item.address}>{item.name} · {item.address}</option>)}</select></label>
-      {!status.interfaces.length && <p>No hay una interfaz LAN IPv4 privada detectada. Conecta el equipo a la Wi-Fi y vuelve a consultar.</p>}
-      <label className="tw-field">Puerto (0: automático)<input type="number" min="0" max="65535" value={port} onChange={e => setPort(e.target.value)} /></label>
-      <button className="tw-button tw-primary" disabled={busy || !workspace || !address} onClick={() => run(async () => { const result = await api('mobile.start', { workspaceId: workspace.id, address, port: Number(port) }); setPairing(result.pairing); })}>Activar para {workspace?.name || 'el proyecto actual'}</button>
-      <p className="tw-muted">Regenerar identidad invalida todos los dispositivos y exige volver a vincular. Un cambio de dirección usa otra identidad.</p>
-      <button className="tw-button tw-danger" disabled={busy || !address} onClick={() => run(() => api('mobile.identity', { regenerate: true, address }))}>Regenerar identidad e invalidar dispositivos</button>
-    </>}
-  </section>;
+  return <>
+    {status?.pending?.map(request => <Group title={`¿Vincular “${request.name}” desde ${request.remoteAddress}?`} key={request.id}><Row label="Código de comparación" hint="Confirma que el teléfono muestra el mismo código"><strong className="st-fingerprint">{request.sas.slice(0, 3)} {request.sas.slice(3)}</strong></Row><Row label="Solicitud"><div className="st-actions"><button className="st-btn is-primary" disabled={busy} onClick={() => run(async () => { await api('mobile.approve', { id: request.id }); if (mounted.current) setPairing(await api('mobile.pairing', {})); })}>Vincular</button><button className="st-btn" disabled={busy} onClick={() => run(() => api('mobile.reject', { id: request.id }))}>Rechazar</button></div></Row></Group>)}
+    <Group title="Sin app: navegador del teléfono">
+      {!status && <p className="st-note" role="status">Consultando…</p>}
+      {error && <p className="st-error" role="alert">{error}</p>}
+      {status && <>
+        <Row label="Vinculación del navegador"><button className="st-btn" disabled={busy || !workspace || !status} onClick={show}>Mostrar QR</button></Row>
+        {status.enabled && <Row label="Huella del certificado"><span className="st-fingerprint" title={status.tls?.fingerprint}>{status.tls?.fingerprint?.slice(0, 8)}…{status.tls?.fingerprint?.slice(-8)}</span></Row>}
+      </>}
+    </Group>
+    {pairing && status?.enabled && status.workspaceId === workspace?.id && expiresAt > time && <div className="st-phone-link"><PhoneQr text={buildBrowserPairingUrl(status.url, pairing.code)} /><p className="st-note" role="status">Caduca en {Math.max(0, Math.ceil((expiresAt - time) / 1000))} s</p><p className="st-note">Escanéalo con la cámara y compara el código de seis dígitos antes de pulsar Vincular en el escritorio. El navegador avisará del certificado: comprueba que la huella termina en {status.tls?.fingerprint?.slice(-8)}</p></div>}
+    {status?.enabled && <details className="st-details"><summary>Sin cámara</summary><Group><TextRow label="Dirección móvil" readOnly mono value={status.url || ''}><button className="st-btn" disabled={busy} onClick={() => run(() => copy(status.url))}>Copiar dirección</button></TextRow>{status.workspaceId === workspace?.id && expiresAt > time && <TextRow label="Código para vincular" readOnly mono value={pairing.code}><button className="st-btn" disabled={busy} onClick={() => run(() => copy(pairing.code))}>Copiar código</button></TextRow>}</Group></details>}
+    {status?.interfaces.length > 1 && <details className="st-details"><summary>Red y puerto</summary><Group>
+          <Row label="Red"><select className="st-select" aria-label="Red del navegador" disabled={busy || status.enabled} value={address} onChange={e => setAddress(e.target.value)}>{status.interfaces.map(item => <option key={item.address} value={item.address}>{item.name} · {item.address}</option>)}</select></Row>
+          <Row label="Puerto (0 = automático)"><input className="st-input" aria-label="Puerto del navegador" type="number" min="0" max="65535" step="1" disabled={busy || status.enabled} value={port} onChange={e => setPort(e.target.value)} /></Row>
+    </Group></details>}
+    {status?.enabled && <Group title="Dispositivos vinculados">
+      {!status.devices.length && <Row label="Ningún dispositivo vinculado." />}
+      {status.devices.map(device => <Row key={device.id} label={device.name || 'Móvil'}><button className="st-btn is-danger" disabled={busy} onClick={() => run(() => api('mobile.revoke', { id: device.id }))}>Revocar</button></Row>)}
+      <Row label="Desactivar"><button className="st-btn is-danger" disabled={busy} onClick={() => run(async () => { await api('mobile.stop', {}); if (mounted.current) setPairing(null); })}>Desactivar</button></Row>
+    </Group>}
+    {status && <AuditLog api={api} />}
+  </>;
+}
+
+const AUDIT_LABELS = {
+  'mobile.start': 'Acceso activado', 'mobile.stop': 'Acceso desactivado', 'pairing.expire': 'Código caducado',
+  'pairing.request': 'Solicitud de vinculación', 'pairing.request.expire': 'Solicitud caducada', 'pairing.approve': 'Vinculación aprobada',
+  'pairing.reject': 'Vinculación rechazada', pairing: 'Vinculación', 'device.revoke': 'Dispositivo revocado', 'device.expire': 'Acceso caducado',
+  'chat.send': 'Mensaje enviado', 'chat.stop': 'Chat detenido', 'chat.permission.answer': 'Permiso respondido',
+  'chat.question.answer': 'Pregunta respondida', 'terminal.write': 'Entrada de terminal', 'terminal.stop': 'Terminal detenida',
+};
+
+// Read-only and on demand: the host projects only audited fields (no tokens, codes or content).
+function AuditLog({ api }) {
+  const [events, setEvents] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
+  const load = async () => {
+    setLoading(true); setError('');
+    try { setEvents((await api('mobile.audit', {})).events); } catch (e) { setError(e.message); } finally { setLoading(false); }
+  };
+  return <details className="st-details" onToggle={e => { if (e.currentTarget.open && !events && !loading) load(); }}><summary>Actividad reciente</summary><Group>
+    {error && <p className="st-error" role="alert">{error}</p>}
+    {!events && !error && <p className="st-note" role="status">Consultando…</p>}
+    {events && !events.length && <Row label="Sin actividad registrada." />}
+    {events?.slice(0, 30).map((event, i) => <Row key={i} label={`${AUDIT_LABELS[event.method] || event.method}${event.phase === 'accepted' ? ' (admitida)' : ''}${event.result === 'error' ? ' · error' : ''}`} hint={[event.time && new Date(event.time).toLocaleString(), event.deviceName, event.remoteAddress].filter(Boolean).join(' · ')} />)}
+    {events && <Row label="Historial local"><button className="st-btn" disabled={loading} onClick={load}>Actualizar</button></Row>}
+  </Group></details>;
 }

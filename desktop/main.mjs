@@ -1,18 +1,21 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, Notification, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, Notification, protocol, session, shell, systemPreferences } from 'electron';
 import { constants, createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, realpath, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolveNodeBinary } from './shell-env.mjs';
 import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
-import { readLocalImage } from './local-image.mjs';
+import { readLocalImage, imagePreviewRoots } from './local-image.mjs';
+import { createInterfaceScaleModel } from '../shared/interface-scale.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
-  contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin,
+  contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds,
   validateCloseReady, validateID, validateInvocation, validateJSON,
+  EXPORT_MAX_BYTES, checkExportSize, classifyExportResult,
   REFERENCE_SCHEME, REVIEW_SCHEME, createReviewMedia, byteRange, referenceTarget,
 } from './security.mjs';
 
@@ -25,8 +28,27 @@ const dataDir = path.resolve(process.env.PHANTOM_WORKSPACE_HOME
 await mkdir(path.join(dataDir, 'electron'), { recursive: true, mode: 0o700 });
 app.setPath('userData', path.join(dataDir, 'electron'));
 app.setName('Phantom Workspace');
+if (process.platform === 'linux') app.setDesktopName('phantom-workspace.desktop');
 
 let mainWindow = null;
+const scaleFile = path.join(app.getPath('userData'), 'interface-scale.json');
+const interfaceScale = createInterfaceScaleModel({
+  read: async () => {
+    try { return JSON.parse(await readFile(scaleFile, 'utf8')); }
+    catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  },
+  write: async value => {
+    const temporary = `${scaleFile}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, `${JSON.stringify(value)}\n`, { mode: 0o600, flag: 'wx' });
+      await rename(temporary, scaleFile);
+    } finally { await rm(temporary, { force: true }); }
+  },
+  apply: factor => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Ventana no disponible');
+    mainWindow.webContents.setZoomFactor(factor);
+  },
+});
 let browsers = null;
 let agentBrowser = null;
 let client = null;
@@ -56,7 +78,7 @@ async function nodeBinary() {
   if (app.isPackaged) {
     try { await access(packaged, constants.X_OK); return packaged; } catch { /* explicit fallback below */ }
   }
-  const selected = process.env.PHANTOM_NODE_BINARY || '/usr/bin/node';
+  const selected = resolveNodeBinary();
   if (!path.isAbsolute(selected)) throw new Error('PHANTOM_NODE_BINARY debe ser una ruta absoluta');
   await access(selected, constants.X_OK);
   return selected;
@@ -126,7 +148,8 @@ async function hostInvoke(method, payload = {}) {
     // Validation failures and request timeouts preserve the channel. Never replay mutations:
     // after a timeout or disconnect their outcome may still be unknown.
     if (connected && transportLost) {
-      connected.reconnect();
+      // null ensures reconnection without forcing replacement of a live socket.
+      connected.reconnect(error.transport ?? null);
     }
     throw Object.assign(new Error(`Host: ${error.message}`), { code: error.code });
   }
@@ -138,12 +161,10 @@ function trustedContents(wc) {
 }
 
 function configureUISession(ses) {
-  let microphoneGranted = false;
-  let microphonePrompt = null;
   ses.setPermissionCheckHandler((wc, permission, _origin, details) => {
     const local = trustedContents(wc) && details.isMainFrame && isLocalUIURL(details.requestingUrl, uiURL);
     if (!local) return false;
-    if (permission === 'media') return microphoneGranted && details.mediaType === 'audio';
+    if (permission === 'media') return details.mediaType === 'audio';
     return permission === 'clipboard-sanitized-write';
   });
   ses.setPermissionRequestHandler((wc, permission, callback, details) => {
@@ -151,17 +172,9 @@ function configureUISession(ses) {
     if (!local) return callback(false);
     if (permission === 'clipboard-sanitized-write') return callback(true);
     if (permission !== 'media' || !details.mediaTypes?.length || details.mediaTypes.some(type => type !== 'audio')) return callback(false);
-    if (microphoneGranted) return callback(true);
-    microphonePrompt ??= dialog.showMessageBox(mainWindow, {
-      type: 'question', title: 'Micrófono para voz',
-      message: '¿Permitir que Phantom Workspace use el micrófono?',
-      detail: 'Solo la interfaz local puede grabar voz. Los sitios del navegador interno no reciben este permiso.',
-      buttons: ['No permitir', 'Permitir micrófono'], defaultId: 0, cancelId: 0,
-    }).then(({ response }) => {
-      microphoneGranted = response === 1 && trustedContents(wc);
-      return microphoneGranted;
-    }).catch(() => false).finally(() => { microphonePrompt = null; });
-    microphonePrompt.then(allowed => callback(allowed && trustedContents(wc)));
+    if (process.platform !== 'darwin') return callback(true);
+    // macOS: the OS prompt must be answered before Chromium can capture audio.
+    systemPreferences.askForMediaAccess('microphone').then(granted => callback(granted !== false), () => callback(true));
   });
   ses.setDevicePermissionHandler(() => false);
   ses.setDisplayMediaRequestHandler((_request, callback) => callback(null));
@@ -212,17 +225,28 @@ function openMainWindow() {
     mainWindow.show(); mainWindow.focus();
     return mainWindow;
   }
+  let icon;
+  try {
+    const image = nativeImage.createFromPath(fileURLToPath(new URL('../assets/phantom-icon.png', import.meta.url)));
+    if (!image.isEmpty()) icon = image;
+  } catch { /* The icon is generated by packaging; its absence is not an error. */ }
   const win = new BrowserWindow({
+    ...(icon ? { icon } : {}),
     title: 'Phantom Workspace', width: 1520, height: 980, minWidth: 1000, minHeight: 700,
-    backgroundColor: '#14121b', show: false,
+    backgroundColor: '#14121b', show: false, autoHideMenuBar: true,
     webPreferences: {
       session: uiSession, preload: fileURLToPath(new URL('./preload.cjs', import.meta.url)),
       contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInSubFrames: false,
       webSecurity: true, allowRunningInsecureContent: false, webviewTag: false, navigateOnDragDrop: false,
       backgroundThrottling: false,
+      zoomFactor: interfaceScale.snapshot().scale / 100,
     },
   });
   mainWindow = win;
+  win.setMenuBarVisibility(false);
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(interfaceScale.snapshot().scale / 100);
+  });
   const manager = new BrowserManager({ window: win, getState: () => hostInvoke('state.get'), emit });
   browsers = manager;
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -353,7 +377,14 @@ async function quit(stopHost = false) {
 }
 
 async function invokeLocal(method, payload) {
-  if (method.startsWith('browser.')) return browsers.invoke(method, payload);
+  if (method === 'desktop.interfaceScale.get') return interfaceScale.get();
+  if (method === 'desktop.interfaceScale.set') return interfaceScale.set(payload.scale);
+  if (method.startsWith('browser.')) {
+    if (['browser.attach', 'browser.bounds'].includes(method) && 'bounds' in payload) {
+      payload = { ...payload, bounds: nativeUIBounds(payload.bounds, mainWindow.webContents.getZoomFactor()) };
+    }
+    return browsers.invoke(method, payload);
+  }
   if (method === 'desktop.notify') {
     if (!Notification.isSupported()) return { shown: false };
     const { title, body = '', target } = payload;
@@ -386,6 +417,23 @@ async function invokeLocal(method, payload) {
     if (payload.stopHost !== undefined && typeof payload.stopHost !== 'boolean') throw new Error('stopHost debe ser boolean');
     return quit(payload.stopHost === true);
   }
+  if (method === 'desktop.openBrowser') {
+    const url = browserURL(payload.url, { external: true });
+    const state = await hostInvoke('state.get');
+    const workspace = state.workspaces.find(w => w.id === state.activeWorkspaceId);
+    if (!workspace) throw new Error('Abre un proyecto para navegar');
+    const node = await hostInvoke('node.create', { workspaceId: workspace.id, type: 'browser', data: { url } });
+    openMainWindow();
+    const end = Date.now() + 10000;
+    do {
+      const current = await hostInvoke('state.get');
+      if (current.activeWorkspaceId !== workspace.id) throw new Error('El proyecto activo cambió');
+      emit({ type: 'browser.agentFocus', id: node.id, workspaceId: workspace.id });
+      if (browsers.entries.get(node.id)?.attached) return { opened: true, id: node.id, workspaceId: workspace.id };
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } while (Date.now() < end);
+    throw new Error('Timeout esperando panel visible');
+  }
   if (method === 'desktop.openExternal') {
     await shell.openExternal(browserURL(payload.url, { external: true }));
     return { opened: true };
@@ -409,7 +457,7 @@ async function invokeLocal(method, payload) {
     }
     // Agent review captures live here, outside the project's source tree. Only
     // raster preview (never openPath or general file reads) gets this extra root.
-    if (method === 'desktop.previewImage') return readLocalImage(payload.path, [...roots, '/tmp/opencode']);
+    if (method === 'desktop.previewImage') return readLocalImage(payload.path, await imagePreviewRoots(roots, state.workspaces, dataDir));
     const target = await authorizedPath(payload.path, roots);
     const error = await shell.openPath(target);
     if (error) throw new Error(error);
@@ -427,18 +475,31 @@ async function invokeLocal(method, payload) {
     if (typeof data === 'string') {
       try { data = JSON.parse(data); } catch { throw new Error('Exportación debe contener JSON válido'); }
     }
-    validateJSON(data, 16 * 1024 * 1024);
+    validateJSON(data, EXPORT_MAX_BYTES);
     if (!data || typeof data !== 'object') throw new Error('Exportación JSON debe ser un objeto o array');
-    const result = await dialog.showSaveDialog(mainWindow, {
+    checkExportSize(data);
+    const options = {
       title: 'Exportar Phantom Workspace', defaultPath: 'phantom-workspace.json',
       filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePath) return null;
-    const destination = result.filePath.endsWith('.json') ? result.filePath : `${result.filePath}.json`;
-    await writeFile(destination, `${JSON.stringify(data, null, 2)}\n`, {
-      mode: 0o600, flag: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
-    });
-    return { path: destination };
+    };
+    let result;
+    try {
+      result = await dialog.showSaveDialog(mainWindow, options);
+    } catch (error) {
+      console.error('showSaveDialog con ventana falló; reintento sin ventana padre', error);
+      try { result = await dialog.showSaveDialog(options); }
+      catch { throw new Error('No se pudo abrir el diálogo de guardado. En Linux comprueba que xdg-desktop-portal esté instalado.'); }
+    }
+    const outcome = classifyExportResult(result, false);
+    if (outcome.status === 'cancelled') return { cancelled: true };
+    try {
+      await writeFile(outcome.path, `${JSON.stringify(data, null, 2)}\n`, {
+        mode: 0o600, flag: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+      });
+    } catch (error) {
+      throw new Error(`No se pudo guardar el archivo: ${error.code === 'ELOOP' ? 'el destino es un enlace simbólico' : error.message}`);
+    }
+    return { path: outcome.path };
   }
   throw new Error('Método desktop no permitido');
 }
@@ -453,7 +514,7 @@ if (!app.requestSingleInstanceLock()) {
     if (app.isReady()) quit().catch(error => console.error(error));
     else app.quit();
   });
-  app.on('window-all-closed', () => app.quit());
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
   app.on('before-quit', event => {
     if (mainWindow && !mainWindow.isDestroyed() && !approvedClose.has(mainWindow)) {
       event.preventDefault();
@@ -476,6 +537,7 @@ if (!app.requestSingleInstanceLock()) {
   // Electron waits for the ESM entrypoint to settle before emitting ready; never
   // top-level-await whenReady() here (that deadlocks the main process).
   app.whenReady().then(async () => {
+   await interfaceScale.load();
   uiSession = session.fromPartition('phantom-local-ui');
   configureUISession(uiSession);
   ipcMain.handle(INVOKE_CHANNEL, async (event, method, payload = {}) => {

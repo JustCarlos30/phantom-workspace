@@ -1,42 +1,36 @@
-import React, { useEffect } from 'react';
-import { GitMerge, Power, RefreshCw, TerminalSquare } from 'lucide-react';
-import { Button, ErrorNotice, OperationState, useOperation, useResource } from './PluginPrimitives';
+import React, { useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { ErrorNotice, OperationState, useOperation, useResource } from './PluginPrimitives';
 import { preferredCardMode } from './ChatCard';
+import EmptyState from './EmptyState.jsx';
+import { IntegrationChanges } from './IntegrationReview.jsx';
+import { MergeMissing, FailureCard } from './MergePath.jsx';
+import { agentFixPrompt, failureHelp } from '../hooks/failure-help.mjs';
+import { buildCola, buildResumen, mergePath } from '../hooks/incorporaciones-model.mjs';
 import '../incorporaciones.css';
 
-// Incorporaciones: what is being integrated, what waits and in which order, and
-// what each terminal is still working on. The panel observes; ordering and
-// merging belong to the orchestrator session.
-const REQUEST = { queued: 'En cola', merging: 'Incorporando…', conflict: 'Conflicto · devuelta', failed: 'Checks fallidos · devuelta', merged: 'Incorporada', rejected: 'Rechazada', withdrawn: 'Retirada' };
-const WORK = { idle: 'En pausa', working: 'Trabajando', blocked: 'Bloqueada', review: 'Lista para revisión' };
-const when = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 const files = count => `${count} ${count === 1 ? 'archivo' : 'archivos'}`;
-const commits = count => `${count} ${count === 1 ? 'commit' : 'commits'}`;
-// Terminal branches end in the node's UUID; the title already names the terminal.
-const short = branch => branch.replace(/^(phantom\/terminal-[0-9a-f]{8})[0-9a-f-]+$/, '$1…');
 
-function Overlaps({ items }) {
-  if (!items?.length) return null;
-  const others = [...new Set(items.flatMap(item => item.with))];
-  return <p className="inc-overlap">Toca {files(items.length)} que también cambia {others.join(', ')}: {items.slice(0, 4).map(item => item.path).join(', ')}{items.length > 4 ? '…' : ''}. El orden importa.</p>;
-}
-function Files({ item }) {
-  if (!item.fileCount) return null;
-  return <details className="inc-files"><summary>{files(item.fileCount)}</summary><ul>{item.files.map(file => <li key={file}>{file}</li>)}</ul>{item.fileCount > item.files.length && <p className="tw-muted">y {item.fileCount - item.files.length} más</p>}</details>;
-}
-function Row({ item, position, status, tone, focus, children }) {
-  return <li className="inc-item" data-tone={tone}>
-    <span className="inc-position" aria-hidden="true">{position ?? '·'}</span>
-    <div className="inc-body">
-      <div className="inc-title"><button type="button" className="inc-link" title="Ver esta terminal" onClick={() => focus(item.nodeId)}>{item.title}</button><span className="inc-status">{status}</span></div>
-      {children}
+// A returned item says why on top, always visible; "Ver cambios" keeps the technical rest.
+function Row({ row, open, onToggle, onSession, top, children }) {
+  return <li className={`inc-item${open ? ' is-open' : ''}`} data-state={row.state}>
+    <div className="inc-line">
+      <div className="inc-main"><span className="inc-title">{row.item.title}</span>{row.detail && <span className="inc-sub">{row.detail}</span>}</div>
+      <span className="inc-chip" data-tone={row.tone}>{row.label}</span>
+      <span className="inc-slot">
+        <button type="button" className="inc-button is-quiet" aria-expanded={open} onClick={onToggle}>Ver cambios</button>
+        {onSession && <button type="button" className="inc-button" onClick={onSession}>Ir a la sesión</button>}
+      </span>
     </div>
+    {top}
+    {open && children}
   </li>;
 }
 
-export default function Incorporaciones({ workspace, api, onOpenPanel, notify, active = true }) {
+export default function Incorporaciones({ workspace, api, onOpenPanel, notify, active = true, sessionVisible = false }) {
   const resource = useResource(api, 'merge.status', { workspaceId: workspace.id });
   const op = useOperation(notify), { data, reload } = resource;
+  const [openId, setOpenId] = useState(null);
   // The queue lives in workspace state; branch facts only change in Git, so poll while shown.
   const queueKey = JSON.stringify(workspace.integration ?? null);
   useEffect(() => { reload(); }, [queueKey, reload]);
@@ -46,70 +40,101 @@ export default function Incorporaciones({ workspace, api, onOpenPanel, notify, a
     return () => clearInterval(timer);
   }, [active, reload]);
   const focus = nodeId => onOpenPanel?.('terminal', { focusNodeId: nodeId });
-  const configure = enabled => op.run(async () => { await api('merge.configure', { workspaceId: workspace.id, enabled }); await reload(); }, enabled ? 'Incorporaciones activado' : 'Incorporaciones desactivado');
+  const configure = (settings, message) => op.run(async () => { await api('merge.configure', { workspaceId: workspace.id, ...settings }); await reload(); }, message);
   const openOrchestrator = () => data?.orchestrator ? focus(data.orchestrator.nodeId) : onOpenPanel?.('terminal', { role: 'orchestrator', chat: { provider: preferredCardMode() } }, 'Orquestador');
 
-  if (!data) return resource.error ? <ErrorNotice error={resource.error} retry={reload} /> : <p className="tw-muted" role="status">Consultando el repositorio…</p>;
-  if (!data.available) return <div className="inc"><p className="tw-warning" role="status">{data.reason || 'Incorporaciones no está disponible en esta carpeta.'}</p><Button icon={RefreshCw} onClick={reload}>Reintentar</Button></div>;
-  const base = data.base.branch, merging = data.queue.find(item => item.status === 'merging');
-  if (!data.enabled) return <div className="inc">
-    <h3 className="inc-heading">Incorporaciones está desactivado</h3>
-    <p>Al activarlo, cada terminal solo puede escribir en su propia rama y una única sesión orquestadora ordena e incorpora el trabajo en <b>{base}</b>. Aquí verás qué se está incorporando, qué espera y qué se planea.</p>
-    <p className="tw-muted">Instala dos hooks en <code>.git/hooks</code> de este proyecto (<code>reference-transaction</code> y <code>pre-push</code>). Solo afectan a las terminales de Phantom; tu Git fuera de ellas no cambia. Desactivar los quita.</p>
-    <Button icon={Power} tone="primary" disabled={op.busy} onClick={() => configure(true)}>Activar Incorporaciones</Button>
+  if (!data) return resource.error ? <ErrorNotice error={resource.error} retry={reload} /> : <p className="tw-muted" role="status">Leyendo la cola…</p>;
+  if (!data.available) return <div className="inc"><p className="tw-warning" role="status">{data.reason || 'La cola no está disponible en esta carpeta.'}</p><button type="button" className="inc-button" onClick={reload}><RefreshCw size={14} aria-hidden="true" />Reintentar</button></div>;
+  const base = data.base.branch;
+  if (!data.enabled) return <div className="inc inc-off">
+    <h3 className="inc-off-title">Incorporaciones</h3>
+    <p className="inc-off-copy">Reúne las ramas listas para probarlas e integrarlas en {base}.</p>
+    <button type="button" className="inc-button is-primary" disabled={op.busy} onClick={() => configure({ enabled: true }, 'Incorporaciones activado')}>Activar</button>
+    <details className="inc-fold"><summary>Detalles</summary><p className="inc-hint">Cada sesión trabaja en su propia rama y el orquestador las integra en {base} una a una. Al activar se instalan protecciones de Git en el repositorio (<code>reference-transaction</code> y <code>pre-push</code> en <code>.git/hooks</code>); solo afectan a las sesiones de Phantom y se quitan al desactivar.</p></details>
     <OperationState op={op} />
+    {resource.error && <ErrorNotice error={resource.error} retry={reload} />}
   </div>;
+
+  const cola = buildCola(data);
+  const options = { base, checks: data.checks?.command || '', orchestrator: Boolean(data.orchestrator), auto: data.auto };
+  const hasSession = item => item.nodeId && onOpenPanel && workspace.nodes?.some(node => node.id === item.nodeId && node.type === 'terminal');
+  const sessionOf = item => workspace.nodes?.find(node => node.id === item.nodeId && node.type === 'terminal');
+  const openCopy = async item => {
+    const target = await api('branch.terminalTarget', { workspaceId: workspace.id, branch: item.branch });
+    await onOpenPanel?.('terminal', { worktree: { path: target.path, branch: target.branch } }, `Copia · ${item.title}`);
+  };
+  // The failure goes to the worker's own session as one pasted message, then Enter.
+  const askAgent = async item => {
+    const sessionId = sessionOf(item)?.data?.sessionId;
+    if (!sessionId) throw new Error('La sesión de este trabajo ya no está abierta.');
+    await api('terminal.write', { sessionId, data: `\x1b[200~${agentFixPrompt(item, { base: item.base || base })}\x1b[201~` });
+    await new Promise(resolve => setTimeout(resolve, 80));
+    await api('terminal.write', { sessionId, data: '\r' });
+  };
+  const act = (row, id) => {
+    const item = row.item, ids = { workspaceId: workspace.id, id: item.id }, branch = { workspaceId: workspace.id, branch: item.branch };
+    if (id === 'session') return focus(item.nodeId);
+    if (id === 'terminal') return op.run(() => openCopy(item));
+    if (id === 'ask') return op.run(() => askAgent(item),'Se lo pedí al agente');
+    if (id === 'retry') return op.run(async () => { await api('merge.retry', ids); await reload(); }, 'Vuelve a la cola');
+    if (id === 'withdraw') return op.run(async () => { await api('merge.withdraw', ids); await reload(); }, 'Sacada de la cola');
+    if (id === 'update') return op.run(async () => {
+      const result = await api('branch.update', branch); await reload();
+      if (result.status === 'conflict') throw new Error(`Al ponerla al día chocan: ${result.conflicts.slice(0, 3).join(', ')}. Usa «Resolver conflictos en su copia».`);
+    }, `Al día con ${base}`);
+    if (id === 'resolve') return op.run(async () => {
+      const result = await api('branch.update', { ...branch, resolve: true }); await reload();
+      if (result.status === 'resolving') { await openCopy(item); notify?.('Abrí su copia: resuelve los conflictos y guarda', 'success'); }
+      else notify?.(`Ya quedó al día con ${base}`, 'success');
+    });
+    return undefined;
+  };
+  const rows = (list, { session = false, path = true, returned = false } = {}) => <ul className="inc-group">{list.map(row => {
+    const withSession = session && hasSession(row.item), item = row.item;
+    const help = returned ? failureHelp(item, { base: item.base || base, hasSession: Boolean(sessionOf(item) && onOpenPanel), queue: true }) : null;
+    return <Row key={row.key} row={row}
+      open={openId === row.key} onToggle={() => setOpenId(openId === row.key ? null : row.key)} onSession={withSession && !help ? () => focus(item.nodeId) : undefined}
+      top={help && <div className="inc-why"><FailureCard help={help} entry={item} busy={op.busy} onAction={id => act(row, id)} /><MergeMissing path={mergePath(item, options)} /></div>}>
+      <IntegrationChanges item={item} workspace={workspace} api={api} base={item.base || base} explained={Boolean(help)} path={path ? mergePath(item, options) : undefined} />
+    </Row>;
+  })}</ul>;
+  const section = (title, list, props) => list.length > 0 && <section className="inc-section" aria-label={title}><h3 className="inc-heading">{title}</h3>{rows(list, props)}</section>;
+  const closed = cola.today.length + cola.earlier.length;
 
   return <div className="inc">
-    <header className="inc-summary">
-      <p><GitMerge size={15} aria-hidden="true" /> Se incorpora en <b>{base}</b> · {data.guard.installed ? 'guard de Git instalado' : 'sin guard de Git'}</p>
-      <div className="tw-row">
-        <Button icon={TerminalSquare} tone={data.orchestrator ? undefined : 'primary'} onClick={openOrchestrator}>{data.orchestrator ? `Ver ${data.orchestrator.title}` : 'Abrir sesión orquestadora'}</Button>
-        <Button icon={Power} disabled={op.busy} onClick={() => configure(false)}>Desactivar</Button>
-      </div>
-    </header>
+    <dl className="inc-resumen" aria-label="Resumen de Incorporaciones">{buildResumen(data, Date.now()).map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
+    {data.autoBlocked && <p className="tw-warning" role="status">Integración automática detenida: {data.autoBlocked.reason} <button type="button" className="inc-button" disabled={op.busy} onClick={() => configure({ auto: true }, 'Integración automática reanudada')}>Reintentar</button></p>}
+    <ul className="inc-group">
+      <li className="inc-item"><div className="inc-line is-setting">
+        <div className="inc-main"><span className="inc-title">Integrar sola al terminar</span><span className="inc-sub">{data.auto ? `Phantom prueba cada rama lista y la sube a ${base} sin esperar al orquestador` : 'Las ramas esperan a que el orquestador las integre'}</span></div>
+        <button type="button" role="switch" aria-checked={Boolean(data.auto)} aria-label="Integrar sola al terminar" className="inc-switch" disabled={op.busy} onClick={() => configure({ auto: !data.auto }, data.auto ? 'Integración automática desactivada' : 'Integración automática activada')}><i aria-hidden="true" /></button>
+      </div></li>
+      <li className="inc-item"><div className="inc-line is-setting">
+        <div className="inc-main"><span className="inc-title" role="status">{cola.orchestrator}</span></div>
+        {!sessionVisible && <button type="button" className={`inc-button${data.orchestrator ? '' : ' is-primary'}`} onClick={openOrchestrator}>{data.orchestrator ? 'Ir al orquestador' : 'Abrir orquestador'}</button>}
+      </div></li>
+    </ul>
+
     <OperationState op={op} />
-    {!data.guard.installed && <p className="tw-warning" role="status">{data.guard.reason} Sin guard, la regla depende solo de las instrucciones que reciben los agentes.</p>}
-    {!data.orchestrator && <p className="tw-muted">Todavía no hay sesión orquestadora: las solicitudes esperan en la cola hasta que abras una.</p>}
-    {data.base.uncommitted > 0 && <p className="tw-muted">El checkout del proyecto tiene {files(data.base.uncommitted)} con cambios sin commitear. Las terminales nuevas parten del último commit y no los ven.</p>}
+    {resource.error && <ErrorNotice error={resource.error} retry={reload} />}
+    {!data.guard.installed && <p className="tw-warning" role="status">Las protecciones de Git no están activas en este repositorio.</p>}
+    {data.base.uncommitted > 0 && <p className="inc-hint">{base} tiene {files(data.base.uncommitted)} sin guardar.</p>}
 
-    <section className="inc-section" aria-label="Plan del orquestador">
-      <h3 className="inc-heading">Plan del orquestador</h3>
-      {data.plan ? <><p className="inc-plan">{data.plan}</p>{data.planUpdatedAt && <p className="tw-muted">Actualizado {when(data.planUpdatedAt)}</p>}</> : <EmptyState className="tw-empty" size="compact" description="El orquestador aún no ha publicado un plan." />}
-    </section>
+    {section('Ahora', cola.now)}
+    {section('Siguen', cola.next)}
+    {section('Devueltas', cola.returned, { session: true, returned: true })}
+    {!cola.counts.open && <EmptyState size="compact" title="Nada en cola" description="Las ramas listas aparecen en Ramas." />}
 
-    <section className="inc-section" aria-label="Cola de incorporación">
-      <h3 className="inc-heading">Cola{data.queue.length ? ` · ${data.queue.length}` : ''}</h3>
-      {merging && <p className="inc-now" role="status">Incorporando ahora: <b>{merging.title}</b> en {base}</p>}
-      {!data.queue.length && <EmptyState className="tw-empty" size="compact" description="Nada espera a ser incorporado." />}
-      <ol className="inc-list">{data.queue.map(item => <Row key={item.id} item={item} position={item.position} status={REQUEST[item.status]} tone={item.status} focus={focus}>
-        {item.summary && <p>{item.summary}</p>}
-        <p className="inc-meta" title={item.branch}>{short(item.branch)}{item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''} · solicitada {when(item.requestedAt)}</p>
-        {item.note && <p className="inc-note">Orquestador: {item.note}</p>}
-        {item.status === 'conflict' && <p className="inc-conflict">Conflicto en {item.conflicts?.join(', ') || 'archivos sin identificar'}. Su terminal debe actualizar la rama desde {base} y volver a enviarla.</p>}
-        {item.stale && item.status === 'queued' && <p className="inc-meta">La rama tiene commits posteriores a la solicitud; se incorporará el commit enviado ({item.headOid.slice(0, 8)}).</p>}
-        <Overlaps items={item.overlaps} /><Files item={item} />
-      </Row>)}</ol>
-    </section>
-
-    <section className="inc-section" aria-label="Trabajo en curso">
-      <h3 className="inc-heading">En curso{data.active.length ? ` · ${data.active.length}` : ''}</h3>
-      {!data.active.length && <EmptyState className="tw-empty" size="compact" description="Ninguna terminal tiene trabajo sin solicitar." />}
-      <ul className="inc-list">{data.active.map(item => <Row key={item.nodeId} item={item} status={WORK[item.status] || item.status} tone={item.status} focus={focus}>
-        {(item.step || item.cardTitle) && <p>{item.step || item.cardTitle}</p>}
-        <p className="inc-meta" title={item.branch}>{item.missing ? `${short(item.branch)} · rama no encontrada` : `${short(item.branch)} · ${item.ahead ? `${commits(item.ahead)} por incorporar` : 'sin commits nuevos'}${item.behind ? ` · ${commits(item.behind)} detrás de ${base}` : ''}${item.uncommitted ? ` · ${files(item.uncommitted)} sin commitear` : ''}${item.running ? '' : ' · sin sesión activa'}`}</p>
-        <Overlaps items={item.overlaps} /><Files item={item} />
-      </Row>)}</ul>
-    </section>
-
-    {data.history.length > 0 && <details className="inc-section inc-history">
-      <summary className="inc-heading">Historial · {data.history.length}</summary>
-      <ul className="inc-list">{data.history.map(item => <Row key={item.id} item={item} status={REQUEST[item.status]} tone={item.status} focus={focus}>
-        {item.summary && <p>{item.summary}</p>}
-        <p className="inc-meta" title={item.branch}>{short(item.branch)}{item.mergedOid ? ` · ${item.mergedOid.slice(0, 8)}` : ''} · {when(item.finishedAt || item.updatedAt)}</p>
-        {item.status === 'rejected' && item.note && <p className="inc-note">Motivo: {item.note}</p>}
-      </Row>)}</ul>
+    {data.plan && <details className="inc-fold"><summary>Plan del orquestador</summary><p className="inc-plan">{data.plan}</p></details>}
+    {closed > 0 && <details className="inc-fold">
+      <summary>Historial · {closed}</summary>
+      {cola.today.length > 0 && <section className="inc-section" aria-label="Integradas hoy"><h4 className="inc-heading">Hoy</h4>{rows(cola.today, { path: false })}</section>}
+      {cola.earlier.length > 0 && <section className="inc-section" aria-label="Integradas antes"><h4 className="inc-heading">Antes</h4>{rows(cola.earlier, { path: false })}</section>}
     </details>}
+    <details className="inc-fold">
+      <summary>Detalles</summary>
+      <button type="button" className="inc-button" disabled={op.busy} onClick={() => configure({ enabled: false }, 'Incorporaciones desactivado')}>Desactivar Incorporaciones</button>
+      <p className="inc-hint">{data.checks?.command ? <>Tests antes de integrar: <code>{data.checks.command}</code>. </> : 'Sin tests configurados. '}{data.guard.installed ? 'Las protecciones de Git están instaladas en el repositorio; se quitan al desactivar.' : data.guard.reason || ''}</p>
+    </details>
   </div>;
 }
-import EmptyState from './EmptyState.jsx';

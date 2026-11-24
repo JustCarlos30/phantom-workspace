@@ -1,0 +1,40 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Git</title><link rel="stylesheet" href="shared.css"><style>
+.wrap{display:grid;grid-template-columns:1fr 380px;height:100%}.main{padding:32px 32px 0 40px;overflow:hidden}.side{background:rgba(255,255,255,.025);padding:32px 28px;display:flex;flex-direction:column}
+.hd{display:flex;align-items:center;margin-bottom:22px}.hd .sp{flex:1}
+.r{display:flex;align-items:center;gap:14px;height:64px;padding:0 14px 0 18px}.r.sel{background:var(--fill2)}
+.r .tx{flex:1;min-width:0}.r .tx b{display:block;font:600 14px/20px var(--sans)}.r .tx span{display:block;color:var(--muted);font:400 13px/18px var(--sans)}
+.r .chip{width:112px;justify-content:flex-start}.r .btn{width:132px}.r .none{width:132px}
+.gl{margin-top:22px}
+.path{display:flex;align-items:center;margin:22px 0 26px}.st{display:flex;flex-direction:column;align-items:center;gap:8px;font:500 12px/16px var(--sans);color:var(--ink3);width:58px;white-space:nowrap}
+.st u{width:26px;height:26px;border-radius:13px;background:var(--fill2);display:grid;place-items:center;color:var(--ink3)}
+.st.ok{color:var(--ink)}.st.ok u{background:var(--success);color:#0c2217}.st.nx{color:var(--ink)}.st.nx u{background:none;box-shadow:0 0 0 2px var(--accent) inset}
+.ln{flex:1;height:2px;background:var(--fill2);margin-bottom:24px}.ln.ok{background:var(--success)}
+.f{display:flex;align-items:center;gap:10px;height:36px;font:500 12.5px/18px var(--mono);color:var(--ink)}.f span{margin-left:auto;font-variant-numeric:tabular-nums}.f .p{color:var(--success)}.f .m{color:var(--danger);margin-left:8px}
+.side h2{font:650 20px/26px var(--sans);letter-spacing:-.01em}.side .sp{flex:1}
+.auto{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:var(--s2);margin-top:14px}.auto p{flex:1;font:550 13px/18px var(--sans)}.auto p span{display:block;font-weight:400;color:var(--muted)}
+</style>
+<div class="sheet"><div class="wrap"><div class="main">
+ <div class="hd"><h1 class="big">Git</h1><span class="sp"></span><div class="seg"><b class="on">Ramas</b><b>Historial</b><b>Cola · 1</b></div></div>
+ <div class="grp"><div class="r"><div class="tx"><b>main</b><span>1 archivo sin guardar · README.md</span></div><span class="chip a">Sin guardar</span><span class="btn" data-i="save" data-c="s">Guardar</span></div></div>
+ <p class="gl">5 ramas de tus sesiones</p>
+ <div class="grp">
+  <div class="r"><div class="tx"><b>Navegación del canvas</b><span>Canvas.jsx choca con main</span></div><span class="chip d">Conflicto</span><span class="btn">Ir a la sesión</span></div>
+  <div class="r sel"><div class="tx"><b>Tests de cámara</b><span>2 commits · 5 archivos</span></div><span class="chip ok">Lista</span><span class="btn p">Integrar</span></div>
+  <div class="r"><div class="tx"><b>Glifos de sesión</b><span>El orquestador la está integrando</span></div><span class="chip w">Integrando</span><span class="none"></span></div>
+  <div class="r"><div class="tx"><b>Rediseño de navegación</b><span>3 archivos sin guardar</span></div><span class="chip w">Trabajando</span><span class="none"></span></div>
+  <div class="r"><div class="tx"><b>Protección de inercia</b><span>Ya está en main · sesión cerrada</span></div><span class="chip">En main</span><span class="btn q">Limpiar</span></div>
+ </div>
+</div>
+<aside class="side"><h2>Tests de cámara</h2><p class="sub">Claude · terminó hace 6 min</p>
+ <div class="path"><div class="st ok"><u data-i="check" data-c="s"></u>Guardada</div><div class="ln ok"></div><div class="st ok"><u data-i="check" data-c="s"></u>Al día</div><div class="ln"></div><div class="st nx"><u></u>Tests</div><div class="ln"></div><div class="st"><u></u>En main</div></div>
+ <p class="gl" style="padding-left:0;margin:0 0 4px">Cambios</p>
+ <div class="f">test/canvas-camera.test.mjs<span class="p">+84</span><span class="m">−12</span></div>
+ <div class="f">src/hooks/useCanvasCamera.js<span class="p">+9</span><span class="m">−4</span></div>
+ <div class="f">src/hooks/panelFraming.js<span class="p">+3</span><span class="m">−1</span></div>
+ <div class="f" style="color:var(--muted);font-family:var(--sans)">2 archivos más</div>
+ <span class="sp"></span>
+ <span class="btn p" style="height:44px;border-radius:22px">Integrar en main</span>
+ <span class="btn" style="height:44px;border-radius:22px;margin-top:8px">Ver diferencias</span>
+ <div class="auto"><p>Integrar sola al terminar<span>El orquestador corre los tests y la sube</span></p><div class="sw on"></div></div>
+</aside></div></div>
+<script src="shared.js"></script><script>shell({active:'git',gitBadge:2})</script>

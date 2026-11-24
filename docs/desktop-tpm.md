@@ -1,74 +1,93 @@
-# Prerrequisito TPM local de Phantom
+# TPM local de Phantom: diagnóstico y trabajo pendiente
 
-Este diagnóstico comprueba exclusivamente un roundtrip sintético de sellado con
-`systemd-creds`, solicitando explícitamente TPM2 y PCR7. No implementa una clave TLS
-hardware no exportable ni acredita defensa frente a root. No cierra el proyecto
-de escritorio/móvil ni constituye una garantía bancaria.
+Estado: **diagnóstico disponible, ninguna clave de Phantom usa el TPM.** La clave
+TLS móvil (`mobile-tls/key.pem`), la auditoría y el estado privado siguen siendo
+archivos 0600 del usuario. Nada de esto protege frente a root ni frente a otros
+procesos del mismo usuario. No es una garantía bancaria.
 
-## Ejecución manual segura
-
-Desde la raíz del proyecto, con el usuario habitual:
+## Diagnóstico
 
 ```sh
-node scripts/desktop-tpm-probe.mjs
+npm run probe:tpm        # equivale a: node scripts/desktop-tpm-probe.mjs
 ```
 
-No acepta argumentos. Importar el módulo no ejecuta el diagnóstico. La API
-`probeDesktopTPM({ runner })` permite un runner de pruebas; la CLI siempre utiliza
-`/usr/bin/systemd-creds`, sin shell, con estos argv fijos:
+No acepta argumentos e importar el módulo no ejecuta nada. La API
+`probeDesktopTPM({ runner })` admite un runner sólo para pruebas; la CLI siempre usa
+`/usr/bin/systemd-creds`, sin shell, con argv fijos:
 
 ```text
---user --no-ask-password --name=phantom-capability-probe --with-key=tpm2 --tpm2-pcrs=7 encrypt - -
+--user --no-ask-password --name=phantom-capability-probe --with-key=host+tpm2 --tpm2-pcrs=7 encrypt - -
 --user --no-ask-password --name=phantom-capability-probe --refuse-null decrypt - -
 ```
 
-Se generan 32 bytes aleatorios sintéticos, se pasan por stdin y se recoge stdout
-mediante pipes privados. Cada proceso tiene timeout de 20 segundos y límite de
-1 MiB por salida. Se comparan longitud y contenido, y se ponen a cero los buffers
-accesibles de datos, cifrado y diagnósticos al terminar, también ante fallos. Esto
-no garantiza borrar copias internas de Node, del sistema operativo o de systemd.
-No se escriben credenciales en archivos ni se imprimen datos, cifrado, claves,
-entorno o stderr del proceso. Solo se emite JSON con estado, etapa y razón fija;
-salida 0 significa roundtrip correcto, salida 1 indica fallo.
+Sella 32 bytes aleatorios sintéticos por stdin, los abre y compara longitud y
+contenido. Timeout de 20 s y límite de 1 MiB por salida; pone a cero los buffers
+accesibles al terminar (no las copias internas de Node, del SO ni de systemd). No
+escribe archivos ni imprime datos, cifrado, entorno o stderr: sólo JSON
+`{ok,stage,reason}` con razón fija; salida 0 = roundtrip correcto.
 
-No hay fallback a host, null o auto, reintentos con menor protección, elevación,
-cambios de permisos, grupo tss, políticas polkit, Secure Boot o estado persistente
-del TPM. La prueba no instala paquetes, hace enroll/reset ni cambia el arranque
-automático. Puede usar la mediación legítima que systemd ya tenga disponible.
+`host+tpm2` exige **a la vez** el TPM y la clave de host de systemd: es igual o más
+estricto que `tpm2` solo. No hay fallback a `host`, `null` ni `auto`, ni reintentos,
+elevación, cambios de grupo `tss`, polkit, Secure Boot, enroll o reset.
 
-## Evidencia y bloqueos pendientes
+### Evidencia en este equipo (2026-11-24)
 
-- El controlador padre informó systemd 262 con soporte TPM2, presencia de
-  `/dev/tpm0` y `/dev/tpmrm0`, ausencia de acceso directo para uid 1000 y ausencia
-  de tpm2-tools/proveedor TPM de OpenSSL. Son datos aportados, no mediciones de
-  este script.
-- La lectura solicitada de
-  `/usr/share/polkit-1/actions/io.systemd.credentials.policy` y la búsqueda del
-  manual local de systemd-creds fueron denegadas por la herramienta por estar
-  fuera del ámbito permitido. Sigue pendiente revisar política y help/documentación
-  local; no se presume que autoricen este uso.
-- El resultado hardware real y las pruebas unitarias quedan pendientes de los
-  checks del controlador. Los casos nuevos se importan desde
-  `test/desktop-security.test.mjs` para participar en el check existente.
-- Si falla la autorización, `authorization-denied` es una clasificación acotada,
-  no el diagnóstico completo. Conservar como evidencia el stderr del check
-  hardware independiente del controlador y reportar su causa exacta. Otros
-  mensajes pueden quedar como `subprocess-failed`; no deducir éxito ni una causa
-  específica de esa etiqueta. No repetir reparaciones sin un cambio externo.
-  No recomendar permisos globales ni ejecutar toda la app como root.
+- systemd 262.2 (Arch); `systemd-analyze has-tpm2` → `yes` (firmware, driver,
+  system, subsystem y libtss2 presentes).
+- `/dev/tpm0` (`tss:root 0660`) y `/dev/tpmrm0` (`root:tss 0660`); uid 1000 no está
+  en el grupo `tss`: sin acceso directo al TPM.
+- Con `--with-key=tpm2` en modo `--user` systemd responde
+  `Selected key not available in --uid= scoped mode, refusing.` (era el bloqueo del
+  borrador anterior). En modo de usuario systemd sólo ofrece claves con ámbito de
+  usuario que combinan host y TPM.
+- Con `--with-key=host+tpm2 --tpm2-pcrs=7` el roundtrip funciona sin contraseña ni
+  privilegios: `{"ok":true,"stage":"roundtrip","reason":"systemd-host-tpm2-pcr7-roundtrip-only"}`.
+  La mediación la hace el servicio de credenciales de systemd según su política
+  polkit local; el probe no la modifica.
 
-## Límites y siguiente camino
+## Lo que el roundtrip NO acredita
 
-`systemd-creds decrypt` devuelve plaintext al host: sellar una credencial no es
-firmar TLS con una clave que nunca sale del hardware. Incluso un roundtrip
-correcto solo acredita la operación solicitada en ese equipo y momento.
-Para TLS no exportable hace falta un proveedor OpenSSL TPM2/PKCS11 o un broker
-de firma aislado con política propia; su diseño, autorización y verificación
-son trabajo posterior. No se cambian listeners ni identidades existentes.
+`systemd-creds decrypt` devuelve el plaintext al proceso: sellar no es firmar con
+una clave que nunca sale del hardware. Cualquier proceso del mismo usuario puede
+pedir el mismo descifrado. El resultado sólo vale para este equipo y este momento.
 
-Antes de adoptar PCR7 para credenciales duraderas o actualizar PCR/política,
-firmware o Secure Boot, definir y probar recuperación: copia recuperable por una
-vía independiente autorizada, responsables y procedimiento de restauración o
-reemisión de identidad. Cambios de firmware o de política de arranque pueden
-impedir abrir credenciales selladas. Este probe es efímero y no configura esa
-recuperación ni modifica el arranque.
+## Pendiente (bloqueado; requiere decisiones o cambios del usuario)
+
+Nada de esto está en el código distribuido. No se debe simular ni sustituir por
+alternativas más débiles.
+
+1. **Clave TLS móvil no exportable.** Necesita un proveedor de firma TPM:
+   - OpenSSL 3 + `tpm2-openssl` (provider) o `tpm2-pkcs11`, instalados por el
+     usuario, p. ej. `sudo pacman -S tpm2-openssl tpm2-tools`.
+   - Acceso al TPM para el usuario del host: `sudo usermod -aG tss "$USER"` y nueva
+     sesión, **o** un broker de firma aislado (servicio systemd con política propia)
+     que sólo exponga «firmar handshake TLS» por un socket local. El grupo `tss` da
+     acceso al TPM a todos los procesos del usuario; el broker es la opción
+     recomendada, pero hay que diseñarlo, autorizarlo y probarlo.
+   - Adaptar `host/mobile-tls.mjs` para crear la clave dentro del TPM y firmar a
+     través del provider/broker. Node no carga providers OpenSSL externos por
+     defecto: antes hay que verificar el soporte en el runtime empaquetado
+     (`resources/runtime/node`).
+2. **Migración de claves existentes.** La clave de `mobile-tls/key.pem` no se puede
+   mover al TPM: hay que generar una identidad TPM nueva, mostrar la nueva huella y
+   volver a vincular los teléfonos (QR nuevo). Decisión del usuario: cuándo hacerlo
+   y si borrar la clave antigua.
+3. **Secretos en reposo (opcional).** Sellar con `systemd-creds --user
+   --with-key=host+tpm2` credenciales guardadas por Phantom es posible hoy, pero no
+   protege frente al mismo usuario y añade riesgo de pérdida. Requiere decidir qué
+   secretos y resolver antes el punto 4.
+4. **Recuperación ante cambios de PCR7.** Actualizar firmware, claves de Secure Boot
+   o shim cambia PCR7 e impide abrir lo sellado. Antes de sellar nada duradero:
+   definir copia recuperable por vía independiente, responsable y procedimiento de
+   reemisión (para TLS basta volver a vincular).
+5. **Autenticación administrativa.** Enroll, grupo `tss`, políticas polkit de
+   `io.systemd.credentials` y Secure Boot necesitan `sudo` y quedan fuera de
+   Phantom: Phantom no pide ni guarda contraseñas de administrador ni se ejecuta
+   como root.
+
+## Pruebas
+
+`test/desktop-tpm.test.mjs` (incluida en `npm test`) fija ejecutable, argv
+`host+tpm2`/PCR7, pipes privados, límites y borrado de buffers; comprueba que un
+fallo al sellar nunca reintenta con otra clave, que no se filtran diagnósticos del
+hijo y que se detectan discrepancias de longitud o contenido. No usa el TPM real.

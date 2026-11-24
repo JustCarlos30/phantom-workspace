@@ -1,0 +1,28 @@
+import React from 'react';
+import { ToolContent, NativeForm } from '../components/ToolPanels';
+import { PluginPanels } from '../components/PluginPanels';
+import { PluginCenter } from '../components/PluginCenter';
+import Plugins from '../components/Plugins';
+import CommandCenter from '../components/CommandCenter';
+import ToolOutput from '../components/ToolOutput';
+import Environment from '../components/Environment';
+import { demo, Panel } from './decorators';
+import { environmentNodes } from './fixtures';
+
+export default { title: 'Herramientas' };
+export const CentroDeMando = { render: () => <Panel><div className="tw-tool-panel"><div className="tw-content"><CommandCenter {...demo} /></div></div></Panel> };
+export const CentroCargando = { ...CentroDeMando, parameters: { host: { scenario: 'loading' } } };
+export const CentroVacio = { ...CentroDeMando, parameters: { host: { scenario: 'empty' } } };
+export const CentroError = { ...CentroDeMando, parameters: { host: { scenario: 'error' } } };
+export const PluginsCentro = { render: () => <Panel><PluginCenter {...demo} /></Panel> };
+export const PluginsCompatibilidad = { render: () => <Panel><Plugins {...demo} /></Panel> };
+export const PluginPanel = { render: () => <Panel><PluginPanels {...demo} type="phantom-cards" /></Panel> };
+export const Trabajo = { render: () => <Panel><ToolContent {...demo} type="tasks" /></Panel> };
+export const Borradores = { render: () => <Panel><NativeForm {...demo} /></Panel> };
+export const Misiones = { render: () => <Panel><ToolContent {...demo} type="mission" /></Panel> };
+export const Entorno = { render: () => <Panel><Environment {...demo} workspace={{ ...demo.workspace, nodes: [...demo.workspace.nodes, ...environmentNodes] }} /></Panel>, parameters: { host: { scenario: 'environment' } } };
+export const Docker = { render: () => <Panel><ToolContent {...demo} type="docker" /></Panel> };
+export const Secuencias = { render: () => <Panel><ToolContent {...demo} type="workflows" bare /></Panel> };
+export const NavegadorAutomatico = { render: () => <Panel><ToolContent {...demo} type="playwright" /></Panel> };
+export const Codigo = { render: () => <Panel><ToolContent {...demo} type="playground" /></Panel> };
+export const Salida = { render: () => <ToolOutput kind="bash" part={{ type: 'tool', name: 'bash', status: 'completed', output: 'Salida sintética\nSin ejecución real', input: { command: 'ejemplo' } }} /> };

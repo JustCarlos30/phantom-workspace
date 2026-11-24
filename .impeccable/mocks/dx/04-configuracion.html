@@ -1,0 +1,36 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Configuración</title><link rel="stylesheet" href="shared.css"><style>
+.wrap{display:grid;grid-template-columns:264px 1fr;height:100%}.nav{background:rgba(255,255,255,.025);padding:32px 14px}.nav h1{padding:0 12px 20px}
+.n{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:12px;font:500 14px/20px var(--sans);color:var(--ink)}.n.on{background:var(--on);color:var(--on-ink)}
+.n u{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--c);color:#17111f}
+.main{padding:36px 56px 0 48px;overflow:hidden}.main h2{font:650 22px/28px var(--sans);letter-spacing:-.01em;margin-bottom:22px}
+.r{display:flex;align-items:center;gap:14px;min-height:56px;padding:9px 16px 9px 18px}.r .tx{flex:1}.r .tx b{display:block;font:500 14px/20px var(--sans)}.r .tx span{display:block;color:var(--muted);font:400 13px/18px var(--sans)}
+.r .v{color:var(--muted);font:400 14px/20px var(--sans);display:flex;align-items:center;gap:6px}.r .v.ok{color:var(--success)}
+.gl{margin-top:24px}.gl:first-of-type{margin-top:0}.cols{max-width:720px}
+</style>
+<div class="sheet"><div class="wrap"><nav class="nav"><h1 class="big">Configuración</h1>
+ <div class="n on"><u style="--c:#b79df0" data-i="bot" data-c="s"></u>Agentes</div>
+ <div class="n"><u style="--c:#8fd0ad" data-i="git" data-c="s"></u>Git e integración</div>
+ <div class="n"><u style="--c:#e6c48c" data-i="sun" data-c="s"></u>Apariencia</div>
+ <div class="n"><u style="--c:#8cc6f5" data-i="mic" data-c="s"></u>Voz</div>
+ <div class="n"><u style="--c:#f2a6c8" data-i="phone" data-c="s"></u>Teléfono</div>
+ <div class="n"><u style="--c:#b9b4c6" data-i="folder" data-c="s"></u>Datos y respaldo</div>
+ <div class="n"><u style="--c:#8d8b96" data-i="wrench" data-c="s"></u>Avanzado</div>
+</nav><div class="main"><div class="cols"><h2>Agentes</h2>
+ <p class="gl">Al abrir una sesión nueva</p>
+ <div class="grp">
+  <div class="r"><div class="tx"><b>Agente</b></div><div class="seg"><b class="on">Claude</b><b>Codex</b><b>OpenCode</b><b>Terminal</b></div></div>
+  <div class="r"><div class="tx"><b>Modelo</b></div><span class="v">El recomendado</span><span data-i="right" data-c="s" style="color:var(--ink3);display:grid"></span></div>
+  <div class="r"><div class="tx"><b>Cuánto puede hacer solo</b><span>Pide permiso para borrar, publicar o salir de su carpeta</span></div><div class="seg"><b>Pregunta todo</b><b class="on">Autónomo</b><b>Total</b></div></div>
+ </div>
+ <p class="gl">Phantom</p>
+ <div class="grp">
+  <div class="r"><div class="tx"><b>Tareas y memoria de Phantom</b><span>Cards, decisiones y skills del proyecto</span></div><span class="v ok" data-i="check" data-c="s">Conectado</span></div>
+  <div class="r"><div class="tx"><b>Modelo para ejecutar tareas</b></div><span class="v">El mismo del agente</span><span data-i="right" data-c="s" style="color:var(--ink3);display:grid"></span></div>
+ </div>
+ <p class="gl">Tus cuentas</p>
+ <div class="grp">
+  <div class="r"><div class="tx"><b>Claude</b><span>Plan Max · 62 % usado esta semana</span></div><span class="v ok" data-i="check" data-c="s">Sesión iniciada</span></div>
+  <div class="r"><div class="tx"><b>Codex</b><span>Sin sesión en este equipo</span></div><span class="btn">Iniciar sesión</span></div>
+ </div>
+</div></div></div></div>
+<script src="shared.js"></script><script>shell({active:'cfg',need:3,gitBadge:2})</script>

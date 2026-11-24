@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await fs.mkdtemp('/tmp/opencode/phantom-sidebar-');
@@ -42,7 +43,25 @@ try {
     const rail = page.locator('.project-rail');
     assert.equal(await rail.locator('.rail-panel-group').count(), 2);
     assert.equal(await rail.getByRole('navigation', { name: 'Sesiones' }).locator('.rail-panel-row').count(), 1);
-    assert.equal(await rail.getByRole('navigation', { name: 'Recursos' }).locator('.rail-panel-row').count(), 2);
+    assert.equal(await rail.getByRole('navigation', { name: 'En el mapa' }).locator('.rail-panel-row').count(), 2);
+    assert.ok(Math.abs((await rail.boundingBox()).width - 272) <= 1 / 64);
+    // Etapa 6·4: no brand label; one selector row «project / space» heads the rail.
+    assert.equal(await rail.locator('.rail-head > .project-switcher + .rail-spaces').count(), 1);
+    assert.equal(await rail.locator('.rail-head-separator').count(), 0);
+    assert.doesNotMatch(await rail.locator('.rail-head').innerText(), /Phantom\s*Workspace/);
+    const [projectBox, spaceBox] = [await rail.locator('.project-switcher > summary').boundingBox(), await rail.locator('.space-switcher-trigger').boundingBox()];
+    assert.ok(Math.abs((projectBox.y + projectBox.height / 2) - (spaceBox.y + spaceBox.height / 2)) <= 1, 'Project and space share one row');
+    assert.equal(await rail.locator('.rail-head + .rail-attention').count(), 1, 'Attention is the first row under the head');
+    const row = rail.locator('.rail-session-row').first();
+    assert.ok(Math.abs((await row.boundingBox()).height - 56) <= 1 / 64);
+    assert.ok(Math.abs((await row.locator('.rail-agent-mark').boundingBox()).width - 32) <= 1 / 64);
+    assert.ok(Math.abs((await row.locator('.rail-agent-mark svg').boundingBox()).width - 18) <= 1 / 64);
+    assert.equal(await rail.locator('.rail-session-dot').count(), 0);
+    const rest = await row.boundingBox();
+    await row.locator('button').first().hover(); await page.mouse.down();
+    assert.deepEqual(await row.boundingBox(), rest, 'Press keeps the full rectangular row still');
+    assert.equal(await row.evaluate(el => getComputedStyle(el).borderRadius), '12px');
+    await page.mouse.up();
     await rail.getByTitle('Revisar navegación · Ver en el mapa', { exact: true }).click();
     await page.locator('.canvas-node.selected').waitFor();
     const screen = await page.locator('.xterm-screen').elementHandle();
@@ -65,6 +84,7 @@ try {
       assert.ok(bottom.y + bottom.height <= height, 'Utilities stay within the window');
       assert.ok(await rail.locator('.rail-panel-scroll').evaluate(el => el.clientHeight > 40), 'Panel navigation retains usable space');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      assert.equal(await rail.locator('.rail-session-status').evaluate(el => el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().right <= el.closest('.rail-panel-label').getBoundingClientRect().right + 1), true, 'Status remains readable');
       await page.screenshot({ path: path.join(temp, `desktop-${width}.png`) });
     }
     await rail.getByRole('button', { name: 'Contraer barra lateral', exact: true }).click();
@@ -76,6 +96,6 @@ try {
   }
   console.log(JSON.stringify({ evidence: temp, errors, baseline: !!process.env.SIDEBAR_BASELINE }));
 } finally {
-  await app.close();
+  try { await app.close(); } finally { killElectronGroup(app.process()); }
   if (host) { try { process.kill(host, 'SIGTERM'); } catch {} }
 }

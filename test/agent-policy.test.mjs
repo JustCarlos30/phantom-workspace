@@ -3,14 +3,36 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import net from 'node:net';
 import { execFileSync } from 'node:child_process';
-import { agentShims, bootstrapAgentPolicy, mergeAgentConfig, shimmedPath, terminalPolicy } from '../host/agent-policy.mjs';
+import { POLICY_HINTS, agentShims, bootstrapAgentPolicy, mergeAgentConfig, shimmedPath, terminalPolicy } from '../host/agent-policy.mjs';
 import { Merges } from '../host/merges.mjs';
 import { providerArgs } from '../host/chats.mjs';
 import { agentContext } from '../host/agents.mjs';
-import { createHost } from '../host/server.mjs';
+import { createHost, phantomInstructions } from '../host/server.mjs';
 import { main as agentCLI } from '../scripts/agent.mjs';
 import { handleIntegration } from '../integrations/index.mjs';
+import { CLAUDE_CLIENT, DEFAULT_HARNESS_MODEL, assertClaudeClient, assertContractClaudeOnly, claudeModelCatalog, contractModels, describeExecution, isClaudeModel, resolveHarnessModel } from '../shared/execution-policy.mjs';
+
+test('las reglas de admisión de contrato aparecen en terminalPolicy y phantomInstructions', () => {
+  const base = { workspaceId: 'w', nodeId: 'n', cwd: '/tmp/x', branch: 'b' };
+  for (const sessionId of ['s1', undefined]) {
+    const text = terminalPolicy({ ...base, sessionId });
+    assert.ok(text.includes('minNewPassedTests'));
+    assert.ok(text.includes('exact files, never directories'));
+    assert.ok(text.includes(POLICY_HINTS.contract));
+  }
+  assert.ok(phantomInstructions({ name: 'p', canonicalPath: '/tmp/p', nodes: [] }).includes(POLICY_HINTS.contract));
+});
+
+test('la política incluye la regla de corte paralelo exactamente una vez', () => {
+  const texts = [
+    terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' }),
+    phantomInstructions({ name: 'Project', canonicalPath: '/project' }),
+  ];
+  for (const text of texts) assert.equal(text.split(POLICY_HINTS.parallel).length - 1, 1);
+  for (const needle of ['coordination.maxConcurrency', 'disjoint files', '`dependencies`']) assert.ok(POLICY_HINTS.parallel.includes(needle));
+});
 
 function temporary(t, cleanup = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-policy-test-'));
@@ -38,6 +60,38 @@ async function until(fn) {
   }
   throw new Error('Timed out waiting for bootstrap PTY observation');
 }
+
+test('central Claude Code policy: defaults, aliases, rejection of other engines, contract walk and provenance', () => {
+  assert.equal(DEFAULT_HARNESS_MODEL, 'claude-code/sonnet'); assert.equal(CLAUDE_CLIENT, 'claude');
+  assert.deepEqual(resolveHarnessModel(undefined, '', null), { model: 'claude-code/sonnet', source: 'default' });
+  assert.deepEqual(resolveHarnessModel('', { model: 'opus' }), { model: 'claude-code/opus', source: 'contract' });
+  assert.deepEqual(resolveHarnessModel('claude-code/sonnet', { model: 'claude-code/haiku' }, 'opus'), { model: 'claude-code/haiku', source: 'contract' });
+  assert.deepEqual(resolveHarnessModel('sonnet', {}, 'opus'), { model: 'claude-code/sonnet', source: 'payload' });
+  assert.deepEqual(resolveHarnessModel(undefined, {}, 'opus'), { model: 'claude-code/opus', source: 'config' });
+  assert.throws(() => resolveHarnessModel('sonnet', { model: 'openai/gpt-5' }), /no es Claude Code/);
+  assert.equal(resolveHarnessModel('claude-code/claude-sonnet-5-5').model, 'claude-code/claude-sonnet-5-5');
+  assert.deepEqual(describeExecution({ requested: 'openai/gpt-5' }).engine, 'desconocido');
+  for (const bad of ['openai/gpt-5', 'opencode/x', 'provider/model', 'gpt-test', 'claude-code/', 'sonnet;rm', '--model', 42]) {
+    assert.equal(isClaudeModel(bad), false, String(bad));
+    assert.throws(() => resolveHarnessModel(bad), /no es Claude Code/);
+  }
+  assert.throws(() => assertClaudeClient('opencode'), /Claude Code/); assert.throws(() => assertClaudeClient('codex'), /Claude Code/); assert.equal(assertClaudeClient('claude'), 'claude');
+  assert.deepEqual(contractModels({ model: 'a', judge: { model: 'b' }, coordination: { children: [{ id: 'c1', model: 'c', coordination: { children: [{ id: 'g', judge: { model: 'd' } }] } }] } }).map(item => item.model), ['a', 'b', 'c', 'd']);
+  assert.throws(() => assertContractClaudeOnly({ model: 'claude-code/sonnet', coordination: { children: [{ id: 'x', model: 'openai/gpt' }] } }), /hijo x/);
+  assert.equal(assertContractClaudeOnly({ goal: 'sin modelos' }).goal, 'sin modelos');
+  assert.deepEqual(claudeModelCatalog().map(item => item.id), ['claude-code/fable', 'claude-code/opus', 'claude-code/sonnet', 'claude-code/haiku']);
+  // Provenance: requested is never presented as observed.
+  assert.deepEqual(describeExecution({ requested: 'claude-code/opus', requestedSource: 'contract' }), { client: 'claude', engine: 'claude-code', requested: 'claude-code/opus', requestedSource: 'contract', observed: null, status: 'unknown' });
+  assert.deepEqual(describeExecution({ requested: 'claude-code/opus', observed: 'claude-opus-5-5' }).status, 'observed');
+  assert.equal(describeExecution().requested, 'claude-code/sonnet'); assert.equal(describeExecution().requestedSource, 'default');
+});
+
+test('bootstrap policy states the Claude Code engine rule and never imposes OpenCode', () => {
+  const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', sessionId: 's', cwd: '/tmp/x', branch: 'b' });
+  assert.ok(policy.includes(POLICY_HINTS.engine)); assert.match(POLICY_HINTS.engine, /claude-code\/sonnet/);
+  assert.doesNotMatch(policy, /opencode/i);
+  assert.equal(agentContext({ id: 'w', canonicalPath: '/tmp/x' }, { id: 'n', title: 't', data: {} }, null).policy.engine, POLICY_HINTS.engine);
+});
 
 test('inline merge preserves all inherited settings and instruction order without mutation', () => {
   const inherited = {
@@ -108,13 +162,138 @@ test('context keeps existing identity/report fields and exposes worktree and pol
   assert.match(context.policy.registration, /exact worktree/);
   assert.match(context.policy.taskKind, /direct tasks.*coordinated cards/);
   assert.match(context.policy.availability, /blocked/);
+  assert.match(context.policy.processes, /launch "COMANDO".*processes \/ output ID \/ stop ID/);
   assert.equal(agentContext(workspace, node).cwd, '/saved');
   assert.equal(agentContext(workspace, node).branch, 'saved');
   // A current detached/non-Git session must not inherit a stale saved branch.
   assert.equal(agentContext(workspace, node, { worktree: { branch: null } }).branch, null);
   assert.equal(agentContext(workspace, node, { worktree: null }).branch, null);
   const policy = terminalPolicy({ workspaceId: 'workspace', nodeId: 'node', sessionId: 'session', cwd: '/tree', branch: null });
-  for (const text of ['context', 'bind ID', 'report', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes']) assert.ok(policy.includes(text), text);
+  assert.match(policy, /servidores, watchers.*launch "COMANDO"/);
+  assert.match(policy, /no los dejes en primer plano ni en segundo plano de tu propio turno/);
+  assert.match(policy, /Entorno → Procesos/);
+  assert.doesNotMatch(policy, /Automatizar → Procesos/);
+  assert.match(policy, /servicio de compose\.yaml.*env up.*env run.*env\.service.*launch.*no contenerizable/);
+  for (const text of ['context', 'bind ID', 'report', 'run ID', '"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" runs', 'lane direct', 'lane coordinated', 'do/run', 'do not recursively', 'unrelated requests', 'Read-only questions', 'empty shell', 'blocked', 'never completes', '## Communication (Caveman)', 'Lead with the result or the blocker']) assert.ok(policy.includes(text), text);
+});
+
+test('plan and routing guidance appears once in terminal and main chat instructions', () => {
+  const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' });
+  const instructions = phantomInstructions({ name: 'Project', canonicalPath: '/project' });
+  for (const text of [policy, instructions, POLICY_HINTS.planning]) {
+    assert.equal(text.split('card.prepare').length - 1, 1);
+    assert.equal(text.split('Plan y ruteo').length - 1, 1);
+    assert.ok(text.includes(POLICY_HINTS.planning));
+    assert.match(text, /Before registering a task or card.*resolve and load/);
+    assert.match(text, /declare it in the contract: lane, children only if justified, model\/variant proportional to difficulty \(fast mechanical work on the economical model\), budget\.maxTokens, and judge when project policy requires it/);
+    assert.match(text, /If the skill or those fields are unavailable in the installed harness, continue with the contract it admits and say so in the report; never invent fields/);
+  }
+});
+
+test('chat execution guidance registers tasks and hands runs to the host', () => {
+  const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', cwd: '/tree' });
+  const instructions = phantomInstructions({ name: 'Project', canonicalPath: '/project' });
+  for (const text of [policy, instructions]) {
+    const paragraph = text.split('\n\n').find(part => part.startsWith('Do not launch `phantom do`'));
+    assert.ok(paragraph);
+    for (const command of ['phantom do', 'phantom run', 'phantom create', 'phantom card', 'run ID [MODEL]', 'phantom show ID', 'runs']) {
+      assert.ok(paragraph.includes(command), command);
+    }
+    assert.match(paragraph, /both die when the turn ends/);
+    assert.match(paragraph, /scope and checks/);
+    assert.match(paragraph, /hands it to the host and survives your turn/);
+    assert.match(paragraph, /do not relaunch a task already shown as running/);
+  }
+});
+
+test('agent run validates arguments before contacting the host and requires workspace identity', async () => {
+  for (const args of [
+    ['run'], ['run', '-id'], ['run', 'id', 'model', 'extra'],
+    ...['', ' ', 'id\n', 'id\x7f', 'x'.repeat(513)].map(id => ['run', id]),
+    ...['', ' ', 'model\n', 'model\x7f', 'x'.repeat(201)].map(model => ['run', 'id', model]),
+    ['runs', 'extra'],
+  ]) await assert.rejects(agentCLI(args, {}), /Uso/);
+  for (const args of [['run', 'id'], ['runs']]) {
+    await assert.rejects(agentCLI(args, {}), /Falta la identidad de terminal; abre una sesión nueva en Phantom Workspace\./);
+  }
+});
+
+test('agent run and runs use host controllers with workspace identity or terminal context', async t => {
+  const root = temporary(t), socketPath = path.join(root, 'host.sock'), calls = [];
+  const descriptor = { id: 'task-id', status: 'running', pid: 123 };
+  const controllers = [descriptor];
+  const server = net.createServer(socket => {
+    socket.setEncoding('utf8');
+    let buffer = '';
+    socket.on('data', chunk => {
+      buffer += chunk;
+      let index;
+      while ((index = buffer.indexOf('\n')) >= 0) {
+        const request = JSON.parse(buffer.slice(0, index));
+        buffer = buffer.slice(index + 1);
+        calls.push({ method: request.method, payload: request.payload });
+        const result = request.method === 'terminal.agent.context' ? { workspaceId: 'terminal-workspace' }
+          : request.method === 'phantom.control' ? descriptor : controllers;
+        socket.write(JSON.stringify({ id: request.id, result }) + '\n');
+      }
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, resolve);
+  });
+  t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  for (const identity of [
+    { PHANTOM_WORKSPACE_ID: 'workspace' },
+    { PHANTOM_WORKSPACE_ID: 'workspace', PHANTOM_TERMINAL_SESSION_ID: 'session' },
+    { PHANTOM_WORKSPACE_ID: 'inconsistent-other-project', PHANTOM_TERMINAL_SESSION_ID: 'session' },
+    { PHANTOM_TERMINAL_SESSION_ID: 'session' },
+  ]) {
+    const env = { ...identity, PHANTOM_WORKSPACE_SOCKET: socketPath };
+    const workspaceId = identity.PHANTOM_TERMINAL_SESSION_ID ? 'terminal-workspace' : identity.PHANTOM_WORKSPACE_ID;
+    const contextCalls = identity.PHANTOM_TERMINAL_SESSION_ID ? [{ method: 'terminal.agent.context', payload: { sessionId: 'session' } }] : [];
+    for (const model of [undefined, 'provider/model']) {
+      calls.length = 0;
+      assert.deepEqual(await agentCLI(['run', 'task-id', ...(model ? [model] : [])], env), descriptor);
+      assert.deepEqual(calls, [...contextCalls, { method: 'phantom.control', payload: { workspaceId, id: 'task-id', action: 'run', ...(identity.PHANTOM_TERMINAL_SESSION_ID ? { sessionId: 'session' } : { main: true }), ...(model ? { model } : {}) } }]);
+    }
+    calls.length = 0;
+    assert.deepEqual(await agentCLI(['runs'], env), controllers);
+    assert.deepEqual(calls, [...contextCalls, { method: 'phantom.controllers', payload: { workspaceId } }]);
+  }
+});
+
+test('policy hints distinguish controlled edits from accepted-work Git finalization without bypass', () => {
+  const context = agentContext({ id: 'w', canonicalPath: '/project' }, { id: 'n', data: { cwd: '/tree' } });
+  assert.deepEqual(context.policy, POLICY_HINTS);
+  assert.match(context.policy.registration, /Before edits.*exact worktree.*writable paths.*acceptance checks/);
+  assert.match(context.policy.execution, /Edits and their tests.*do\/run.*scope and acceptance checks.*without nesting/);
+  assert.match(context.policy.integration, /After acceptance, the parent may invoke.*agent\.mjs merge ID.*scripts\/branches\.mjs integrate BRANCH.*hooks and integration checks enabled/);
+  assert.match(context.policy.integration, /Git finalization belongs to that controller, not do\/run/);
+  for (const prohibition of ['merge through harness acceptance checks', 'ask do/run to modify HEAD', 'grant shell to the executor', 'disable hooks or integration checks', 'edit queue state by hand', 'fake completed task status']) {
+    assert.ok(context.policy.noBypass.includes(prohibition), prohibition);
+  }
+});
+
+test('bootstrap keeps both native authorities and no-bypass guarantees for every integration role', () => {
+  for (const sessionId of [undefined, 'session']) {
+    for (const role of [undefined, 'worker', 'orchestrator']) {
+      const policy = terminalPolicy({ workspaceId: 'w', nodeId: 'n', sessionId, cwd: '/tree', branch: 'feature/work', integration: role ? { role, base: 'main' } : undefined });
+      assert.match(policy, /before editing create or reuse a native Phantom task.*exact worktree.*scope.*acceptance checks/);
+      assert.match(policy, /Edits and their tests belong to the native Phantom CLI do\/run, with the registered scope and acceptance checks/);
+      assert.match(policy, /After acceptance, the parent may invoke.*agent\.mjs merge ID.*scripts\/branches\.mjs integrate BRANCH.*existing role\/authorization requirements, hooks and integration checks/);
+      assert.match(policy, /does not remove mandatory task registration, scope, acceptance checks or native closure/);
+      assert.match(policy, /Acceptance is not proof that a branch has been integrated/);
+      assert.match(policy, /Never merge through harness acceptance checks or ask do\/run to modify HEAD/);
+      assert.match(policy, /Do not grant shell to the executor for Git finalization/);
+      assert.match(policy, /Do not bypass the native controller, disable hooks.*--no-verify.*core\.hooksPath.*strip guard environment.*disable integration checks.*--no-checks.*checks --none.*edit queue state by hand.*fake completed task status/);
+      assert.match(policy, /If acceptance or the authorized integration controller is unavailable, report blocked.*do not substitute raw Git or manual state changes/);
+      assert.match(policy, /A report or consult never completes a task; review means ready for review only/);
+      assert.doesNotMatch(policy, /All (?:controlled effects|effects of controlled work) belong/);
+      if (role === 'worker') assert.match(policy, /Only the orchestrator session integrates work/);
+      if (role === 'orchestrator') assert.match(policy, /merge ID.*host merges exactly the submitted commit/);
+    }
+  }
 });
 
 test('real PTYs inherit isolated bootstrap config for their actual Git worktrees; bind uses host ownership', async t => {
@@ -254,6 +433,21 @@ test('PTY creation fails usefully on malformed host inline config without spawni
   assert.deepEqual(await host.invoke('terminal.list', { workspaceId: workspace.id }), []);
 });
 
+test('terminal PTY env does not inherit PHANTOM_WORKSPACE_ID from the app process', async t => {
+  const root = temporary(t, false), output = path.join(root, 'workspace-id');
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspace = await host.invoke('workspace.open', { path: root });
+  const previous = process.env.PHANTOM_WORKSPACE_ID;
+  process.env.PHANTOM_WORKSPACE_ID = 'app-workspace';
+  let terminal;
+  try { terminal = await host.invoke('terminal.create', { workspaceId: workspace.id, shell: '/bin/sh' }); }
+  finally { if (previous === undefined) delete process.env.PHANTOM_WORKSPACE_ID; else process.env.PHANTOM_WORKSPACE_ID = previous; }
+  await host.invoke('terminal.write', { sessionId: terminal.session.id, data: `printf '%s' "\${PHANTOM_WORKSPACE_ID-unset}" > '${output}'\n` });
+  await until(() => fs.existsSync(output) && fs.readFileSync(output, 'utf8') !== '');
+  assert.equal(fs.readFileSync(output, 'utf8'), 'unset');
+});
+
 // A fake agent that records its argv, one argument per NUL-terminated record.
 function fakeAgents(t) {
   const root = temporary(t), bin = path.join(root, 'bin'), log = path.join(root, 'argv');
@@ -290,6 +484,24 @@ test('Claude Code and Codex started in a Phantom terminal receive the terminal p
     assert.ok(dev.endsWith("cannot reach the app.'''"));
   }
   assert.ok(!policy.includes("'''"));
+});
+
+test('Claude shim adds six async hooks only when terminal hooks are enabled and settings are free', t => {
+  const { run, policy }=fakeAgents(t);
+  const env={PHANTOM_AGENT_CLI:'/x/agent.mjs',PHANTOM_TERMINAL_SESSION_ID:'s'};
+  const argv=run('claude',['hi'],env);
+  assert.deepEqual(argv.slice(0,3),['--append-system-prompt',policy.replace(/\n+$/,''),'--settings']);
+  assert.equal(argv[4],'hi');
+  const hooks=JSON.parse(argv[3]).hooks;
+  assert.deepEqual(Object.keys(hooks).sort(),['PostToolUse','PostToolUseFailure','PreToolUse','SessionEnd','SessionStart','SubagentStop']);
+  for(const [event,entries] of Object.entries(hooks)) {
+    assert.equal(entries.length,1);
+    assert.equal(entries[0].matcher,['PreToolUse','PostToolUse','PostToolUseFailure'].includes(event)?'Agent':undefined);
+    assert.deepEqual(entries[0].hooks,[{type:'command',command:'"${PHANTOM_AGENT_NODE:-node}" "$PHANTOM_AGENT_CLI" subagent',async:true}]);
+  }
+  for(const args of [['--settings','{}','hi'],['--settings={}','hi']])assert.deepEqual(run('claude',args,env),['--append-system-prompt',policy.replace(/\n+$/,''),...args]);
+  assert.deepEqual(run('claude',['hi'],{...env,PHANTOM_AGENT_HOOKS_OFF:'1'}),['--append-system-prompt',policy.replace(/\n+$/,''),'hi']);
+  assert.ok(!run('codex',['hi'],env).includes('--settings'));
 });
 
 test('agent shims stay out of the way when there is nothing to add', t => {

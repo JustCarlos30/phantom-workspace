@@ -1,8 +1,10 @@
 node_modules/
 .claude/worktrees/
 dist/
+storybook-static/
 out/
 .test-artifacts/
 .impeccable/review/*.png
 *.log
 Phantom Workspace.desktop
+__pycache__/

@@ -5,10 +5,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
+import { Branches } from '../host/branches.mjs';
+import { GitPolling } from '../host/merges.mjs';
 import { buildBranches, cardsOf, changeLabel, changeMix, changeTone, contentByBranch, groupByDir } from '../src/hooks/branches-model.mjs';
 
 const clean = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PHANTOM_')));
 const run = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', env: clean(), stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+test('branch polling shares concurrent work and host mutations invalidate object queries', async () => {
+  let rounds = 0, calls = 0;
+  const polling = new GitPolling(async () => { calls++; return '0\t0'; });
+  const base = { source: '/repo', branch: 'main', oid: 'a'.repeat(40) };
+  const w = { id: 'polling', nodes: [] };
+  const branches = new Branches({ store: { getWorkspace: () => w }, terminals: { sessions: [] }, merges: { polling } });
+  branches.repository = async () => { rounds++; return { base, trees: [], branches: [{ name: 'worker', oid: 'b'.repeat(40) }] }; };
+  const [first, second] = await Promise.all([branches.overview(w), branches.overview(w)]);
+  assert.strictEqual(first, second);
+  assert.equal(rounds, 1); assert.equal(calls, 1);
+  await branches.overview(w);
+  assert.equal(calls, 1, 'immutable Git results survive the next poll');
+  branches.act = async () => ({ status: 'removed' });
+  await branches.handle('branch.remove', { workspaceId: w.id });
+  await branches.overview(w);
+  assert.equal(calls, 2, 'a host mutation forces new Git work');
+});
 
 test('Ramas: every branch and worktree is visible, and integration never loses work', async t => {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-branches-'))), repository = path.join(root, 'repository'), dataDir = path.join(root, 'state');
@@ -95,6 +115,63 @@ test('Ramas: every branch and worktree is visible, and integration never loses w
   ({ of } = await read()); assert.equal(of('stale').worktree.exists, false);
   assert.equal((await host.invoke('branch.remove', { workspaceId, branch: 'phantom/terminal-stale' })).status, 'removed');
   ({ data } = await read()); assert.deepEqual(data.branches.map(b => b.name).sort(), ['main', 'phantom/terminal-clash']);
+});
+
+test('Ramas: resolver deja el merge abierto, abortar lo deshace y terminalTarget da la copia propia y el comando', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-branches-'))), repository = path.join(root, 'repository');
+  fs.mkdirSync(repository);
+  const git = (...args) => run(repository, ...args);
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  fs.writeFileSync(path.join(repository, 'shared.txt'), 'base\n'); git('add', '.'); git('commit', '-m', 'Base');
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspaceId = (await host.invoke('workspace.open', { path: repository })).id, branch = 'phantom/terminal-clash', dir = path.join(root, 'clash tree');
+  git('worktree', 'add', '-b', branch, dir, 'HEAD');
+  fs.writeFileSync(path.join(dir, 'shared.txt'), 'clash\n'); run(dir, 'commit', '-am', 'Clash work');
+  fs.writeFileSync(path.join(repository, 'shared.txt'), 'main moved\n'); git('commit', '-am', 'Main moves');
+
+  const target = await host.invoke('branch.terminalTarget', { workspaceId, branch });
+  assert.deepEqual(target, { branch, path: dir, command: `cd '${dir}' && git switch ${branch}` });
+  await assert.rejects(host.invoke('branch.terminalTarget', { workspaceId, branch: 'main' }), /rama de integración/);
+  await assert.rejects(host.invoke('branch.terminalTarget', { workspaceId, branch: 'nope' }), /ya no existe/);
+
+  const resolving = await host.invoke('branch.update', { workspaceId, branch, resolve: true });
+  assert.equal(resolving.status, 'resolving'); assert.deepEqual(resolving.conflicts, ['shared.txt']);
+  assert.ok(run(dir, 'rev-parse', '-q', '--verify', 'MERGE_HEAD'));
+  assert.equal((await host.invoke('branch.abort', { workspaceId, branch })).status, 'aborted');
+  assert.equal(run(dir, 'status', '--porcelain'), '');
+  await assert.rejects(host.invoke('branch.abort', { workspaceId, branch }), /no tiene un merge sin terminar/);
+});
+
+test('Ramas: integrating closes the worktree\'s blocked tasks and a failure there never undoes the merge', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-branches-close-'))), repository = path.join(root, 'repository'), dataDir = path.join(root, 'state');
+  fs.mkdirSync(repository);
+  const git = (...args) => run(repository, ...args);
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  fs.writeFileSync(path.join(repository, 'a.txt'), 'base\n'); git('add', '.'); git('commit', '-m', 'Base');
+  const one = path.join(root, 'one'), two = path.join(root, 'two');
+  git('worktree', 'add', '-b', 'phantom/terminal-one', one, 'HEAD'); git('worktree', 'add', '-b', 'phantom/terminal-two', two, 'HEAD');
+  fs.writeFileSync(path.join(one, 'one.txt'), '1\n'); run(one, 'add', '.'); run(one, 'commit', '-m', 'One');
+  fs.writeFileSync(path.join(two, 'two.txt'), '2\n'); run(two, 'add', '.'); run(two, 'commit', '-m', 'Two');
+  const log = path.join(root, 'cancelled.log'), cli = path.join(root, 'fake-phantom.mjs');
+  const tasks = [['t_one', 'blocked', one], ['t_one_ready', 'ready', one], ['t_two', 'blocked', two], ['t_two_other', 'blocked', repository]].map(([id, status, workspace]) => ({ id, kind: 'card', status, contract: { goal: id, workspace, lane: 'coordinated' } }));
+  fs.writeFileSync(cli, `import fs from 'node:fs';
+const [command, id] = process.argv.slice(2);
+if (command === 'cancel') { if (id === 't_two') { console.error('cancel refused'); process.exit(1); } fs.appendFileSync(${JSON.stringify(log)}, id + '\\n'); console.log('{}'); }
+else console.log(${JSON.stringify(JSON.stringify(tasks))});
+`);
+  const previous = process.env.PHANTOM_CLI; process.env.PHANTOM_CLI = cli;
+  const host = await createHost({ dataDir, handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); if (previous === undefined) delete process.env.PHANTOM_CLI; else process.env.PHANTOM_CLI = previous; fs.rmSync(root, { recursive: true, force: true }); });
+  const workspaceId = (await host.invoke('workspace.open', { path: repository })).id;
+  await host.invoke('plugin.update', { workspaceId, id: 'phantom', settings: { enabled: true, refreshMs: 3000 } });
+  const first = await host.invoke('branch.integrate', { workspaceId, branch: 'phantom/terminal-one', checks: false });
+  assert.equal(first.status, 'merged'); assert.deepEqual(first.closedTasks, ['t_one']); assert.equal(first.closeErrors, undefined);
+  assert.equal(fs.readFileSync(log, 'utf8'), 't_one\n');
+  const second = await host.invoke('branch.integrate', { workspaceId, branch: 'phantom/terminal-two', checks: false });
+  assert.equal(second.status, 'merged'); assert.deepEqual(second.closedTasks, []);
+  assert.equal(second.closeErrors.length, 1); assert.equal(second.closeErrors[0].id, 't_two');
+  assert.match(git('log', '-1', '--format=%s'), /^Integrar phantom\/terminal-two/);
 });
 
 test('Ramas: a worktree names the Card it works for and how its changes split', () => {

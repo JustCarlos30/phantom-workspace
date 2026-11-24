@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killElectronGroup } from './support/electron-process.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = await fs.mkdtemp('/tmp/opencode/phantom-motion-');
@@ -35,18 +36,72 @@ try {
   await invoke('workspace.open', { path: workspacePath });
   await page.reload();
   await page.locator('.create-dock').waitFor();
-  await page.locator('.create-dock').getByRole('button', { name: 'Terminal', exact: true }).click();
-  await page.locator('.terminal-panel').filter({ hasText: 'Worktree' }).waitFor();
+  const workspaceId = (await invoke('state.get')).activeWorkspaceId;
+  await invoke('terminal.create', { workspaceId, cols: 80, rows: 24 });
+  await page.locator('.pt-card').waitFor();
   await wait(async () => (await invoke('terminal.list', { workspaceId: (await invoke('state.get')).activeWorkspaceId })).length === 1, 'terminal created');
   assert.equal(await page.locator('.canvas-node.focused').count(), 0);
   const session = (await invoke('terminal.list', { workspaceId: (await invoke('state.get')).activeWorkspaceId }))[0];
   assert.notEqual(session.cwd, workspacePath);
-  const screen = await page.locator('.xterm-screen').elementHandle();
-  await page.locator('.canvas-node').getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+  const panel = page.locator(`[data-node-id="${session.nodeId}"]`);
+  const mapGeometry = await panel.evaluate(el => [el.style.left, el.style.top, el.style.width, el.style.height]);
+  await page.waitForTimeout(800);
+  const railRow = page.locator('.rail-session-row').first(), badge = railRow.locator('.rail-agent-mark');
+  const rowBounds = await railRow.boundingBox();
+  const badgeStyle = await badge.evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, glyph: el.innerHTML }));
+  await railRow.locator('button').first().hover(); await page.mouse.down(); await page.waitForTimeout(160);
+  assert.deepEqual(await railRow.boundingBox(), rowBounds, 'Rail press has no scale or displacement');
+  assert.equal(await railRow.evaluate(el => getComputedStyle(el).borderRadius), '12px');
+  assert.deepEqual(await badge.evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, glyph: el.innerHTML })), badgeStyle);
+  await page.mouse.move(900, 20); await page.mouse.up();
+  const origin = await panel.boundingBox();
+  await page.evaluate(() => {
+    window.flipLog = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function(frames, options) {
+      const animation = animate.call(this, frames, options);
+      if (options?.id === 'focus-flip') {
+        animation.pause();
+        const rects = [0, 160, 320].map(time => { animation.currentTime = time; const r = this.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+        window.flipLog.push({ rects, duration: options.duration, id: this.dataset.nodeId });
+        animation.currentTime = 0; animation.play();
+      }
+      return animation;
+    };
+  });
+  await app.evaluate(({ ipcMain }) => {
+    const original = ipcMain._invokeHandlers?.get('phantom:invoke');
+    if (!original) throw new Error('Electron IPC fixture seam unavailable');
+    globalThis.motionWrites = [];
+    ipcMain.removeHandler('phantom:invoke');
+    ipcMain.handle('phantom:invoke', (event, method, payload) => {
+      if (method === 'terminal.write') globalThis.motionWrites.push(payload);
+      return original(event, method, payload);
+    });
+  });
+  await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
   await page.locator('.canvas-node.focused').waitFor();
-  await page.locator('.focus-return').getByRole('button', { name: 'Volver al mapa' }).click();
+  await page.waitForTimeout(400);
+  const opening = await page.evaluate(() => window.flipLog[0]);
+  assert.equal(opening.duration, 320); assert.equal(opening.id, session.nodeId);
+  const near = (a, b) => { for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(a[key] - b[key]) < 2, `${key}: ${a[key]} vs ${b[key]}`); };
+  near(opening.rects[0], origin); near(opening.rects[2], await panel.boundingBox());
+  assert.notDeepEqual(opening.rects[1], opening.rects[0]); assert.notDeepEqual(opening.rects[1], opening.rects[2]);
+  await panel.locator('.xterm-helper-textarea').focus();
+  await page.keyboard.press('Escape');
+  await wait(async () => (await app.evaluate(() => globalThis.motionWrites)).some(write => write.sessionId === session.id && write.data === '\x1b'), 'PTY owns Escape');
+  assert.equal(await page.locator('.canvas-node.focused').count(), 1, 'PTY Escape cannot restore the map');
+  await page.locator('.canvas').focus(); await page.keyboard.press('Escape');
   await wait(async () => !(await page.locator('.canvas-node.focused').count()), 'return to map');
-  assert.equal(await screen.evaluate(element => element.isConnected), true, 'focus must not remount xterm');
+  await page.waitForTimeout(400);
+  const closing = await page.evaluate(() => window.flipLog[1]);
+  near(closing.rects[0], opening.rects[2]); near(closing.rects[2], origin);
+  assert.deepEqual(await panel.evaluate(el => [el.style.left, el.style.top, el.style.width, el.style.height]), mapGeometry);
+  assert.equal(await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).evaluate(el => document.activeElement === el), true);
+  assert.equal(await panel.locator('.xterm').count(), 0, 'Map uses the existing terminal card, not a second PTY');
+  await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+  await panel.locator('.xterm-screen').waitFor();
+  const screen = await panel.locator('.xterm-screen').elementHandle();
 
   // Observe actual Web Animations, including the retained inert exit frame.
   await page.evaluate(() => {
@@ -83,14 +138,20 @@ try {
   await page.locator('.tool-picker').waitFor();
   await page.locator('.tool-picker').getByRole('button', { name: 'Cerrar herramientas' }).click();
   await page.locator('.tool-picker').waitFor({ state: 'detached' });
-  const reduced = await page.evaluate(() => window.motionLog.filter(entry => entry.className === 'tool-picker' && entry.duration === 60));
-  assert.ok(reduced.length >= 2 && reduced.every(entry => entry.frames.every(frame => frame.translate === '0 0')), 'reduced motion fades without spatial movement');
+   const reduced = await page.evaluate(() => window.motionLog.filter(entry => entry.className === 'tool-picker' && entry.duration === 0));
+   assert.ok(reduced.length >= 2 && reduced.every(entry => entry.frames.every(frame => frame.translate === '0 0')), 'reduced motion applies presence immediately');
   assert.equal(await screen.evaluate(element => element.isConnected), true, 'overlays must preserve xterm');
   const live = (await invoke('terminal.list', { workspaceId: session.workspaceId })).find(value => value.id === session.id);
   assert.equal(live.pid, session.pid);
   assert.equal(live.status, 'running');
+  const count = await page.evaluate(() => window.flipLog.length);
+  await page.locator('.focus-return button').click();
+  await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(() => window.flipLog.length), count, 'Reduced motion has no FLIP or fallback fade');
+  await page.locator('.focus-return button').click();
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.locator('.create-dock').getByRole('button', { name: 'Terminal', exact: true }).click();
+  await invoke('terminal.create', { workspaceId, cols: 80, rows: 24 });
   await wait(async () => (await invoke('terminal.list', { workspaceId: session.workspaceId })).length === 2, 'second terminal');
   const second = page.locator('.canvas-node').last();
   const secondElement = await second.elementHandle();
@@ -100,7 +161,8 @@ try {
   const panelExit = await page.evaluate(() => window.motionLog.some(entry => entry.className.includes('canvas-node') && entry.frames[0].opacity === 1 && entry.inert));
   assert.ok(panelExit, 'terminal exit is animated and inert');
   assert.equal((await invoke('terminal.list', { workspaceId: session.workspaceId })).filter(value => value.status === 'running').length, 2, 'hiding retains both processes');
-  assert.equal(await screen.evaluate(element => element.isConnected), true, 'removing a sibling preserves the first xterm');
+  assert.equal(await panel.count(), 1, 'removing a sibling preserves the first panel');
+  assert.equal((await invoke('terminal.list', { workspaceId })).find(value => value.id === session.id).pid, session.pid, 'Map/focus and sibling removal preserve the PTY');
   await page.getByRole('button', { name: /Ver todo el mapa/ }).click();
   await page.locator('.toast-stack .toast').getByRole('button', { name: 'Cerrar aviso' }).click();
   await page.locator('.toast-stack .toast').waitFor({ state: 'detached' });
@@ -108,7 +170,7 @@ try {
   await page.setViewportSize({ width: 1100, height: 760 });
   await page.screenshot({ path: path.join(temp, 'narrow.png') });
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, checks: ['terminal worktree + map creation', 'focus preserves xterm', 'entrance + inert exit animations', 'inspector', 'palette', 'voice dialog', 'reduced motion', 'same live terminal PID', 'terminal exit retains processes and sibling identity', 'no renderer errors'], evidence: temp }));
+  console.log(JSON.stringify({ passed: true, checks: ['terminal worktree + map creation', 'FLIP origin/destination/return and keyboard focus', 'PTY owns Escape', 'entrance + inert exit animations', 'inspector', 'palette', 'voice dialog', 'reduced motion', 'same live terminal PID', 'terminal exit retains processes and sibling identity', 'no renderer errors'], evidence: temp }));
 } catch (error) {
   console.error(error);
   console.error(JSON.stringify({ evidence: temp, errors, text: await page.locator('body').innerText().catch(() => ''), state: await invoke('state.get').catch(() => null) }));
@@ -117,5 +179,6 @@ try {
 } finally {
   // Fixture-only shutdown, without opening the real application's close/save UI.
   await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
+  killElectronGroup(app.process());
   if (ownedHost) { try { process.kill(ownedHost, 'SIGTERM'); } catch {} }
 }

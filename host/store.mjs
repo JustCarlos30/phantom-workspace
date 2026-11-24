@@ -2,12 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { validateAgent } from './agents.mjs';
+import { validateAgent, validatePlan } from './agents.mjs';
 import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '../shared/plugins.mjs';
+import { validateUsage, recordUsage } from '../shared/project-usage.mjs';
 import { validateReference, validateComments } from './references.mjs';
+import { prunePhantomControllers } from '../integrations/phantom.mjs';
+import { PERMISSION_MODES } from './chat-permissions.mjs';
 
 export const MAX_HISTORY = 256 * 1024;
-export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','video-log','command-center','zone','incorporaciones','skills-catalog','branches','repo','reference'];
+export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','video-log','convencions-base','convencions-project','command-center','zone','incorporaciones','skills-catalog','branches','repo','reference'];
 export const dataHome = () => path.resolve(process.env.PHANTOM_WORKSPACE_HOME || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'phantom-workspace'));
 export function assert(condition, message) { if (!condition) throw new Error(message); }
 export function object(value) { assert(value && typeof value === 'object' && !Array.isArray(value), 'Expected an object'); return value; }
@@ -54,8 +57,13 @@ export function validateIntegration(value) {
   }
   return value;
 }
-export function validateState(input) {
-  const state = structuredClone(object(input));
+export function validateSessionDefaults(value) {
+  object(value);
+  assert(Object.keys(value).every(key => key === 'permissionMode') && Object.hasOwn(value, 'permissionMode') && PERMISSION_MODES.includes(value.permissionMode), 'Invalid sessionDefaults');
+  return value;
+}
+export function validateState(input, { clone = true } = {}) {
+  const state = clone ? structuredClone(object(input)) : object(input);
   assert(state.schemaVersion === 1, 'Unsupported schemaVersion'); object(state.settings);
   assert(Array.isArray(state.workspaces) && state.workspaces.length <= 1000, 'Invalid workspaces');
   const ids = new Set(), paths = new Set();
@@ -67,7 +75,9 @@ export function validateState(input) {
     let canonical = path.resolve(w.canonicalPath);
     try { canonical = canonicalFolder(w.path); } catch (e) { if (e.code !== 'ENOENT') throw e; }
     assert(!paths.has(canonical), 'Duplicate canonical workspace path'); paths.add(canonical); w.canonicalPath = canonical;
+    try { validateUsage(w.usage); } catch (e) { assert(false, e.message); }
     w.plugins = validatePluginPreferences(w.plugins);
+    if (w.sessionDefaults !== undefined) validateSessionDefaults(w.sessionDefaults);
     if (w.plugins.phantom.config.phantomData) assert(!insideFolder(w.canonicalPath, w.plugins.phantom.config.phantomData), 'Integration state must be outside workspace');
     object(w.camera); for (const key of ['x','y','zoom']) assert(Number.isFinite(w.camera[key]), 'Invalid camera'); assert(w.camera.zoom > 0 && w.camera.zoom <= 10, 'Invalid zoom');
     if (w.spaces !== undefined) {
@@ -79,7 +89,7 @@ export function validateState(input) {
       assert(Array.isArray(w[key]) && w[key].length <= 10000, `Invalid ${key}`); const seen = new Set();
       for (const item of w[key]) { object(item); assert(uuid(item.id) && !seen.has(item.id), `Invalid ${key} ID`); seen.add(item.id); }
     }
-    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
+    for (const n of w.nodes) { assert(NODE_TYPES.includes(n.type), 'Invalid node type'); object(n.data); if(n.data.agent !== undefined) validateAgent(n.data.agent); if (n.data.plan !== undefined) { assert(n.type === 'terminal', 'Plan only on terminal nodes'); validatePlan(n.data.plan); } text(n.title, 'node title', 512); for (const k of ['x','y','width','height']) assert(Number.isFinite(n[k]) && Math.abs(n[k]) <= 1e7, 'Invalid node geometry'); assert(n.width > 0 && n.height > 0, 'Invalid node size'); }
     for (const n of w.nodes) validatePluginPanel(n.type, n.data);
     for (const n of w.nodes) if (n.type === 'reference') validateReference(n.data);
     if (w.comments !== undefined) validateComments(w.comments, w.nodes);
@@ -98,6 +108,11 @@ export function validateState(input) {
   assert(Buffer.byteLength(JSON.stringify(state)) <= 16 * 1024 * 1024, 'State too large');
   return state;
 }
+export const ATTENTION_LIMIT = 300;
+export function pushAttention(workspace, item) {
+  workspace.attention.push(item);
+  if (workspace.attention.length > ATTENTION_LIMIT) workspace.attention.splice(0, workspace.attention.length - ATTENTION_LIMIT);
+}
 export class Store {
   constructor(dir = dataHome()) {
     this.dir = path.resolve(dir); fs.mkdirSync(this.dir, {recursive:true, mode:0o700}); fs.chmodSync(this.dir, 0o700);
@@ -106,18 +121,32 @@ export class Store {
     // A restart cannot establish whether an in-flight delivery reached the chat.
     // Keep the brief and expose uncertainty rather than silently delivering again.
     let interrupted = false;
+    for (const w of this.state.workspaces) interrupted = prunePhantomControllers(w, undefined, this.dir) || interrupted;
     for (const w of this.state.workspaces) for (const c of w.comments || []) if (c.handoff?.status === 'sending') {
       c.handoff = { ...c.handoff, status: 'uncertain', error: 'Host reiniciado durante el envío. Revisa el chat de Phantom antes de volver a pedirlo.', updatedAt: new Date().toISOString() }; interrupted = true;
     }
+    for (const w of this.state.workspaces) if (w.attention.length > ATTENTION_LIMIT) { w.attention = w.attention.slice(-ATTENTION_LIMIT); interrupted = true; }
     if (interrupted) this.persist();
   }
-  persist() { this.state.lastSavedAt = new Date().toISOString(); atomicJSON(this.filename, this.state); }
+  // Writes are grouped: persist() marks the state dirty and one atomic write follows within 100 ms.
+  persist() {
+    this.pending = true;
+    if (!this.timer) { this.timer = setTimeout(() => { this.timer = undefined; try { this.flush(); } catch (e) { console.error(e.message); } }, 100); this.timer.unref?.(); }
+    if (!this.exitHook) { this.exitHook = () => { try { this.flush(); } catch { /* Nothing left to report at exit. */ } }; process.on('exit', this.exitHook); }
+  }
+  flush() {
+    if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
+    if (!this.pending) return;
+    this.state.lastSavedAt = new Date().toISOString(); atomicJSON(this.filename, this.state); this.pending = false;
+  }
+  close() { this.flush(); if (this.exitHook) { process.off('exit', this.exitHook); this.exitHook = undefined; } }
   getWorkspace(id) { const w = this.state.workspaces.find(w => w.id === id); assert(w, 'Workspace not found'); return w; }
+  activate(w) { recordUsage(this.state, w); this.state.activeWorkspaceId = w.id; return w; }
   open(folder) {
     const canonicalPath = canonicalFolder(folder);
     let w = this.state.workspaces.find(w => w.canonicalPath === canonicalPath);
     if (!w) { const now = new Date().toISOString(); w = {id:randomUUID(), name:path.basename(canonicalPath) || canonicalPath,path:canonicalPath,canonicalPath,createdAt:now,updatedAt:now,camera:{x:0,y:0,zoom:1}}; for (const key of arrays) w[key] = []; this.state.workspaces.push(w); }
-    w.plugins ??= defaultPlugins(); this.state.activeWorkspaceId = w.id; return w;
+    w.plugins ??= defaultPlugins(); return this.activate(w);
   }
-  transaction(fn) { const before = structuredClone(this.state); try { const result = fn(); validateState(this.state); this.persist(); return result; } catch (e) { this.state = before; throw e; } }
+  transaction(fn) { const before = structuredClone(this.state); try { const result = fn(); validateState(this.state, { clone: false }); this.persist(); return result; } catch (e) { this.state = before; throw e; } }
 }

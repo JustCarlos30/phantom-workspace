@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { markdownTarget } from '../hooks/markdownLinks.mjs';
 import { tableStartsAt, parseTable, pendingTableAt, splitRow } from '../hooks/markdownTable.mjs';
 import MarkdownTable from './MarkdownTable';
@@ -54,7 +54,7 @@ function MarkdownLink({ label, url, embedded }) {
     setError(''); setBusy(true);
     try {
       if (!window.phantom) throw new Error('Abre este enlace desde Phantom Workspace');
-      await window.phantom.invoke(target.kind === 'web' ? 'desktop.openExternal' : 'desktop.openPath', target.kind === 'web' ? { url: target.url } : { path: target.path });
+      await window.phantom.invoke(target.kind === 'web' ? 'desktop.openBrowser' : 'desktop.openPath', target.kind === 'web' ? { url: target.url } : { path: target.path });
     } catch (reason) { setError(reason.message); }
     finally { setBusy(false); }
   };
@@ -103,9 +103,10 @@ export function parseMarkdown(source, { streaming = false } = {}) {
   return blocks;
 }
 
-export default function Markdown({ source, streaming = false }) {
-  return <div className="md">{parseMarkdown(source, { streaming }).map((block, i) => {
-    if (block.type === 'code') return <figure key={i} className="md-code"><figcaption><span>{block.lang || 'código'}</span><CopyButton text={block.text} label="Copiar código" /></figcaption><pre><code>{block.text}</code></pre></figure>;
+export default React.memo(function Markdown({ source, streaming = false }) {
+  const blocks = useMemo(() => parseMarkdown(source, { streaming }), [source, streaming]);
+  return <div className="md">{blocks.map((block, i) => {
+    if (block.type === 'code') return <figure key={i} className="md-code"><figcaption><span>{block.lang || 'código'}</span><CopyButton value={block.text} label="Copiar código" /></figcaption><pre><code>{block.text}</code></pre></figure>;
     if (block.type === 'h') return React.createElement(`h${Math.min(6, block.level + 2)}`, { key: i }, inline(block.text, i));
     if (block.type === 'hr') return <hr key={i} />;
     if (block.type === 'table') return <MarkdownTable key={i} id={`t${i}`} block={block} inline={inline} />;
@@ -113,4 +114,4 @@ export default function Markdown({ source, streaming = false }) {
     if (block.type === 'list') return React.createElement(block.ordered ? 'ol' : 'ul', { key: i }, block.items.map((text, j) => <li key={j}>{inline(text, `${i}-${j}`)}</li>));
     return <p key={i}>{inline(block.text, i)}</p>;
   })}</div>;
-}
+});
