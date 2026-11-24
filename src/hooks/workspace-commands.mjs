@@ -1,3 +1,5 @@
+import { nativeBindingReservation } from '../../shared/keyboard-reservations.mjs';
+
 // scope: global funciona también al escribir; navigation exige modo navegación y
 // un destino no editable; panel permite salir del contenido, incluido xterm.
 export const COMMANDS = Object.freeze([
@@ -80,6 +82,11 @@ export function validateBindings(overrides = {}) {
         (binding && command.scope === 'global' && !hasModifier(binding) && !/^F\d+$/.test(key)) ||
         (binding && isArrow(key) && command.scope !== 'navigation')) {
       conflicts.push({ ids: [id], binding: value, reason: 'invalid-binding', message: required ? 'Conserva un atajo con Ctrl, Alt o Meta para salir y configurar los atajos.' : 'El atajo no es válido para este comando.' });
+      continue;
+    }
+    const reservation = binding && nativeBindingReservation(binding);
+    if (reservation) {
+      conflicts.push({ ids: [id], binding, reason: 'native-reservation', message: `Este atajo está reservado al menú nativo: ${reservation.title}. Elige otra combinación.` });
       continue;
     }
     bindings[id] = binding;

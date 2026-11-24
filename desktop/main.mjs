@@ -11,6 +11,7 @@ import { BrowserManager } from './browser-manager.mjs';
 import { startAgentBrowser } from './agent-browser.mjs';
 import { readLocalImage, imagePreviewRoots } from './local-image.mjs';
 import { createInterfaceScaleModel } from '../shared/interface-scale.mjs';
+import { nativeMenuShortcuts } from '../shared/keyboard-reservations.mjs';
 import {
   INVOKE_CHANNEL, EVENT_CHANNEL, HOST_METHODS, authorizedPath, browserURL,
   contentSecurityPolicy, isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds,
@@ -555,16 +556,19 @@ if (!app.requestSingleInstanceLock()) {
     const win = openMainWindow();
     if (win) dialog.showMessageBox(win, { type: 'error', message: 'No se pudo completar la acción', detail: error.message }).catch(() => {});
   };
+  const shortcuts = nativeMenuShortcuts(process.platform);
+  const accelerator = name => shortcuts[name].accelerator.replace('Meta', 'Command');
+  const menuRole = role => ({ role, accelerator: accelerator(role) });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Phantom Workspace', submenu: [
-      { label: 'Abrir ventana', accelerator: 'CmdOrCtrl+Shift+N', click: () => openMainWindow() },
-      { label: 'Cerrar ventana (conservar sesiones)', accelerator: 'CmdOrCtrl+W', click: () => mainWindow?.close() },
+      { label: 'Abrir ventana', click: () => openMainWindow() },
+      { label: 'Cerrar ventana (conservar sesiones)', accelerator: accelerator('close'), click: () => mainWindow?.close() },
       { type: 'separator' },
-      { label: 'Salir (conservar sesiones)', accelerator: 'CmdOrCtrl+Q', click: () => quit().catch(report) },
+      { label: 'Salir (conservar sesiones)', accelerator: accelerator('quit'), click: () => quit().catch(report) },
       { label: 'Detener host y salir', click: () => quit(true).catch(report) },
     ] },
-    { label: 'Editar', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
-    { label: 'Ver', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, ...(!app.isPackaged ? [{ role: 'toggleDevTools' }] : [])] },
+    { label: 'Editar', submenu: [menuRole('undo'), menuRole('redo'), { type: 'separator' }, menuRole('cut'), menuRole('copy'), menuRole('paste'), menuRole('selectAll')] },
+    { label: 'Ver', submenu: [menuRole('reload'), menuRole('togglefullscreen'), ...(!app.isPackaged ? [menuRole('toggleDevTools')] : [])] },
   ]));
    openMainWindow();
    agentBrowser = await startAgentBrowser({ dataDir, hostInvoke, getManager: () => browsers, emit,

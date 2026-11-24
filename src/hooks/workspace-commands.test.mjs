@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COMMANDS, resolveBindings, validateBindings, matchCommand, formatBinding } from './workspace-commands.mjs';
 import { panelShortcut } from './panel-shortcuts.mjs';
+import { readFileSync } from 'node:fs';
+import { nativeMenuShortcuts, nativeBindingReservation } from '../../shared/keyboard-reservations.mjs';
 
 const bindings = resolveBindings();
 const navigation = { navigationMode: true };
@@ -222,4 +224,61 @@ test('mantiene los atajos de creación Ctrl y la compatibilidad Cmd de panelShor
     assert.equal(panelShortcut(ctrlShift(key)), type);
     assert.equal(panelShortcut(eventFor(key.toUpperCase(), { metaKey: true, shiftKey: true })), type);
   }
+});
+
+test('rechaza reservas nativas canónicas y conserva salida y configuración recuperables', () => {
+  const modifier = process.platform === 'darwin' ? 'Meta' : 'Ctrl';
+  for (const key of ['W', 'Q', 'Z', 'X', 'C', 'V', 'A', 'R']) {
+    const result = validateBindings({ palette: `${modifier}+${key}` });
+    assert.equal(result.bindings.palette, bindings.palette);
+    assert.equal(result.conflicts[0].reason, 'native-reservation');
+  }
+  for (const binding of process.platform === 'darwin' ? ['Meta+Shift+Z', 'Meta+Alt+I', 'Meta+Ctrl+F'] : ['Ctrl+Y', 'F11', 'Shift+Ctrl+I']) {
+    const result = validateBindings({ palette: binding });
+    assert.equal(result.bindings.palette, bindings.palette);
+    assert.equal(result.conflicts[0].reason, 'native-reservation');
+  }
+  for (const { accelerator, title } of Object.values(nativeMenuShortcuts())) {
+    for (const id of ['palette', 'leave-panel', 'shortcuts', 'left']) {
+      const result = validateBindings({ [id]: accelerator.toLowerCase() });
+      assert.equal(result.bindings[id], bindings[id]);
+      const requiredFunctionKey = accelerator === 'F11' && ['leave-panel', 'shortcuts'].includes(id);
+      assert.equal(result.conflicts[0].reason, requiredFunctionKey ? 'invalid-binding' : 'native-reservation');
+      if (!requiredFunctionKey) assert.ok(result.conflicts[0].message.includes(title));
+      assert.equal(matchCommand(ctrl('k'), result.bindings), 'palette');
+      assert.equal(matchCommand(ctrlShift('Escape'), result.bindings, { inPanel: true }), 'leave-panel');
+    }
+  }
+  for (const binding of ['Ctrl+Alt+R', 'Ctrl+Alt+W', 'F8']) {
+    const result = validateBindings({ palette: binding });
+    assert.deepEqual(result.conflicts, []);
+    assert.equal(result.bindings.palette, binding);
+  }
+});
+
+test('reservas compartidas distinguen plataforma y no chocan con los defaults', () => {
+  for (const platform of ['linux', 'win32', 'darwin']) {
+    const menu = nativeMenuShortcuts(platform);
+    for (const command of COMMANDS) assert.equal(nativeBindingReservation(command.defaultBinding, platform), null, command.id);
+    assert.equal(nativeBindingReservation('Meta+Shift+N', platform), null);
+    assert.equal(menu.close.accelerator, platform === 'darwin' ? 'Meta+W' : 'Ctrl+W');
+    assert.equal(menu.redo.accelerator, platform === 'darwin' ? 'Shift+Meta+Z' : 'Ctrl+Y');
+    assert.equal(menu.togglefullscreen.accelerator, platform === 'darwin' ? 'Ctrl+Meta+F' : 'F11');
+    for (const item of Object.values(menu)) {
+      assert.equal(formatBinding(item.accelerator), item.accelerator);
+      assert.equal(nativeBindingReservation(item.accelerator, platform)?.title, item.title);
+    }
+  }
+  assert.equal(nativeBindingReservation('Meta+W', 'linux'), null);
+  assert.equal(nativeBindingReservation('Ctrl+W', 'darwin'), null);
+  assert.equal(matchCommand(ctrlShift('n'), validateBindings({ 'create-note': 'Ctrl+Shift+N' }).bindings), 'create-note');
+});
+
+test('el menú nativo toma sus aceleradores de las reservas y deja libres Ctrl+Shift+N/Z', () => {
+  const source = readFileSync(new URL('../../desktop/main.mjs', import.meta.url), 'utf8');
+  const menu = source.slice(source.indexOf('Menu.setApplicationMenu'), source.indexOf(']));', source.indexOf('Menu.setApplicationMenu')));
+  assert.match(source, /nativeMenuShortcuts\(process\.platform\)/);
+  assert.doesNotMatch(menu, /accelerator:\s*'/);
+  assert.doesNotMatch(menu, /\{ role: '/);
+  assert.match(menu, /\{ label: 'Abrir ventana', click:/);
 });

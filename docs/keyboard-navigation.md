@@ -26,6 +26,8 @@ La selección, el panel enfocado y el último enfoque se conservan por proyecto 
 
 Los atajos usan el hook global `useWorkspaceShortcuts`, con persistencia local en `phantom:workspace:shortcuts`. Los conflictos, los valores inválidos y las vías de recuperación se validan en el núcleo/hook. `null` desactiva comandos opcionales; la salida y la configuración conservan un acorde modificado. IME, Dead/Process y AltGraph no se interceptan. Los overlays retienen su teclado y bloquean la entrada tardía del terminal.
 
+`shared/keyboard-reservations.mjs` comparte con el menú nativo de `desktop/main.mjs` los aceleradores de cerrar, salir, edición, recarga, pantalla completa y herramientas de desarrollo por plataforma (Ctrl en Linux/Windows, Meta en macOS; rehacer es Ctrl+Y fuera de macOS). El configurador los rechaza con el nombre de la acción reservada; las herramientas de desarrollo conservan su reserva también en la distribución empaquetada. `Abrir ventana` sigue en el menú sin acelerador y rehacer no usa Ctrl+Shift+Z, de modo que Ctrl+Shift+N y Ctrl+Shift+Z quedan para crear nota y zona. Esta validación no detecta reservas del compositor ni del sistema operativo.
+
 ## Componentes del trabajo paralelo
 
 La conexión usa las interfaces acordadas, cuyos archivos y CSS pertenecen a controls:
