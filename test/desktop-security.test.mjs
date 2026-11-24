@@ -1,4 +1,5 @@
 import test from 'node:test';
+import './desktop-tpm.test.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, open, readFile, rename, stat, utimes, writeFile, symlink, rm } from 'node:fs/promises';
 import path from 'node:path';

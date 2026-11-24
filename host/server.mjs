@@ -16,10 +16,7 @@ import { validatePluginPanel } from '../shared/plugins.mjs';
 import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 import { MobileAccess } from './mobile.mjs';
-
-function publicSettings(settings) {
-  return Object.fromEntries(Object.entries(settings).filter(([key])=>!/(secret|token|password|credential|authorization|api.?key)/i.test(key)).map(([key,value])=>[key,value&&typeof value==='object'&&!Array.isArray(value)?publicSettings(value):value]));
-}
+import { publicSettings, portableSettings } from './public-settings.mjs';
 
 // Identity of the project's main conversation: Phantom, the assistant of this
 // workspace. It states only what the host knows; it never claims live state.
@@ -99,6 +96,10 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='mobile.stop') return mobile.stop();
     if(method==='mobile.pairing') return mobile.pairing();
     if(method==='mobile.revoke') return mobile.revoke(p);
+    if(method==='mobile.approve') return mobile.approve(p);
+    if(method==='mobile.permissions') return mobile.permissions(p);
+    if(method==='mobile.audit') return mobile.audit();
+    if(method==='mobile.identity') return mobile.identity(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
     if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
     if(method==='settings.update') return mutate(null,()=>{object(p.patch); Object.assign(store.state.settings,p.patch);return publicSettings(store.state.settings);});
@@ -206,7 +207,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method.startsWith('branch.')) return branches.handle(method,p);
     if(method.startsWith('repo.')) return repo.handle(method,p);
     if(method==='storage.export') { const data=structuredClone(store.state); // Runtime settings may contain credentials: export only portable presentation settings.
-      data.settings=Object.fromEntries(Object.entries(data.settings).filter(([k])=>['theme','fontSize','terminalFontSize','language'].includes(k)));
+      data.settings=portableSettings(data.settings);
        if(p.includeHistory) {await terminals.flush();data.terminalHistory=terminals.sessions.map(s=>({...terminals.descriptor(s),seq:s.snapshotSeq??s.seq,status:s.status==='running'?'lost':s.status,pid:null,snapshot:s.snapshot}));}return data; }
     if(method==='storage.import') {
       let input=p.data;if(typeof input==='string'){assert(Buffer.byteLength(input)<=16*1024*1024,'Import too large');input=JSON.parse(input);}
@@ -273,7 +274,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
-    mobile=new MobileAccess({...mobileOptions,store,terminals,chats});
+    mobile=new MobileAccess({...mobileOptions,store,terminals,chats,dataDir});
     server=net.createServer(socket=>{
       if(clients.size>=32){socket.destroy();return;}clients.add(socket);outputs.set(socket,createSocketOutput(socket));socket.setEncoding('utf8');let buffer='',pending=0,pendingBytes=0;
       const queues={control:[],normal:[]},active={control:0,normal:0};
