@@ -229,7 +229,7 @@ try {
   const note = await make('note', 'SYNTHETIC Nota inferior', 800, 700, { text: 'Contexto sintético' });
   await make('note', 'SYNTHETIC Nota oculta', 650, 0, { hidden: true });
   await make('zone', 'SYNTHETIC Zona', 0, 0);
-  const otherSpace = 'synthetic-space';
+  const otherSpace = '3f2b8c1e-5a47-4d9e-8b6a-1c2d3e4f5a6b';
   await invoke('workspace.update', { id: first.id, patch: { spaces: [{ id: otherSpace, name: 'Otro espacio', camera: { x: 0, y: 0, zoom: 1 } }] } });
   await make('terminal', 'SYNTHETIC Sesión en otro espacio', 650, 0, { spaceId: otherSpace });
   for (const node of [left, right]) {
