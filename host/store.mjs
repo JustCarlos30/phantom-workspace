@@ -7,6 +7,7 @@ import { defaultPlugins, validatePluginPreferences, validatePluginPanel } from '
 import { validateUsage, recordUsage } from '../shared/project-usage.mjs';
 import { validateReference, validateComments } from './references.mjs';
 import { prunePhantomControllers } from '../integrations/phantom.mjs';
+import { PERMISSION_MODES } from './chat-permissions.mjs';
 
 export const MAX_HISTORY = 256 * 1024;
 export const NODE_TYPES = ['terminal','browser','note','tasks','context','git','services','docker','mission','workflows','playwright','playground','plugins','phantom-cards','phantom-skills','video-log','convencions-base','convencions-project','command-center','zone','incorporaciones','skills-catalog','branches','repo','reference'];
@@ -56,6 +57,11 @@ export function validateIntegration(value) {
   }
   return value;
 }
+export function validateSessionDefaults(value) {
+  object(value);
+  assert(Object.keys(value).every(key => key === 'permissionMode') && Object.hasOwn(value, 'permissionMode') && PERMISSION_MODES.includes(value.permissionMode), 'Invalid sessionDefaults');
+  return value;
+}
 export function validateState(input, { clone = true } = {}) {
   const state = clone ? structuredClone(object(input)) : object(input);
   assert(state.schemaVersion === 1, 'Unsupported schemaVersion'); object(state.settings);
@@ -71,6 +77,7 @@ export function validateState(input, { clone = true } = {}) {
     assert(!paths.has(canonical), 'Duplicate canonical workspace path'); paths.add(canonical); w.canonicalPath = canonical;
     try { validateUsage(w.usage); } catch (e) { assert(false, e.message); }
     w.plugins = validatePluginPreferences(w.plugins);
+    if (w.sessionDefaults !== undefined) validateSessionDefaults(w.sessionDefaults);
     if (w.plugins.phantom.config.phantomData) assert(!insideFolder(w.canonicalPath, w.plugins.phantom.config.phantomData), 'Integration state must be outside workspace');
     object(w.camera); for (const key of ['x','y','zoom']) assert(Number.isFinite(w.camera[key]), 'Invalid camera'); assert(w.camera.zoom > 0 && w.camera.zoom <= 10, 'Invalid zoom');
     if (w.spaces !== undefined) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronRight, MessageSquarePlus, ShieldAlert, ShieldCheck, ShieldOff, SquareTerminal } from 'lucide-react';
 import { ProviderGlyph } from '../Glyphs';
 import { executionPolicy } from '../../../shared/execution-policy.mjs';
@@ -45,6 +45,37 @@ const AUTO_APPROVE = {
 const PERMISSION_LABELS = { ask: { claude: 'Pregunta todo', other: 'Solo lectura' }, auto: { claude: 'Autónomo', other: 'Puede editar' }, full: { claude: 'Total', other: 'Total' } };
 const NEXT_MODE = { ask: 'auto', auto: 'full', full: 'ask' };
 export const permissionLabel = (mode, provider) => provider === 'opencode' && mode === 'ask' ? 'Con aprobación' : PERMISSION_LABELS[mode]?.[provider === 'claude' ? 'claude' : 'other'] || mode;
+
+// Remembers the current permission mode for new conversations of this project.
+// Existing conversations keep theirs; the host applies it only to new chat cards.
+export function ProjectPermissions({ workspace, api, mode, provider, disabled }) {
+  const [saved, setSaved] = useState(workspace.sessionDefaults?.permissionMode ?? null);
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const pending = useRef(false);
+  const checkbox = useRef(null), restoreFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (busy) return;
+    if (restoreFocus.current && document.activeElement === document.body) checkbox.current?.focus({ preventScroll: true });
+    restoreFocus.current = false;
+  }, [busy]);
+  useEffect(() => { setSaved(workspace.sessionDefaults?.permissionMode ?? null); setError(''); }, [workspace.id, workspace.sessionDefaults?.permissionMode]);
+  const save = async value => {
+    if (pending.current || disabled) return;
+    restoreFocus.current = document.activeElement === checkbox.current;
+    pending.current = true; setBusy(true); setError('');
+    try {
+      await api('workspace.update', { id: workspace.id, patch: { sessionDefaults: value === null ? null : { permissionMode: value } } });
+      setSaved(value);
+    } catch (e) { setError(e.message); }
+    finally { pending.current = false; setBusy(false); }
+  };
+  return <div className="pc-project-permissions" aria-busy={busy}>
+    <label><input ref={checkbox} type="checkbox" checked={saved !== null} disabled={disabled || busy} onChange={e => save(e.target.checked ? mode : null)} /><span>Usar estos permisos en nuevas conversaciones de este proyecto</span></label>
+    <p role="status">{busy ? 'Guardando…' : saved !== null ? `Guardado para nuevas conversaciones: ${permissionLabel(saved, provider)}.` : 'Sin permisos recordados para nuevas conversaciones.'} Las conversaciones existentes conservan sus permisos.</p>
+    {saved !== null && saved !== mode && <button type="button" disabled={disabled || busy} onClick={() => save(mode)}>Guardar permisos actuales: {permissionLabel(mode, provider)}</button>}
+    {error && <p className="is-error" role="alert">No se pudieron guardar los permisos: {error}</p>}
+  </div>;
+}
 
 // The card's permission mode, cycled with one button: Pregunta todo → Autónomo → Total.
 export function PermissionSwitch({ mode, provider, descriptions = AUTO_APPROVE, disabled, onChange, row = false }) {

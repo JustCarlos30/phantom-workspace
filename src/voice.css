@@ -32,6 +32,17 @@
 .voice-live-confirmed { color: var(--ink); }
 .voice-live-partial { color: var(--muted); }
 .voice-notice { flex-basis: 100%; margin: 0; color: var(--muted); font: var(--t-support); overflow-wrap: anywhere; }
+.pc-composer-send .voice-activity { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; flex: 0 1 auto; }
+.pc-composer-send .voice-meter { min-width: 0; justify-self: end; padding-inline: 8px; gap: 6px; }
+.pc-composer-send :is(.voice-status, .voice-hint) { position: absolute; bottom: 8px; left: 12px; right: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pc-composer-send .voice-status ~ .voice-hint { display: none; }
+.pc-composer-send .voice-notice { grid-column: 1 / -1; }
+@container pc-isle (max-width: 400px) {
+  .pc-composer-send, .pc-composer-send .voice-activity { gap: 4px; }
+  .pc-composer-send .voice-meter > svg { display: none; }
+  .pc-composer-send .voice-bars { gap: 2px; }
+  .pc-composer-send:has(.is-stop) .voice-bars { display: none; }
+}
 
 .voice-dialog { box-sizing: border-box; width: min(540px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); color: var(--ink); border-radius: var(--r-obj); box-shadow: var(--shadow-float); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .app-modal-backdrop.voice-backdrop { z-index: 1100; }

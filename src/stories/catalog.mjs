@@ -15,12 +15,13 @@ const groups = {
   Fondos: [['AsciiField', 'Ascii', '.ascii-field'], ['PixelField', 'Pixeles', 'canvas']],
 };
 export const slug = value => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-export const storyId = (family, name) => `${slug(family)}--${name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}`;
+export const storyId = (family, name) => `${slug(family)}--${name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/([A-Za-z])([0-9])/g, '$1-$2').toLowerCase()}`;
 export const catalog = Object.entries(groups).flatMap(([family, rows]) => rows.map(([name, scenario, selector, limitation = '']) => ({ source: `src/components/${name}.jsx`, family, scenario, story: storyId(family, scenario), selector, status: 'renderizado', limitation })));
 export const exclusions = [
   { source: '.storybook/preview.jsx', family: 'Catálogo', status: 'configuración no visual', limitation: 'Carga estilos y decoradores del catálogo; no es un componente de producto.' },
   { source: 'scripts/remotion-template/Root.tsx', family: 'Plantillas', status: 'plantilla externa', limitation: 'Registro Remotion generado para proyectos de video; requiere runtime Remotion ajeno al renderer de Workspace.' },
   { source: 'scripts/remotion-template/Storyboard.tsx', family: 'Plantillas', status: 'plantilla externa', limitation: 'Composición Remotion con frames y assets del proyecto de video generado. No es una superficie de Workspace; VideoReview muestra su selector real.' },
+  { source: 'test/fixtures/composer-ux.jsx', family: 'Pruebas', status: 'fixture de prueba', limitation: 'Monta ChatCard y PhantomChat reales para test/composer-ux.test.mjs con API y audio sintéticos; no es una superficie de producto. Los escenarios equivalentes viven en Conversaciones/Compositor* y Voz/Compositor*.' },
   { source: 'src/App.jsx', family: 'Aplicación', status: 'integración excluida', limitation: 'App inicia useWorkspace y el ciclo de persistencia del escritorio. WorkspaceUI es privado y depende de ese modelo. Se inventarían sus símbolos, sin montar App; Canvas, Inspector, Settings y dock tienen composiciones reales independientes.' },
   { source: 'src/main.jsx', family: 'Entrada', status: 'bootstrap no visual', limitation: 'createRoot monta App o MobileApp por ubicación; importarlo arrancaría la aplicación. MobileApp tiene una story directa.' },
   { source: 'src/components/canvas/CanvasNode.jsx', family: 'Navegación', status: 'extraído de Canvas.jsx, cubierto por la story Canvas', limitation: 'Panel del mapa, envoltorios memoizados y vigilante de avisos de chat se renderizan dentro de Navegación/Lienzo; sin story propia, no se declara cobertura de cada tipo de panel.' },

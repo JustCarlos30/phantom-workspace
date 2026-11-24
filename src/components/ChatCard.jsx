@@ -21,11 +21,11 @@ import { runHealthView } from '../hooks/run-health-view.mjs';
 import { runProgressView } from '../hooks/run-progress-view.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 import { compactionBlocked } from '../hooks/context-view.mjs';
-import { AGENT_MODES, AgentChoices, ModeSwitch, PermissionRow, PermissionSwitch } from './chat/ChatPermissions';
+import { AGENT_MODES, AgentChoices, ModeSwitch, PermissionRow, PermissionSwitch, ProjectPermissions } from './chat/ChatPermissions';
 import { ContextMeter, ContextNudge, ModelPicker, ReasoningPicker } from './chat/ChatPickers';
 import { PhantomRunCard, QuestionCard, SubagentCard, ToolGroup } from './chat/ChatTools';
 
-export { rememberPolicy, useEnabledProviders, preferredCardMode, permissionLabel, PermissionSwitch, PermissionRow, ProviderChoices, ModeSwitch } from './chat/ChatPermissions';
+export { rememberPolicy, useEnabledProviders, preferredCardMode, permissionLabel, PermissionSwitch, PermissionRow, ProjectPermissions, ProviderChoices, ModeSwitch } from './chat/ChatPermissions';
 export { ModelPicker, ReasoningPicker, ContextMeter, ContextNudge } from './chat/ChatPickers';
 export { PhantomRunCard, SubagentCard } from './chat/ChatTools';
 
@@ -160,6 +160,7 @@ export function SessionContext({ node, workspace, api, notify, provider, label, 
     <div className="pc-context-rows">
       <details className="pc-folder"><summary className="pc-session-row"><span className="pc-session-badge is-folder"><Folder size={18} aria-hidden="true" /></span><span className="pc-session-label">Carpeta</span><span className="pc-session-value pc-mono" title={cwd}>{cwd}</span><ChevronRight size={16} aria-hidden="true" /></summary><p>{cwd}{branch && <><br />{AUTO_BRANCH.test(branch) ? 'Copia propia de esta sesión' : `Rama: ${branch}`}</>}</p></details>
       <PermissionSwitch row mode={permissionMode} provider={provider} descriptions={descriptions} disabled={!ready} onChange={configurePermission(api, workspace, node, notify)} />
+      <ProjectPermissions key={workspace.id} workspace={workspace} api={api} mode={permissionMode} provider={provider} disabled={!ready} />
       <ModelPicker row node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!ready || running} />
     </div>
     <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!ready || running} />
@@ -218,10 +219,23 @@ export function SessionChip({ cwd, branch, workspaceName, children }) {
   }, [open]);
   const { name, own } = sessionChipLabel({ cwd, branch, workspaceName });
   return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
-    onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
-    <summary className="pc-session-chip" aria-label="Contexto de la sesión" title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></summary>
+    onKeyDown={e => { if (e.key === 'Escape' && root.current.open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
+    <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></summary>
     <div className="pc-session-pop">{children}</div>
   </details>;
+}
+
+export function ComposerControls({ selectors, leading, meter, voice, hint, children }) {
+  return <div className="pc-controls">
+    <div className="pc-selectors" role="group" aria-label="Configuración de la conversación">{selectors}</div>
+    <div className="pc-composer-actions">
+      <div className="pc-composer-tools">{leading}{meter}</div>
+      <div className="pc-composer-send">
+        <VoiceActivity voice={voice} onFinish={voice.stop} hint={hint} />
+        {children}
+      </div>
+    </div>
+  </div>;
 }
 
 export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
@@ -360,19 +374,17 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <div className="pc-controls">
-          <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
-          {voice.status === 'idle' && <button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length} onClick={startNew}><MessageSquarePlus size={18} /></button>}
-          {voice.status === 'idle' && messages.length > 0 && <><SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip><PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} /></>}
-          {voice.status === 'idle' && <TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} />}
-          <span className="pc-bar-space" />
-          <ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />
-          {voice.status === 'idle' && messages.length > 0 && <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />}
-          {voice.status === 'idle' && messages.length > 0 && <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />}
+        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
+          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>
+          <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
+          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
+          <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
+        </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} /></>}
+          meter={<ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />}>
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : `Dictar a ${label}`} aria-label={`Dictar a ${label}`} onClick={voice.start}><Mic size={18} /></button>}
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
-        </div>
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
+        </ComposerControls>
       </div>
       {compaction.form}
     </form>

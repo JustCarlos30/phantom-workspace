@@ -4,7 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
-import { Store, assert, object, text, canonicalFolder, validateState, NODE_TYPES, dataHome, pushAttention } from './store.mjs';
+import { Store, assert, object, text, canonicalFolder, validateState, validateSessionDefaults, NODE_TYPES, dataHome, pushAttention } from './store.mjs';
 import { applySubagent, validateSubagentOp } from './subagents.mjs';
 import { Terminals } from './terminals.mjs';
 import { Chats, validateChat, validateModel, permissionPatch, applyPatch, assertNewChatPolicy } from './chats.mjs';
@@ -318,10 +318,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       const {validatePluginSettings}=await import('../src/plugins/registry.js');const settings=validatePluginSettings(p.id,p.settings);
       return mutate(p.workspaceId,()=>{const w=store.getWorkspace(p.workspaceId);w.plugins={...w.plugins,[p.id]:{...w.plugins?.[p.id],...settings,config:w.plugins?.[p.id]?.config??{}}};w.updatedAt=new Date().toISOString();return settings;});
     }
-    if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces'].includes(key),'Unsupported workspace patch');Object.assign(w,p.patch,{updatedAt:new Date().toISOString()});return w;});
+    if(method==='workspace.update') return mutate(p.id,()=>{const w=store.getWorkspace(p.id);object(p.patch);for(const key of Object.keys(p.patch)) assert(['name','camera','spaces','sessionDefaults'].includes(key),'Unsupported workspace patch');const patch={...p.patch};if(Object.hasOwn(patch,'sessionDefaults')&&patch.sessionDefaults!==null)patch.sessionDefaults={...validateSessionDefaults(patch.sessionDefaults)};Object.assign(w,patch,{updatedAt:new Date().toISOString()});if(w.sessionDefaults===null)delete w.sessionDefaults;return w;});
     if(method==='workspace.relocate') return mutate(p.id,()=>{const w=store.getWorkspace(p.id),canonical=canonicalFolder(p.path);assert(!store.state.workspaces.some(v=>v.id!==w.id && v.canonicalPath===canonical),'Folder belongs to another workspace');Object.assign(w,{path:canonical,canonicalPath:canonical,updatedAt:new Date().toISOString()});return w;});
     if(method==='node.create') return mutate(p.workspaceId,()=>{
        const w=store.getWorkspace(p.workspaceId); assert(NODE_TYPES.includes(p.type),'Invalid node type'); const node={id:randomUUID(),type:p.type,title:p.title??p.type,x:p.x??0,y:p.y??0,width:p.width??(p.type==='browser'?800:640),height:p.height??(p.type==='terminal'?640:p.type==='browser'?520:400),groupId:null,data:p.data??{}};validatePluginPanel(node.type,node.data);if(node.data.chat!==undefined){assert(node.type==='terminal','Only terminal cards chat');validateChat(node.data.chat);assertNewChatPolicy(node.data.chat,policy());}
+       if(node.type==='terminal'&&node.data.chat?.provider&&w.sessionDefaults&&!Object.hasOwn(node.data.chat,'permissionMode')&&!Object.hasOwn(node.data.chat,'autoApprove'))node.data={...node.data,chat:{...node.data.chat,...permissionPatch(w.sessionDefaults)}};
        // One orchestrator session per project.
        if(node.data.role!==undefined){assert(node.type==='terminal'&&node.data.role==='orchestrator','Invalid terminal role');assert(w.integration?.enabled,'Activa Incorporaciones en este proyecto antes de abrir la sesión orquestadora');assert(!w.nodes.some(n=>n.data?.role==='orchestrator'),'Este proyecto ya tiene una sesión orquestadora');}
        w.nodes.push(node);return node;

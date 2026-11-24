@@ -21,8 +21,9 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
     document.addEventListener('pointerdown', outside, true);
     return () => { stale = true; document.removeEventListener('pointerdown', outside, true); };
   }, [open, api, workspace.id, node.id]);
+  const close = () => { setOpen(false); root.current?.querySelector('button')?.focus({ preventScroll: true }); };
   const choose = async model => {
-    setOpen(false);
+    close();
     if (model === selected) return;
     try { await api('chat.configure', { workspaceId: workspace.id, nodeId: node.id, model }); } catch (e) { notify?.(e.message, 'error'); }
   };
@@ -30,8 +31,8 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
   const groups = []; for (const item of items) { const last = groups.at(-1); if (last?.name === item.group) last.items.push(item); else groups.push({ name: item.group, items: [item] }); }
   const custom = query.trim() && !catalog?.items.some(item => item.id === query.trim()) ? query.trim() : '';
   const shown = selected || observed;
-  return <div ref={root} className="pc-model-picker" onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
-    <button type="button" className={`pc-model ${shown ? '' : 'is-empty'}${row ? ' pc-session-row' : ''}`} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} title={selected ? `Modelo elegido para ${label}: ${selected}` : observed ? `Modelo predeterminado de ${label}: ${observed}` : `Se usa el modelo predeterminado de ${label}`} onClick={() => setOpen(value => !value)}>
+  return <div ref={root} className="pc-model-picker" onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); close(); } }}>
+    <button type="button" className={`pc-model ${shown ? '' : 'is-empty'}${row ? ' pc-session-row' : ''}`} aria-label={`Modelo de ${label}: ${shown || 'predeterminado'}`} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} title={selected ? `Modelo elegido para ${label}: ${selected}` : observed ? `Modelo predeterminado de ${label}: ${observed}` : `Se usa el modelo predeterminado de ${label}`} onClick={() => setOpen(value => !value)}>
       {row ? <><span className="pc-session-badge is-model"><Cpu size={18} aria-hidden="true" /></span><span className="pc-session-label">Modelo</span><span className="pc-session-value">{shown || 'Predeterminado'}</span><ChevronRight size={16} aria-hidden="true" /></> : <><ProviderGlyph provider={provider} size={14} /><span>{shown || 'modelo predeterminado'}</span><ChevronDown size={14} aria-hidden="true" /></>}
     </button>
     {open && <div className="pc-models" role="dialog" aria-label={`Modelo de ${label}`}>
