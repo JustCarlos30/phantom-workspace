@@ -13,7 +13,7 @@ import '../keyboard-navigation.css';
 import { canScroll, hasScrollable, createWheelGesture, isDiscreteWheel, wheelZoomFactor } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
-import { frameFor, needsFraming, reframeOnResize } from '../hooks/panelFraming';
+import { frameFor, reframeOnResize } from '../hooks/panelFraming';
 import { useSessionAlerts } from '../hooks/useSessionAlerts';
 import TitiMascot from './GengarMascot.jsx';
 import { CommentLayer } from './References';
@@ -223,9 +223,9 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     return area;
   }, []);
   // Camera that centers one panel inside the visible (unobstructed) stage.
-  const frameCamera = useCallback((id, view = size) => {
+  const frameCamera = useCallback((id, view = size, zoom) => {
     const found = live.current.nodes.find(n => n.id === id); if (!found) return null;
-    return frameFor(found, safeArea(), view);
+    return frameFor(found, safeArea(), view, zoom);
   }, [size, safeArea]);
   const fit = useCallback((selectionOnly = false) => {
     const targets = selectionOnly === true ? nodes.filter(n => selected.includes(n.id)) : nodes;
@@ -289,7 +289,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     for (const request of [jumpRequest, frameRequest]) {
       if (!request?.id || handledJump.current.has(request)) continue;
       if (!size.width || !size.height) continue;
-      const next = frameCamera(request.id); if (!next) continue;
+      const next = frameCamera(request.id, size, request.keepZoom ? cameraRef.current.zoom : undefined); if (!next) continue;
       handledJump.current.add(request);
       framed.current = { id: request.id, at: performance.now() };
       stopInertia();
@@ -298,7 +298,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
         setFlash(request);
       }
     }
-  }, [jumpRequest, frameRequest, frameCamera, focused, nodes, navigate, stopInertia, size]);
+  }, [jumpRequest, frameRequest, frameCamera, focused, nodes, navigate, stopInertia, size, cameraRef]);
   const zoomAt = useCallback((zoom, x = size.width / 2, y = size.height / 2, smooth = true) => {
     const old = cameraRef.current, next = clamp(zoom, .15, 1.8);
     (smooth ? navigate : updateCamera)({ x: x - (x - old.x) * next / old.zoom, y: y - (y - old.y) * next / old.zoom, zoom: next });
@@ -550,8 +550,8 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     if (focused || e.button !== 0 || e.shiftKey || !p || p.id !== id || Math.hypot(e.clientX - p.x, e.clientY - p.y) > 5) return;
     if (e.target.closest('button,a,[role="menuitem"],[role="option"],[role="radio"]')) return;
     const panel = root.current?.querySelector(`[data-node-id="${CSS.escape(id)}"]`);
-    const node = live.current.nodes.find(n => n.id === id), target = frameCamera(id)?.zoom;
-    if (panel && node && needsFraming({ clipped: clipped(panel), zoom: cameraRef.current.zoom, target, type: node.type })) frameNode(id);
+    // Respect the user's zoom: a click only recenters a clipped card.
+    if (panel && clipped(panel)) frameNode(id, true);
   };
   const latest = useRef({}); latest.current = { begin, onMenu, onFocus, onSelect, onCloseTerminal, rename, press, click, watchAudio };
   // Closing a thread or a draft hands the keyboard back to the canvas, so Esc, C and V keep working.
@@ -579,7 +579,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     renameInput: element => { latest.current.rename.inputRef.current = element; },
   }), []);
   const focusedNode = nodes.find(n => n.id === focused);
-  const frameNode = useCallback(id => setFrameRequest({ id, nonce: Date.now() }), []);
+  const frameNode = useCallback((id, keepZoom = false) => setFrameRequest({ id, keepZoom, nonce: Date.now() }), []);
   useEffect(() => { if (focusedNode?.type === 'zone') { onFocus(null); frameNode(focusedNode.id); } }, [focusedNode, onFocus, frameNode]);
   const tier = focused ? 0 : cameraTier(camera.zoom);
   return <section ref={root} tabIndex={0} data-keyboard-mode={keyboardMode} onFocusCapture={e => { if (e.target === root.current) onKeyboardMode?.('navigation'); else if (e.target.closest('.canvas-node') && editable(e.target)) onKeyboardMode?.('interaction', e.target.closest('.canvas-node').dataset.nodeId); }} className={`canvas ${focused ? 'focus-mode' : ''} ${panning ? 'is-panning' : ''} ${tool === 'hand' || spaceHeld ? 'hand-tool' : ''} ${tool === 'comment' ? 'comment-tool' : ''}`} aria-label="Lienzo espacial del proyecto" onPointerMove={e => { pointer.current = { x: e.clientX, y: e.clientY }; move(e); }} onDragOver={e => { if (droppable(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }} onDrop={drop} onMouseDown={blockMiddle} onMouseUp={blockMiddle} onAuxClick={blockMiddle} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onPointerDownCapture={e => { if (tool === 'comment' && e.button === 0 && !inputBlocked && !e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor,.node-header,.zone-label,.browser-toolbar')) { placeComment(e); return; } if (!e.target.closest('.canvas-navigation,.canvas-popover,.focus-return,.canvas-minimap,.comment-anchor') && (e.button === 1 || tool === 'hand' || space.current)) begin(e, 'pan'); }} onPointerDown={e => { if (e.target === e.currentTarget || e.target.closest('.canvas-world') === e.target || (e.target.closest('.canvas-empty') && !e.target.closest('button'))) begin(e, 'select'); }} onContextMenu={e => { if (!e.target.closest('.canvas-node')) { e.preventDefault(); onMenu(null, e.clientX, e.clientY); } }}>
@@ -591,8 +591,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       if (focused || performance.now() - (lastPress.current?.t || -Infinity) < 800) return;
       const panel = e.target.closest('.canvas-node');
       if (!panel) return;
-      const id = panel.dataset.nodeId, node = live.current.nodes.find(n => n.id === id), target = frameCamera(id)?.zoom;
-      if (node && needsFraming({ clipped: clipped(panel), zoom: cameraRef.current.zoom, target, type: node.type })) frameNode(id);
+      if (clipped(panel)) frameNode(panel.dataset.nodeId, true);
     }}>
     {!nodes.length && <EmptyState className="canvas-empty" size="hero" icon={showCharacter ? <TitiMascot /> : Layers} heading="h2" title="Tu mesa de trabajo, en un lugar" description="Abre una terminal, toma una nota o pega una imagen, un video o un enlace. Cada panel conserva su lugar en este proyecto." actions={<><button className="button primary" onClick={() => onOpenPanel('terminal')}><TerminalSquare size={16} /> Crear terminal</button><button className="button" onClick={() => onOpenPanel('note')}><StickyNote size={16} /> Escribir nota</button></>} hint="Arrastra una cabecera para organizar · Ctrl + V pega referencias · C comenta" />}
     <div ref={world} className="canvas-world">
