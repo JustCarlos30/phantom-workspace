@@ -679,3 +679,36 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc:has(.pc-session-new) > .pc-composer { background: transparent; }
 @media (pointer: coarse) { .pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send, .voice-activity) > :is(.pc-icon, .phantom-chat-mic, .pc-send, .voice-discard, .voice-finish) { min-width: 44px; min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .pc-session-row, .pc .spinning { animation: none !important; transition: none !important; } }
+
+/* Barra del compositor: una sola familia de píldoras (misma altura, relleno y radio), en una fila que
+   envuelve sin romper la continuidad; acciones (nuevo, contexto · micro, enviar) en la fila de abajo. */
+.pc.pc .pc-controls:has(> .pc-selectors) { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.pc.pc .pc-selectors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; max-width: 100%; box-sizing: border-box; }
+.pc.pc .pc-selectors:empty { display: none; }
+.pc.pc .pc-selectors > * { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.pc.pc .pc-selectors > .pc-session-settings { grid-column: auto; }
+.pc.pc .pc-selectors > .pc-model-picker, .pc.pc .pc-selectors > .pc-effort { display: flex; }
+:is(.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip, .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning) {
+  box-sizing: border-box; height: 32px; min-height: 32px; width: auto; padding: 0 12px; gap: 6px;
+  border-radius: var(--r-pill); background: var(--control-fill); box-shadow: none; color: var(--ink);
+  font: var(--t-support); font-weight: 500; line-height: 1; white-space: nowrap;
+}
+.pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-permission[data-mode] { padding: 0 11px; }
+:is(.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip, .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning):hover:not(:disabled):not([data-disabled]) { background: var(--control-hover); }
+.pc.pc .pc-selectors > .pc-session-settings { flex: 0 1 160px; }
+.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip { width: 100%; }
+.pc.pc .pc-selectors > .pc-model-picker { flex: 0 1 auto; }
+.pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning { width: auto; max-width: 100%; }
+.pc.pc .pc-selectors > .pc-model-picker > .pc-model > span { max-width: 18ch; }
+.pc.pc .pc-composer-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 4px; }
+.pc.pc .pc-composer-tools { flex: 0 1 auto; }
+.pc.pc .pc-composer-send { flex: 1 1 auto; justify-content: flex-end; }
+@container pc-isle (max-width: 520px) {
+  .pc.pc .pc-composer-actions { display: flex; flex-wrap: wrap; }
+  .pc.pc .pc-selectors > .pc-permission > span { display: none; }
+}
+@media (pointer: coarse) { :is(.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip, .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning) { height: 44px; min-height: 44px; } }
+/* Mientras se dicta, el medidor de voz ocupa la fila de acciones: nuevo/contexto vuelven al terminar. */
+.pc.pc .pc-composer-actions:has(.voice-activity) { flex-wrap: nowrap; }
+.pc.pc .pc-composer-actions:has(.voice-activity) .pc-composer-tools { display: none; }
+@container pc-isle (max-width: 400px) { .pc.pc .pc-composer-actions .pc-context-share { display: none; } .pc.pc .pc-composer-actions { gap: 4px; } }
