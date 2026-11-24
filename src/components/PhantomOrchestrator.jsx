@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, ArrowUpRight, Check, Mic, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, ArrowUpRight, Mic, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { VoiceActivity, VoiceTranscript, dictationPreview } from './VoiceActivity';
@@ -158,7 +158,7 @@ function OrchestratorComposer({ workspace, api, connected, nodeId, title }) {
       <div className="pc-input" data-preview={voice.status !== 'idle' || undefined}><VoiceTranscript voice={voice} draft={draft} /><textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${title}`} placeholder={running ? `${title} está trabajando · lo que envíes queda en espera` : `Indica algo a ${title}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} /></div>
       <div className="pc-controls"><VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
         {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : 'Dictar al orquestador'} aria-label="Dictar al orquestador" onClick={voice.start}><Mic size={18} /></button>}
-        <button type="submit" className="pc-send" title={dictating ? 'Terminar dictado y enviar · Enter' : 'Enviar · Enter'} aria-label={dictating ? 'Terminar dictado' : `Enviar mensaje a ${title}`} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected, ready: !!chat })}>{dictating ? <Check size={18} /> : <ArrowUp size={18} />}</button>
+        <button type="submit" className="pc-send" title={dictating ? 'Terminar dictado y enviar · Enter' : 'Enviar · Enter'} aria-label={dictating ? 'Terminar dictado' : `Enviar mensaje a ${title}`} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected, ready: !!chat })}><ArrowUp size={18} /></button>
       </div>
     </div>
   </form>;

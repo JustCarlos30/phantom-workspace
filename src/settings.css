@@ -181,3 +181,10 @@ textarea.st-input { flex: auto; width: 100%; text-align: left; resize: vertical;
   .st-range { inset-block: -6px; height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .st *, .st *::before { transition: none !important; } }
+
+/* Select nativo con aspecto propio: altura y línea explícitas para que el valor no se corte, flecha propia y lista oscura. */
+.st-select { appearance: none; -webkit-appearance: none; box-sizing: border-box; height: 38px; line-height: 20px; padding: 0 36px 0 12px; overflow: visible; text-overflow: ellipsis; color-scheme: dark; background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 12px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23a7adb8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E"); }
+.st .st-select { background-color: transparent; min-width: 132px; }
+.st .st-select:hover:not(:disabled) { background-color: var(--control-hover); }
+.st-select option { background: var(--surface); color: var(--ink); padding: 6px 12px; }
+@media (pointer: coarse) { .st-select { height: 44px; } }
