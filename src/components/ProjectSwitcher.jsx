@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Folder, FolderOpen, Search } from 'lucide-react';
+import { Folder, FolderOpen, Search } from 'lucide-react';
 import { sortProjects } from '../../shared/project-usage.mjs';
 import { accentColor, loadAppearance } from '../hooks/useAppearance';
 
@@ -68,7 +68,7 @@ export default function ProjectSwitcher({ projects, active, open, onOpenChange, 
   return <details ref={menu.root} className="project-switcher context-switcher" open={open} onKeyDown={menu.onKeyDown} onBlur={menu.onBlur}>
     <summary ref={menu.trigger} aria-expanded={open} aria-controls="project-context-menu" title={active?.path || 'Elegir proyecto'} onClick={e => { e.preventDefault(); onOpenChange(!open); }}>
       <ProjectMark project={active} />
-      <span className="project-switcher-label"><small>Proyecto</small><strong>{active?.name || 'Elegir proyecto'}</strong></span><ChevronDown size={14} />
+      <span className="project-switcher-label"><small>Proyecto</small><strong>{active?.name || 'Elegir proyecto'}</strong></span>
     </summary>
     {open && <div id="project-context-menu" className="context-menu-panel" style={menu.style}>
       <label className="context-search"><Search size={14} /><input ref={menu.search} aria-label="Buscar proyectos por nombre o ruta" placeholder="Nombre o ruta…" value={query} onChange={e => setQuery(e.target.value)} /></label>

@@ -95,6 +95,28 @@ test('UI pasa expiry ISO/numérico, oculta QR inválido y ofrece recuperación s
   }
 });
 
+test('UI pendiente muestra SAS y bloquea Permitir sin SAS válido', async () => {
+  const { transformWithEsbuild } = await import('vite');
+  const source = fs.readFileSync(new URL('../src/components/AndroidGatewaySettings.jsx', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '').replace('export default function', 'function');
+  const { code } = await transformWithEsbuild(source, 'AndroidGatewaySettings.jsx', { loader: 'jsx', jsx: 'transform' });
+  const React = { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: 'fragment' };
+  for (const sas of ['123456', undefined, '12345', 'abcdef']) {
+    let index = 0;
+    const device = { id: 'd1', name: 'Tel', state: 'pending', keyFingerprint: 'a'.repeat(64), ...(sas === undefined ? {} : { sas }) };
+    const states = [{ enabled: true, workspacesAvailable: true, workspaces: [], devices: [device], interfaces: [], node: { compatible: true }, repoValid: true }, '', '', '0', null, null, false, false, '', false, Date.now()];
+    const component = new Function('React', 'useState', 'useRef', 'useEffect', 'Group', 'Row', 'TextRow', 'Switch', 'PhoneQr', 'MobileSettings', 'buildAppPairingPayload', 'standardGrants', 'grantsFromSelection', 'selectionFromGrants', 'needsAcknowledgement', code + '\nreturn AndroidGatewaySettings;')(React, () => [states[index++], () => {}], value => ({ current: value }), () => {}, 'Group', 'Row', 'TextRow', 'Switch', 'PhoneQr', 'MobileSettings', buildAppPairingPayload, standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement);
+    const tree = component({ workspace: { id: 'w', name: 'W' }, api: () => {} });
+    const nodes = [];
+    const visit = node => { if (Array.isArray(node)) return node.forEach(visit); if (node && typeof node === 'object') { nodes.push(node); visit(node.children); } };
+    visit(tree);
+    const allow = nodes.find(node => node.type === 'button' && node.children.includes('Permitir'));
+    const shown = nodes.find(node => node.props?.className === 'st-sas');
+    assert.ok(allow);
+    assert.equal(allow.props.disabled, sas !== '123456');
+    assert.equal(shown.children.join(''), sas === '123456' ? '123 456' : '—');
+  }
+});
+
 test('matriz QR es cuadrada, booleana y admite un bootstrap realista', async t => {
   const input = await payload(t);
   const { size, modules } = qrMatrix(buildAppPairingPayload(input));

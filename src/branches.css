@@ -11,14 +11,14 @@
 
 .br-list { flex: 1; min-width: 0; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 16px; padding: 4px 16px 24px; container-type: inline-size; }
 .br-tools { display: flex; align-items: center; gap: 8px; }
-.br-filters { display: flex; flex-wrap: wrap; gap: 6px; }
-.br-filter { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--ink); font: var(--t-control); cursor: pointer; }
-.br-filter:hover { background: var(--fill-3); }
-.br-filter[aria-pressed="true"] { background: var(--on); color: var(--on-ink); }
+.br-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.br-filter { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted); font: var(--t-control); cursor: pointer; }
+.br-filter:hover { background-color: var(--row-hover); }
+.br-filter[aria-pressed="true"] { background-color: var(--row-hover); color: var(--ink); }
 .br-filter-count { font: var(--t-micro); font-variant-numeric: tabular-nums; }
-.br-search { flex: 1; display: flex; align-items: center; gap: 8px; max-width: 340px; height: 34px; padding: 0 12px; border-radius: var(--r-pill); background: var(--fill); box-shadow: var(--shadow-well); color: var(--muted); cursor: text; }
+.br-search { flex: 1; display: flex; align-items: center; gap: 8px; max-width: 340px; height: 34px; padding: 0 12px; border-radius: var(--r-pill); background: var(--fill); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); color: var(--muted); cursor: text; }
 .br-root .br-search input { flex: 1; min-width: 0; min-height: 0; height: auto; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: var(--t-control); }
-.br-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.br-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
 .br-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; margin-left: auto; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted); cursor: pointer; }
 .br-icon:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
 .br-icon:disabled { opacity: .5; cursor: default; }
@@ -56,11 +56,11 @@ button.br-main:focus-visible { outline-offset: -2px; border-radius: var(--r-ctl)
 .br-chip[data-tone="danger"] { --tone: var(--danger); }
 
 /* Buttons: pills. One filled key per row. */
-.br-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font: var(--t-control); white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
-.br-button:hover:not(:disabled) { background: var(--fill-3); }
+.br-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink); font: var(--t-control); white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
+.br-button:hover:not(:disabled) { background: var(--row-hover); }
 .br-button:disabled { opacity: .5; cursor: default; }
-.br-button.is-primary { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); font-weight: 600; }
-.br-button.is-primary:hover:not(:disabled) { background: var(--on); }
+.br-button.is-primary { background: var(--on); color: var(--on-ink); box-shadow: none; font-weight: 600; }
+.br-button.is-primary:hover:not(:disabled) { background: var(--on-hover); }
 .br-button.is-armed { background: var(--on); color: var(--on-ink); }
 .br-button.is-armed:hover:not(:disabled) { background: var(--on); }
 .br-button.is-quiet { background: transparent; color: var(--muted); }
@@ -80,7 +80,8 @@ button.br-main:focus-visible { outline-offset: -2px; border-radius: var(--r-ctl)
 .br-notice.is-warn { color: var(--attention); }
 .br-form { display: grid; gap: 12px; padding: 4px 18px 16px; font: var(--t-support); }
 .br-field { display: grid; gap: 4px; color: var(--muted); }
-.br-root .br-field input { height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--fill); box-shadow: var(--shadow-well); color: var(--ink); font: var(--t-body); }
+.br-root .br-field input { height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--fill); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); font: var(--t-body); }
+.br-root .br-field input:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
 .br-check { display: flex; align-items: center; gap: 8px; color: var(--ink); }
 
 /* Detail: beside the list when there is room, under its row when not. */

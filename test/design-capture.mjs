@@ -118,7 +118,12 @@ const shot = async scene => {
     for (const el of document.querySelectorAll('.project-rail,.canvas-node,.inspector-host,.activity-dock,.canvas-navigation,.context-menu-panel,.pc-models')) {
       if (!el.getClientRects().length) continue;
       const style = getComputedStyle(el), ring = getComputedStyle(el, '::before');
-      if (style.backgroundColor !== 'rgb(11, 11, 12)' || style.backgroundImage !== 'linear-gradient(rgb(15, 15, 17), rgb(7, 7, 8))') throw new Error(`Missing object material: ${el.className}`);
+      const fillProbe = document.createElement('div'); el.append(fillProbe);
+      fillProbe.style.position = 'absolute';
+      fillProbe.style.backgroundImage = 'var(--object-fill)';
+      const expectedFill = getComputedStyle(fillProbe).backgroundImage;
+      fillProbe.remove();
+      if (style.backgroundColor !== 'rgb(11, 11, 12)' || style.backgroundImage !== expectedFill) throw new Error(`Missing object material: ${el.className}`);
       if (style.backdropFilter !== 'none' || ['Top', 'Right', 'Bottom', 'Left'].some(side => style[`border${side}Width`] !== '0px')) throw new Error(`Blur or extra edge: ${el.className}`);
       const probe = document.createElement('div'); el.append(probe);
       probe.style.position = 'absolute';
@@ -319,7 +324,8 @@ try {
     const notch = document.querySelector('.activity-notch');
     notch.classList.add('needs-you');
     notch.querySelector('strong').textContent = 'Sintético: 2 te necesitan';
-    document.querySelector('.attention-button').insertAdjacentHTML('beforeend', '<i></i>');
+    // The bell only exists when the rail is collapsed or narrow.
+    document.querySelector('.attention-button')?.insertAdjacentHTML('beforeend', '<i></i>');
   });
   const railStatuses = await page.locator('.rail-session-status').evaluateAll(elements => elements.map(el => {
     const rect = el.getBoundingClientRect();
@@ -358,7 +364,7 @@ try {
         const seg = document.querySelector('.canvas-navigation .control-segmented');
         const primary = dock.querySelector('.dock-primary'), ps = getComputedStyle(primary);
         const host = rail.querySelector('.host-indicator'), mark = rail.querySelector('.project-switcher > summary > .project-initials');
-        return { rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), coarse, rows, controls,
+        return { header: rect(document.querySelector('.workspace-header')), rail: rect(rail), padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(rs[`padding${side}`])), window: { width: innerWidth, height: innerHeight }, dock: rect(dock), dockRadius: ds.borderRadius, stage: rect(stage), nav: rect(document.querySelector('.canvas-navigation')), coarse, rows, controls,
           primary: { bounds: rect(primary), icon: rect(primary.querySelector('svg')), label: rect(primary.querySelector('span')), direction: ps.flexDirection, padding: [ps.paddingLeft, ps.paddingRight], gap: ps.gap },
           host: { text: host.textContent, clipped: host.scrollWidth > host.clientWidth, bounds: rect(host), next: rect(host.nextElementSibling) },
           projectMark: { bounds: rect(mark), text: mark.textContent, radius: getComputedStyle(mark).borderRadius },
@@ -366,6 +372,7 @@ try {
           segment: seg && { height: rect(seg).height, padding: getComputedStyle(seg).padding, gap: getComputedStyle(seg).gap, children: [...seg.children].filter(el => getComputedStyle(el).display !== 'none').map(el => rect(el).height) } };
       });
       assert.deepEqual(measurement.tokens, { 'rail-width': '272px', gutter: '12px', 'box-pad': '12px', 'row-detail': '56px', 'badge-size': '32px', 'glyph-primary': '18px', 'dock-h': '64px', 'dock-clearance': '24px', 'seg-height': '36px', 'seg-pad': '4px', 'seg-gap': '4px', 'focus-width': '2px' });
+      dimension(measurement.header.height, 48, 'Top bar height');
       dimension(measurement.rail.width, 272, 'Rail width'); dimension(measurement.rail.x, 12, 'Rail left'); dimension(measurement.rail.y, 12, 'Rail top');
       for (const padding of measurement.padding) dimension(padding, 12, 'Rail padding');
       assert.ok(Math.abs(measurement.window.height - measurement.rail.bottom - 12) <= 1);
@@ -373,6 +380,8 @@ try {
       assert.ok(Math.abs(measurement.window.height - measurement.dock.bottom - 24) <= 1, 'Dock clears the window by 24px');
       assert.ok(measurement.dock.y - measurement.stage.bottom >= 24 - layoutUnit, 'Clipped work stage clears dock by at least 24px');
       assert.ok(measurement.dock.x - measurement.rail.right >= 24 - layoutUnit, 'Dock clears the rail');
+      assert.ok(measurement.nav.x - measurement.dock.right >= 24 - layoutUnit, 'View tools sit right of the dock with at least 24px');
+      dimension(measurement.nav.bottom, measurement.dock.bottom, 'View tools share the dock baseline');
       dimension(measurement.stage.x, measurement.rail.right, 'Working stage excludes the expanded rail');
       assert.equal(measurement.primary.direction, 'row'); assert.deepEqual(measurement.primary.padding, ['18px', '18px']); assert.equal(measurement.primary.gap, '8px');
       dimension(measurement.primary.bounds.height, measurement.coarse ? 44 : 40, 'Primary height');
@@ -576,6 +585,12 @@ try {
     await page.getByRole('button', { name: `Ver ${working.title} en el mapa`, exact: true }).click();
     await panel.getByRole('button', { name: 'Enfocar panel', exact: true }).click();
     await shot('focus-flip-reduced');
+    const focusBar = await page.evaluate(() => {
+      const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, height: r.height }; };
+      return { header: rect(document.querySelector('.workspace-header')), back: rect(document.querySelector('.focus-return')) };
+    });
+    assert.ok(Math.abs(focusBar.header.height - 48) <= 1, `Focused top bar height: ${focusBar.header.height} vs 48`);
+    assert.ok(focusBar.header.x >= focusBar.back.right || focusBar.header.right <= focusBar.back.x || focusBar.header.y >= focusBar.back.bottom || focusBar.header.bottom <= focusBar.back.y, 'Focused top bar does not cover «Volver al mapa»');
     await page.locator('.focus-return button').click(); await delay(400);
     assert.equal(await page.evaluate(() => window.focusObservations.length), 2, 'Reduced motion applies layout without FLIP');
     assert.equal(await panel.evaluate(el => el.getAnimations({ subtree: true }).filter(animation => ['map-flash', 'trace-orbit'].includes(animation.animationName)).length), 0);
@@ -803,12 +818,15 @@ try {
       const input = panel.getByLabel('Mensaje para Claude', { exact: true });
       const recipe = async surface => surface.locator('.pc-composer').evaluate(el => {
         const s = getComputedStyle(el), field = getComputedStyle(el.querySelector('.pc-field')), input = getComputedStyle(el.querySelector('textarea')), controls = getComputedStyle(el.querySelector('.pc-controls'));
-        return { padding: s.padding, gap: s.gap, background: s.backgroundColor, field: field.backgroundColor, radius: field.borderRadius, border: field.borderTopWidth, shadow: field.boxShadow, input: { padding: input.padding, radius: input.borderRadius, background: input.backgroundColor, border: input.borderWidth, shadow: input.boxShadow, minimum: input.minHeight, font: input.font, transition: input.transitionProperty }, controls: { padding: controls.padding, gap: controls.gap } };
+        // Fill and ring change with focus and dictation; the recipe records that they exist.
+        return { padding: s.padding, gap: s.gap, background: s.backgroundColor, thread: getComputedStyle(el.parentElement.querySelector(':scope > .pc-thread')).backgroundColor, field: field.backgroundColor !== 'rgba(0, 0, 0, 0)', radius: field.borderRadius, border: field.borderTopWidth, shadow: field.boxShadow !== 'none', input: { padding: input.padding, radius: input.borderRadius, background: input.backgroundColor, border: input.borderWidth, shadow: input.boxShadow, minimum: input.minHeight, font: input.font, transition: input.transitionProperty }, controls: { padding: controls.padding, gap: controls.gap } };
       });
       const common = await recipe(panel);
-      assert.equal(common.padding, '12px 24px 24px 28px'); assert.equal(common.gap, '12px');
-      assert.equal(common.background, 'rgb(11, 11, 13)'); assert.equal(common.field, 'rgba(0, 0, 0, 0)');
-      assert.equal(common.radius, '0px'); assert.equal(common.shadow, 'none'); assert.equal(common.border, '0px');
+      assert.equal(common.padding, '0px 24px 24px'); assert.equal(common.gap, '12px');
+      assert.equal(common.background, common.thread, 'Composer shares the thread well');
+      const { background: _background, thread: _thread, ...shape } = common;
+      assert.equal(common.field, true, 'Composer island has a translucent fill');
+      assert.equal(common.radius, '24px'); assert.equal(common.shadow, true, 'Composer island has its ring'); assert.equal(common.border, '0px');
       assert.equal(common.input.padding, '8px 12px'); assert.equal(common.input.radius, '12px');
       assert.equal(common.input.background, 'rgba(0, 0, 0, 0)'); assert.equal(common.input.border, '0px'); assert.equal(common.input.shadow, 'none');
       assert.equal(common.input.minimum, '40px'); assert.equal(common.input.transition, 'none'); assert.equal(common.controls.gap, '8px');
@@ -821,7 +839,10 @@ try {
         for (const [suffix, width, height] of [['', 1520, 980], ['-narrow', 1100, 760]]) {
           await app.evaluate(({ BrowserWindow }, [width, height]) => BrowserWindow.getAllWindows()[0].setContentSize(width, height), [width, height]);
           await delay(300);
-          assert.deepEqual(await recipe(panel), common, `${name}${suffix}: same composer`);
+          const { background, thread, ...current } = await recipe(panel);
+          assert.deepEqual(current, shape, `${name}${suffix}: same composer`);
+          assert.equal(background, thread, `${name}${suffix}: composer shares the thread well`);
+          if (name === 'session-working') assert.equal(background, 'rgb(4, 4, 5)');
           assert.equal(await panel.locator('.pc-controls').evaluate(el => {
             const bounds = el.closest('.pc').getBoundingClientRect(), r = el.getBoundingClientRect();
             return el.scrollWidth <= el.clientWidth && r.left >= bounds.left - .001 && r.right <= bounds.right + .001 && r.bottom <= bounds.bottom + .001;
@@ -841,17 +862,19 @@ try {
             observations.push({ scene: `${name}${suffix}`, quote });
           }
           if (name === 'session-dictating') {
+            await input.evaluate(el => el.blur());
+            await delay(200);
+            const rest = await input.evaluate(el => getComputedStyle(el.closest('.pc-field')).backgroundColor);
             await input.press('ArrowLeft');
+            await delay(200);
             const field = await input.evaluate(el => {
               const s = getComputedStyle(el), preview = getComputedStyle(el.parentElement.querySelector('.voice-live'));
-              return { focused: el.matches(':focus-visible'), padding: s.padding, radius: s.borderRadius, pixelRatio: devicePixelRatio, outline: { width: parseFloat(s.outlineWidth), widthToken: s.getPropertyValue('--focus-width').trim(), style: s.outlineStyle, color: s.outlineColor, offset: parseFloat(s.outlineOffset), offsetToken: s.getPropertyValue('--focus-offset').trim() }, preview: { padding: preview.padding, radius: preview.borderRadius, font: preview.font } };
+              return { focused: el.matches(':focus-visible'), padding: s.padding, radius: s.borderRadius, fill: getComputedStyle(el.closest('.pc-field')).backgroundColor, outline: { style: s.outlineStyle }, preview: { padding: preview.padding, radius: preview.borderRadius, font: preview.font } };
             });
-            assert.equal(field.focused, true, 'Dictation retains visible keyboard focus');
+            assert.equal(field.focused, true, 'Dictation retains keyboard focus');
             assert.equal(field.padding, common.input.padding); assert.equal(field.radius, common.input.radius);
-            assert.equal(field.outline.widthToken, '2px'); assert.equal(field.outline.offsetToken, '2px');
-            assert.equal(field.outline.style, 'solid'); assert.equal(field.outline.color, 'rgb(236, 230, 216)');
-            assert.ok(field.outline.width > 0 && Math.abs(field.outline.width - 2) < 1 / field.pixelRatio, 'Dictation focus retains 2 CSS px with device-pixel snapping');
-            assert.ok(field.outline.offset > 0 && Math.abs(field.outline.offset - 2) < 1 / field.pixelRatio, 'Dictation focus offset retains 2 CSS px with device-pixel snapping');
+            assert.equal(field.outline.style, 'none', 'The field shows focus with the island light, not an outline');
+            assert.notEqual(field.fill, rest, 'Focused island steps its fill');
             assert.deepEqual(field.preview, { padding: common.input.padding, radius: common.input.radius, font: common.input.font });
             observations.push({ scene: `${name}${suffix}`, dictationField: field });
           }
@@ -915,12 +938,16 @@ try {
       assert.deepEqual(await app.evaluate(() => globalThis.sessionDesignFixture.sent.map(call => call.text)), ['Borrador previo. SYNTHETIC dictado final.']);
       await page.getByRole('button', { name: 'Abrir Phantom', exact: true }).click();
       await page.locator('.phantom-chat .pc-field').waitFor();
-      assert.deepEqual(await recipe(page.locator('.phantom-chat')), common, 'Side composer shares the session recipe');
+      const { background: sideBackground, thread: sideThread, ...side } = await recipe(page.locator('.phantom-chat'));
+      assert.deepEqual(side, shape, 'Side composer shares the session recipe');
+      assert.equal(sideBackground, sideThread, 'Side composer shares its thread well');
       await page.locator('.phantom-chat').getByRole('button', { name: 'Cerrar Phantom', exact: true }).click();
       await toMap();
       await page.locator('.canvas').focus(); await page.keyboard.press('1');
       await panel.locator('.pc-composer').waitFor();
-      assert.deepEqual(await recipe(panel), common, 'Map composer shares the focus recipe');
+      const { background: mapBackground, thread: mapThread, ...map } = await recipe(panel);
+      assert.deepEqual(map, shape, 'Map composer shares the focus recipe');
+      assert.equal(mapBackground, mapThread, 'Map composer shares its thread well');
       observations.push({ scene: 'session-v2', fixture: 'SYNTHETIC chat, delegation and ASR; WebAudio oscillator, no provider or microphone', composer: common, explicitSends: 1 });
       await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler('phantom:invoke'); ipcMain.handle('phantom:invoke', globalThis.sessionDesignFixture.original); delete globalThis.sessionDesignFixture; });
       await invoke('node.remove', { workspaceId, id: session.id });

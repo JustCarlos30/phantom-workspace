@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateInventory, analyzeSource, inspectRepository, productionStyles, repositoryFiles } from '../scripts/storybook-inventory.mjs';
+import { validateInventory, validateStoryIndex, analyzeSource, analyzeStories, inspectRepository, productionStyles, repositoryFiles } from '../scripts/storybook-inventory.mjs';
 import { createHost } from '../src/stories/host-mock.js';
 
 test('el inventario detecta fuentes sin registrar y enlaces inexistentes', () => {
@@ -48,6 +48,40 @@ test('AST distingue componentes privados, exports y registros sin confundir come
   const result = analyzeSource('// function Fake() {}\nexport function Visible() { return <Privado />; }\nfunction Privado() { return <span />; }\nexport const REGISTRY = {};', 'sample.jsx');
   assert.deepEqual(result.symbols.map(s => [s.name, s.exported]), [['Visible', true], ['Privado', false], ['REGISTRY', true]]);
   assert.match(result.symbols[2].kind, /registro/);
+});
+
+test('AST deriva IDs y dependencias de stories heredadas, funciones y aliases sin contar helpers privados', () => {
+  const stories = analyzeStories(`
+    import Real from './Real';
+    const meta = { title: 'Familia', id: 'familia-real' };
+    export default meta;
+    const helper = () => <Real />;
+    const Base = { render: helper };
+    export const ConDatos = { ...Base };
+    function Vacio() { return <Real />; }
+    export { Vacio as SinDatos };
+    export function ErrorVisible() { return helper(); }
+    // export const Fantasma = {};
+  `, 'sample.stories.jsx');
+  assert.deepEqual(stories.map(s => s.id), ['familia-real--con-datos', 'familia-real--sin-datos', 'familia-real--error-visible']);
+  assert.ok(stories.every(s => s.renderedImports.includes('./Real')));
+  const argsOnly = analyzeStories("import Real from './Real'; export default { title: 'Familia', component: Real }; export const SoloArgs = { args: {} };", 'args.stories.jsx');
+  assert.deepEqual(argsOnly[0].renderedImports, ['./Real']);
+  assert.throws(() => analyzeStories('export default { title: obtenerTitulo() }; export const Uno = {};', 'dynamic.stories.jsx'), /Título CSF estático requerido/);
+});
+
+test('el índice exige los IDs exactos aunque el total coincida y detecta duplicados', () => {
+  const stories = [{ id: 'familia--uno' }, { id: 'familia--dos' }];
+  const entries = {
+    uno: { id: 'familia--uno', type: 'story' },
+    dos: { id: 'familia--dos', type: 'story' },
+    docs: { id: 'familia--docs', type: 'docs' },
+  };
+  assert.deepEqual(validateStoryIndex(stories, { entries }), []);
+  const stale = validateStoryIndex(stories, { entries: { ...entries, dos: { id: 'familia--vieja', type: 'story' } } });
+  assert.deepEqual(stale, ['Story ausente del build: familia--dos', 'Story ajena al AST actual: familia--vieja']);
+  assert.ok(validateStoryIndex([...stories, stories[0]], { entries }).some(error => error.includes('CSF duplicado')));
+  assert.ok(validateStoryIndex(stories, { entries: { ...entries, copia: entries.uno } }).some(error => error.includes('build duplicado')));
 });
 
 test('catálogo actual cubre todas las fuentes JSX y sus enlaces CSF', async () => {

@@ -22,6 +22,8 @@ El modo de desarrollo escucha en **127.0.0.1:6006**. El build escribe `storybook
 - **Primitivas–Fondos**: doce familias con componentes de producción, incluidos Canvas, terminal xterm, ChatCard, dock, orquestador, Repository, Cards, Skills, Configuración, móvil y voz.
 - **Docs**, **Controls** y **Accessibility**: fuente del escenario, propiedades editables donde aplican y resultados del addon a11y. El addon expone incidencias; la existencia del catálogo y sus capturas no acreditan conformidad AA.
 
+- **Propuestas**: laboratorio de diseño exploratorio, de primitivas a pantalla completa (material, controles, compositor, hilo, sesión, dock y cabecera del rail). Cada story tiene variantes en Controls y una comparativa lado a lado, con datos marcados SYNTHETIC. Sus estilos viven solo en `src/stories/proposals.css` (clases `.px-`); no cambia producción ni se registra en `catalog.mjs` hasta que una variante se apruebe.
+
 Las propuestas de consolidación están separadas del estándar vigente. `DESIGN.md` sigue siendo la referencia de diseño; el catálogo no cambia contratos de producción.
 
 ## CSS y assets
@@ -31,6 +33,8 @@ Las propuestas de consolidación están separadas del estándar vigente. `DESIGN
 `src/stories/catalog.css` contiene únicamente el escenario del catálogo: tamaños de panel, scroll, matriz y muestras. La configuración Vite de Storybook limita los selectores globales `:root`, `body` y `*` de `mobile.css` a `.mobile-app`, porque el cliente móvil y el escritorio tienen raíces independientes en producción. Así se conserva la paleta del cliente sin contaminar las stories de escritorio. La hoja original permanece intacta.
 
 El decorador aporta `.app-shell` a las stories de escritorio y ajusta solo el layout exterior del escenario para permitir su scroll y aislamiento. `ClienteMovil` queda fuera de ese contexto: usa la raíz y estilos propios de MobileApp. El inventario conserva la tabla semántica y apila sus celdas etiquetadas en pantallas compactas.
+
+`Panel` de `src/stories/decorators.jsx` conserva `<Panel>{children}</Panel>` y admite `width`, `height`, `host` (`catalog`, `canvas`, `inspector`, `sheet`) y `plugin`. Los hosts añaden la estructura real de nodo/herramienta, inspector o configuración; `plugin` añade `.plugin-surface`. El ancho se limita al espacio disponible. Por ejemplo, `<Panel width={380} host="canvas" plugin>…</Panel>` permite revisar un panel estrecho sin reducir el viewport de escritorio. Estos wrappers aportan contexto y dimensiones; las correcciones de controles pertenecen a producción.
 
 ## Añadir o ampliar escenarios
 
@@ -61,7 +65,7 @@ Estados disponibles:
 | Deshabilitado / desconectado | Controles, ChatDesconectado, botones dependientes del host |
 | Selección | Grafo, RamaSeleccionada, ContratoCard, DetalleSkill, Apariencia |
 | Atención / trabajo / éxito | ChatAtencion, ChatTrabajando, ActivityNotch, trazas y ramas |
-| Texto largo / compacto | TextoLargo, Proyectos, Ramas; capturas de todas las stories a 390 px |
+| Texto largo / compacto | TextoLargo, Proyectos, Ramas; recorrido a 390 px y paneles estrechos dentro de escritorio como aceptación del conjunto |
 | Teclado / movimiento reducido | Switch por Space, paleta y canvas reales; segunda captura con reduced motion |
 
 ### Límites de integración
@@ -78,7 +82,9 @@ Estados disponibles:
 
 El inventario usa `@babel/parser`, incluido y fijado por el lockfile de Storybook, para JSX/TSX, declaraciones, imports y exports. No usa regex para contar funciones. La detección de nombres de custom properties en CSS sí es lexical; sus **valores** se leen del navegador, no se deducen del texto.
 
-El smoke recorre **todos los IDs de tipo story de `index.json`**, espera el render y `play`, comprueba contenido, selectores representativos de las 62 fuentes, errores de página/consola y métodos de fixture desconocidos. Guarda dos capturas por story en `.test-artifacts/` (1440×900 y 390×844 con movimiento reducido). Además interactúa con el centro de mando, un switch por teclado, una nota del canvas y el dictado, y cambia de story dentro del mismo iframe para comprobar que host, listeners, mutaciones y borradores no se filtran. Las capturas son evidencia del recorrido, no comparación visual automática contra un baseline aprobado.
+`inspectRepository()` devuelve todas las stories declaradas por AST, sin retirar escenarios para ajustar una cifra. `analyzeStories()` deriva IDs y referencias de imports, incluyendo stories heredadas, funciones y aliases locales. `validateStoryIndex(stories, index)` compara los IDs exactos de tipo story, ignora entradas Docs y señala IDs ausentes, ajenos o duplicados; un total coincidente no basta. El comando de inventario aplica esta comparación al build actual. Se conservan los siete tests de baseline y se añaden casos de discrepancias de IDs y análisis CSF.
+
+El smoke de `test/storybook-smoke.mjs` es responsabilidad del hijo `verification` y su ejecución completa es aceptación del conjunto integrado. Su contrato es recorrer **todos los IDs de tipo story de `index.json`**, cotejarlos con el AST, esperar render y `play`, comprobar contenido, selectores de todas las fuentes del catálogo, errores de página/consola y métodos de fixture desconocidos. Incluye geometría de formularios, foco visible y acciones alcanzables en paneles compactos dentro de 1440×900, además del viewport de 390 px. El recorrido también ejercita el centro de mando, teclado, canvas, dictado y aislamiento al cambiar de story en el mismo iframe. Las capturas de escritorio y compacto en `.test-artifacts/` son evidencia del recorrido, no comparación visual automática contra un baseline aprobado. Esta documentación describe el alcance requerido; no acredita que el smoke ampliado haya pasado.
 
 Comprobaciones adicionales del contrato: `npm run build`, `node --test test/design-tokens.test.mjs`, `docker compose config --quiet` y `docker compose build storybook`. Los resultados y el cierre de aceptación los comunica el controlador.
 
@@ -88,11 +94,12 @@ Comprobaciones adicionales del contrato: `npm run build`, `node --test test/desi
 docker compose config --quiet
 docker compose build storybook
 docker compose up -d storybook
+docker compose port storybook 80
 docker compose logs -f storybook
 docker compose stop storybook
 docker compose down
 ```
 
-`Dockerfile.storybook` construye con Node 24 y `npm ci --ignore-scripts`; la etapa final sirve únicamente el catálogo estático con Nginx. Compose publica `127.0.0.1:6006 → 80`, declara `app_protocol: http`, healthcheck HTTP y `restart: unless-stopped`. No tiene `name` ni `container_name` fijos, mounts de usuario ni socket Docker. `.dockerignore` excluye dependencias, artefactos y secretos sin retirar fuentes, fixtures o assets.
+`Dockerfile.storybook` construye con Node 24 y `npm ci --ignore-scripts`; la etapa final sirve únicamente el catálogo estático con Nginx. Compose publica `127.0.0.1:${STORYBOOK_PORT:-0} → 80`: por defecto Docker asigna un puerto libre; para elegir uno, define `STORYBOOK_PORT` antes de operar Compose. Declara `app_protocol: http`, healthcheck de `/index.json`, `restart: "no"` y `x-phantom` con ciclo `ephemeral`, propósito y card de origen. No tiene `name` ni `container_name` fijos, mounts de usuario ni socket Docker. `.dockerignore` excluye dependencias, artefactos y secretos sin retirar fuentes, fixtures o assets.
 
-Phantom descubre el Compose de esta raíz desde **Sitios** o **Servicios → Todos los proyectos**. La consulta no inicia contenedores. La URL aparece cuando existe un binding efectivo del servicio; el controlador/padre arranca y registra después de aceptar el cambio. Para varios worktrees, elige puertos publicados distintos al operarlos: los nombres de proyecto no resuelven una colisión del mismo puerto 6006.
+Phantom descubre el Compose de esta raíz desde **Sitios** o **Servicios → Todos los proyectos**. La consulta no inicia contenedores. Los comandos anteriores son referencia para el controlador/padre, que arranca y registra después de aceptar el cambio; el executor no inicia servicios. La URL publicada se obtiene del binding efectivo (`docker compose port storybook 80`), no se presume 6006 ni se reutiliza un servicio ajeno observado allí. El smoke existente sirve su propio build en un puerto efímero y no necesita este preview arrancado.

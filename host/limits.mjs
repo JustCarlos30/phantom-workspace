@@ -8,7 +8,26 @@ import os from 'node:os';
 import path from 'node:path';
 
 const TIMEOUT_MS = 10000;
-const CACHE_MS = 60000;
+export const LIMITS_TTL_MS = 4 * 60000;
+export const TRANSIENT_RETRY_MS = 60000;
+const RATE_DEFAULT_MS = 5 * 60000;
+const RATE_MAX_MS = 30 * 60000;
+
+export function parseRetryAfter(value, now = Date.now()) {
+  let ms = NaN;
+  if (value != null && String(value).trim() !== '') {
+    const text = String(value).trim();
+    ms = /^\d+$/.test(text) ? Number(text) * 1000 : Date.parse(text) - now;
+  }
+  if (!Number.isFinite(ms) || ms <= 0) return RATE_DEFAULT_MS;
+  return Math.min(ms, RATE_MAX_MS);
+}
+
+function failure(base, error, rejectedReason, name) {
+  if (error.unauthorized) return { ...base, available: false, status: 'rejected', reason: rejectedReason };
+  if (error.rateLimited) return { ...base, available: false, status: 'rate_limited', reason: `${name} limitó las consultas de uso (429). Se reintentará más tarde.`, retryAfterMs: error.retryAfterMs };
+  return { ...base, available: false, status: 'error', reason: error.message };
+}
 
 const readJson = file => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } };
 const finite = value => (Number.isFinite(value) ? value : null);
@@ -20,6 +39,7 @@ async function getJson(fetchImpl, url, headers) {
   try {
     const response = await fetchImpl(url, { headers, signal: controller.signal });
     if (response.status === 401 || response.status === 403) { const error = new Error('unauthorized'); error.unauthorized = true; throw error; }
+    if (response.status === 429) { const error = new Error('rate limited'); error.rateLimited = true; error.retryAfterMs = parseRetryAfter(response.headers?.get?.('retry-after')); throw error; }
     if (!response.ok) throw new Error(`El proveedor respondió ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -49,15 +69,15 @@ async function readClaude({ home, env, fetchImpl }) {
   const base = { id: 'claude', label: 'Claude', plan: null, windows: [] };
   const dir = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');
   const oauth = readJson(path.join(dir, '.credentials.json'))?.claudeAiOauth;
-  if (!oauth?.accessToken) return { ...base, available: false, reason: 'No hay una sesión de Claude Code con suscripción en esta máquina. Inicia sesión con `claude` para ver tu plan.' };
+  if (!oauth?.accessToken) return { ...base, available: false, status: 'no_session', reason: 'No hay una sesión de Claude Code con suscripción en esta máquina. Inicia sesión con `claude` para ver tu plan.' };
   base.plan = oauth.subscriptionType || null;
-  if (Number.isFinite(oauth.expiresAt) && oauth.expiresAt < Date.now()) return { ...base, available: false, reason: 'La sesión de Claude Code venció. Abre `claude` una vez para renovarla.' };
+  if (Number.isFinite(oauth.expiresAt) && oauth.expiresAt < Date.now()) return { ...base, available: false, status: 'expired', reason: 'La sesión de Claude Code venció. Abre `claude` una vez para renovarla.' };
   try {
     const usage = await getJson(fetchImpl, 'https://api.anthropic.com/api/oauth/usage', { Authorization: `Bearer ${oauth.accessToken}`, 'anthropic-beta': 'oauth-2025-04-20' });
     const extra = usage?.extra_usage?.is_enabled ? { percent: finite(usage.extra_usage.utilization), used: finite(usage.extra_usage.used_credits), limit: finite(usage.extra_usage.monthly_limit), currency: usage.extra_usage.currency || null } : null;
-    return { ...base, available: true, windows: claudeWindows(usage), extra };
+    return { ...base, available: true, status: 'ok', windows: claudeWindows(usage), extra };
   } catch (error) {
-    return { ...base, available: false, reason: error.unauthorized ? 'Claude rechazó la sesión guardada. Abre `claude` para renovarla.' : error.message };
+    return failure(base, error, 'Claude rechazó la sesión guardada. Abre `claude` para renovarla.', 'Claude');
   }
 }
 
@@ -93,31 +113,52 @@ function codexSession({ home, env }) {
 async function readCodex({ home, env, fetchImpl }) {
   const base = { id: 'codex', label: 'Codex', plan: null, windows: [] };
   const session = codexSession({ home, env });
-  if (!session) return { ...base, available: false, reason: 'No hay una sesión de ChatGPT en Codex ni en OpenCode. Inicia sesión con `codex login` para ver tu plan.' };
+  if (!session) return { ...base, available: false, status: 'no_session', reason: 'No hay una sesión de ChatGPT en Codex ni en OpenCode. Inicia sesión con `codex login` para ver tu plan.' };
   const renew = session.source === 'codex' ? 'Abre `codex` para renovarla.' : 'Abre `opencode` para renovarla.';
-  if (session.expired) return { ...base, available: false, reason: `La sesión de ChatGPT venció. ${renew}` };
+  if (session.expired) return { ...base, available: false, status: 'expired', reason: `La sesión de ChatGPT venció. ${renew}` };
   try {
     const usage = await getJson(fetchImpl, 'https://chatgpt.com/backend-api/wham/usage', { Authorization: `Bearer ${session.token}`, ...(session.account ? { 'ChatGPT-Account-Id': session.account } : {}), 'User-Agent': 'codex-cli' });
+    const windows = codexWindows(usage);
+    if (!windows.length) return { ...base, available: false, status: 'error', reason: 'Formato de respuesta inesperado' };
     const credits = usage?.credits?.has_credits ? { balance: usage.credits.unlimited ? 'ilimitado' : String(usage.credits.balance ?? '') } : null;
-    return { ...base, available: true, plan: typeof usage?.plan_type === 'string' ? usage.plan_type : null, limitReached: usage?.rate_limit?.limit_reached === true, windows: codexWindows(usage), credits };
+    return { ...base, available: true, status: 'ok', plan: typeof usage?.plan_type === 'string' ? usage.plan_type : null, limitReached: usage?.rate_limit?.limit_reached === true, windows, credits };
   } catch (error) {
-    return { ...base, available: false, reason: error.unauthorized ? `ChatGPT rechazó la sesión guardada. ${renew}` : error.message };
+    return failure(base, error, `ChatGPT rechazó la sesión guardada. ${renew}`, 'ChatGPT');
   }
 }
 
-export function createLimits({ home = os.homedir(), env = process.env, fetchImpl = globalThis.fetch } = {}) {
-  let cached = null, pending = null;
-  const load = async () => {
-    const providers = await Promise.all([readClaude({ home, env, fetchImpl }), readCodex({ home, env, fetchImpl })]);
-    cached = { at: Date.now(), value: { observedAt: new Date().toISOString(), providers } };
-    return cached.value;
+export function createLimits({ home = os.homedir(), env = process.env, fetchImpl = globalThis.fetch, ttlMs = LIMITS_TTL_MS, retryMs = TRANSIENT_RETRY_MS, now = Date.now } = {}) {
+  const readers = { claude: readClaude, codex: readCodex };
+  const state = Object.fromEntries(Object.keys(readers).map(id => [id, { value: null, good: null, goodAt: 0, nextAt: 0, hardUntil: 0, pending: null }]));
+  const load = async id => {
+    const s = state[id];
+    const result = await readers[id]({ home, env, fetchImpl });
+    const t = now();
+    const { retryAfterMs, ...value } = result;
+    if (value.status === 'ok') {
+      s.good = value; s.goodAt = t; s.nextAt = t + ttlMs; s.hardUntil = 0;
+    } else {
+      if (value.status === 'rate_limited') { s.hardUntil = t + retryAfterMs; s.nextAt = s.hardUntil; value.retryAt = new Date(s.hardUntil).toISOString(); }
+      else { s.hardUntil = 0; s.nextAt = t + retryMs; if (value.status === 'error') value.retryAt = new Date(s.nextAt).toISOString(); }
+      if (s.good) Object.assign(value, { ...s.good, available: true, stale: true, staleSince: new Date(s.goodAt).toISOString(), status: value.status, reason: value.reason, retryAt: value.retryAt });
+    }
+    s.value = value;
+    return value;
+  };
+  const one = id => {
+    const s = state[id];
+    s.pending ??= load(id).finally(() => { s.pending = null; });
+    return s.pending;
   };
   return {
-    // Polled with the rest of the activity sources; the providers are asked at most once a minute.
+    // Each provider is cached on its own; a 429 blocks only that provider until Retry-After, even when forced.
     async read({ force = false } = {}) {
-      if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.value;
-      pending ??= load().finally(() => { pending = null; });
-      return pending;
+      const providers = await Promise.all(Object.keys(readers).map(id => {
+        const s = state[id], t = now();
+        if (s.value && (t < s.hardUntil || (!force && t < s.nextAt))) return s.value;
+        return one(id);
+      }));
+      return { observedAt: new Date(now()).toISOString(), providers };
     },
   };
 }
