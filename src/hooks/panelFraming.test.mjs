@@ -81,3 +81,8 @@ test('needsFraming falls back to clipping for missing or non-finite targets', ()
     }
   }
 });
+
+test('frameFor keeps the requested zoom and only centers the panel', () => {
+  assert.deepEqual(frameFor(node, area, view, .5), { x: 390, y: 330, zoom: .5 });
+  assert.equal(frameFor({ ...node, width: 10000 }, area, view, 1.2).zoom, 1.2);
+});

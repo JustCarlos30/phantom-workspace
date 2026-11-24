@@ -222,6 +222,15 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-phantom-attempts { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 6px; }
 .pc-phantom-attempts > details { min-width: 0; }
 .pc-phantom-open { justify-self: start; color: var(--ink); font-size: 12px; }
+.pc-phantom-phases { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+.pc-phantom-phases li { display: inline-flex; gap: 4px; align-items: baseline; }
+.pc-phantom-phases b { font-weight: 550; }
+.pc-phantom-phases i { font-style: normal; flex-basis: 100%; }
+.pc-phantom-phases .is-current b { color: var(--working); }
+.pc-phantom-phases .is-done b { color: var(--success); }
+.pc-phantom-phases .is-failed b, .pc-phantom-phases .is-blocked b { color: var(--attention); }
+.pc-phantom-blocker { display: grid; gap: 4px; justify-items: start; color: var(--attention); }
+.pc-phantom-blocker > span { color: var(--muted); }
 .pc-phantom-warning, .pc-phantom-command { margin: 0; color: var(--muted); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .pc-phantom-run .pc-subagent-more > summary, .pc-phantom-run .pc-subagent-more > summary > svg { transition: none; } }
 .pc-phantom-final { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
@@ -307,6 +316,10 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-continuation p { margin: 0; }
 .pc-continuation label { display: flex; flex-direction: column; gap: 4px; }
 .pc-continuation textarea { min-height: 96px; resize: vertical; }
+.pc-session-row:focus:not(:focus-visible):not(:hover) { background-color: transparent; }
+.pc-session-row:active:not(:disabled, :hover) { background-color: transparent; }
+.pc-session-settings:has(.pc-session-row:hover) .pc-session-row[aria-expanded="true"]:not(:hover) { background-color: transparent; }
+.pc-session-row[aria-expanded="true"]:not(:hover) { background-color: transparent; color: var(--ink); font-weight: 500; }
 .pc-session-context .pc-effort { flex-direction: column; align-self: stretch; align-items: flex-end; min-width: 0; }
 .pc-project-permissions { display: grid; gap: 8px; padding: 8px var(--row-px) 16px; color: var(--muted); font: var(--t-support); }
 .pc-project-permissions label { display: flex; align-items: flex-start; gap: 8px; min-height: 36px; cursor: pointer; }
@@ -637,9 +650,10 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 }
 /* In a menu the current value is a lit veil with its check, not a light key:
    the key belongs to the one selection of the island. */
-.pc-agent-menu button[aria-checked="true"], .pc-models-list button[aria-selected="true"], .pc-effort-menu [role="option"].is-active {
-  background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim);
+.pc-agent-menu button[aria-checked="true"], .pc-models-list button[aria-selected="true"], .pc-effort-menu [role="option"][aria-selected="true"] {
+  background: none; color: var(--ink); font-weight: 500; box-shadow: none;
 }
+.pc-effort-menu [role="option"].is-active { background: var(--fill-2); box-shadow: none; }
 .pc-agent-menu button[aria-checked="true"] > svg:last-child { color: inherit; }
 
 /* Context nudge: a calm, dismissible note above the composer. */

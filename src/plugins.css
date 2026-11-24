@@ -350,6 +350,7 @@
 .pc-check-line.is-ok .pc-check-mark { color: var(--success); }
 .pc-check-line.is-failed .pc-check-mark { color: var(--warning); }
 .pc-check-meta { font-size: 12px; color: var(--muted); }
+.pc-resolve { display: grid; gap: 6px; justify-items: start; padding: 14px; border-radius: var(--r-ctl); background: var(--surface-2); }
 .pc-tech { font-size: 13px; }
 .pc-tech > summary { width: fit-content; font-size: 12px; color: var(--muted); cursor: pointer; }
 .pc-tech > summary:hover { color: var(--ink); }

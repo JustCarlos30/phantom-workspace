@@ -45,7 +45,7 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
   const [chosen, setChosen] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const stepsRef = useRef(null);
-  const open = chosen ?? state?.live ?? false;
+  const open = chosen ?? false;
   useEffect(() => {
     if (open && stepsRef.current) stepsRef.current.scrollTop = stepsRef.current.scrollHeight;
   }, [state, open]);
@@ -90,12 +90,16 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
       <span className={`pc-phantom-status is-${state.tone}`} role="status">{state.label}</span>
       {state.model && <span className="pc-subagent-type" title={state.model}>{state.model.split('/').at(-1)}</span>}
     </header>
-    <p className="pc-subagent-goal" title={state.goal}>{state.goal}</p>
+    <p className="pc-subagent-goal">{state.title}</p>
+    {state.goal && state.goal !== state.title && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Descripción completa</summary><pre className="pc-subagent-prompt">{state.goal}</pre></details>}
+    <ol className="pc-phantom-phases" aria-label="Fases del encargo">{state.phases.map(phase => <li key={phase.key} className={`is-${phase.state}`} title={phase.detail}><span>{phase.label}</span><b>{phase.text}</b>{phase.detail && <i>{phase.detail}</i>}</li>)}</ol>
+    {state.blocker && <div className="pc-phantom-blocker" role="alert"><strong>{state.blocker.label}</strong><span>{state.blocker.meaning}</span>
+      {onOpenPanel ? <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, resolve: true }, state.title)}>Resolver bloqueo</button> : <span className="pc-quiet">Resolver bloqueo no está disponible: este chat no puede abrir el panel Phantom.</span>}</div>}
     {state.activity.runs.length <= 1 && state.activity.reason && <p className="pc-phantom-reason" role="alert">{state.activity.reason}</p>}
     {state.activity.runs.length === 1 && state.activity.runs[0].reasonRaw && state.activity.runs[0].reasonRaw !== state.activity.runs[0].reason && <details className="pc-subagent-more"><summary>Detalle técnico</summary><pre className="pc-phantom-reason">{state.activity.runs[0].reasonRaw}</pre></details>}
     {state.live && state.activity.current && <p className="pc-subagent-now" role="status" aria-label="Actividad actual"><LoaderCircle className="spinning" size={14} aria-hidden="true" /><span className="pc-tool-name">{state.activity.current.label}</span><span className="pc-tool-detail" title={state.activity.current.detail}>{state.activity.current.detail}</span></p>}
     <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>· {state.duration}</span>}{state.turns !== undefined && <span>· {state.turns} turnos</span>}{state.tools !== undefined && <span>· {state.tools} herramientas</span>}</p>
-    {state.activity.runs.length > 1 ? <div className="pc-phantom-attempts">{state.activity.runs.map((run, index) => <details className="pc-subagent-more" key={run.runId} open={index === state.activity.runs.length - 1}>
+    {state.activity.runs.length > 1 ? <div className="pc-phantom-attempts">{state.activity.runs.map((run, index) => <details className="pc-subagent-more" key={run.runId}>
       <summary><ChevronRight size={14} aria-hidden="true" />Intento {run.attempt} de {state.activity.runs.length}</summary>
       {run.reason && <p className="pc-phantom-reason" role="alert">{run.reason}</p>}
       {run.reasonRaw && run.reasonRaw !== run.reason && <details className="pc-subagent-more"><summary>Detalle técnico</summary><pre className="pc-phantom-reason">{run.reasonRaw}</pre></details>}
@@ -108,7 +112,7 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
     {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}
     {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Checks · {state.passed}/{state.total} pasados</summary><ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
     {state.live && state.total > 0 && <progress className="pc-progress" max={state.total} value={state.passed} aria-label={`${state.passed} de ${state.total} checks pasados`} />}
-    {onOpenPanel && <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, state.goal)}>Abrir en Phantom</button>}
+    {onOpenPanel && <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, state.title)}>Abrir en Phantom</button>}
   </section>;
 }
 
