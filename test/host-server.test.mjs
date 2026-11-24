@@ -12,6 +12,41 @@ import { isHostTransportError } from '../desktop/security.mjs';
 import './public-settings.test.mjs';
 const until=async fn=>{const end=Date.now()+5000;while(Date.now()<end){if(await fn())return;await new Promise(r=>setTimeout(r,25));}throw new Error('Timed out');};
 
+test('terminal env entrega solo el cwd de sesión del host y la UI solo selecciona una identidad', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-env-routing-')), calls = [];
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: (method, payload, context) => {
+    calls.push({ method, payload, cwd: context.envCwd });
+    return { handled: true, result: { services: [], down: [] } };
+  } });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const w = await host.invoke('workspace.open', { path: root }), sessions = [];
+  for (const id of ['a', 'b']) {
+    const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { sessionId: id, cwd: '/untrusted-node-path' } });
+    sessions.push({ id, workspaceId: w.id, nodeId: node.id, cwd: path.join(root, id), status: 'running' });
+  }
+  t.mock.method(host.terminals, 'get', id => sessions.find(s => s.id === id));
+  for (const sender of sessions) for (const [action, fields] of [['list', {}], ['up', { service: 'web' }], ['run', { job: 'e2e' }], ['down', { service: 'web' }]]) {
+    await host.invoke(`terminal.agent.env.${action}`, { sessionId: sender.id, ...fields });
+    const call = calls.at(-1);
+    assert.equal(call.method, `env.${action}`);
+    assert.equal(call.cwd, sender.cwd);
+    assert.equal(call.payload.workspaceId, w.id);
+    assert.equal(call.payload.cwd, undefined);
+    if (action !== 'list') assert.deepEqual(call.payload.owner, { sessionId: sender.id, nodeId: sender.nodeId });
+    for (const key of ['cwd', 'root', 'environmentId', 'workspaceId', 'owner', 'actor']) {
+      const count = calls.length;
+      await assert.rejects(host.invoke(`terminal.agent.env.${action}`, { sessionId: sender.id, ...fields, [key]: '/spoof' }), /Clave de entorno/);
+      assert.equal(calls.length, count);
+    }
+  }
+  await host.invoke('env.list', { workspaceId: w.id });
+  assert.equal(calls.at(-1).cwd, undefined);
+  await host.invoke('env.down', { workspaceId: w.id, service: 'web', environmentId: 'known-environment' });
+  assert.deepEqual(calls.at(-1).payload, { workspaceId: w.id, service: 'web', environmentId: 'known-environment', actor: 'ui' });
+  assert.equal(calls.at(-1).cwd, undefined);
+  await assert.rejects(host.invoke('env.down', { workspaceId: w.id, service: 'web', cwd: root }), /Clave de entorno/);
+});
+
 test('settings RPC projects nested credentials while persistence and integrations retain private configuration', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-settings-'));
   const patch = { theme: 'dark', providers: [{ name: 'fixture', private_key: 'fixture-private', options: [[{ signingKey: 'fixture-signing', enabled: true }]] },

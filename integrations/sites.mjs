@@ -7,11 +7,17 @@ import { dockerList, dockerTarget, owned } from './docker.mjs';
 const names = ['compose.yaml', 'compose.yml', 'docker-compose.yaml', 'docker-compose.yml'];
 const projectName = root => `phantom-${createHash('sha256').update(root).digest('hex').slice(0, 24)}`;
 
-export async function registered(context, id) {
+export async function registered(context, id, cwd) {
   const workspace = (context.state?.workspaces || []).find(w => w.id === id);
   if (!workspace) throw new Error('Proyecto no registrado');
   const { root } = await workspaceRoot({ workspace }, {});
   if (workspace.canonicalPath && path.resolve(workspace.canonicalPath) !== root) throw new Error('La ruta canónica del proyecto cambió');
+  if (cwd !== undefined) {
+    if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) throw new Error('Directorio de entorno inválido');
+    const resolved = await workspaceRoot({ workspace: { path: cwd } });
+    if (path.resolve(cwd) !== resolved.root) throw new Error('La ruta canónica del entorno cambió');
+    return { workspace, root: resolved.root };
+  }
   return { workspace, root };
 }
 export async function composeFile(root) {
@@ -54,15 +60,15 @@ function urls(service, containers) {
   }
   return [...result];
 }
-export async function discover(context, id) {
-  const { workspace, root } = await registered(context, id);
+export async function discover(context, id, cwd) {
+  const { workspace, root } = await registered(context, id, cwd);
   const item = { workspaceId: id, name: workspace.name, root, services: [] };
   const file = await composeFile(root);
   if (!file) return { ...item, compose: false };
   item.compose = true;
   item.composeFile = file;
   const target = await dockerTarget(context, root);
-  const existing = await dockerList({ workspaceId: id }, { ...context, getWorkspace: () => workspace });
+  const existing = await dockerList({ workspaceId: id }, { ...context, getWorkspace: () => ({ ...workspace, path: root, canonicalPath: root }) });
   if (!existing.available) throw new Error(existing.reason);
   if (existing.daemon !== target.daemon || existing.context !== target.context) throw new Error('El contexto Docker cambió durante la consulta');
   item.daemon = target.daemon; item.dockerContext = target.context;

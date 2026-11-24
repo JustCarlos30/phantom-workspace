@@ -1,4 +1,5 @@
 import { command, spawnCommand } from './common.mjs';
+import { createHash } from 'node:crypto';
 import { dockerTarget } from './docker.mjs';
 import { discover, registered, composeFile, prefix, opts } from './sites.mjs';
 
@@ -26,29 +27,56 @@ function store(context, id, fn) {
   context.persist?.();
 }
 const isLive = (context, sessionId) => !!sessionId && (context.sessions || []).some(s => s.id === sessionId);
+const environmentId = root => createHash('sha256').update(root).digest('hex');
+const inEnvironment = (entry, scope) => (entry.environmentId ?? null) === (scope.environmentId ?? null);
+async function environment(context, workspaceId, cwd) {
+  const base = await registered(context, workspaceId);
+  const { root } = cwd === undefined ? base : await registered(context, workspaceId, cwd);
+  return { root, ...(root !== base.root ? { environmentId: environmentId(root) } : {}) };
+}
+async function savedEnvironment(context, workspaceId, entry) {
+  const scope = await environment(context, workspaceId, entry.root);
+  if (scope.root !== entry.root || scope.environmentId !== entry.environmentId) throw new Error('La identidad del entorno cambió');
+  return scope;
+}
+async function selectedEnvironment(payload, context) {
+  if (context.envCwd !== undefined) return environment(context, payload.workspaceId, context.envCwd);
+  if (payload.environmentId !== undefined) {
+    if (payload.actor !== 'ui' || typeof payload.environmentId !== 'string') throw new Error('Identidad de entorno inválida');
+    const entry = entries(context, payload.workspaceId).find(e => e.environmentId === payload.environmentId);
+    if (!entry) throw new Error('Entorno desconocido');
+    return savedEnvironment(context, payload.workspaceId, entry);
+  }
+  return environment(context, payload.workspaceId);
+}
 
-async function prepare(context, workspaceId) {
-  const data = await discover(context, workspaceId);
+async function prepare(context, workspaceId, scope) {
+  const data = await discover(context, workspaceId, scope.root);
   if (!data.compose || !data.project) throw new Error('El proyecto no tiene Compose');
-  const { root } = await registered(context, workspaceId), file = await composeFile(root), target = await dockerTarget(context, root);
+  const { root } = await registered(context, workspaceId, scope.root), file = await composeFile(root), target = await dockerTarget(context, root);
   if (root !== data.root || file !== data.composeFile || target.context !== data.dockerContext || target.daemon !== data.daemon) throw new Error('El proyecto o contexto Docker cambió; actualiza y vuelve a intentar');
   return { data, root, base: prefix(target, file, data.project) };
 }
 const describe = (service, owner) => ({ name: service.name, ...parseExtension(service.extension), profiles: service.profiles, status: service.status, urls: service.urls, url: service.urls[0] ?? null, owner: owner ? { ownerSessionId: owner.ownerSessionId, ownerNodeId: owner.ownerNodeId, startedAt: owner.startedAt } : null });
 
 export async function envList(payload, context) {
-  const data = await discover(context, payload.workspaceId);
-  const base = { workspaceId: payload.workspaceId, compose: !!data.compose, project: data.project ?? null, observedAt: new Date().toISOString() };
-  if (!data.compose) return { ...base, profiles: [], services: [] };
   const owners = entries(context, payload.workspaceId);
-  const services = data.services.map(s => describe(s, owners.find(e => e.service === s.name)));
-  return { ...base, profiles: [...new Set(services.flatMap(s => s.profiles))].sort(), services };
+  const scope = await selectedEnvironment(payload, context), scopes = [scope];
+  if (context.envCwd === undefined) {
+    for (const entry of owners) if (entry.environmentId && !scopes.some(s => s.environmentId === entry.environmentId)) scopes.push(await savedEnvironment(context, payload.workspaceId, entry));
+  }
+  const results = await Promise.all(scopes.map(async s => {
+    const data = await discover(context, payload.workspaceId, s.root);
+    return { data, services: data.services.map(service => ({ ...describe(service, owners.find(e => inEnvironment(e, s) && e.service === service.name)), ...s, project: data.project })) };
+  }));
+  const services = results.flatMap(r => r.services);
+  return { workspaceId: payload.workspaceId, compose: results.some(r => r.data.compose), project: results[0].data.project ?? null, ...scope, observedAt: new Date().toISOString(), profiles: [...new Set(services.flatMap(s => s.profiles))].sort(), services };
 }
 
 export async function envUp(payload, context) {
   const owner = ownerOf(payload), { service, profile } = payload;
   if ((service === undefined) === (profile === undefined)) throw new Error('Indica un servicio o un perfil');
-  const p = await prepare(context, payload.workspaceId);
+  const scope = await selectedEnvironment(payload, context), p = await prepare(context, payload.workspaceId, scope);
   let selected;
   if (service !== undefined) {
     selected = p.data.services.filter(s => s.name === name(service, 'servicio'));
@@ -59,15 +87,15 @@ export async function envUp(payload, context) {
   }
   const names = selected.map(s => s.name), current = entries(context, payload.workspaceId);
   for (const s of selected) {
-    const entry = current.find(e => e.service === s.name);
+    const entry = current.find(e => inEnvironment(e, scope) && e.service === s.name);
     if (entry && entry.lifecycle === 'ephemeral' && entry.ownerSessionId && entry.ownerSessionId !== owner.sessionId && isLive(context, entry.ownerSessionId)) throw new Error(`El servicio ${s.name} pertenece a otra terminal`);
   }
   await command(context, 'docker', [...p.base, ...(profile !== undefined ? ['--profile', profile] : []), 'up', '-d', '--', ...names], { ...opts(p.root), timeout: 300000 });
   const startedAt = new Date().toISOString();
-  store(context, payload.workspaceId, list => [...list.filter(e => !names.includes(e.service)), ...selected.map(s => ({ service: s.name, ...(profile !== undefined ? { profile } : {}), ownerSessionId: owner.sessionId, ownerNodeId: owner.nodeId, lifecycle: parseExtension(s.extension).lifecycle, startedAt }))]);
+  store(context, payload.workspaceId, list => [...list.filter(e => !inEnvironment(e, scope) || !names.includes(e.service)), ...selected.map(s => ({ service: s.name, ...(scope.environmentId ? scope : {}), ...(profile !== undefined ? { profile } : {}), ownerSessionId: owner.sessionId, ownerNodeId: owner.nodeId, lifecycle: parseExtension(s.extension).lifecycle, startedAt }))]);
   let after = selected;
-  try { after = (await discover(context, payload.workspaceId)).services.filter(s => names.includes(s.name)); } catch { /* el servicio ya está arriba; sin URLs */ }
-  const services = after.map(s => describe(s, entries(context, payload.workspaceId).find(e => e.service === s.name)));
+  try { after = (await discover(context, payload.workspaceId, scope.root)).services.filter(s => names.includes(s.name)); } catch { /* el servicio ya está arriba; sin URLs */ }
+  const services = after.map(s => ({ ...describe(s, entries(context, payload.workspaceId).find(e => inEnvironment(e, scope) && e.service === s.name)), ...scope, project: p.data.project }));
   return { project: p.data.project, ...(profile !== undefined ? { profile } : {}), services, url: services.find(s => s.url)?.url ?? null };
 }
 
@@ -75,7 +103,7 @@ export async function envRun(payload, context) {
   ownerOf(payload);
   const job = name(payload.job, 'trabajo'), seconds = payload.timeout ?? DEFAULT_TIMEOUT;
   if (!Number.isInteger(seconds) || seconds < 1 || seconds > MAX_TIMEOUT) throw new Error(`El tiempo límite debe ser un entero entre 1 y ${MAX_TIMEOUT} segundos`);
-  const p = await prepare(context, payload.workspaceId);
+  const scope = await selectedEnvironment(payload, context), p = await prepare(context, payload.workspaceId, scope);
   if (!p.data.services.some(s => s.name === job)) throw new Error('Servicio Compose desconocido');
   let logs = '', truncated = false;
   const push = chunk => { logs += String(chunk); if (logs.length > LOG_LIMIT) { logs = logs.slice(-LOG_LIMIT); truncated = true; } };
@@ -94,14 +122,15 @@ export async function envRun(payload, context) {
   return { job, ok: result.exitCode === 0 && !result.timedOut, exitCode: result.exitCode, signal: result.signal, timedOut: result.timedOut, truncated, logs };
 }
 
-async function remove(context, workspaceId, names) {
-  const p = await prepare(context, workspaceId);
+async function remove(context, workspaceId, names, scope) {
+  const p = await prepare(context, workspaceId, scope);
   await command(context, 'docker', [...p.base, '--profile', '*', 'rm', '-sf', '--', ...names], { ...opts(p.root), timeout: 120000 });
-  store(context, workspaceId, list => list.filter(e => !names.includes(e.service)));
+  store(context, workspaceId, list => list.filter(e => !inEnvironment(e, scope) || !names.includes(e.service)));
 }
 
 export async function envDown(payload, context) {
-  const agent = payload.actor !== 'ui', owners = entries(context, payload.workspaceId);
+  const scope = await selectedEnvironment(payload, context);
+  const agent = payload.actor !== 'ui', owners = entries(context, payload.workspaceId).filter(e => inEnvironment(e, scope));
   let names;
   if (payload.service !== undefined) {
     const service = name(payload.service, 'servicio'), entry = owners.find(e => e.service === service);
@@ -117,9 +146,8 @@ export async function envDown(payload, context) {
     const owner = ownerOf(payload);
     names = owners.filter(e => e.ownerSessionId === owner.sessionId && e.lifecycle === 'ephemeral').map(e => e.service);
   }
-  if (!names.length) return { down: [] };
-  await remove(context, payload.workspaceId, names);
-  return { down: names };
+  if (names.length) await remove(context, payload.workspaceId, names, scope);
+  return { down: names, ...(scope.environmentId ? { environmentId: scope.environmentId } : {}) };
 }
 
 // Salida o cierre del dueño: los ephemeral se eliminan; los persistent solo se desvinculan.
@@ -128,14 +156,23 @@ export async function envRelease(payload, context) {
   const mine = e => (sessionId && e.ownerSessionId === sessionId) || (nodeId && e.ownerNodeId === nodeId);
   const matching = entries(context, workspaceId).filter(mine);
   if (!matching.length) return { removed: [], released: [], errors: [] };
-  const released = matching.filter(e => e.lifecycle === 'persistent').map(e => e.service), removed = matching.filter(e => e.lifecycle !== 'persistent').map(e => e.service);
-  store(context, workspaceId, list => list.map(e => released.includes(e.service) ? { ...e, ownerSessionId: null, ownerNodeId: null } : e));
-  const errors = [];
-  if (removed.length) {
-    try { await remove(context, workspaceId, removed); }
-    catch (error) { errors.push(error.message); return { removed: [], released, errors }; }
+  const released = matching.filter(e => e.lifecycle === 'persistent').map(e => e.service), removed = [], removedEnvironments = [], errors = [];
+  store(context, workspaceId, list => list.map(e => mine(e) && e.lifecycle === 'persistent' ? { ...e, ownerSessionId: null, ownerNodeId: null } : e));
+  const groups = new Map();
+  for (const entry of matching.filter(e => e.lifecycle !== 'persistent')) {
+    const key = entry.environmentId ?? null;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
   }
-  return { removed, released, errors };
+  for (const [id, group] of groups) {
+    try {
+      const scope = id ? await savedEnvironment(context, workspaceId, group[0]) : await environment(context, workspaceId);
+      const names = group.map(e => e.service);
+      await remove(context, workspaceId, names, scope);
+      removed.push(...names); removedEnvironments.push({ ...(id ? { environmentId: id } : {}), services: names });
+    } catch (error) { errors.push(error.message); }
+  }
+  return { removed, released, errors, ...(matching.some(e => e.environmentId) ? { removedEnvironments } : {}) };
 }
 
 export async function env(method, payload, context) {

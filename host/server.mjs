@@ -112,17 +112,17 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const envRelease=(workspaceId,sessionId,nodeId)=>envChain=envChain.then(async()=>{
     let w;try{w=store.getWorkspace(workspaceId);}catch{return;}
     if(!(w.envOwners||[]).some(e=>(sessionId&&e.ownerSessionId===sessionId)||(nodeId&&e.ownerNodeId===nodeId)))return;
-    try{const answer=await routeIntegration('env.release',{workspaceId,sessionId,nodeId});if(answer?.handled)closeEnvBrowsers(workspaceId,answer.result?.removed);}catch{}
+    try{const answer=await routeIntegration('env.release',{workspaceId,sessionId,nodeId});if(answer?.handled){const result=answer.result;for(const group of result?.removedEnvironments??[{services:result?.removed}])closeEnvBrowsers(workspaceId,group.services,group.environmentId);}}catch{}
   });
-  const closeEnvBrowsers=(workspaceId,names)=>{
+  const closeEnvBrowsers=(workspaceId,names,environmentId)=>{
     if(!names?.length)return;
-    const gone=n=>n.type==='browser'&&names.includes(n.data?.envService);
+    const gone=n=>n.type==='browser'&&names.includes(n.data?.envService)&&(n.data?.envEnvironmentId??null)===(environmentId??null);
     if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);w.nodes=w.nodes.filter(n=>!gone(n));});
   };
   async function envBrowser(w,sender,service) {
-    const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name);
+    const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name&&(n.data?.envEnvironmentId??null)===(service.environmentId??null));
     if(existing){if(existing.data.url!==service.url)await invoke('node.update',{workspaceId:w.id,id:existing.id,patch:{data:{...existing.data,url:service.url}}});return existing.id;}
-    const node=await invoke('node.create',{workspaceId:w.id,type:'browser',title:`Entorno: ${service.name}`,...handoffPosition(store.getWorkspace(w.id)),data:{url:service.url,agentTerminal:sender.id,envService:service.name}});
+    const node=await invoke('node.create',{workspaceId:w.id,type:'browser',title:`Entorno: ${service.name}`,...handoffPosition(store.getWorkspace(w.id)),data:{url:service.url,agentTerminal:sender.id,envService:service.name,...(service.environmentId?{envEnvironmentId:service.environmentId}:{})}});
     return node.id;
   }
   // The project's Phantom conversation integrates for the user: to the Git guard it is the orchestrator.
@@ -137,11 +137,11 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); markChanged(workspaceId); return value; };
   let integration=handleIntegration,integrationLoad,shutdownIntegration=shutdownIntegrations;
   const inFlightIntegrations=new Set();
-  const routeIntegration=async(method,payload)=>{
+  const routeIntegration=async(method,payload,envCwd)=>{
     const request=(async()=>{
       if(!integration) {const module=await (integrationLoad??=import('../integrations/index.mjs'));integration=module.handleIntegration;shutdownIntegration??=module.shutdownIntegrations;}
       assert(!closingPromise,'Host is shutting down');
-      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.running(nodeId),sessions:terminals.sessions.filter(s=>s.status==='running').map(s=>terminals.descriptor(s))});
+      return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.running(nodeId),sessions:terminals.sessions.filter(s=>s.status==='running').map(s=>terminals.descriptor(s)),...(envCwd!==undefined?{envCwd}:{})});
     })();inFlightIntegrations.add(request);try{return await request;}finally{inFlightIntegrations.delete(request);}
   };
   async function invoke(method,p={}) {
@@ -236,21 +236,22 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(['terminal.agent.env.list','terminal.agent.env.up','terminal.agent.env.run','terminal.agent.env.down'].includes(method)) {
       const action=method.slice('terminal.agent.env.'.length),sender=terminals.get(p.sessionId),w=store.getWorkspace(sender.workspaceId),from=w.nodes.find(n=>n.id===sender.nodeId);
       assert(from?.type==='terminal','No se encuentra el panel emisor del entorno');
-      const fields=validateEnv(action,p),ask=async(name,extra)=>{const answer=await routeIntegration(name,{workspaceId:w.id,...extra});assert(answer?.handled,'El entorno no está disponible');return answer.result;};
+      assert(typeof sender.cwd==='string'&&path.isAbsolute(sender.cwd),'La sesión no tiene un directorio de entorno válido');
+      const fields=validateEnv(action,p),ask=async(name,extra)=>{const answer=await routeIntegration(name,{workspaceId:w.id,...extra},sender.cwd);assert(answer?.handled,'El entorno no está disponible');return answer.result;};
       if(action==='list'){const result=await ask('env.list');return {...result,services:result.services.map(s=>({...s,mine:s.owner?.ownerSessionId===sender.id}))};}
       assert(sender.status==='running'&&from.data.sessionId===sender.id,'El entorno requiere la sesión viva actual del panel');
       reserveEnv(sender.id);
       const result=await ask(`env.${action}`,{owner:{sessionId:sender.id,nodeId:from.id},actor:'agent',...fields});
       if(action==='up'){result.browsers=[];for(const s of result.services)if(s.url)result.browsers.push({service:s.name,nodeId:await envBrowser(w,sender,s)});}
-      if(action==='down')closeEnvBrowsers(w.id,result.down);
+      if(action==='down')closeEnvBrowsers(w.id,result.down,result.environmentId);
       return result;
     }
     // UI: observe the environment and bring a service down (any lifecycle) from the Entorno panel.
     if(method==='env.list'||method==='env.down') {
-      for(const key of Object.keys(p))assert(['workspaceId',...(method==='env.down'?['service']:[])].includes(key),`Clave de entorno desconocida: ${key}`);
+      for(const key of Object.keys(p))assert(['workspaceId',...(method==='env.down'?['service','environmentId']:[])].includes(key),`Clave de entorno desconocida: ${key}`);
       store.getWorkspace(p.workspaceId);
-      const answer=await routeIntegration(method,{workspaceId:p.workspaceId,...(method==='env.down'?{service:p.service,actor:'ui'}:{})});assert(answer?.handled,'El entorno no está disponible');
-      if(method==='env.down')closeEnvBrowsers(p.workspaceId,answer.result.down);
+      const answer=await routeIntegration(method,{workspaceId:p.workspaceId,...(method==='env.down'?{service:p.service,actor:'ui',...(p.environmentId!==undefined?{environmentId:p.environmentId}:{})}:{})});assert(answer?.handled,'El entorno no está disponible');
+      if(method==='env.down')closeEnvBrowsers(p.workspaceId,answer.result.down,answer.result.environmentId);
       return answer.result;
     }
     assert(!method.startsWith('env.'),`Unknown method: ${method}`);

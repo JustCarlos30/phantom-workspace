@@ -26,21 +26,24 @@ async function until(fn) {
 
 // Docker falso: sin daemon real. Registra `up`/`rm` y expone los contenedores a `ps`/`inspect`.
 function fakeDocker(root) {
-  const calls = [], spawned = [], kills = [], behavior = { mode: 'exit', code: 0, out: 'hecho\n', err: '', closeOnKill: true };
+  const calls = [], executions = [], spawned = [], kills = [], behavior = { mode: 'exit', code: 0, out: 'hecho\n', err: '', closeOnKill: true };
   let containers = [];
   const names = args => args.slice(args.indexOf('--') + 1);
-  const container = (service, project) => ({
-    Id: createHash('sha256').update(service).digest('hex'),
-    Config: { Labels: { 'com.docker.compose.project': project, 'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': root, 'com.docker.compose.project.config_files': path.join(root, 'compose.yaml') } },
+  const container = (service, project, directory) => ({
+    Id: createHash('sha256').update(`${project}:${service}`).digest('hex'),
+    Config: { Labels: { 'com.docker.compose.project': project, 'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': directory, 'com.docker.compose.project.config_files': path.join(directory, 'compose.yaml') } },
     State: { Status: 'running' },
     NetworkSettings: { Ports: { '80/tcp': [{ HostIp: '127.0.0.1', HostPort: CONFIG.services[service]?.ports?.[0]?.published ?? '1' }] } },
   });
   const execFile = async (file, args, options) => {
-    assert.equal(file, 'docker'); assert.equal(options.shell, false); calls.push(args);
+    assert.equal(file, 'docker'); assert.equal(options.shell, false); calls.push(args); executions.push({ args, options });
     let stdout = '';
     if (args[0] === 'context' && args[1] === 'show') stdout = 'fixture';
-    else if (args[0] === 'context') stdout = JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///fixture.sock' } } }]);
-    else if (args.includes('ps')) stdout = containers.map(c => c.Id).join('\n');
+    else if (args[0] === 'context') stdout = JSON.stringify([{ Endpoints: { docker: { Host: behavior.endpoint ?? 'unix:///fixture.sock' } } }]);
+    else if (args.includes('ps')) {
+      const [label, value] = args[args.indexOf('--filter') + 1].slice('label='.length).split('=');
+      stdout = containers.filter(c => c.Config.Labels[label] === value).map(c => c.Id).join('\n');
+    }
     else if (args.includes('inspect')) stdout = JSON.stringify(containers.filter(c => args.includes(c.Id)));
     else if (args.includes('config')) {
       // Compose real: `config` descarta x-*; solo `--no-interpolate` los conserva.
@@ -48,18 +51,21 @@ function fakeDocker(root) {
       const keep = args.includes('--no-interpolate');
       stdout = JSON.stringify({ services: Object.fromEntries(Object.entries(CONFIG.services).map(([n, s]) => [n, keep ? s : Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'x-phantom'))])) });
     }
-    else if (args.includes('up')) { for (const name of names(args)) if (!containers.some(c => c.Config.Labels['com.docker.compose.service'] === name)) containers.push(container(name, args[args.indexOf('-p') + 1])); }
-    else if (args.includes('rm')) containers = containers.filter(c => !names(args).includes(c.Config.Labels['com.docker.compose.service']));
+    else if (args.includes('up')) {
+      const project = args[args.indexOf('-p') + 1], directory = args[args.indexOf('--project-directory') + 1];
+      for (const name of names(args)) if (!containers.some(c => c.Config.Labels['com.docker.compose.project'] === project && c.Config.Labels['com.docker.compose.service'] === name)) containers.push(container(name, project, directory));
+    }
+    else if (args.includes('rm')) containers = containers.filter(c => c.Config.Labels['com.docker.compose.project'] !== args[args.indexOf('-p') + 1] || !names(args).includes(c.Config.Labels['com.docker.compose.service']));
     return { stdout, stderr: '' };
   };
   const spawn = (file, args, options) => {
-    assert.equal(file, 'docker'); assert.equal(options.shell, false); spawned.push(args);
+    assert.equal(file, 'docker'); assert.equal(options.shell, false); spawned.push(args); executions.push({ args, options });
     const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
     child.kill = signal => { kills.push(signal); if (behavior.closeOnKill) setImmediate(() => child.emit('close', null, signal)); };
     setImmediate(() => { if (behavior.mode !== 'exit') return; child.stdout.emit('data', behavior.out); if (behavior.err) child.stderr.emit('data', behavior.err); child.emit('close', behavior.code, null); });
     return child;
   };
-  return { execFile, spawn, calls, spawned, kills, behavior, running: () => containers.map(c => c.Config.Labels['com.docker.compose.service']).sort() };
+  return { execFile, spawn, calls, executions, spawned, kills, behavior, containers: () => containers, running: (directory) => containers.filter(c => !directory || c.Config.Labels['com.docker.compose.project.working_dir'] === directory).map(c => c.Config.Labels['com.docker.compose.service']).sort() };
 }
 const removed = docker => docker.calls.filter(a => a.includes('rm')).flatMap(a => a.slice(a.indexOf('--') + 1));
 
@@ -198,14 +204,91 @@ test('release: ephemeral se elimina, persistent solo se desvincula y sin registr
   assert.deepEqual(f.docker.running(), ['db']);
 });
 
-async function hostFixture(t) {
+test('worktrees: Compose y base de rutas se resuelven desde el cwd confiable, con proyectos y owners aislados', async t => {
+  const f = directFixture(t);
+  fs.unlinkSync(path.join(f.root, 'compose.yaml'));
+  const roots = ['a', 'b'].map(n => { const root = path.join(f.root, n); fs.mkdirSync(root); fs.writeFileSync(path.join(root, 'compose.yaml'), 'services: {}\n'); return root; });
+  const call = (index, method, payload = {}) => env(method, { workspaceId: 'w1', ...payload }, { ...f.context, envCwd: roots[index] });
+  assert.equal((await f.call('env.list')).compose, false);
+  const lists = await Promise.all(roots.map((_, i) => call(i, 'env.list')));
+  assert.ok(lists.every(list => list.compose));
+  assert.notEqual(lists[0].project, lists[1].project);
+  assert.notEqual(lists[0].environmentId, lists[1].environmentId);
+  for (let i = 0; i < 2; i++) {
+    await call(i, 'env.up', { owner: f.owner(`s${i + 1}`), service: 'web' });
+    await call(i, 'env.run', { owner: f.owner(`s${i + 1}`), job: 'e2e' });
+  }
+  assert.equal(f.workspace.envOwners.length, 2);
+  assert.deepEqual((await call(0, 'env.list')).services.find(s => s.name === 'web').owner.ownerSessionId, 's1');
+  await assert.rejects(call(0, 'env.down', { owner: f.owner('s2'), service: 'web' }), /otra terminal/);
+  await call(0, 'env.down', { owner: f.owner(), service: 'web' });
+  assert.deepEqual(f.docker.running(roots[0]), []);
+  assert.deepEqual(f.docker.running(roots[1]), ['web']);
+  for (const { args, options } of f.docker.executions.filter(e => e.args.includes('compose'))) {
+    assert.ok(roots.includes(options.cwd));
+    assert.equal(args[args.indexOf('--project-directory') + 1], options.cwd);
+    assert.equal(args[args.indexOf('-f') + 1], path.join(options.cwd, 'compose.yaml'));
+    assert.equal(args[args.indexOf('-p') + 1], lists[roots.indexOf(options.cwd)].project);
+    assert.ok(Object.keys(options.env).every(key => !key.startsWith('COMPOSE_')));
+  }
+});
+
+test('worktrees: release agrupa por identidad, conserva persistent administrable por UI y owners legacy en raíz', async t => {
+  const f = directFixture(t);
+  const roots = ['a', 'b'].map(n => { const root = path.join(f.root, n); fs.mkdirSync(root); fs.writeFileSync(path.join(root, 'compose.yaml'), 'services: {}\n'); return root; });
+  const call = (index, method, payload) => env(method, { workspaceId: 'w1', ...payload }, { ...f.context, envCwd: roots[index] });
+  await f.call('env.up', { service: 'web', owner: f.owner() });
+  assert.equal(f.workspace.envOwners[0].environmentId, undefined);
+  for (let i = 0; i < 2; i++) for (const service of ['web', 'db']) await call(i, 'env.up', { service, owner: f.owner(`s${i + 1}`) });
+  const result = await f.call('env.release', { sessionId: 's1' });
+  assert.deepEqual(result.removed, ['web', 'web']);
+  assert.equal(result.removedEnvironments.length, 2);
+  assert.deepEqual(f.docker.running(f.root), []);
+  assert.deepEqual(f.docker.running(roots[0]), ['db']);
+  assert.deepEqual(f.docker.running(roots[1]), ['db', 'web']);
+  const ui = await f.call('env.list');
+  const dbs = ui.services.filter(s => s.name === 'db' && s.environmentId);
+  assert.equal(dbs.length, 2);
+  assert.deepEqual(dbs.map(s => s.owner.ownerSessionId), [null, 's2']);
+  assert.deepEqual(dbs.map(s => s.root), roots);
+  await assert.rejects(f.call('env.down', { actor: 'ui', service: 'db', environmentId: 'spoof' }), /desconocido/);
+  await f.call('env.down', { actor: 'ui', service: 'db', environmentId: dbs[0].environmentId });
+  assert.deepEqual(f.docker.running(roots[0]), []);
+  assert.deepEqual(f.docker.running(roots[1]), ['db', 'web']);
+});
+
+test('worktrees: conserva las comprobaciones de ownership, daemon local y cambio de ruta canónica', async t => {
+  const f = directFixture(t), root = path.join(f.root, 'tree');
+  fs.mkdirSync(root); fs.writeFileSync(path.join(root, 'compose.yaml'), 'services: {}\n');
+  const call = (method, payload = {}) => env(method, { workspaceId: 'w1', ...payload }, { ...f.context, envCwd: root });
+  await call('env.up', { service: 'web', owner: f.owner() });
+  f.docker.containers()[0].Config.Labels['com.docker.compose.project.config_files'] = path.join(f.root, 'compose.yaml');
+  await assert.rejects(call('env.down', { service: 'web', owner: f.owner() }), /ajenos|configuración/);
+  assert.deepEqual(f.docker.running(root), ['web']);
+  f.docker.behavior.endpoint = 'tcp://remote:2375';
+  await assert.rejects(call('env.run', { job: 'e2e', owner: f.owner() }), /Unix daemon/);
+  assert.equal(f.docker.spawned.length, 0);
+  f.docker.behavior.endpoint = 'unix:///fixture.sock';
+  const moved = `${root}-moved`;
+  fs.renameSync(root, moved); fs.symlinkSync(moved, root);
+  const result = await f.call('env.release', { sessionId: 's1' });
+  assert.deepEqual(result.removed, []);
+  assert.match(result.errors[0], /identidad|canónica/);
+  assert.equal(f.workspace.envOwners.length, 1);
+  assert.ok(!f.docker.calls.some(args => args.includes('rm')));
+});
+
+async function hostFixture(t, worktrees = false) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-envhost-'));
   let host;
   t.after(async () => { await host?.close(); fs.rmSync(root, { recursive: true, force: true }); });
   const directory = path.join(root, 'project'); fs.mkdirSync(directory);
   const git = (...args) => execFileSync('git', ['-C', directory, ...args], { encoding: 'utf8', stdio: 'pipe' });
-  git('init', '-b', 'main'); fs.writeFileSync(path.join(directory, 'README.md'), 'Fixture\n'); fs.writeFileSync(path.join(directory, 'compose.yaml'), 'services: {}\n'); git('add', '.');
-  git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-m', 'Fixture');
+  fs.writeFileSync(path.join(directory, 'README.md'), 'Fixture\n');
+  if (worktrees) {
+    git('init', '-b', 'main'); git('add', '.');
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-m', 'Fixture');
+  } else fs.writeFileSync(path.join(directory, 'compose.yaml'), 'services: {}\n');
   const docker = fakeDocker(fs.realpathSync(directory)), methods = [];
   host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: async (method, payload, context) => {
     if (!method.startsWith('env.')) return { handled: false };
@@ -216,6 +299,7 @@ async function hostFixture(t) {
   const w = await host.invoke('workspace.open', { path: directory });
   const first = await host.invoke('terminal.create', { workspaceId: w.id, shell: '/bin/sh' });
   const second = await host.invoke('terminal.create', { workspaceId: w.id, shell: '/bin/sh' });
+  if (worktrees) for (const terminal of [first, second]) fs.writeFileSync(path.join(terminal.session.cwd, 'compose.yaml'), 'services: {}\n');
   const nodes = () => host.store.getWorkspace(w.id).nodes, browsers = () => nodes().filter(n => n.type === 'browser');
   const call = (action, payload = {}, session = first.session) => host.invoke(`terminal.agent.env.${action}`, { sessionId: session.id, ...payload });
   return { host, w, first, second, docker, methods, nodes, browsers, call, owners: () => host.store.getWorkspace(w.id).envOwners ?? [], env: { PHANTOM_TERMINAL_SESSION_ID: first.session.id, PHANTOM_WORKSPACE_SOCKET: host.socketPath } };
@@ -288,6 +372,56 @@ test('host: env.list y env.down de la UI, también sobre persistent', async t =>
   assert.deepEqual(await f.host.invoke('env.down', { workspaceId: f.w.id, service: 'db' }), { down: ['db'] });
   assert.deepEqual(f.owners(), []); assert.equal(f.browsers().length, 0);
   await assert.rejects(f.host.invoke('env.list', { workspaceId: 'otro' }), /Workspace not found/);
+});
+
+test('host: dos worktrees con Compose solo local aíslan down, browsers, salida, cierre y persistent en UI', async t => {
+  const f = await hostFixture(t, true), first = f.first.session, second = f.second.session;
+  assert.notEqual(first.cwd, second.cwd);
+  assert.ok(!fs.existsSync(path.join(f.w.path, 'compose.yaml')));
+  const a = await f.call('list'), b = await f.call('list', {}, second);
+  assert.equal(a.compose, true); assert.equal(b.compose, true);
+  assert.notEqual(a.project, b.project);
+  for (const session of [first, second]) {
+    await f.call('up', { service: 'web' }, session);
+    await f.call('up', { service: 'db' }, session);
+    assert.equal((await f.call('run', { job: 'e2e' }, session)).ok, true);
+    const list = await f.call('list', {}, session);
+    assert.equal(list.services.find(s => s.name === 'web').mine, true);
+  }
+  assert.equal(f.browsers().length, 2);
+  assert.deepEqual(new Set(f.browsers().map(n => n.data.envEnvironmentId)), new Set([a.environmentId, b.environmentId]));
+  for (const action of ['list', 'up', 'run', 'down']) await assert.rejects(f.call(action, { cwd: second.cwd }), /Clave de entorno/);
+  await assert.rejects(f.call('down', { service: 'web', environmentId: b.environmentId }), /Clave de entorno/);
+  await f.call('down', { service: 'web' });
+  assert.deepEqual(f.browsers().map(n => n.data.envEnvironmentId), [b.environmentId]);
+  assert.deepEqual(f.docker.running(second.cwd), ['db', 'web']);
+  await f.call('up', { service: 'web' });
+  await f.host.invoke('env.down', { workspaceId: f.w.id, service: 'web', environmentId: a.environmentId });
+  assert.deepEqual(f.browsers().map(n => n.data.envEnvironmentId), [b.environmentId]);
+  assert.deepEqual(f.docker.running(second.cwd), ['db', 'web']);
+  await f.call('up', { service: 'web' });
+  await f.host.invoke('terminal.stop', { sessionId: first.id });
+  await until(() => f.docker.running(first.cwd).join(',') === 'db');
+  await until(() => f.browsers().length === 1);
+  assert.equal(f.browsers()[0].data.envEnvironmentId, b.environmentId);
+  const ui = await f.host.invoke('env.list', { workspaceId: f.w.id });
+  const dbs = ui.services.filter(s => s.name === 'db');
+  assert.equal(dbs.length, 2);
+  assert.equal(dbs.find(s => s.environmentId === a.environmentId).owner.ownerSessionId, null);
+  await f.host.invoke('env.down', { workspaceId: f.w.id, service: 'db', environmentId: a.environmentId });
+  assert.deepEqual(f.docker.running(first.cwd), []);
+  assert.deepEqual(f.docker.running(second.cwd), ['db', 'web']);
+  assert.equal(f.browsers().length, 1);
+  await f.host.invoke('terminal.close', { workspaceId: f.w.id, nodeId: f.second.node.id });
+  assert.deepEqual(f.docker.running(second.cwd), ['db']);
+  assert.equal(f.browsers().length, 0);
+  const persistent = (await f.host.invoke('env.list', { workspaceId: f.w.id })).services.find(s => s.name === 'db' && s.environmentId === b.environmentId);
+  assert.equal(persistent.owner.ownerSessionId, null);
+  await f.host.store.flush();
+  const saved = JSON.parse(fs.readFileSync(f.host.store.filename, 'utf8')).workspaces.find(w => w.id === f.w.id).envOwners;
+  assert.deepEqual(saved.map(e => [e.environmentId, e.root, e.ownerSessionId, e.ownerNodeId]), [[b.environmentId, second.cwd, null, null]]);
+  await f.host.invoke('env.down', { workspaceId: f.w.id, service: persistent.name, environmentId: persistent.environmentId });
+  assert.deepEqual(f.docker.running(), []);
 });
 
 test('CLI env list, up, run y down llegan al host con identidad de terminal', async t => {
