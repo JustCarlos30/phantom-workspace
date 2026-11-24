@@ -26,6 +26,8 @@ Los enlaces presuponen el servidor de desarrollo local en el puerto 6006. Compos
 | Navegación | ToolPicker.jsx | [Herramientas](http://127.0.0.1:6006/?path=/story/navegación--herramientas) |
 | Navegación | CommandPalette.jsx | [Comandos](http://127.0.0.1:6006/?path=/story/navegación--comandos) |
 | Navegación | Inspector.jsx | [Inspector contextual](http://127.0.0.1:6006/?path=/story/navegación--inspector-contextual) |
+| Navegación | ProjectPicker.jsx | [Selector](http://127.0.0.1:6006/?path=/story/navegación--selector) |
+| Navegación | ShortcutSettings.jsx | [Atajos](http://127.0.0.1:6006/?path=/story/navegación--atajos) |
 | Actividad | ActivityNotch.jsx | [Resumen](http://127.0.0.1:6006/?path=/story/actividad--resumen) |
 | Actividad | ActivityTrace.jsx | [Trazas](http://127.0.0.1:6006/?path=/story/actividad--trazas) |
 | Actividad | PlanPhases.jsx | [Plan](http://127.0.0.1:6006/?path=/story/actividad--plan) |
