@@ -131,7 +131,7 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
       if (!focused || keyboardMode !== 'interaction') { root.current?.focus({ preventScroll: true }); return; }
       const panel = root.current?.querySelector(`[data-node-id="${CSS.escape(focused)}"]`);
       if (panel?.dataset.type === 'terminal') { panel.querySelector('.xterm-helper-textarea,.pc-field textarea')?.focus({ preventScroll: true }); return; }
-      panel?.querySelector('.node-body input,.node-body textarea,.node-body [contenteditable="true"],.node-header button')?.focus({ preventScroll: true });
+      (panel?.querySelector('.node-body input,.node-body textarea,.node-body [contenteditable="true"]') ?? panel?.querySelector('.node-header button'))?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [focusRequest, focused]);
