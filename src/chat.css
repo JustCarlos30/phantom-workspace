@@ -220,6 +220,15 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-phantom-attempts { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 6px; }
 .pc-phantom-attempts > details { min-width: 0; }
 .pc-phantom-open { justify-self: start; color: var(--ink); font-size: 12px; }
+.pc-phantom-phases { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+.pc-phantom-phases li { display: inline-flex; gap: 4px; align-items: baseline; }
+.pc-phantom-phases b { font-weight: 550; }
+.pc-phantom-phases i { font-style: normal; flex-basis: 100%; }
+.pc-phantom-phases .is-current b { color: var(--working); }
+.pc-phantom-phases .is-done b { color: var(--success); }
+.pc-phantom-phases .is-failed b, .pc-phantom-phases .is-blocked b { color: var(--attention); }
+.pc-phantom-blocker { display: grid; gap: 4px; justify-items: start; color: var(--attention); }
+.pc-phantom-blocker > span { color: var(--muted); }
 .pc-phantom-warning, .pc-phantom-command { margin: 0; color: var(--muted); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .pc-phantom-run .pc-subagent-more > summary, .pc-phantom-run .pc-subagent-more > summary > svg { transition: none; } }
 .pc-phantom-final { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
