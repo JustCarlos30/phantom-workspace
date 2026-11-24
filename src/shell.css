@@ -154,7 +154,7 @@
   .app-shell .activity-dock .activity-strip button { min-height: var(--target); }
   .app-shell .activity-dock .dock-main .dock-action,
   .app-shell .activity-dock .dock-main button.dock-action.dock-hub { min-width: var(--target); height: var(--target); padding: 2px; background-clip: content-box; }
-  .app-shell .activity-dock .dock-main .dock-action.dock-primary { padding: 2px 18px; background-clip: content-box; }
+  .app-shell .activity-dock .dock-main .dock-action.dock-primary { padding: 2px 18px; background-clip: border-box; }
   .app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main button.dock-action.dock-hub { padding: 2px; background-clip: content-box; }
 }
 @media (prefers-reduced-motion: reduce) {
