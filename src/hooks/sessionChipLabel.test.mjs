@@ -15,3 +15,6 @@ test('cwd vacío devuelve Sesión', () => {
   assert.deepEqual(sessionChipLabel({ cwd: '', branch: null }), { name: 'Sesión', own: false });
   assert.equal(sessionChipLabel({}).name, 'Sesión');
 });
+test('carpeta opaca (UUID de worktree) sin rama usa el nombre del proyecto', () => {
+  assert.deepEqual(sessionChipLabel({ cwd: '/w/1fde09a8-b9df-4649-ad4c-d42496ce3d8a', workspaceName: 'Phantom' }), { name: 'Phantom', own: false });
+});
