@@ -154,7 +154,7 @@ export class Terminals {
       if (directory.worktree) await inheritClaudeTrust(this.store, w, directory).catch(() => {});
       signal.throwIfAborted();
       assert(!this.closed && !this.closingNodes.has(node.id), 'Terminal is closing');
-      child = pty.spawn(shell, process.platform==='darwin'?['-l']:[], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
+      child = pty.spawn(shell, process.platform==='darwin'?['-l']:[], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key!=='PHANTOM_WORKSPACE_ID')),...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
     }
     catch (error) { browser.revoke(); terminal.dispose(); throw error; }
     const s = {id:sessionId,workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',agentReporting:true,...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};
