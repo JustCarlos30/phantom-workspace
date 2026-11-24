@@ -1,4 +1,4 @@
-import { lastLine, duration, statusLabel, statusTone, phaseOf, runsOf, checkResult } from './phantom-desk.mjs';
+import { lastLine, duration, statusLabel, statusTone, phaseOf, runsOf, checkResult, titleOf, explainReason } from './phantom-desk.mjs';
 import { contractOf, goalOf, stateOf } from './plugin-model.mjs';
 
 const textOf = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
@@ -34,6 +34,28 @@ export function linkedRunBadge(status, startedAt, now = Date.now()) {
   return { label: entry[0], tone: entry[1], elapsed: duration(startedAt, undefined, now) };
 }
 
+// Verdict of one evidence round, only from recorded check results.
+const roundState = round => {
+  const checks = Array.isArray(round?.checks) ? round.checks : [];
+  if (checks.some(check => check.passed === false)) return 'failed';
+  if (checks.length && checks.every(check => check.passed === true && check.executed !== false)) return 'done';
+  return 'unknown';
+};
+const PHASE_TEXT = { pending: 'Pendiente', unobserved: 'No observada', current: 'En curso', failed: 'Falló', done: 'Completada', unknown: 'Sin resultado', blocked: 'Bloqueada', cancelled: 'Cancelada' };
+
+// Four phases from real evidence only; a later phase never vouches for an earlier one.
+export function phasesOf({ run, status, live, controllerEnded }) {
+  const baseline = run?.evidence?.baseline, rounds = (run?.evidence?.verification || []).filter(round => round?.available);
+  const lastRound = rounds.at(-1);
+  const prep = baseline?.available ? roundState(baseline) : live && !run ? 'current' : 'unobserved';
+  const exec = !run ? 'unobserved' : run.endedAt ? 'done' : live && !lastRound ? 'current' : run.startedAt ? 'unknown' : 'unobserved';
+  const verify = lastRound ? roundState(lastRound) : status === 'verifying' ? 'current' : 'unobserved';
+  const result = status === 'completed' ? 'done' : status === 'failed' ? 'failed' : status === 'blocked' ? 'blocked' : status === 'cancelled' ? 'cancelled' : live ? 'pending' : controllerEnded ? 'unknown' : 'pending';
+  const detail = { result: controllerEnded && !live && status !== 'completed' ? 'El controlador terminó sin aceptación de Phantom' : undefined };
+  return [['prep', 'Pruebas iniciales', prep], ['exec', 'Ejecución', exec], ['verify', 'Verificación', verify], ['result', 'Resultado', result]]
+    .map(([key, label, state]) => ({ key, label, state, text: PHASE_TEXT[state], ...(detail[key] ? { detail: detail[key] } : {}) }));
+}
+
 export function summarizePhantomRun(value, controllers = [], id, now = Date.now()) {
   const native = value?.task || value || {}, run = runsOf(value)[0];
   const related = controllers.filter(item => item.taskId === id);
@@ -44,13 +66,18 @@ export function summarizePhantomRun(value, controllers = [], id, now = Date.now(
   const declared = contractOf(native).checks || [];
   const results = latest?.checks || [];
   const checks = (results.length ? results : declared).map(check => ({ ...check, result: results.length ? checkResult(check) : 'Sin resultado' }));
+  const live = ['ready', 'running', 'verifying', 'recovering'].includes(status) || controller?.status === 'running';
+  const reason = typeof native.reason === 'string' ? native.reason.trim() : '';
+  const stuck = ['blocked', 'failed'].includes(status) && controller?.status !== 'running';
   return {
-    goal: goalOf(native), status, label: statusLabel(status), tone: statusTone(status),
+    goal: goalOf(native), title: titleOf(goalOf(native)) || id || '', status, label: statusLabel(status), tone: statusTone(status),
+    phases: phasesOf({ run, status, live: live && status !== 'ready', controllerEnded: Boolean(controller) && controller.status !== 'running' }),
+    blocker: stuck ? { status, ...explainReason(reason), reason } : null,
     model: run?.requestedModel,
     ...(typeof run?.turns === 'number' ? { turns: run.turns } : {}),
     ...(typeof run?.tools === 'number' ? { tools: run.tools } : {}),
     phase: phaseOf({ ...native, run: run || native.run }),
-    live: ['ready', 'running', 'verifying', 'recovering'].includes(status) || controller?.status === 'running',
+    live,
     duration: duration(run?.startedAt || controller?.startedAt || controller?.createdAt, run?.endedAt || controller?.endedAt, now),
     line: lastLine(controller?.output), output: typeof controller?.output === 'string' ? controller.output.slice(-4000) : '',
     checks, passed: results.filter(check => check.passed === true && check.executed !== false).length, total: checks.length,

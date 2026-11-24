@@ -136,3 +136,44 @@ test('resume evidencia, salida, duración y actividad sin completar por el contr
   assert.equal(summarizePhantomRun({ status: 'completed' }, [], id).live, false);
   assert.equal(summarizePhantomRun({ status: 'blocked' }, [{ taskId: id, status: 'running' }], id).live, true);
 });
+const phaseStates = summary => Object.fromEntries(summary.phases.map(phase => [phase.key, phase.state]));
+test('título acotado de objetivos markdown, multilínea y largos; objetivo íntegro aparte', () => {
+  const md = '## Título\nEncargos compactos\n## Propósito\nMucho texto';
+  assert.equal(summarizePhantomRun({ task: { status: 'ready', contract: { goal: md } } }, [], id).title, 'Encargos compactos');
+  const long = summarizePhantomRun({ task: { status: 'ready', contract: { goal: `${'palabra '.repeat(60)}\nsegunda` } } }, [], id);
+  assert.ok(long.title.length <= 90);
+  assert.equal(long.goal.includes('segunda'), true);
+  assert.equal(summarizePhantomRun({ status: 'ready' }, [], id).title, 'Sin objetivo declarado');
+});
+test('sin evidencia no se infieren fases ni checks pasados', () => {
+  const summary = summarizePhantomRun({ status: 'blocked', reason: 'Algo' }, [], id);
+  assert.deepEqual(phaseStates(summary), { prep: 'unobserved', exec: 'unobserved', verify: 'unobserved', result: 'blocked' });
+  assert.equal(summary.passed, 0);
+});
+test('exitCode o fase posterior no acreditan checks iniciales', () => {
+  const run = { startedAt: '2026-11-15T00:00:00Z', exitCode: 0, evidence: { baseline: { available: true, checks: [{ name: 'a', exitCode: 0 }] }, verification: [{ available: true, checks: [{ name: 'a', passed: true }] }] } };
+  const states = phaseStates(summarizePhantomRun({ task: { status: 'verifying' }, runs: [run] }, [], id));
+  assert.equal(states.prep, 'unknown');
+  assert.equal(states.verify, 'done');
+});
+test('verificación fallida: fase fallida y bloqueo con motivo', () => {
+  const run = { startedAt: '2026-11-15T00:00:00Z', endedAt: '2026-11-15T00:01:00Z', evidence: { verification: [{ available: true, checks: [{ name: 'a', passed: false }] }] } };
+  const summary = summarizePhantomRun({ task: { status: 'blocked', reason: 'Verificación fallida: a' }, runs: [run] }, [], id);
+  const states = phaseStates(summary);
+  assert.equal(states.verify, 'failed');
+  assert.equal(states.exec, 'done');
+  assert.equal(summary.blocker.cause, 'verification');
+});
+test('controlador terminado sin aceptación no completa el resultado', () => {
+  const summary = summarizePhantomRun({ status: 'review' }, [{ taskId: id, status: 'completed' }], id);
+  const result = summary.phases.at(-1);
+  assert.equal(result.state, 'unknown');
+  assert.match(result.detail, /sin aceptación/);
+  assert.equal(summary.blocker, null);
+});
+test('bloqueo solo sin controlador vivo; cancelada y completada sin bloqueo', () => {
+  assert.equal(summarizePhantomRun({ status: 'failed', reason: 'x' }, [], id).blocker.status, 'failed');
+  assert.equal(summarizePhantomRun({ status: 'blocked' }, [{ taskId: id, status: 'running' }], id).blocker, null);
+  assert.equal(summarizePhantomRun({ status: 'cancelled' }, [], id).phases.at(-1).state, 'cancelled');
+  assert.equal(summarizePhantomRun({ status: 'completed' }, [], id).phases.at(-1).state, 'done');
+});
