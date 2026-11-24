@@ -4,6 +4,8 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { AlertCircle, ArrowDown, Folder, GitBranch, Mic, Minus, Plus, RotateCcw, Square } from 'lucide-react';
 import { useVoiceWorkspace } from './VoiceProvider';
+import { useWorkspaceShortcuts } from '../hooks/useWorkspaceShortcuts';
+import { formatBinding } from '../hooks/workspace-commands.mjs';
 import '@xterm/xterm/css/xterm.css';
 import { subscribeSession } from '../hooks/useWorkspace';
 import { createTerminalStream } from '../hooks/terminalStream';
@@ -52,6 +54,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
   const [readingHistory, setReadingHistory] = useState(false);
   const sessionId = node.data?.sessionId;
   const { openDictation, registerTerminal } = useVoiceWorkspace();
+  const { bindings } = useWorkspaceShortcuts();
   const destination = useRef(null);
   useEffect(() => {
     const element = host.current;
@@ -186,13 +189,13 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     resizeRef.current?.();
   }, [fontSize]);
   useEffect(() => {
-    if (overview || (!focusRequested && !active) || !activeRef.current || status !== 'running') return;
+    if (inputBlocked || overview || (!focusRequested && !active) || !activeRef.current || status !== 'running') return;
     const element = document.activeElement;
     if (element?.closest('.inspector-host,.project-name-editor,.title-button')) return;
     if (element?.closest('input,textarea,select,[contenteditable="true"]') && !element.closest('.xterm')) return;
     terminal.current?.focus();
     // Opening/closing a nonmodal surface must not take focus from its controls.
-  }, [focusRequested, active, status, overview]);
+  }, [focusRequested, active, status, overview, inputBlocked]);
   const preparing = !sessionId && node.data?.launchState === 'creating';
   const setupActive = setup && ['queued', 'checking', 'installing'].includes(setup.status);
   const setupFailed = setup && ['failed', 'cancelled'].includes(setup.status);
@@ -215,7 +218,7 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
         {!overview && agent.step && hasTime && <time className="pt-bar-since" dateTime={updatedAt.toISOString()} title={`${updatedAt.toLocaleString()} · ${agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}`}>{formatSince(now - updatedAt.getTime())}</time>}
       </div>
       <div className="pt-bar-tools">
-        <button type="button" title="Dictar en esta terminal · Ctrl/Cmd + Shift + M" aria-label="Dictar en esta terminal" disabled={!connected || status !== 'running'} onClick={() => openDictation(destination.current)}><Mic size={15} strokeWidth={1.75} /></button>
+        <button type="button" title={`Dictar en esta terminal · ${formatBinding(bindings.dictation)}`} aria-label="Dictar en esta terminal" disabled={!connected || status !== 'running'} onClick={() => openDictation(destination.current)}><Mic size={15} strokeWidth={1.75} /></button>
         <div className="pt-type" role="group" aria-label="Tamaño del texto de la terminal">
           <button type="button" aria-label="Reducir texto de la terminal" title="Reducir texto" disabled={fontSize <= 12} onClick={() => changeFontSize(fontSize - 1)}><Minus size={13} strokeWidth={1.75} /></button>
           <button type="button" className="pt-type-reset" aria-label={`Tamaño del texto: ${fontSize} píxeles. Restablecer a 16`} title="Restablecer a 16 px" onClick={() => changeFontSize(16)}>{fontSize}</button>
