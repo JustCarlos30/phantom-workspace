@@ -10,7 +10,7 @@ import { demo, Panel } from './decorators';
 import { environmentNodes } from './fixtures';
 
 export default { title: 'Herramientas' };
-export const CentroDeMando = { render: () => <Panel><CommandCenter {...demo} /></Panel> };
+export const CentroDeMando = { render: () => <Panel><div className="tw-tool-panel"><div className="tw-content"><CommandCenter {...demo} /></div></div></Panel> };
 export const CentroCargando = { ...CentroDeMando, parameters: { host: { scenario: 'loading' } } };
 export const CentroVacio = { ...CentroDeMando, parameters: { host: { scenario: 'empty' } } };
 export const CentroError = { ...CentroDeMando, parameters: { host: { scenario: 'error' } } };

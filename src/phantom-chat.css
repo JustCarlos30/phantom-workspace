@@ -42,6 +42,7 @@
 .phantom-chat .pc-icon { width: 32px; height: 32px; border-radius: var(--r-ctl); }
 
 .phantom-chat .pc-thread { background: var(--well); }
+.phantom-chat .pc-composer { background: var(--well); }
 .phantom-chat .pc-model-picker { display: flex; min-width: 0; flex: 0 1 auto; }
 .phantom-chat .pc-model { max-width: 100%; white-space: nowrap; flex-wrap: nowrap; }
 
@@ -71,12 +72,6 @@
 /* Header toggle reflects the open chat. */
 .phantom-chat-toggle.active { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
 
-
-/* With the chat open, narrow canvases stack view controls above the dock. */
-@media (min-width: 851px) and (max-width: 1800px) {
-  .phantom-chat-open:not(.studio-focused) .canvas-navigation { bottom: calc(var(--gutter) + 112px); }
-  .phantom-chat-open:not(.studio-focused) :is(.canvas-minimap, .canvas-popover) { bottom: calc(var(--gutter) + 168px); }
-}
 
 /* Header toggle: a dot when the orchestration needs a look. */
 .phantom-chat-toggle { position: relative; }

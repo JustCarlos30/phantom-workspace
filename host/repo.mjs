@@ -130,14 +130,75 @@ export class Repo {
       return clip(output);
     }
     const { root } = await this.locate(w, p.tree, p.path, { exists: false });
+    if (p.against !== undefined) assert(p.against === 'base', 'Comparación no válida.');
+    const mergeBase = p.against === 'base' ? (await this.reference(w, root)).mergeBase : null;
     const tracked = (await raw(root, ['ls-files', '--error-unmatch', '--', p.path], { ok: [0, 1] })).trim();
+    if (mergeBase && !tracked && !fs.existsSync(path.join(root, p.path))) {
+      // Deleted in a commit of the branch: it is neither in the index nor on disk.
+      return clip(await raw(root, ['diff', '--no-ext-diff', '--no-color', '-M', mergeBase, 'HEAD', '--', ...(p.originalPath ? [p.originalPath] : []), p.path]));
+    }
     if (!tracked) {
       // Untracked: show it as a new file against nothing.
       const { target } = await this.locate(w, p.tree, p.path);
       return clip(await raw(root, ['diff', '--no-index', '--no-color', '--', '/dev/null', path.relative(root, target)], { ok: [0, 1] }));
     }
+    if (mergeBase) return clip(await raw(root, ['diff', '--no-ext-diff', '--no-color', '-M', mergeBase, '--', ...(p.originalPath ? [p.originalPath] : []), p.path]));
     const hasHead = (await raw(root, ['rev-parse', '-q', '--verify', 'HEAD^{commit}'], { ok: [0, 1] })).trim();
     return clip(await raw(root, ['diff', '--no-ext-diff', '--no-color', ...(hasHead ? ['HEAD'] : ['--cached']), '--', p.path]));
+  }
+
+  // Same base as the branches overview: the branch checked out in the source repository.
+  async reference(w, root) {
+    const result = { base: null, mergeBase: null, head: null };
+    try { result.base = (await raw(this.source(w), ['symbolic-ref', '-q', '--short', 'HEAD'], { ok: [0, 1] })).trim() || null; } catch { /* no base */ }
+    result.head = (await raw(root, ['rev-parse', '-q', '--verify', 'HEAD^{commit}'], { ok: [0, 1] }).catch(() => '')).trim() || null;
+    if (result.base && result.head) result.mergeBase = (await raw(root, ['merge-base', `refs/heads/${result.base}`, 'HEAD'], { ok: [0, 1] }).catch(() => '')).trim() || null;
+    return result;
+  }
+
+  async changes(w, p) {
+    const { root } = await this.locate(w, p.tree, '.', { exists: false });
+    const { base, mergeBase, head } = await this.reference(w, root);
+    const status = (await raw(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])).split('\0');
+    const dirty = new Set(), untracked = [], loose = new Map();
+    for (let i = 0; i < status.length; i++) {
+      const entry = status[i];
+      if (!entry) continue;
+      const code = entry.slice(0, 2), file = entry.slice(3);
+      dirty.add(file);
+      let original;
+      if (/[RC]/.test(code)) { original = status[++i]; dirty.add(original); }
+      if (code === '??') untracked.push(file);
+      else loose.set(file, { path: file, ...(original ? { originalPath: original } : {}), status: /D/.test(code) ? 'D' : /A/.test(code) ? 'A' : /R/.test(code) ? 'R' : 'M' });
+    }
+    const files = new Map();
+    if (mergeBase) {
+      const list = parseNameStatus(await raw(root, ['diff', '--no-ext-diff', '--name-status', '-z', '-M', mergeBase, '--']));
+      const counts = new Map(), fields = (await raw(root, ['diff', '--no-ext-diff', '--numstat', '-z', '-M', mergeBase, '--'])).split('\0');
+      for (let i = 0; i < fields.length; i++) {
+        if (!fields[i]) continue;
+        const [added, removed, name] = fields[i].split('\t');
+        let file = name;
+        if (!name) { i++; file = fields[++i]; } // rename: "a\tb\t" then old\0new\0
+        counts.set(file, { added: added === '-' ? null : Number(added), removed: removed === '-' ? null : Number(removed) });
+      }
+      for (const file of list) files.set(file.path, { path: file.path, ...(file.originalPath ? { originalPath: file.originalPath } : {}), status: file.status === 'C' ? 'A' : file.status, added: null, removed: null, ...counts.get(file.path) });
+    } else for (const [file, entry] of loose) files.set(file, { ...entry, added: null, removed: null });
+    for (const file of untracked) {
+      let added = null;
+      try {
+        const target = path.join(root, file), stat = fs.lstatSync(target);
+        if (stat.isFile() && stat.size <= MAX_FILE) {
+          const buffer = fs.readFileSync(target);
+          if (!buffer.includes(0)) added = buffer.length ? buffer.toString('utf8').split('\n').length - (buffer[buffer.length - 1] === 10 ? 1 : 0) : 0;
+        }
+      } catch { /* vanished */ }
+      files.set(file, { path: file, status: 'A', added, removed: added === null ? null : 0 });
+    }
+    const committed = new Set(mergeBase && head ? (await raw(root, ['diff', '--no-ext-diff', '--name-only', '-z', '-M', mergeBase, 'HEAD', '--'])).split('\0').filter(Boolean) : []);
+    const list = [...files.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+      .map(file => ({ ...file, committed: committed.has(file.path), uncommitted: dirty.has(file.path) }));
+    return { base, mergeBase, head, files: list.slice(0, MAX_LIST), truncated: list.length > MAX_LIST, observedAt: new Date().toISOString() };
   }
 
   async files(w, p) {
@@ -176,6 +237,7 @@ export class Repo {
     if (method === 'repo.graph') return this.graph(w, p);
     if (method === 'repo.commit') return this.commit(w, p);
     if (method === 'repo.diff') return this.diff(w, p);
+    if (method === 'repo.changes') return this.changes(w, p);
     if (method === 'repo.files') return this.files(w, p);
     if (method === 'repo.file.read') return this.read(w, p);
     if (method === 'repo.file.write') return this.write(w, p);

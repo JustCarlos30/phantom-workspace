@@ -344,10 +344,10 @@ process.stdout.write('PTY_FIXTURE_READY\\r\\n');
     assert.deepEqual(await panel().locator('.pc-modes [role="radio"]').allTextContents(), ['Chat', 'Terminal']);
     const recipe = () => input.evaluate(el => {
       const composer = el.closest('.pc-composer'), field = composer.querySelector('.pc-field');
-      return { padding: getComputedStyle(composer).padding, field: getComputedStyle(field).backgroundColor, shadow: getComputedStyle(field).boxShadow, min: getComputedStyle(el).minHeight, controls: getComputedStyle(composer.querySelector('.pc-controls')).gap };
+      return { padding: getComputedStyle(composer).padding, field: getComputedStyle(field).backgroundColor !== 'rgba(0, 0, 0, 0)', radius: getComputedStyle(field).borderRadius, shadow: getComputedStyle(field).boxShadow !== 'none', min: getComputedStyle(el).minHeight, controls: getComputedStyle(composer.querySelector('.pc-controls')).gap };
     });
     const before = await recipe();
-    assert.deepEqual(before, { padding: '12px 24px 24px 28px', field: 'rgba(0, 0, 0, 0)', shadow: 'none', min: '40px', controls: '8px' });
+    assert.deepEqual(before, { padding: '0px 24px 24px', field: true, radius: '24px', shadow: true, min: '40px', controls: '8px' });
     await panel().getByRole('button', { name: 'Enfocar panel', exact: true }).click();
     await page.locator('.canvas-node.focused').waitFor();
     assert.deepEqual(await recipe(), before);

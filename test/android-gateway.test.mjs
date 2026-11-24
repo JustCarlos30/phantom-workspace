@@ -46,7 +46,7 @@ function fixture(t, overrides = {}) {
   fs.writeFileSync(path.join(hostDataDir, 'state.json'), JSON.stringify({ workspaces: [{ id: WORKSPACE, name: 'Proyecto', nodes: [{ id: SESSION, title: 'Terminal', type: 'terminal', data: {} }] }] }));
   fs.writeFileSync(path.join(repoPath, 'package.json'), JSON.stringify({ name: 'phantom-mobile', type: 'module' }));
   fs.writeFileSync(path.join(repoPath, 'host/cli.mjs'), cliSource);
-  const settings = { mode: 'normal', devices: [{ id: DEVICE, name: 'Prueba', state: 'pending', keyFingerprint: 'FAKE', grants: [] }] };
+  const settings = { mode: 'normal', devices: [{ id: DEVICE, name: 'Prueba', state: 'pending', keyFingerprint: 'FAKE', sas: '123456', grants: [] }] };
   const save = patch => { Object.assign(settings, patch); fs.writeFileSync(path.join(repoPath, 'fixture.json'), JSON.stringify(settings)); };
   save({});
   const calls = [], spawns = [];
@@ -144,6 +144,17 @@ test('status devuelve catálogo vivo filtrado y grants por proyecto', async t =>
   const all = [...grants, { workspaceId: DEVICE, nodeId: `phantom:${DEVICE}`, capabilities: ['read', 'chat.send'] }];
   await f.gateway.approve({ id: DEVICE, grants: all, acknowledgeAgentAuthority: true });
   assert.deepEqual(f.argv().at(-1), ['permissions', '--id', DEVICE, '--grants', JSON.stringify(all), '--acknowledge-agent-authority', '--data', f.gatewayDataDir]);
+});
+
+test('approve rechaza un dispositivo pendiente sin SAS válido', async t => {
+  const f = fixture(t);
+  await f.gateway.link();
+  const grants = [{ workspaceId: WORKSPACE, nodeId: null, capabilities: ['workspace.read'] }];
+  for (const sas of [undefined, '', '12345', '1234567', 'abcdef']) {
+    f.save({ devices: [{ id: DEVICE, name: 'Prueba', state: 'pending', keyFingerprint: 'FAKE', ...(sas === undefined ? {} : { sas }), grants: [] }] });
+    await assert.rejects(f.gateway.approve({ id: DEVICE, grants }), /código de verificación/);
+  }
+  assert.ok(!f.argv().some(args => args[0] === 'approve'));
 });
 
 test('status explica repositorios ausentes y package.json con otro nombre', async t => {

@@ -1,6 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { frameFor, needsFraming } from './panelFraming.js';
+import { frameFor, needsFraming, reframeOnResize } from './panelFraming.js';
+
+const rArea = { left: 40, right: 60, top: 80, bottom: 20 };
+
+test('reframeOnResize returns null when visible content is inside the safe area', () => {
+  assert.equal(reframeOnResize({ x: 0, y: 0, zoom: 1 }, { left: 100, top: 100, right: 500, bottom: 400 }, rArea, { width: 1000, height: 800 }), null);
+});
+
+test('reframeOnResize keeps zoom and centers when content fits', () => {
+  const cam = reframeOnResize({ x: 0, y: 0, zoom: 1 }, { left: 0, top: 100, right: 400, bottom: 300 }, rArea, { width: 1000, height: 800 });
+  assert.deepEqual(cam, { x: 40 + 12 + (1000 - 100 - 24 - 400) / 2, y: 80 + (700 - 200) / 2 - 100, zoom: 1 });
+});
+
+test('reframeOnResize keeps exact zoom and aligns left edge when content does not fit', () => {
+  const cam = reframeOnResize({ x: 0, y: 0, zoom: 1 }, { left: 0, top: 100, right: 1300, bottom: 300 }, rArea, { width: 1000, height: 800 });
+  assert.equal(cam.zoom, 1);
+  assert.equal(cam.x, 52);
+});
 
 const area = { left: 40, right: 60, top: 80, bottom: 20 };
 const view = { width: 1100, height: 900 };

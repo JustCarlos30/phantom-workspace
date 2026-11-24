@@ -5,6 +5,8 @@ import MobileSettings from './MobileSettings.jsx';
 import { buildAppPairingPayload } from '../phone-pairing.mjs';
 import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement } from '../phone-permissions.mjs';
 
+const validSas = device => typeof device?.sas === 'string' && /^\d{6}$/.test(device.sas) ? device.sas : '';
+
 function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run, api }) {
   const [selection, setSelection] = useState(() => selectionFromGrants(device, workspaces));
   const [dirty, setDirty] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(null);
@@ -19,10 +21,11 @@ function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run,
       edit({ ...selection, grants: [...selection.grants.filter(grant => grant.workspaceId !== workspaceId || grant.nodeId !== nodeId), { workspaceId, nodeId, capabilities: next }] });
     }} /></Row>;
   };
+  const noSas = device.state === 'pending' && !validSas(device);
   const blocked = needsAcknowledgement(selection, workspaces) && !selection.acknowledgeAgentAuthority;
   return <form onSubmit={async e => {
     e.preventDefault(); setError('');
-    if (!workspacesAvailable) return;
+    if (!workspacesAvailable || noSas) return;
     const result = await run(() => api('android.approve', { id: device.id, grants: grantsFromSelection(selection, workspaces), acknowledgeAgentAuthority: selection.acknowledgeAgentAuthority }));
     if (result?.error) setError(result.error.message);
     if (result?.status) {
@@ -47,7 +50,7 @@ function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run,
     </Group></details>)}
     <Group>
       {needsAcknowledgement(selection, workspaces) && <div className="st-row is-attention"><div className="st-row-text"><span>Entiendo que el teléfono actuará con la autoridad del agente</span><small>Obligatorio para el chat principal o un orquestador.</small></div><div className="st-row-control"><Switch label="Entiendo que el teléfono actuará con la autoridad del agente" checked={selection.acknowledgeAgentAuthority} disabled={busy} onChange={value => edit({ ...selection, acknowledgeAgentAuthority: value })} /></div></div>}
-      <Row label="Permisos" hint={blocked ? 'Reconoce la autoridad del agente para aplicar estos permisos.' : 'Actualizar reemplaza todos los permisos anteriores.'}><button className="st-btn" disabled={busy || blocked || !workspacesAvailable} type="submit">{device.state === 'pending' ? 'Aprobar' : 'Actualizar permisos'}</button></Row>
+      <Row label="Permisos" hint={noSas ? 'Falta el código de seis dígitos del teléfono; no se puede aprobar.' : blocked ? 'Reconoce la autoridad del agente para aplicar estos permisos.' : 'Actualizar reemplaza todos los permisos anteriores.'}><button className="st-btn" disabled={busy || blocked || noSas || !workspacesAvailable} type="submit">{device.state === 'pending' ? 'Aprobar' : 'Actualizar permisos'}</button></Row>
     </Group>
     {dirty && <p className="st-note" role="status">Cambios sin aplicar</p>}
     {saved !== null && <p className="st-note" role="status">Permisos aplicados · {saved} proyectos</p>}
@@ -132,8 +135,9 @@ export default function AndroidGatewaySettings({ workspace, api }) {
     {linking && pairing && <div className="st-phone-link">{qrText && <><PhoneQr text={qrText} /><p className="st-note">Escanea el código con la app Phantom en tu Android. El teléfono debe estar en la misma red.</p><p className="st-note" role="status">Caduca en {Math.max(0, Math.ceil((expiresAt - time) / 1000))} s</p></>}{payloadError && <p className="st-error" role="alert">{payloadError}</p>}<div className="st-actions">{payloadError && <button className="st-btn" disabled={changing} onClick={link}>Reintentar</button>}<button className="st-btn" disabled={changing} onClick={() => { setLinking(false); setPairing(null); }}>Cancelar</button></div></div>}
     {status?.devices.filter(device => device.state === 'pending' || device.state === 'approved').sort((a, b) => Number(b.state === 'pending') - Number(a.state === 'pending')).map(device => <div className="st-device" key={device.id}><Group title={device.state === 'pending' ? `${device.name || 'Teléfono Android'} quiere conectarse` : `${device.name || 'Teléfono Android'} · ${device.connected ? 'Conectado' : 'Aprobado'}`}>
       <Row label="Huella del dispositivo"><span className="st-fingerprint" title={device.keyFingerprint}>{device.keyFingerprint?.slice(0, 8)}…{device.keyFingerprint?.slice(-8)}</span></Row>
+      {device.state === 'pending' && <Row label="Código de verificación" hint={validSas(device) ? 'Compáralo con el que muestra el teléfono. Si no coincide, pulsa Rechazar. No es la huella del dispositivo.' : 'El teléfono aún no ha enviado un código válido; no se puede aprobar.'}><span className="st-sas" role="status" aria-label="Código de verificación">{validSas(device) ? `${validSas(device).slice(0, 3)} ${validSas(device).slice(3)}` : '—'}</span></Row>}
       {device.state === 'pending' && <Row label="Permitir en todos tus proyectos" hint="Podrá leer el chat principal, enviar mensajes y parar turnos con la autoridad del agente, y leer las herramientas en todos tus proyectos." />}
-      <Row label="Dispositivo"><div className="st-actions">{device.state === 'pending' && <button className="st-btn is-primary" disabled={changing || !status.workspacesAvailable} onClick={() => status.workspacesAvailable && run(() => api('android.approve', { id: device.id, grants: standardGrants(status.workspaces), acknowledgeAgentAuthority: true }))}>Permitir</button>}
+      <Row label="Dispositivo"><div className="st-actions">{device.state === 'pending' && <button className="st-btn is-primary" disabled={changing || !status.workspacesAvailable || !validSas(device)} onClick={() => status.workspacesAvailable && validSas(device) && run(() => api('android.approve', { id: device.id, grants: standardGrants(status.workspaces), acknowledgeAgentAuthority: true }))}>Permitir</button>}
       <button className="st-btn is-danger" disabled={changing} onClick={() => run(() => api('android.revoke', { id: device.id }))}>{device.state === 'pending' ? 'Rechazar' : 'Quitar'}</button></div></Row>
     </Group><details className="st-details"><summary>{device.state === 'pending' ? 'Personalizar permisos' : 'Permisos'}</summary><DevicePermissions device={device} workspaces={status.workspaces} workspacesAvailable={status.workspacesAvailable} busy={changing} run={run} api={api} /></details></div>)}
     <details className="st-details" open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}><summary>Opciones avanzadas</summary>

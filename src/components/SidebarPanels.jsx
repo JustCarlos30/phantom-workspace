@@ -1,12 +1,14 @@
 import React from 'react';
 import { Maximize2, Search } from 'lucide-react';
 import { LayersIcon as Layers, SessionsIcon, ResourcesIcon, MapIcon } from './ShellIcons.jsx';
-import { buildSessionRows } from '../hooks/sidebarModel.mjs';
+import { buildSessionRows, groupSessionRows } from '../hooks/sidebarModel.mjs';
 import EmptyState from './EmptyState.jsx';
 import { ProviderGlyph } from './Glyphs';
 
 export default function SidebarPanels({ nodes = [], types, selected, focused, sessions, onJump, onFocus, onSearch, onMap }) {
   const { rows, resources } = buildSessionRows(nodes, sessions);
+  const groups = groupSessionRows(rows);
+  const showGroupLabels = groups.some(group => group.key !== 'rest');
   const focusButton = node => <button className="rail-panel-focus" title={`Enfocar ${node.title}`} aria-label={`Enfocar ${node.title}`} aria-pressed={focused === node.id} onClick={() => onFocus(node.id)}><Maximize2 size={16} /></button>;
   const resourceRow = node => {
     const Icon = types.find(t => t[0] === node.type)?.[2] || Layers;
@@ -20,19 +22,22 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
     <div className="rail-panel-scroll">
       <section className="rail-panel-group">
         <div className="rail-heading"><span><SessionsIcon size={16} /> Sesiones <span className="rail-count">{rows.length}</span></span><button aria-label="Buscar en paneles" title="Buscar paneles · Ctrl Mayús F" onClick={onSearch}><Search size={14} /></button></div>
-        <nav aria-label="Sesiones">{rows.map(row => {
+        <nav aria-label="Sesiones">{groups.map(group => <div key={group.key} className="rail-session-group">
+          {showGroupLabels && <h3 className="rail-group-label">{group.label} <span className="rail-count">{group.rows.length}</span></h3>}
+          {group.rows.map(row => {
           const active = selected.includes(row.id);
           return <div key={row.id} className="rail-session">
             <div className={`rail-panel-row rail-session-row ${active ? 'selected' : ''} ${row.needsYou ? 'needs-you' : ''}`} data-state={row.needsYou ? 'attention' : row.tone === 'working' ? 'working' : 'rest'}>
               <button onClick={() => onJump(row.id)} title={`${row.fullTitle} · Ver en el mapa`} aria-label={`Ver ${row.fullTitle} en el mapa`} aria-describedby={`rail-meta-${row.id}`} aria-current={active ? 'true' : undefined}>
                 <span className="rail-agent-mark" aria-hidden="true"><ProviderGlyph provider={row.provider === 'terminal' ? 'shell' : row.provider} size={18} /></span>
-                <span className="rail-panel-label"><span title={row.fullTitle}>{row.title}</span><span id={`rail-meta-${row.id}`} className="rail-session-meta" title={[row.providerLabel, row.statusLabel, row.time].filter(Boolean).join(' · ')}><span className="rail-session-type">{row.providerLabel}</span><span className="rail-session-status">{row.statusLabel}</span>{row.time && <span className="rail-session-time">{row.time}</span>}</span></span>
+                <span className="rail-panel-label"><span title={row.fullTitle}>{row.title}</span><span id={`rail-meta-${row.id}`} className="rail-session-meta" title={[row.providerLabel, row.statusLabel, row.time].filter(Boolean).join(' · ')}><span className="rail-session-type">{row.providerLabel}</span><span className="rail-session-status">{row.statusLabel}</span>{row.plan && <span className="rail-session-plan" title={row.plan.label}>{row.plan.tone === 'done' ? 'Plan completo' : `Fase ${row.plan.index} de ${row.plan.total}`}</span>}{row.time && <span className="rail-session-time">{row.time}</span>}</span></span>
               </button>
               {focusButton(row.node)}
             </div>
             {row.resources.length > 0 && <div className="rail-session-resources">{row.resources.map(resourceRow)}</div>}
           </div>;
-        })}{!rows.length && <EmptyState className="rail-empty" size="compact" description="Sin terminales en este espacio." />}</nav>
+        })}
+        </div>)}{!rows.length && <EmptyState className="rail-empty" size="compact" description="Sin terminales en este espacio." />}</nav>
       </section>
       <section className="rail-panel-group">
         <div className="rail-heading"><span><ResourcesIcon size={16} /> En el mapa <span className="rail-count">{resources.length}</span></span></div>

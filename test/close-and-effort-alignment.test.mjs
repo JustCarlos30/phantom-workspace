@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const canvas = readFileSync(new URL('../src/components/Canvas.jsx', import.meta.url), 'utf8');
+const canvas = ['../src/components/Canvas.jsx', '../src/components/canvas/CanvasNode.jsx'].map(file => readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n');
 const chat = readFileSync(new URL('../src/chat.css', import.meta.url), 'utf8');
 
 // Closing a terminal from its header X must just close it: the press must not
