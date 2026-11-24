@@ -229,6 +229,7 @@ try {
   const left = await make('terminal', 'SYNTHETIC Terminal izquierda', 0, 0);
   const right = await make('terminal', 'SYNTHETIC Terminal derecha', 800, 0);
   const note = await make('note', 'SYNTHETIC Nota inferior', 800, 700, { text: 'Contexto sintético' });
+  const web = await make('browser', 'SYNTHETIC Navegador', 0, 700, { url: 'about:blank' });
   await make('note', 'SYNTHETIC Nota oculta', 650, 0, { hidden: true });
   await make('zone', 'SYNTHETIC Zona', 0, 0);
   const otherSpace = '3f2b8c1e-5a47-4d9e-8b6a-1c2d3e4f5a6b';
@@ -243,7 +244,7 @@ try {
   }
   const second = await invoke('workspace.open', { path: secondPath });
   await page.reload(); await page.locator('.app-shell').waitFor(); await page.bringToFront(); await canvasOwnsFocus();
-  result.fixture = { first: first.id, second: second.id, left: left.id, right: right.id, note: note.id, sessions: sessions.map(({ id, pid, tty }) => ({ id, pid, tty })) };
+  result.fixture = { first: first.id, second: second.id, left: left.id, right: right.id, note: note.id, browser: web.id, sessions: sessions.map(({ id, pid, tty }) => ({ id, pid, tty })) };
   await capture('00-setup');
 
   await check('proyecto → elegir panel → vecino → PTY real → salir → vecino, sin clicks', async () => {
@@ -333,6 +334,48 @@ try {
     await page.getByRole('dialog', { name: 'Paleta del workspace' }).waitFor({ state: 'hidden' });
     await press('Escape'); await dialog().waitFor({ state: 'hidden' }); await canvasOwnsFocus();
     await capture('07-final');
+  });
+  await check('salir al mapa con Ctrl+Shift+Escape desde dentro de la vista nativa del navegador', async () => {
+    assert.equal((await activeWorkspace()).id, first.id);
+    await choosePanel('SYNTHETIC Navegador', web.id);
+    await press('Enter');
+    await poll(async () => await focused().getAttribute('data-node-id') === web.id, 'enfoque del navegador');
+    await page.waitForFunction(() => document.querySelector('.app-shell')?.dataset.keyboardMode === 'interaction');
+    // Sin red: about:blank. La vista nativa debe estar adjunta y visible antes de inyectar la tecla.
+    const probe = () => app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      const views = win.contentView.children.filter(child => child.webContents && child.webContents !== win.webContents);
+      const view = views.find(child => child.getVisible());
+      return { views: views.length, visible: !!view, url: view?.webContents.getURL() ?? null, id: view?.webContents.id ?? null };
+    });
+    const native = await poll(async () => { const value = await probe(); return value.visible && value.url === 'about:blank' ? value : false; }, 'WebContentsView del navegador visible con about:blank');
+    await capture('08-navegador-enfocado');
+    const sent = await app.evaluate(async ({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      const view = win.contentView.children.find(child => child.webContents && child.webContents !== win.webContents && child.getVisible());
+      if (!view) return { error: 'No hay WebContentsView visible' };
+      const wc = view.webContents;
+      const seen = [];
+      const listener = (_event, input) => seen.push({ type: input.type, key: input.key, code: input.code, control: input.control, shift: input.shift });
+      wc.on('before-input-event', listener);
+      try {
+        wc.focus();
+        const modifiers = ['control', 'shift'];
+        wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape', modifiers });
+        wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape', modifiers });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } finally { wc.removeListener('before-input-event', listener); }
+      return { seen };
+    });
+    result.keys.push({ native: 'Control+Shift+Escape vía webContents.sendInputEvent', view: native, ...sent, at: Date.now() });
+    assert.ok(!sent.error, `No se pudo inyectar la tecla en la vista nativa: ${sent.error}`);
+    assert.ok(sent.seen.some(input => input.type === 'keyDown' && input.key === 'Escape' && input.control && input.shift),
+      `Electron no entregó Ctrl+Shift+Escape a before-input-event de la vista nativa (visto: ${JSON.stringify(sent.seen)}); el puente no pudo ejercitarse`);
+    await poll(async () => await focused().count() === 0, 'salida del panel navegador (el puente no devolvió el foco al mapa)');
+    await selectedId(web.id);
+    assert.equal(await page.locator('.app-shell').getAttribute('data-keyboard-mode'), 'navigation');
+    await capture('09-salida-desde-navegador');
+    return { webContentsId: native.id, seen: sent.seen };
   });
   assert.deepEqual(result.errors, [], 'Sin errores de renderer');
 } catch (error) {

@@ -10,6 +10,7 @@ export const COMMANDS = Object.freeze([
   { id: 'down', title: 'Panel de abajo', group: 'Navegación', defaultBinding: 'ArrowDown', scope: 'navigation' },
   { id: 'next-session', title: 'Siguiente sesión', group: 'Navegación', defaultBinding: 'Ctrl+PageDown', scope: 'global' },
   { id: 'previous-session', title: 'Sesión anterior', group: 'Navegación', defaultBinding: 'Ctrl+PageUp', scope: 'global' },
+  { id: 'next-attention', title: 'Siguiente sesión que necesita atención', group: 'Navegación', defaultBinding: 'Ctrl+Shift+A', scope: 'global' },
   { id: 'enter-panel', title: 'Entrar al panel', group: 'Navegación', defaultBinding: 'Enter', scope: 'navigation' },
   { id: 'leave-panel', title: 'Salir al mapa', group: 'Navegación', defaultBinding: 'Ctrl+Shift+Escape', scope: 'panel' },
   { id: 'fit-all', title: 'Ver todos los paneles', group: 'Navegación', defaultBinding: '0', scope: 'navigation' },

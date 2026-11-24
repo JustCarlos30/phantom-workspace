@@ -10,6 +10,8 @@ import ShortcutSettings from './components/ShortcutSettings.jsx';
 import { useWorkspaceShortcuts } from './hooks/useWorkspaceShortcuts';
 import { formatBinding } from './hooks/workspace-commands.mjs';
 import { directionalNeighbor, cycleSession } from './hooks/panel-navigation.mjs';
+import { nextAttentionId } from './hooks/attention-navigation.mjs';
+import { buildSessionRows } from './hooks/sidebarModel.mjs';
 import { VoiceCapture } from './components/VoiceCapture';
 import { VoiceProvider, VoiceLauncher, useVoiceWorkspace } from './components/VoiceProvider';
 import { cancelVoiceRecording } from './hooks/useVoiceRecorder';
@@ -456,6 +458,11 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       if (next) jump(next);
       return;
     }
+    if (id === 'next-attention') {
+      const next = nextAttentionId(buildSessionRows(view.nodes, terminalActivity).rows, currentId);
+      if (next) jump(next); else notify('Ninguna sesión necesita tu atención.');
+      return;
+    }
     if (id === 'enter-panel' || id === 'return-focus') {
       const last = lastWorkFocus.current.get(workspace.id);
       const available = workspace.nodes.some(n => n.id === last && !n.data?.hidden && !n.hidden && n.type !== 'zone');
@@ -675,7 +682,7 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
           {appearance.background === 'ascii' && !appearance.image && <AsciiField paused={!!focused || appearance.concentration} />}
           <PresenceGroup>
           <div key="canvas-content" className="sites-canvas-content" inert={sitesOpen}>
-           {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} keyboardMode={keyboardMode} onKeyboardMode={onKeyboardMode} focusRequest={canvasFocusRequest} bindings={bindings} inputBlocked={inputBlocked || sitesOpen} navigationBlocked={overlayNavigationBlocked || railOwnsFocus || (chatOpen && chatOwnsFocus) || sitesOpen} obscured={focusMoving || sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} showCharacter={appearance.gengar} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <TitiMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
+           {workspace ? <Canvas key={`${workspace.id}:${spaces.active || 'main'}`} workspace={view} terminalActivity={terminalActivity} connection={connection} api={api} refresh={refresh} flush={flush} registerBeforeFlush={registerBeforeFlush} notify={notify} onOpenPanel={onOpenPanel} onChange={onChange} onCamera={onCamera} focused={focused} onFocus={focusPanel} selected={selected} onSelect={setSelected} keyboardMode={keyboardMode} onKeyboardMode={onKeyboardMode} focusRequest={canvasFocusRequest} bindings={bindings} inputBlocked={inputBlocked || sitesOpen} navigationBlocked={overlayNavigationBlocked || railOwnsFocus || (chatOpen && chatOwnsFocus) || sitesOpen} obscured={focusMoving || sitesOpen || browserObscured || !!projectRename.editing} spaceId={spaces.active} renameRequest={renameRequest} onMenu={openMenu} onRelaunch={relaunch} onCloseTerminal={onCloseTerminal} fitRequest={fitRequest} jumpRequest={jumpRequest} onShortcuts={() => setShortcutsOpen(true)} showCharacter={appearance.gengar} /> : <section className="canvas welcome-canvas"><EmptyState className="canvas-empty" size="hero" icon={appearance.gengar ? <TitiMascot /> : FolderOpen} heading="h1" title="Un espacio para cada proyecto" description="Elige una carpeta de tu equipo. Terminales, páginas y contexto quedan vinculados a ella, listos para volver." actions={<button className="button primary" onClick={openFolder} disabled={busy === 'folder'}>{busy === 'folder' ? <LoaderCircle size={16} className="spinning" /> : <FolderOpen size={16} />} Abrir carpeta</button>} hint="El trabajo vive en tu equipo · No se crean archivos en la carpeta" /></section>}
           {!!busy && busy !== 'folder' && <div key="canvas-busy" className="canvas-busy" role="status"><LoaderCircle size={14} className="spinning" />Preparando {TYPES.some(t => t[0] === busy) ? label(busy).toLowerCase() : 'sesión'}…</div>}
           {workspace && <div key="create-dock" ref={dockFit} className={`create-dock activity-dock ${tray ? 'activity-open' : ''}`}>
             <ActivityNotch activity={activity} open={tray} buttonRef={activityButton} onToggle={toggleActivity} identity={appearance.gengar && view.nodes.some(node => !node.data?.hidden)} />

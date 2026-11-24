@@ -11,7 +11,7 @@ const ctrlShift = key => eventFor(key, { ctrlKey: true, shiftKey: true });
 
 test('el catálogo publica los IDs pactados, defaults únicos y metadatos de UI', () => {
   assert.deepEqual(COMMANDS.map(command => command.id), [
-    'palette', 'projects', 'panels', 'left', 'right', 'up', 'down', 'next-session', 'previous-session',
+    'palette', 'projects', 'panels', 'left', 'right', 'up', 'down', 'next-session', 'previous-session', 'next-attention',
     'enter-panel', 'leave-panel', 'fit-all', 'return-focus', 'shortcuts',
     'create-terminal', 'create-browser', 'create-note', 'create-zone',
   ]);
@@ -23,6 +23,19 @@ test('el catálogo publica los IDs pactados, defaults únicos y metadatos de UI'
   }
   assert.equal(new Set(Object.values(bindings)).size, COMMANDS.length);
   assert.deepEqual(validateBindings().conflicts, []);
+});
+
+test('next-attention existe, tiene binding único y no genera conflictos', () => {
+  const command = COMMANDS.find(item => item.id === 'next-attention');
+  assert.ok(command);
+  assert.equal(command.title, 'Siguiente sesión que necesita atención');
+  assert.equal(command.group, 'Navegación');
+  assert.equal(command.scope, 'global');
+  assert.equal(command.defaultBinding, 'Ctrl+Shift+A');
+  assert.equal(Object.values(bindings).filter(binding => binding === command.defaultBinding).length, 1);
+  assert.deepEqual(validateBindings({ 'next-attention': 'Ctrl+Shift+A' }).conflicts, []);
+  assert.equal(matchCommand(ctrlShift('A'), bindings), 'next-attention');
+  assert.equal(matchCommand(ctrlShift('a'), bindings, { editable: true }), 'next-attention');
 });
 
 test('los modificadores son exactos; Ctrl no implica Meta ni ignora Alt/Shift', () => {

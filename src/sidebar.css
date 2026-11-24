@@ -162,6 +162,8 @@
 .project-rail .rail-count { font-weight: 400; font-variant-numeric: tabular-nums; }
 .project-rail .rail-heading button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--muted); opacity: .72; }
 .project-rail .rail-heading button:hover { background-color: var(--control-hover); color: var(--ink); opacity: 1; }
+.project-rail .rail-group-label { margin: 0; padding: var(--s-2) var(--row-pad) 4px; font: var(--t-micro); font-weight: 500; color: var(--ink-3); opacity: .72; }
+.project-rail .rail-session-group + .rail-session-group > .rail-group-label { padding-top: var(--s-3); }
 .project-rail .rail-empty { padding: 4px var(--row-pad) 8px; color: var(--muted); font: var(--t-support); opacity: .72; }
 
 .rail-panel-row { display: flex; align-items: center; height: var(--row-detail); }

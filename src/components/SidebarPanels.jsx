@@ -1,12 +1,14 @@
 import React from 'react';
 import { Maximize2, Search } from 'lucide-react';
 import { LayersIcon as Layers, SessionsIcon, ResourcesIcon, MapIcon } from './ShellIcons.jsx';
-import { buildSessionRows } from '../hooks/sidebarModel.mjs';
+import { buildSessionRows, groupSessionRows } from '../hooks/sidebarModel.mjs';
 import EmptyState from './EmptyState.jsx';
 import { ProviderGlyph } from './Glyphs';
 
 export default function SidebarPanels({ nodes = [], types, selected, focused, sessions, onJump, onFocus, onSearch, onMap }) {
   const { rows, resources } = buildSessionRows(nodes, sessions);
+  const groups = groupSessionRows(rows);
+  const showGroupLabels = groups.some(group => group.key !== 'rest');
   const focusButton = node => <button className="rail-panel-focus" title={`Enfocar ${node.title}`} aria-label={`Enfocar ${node.title}`} aria-pressed={focused === node.id} onClick={() => onFocus(node.id)}><Maximize2 size={16} /></button>;
   const resourceRow = node => {
     const Icon = types.find(t => t[0] === node.type)?.[2] || Layers;
@@ -20,7 +22,9 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
     <div className="rail-panel-scroll">
       <section className="rail-panel-group">
         <div className="rail-heading"><span><SessionsIcon size={16} /> Sesiones <span className="rail-count">{rows.length}</span></span><button aria-label="Buscar en paneles" title="Buscar paneles · Ctrl Mayús F" onClick={onSearch}><Search size={14} /></button></div>
-        <nav aria-label="Sesiones">{rows.map(row => {
+        <nav aria-label="Sesiones">{groups.map(group => <div key={group.key} className="rail-session-group">
+          {showGroupLabels && <h3 className="rail-group-label">{group.label} <span className="rail-count">{group.rows.length}</span></h3>}
+          {group.rows.map(row => {
           const active = selected.includes(row.id);
           return <div key={row.id} className="rail-session">
             <div className={`rail-panel-row rail-session-row ${active ? 'selected' : ''} ${row.needsYou ? 'needs-you' : ''}`} data-state={row.needsYou ? 'attention' : row.tone === 'working' ? 'working' : 'rest'}>
@@ -32,7 +36,8 @@ export default function SidebarPanels({ nodes = [], types, selected, focused, se
             </div>
             {row.resources.length > 0 && <div className="rail-session-resources">{row.resources.map(resourceRow)}</div>}
           </div>;
-        })}{!rows.length && <EmptyState className="rail-empty" size="compact" description="Sin terminales en este espacio." />}</nav>
+        })}
+        </div>)}{!rows.length && <EmptyState className="rail-empty" size="compact" description="Sin terminales en este espacio." />}</nav>
       </section>
       <section className="rail-panel-group">
         <div className="rail-heading"><span><ResourcesIcon size={16} /> En el mapa <span className="rail-count">{resources.length}</span></span></div>
