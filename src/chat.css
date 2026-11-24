@@ -402,9 +402,9 @@ button.pc-model:focus-visible { outline: 2px solid var(--pc-hue); outline-offset
 button.pc-model > svg:last-child { color: var(--muted); }
 /* Opens upward: the composer sits on the card's bottom edge. */
 .pc-models { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; width: 320px; max-width: 100%; max-height: min(320px, 60cqh); border: 0; border-radius: var(--r-obj); background: var(--object-fill) var(--menu); box-shadow: var(--shadow-chrome); overflow: hidden; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
-.pc-models input { height: 36px; margin: 6px 6px 0; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--ink); font: var(--t-control); font-weight: 400; }
+.pc-models input { flex-shrink: 0; height: 36px; margin: 6px 6px 0; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--ink); font: var(--t-control); font-weight: 400; }
 .pc-models input:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
-.pc-models-list { display: flex; flex-direction: column; padding: 5px; overflow-y: auto; }
+.pc-models-list { display: flex; flex-direction: column; min-height: 0; padding: 5px; overflow-y: auto; }
 .pc-models-list h4 { margin: 0; padding: 10px 9px 4px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .pc-models-list button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: var(--r-ctl); color: var(--ink); font: var(--t-control); font-weight: 400; text-align: left; flex-shrink: 0; }
 .pc-models-list button > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
