@@ -97,7 +97,9 @@ try {
   await capture('studio-narrow.png');
   const dock = await page.locator('.dock-main').boundingBox();
   const zoom = await page.locator('.canvas-navigation').boundingBox();
-  assert.ok(dock.y > zoom.y + zoom.height, 'Creation dock does not overlap zoom');
+  const apart = Math.min(dock.x + dock.width, zoom.x + zoom.width) <= Math.max(dock.x, zoom.x) || Math.min(dock.y + dock.height, zoom.y + zoom.height) <= Math.max(dock.y, zoom.y);
+  assert.ok(apart, 'Creation dock does not overlap zoom');
+  assert.ok(zoom.x >= dock.x + dock.width, 'Zoom tools sit to the right of the creation dock');
   const inspector = await page.locator('.inspector-host').boundingBox();
   assert.ok(dock.x + dock.width < inspector.x, 'Creation actions stay visible beside narrow inspector');
   await page.getByRole('button', { name: 'Cerrar inspector', exact: true }).click();

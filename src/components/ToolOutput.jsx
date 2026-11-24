@@ -23,7 +23,7 @@ function JsonView({ text }) {
 
 function Frame({ variant, label, meta, copy, children }) {
   return <div className={`tv tv-${variant}`}>
-    <header className="tv-head"><span className="tv-label">{label}</span>{meta && <span className="tv-meta">{meta}</span>}{copy && <CopyButton text={copy} label="Copiar" />}</header>
+    <header className="tv-head"><span className="tv-label">{label}</span>{meta && <span className="tv-meta">{meta}</span>}{copy && <CopyButton value={copy} label="Copiar" />}</header>
     <div className="tv-scroll">{children}</div>
   </div>;
 }

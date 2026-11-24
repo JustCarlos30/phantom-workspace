@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createLimits, claudeWindows, codexWindows } from '../host/limits.mjs';
+import { createLimits, claudeWindows, codexWindows, parseRetryAfter } from '../host/limits.mjs';
 
 const home = () => fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-limits-'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(value)); };
@@ -38,6 +38,78 @@ test('lee ambas cuentas, nunca devuelve tokens y cachea un minuto', async () => 
   assert.equal(calls.length, 2);
   await limits.read({ force: true });
   assert.equal(calls.length, 4);
+});
+
+const setup = () => {
+  const dir = home();
+  write(path.join(dir, '.claude/.credentials.json'), { claudeAiOauth: { accessToken: 'claude-secret', expiresAt: Date.now() + 3600e3 } });
+  write(path.join(dir, '.codex/auth.json'), { tokens: { access_token: 'codex-secret' } });
+  return dir;
+};
+const okClaude = reply(200, { limits: [{ kind: 'session', percent: 30 }] });
+const okCodex = reply(200, { rate_limit: { primary_window: { used_percent: 50, limit_window_seconds: 604800 } } });
+
+test('429 con Retry-After conserva datos y no reintenta ni con force', async () => {
+  let t = 1_000_000, mode = 'ok', calls = 0;
+  const fetchImpl = async url => {
+    if (!url.includes('anthropic')) return okCodex;
+    calls++;
+    return mode === 'ok' ? okClaude : { ok: false, status: 429, headers: { get: () => '120' }, json: async () => ({}) };
+  };
+  const limits = createLimits({ home: setup(), env: {}, fetchImpl, ttlMs: 1000, now: () => t });
+  await limits.read();
+  t += 2000; mode = '429';
+  const c = (await limits.read()).providers[0];
+  assert.deepEqual([c.available, c.stale, c.status, c.windows[0].percent], [true, true, 'rate_limited', 30]);
+  assert.equal(c.retryAt, new Date(t + 120000).toISOString());
+  assert.ok(c.staleSince);
+  const before = calls;
+  t += 60000;
+  await limits.read({ force: true });
+  assert.equal(calls, before);
+  t += 61000; mode = 'ok';
+  assert.equal((await limits.read({ force: true })).providers[0].status, 'ok');
+  assert.equal(calls, before + 1);
+});
+
+test('Retry-After por defecto 5 min, fecha y tope de 30 min', () => {
+  assert.equal(parseRetryAfter(null), 300000);
+  assert.equal(parseRetryAfter('99999'), 1800000);
+  assert.equal(parseRetryAfter(new Date(91000).toUTCString(), 1000), 90000);
+});
+
+test('error transitorio conserva datos y reintenta a ~60 s; TTL independiente por proveedor', async () => {
+  let t = 1_000_000, fail = false;
+  const calls = { claude: 0, codex: 0 };
+  const fetchImpl = async url => {
+    const id = url.includes('anthropic') ? 'claude' : 'codex';
+    calls[id]++;
+    if (id === 'claude' && fail) return reply(503, {});
+    return id === 'claude' ? okClaude : okCodex;
+  };
+  const limits = createLimits({ home: setup(), env: {}, fetchImpl, now: () => t });
+  await limits.read();
+  t += 239000;
+  await limits.read();
+  assert.deepEqual(calls, { claude: 1, codex: 1 });
+  t += 2000; fail = true;
+  let v = await limits.read();
+  assert.deepEqual(calls, { claude: 2, codex: 2 });
+  assert.deepEqual([v.providers[0].available, v.providers[0].stale, v.providers[0].status, v.providers[0].windows[0].percent], [true, true, 'error', 30]);
+  assert.equal(v.providers[1].status, 'ok');
+  t += 30000;
+  await limits.read();
+  assert.equal(calls.claude, 2);
+  t += 31000;
+  await limits.read();
+  assert.deepEqual(calls, { claude: 3, codex: 2 });
+});
+
+test('Codex sin ventanas reconocibles: error de formato; sin datos previos no disponible', async () => {
+  const fetchImpl = async url => (url.includes('anthropic') ? okClaude : reply(200, { plan_type: 'plus' }));
+  const p = (await createLimits({ home: setup(), env: {}, fetchImpl }).read()).providers[1];
+  assert.deepEqual([p.status, p.reason, p.available], ['error', 'Formato de respuesta inesperado', false]);
+  assert.doesNotMatch(JSON.stringify(p), /secret/);
 });
 
 test('sin sesión, sesión vencida o rechazada: explica qué CLI abrir sin consultar la red de más', async () => {

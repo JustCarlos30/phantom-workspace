@@ -8,7 +8,7 @@
    Separators are 1px gradients, not borders: no new drawn edges. */
 
 /* ---------- Plane ---------- */
-.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index),
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index, .usage-popover),
 ::picker(select) {
   --object-ring: linear-gradient(var(--object-edge-top), var(--object-edge-bottom));
   background-color: var(--menu); background-image: var(--object-fill);
@@ -16,7 +16,7 @@
   box-shadow: var(--shadow-chrome);
   --muted: #a8a6a0; --ink-3: #8b8983;
 }
-.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index)::before,
+.app-shell :is(.context-menu-panel, .context-menu, .pc-agent-menu, .pc-models, .pc-effort-menu, .pc-context-panel, .dock-more-menu, .canvas-popover, .tool-picker, .panel-index, .usage-popover)::before,
 ::picker(select)::before {
   content: ""; position: absolute; inset: 0; z-index: 3;
   border-radius: inherit; padding: var(--object-ring-width); pointer-events: none;
@@ -90,7 +90,7 @@
 .app-shell .pc-models > input {
   height: 38px; margin: 0; padding: 0 16px; border-radius: 0; outline: 0; box-shadow: none;
   background: linear-gradient(var(--hairline), var(--hairline)) left bottom / 100% 1px no-repeat;
-  color: var(--ink-3); caret-color: var(--ink);
+  color: var(--ink-3); caret-color: var(--accent);
 }
 .app-shell .context-search { margin: -6px -6px 6px; padding: 0 16px; gap: var(--s-2); }
 .app-shell .context-search:focus-within, .app-shell .pc-models > input:focus-visible { outline: 0; box-shadow: none; }
@@ -101,6 +101,12 @@
 .app-shell .project-rail .space-select i { margin: 0 5px; }
 .app-shell .pc-models-list { padding: 6px; }
 .app-shell .context-menu-panel :is(.project-list, .space-list) { gap: 0; }
+
+/* Reusable separator: 1px line in the border token between groups. */
+.menu-separator, [role="separator"].menu-separator {
+  flex-shrink: 0; height: var(--divider-width, 1px); margin: var(--s-1) var(--s-2); border: 0; background: var(--hairline);
+}
+.app-shell .pc-models-list > button, .app-shell .pc-effort-menu [role="option"] { min-height: 34px; }
 
 /* A closing action (new space, open folder) sits under its own line. */
 .app-shell .project-rail .context-menu-panel > .open-folder {

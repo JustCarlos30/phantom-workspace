@@ -44,10 +44,11 @@
 .inc-chip[data-tone="danger"] { --tone: var(--danger); }
 .inc-chip[data-tone="success"] { --tone: var(--success); }
 
-.inc-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: var(--fill-2); color: var(--ink); font: var(--t-control); white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
-.inc-button:hover:not(:disabled) { background: var(--fill-3); }
+.inc-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink); font: var(--t-control); white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
+.inc-button:hover:not(:disabled) { background: var(--row-hover); }
 .inc-button:disabled { opacity: .5; cursor: default; }
-.inc-button.is-primary { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); font-weight: 600; }
+.inc-button.is-primary { background: var(--on); color: var(--on-ink); box-shadow: none; font-weight: 600; }
+.inc-button.is-primary:hover:not(:disabled) { background: var(--on-hover); }
 .inc-button.is-quiet { background: transparent; color: var(--muted); }
 .inc-button.is-quiet:hover:not(:disabled) { background: var(--fill-2); color: var(--ink); }
 .inc-switch { flex: none; display: flex; align-items: center; width: 44px; height: 26px; padding: 3px; border: 0; border-radius: var(--r-pill); background: var(--fill-3); box-shadow: var(--shadow-well); cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }

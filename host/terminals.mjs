@@ -10,14 +10,11 @@ import { bootstrapAgentPolicy, shimmedPath } from './agent-policy.mjs';
 import { prepareWorktree } from './worktree-setup.mjs';
 import { roleEnv, roleOf } from './merge-guard.mjs';
 import { grantClaudeTrust, inheritClaudeTrust } from './claude-trust.mjs';
+import { processIdentity as inspectIdentity, ownedProcesses as inspectOwned, foregroundProcess } from './process-inspect.mjs';
 const require = createRequire(import.meta.url);
 export function dimensions(cols = 80, rows = 24) { assert(Number.isInteger(cols) && cols >= 2 && cols <= 500 && Number.isInteger(rows) && rows >= 1 && rows <= 300, 'Terminal dimensions out of bounds'); return {cols,rows}; }
-function processIdentity(pid) {try {const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');const parts=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid:Number(pid),parent:Number(parts[1]),session:Number(parts[3]),start:parts[19]};}catch{return null;}}
-function ownedProcesses(pid) {
-  const rows=fs.readdirSync('/proc').filter(v=>/^\d+$/.test(v)).map(processIdentity).filter(Boolean),owned=new Set([pid]);
-  for(let changed=true;changed;) {changed=false;for(const p of rows)if(!owned.has(p.pid)&&(p.session===pid||owned.has(p.parent))){owned.add(p.pid);changed=true;}}
-  return rows.filter(p=>owned.has(p.pid));
-}
+const processIdentity=pid=>inspectIdentity(pid);
+const ownedProcesses=pid=>inspectOwned(pid);
 function signalIdentities(identities,signal) {for(const identity of identities)if(processIdentity(identity.pid)?.start===identity.start)try{process.kill(identity.pid,signal);}catch{}}
 function snapshotOf(entry,session) {
   let lines=1000,data=entry.serializer.serialize({scrollback:lines});
@@ -38,13 +35,8 @@ export function detectAgent(comm,argv=[]) {
   return PATH_AGENTS.find(([fragment])=>joined.includes(fragment))?.[1]??null;
 }
 function foregroundOf(pid) {
-  try {
-    const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8'),tpgid=Number(stat.slice(stat.lastIndexOf(')')+2).split(' ')[5]);
-    if(!(tpgid>0)) return null;
-    const comm=fs.readFileSync(`/proc/${tpgid}/comm`,'utf8').trim();
-    const argv=fs.readFileSync(`/proc/${tpgid}/cmdline`,'utf8').split('\0').filter(Boolean);
-    return {command:comm.slice(0,64),agent:detectAgent(comm,argv),shell:tpgid===pid};
-  } catch { return null; }
+  const fg=foregroundProcess(pid);
+  return fg?{command:fg.comm.slice(0,64),agent:detectAgent(fg.comm,fg.argv),shell:fg.tpgid===pid}:null;
 }
 // Plain-text tail of the parsed screen for Phantom's map card: logical lines
 // (soft wraps rejoined), trailing blank rows dropped. Alternate-screen TUIs
@@ -116,7 +108,7 @@ export class Terminals {
       }
     },1000);this.timer.unref();
   }
-  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,screenStateAt:this.live.get(s.id)?.screenStateAt??null,screenReason:this.live.get(s.id)?.screenReason??null,...(n?{name:n.title,agent:n.data.agent??null}:{})}; }
+  descriptor(s) { const {snapshot, ...rest} = s; const w=this.store.state.workspaces.find(w=>w.id===s.workspaceId),n=w?.nodes.find(n=>n.id===s.nodeId); return {...rest,screenState:this.live.get(s.id)?.screenState??null,screenStateAt:this.live.get(s.id)?.screenStateAt??null,screenReason:this.live.get(s.id)?.screenReason??null,...(n?{name:n.title,agent:n.data.agent??null,...(n.data.plan?{plan:n.data.plan}:{})}:{})}; }
   get(id) { const s = this.sessions.find(s => s.id === id); assert(s,'Terminal session not found'); return s; }
   foreground(id) { const entry=this.live.get(id);return entry&&!entry.exited?foregroundOf(entry.child.pid):null; }
   async create(w, node, options) {
@@ -137,7 +129,7 @@ export class Terminals {
     assert(!this.sessions.some(s => s.nodeId === node.id && s.status === 'running'), 'Node already has a running terminal');
     assert(this.live.size < 100, 'Too many terminal sessions');
     const size = dimensions(options.cols,options.rows);
-    const shell = options.shell || this.store.state.settings.shell || process.env.SHELL || '/bin/bash'; text(shell,'shell',4096); assert(path.isAbsolute(shell) && fs.statSync(shell).isFile(), 'Shell must be an absolute executable path');
+    const shell = options.shell || this.store.state.settings.shell || process.env.SHELL || (process.platform==='darwin'?'/bin/zsh':'/bin/bash'); text(shell,'shell',4096); assert(path.isAbsolute(shell) && fs.statSync(shell).isFile(), 'Shell must be an absolute executable path');
     const pty = require('node-pty');
     const { Terminal } = require('@xterm/headless'); const { SerializeAddon } = require('@xterm/addon-serialize');
     const directory = await prepareTerminalDirectory(this.store, w, node);
@@ -162,7 +154,7 @@ export class Terminals {
       if (directory.worktree) await inheritClaudeTrust(this.store, w, directory).catch(() => {});
       signal.throwIfAborted();
       assert(!this.closed && !this.closingNodes.has(node.id), 'Terminal is closing');
-      child = pty.spawn(shell, [], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...process.env,...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
+      child = pty.spawn(shell, process.platform==='darwin'?['-l']:[], {...size,name:'xterm-256color',cwd:directory.cwd,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key!=='PHANTOM_WORKSPACE_ID')),...policyEnv,...browser.env,PATH:shimmedPath(browser.env.PATH),TERM:'xterm-256color',COLORTERM:'truecolor',PHANTOM_WORKSPACE_SOCKET:path.join(this.store.dir,'host.sock'),PHANTOM_TERMINAL_SESSION_ID:sessionId,PHANTOM_AGENT_CLI:agentCLI,PHANTOM_AGENT_NODE:process.execPath}});
     }
     catch (error) { browser.revoke(); terminal.dispose(); throw error; }
     const s = {id:sessionId,workspaceId:w.id,nodeId:node.id,pid:child.pid,shell,...directory,status:'running',agentReporting:true,...size,generation:randomUUID(),createdAt:new Date().toISOString(),seq:0,snapshot:''};

@@ -2,9 +2,9 @@
 
 Fuente reproducible: `scripts/storybook-inventory.mjs` + `src/stories/catalog.mjs`. La matriz **Catálogo → Inventario** se genera del árbol actual en cada build, con búsquedas, enlaces, todas las exportaciones y declaraciones capitalizadas (incluidas privadas), líneas y motivos de exclusión. El mapa completo clasifica también los archivos que no son JSX. Dependencias, `.git` y artefactos generados se excluyen explícitamente.
 
-**61 fuentes JSX de `src/components`, 12 familias.** Cada fila siguiente tiene import real y selector de su UI en el smoke. La cobertura es de fuente/composición, no un porcentaje de ramas. Los símbolos que no se ejercitan individualmente conservan ese estado en la matriz; ni documentación, providers ni registros se suman como componentes visuales adicionales.
+**Inventario completo de `src/components`, 12 familias.** El total vigente de fuentes y stories se deriva del AST y se muestra en la matriz y en `npm run inventory:storybook`; no se fija un total de aceptación. Cada fila siguiente declara un import real y un selector de su UI para el smoke. La cobertura es de fuente/composición, no un porcentaje de ramas ni una aprobación del smoke. Los símbolos que no se ejercitan individualmente conservan ese estado en la matriz; ni documentación, providers ni registros se suman como componentes visuales adicionales.
 
-Los enlaces presuponen el catálogo local en el puerto 6006. Para una instalación en otra URL, usa los mismos IDs desde la barra de búsqueda de Storybook.
+Los enlaces presuponen el servidor de desarrollo local en el puerto 6006. Compose asigna un puerto libre por defecto; usa su URL efectiva con los mismos IDs o la búsqueda de Storybook. Un servicio ya existente en 6006 no acredita que sirva el build actual.
 
 | Familia | Fuente (`src/components/`) | Escenario principal |
 |---|---|---|
@@ -16,22 +16,29 @@ Los enlaces presuponen el catálogo local en el puerto 6006. Para una instalaci�
 | Identidad | Glyphs.jsx | [Marcas](http://127.0.0.1:6006/?path=/story/identidad--marcas) |
 | Identidad | ShellIcons.jsx | [Iconos](http://127.0.0.1:6006/?path=/story/identidad--iconos) |
 | Identidad | GengarMascot.jsx | [Mascota](http://127.0.0.1:6006/?path=/story/identidad--mascota) |
+| Identidad | TitiGhost.jsx | [Titi](http://127.0.0.1:6006/?path=/story/identidad--titi) |
 | Navegación | Canvas.jsx | [Lienzo](http://127.0.0.1:6006/?path=/story/navegación--lienzo) |
 | Navegación | Minimap.jsx | [Minimapa](http://127.0.0.1:6006/?path=/story/navegación--minimapa) |
 | Navegación | Spaces.jsx | [Espacios](http://127.0.0.1:6006/?path=/story/navegación--espacios) |
 | Navegación | ProjectSwitcher.jsx | [Proyectos](http://127.0.0.1:6006/?path=/story/navegación--proyectos) |
 | Navegación | SidebarPanels.jsx | [Paneles](http://127.0.0.1:6006/?path=/story/navegación--paneles) |
+| Navegación | RailUsage.jsx | [Límites](http://127.0.0.1:6006/?path=/story/navegación--limites) |
 | Navegación | ToolPicker.jsx | [Herramientas](http://127.0.0.1:6006/?path=/story/navegación--herramientas) |
 | Navegación | CommandPalette.jsx | [Comandos](http://127.0.0.1:6006/?path=/story/navegación--comandos) |
 | Navegación | Inspector.jsx | [Inspector contextual](http://127.0.0.1:6006/?path=/story/navegación--inspector-contextual) |
+| Navegación | ProjectPicker.jsx | [Selector](http://127.0.0.1:6006/?path=/story/navegación--selector) |
+| Navegación | ShortcutSettings.jsx | [Atajos](http://127.0.0.1:6006/?path=/story/navegación--atajos) |
 | Actividad | ActivityNotch.jsx | [Resumen](http://127.0.0.1:6006/?path=/story/actividad--resumen) |
 | Actividad | ActivityTrace.jsx | [Trazas](http://127.0.0.1:6006/?path=/story/actividad--trazas) |
+| Actividad | PlanPhases.jsx | [Plan](http://127.0.0.1:6006/?path=/story/actividad--plan) |
 | Conversaciones | TerminalPanel.jsx | [Terminal](http://127.0.0.1:6006/?path=/story/conversaciones--terminal) |
 | Conversaciones | TerminalCard.jsx | [Tarjeta terminal](http://127.0.0.1:6006/?path=/story/conversaciones--tarjeta-terminal) |
 | Conversaciones | ChatCard.jsx | [Chat](http://127.0.0.1:6006/?path=/story/conversaciones--chat) |
+| Conversaciones | TouchedFiles.jsx | Sin escenario (se ve dentro de Tarjeta terminal y Chat con un worktree) |
 | Conversaciones | PhantomChat.jsx | [Dock](http://127.0.0.1:6006/?path=/story/conversaciones--dock) |
 | Conversaciones | PhantomOrchestrator.jsx | [Orquestador](http://127.0.0.1:6006/?path=/story/conversaciones--orquestador) |
 | Herramientas | ToolPanels.jsx | [Código](http://127.0.0.1:6006/?path=/story/herramientas--codigo) |
+| Herramientas | Environment.jsx | [Entorno](http://127.0.0.1:6006/?path=/story/herramientas--entorno) |
 | Herramientas | PluginPanels.jsx | [Plugin panel](http://127.0.0.1:6006/?path=/story/herramientas--plugin-panel) |
 | Herramientas | PluginCenter.jsx | [Centro](http://127.0.0.1:6006/?path=/story/herramientas--plugins-centro) |
 | Herramientas | Plugins.jsx | [Compatibilidad](http://127.0.0.1:6006/?path=/story/herramientas--plugins-compatibilidad) |
@@ -75,11 +82,13 @@ Los enlaces presuponen el catálogo local en el puerto 6006. Para una instalaci�
 - **Cards**: mesa, tablero, contrato y formulario nuevo montan DeskCard, StatusPill, CardDetail y CardForm mediante las vías reales de selección. No se acredita cada acción de ejecución/reemplazo ni cada CheckEvidence.
 - **Skills**: catálogo, detalle y formulario nuevo; referencia/manifiesto sintéticos válidos. Los recursos y el versionado se exploran desde controles reales; la publicación nativa no está conectada.
 - **ChatCard**: estados vacío, cargando, error, datos, trabajo, permiso pendiente y desconexión; Message, Markdown y controles reales. Los subagentes/handoffs privados no están todos ejercitados individualmente.
+- **TouchedFiles**: insignia y popover de archivos tocados (sondeo `repo.changes`, diff `repo.diff` contra la base). Aún no tiene historia propia; el mock de Storybook no devuelve `repo.changes`, así que no se renderiza sin worktree y host real.
 - **Canvas**: nota editable, selección, navegación, minimapa y encabezado reales. Terminal, browser, referencias y herramientas también tienen escenarios independientes; eso no acredita todas las combinaciones internas de CanvasNode.
 - **Repository**: pantalla de repositorio e historial reales. Ramas tiene selección/detalle; no se declara cobertura individual del editor de archivos privados ni de escrituras Git.
 - **ToolPanels**: Trabajo, Borradores, Misiones, Procesos, Servicios, Docker, Secuencias, Navegador automático y Código. Primitivas duplicadas comparables en Controles.
 - **ActivityNotch**: resumen, bandeja y estados de terminal. **Presence** es infraestructura de transición, no una tarjeta visual. **VoiceProvider** es contexto montado con su launcher.
 - **Iconos**: Glyphs y ShellIcons renderizan marcas y variantes; helpers de elección y registries no son superficies. `PanelIcons.js` y los hooks JS están en el mapa completo como soporte, fuera del recuento de fuentes JSX.
+- **Titi**: `GengarMascot.jsx` conserva su nombre de archivo histórico, pero monta el rig actual con `.titi-mascot[data-identity="hero"]`. La story Mascota mantiene su cobertura visible; TitiGhost tiene además su composición de moods.
 - **App.jsx / WorkspaceUI / WorkspaceErrorBoundary**: integración de entrada/persistencia excluida. WorkspaceUI y el boundary no se exportan; las composiciones directas de Canvas/Inspector/dock no se contabilizan como render de App.
 - **main.jsx**: bootstrap con createRoot, no importable como muestra sin arrancar la app. **.storybook/preview.jsx**: configuración, sin componente visual propio.
 - **scripts/remotion-template/{Root,Storyboard}.tsx**: plantillas para otro runtime; exclusiones explícitas y símbolos AST disponibles.

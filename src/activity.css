@@ -7,7 +7,7 @@
 .activity-notch > strong { min-width: 0; overflow-wrap: anywhere; }
 .activity-notch svg { flex-shrink: 0; }
 .activity-notch > .notch-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill); color: var(--attention); font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; }
-.activity-notch > .notch-dot { display: block; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--muted); opacity: .7; }
+.activity-notch > .notch-dot { display: block; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--ink-3); opacity: .7; }
 .terminal-activity-status.working { color: var(--working); }
 .terminal-activity-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); min-width: 0; line-height: 1.4; }
 .terminal-activity-status i { display: block; width: 5px; height: 5px; border-radius: var(--r-pill); background: currentColor; flex-shrink: 0; }
@@ -25,18 +25,20 @@
 .activity-head h1 b { font-weight: inherit; font-variant-numeric: tabular-nums; }
 .activity-head h1.needs-you b { color: var(--attention); }
 .activity-head p { margin: 4px 0 0; font: var(--t-body); color: var(--muted); }
-.activity-tray.needs-tray .activity-filters { align-self: flex-start; flex-wrap: nowrap; gap: 2px; margin: 0 20px 6px; padding: 3px; border-radius: var(--r-pill); background: var(--fill); box-shadow: var(--shadow-well); }
-.activity-tray.needs-tray .activity-filters button { min-height: 30px; padding: 0 14px; gap: 7px; border-radius: var(--r-pill); font: var(--t-control); white-space: nowrap; }
-.activity-tray.needs-tray .activity-filters button b { min-width: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--fill-3); font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.activity-tray.needs-tray .activity-filters { align-self: flex-start; flex-wrap: nowrap; gap: 2px; margin: 0 20px 6px; padding: 0; gap: 4px; border-radius: var(--r-pill); background: transparent; box-shadow: none; }
+.activity-tray.needs-tray .activity-filters button { min-height: 30px; padding: 0 14px; gap: 7px; border-radius: var(--r-pill); background: transparent; color: var(--muted); font: var(--t-control); white-space: nowrap; }
+.activity-tray.needs-tray .activity-filters button:not(:disabled):hover { background-color: var(--row-hover); }
+.activity-tray.needs-tray .activity-filters button[aria-pressed="true"] { background-color: var(--row-hover); color: var(--ink); }
+.activity-tray.needs-tray .activity-filters button b { min-width: 18px; padding: 0 5px; border-radius: var(--r-pill); background: transparent; font: var(--t-micro); font-weight: 600; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
 .activity-tray.needs-tray .activity-filters button[data-tab="needs"] b { color: var(--attention); }
 .activity-body { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
 .activity-tray-scroll { overflow: auto; min-width: 0; min-height: 0; padding: 0 12px 20px 20px; overscroll-behavior: contain; overflow-wrap: anywhere; }
 .activity-tray h2 { margin: 16px 6px 8px; font: var(--t-title); color: var(--ink); }
-.activity-tray button:not(.icon-button) { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--r-pill); color: var(--ink); background: var(--fill-2); font: var(--t-control); }
+.activity-tray button:not(.icon-button) { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; flex-shrink: 0; border: 0; border-radius: var(--r-pill); color: var(--ink); background: transparent; box-shadow: none; font: var(--t-control); }
 .activity-tray.needs-tray .activity-actions button:not(.icon-button) { padding: 0 14px; white-space: nowrap; }
-.activity-tray button:not(:disabled):hover { background: var(--fill-3); }
+.activity-tray button:not(:disabled):hover { background: var(--row-hover); }
 .activity-tray button:disabled { opacity: .55; cursor: default; }
-.activity-tray.needs-tray button.is-primary, .activity-tray.needs-tray button.is-primary:not(:disabled):hover { background: var(--on); color: var(--on-ink); box-shadow: var(--shadow-key); }
+.activity-tray.needs-tray button.is-primary, .activity-tray.needs-tray button.is-primary:not(:disabled):hover { background: var(--on); color: var(--on-ink); box-shadow: none; }
 .activity-tray.needs-tray button.activity-link { min-height: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font: inherit; }
 .activity-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 6px 0; font: var(--t-support); color: var(--muted); }
 .activity-tray .activity-copy { margin: 0; font: var(--t-support); color: var(--muted); }
@@ -50,7 +52,9 @@
 .activity-tray [data-ink="working"] { --tone: var(--working); }
 .activity-tray [data-ink="success"] { --tone: var(--success); }
 .activity-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; border-radius: var(--r-obj); overflow: hidden; }
-.activity-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 4px 14px; min-width: 0; min-height: 60px; padding: 10px 14px; background: var(--fill); }
+.activity-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 4px 14px; min-width: 0; min-height: 60px; padding: 10px 14px; border-radius: var(--r-row); background: transparent; transition: background-color 120ms ease; }
+.activity-item:hover { background-color: var(--row-hover); }
+@media (prefers-reduced-motion: reduce) { .activity-item { transition: none; } }
 .activity-item-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-pill); color: var(--tone); background: var(--fill-2); }
 .activity-item-main { display: grid; gap: 2px; min-width: 0; }
 .activity-item-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font: var(--t-headline); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }

@@ -75,6 +75,53 @@ test('Repositorio: graph, commit files, diffs and guarded edits inside worktrees
   assert.equal(changeMix(row.changes, row.changeSummary).reduce((sum, kind) => sum + kind.count, 0), row.changeCount);
 });
 
+async function branchFixture(t) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-changes-'))), repository = path.join(root, 'repository');
+  fs.mkdirSync(repository);
+  const git = (...args) => run(repository, ...args);
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  fs.writeFileSync(path.join(repository, 'a.txt'), 'one\ntwo\n'); fs.writeFileSync(path.join(repository, 'd.txt'), 'dee\n'); git('add', '.'); git('commit', '-m', 'Base');
+  const mergeBase = git('rev-parse', 'HEAD'), tree = path.join(root, 'feature');
+  git('worktree', 'add', '-b', 'feature', tree, 'HEAD');
+  fs.writeFileSync(path.join(tree, 'a.txt'), 'one\nTWO\n'); fs.writeFileSync(path.join(tree, 'b.txt'), 'new\n'); run(tree, 'add', '.'); run(tree, 'commit', '-m', 'Feature work');
+  fs.writeFileSync(path.join(repository, 'c.txt'), 'main\n'); git('add', '.'); git('commit', '-m', 'Main moves');
+  fs.writeFileSync(path.join(tree, 'a.txt'), 'one\nTWO\nthree\n'); fs.writeFileSync(path.join(tree, 'd.txt'), 'dee\nmore\n'); fs.writeFileSync(path.join(tree, 'u.txt'), 'x\ny\n');
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  t.after(async () => { await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const workspaceId = (await host.invoke('workspace.open', { path: repository })).id;
+  return { host, workspaceId, tree, root, mergeBase };
+}
+
+test('Repositorio: changes lists committed, unsaved and untracked files against the base', async t => {
+  const { host, workspaceId, tree, mergeBase } = await branchFixture(t);
+  const changes = await host.invoke('repo.changes', { workspaceId, tree });
+  assert.equal(changes.base, 'main'); assert.equal(changes.mergeBase, mergeBase); assert.equal(changes.head, run(tree, 'rev-parse', 'HEAD'));
+  assert.equal(changes.truncated, false);
+  assert.deepEqual(changes.files.map(f => [f.path, f.status, f.added, f.removed, f.committed, f.uncommitted]), [
+    ['a.txt', 'M', 2, 1, true, true],
+    ['b.txt', 'A', 1, 0, true, false],
+    ['d.txt', 'M', 1, 0, false, true],
+    ['u.txt', 'A', 2, 0, false, true],
+  ]);
+});
+
+test('Repositorio: diff against the base accumulates commits and unsaved work', async t => {
+  const { host, workspaceId, tree } = await branchFixture(t);
+  const accumulated = (await host.invoke('repo.diff', { workspaceId, tree, path: 'a.txt', against: 'base' })).text;
+  assert.match(accumulated, /^-two$/m); assert.match(accumulated, /^\+TWO$/m); assert.match(accumulated, /^\+three$/m);
+  const fresh = (await host.invoke('repo.diff', { workspaceId, tree, path: 'u.txt', against: 'base' })).text;
+  assert.match(fresh, /new file mode/); assert.match(fresh, /^\+x$/m);
+  // Without `against` the diff is still relative to HEAD.
+  const own = (await host.invoke('repo.diff', { workspaceId, tree, path: 'a.txt' })).text;
+  assert.match(own, /^\+three$/m); assert.doesNotMatch(own, /^-two$/m);
+});
+
+test('Repositorio: changes rejects a folder that is not a worktree of the repository', async t => {
+  const { host, workspaceId, root } = await branchFixture(t);
+  await assert.rejects(host.invoke('repo.changes', { workspaceId, tree: root }), /no es un worktree/);
+  await assert.rejects(host.invoke('repo.diff', { workspaceId, tree: root, path: 'a.txt', against: 'base' }), /no es un worktree/);
+});
+
 test('Repositorio: lanes follow branches and merges', () => {
   // M merges F into C; F and C share base B.
   const rows = layoutGraph([

@@ -1,4 +1,5 @@
 import { state, workspace, tasks, taskRun, messages, date, graph, branches, merge, environment, plugin, skill, conventions } from './fixtures.js';
+import { claudeModelCatalog, executionPolicy } from '../../shared/execution-policy.mjs';
 
 export function createHost({ scenario = 'data', overrides = {}, workspaceId = workspace.id } = {}) {
   const listeners = new Set(), pending = new Set(), calls = [], unknown = [];
@@ -15,6 +16,22 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'desktop.info': () => ({ version: 'catálogo', dataDir: '/synthetic/data', platform: 'linux' }),
     'system.info': () => ({ version: 'catálogo', dataDir: '/synthetic/data', platform: 'linux' }),
     'settings.update': p => (model.settings = { ...model.settings, ...p.patch }),
+    'providers.list': () => {
+      const policy = executionPolicy(model.settings);
+      return { observedAt: date, policy, providers: [
+        { id: 'claude', label: 'Claude Code', engine: 'claude-code', status: 'available', binary: { path: '/synthetic/bin/claude', version: '2.1.328 (sintético)' }, session: { available: true, plan: 'max' } },
+        { id: 'opencode', label: 'OpenCode', engine: 'opencode', status: 'available', binary: { path: '/synthetic/bin/opencode', version: '1.2.3 (sintético)' }, session: { available: false, credentials: [], reason: 'Sin cuentas sintéticas: ejecuta «opencode auth login»' }, models: { available: true, count: 2 } },
+        { id: 'codex', label: 'Codex', engine: null, status: 'unavailable', reason: 'No se encontró «codex» en el entorno sintético', binary: { path: '/synthetic/bin/codex', version: null }, session: { available: false, plan: null, reason: 'Sin sesión sintética' } },
+      ].map(provider => ({ ...provider, enabled: policy.providers[provider.id].enabled })) };
+    },
+    'providers.models': p => {
+      const policy = executionPolicy(model.settings);
+      if (!Object.hasOwn(policy.providers, p.provider)) throw new Error(`Proveedor desconocido: ${p.provider}`);
+      const base = { provider: p.provider, engine: p.provider === 'claude' ? 'claude-code' : p.provider === 'opencode' ? 'opencode' : null, enabled: policy.providers[p.provider].enabled, observedAt: date };
+      if (p.provider === 'claude') return { ...base, available: true, items: claudeModelCatalog().map(item => ({ ...item, engine: 'claude-code' })) };
+      if (p.provider === 'opencode') return { ...base, available: true, items: [{ id: 'openai/gpt-5', engine: 'opencode' }, { id: 'openrouter/qwen3-coder', engine: 'opencode' }], excluded: 0 };
+      return { ...base, available: false, items: [], reason: 'Codex no está instalado en el entorno sintético' };
+    },
     'terminal.list': () => scenario === 'environment' ? environment.sessions : [{ id: 'session-demo', nodeId: 'terminal-demo', workspaceId: workspace.id, status: 'running', createdAt: date }],
     'terminal.attach': () => ({ seq, data: '\x1b[36mPhantom · salida sintética\x1b[0m\r\nSin PTY ni proceso real.\r\n$ ', session: { id: 'session-demo', status: 'running', cols: 80, rows: 24 } }),
     'terminal.tail': () => ({ lines: ['Phantom · salida sintética', 'Revisando componentes'], text: 'Phantom · salida sintética', status: 'running', observedAt: date }),
@@ -55,6 +72,7 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'terminal.stop': () => ({ ok: true }),
     'services.list': () => scenario === 'environment' ? { ...items(environment.ports), scripts: environment.scripts } : items([{ id: 'site-demo', name: 'Storybook sintético', title: 'Storybook sintético', url: 'http://127.0.0.1:6006', status: 'running', source: 'compose' }]),
     'sites.list': () => ({ items: [], projects: [] }),
+    'env.list': () => ({ workspaceId, compose: true, project: 'synthetic-project', observedAt: date, profiles: ['preview'], services: scenario === 'empty' ? [] : [{ name: 'storybook-demo', lifecycle: 'persistent', purpose: 'Catálogo sintético sin Docker real', card: 'task-0', profiles: ['preview'], status: 'running', urls: ['http://127.0.0.1:6006'], url: 'http://127.0.0.1:6006', owner: null }] }),
     'docker.list': p => p.scope === 'sites' ? { projects: [{ workspaceId: workspace.id, name: workspace.name, path: workspace.path, compose: '/synthetic/project/compose.yaml', services: [{ name: 'storybook-demo', status: 'running', containers: [{ id: 'container-demo', name: 'storybook-demo', state: 'running' }], urls: ['http://127.0.0.1:6006'] }] }] } : items([{ id: 'container-demo', name: 'storybook-demo', status: 'running', image: 'storybook:synthetic' }]),
     'docker.logs': () => ({ text: 'Servidor sintético listo' }),
     'playground.list': () => items([{ id: 'run-demo', runtime: 'node', status: 'done', output: 'Hola, catálogo' }]),
@@ -64,6 +82,7 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'mobile.status': () => ({ enabled: false, running: false, interfaces: [], devices: [], pending: [] }),
     'android.status': () => ({ configured: false, enabled: false, processAlive: false, devices: [], workspaces: [], interfaces: [], node: { compatible: false }, repoError: 'Proyecto Android no conectado en el catálogo' }),
     'voice.status': () => ({ available: false, reason: 'Micrófono aislado en Storybook' }),
+    'voice.stream.warm': () => ({ ready: true }),
     'voice.intent': p => ({ action: 'task', title: 'Borrador sintético', text: p.text }),
     'browser.detach': () => ({ ok: true }),
     'browser.hide': () => ({ ok: true }),
