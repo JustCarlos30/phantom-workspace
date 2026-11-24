@@ -52,9 +52,14 @@ export function guardScript(digest) {
 [ -n "$PHANTOM_TERMINAL_SESSION_ID$PHANTOM_TERMINAL_ROLE" ] || exit 0
 hook=\${0##*/}
 if [ "$hook" = reference-transaction ] && [ "$1" != prepared ]; then exit 0; fi
-if [ -n "$PHANTOM_MERGE_TOKEN" ] && command -v sha256sum >/dev/null 2>&1; then
-  digest=$(printf %s "$PHANTOM_MERGE_TOKEN" | sha256sum | cut -d' ' -f1)
-  [ "$digest" = "${digest}" ] && exit 0
+if [ -n "$PHANTOM_MERGE_TOKEN" ]; then
+  digest=
+  if command -v sha256sum >/dev/null 2>&1; then
+    digest=$(printf %s "$PHANTOM_MERGE_TOKEN" | sha256sum | cut -d' ' -f1)
+  elif command -v shasum >/dev/null 2>&1; then
+    digest=$(printf %s "$PHANTOM_MERGE_TOKEN" | shasum -a 256 | cut -d' ' -f1)
+  fi
+  [ -n "$digest" ] && [ "$digest" = "${digest}" ] && exit 0
 fi
 if [ "$hook" = pre-push ]; then
   echo "phantom: esta terminal no puede hacer push. Solo la sesion orquestadora integra y publica; solicita la incorporacion con: agent submit" >&2

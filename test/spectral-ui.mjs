@@ -50,10 +50,11 @@ const chromeClear = async () => {
   const overlaps = await page.evaluate(() => {
     const stage = document.querySelector('.canvas-stage').getBoundingClientRect();
     const chrome = [...document.querySelectorAll('.canvas-navigation,.canvas-minimap,.create-dock')].filter(el => el.getClientRects().length);
-    const rects = chrome.map(el => ({ name: el.className, r: el.getBoundingClientRect() }));
+    const rects = chrome.map(el => ({ name: el.className, floats: el.matches('.canvas-minimap'), r: el.getBoundingClientRect() }));
     const intersects = (a, b) => Math.min(a.right, b.right) > Math.max(a.left, b.left) && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
-    return rects.flatMap(({ name, r }, i) => [
-      ...(intersects(r, stage) ? [`${name} overlaps working stage`] : []),
+    // The minimap floats over the stage's corner (etapa 6·3); it still stays clear of the shelf islands.
+    return rects.flatMap(({ name, floats, r }, i) => [
+      ...(!floats && intersects(r, stage) ? [`${name} overlaps working stage`] : []),
       ...rects.slice(i + 1).filter(other => intersects(r, other.r)).map(other => `${name} overlaps ${other.name}`),
     ]);
   });

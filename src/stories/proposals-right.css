@@ -1,0 +1,76 @@
+/* Propuestas/Derecha — laboratorio; no cambia producción. */
+
+/* Montaje: el transform convierte el host en el bloque contenedor de overlays fijos. */
+.px-right-host { position: relative; height: 100%; min-height: 0; overflow: auto; transform: translateZ(0); }
+.px-right-host > .catalog-panel { height: 100%; min-height: 0; }
+.px-right-notch { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); }
+/* Bandeja: centrada y completa dentro del escenario (en la app se ancla al viewport). */
+.px-stage .px-right-host .activity-tray, .px-stage .px-right-host .activity-tray.needs-tray { position: absolute; top: 16px; left: 16px; right: 16px; bottom: 16px; width: auto; max-width: none; max-height: none; transform: none; translate: none; }
+/* Paleta: la real va en portal a <body>; el rótulo de la vista queda sobre el velo. */
+.px-right-vista { position: fixed; z-index: 1001; top: 16px; left: 50%; transform: translateX(-50%); }
+
+/* ---------- Configuración: material, grupo con paso tonal, filas con realce ---------- */
+.px-after .st { overflow: hidden; border-radius: var(--r-obj); background: var(--object-fill) var(--surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 10%, transparent); }
+.px-after .st .st-nav { background: color-mix(in srgb, #000 24%, transparent); }
+.px-after .st :is(.st-list, .st-nav ul) { background: color-mix(in srgb, #fff 6%, transparent); }
+.px-after .st :is(.st-list > * + *, .st-nav li + li)::before { opacity: 0; }
+.px-after .st :is(.st-row, .st-nav li button) { border-block-width: 0; margin: 4px; }
+.px-after .st :is(.st-row, .st-nav li button):hover, .px-after .st .st-nav li button[aria-current='page'] { background-color: color-mix(in srgb, #fff 8%, transparent); }
+.px-after .st :is(.st-nav h2, .st-pane > h2) { min-height: 36px; margin: 0 36px 16px 0; padding-inline: var(--row-px); font: var(--t-headline); line-height: 36px; }
+.px-after .st :is(.st-input, .st-select) { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
+.px-after .st :is(.st-input, .st-select):focus { outline: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
+.px-after .st .st-btn:not(.is-primary) { background: transparent; }
+.px-after .st .st-btn.is-primary { background: var(--on); color: var(--on-ink); }
+
+/* ---------- Superficies: material cenital, radio de isla, sin bordes ---------- */
+.px-after :is(.tw-inspector, .activity-tray, .tw-palette, .tool-picker, .activity-notch) { border: 0; border-radius: var(--r-isle); background: var(--object-fill) var(--surface); box-shadow: none; }
+.px-after .activity-notch { border-radius: var(--r-pill); }
+.px-after .tw-overlay { background: transparent; }
+
+/* ---------- Cabeceras alineadas ---------- */
+.px-after :is(.tw-inspector-header, .activity-head, .popover-heading) { border: 0; box-shadow: none; padding-inline: 16px; }
+.px-after :is(.tw-inspector-header, .activity-head, .popover-heading, .tool-picker) .icon-button { width: 36px; height: 36px; border: 0; border-radius: 50%; box-shadow: none; background: transparent; }
+.px-after :is(.tw-inspector-header, .activity-head, .popover-heading, .tool-picker) .icon-button:hover { background-color: var(--row-hover); }
+
+/* ---------- Grupos planos y filas tonales ---------- */
+.px-after :is(.st-block, .st-details, .tool-group, .activity-list, .activity-item, .tool-tile, .tool-item, .tw-palette-results > *) { border: 0; box-shadow: none; }
+.px-after :is(.activity-item, .tool-tile, .tool-item, .tw-palette-results button) { border-radius: var(--r-row); background: transparent; }
+.px-after :is(.activity-item, .tool-tile, .tool-item, .tw-palette-results button):hover,
+.px-after .tw-palette-results :is([aria-selected='true'], .active, .selected) { background-color: var(--row-hover); }
+
+/* ---------- Campos isla: aro de 1 px que se aclara al enfocar ---------- */
+.px-after :is(.st-input, .st-select, .tool-search, .tw-palette-search input, .activity-reply textarea, .activity-reply input) { border: 0; border-radius: var(--r-ctl); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
+.px-after :is(.st-input, .st-select, .tool-search, .tw-palette-search input, .activity-reply textarea, .activity-reply input):focus { outline: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
+.px-after .tw-palette-search { border: 0; box-shadow: none; }
+
+/* ---------- Botones: planos; primaria marfil ---------- */
+.px-after .st-btn, .px-after .activity-actions button { border: 0; border-radius: var(--r-pill); box-shadow: none; background: transparent; }
+.px-after .st-btn:hover, .px-after .activity-actions button:hover { background-color: var(--row-hover); }
+.px-after :is(.st-save .st-btn:last-child, .is-primary, .voice-finish) { background: var(--on); color: var(--surface); box-shadow: none; }
+
+/* ---------- Pestañas de la bandeja ---------- */
+.px-after .activity-filters { border: 0; box-shadow: none; background: transparent; gap: 4px; padding-inline: 16px; }
+.px-after .activity-filters button { border: 0; border-radius: var(--r-pill); box-shadow: none; background: transparent; color: var(--muted); font: var(--t-control); }
+.px-after .activity-filters button[aria-pressed='true'] { background-color: var(--row-hover); color: var(--ink); }
+.px-after .activity-filters button[data-tab='needs'] b { background: transparent; color: var(--attention); }
+
+/* ---------- Muesca ---------- */
+.px-after .notch-count { background: transparent; color: var(--attention); box-shadow: none; font: var(--t-control); font-weight: 600; }
+.px-after .notch-dot { background: var(--ink-3); box-shadow: none; }
+
+/* ---------- Apariencia ---------- */
+.px-after .st-thumb { border: 0; border-radius: var(--r-row); box-shadow: none; }
+.px-after .st-thumb[aria-pressed='true'], .px-after .st-thumb[aria-checked='true'] { box-shadow: 0 0 0 1px var(--on); }
+.px-after .accent-options button { border: 0; box-shadow: none; }
+.px-after .accent-options button:is([aria-pressed='true'], [aria-checked='true']) { box-shadow: 0 0 0 1px var(--on); }
+
+/* ---------- Voz ---------- */
+.px-after .pc-field { border: 0; border-radius: var(--r-isle); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
+.px-after .pc-field:focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent); }
+.px-after .voice-meter { border: 0; background: transparent; box-shadow: none; }
+.px-after :is(.voice-discard, .voice-finish) { width: 36px; height: 36px; border: 0; border-radius: 50%; box-shadow: none; }
+.px-after .voice-discard { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .px-after :is(.activity-item, .tool-tile, .st-btn, .activity-filters button) { transition: none; }
+}

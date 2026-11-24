@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { workspaceRoot, safePath, readBounded, stateHome, externalStatePath, jsonCommand, command, spawnCommand, text, observedAt } from './common.mjs';
 import { validatePluginPreferences } from '../shared/plugins.mjs';
 import { assertContractAllowed, clientOfEngine, engineOf, executionPolicy, resolveHarnessModel } from '../shared/execution-policy.mjs';
+import { summarizeRunHealth } from './run-health.mjs';
+import { amendedMaxTokens, amendedMaxTurns, budgetKind } from './run-blockers.mjs';
 
 const PHANTOM_MAX_BUFFER = 64 * 1024 * 1024;
 const defaultCLI = fileURLToPath(new URL('../../harness_engineer/bin/phantom.mjs', import.meta.url));
@@ -164,13 +166,14 @@ function activityReason(raw) {
   } catch { return raw; }
 }
 async function events(payload, context, c) {
-  if (payload.view !== undefined && payload.view !== 'activity') throw new Error('Invalid Phantom events view');
+  if (payload.view !== undefined && !['activity', 'health'].includes(payload.view)) throw new Error('Invalid Phantom events view');
   // Authorize the canonical task before invoking the CLI event reader. In
   // particular, never fetch a foreign task's events and filter them afterwards.
   const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
   if (task.id !== payload.id) throw new Error('Phantom task ID mismatch');
   const result = await c.call(['events', payload.id]);
   if (!Array.isArray(result)) throw new Error('Phantom returned invalid events');
+  if (payload.view === 'health') return summarizeRunHealth(result, Date.now());
   if (payload.view === 'activity') {
     const checks = (task.contract ?? task.raw?.contract)?.checks ?? [];
     const grouped = new Map();
@@ -394,11 +397,55 @@ async function writeNative(method, payload, context, c) {
   writes.set(journal, { hash, work });
   try { return await work; } finally { writes.delete(journal); }
 }
-async function control(payload, context, c) {
-  if (payload.action === 'stop' || payload.action === 'cancel') return controlOwned(payload, context, c);
-  const key = stable({ backend: c.backend, id: payload.id });
+const AMEND_KEYS = new Set(['workspaceId', 'pluginId', 'id', 'action', 'reason']);
+// Widens maxTokens x1.5 (500000 when none) of a blocked/ready task. Only an explicit user click may reach this.
+async function amend(payload, context, c) {
+  for (const key of Object.keys(payload)) if (!AMEND_KEYS.has(key)) throw new Error(`Unknown amend field: ${key}`);
+  identifier(payload.id);
+  const reason = typeof payload.reason === 'string' ? payload.reason.trim() : '';
+  if (reason.length < 8 || reason.length > 300 || /[\u0000-\u001f\u007f-\u009f]/.test(reason) || reason.startsWith('-')) throw new Error('amend requires a one-line reason (8 to 300 characters)');
+  const key = `amend\0${c.root}\0${payload.id}`;
   if (starts.has(key)) return starts.get(key);
-  const work = controlOwned(payload, context, c);
+  const work = (async () => {
+    const task = await detail({ topic: 'tasks', id: payload.id }, context, c);
+    if (task.id !== payload.id) throw new Error('Phantom task ID mismatch');
+    if (!['blocked', 'ready'].includes(task.status)) throw new Error(`Only a blocked or ready task can be amended (status: ${task.status})`);
+    const contract = task.contract ?? task.raw?.contract;
+    const current = contract?.budget?.maxTokens;
+    const currentTurns = contract?.budget?.maxTurns;
+    const positive = value => Number.isInteger(value) && value > 0;
+    const kind = budgetKind(task.reason ?? task.blockedReason ?? task.raw?.reason ?? task.raw?.blockedReason);
+    if (kind === 'time') throw new Error('El presupuesto de tiempo no se amplía con amend: crea un contrato nuevo con más timeoutMs');
+    const turns = kind === 'turns';
+    const next = turns ? undefined : amendedMaxTokens(current);
+    const nextTurns = turns ? amendedMaxTurns(currentTurns) : undefined;
+    const contractRevision = contract?.revision ?? task.revision ?? task.raw?.revision;
+    const raw = await c.call(['amend', task.id, ...(turns ? ['--max-turns', String(nextTurns)] : ['--max-tokens', String(next)]), '--reason', reason, ...(!turns && positive(current) ? ['--revision', String(current)] : []), ...(positive(contractRevision) ? ['--contract-revision', String(contractRevision)] : [])]);
+    return { id: task.id, action: 'amend', source: 'phantom', expanded: turns ? 'turns' : 'tokens', ...(turns ? { maxTurns: nextTurns, previousMaxTurns: Number.isFinite(currentTurns) ? currentTurns : null } : { maxTokens: next, previousMaxTokens: Number.isFinite(current) ? current : null }), reason, revision: positive(contractRevision) ? contractRevision : null, observedAt: observedAt(), raw };
+  })();
+  starts.set(key, work);
+  try { return await work; } finally { starts.delete(key); }
+}
+async function control(payload, context, c) {
+  if (payload.action === 'amend') return amend(payload, context, c);
+  if (payload.action === 'stop' || payload.action === 'cancel') return controlOwned(payload, context, c);
+  identifier(payload.id);
+  const key = stable({ workspace: c.root, id: payload.id });
+  if (starts.has(key)) return starts.get(key);
+  const origin = runOrigin(payload, context, c);
+  const work = (async () => {
+    if (payload.action === 'run') c = await client(payload, context);
+    return controlOwned(payload, context, c, origin);
+  })().catch(async error => {
+    if (payload.action === 'run' && !error.phantomNotified) {
+      const descriptor = { id: randomUUID(), kind: 'attempt', taskId: payload.id, workspaceId: c.workspace.id, workspacePath: c.root, ...(c.backend ? { backend: c.backend } : {}), action: 'run', status: 'failed', source: 'phantom', createdAt: observedAt(), endedAt: observedAt(), error: error.message, ...origin };
+      c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
+      prunePhantomControllers(c.workspace, controllers, context.dataDir);
+      context.emit?.({ type: 'tool.status', workspaceId: c.workspace.id, id: descriptor.id, status: 'failed', result: { ...descriptor } });
+      await context.persist();
+    }
+    throw error;
+  });
   starts.set(key, work);
   try { return await work; } finally { starts.delete(key); }
 }
@@ -407,11 +454,20 @@ export function runTimeoutMs(settings) {
   return Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440 ? minutes * 60000 : 6 * 3600000;
 }
 
-async function controlOwned(payload, context, c) {
+function runOrigin(payload, context, c) {
+  if (payload.sessionId !== undefined && (typeof payload.sessionId !== 'string' || !payload.sessionId || payload.sessionId.length > 200 || /[\u0000-\u001f\u007f]/.test(payload.sessionId))) return {};
+  const session = (context.sessions ?? []).find(s => s.id === payload.sessionId && s.workspaceId === c.workspace.id);
+  const nodeId = session?.nodeId;
+  if (typeof nodeId === 'string' && nodeId && (session.status === 'running' || context.chatRunning?.(nodeId))) return { origin: context.chatRunning?.(nodeId) ? { nodeId, via: 'chat' } : { nodeId } };
+  return payload.main === true && context.chatRunning?.(`phantom:${c.workspace.id}`) ? { origin: { nodeId: `phantom:${c.workspace.id}`, via: 'chat' } } : {};
+}
+
+async function controlOwned(payload, context, c, originInfo = runOrigin(payload, context, c)) {
   if (payload.action === 'stop') {
     const owned = [...controllers.values()].find(p => p.descriptor.workspaceId === c.workspace.id && p.descriptor.backend === c.backend && (p.descriptor.id === payload.id || p.descriptor.taskId === payload.id) && p.descriptor.status === 'running');
     if (!owned) throw new Error('No active controller owned by this host for that task');
     if (!owned.child.kill('SIGINT')) throw new Error('Controller could not be interrupted');
+    owned.descriptor.stopRequested = true;
     return { ...owned.descriptor, stopRequested: true };
   }
   if (!['run', 'cancel', 'recover', 'verify'].includes(payload.action)) throw new Error('Unknown Phantom control action');
@@ -429,14 +485,13 @@ async function controlOwned(payload, context, c) {
   if (active) return active.descriptor;
   const sid = payload.sessionId;
   const nodeId = typeof sid === 'string' && sid.length > 0 && sid.length <= 200 && !/[\u0000-\u001f\u007f]/.test(sid)
-    ? (context.sessions ?? []).find(s => s.id === sid && s.status === 'running' && s.workspaceId === c.workspace.id)?.nodeId : undefined;
+    ? (context.sessions ?? []).find(s => s.id === sid && (s.status === 'running' || context.chatRunning?.(s.nodeId)) && s.workspaceId === c.workspace.id)?.nodeId : undefined;
   if (payload.action === 'run' && typeof nodeId === 'string' && nodeId) {
     let own; try { own = context.getWorkspace?.(c.workspace.id)?.nodes?.find(n => n.id === nodeId)?.data?.worktree?.path; } catch {}
     const target = (task.contract ?? task.raw?.contract)?.workspace;
     if (typeof own === 'string' && own && typeof target === 'string' && target && path.resolve(own) !== path.resolve(target)) throw new Error(`El encargo ${task.id} pertenece al worktree ${target}, no al de esta terminal (${own}). Usa handoff para que lo ejecute su worktree.`);
   }
-  const origin = typeof nodeId === 'string' && nodeId ? (context.chatRunning?.(nodeId) ? { nodeId, via: 'chat' } : { nodeId })
-    : payload.main === true && context.chatRunning?.(`phantom:${c.workspace.id}`) ? { nodeId: `phantom:${c.workspace.id}`, via: 'chat' } : null;
+  const { origin } = originInfo;
   const descriptor = { id: randomUUID(), taskId: task.id, workspaceId: c.workspace.id, workspacePath: c.root, backend: c.backend, action: payload.action, status: 'running', source: 'phantom', createdAt: observedAt(), output: '', ...(origin ? { origin } : {}), ...(payload.action === 'run' ? { requestedModel: payload.model, modelSource: payload.modelSource, engine, client: clientOfEngine(engine) } : {}) };
   c.workspace.phantomControllers ??= []; c.workspace.phantomControllers.push(descriptor);
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
@@ -445,7 +500,7 @@ async function controlOwned(payload, context, c) {
   await context.persist();
   let child;
   try { child = spawnCommand(context, process.execPath, ['--import', controllerPreload, c.cli, payload.action, task.id, ...(payload.action === 'run' ? ['--model', payload.model] : []), ...c.flags], { cwd: c.root, stdio: ['ignore', 'pipe', 'pipe'] }); }
-  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; prunePhantomControllers(c.workspace, controllers, context.dataDir); await context.persist(); throw error; }
+  catch (error) { descriptor.status = 'failed'; descriptor.error = error.message; descriptor.endedAt = observedAt(); error.phantomNotified = true; prunePhantomControllers(c.workspace, controllers, context.dataDir); context.emit?.({ type: 'tool.status', workspaceId: c.workspace.id, id: descriptor.id, status: 'failed', result: { ...descriptor } }); await context.persist(); throw error; }
   descriptor.pid = child.pid;
   controllers.set(descriptor.id, { descriptor, child });
   let bytes = 0, finished = false;
@@ -462,7 +517,7 @@ async function controlOwned(payload, context, c) {
   };
   const finish = (code, signal, error) => {
     if (finished) return; finished = true; clearTimeout(timer); clearTimeout(hardTimer);
-    Object.assign(descriptor, { status: error || code !== 0 ? 'failed' : 'completed', exitCode: code, signal, endedAt: observedAt(), ...(error ? { error: error.message } : {}) });
+    Object.assign(descriptor, { status: descriptor.stopRequested ? 'stopped' : error || code !== 0 ? 'failed' : 'completed', exitCode: code, signal, endedAt: observedAt(), ...(error || code !== 0 ? { error: error?.message || descriptor.output.trim().slice(-1500) || `Phantom terminó con código ${code ?? 'desconocido'}` } : {}) });
     controllers.delete(descriptor.id);
     prunePhantomControllers(c.workspace, controllers, context.dataDir);
     emit({ type: 'tool.status', status: descriptor.status, result: { ...descriptor } });
@@ -488,6 +543,7 @@ export async function phantom(method, payload, context) {
     try { return await list(payload, context, await client(payload, context)); }
     catch (error) { return { available: false, items: [], reason: unavailableReason(error), observedAt: observedAt() }; }
   }
+  if (method === 'phantom.control' && payload.action === 'run') return control(payload, context, await workspaceRoot(context, payload));
   const c = await client(payload, context);
   if (method === 'phantom.events') return events(payload, context, c);
   if (method === 'phantom.detail') return detail(payload, context, c);

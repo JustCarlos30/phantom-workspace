@@ -32,7 +32,7 @@ export function useComposerSize(input, value, active = true) {
     const observed = new Set();
     const observeChrome = () => {
       const elements = [...root.children].filter(child => child !== composer && !child.matches('.pc-thread, .pc-live'));
-      elements.push(...composer.querySelectorAll('.pc-controls, .pc-meta, .pc-queue, .phantom-chat-voice'));
+      elements.push(...composer.querySelectorAll('.pc-controls, .pc-status-line, .pc-continuation, .pc-queue, .phantom-chat-voice'));
       for (const child of observed) if (!elements.includes(child)) { observer.unobserve(child); observed.delete(child); }
       for (const child of elements) if (!observed.has(child)) { observer.observe(child); observed.add(child); }
     };

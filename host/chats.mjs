@@ -80,8 +80,10 @@ function inOwnWorktree(node, cwd) {
   const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
   return Boolean(tree && here && realpath(tree) === here);
 }
-// How a turn handles permissions. 'full': everything except a short list of
-// dangerous actions, which still asks. 'auto': the agent works without
+// How a turn handles permissions. 'full' (Total, YOLO): everything without
+// asking except what can break something (danger(): destructive Git,
+// credentials and .env, installing or changing the system, disks and shutdown),
+// which asks with a red "Puede romper algo" flag. 'auto': the agent works without
 // interruptions and asks only for sensitive actions (destructive, commit and
 // push, external tools and services, databases). 'ask': every change asks.
 // Inside the card's own Phantom worktree the default is 'auto'; elsewhere (the
@@ -440,7 +442,7 @@ export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
   constructor(store, emit, role = () => ({ env: {}, instructions: '' }), { codexHome } = {}) {
     this.codexHome = codexHome;
-    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.operations = new Map(); this.dirty = false; this.closed = false;
+    this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.operations = new Map(); this.drains = new Map(); this.dirty = false; this.closed = false;
     this.filename = path.join(store.dir, 'chats.json');
     this.nodes = {};
     try { if (fs.existsSync(this.filename)) this.nodes = JSON.parse(fs.readFileSync(this.filename, 'utf8')); } catch { this.nodes = {}; }
@@ -618,6 +620,8 @@ export class Chats {
   }
   start(workspace, node, message, continuation) {
     const provider = node.data.chat.provider;
+    assertClientAllowed(provider, this.policy(), 'El agente de este chat');
+    if (node.data.chat.models?.[provider]) assertClientModel(provider, node.data.chat.models[provider], this.policy(), 'modelo guardado del chat');
     assert(!this.running(node.id), 'El agente todavía está respondiendo');
     assert(this.turns.size + this.operations.size < MAX_TURNS, 'Demasiados agentes respondiendo a la vez');
     const definition = CHAT_PROVIDERS[provider], thread = this.thread(node.id, provider), now = () => new Date().toISOString();
@@ -661,9 +665,9 @@ export class Chats {
       if (turn.model) reply.model = turn.model;
       reply.usage = { durationMs: Number.isFinite(turn.usage?.durationMs) ? turn.usage.durationMs : Date.now() - started, ...(Number.isFinite(turn.usage?.costUsd) ? { costUsd: turn.usage.costUsd } : {}), ...(turn.usage?.outputTokens ? { outputTokens: turn.usage.outputTokens } : {}) };
       thread.meta = { ...meta(), costUsd: sum(thread.meta?.costUsd, turn.usage?.costUsd), turns: sum(thread.meta?.turns, 1) };
-      this.save(); publish({ running: false, continuations: structuredClone(thread.continuations ?? []) });
-      // The line moves on after a clean reply; a stop or a failure pauses it.
-      if (reply.status === 'done') setImmediate(() => { try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } });
+      this.save();
+      if (!turn.stopped) this.drains.set(node.id, setImmediate(() => { this.drains.delete(node.id); try { this.drain(workspace, node.id, provider, thread); } catch { /* Stays waiting; the user resumes it. */ } }));
+      publish({ running: false, continuations: structuredClone(thread.continuations ?? []) });
       // OpenCode's stream never names the model; its session record does.
       if (provider === 'opencode' && !thread.meta.model && thread.sessionId) execFile(bin, ['export', thread.sessionId], { cwd, env: { ...process.env, PWD: cwd }, timeout: 15000, maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
         try {
@@ -785,8 +789,8 @@ export class Chats {
     const turn = this.gates.get(token); assert(turn && !turn.finished, 'Permiso fuera de una respuesta en curso');
     if (tool === QUESTION_TOOL) return this.askQuestion(turn, input, toolUseId);
     const decision = permissionDecision({ tool, input, cwd: turn.cwd, mode: turn.mode, ownBranch: turn.ownBranch });
-    if (decision.allow || turn.thread.grants?.includes(decision.key)) return { behavior: 'allow', updatedInput: input };
-    const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
+    if (decision.allow || (!decision.danger && turn.thread.grants?.includes(decision.key))) return { behavior: 'allow', updatedInput: input };
+    const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(decision.danger ? { danger: true } : {}), ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
     turn.message.parts.push(part); turn.schedule();
     return new Promise(resolve => turn.pending.set(part.id, { part, input, resolve }));
   }
@@ -842,6 +846,7 @@ export class Chats {
       turn.pending.delete(entry.part.id); entry.part.status = status;
       entry.resolve(status === 'denied' ? { behavior: 'deny', message: 'El usuario rechazó este permiso en Phantom Workspace.' } : { behavior: 'allow', updatedInput: entry.input });
     };
+    if (decision === 'always' && request.part.danger) decision = 'allow';
     if (decision === 'always') {
       turn.thread.grants = [...new Set([...(turn.thread.grants || []), request.part.key])].slice(-200);
       for (const entry of [...turn.pending.values()]) if (entry.part.key === request.part.key) settle(entry, entry === request ? 'always' : 'allowed');
@@ -850,6 +855,7 @@ export class Chats {
     return { ok: true };
   }
   stop(nodeId) {
+    clearImmediate(this.drains.get(nodeId)); this.drains.delete(nodeId);
     const operation = this.operations.get(nodeId);
     if (operation) { operation.controller.abort(new Error('Operación de contexto cancelada; resultado sin verificar')); return { ok: true }; }
     const turn = this.turns.get(nodeId);
@@ -905,6 +911,8 @@ export class Chats {
   removeNode(nodeId) { this.stop(nodeId); if (this.nodes[nodeId]) { delete this.nodes[nodeId]; this.save(); } }
   async close() {
     this.closed = true; clearInterval(this.timer);
+    for (const handle of this.drains.values()) clearImmediate(handle);
+    this.drains.clear();
     for (const nodeId of this.turns.keys()) this.stop(nodeId);
     for (const nodeId of this.operations.keys()) this.stop(nodeId);
     const end = Date.now() + 2500;
