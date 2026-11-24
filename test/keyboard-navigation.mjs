@@ -66,6 +66,8 @@ async function chooseProject(name, id) {
   await press('Enter');
   await poll(async () => (await activeWorkspace())?.id === id, `proyecto ${name}`);
   await dialog().waitFor({ state: 'hidden' });
+  await poll(async () => (await page.locator('.project-name-editor > button').first().textContent())?.includes(name), `título visible ${name}`);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 async function choosePanel(title, id) {
   await press('Control+Shift+f');
