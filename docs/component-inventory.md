@@ -32,6 +32,7 @@ Los enlaces presuponen el servidor de desarrollo local en el puerto 6006. Compos
 | Conversaciones | TerminalPanel.jsx | [Terminal](http://127.0.0.1:6006/?path=/story/conversaciones--terminal) |
 | Conversaciones | TerminalCard.jsx | [Tarjeta terminal](http://127.0.0.1:6006/?path=/story/conversaciones--tarjeta-terminal) |
 | Conversaciones | ChatCard.jsx | [Chat](http://127.0.0.1:6006/?path=/story/conversaciones--chat) |
+| Conversaciones | TouchedFiles.jsx | Sin escenario (se ve dentro de Tarjeta terminal y Chat con un worktree) |
 | Conversaciones | PhantomChat.jsx | [Dock](http://127.0.0.1:6006/?path=/story/conversaciones--dock) |
 | Conversaciones | PhantomOrchestrator.jsx | [Orquestador](http://127.0.0.1:6006/?path=/story/conversaciones--orquestador) |
 | Herramientas | ToolPanels.jsx | [Código](http://127.0.0.1:6006/?path=/story/herramientas--codigo) |
@@ -79,6 +80,7 @@ Los enlaces presuponen el servidor de desarrollo local en el puerto 6006. Compos
 - **Cards**: mesa, tablero, contrato y formulario nuevo montan DeskCard, StatusPill, CardDetail y CardForm mediante las vías reales de selección. No se acredita cada acción de ejecución/reemplazo ni cada CheckEvidence.
 - **Skills**: catálogo, detalle y formulario nuevo; referencia/manifiesto sintéticos válidos. Los recursos y el versionado se exploran desde controles reales; la publicación nativa no está conectada.
 - **ChatCard**: estados vacío, cargando, error, datos, trabajo, permiso pendiente y desconexión; Message, Markdown y controles reales. Los subagentes/handoffs privados no están todos ejercitados individualmente.
+- **TouchedFiles**: insignia y popover de archivos tocados (sondeo `repo.changes`, diff `repo.diff` contra la base). Aún no tiene historia propia; el mock de Storybook no devuelve `repo.changes`, así que no se renderiza sin worktree y host real.
 - **Canvas**: nota editable, selección, navegación, minimapa y encabezado reales. Terminal, browser, referencias y herramientas también tienen escenarios independientes; eso no acredita todas las combinaciones internas de CanvasNode.
 - **Repository**: pantalla de repositorio e historial reales. Ramas tiene selección/detalle; no se declara cobertura individual del editor de archivos privados ni de escrituras Git.
 - **ToolPanels**: Trabajo, Borradores, Misiones, Procesos, Servicios, Docker, Secuencias, Navegador automático y Código. Primitivas duplicadas comparables en Controles.

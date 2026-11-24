@@ -13,6 +13,9 @@ import { fileURLToPath } from 'node:url';
 // own worktree, pushes and shared
 // Git refs, external MCP tools, external services and providers, databases,
 // privilege and the system. "Pregunta todo" keeps the stricter folder rule.
+// Total is YOLO except what "puede romper algo" (danger()): destructive Git,
+// credentials and .env, installing or changing the system, disks and shutting
+// the machine down. Reading credential files asks in every mode.
 // The shell classifiers are heuristics over the command text: a guard against
 // surprises, not a sandbox.
 
@@ -232,10 +235,11 @@ function grantKey(tool, input, cwd) {
   return tool;
 }
 
-// Total mode still stops for this short list: privilege, wiping beyond the
-// folder or the home, rewriting the remote's history, the user's keys and
-// shell startup, the system, piping the network into a shell, raw disks.
-// Everything else Git-related is left to the merge guard's hooks.
+// Hard list used by Autónomo (Total only asks for catastrophes, see below):
+// privilege, wiping beyond the folder or the home, rewriting the remote's
+// history, the user's keys and shell startup, the system, piping the network
+// into a shell, raw disks. Everything else Git-related is left to the merge
+// guard's hooks.
 const HOME = os.homedir();
 const TMP_DIRS = [...new Set(['/tmp', '/var/tmp', os.tmpdir()].flatMap(dir => [dir, real(dir)]))];
 const PROTECTED_DIRS = [...['.ssh', '.gnupg', '.aws'].map(dir => path.join(HOME, dir)), '/etc', '/usr', '/boot'];
@@ -328,6 +332,56 @@ export function hardStopCommand(line, cwd, relaxed = false) {
   }
   close();
   return reason;
+}
+
+// Total mode's only stops: wiping or re-permissioning the root or the whole
+// home, and formatting or writing raw disks. Literal targets only (/, ~,
+// $HOME, the absolute home); an unparseable line is allowed.
+const rootOrHome = target => { const at = expandHome(target).replace(/\/\*?$/, '') || '/'; return at === '/' || at === HOME; };
+function catastrophicSegment(words) {
+  const args = [...words];
+  while (args.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(args[0])) args.shift();
+  for (;;) {
+    if (args[0] === 'rtk') { args.shift(); if (args[0] === 'proxy') args.shift(); continue; }
+    if (['time', 'nice', 'nohup', 'command', 'builtin', 'exec', 'sudo', 'doas'].includes(args[0])) { args.shift(); continue; }
+    if (args[0] === 'env') { args.shift(); while (args[0] && (args[0].startsWith('-') || args[0].includes('='))) args.shift(); continue; }
+    break;
+  }
+  if (!args.length) return null;
+  const [command, ...rest] = args, name = path.basename(command), paths = pathArgs(rest);
+  if (/^mkfs/.test(name) || ['fdisk', 'parted', 'wipefs'].includes(name)) return `${name} formatea o reparticiona discos`;
+  if (name === 'dd' && rest.some(arg => /^of=\/dev\//.test(arg))) return 'dd escribe directamente en un dispositivo';
+  if (name === 'rm' && rest.some(arg => /^-[a-zA-Z]*[rR]/.test(arg) || arg === '--recursive')) {
+    const wide = paths.find(rootOrHome);
+    if (wide) return `rm borra ${wide} entero`;
+  }
+  if (['chmod', 'chown', 'chgrp'].includes(name) && rest.some(arg => /^-[a-zA-Z]*R/.test(arg) || arg === '--recursive')) {
+    const wide = paths.slice(1).find(rootOrHome);
+    if (wide) return `${name} -R cambia los permisos de ${wide}`;
+  }
+  return null;
+}
+export function catastrophicCommand(line) {
+  if (typeof line !== 'string' || !line.trim()) return null;
+  const tokens = tokenize(line.replace(/\$\(|<\(|>\(|`/g, ' ; ').replace(/\)/g, ' ; '));
+  if (!tokens) return null;
+  let words = [], reason = null;
+  const close = () => { if (!reason && words.length) reason = catastrophicSegment(words); words = []; };
+  for (let i = 0; i < tokens.length && !reason; i++) {
+    const token = tokens[i];
+    if (token.op) { close(); continue; }
+    if (token.redirect) {
+      const target = tokens[++i]?.word;
+      if (!token.redirect.startsWith('<') && target !== undefined && /^\/dev\/(sd|nvme|hd|vd|xvd|disk|mmcblk)/.test(target)) reason = `escribe directamente en ${target}`;
+      continue;
+    }
+    words.push(token.word);
+  }
+  close();
+  return reason;
+}
+export function catastrophic(tool, input) {
+  return tool === 'Bash' ? catastrophicCommand(input?.command) : null;
 }
 
 // Why any tool call must still ask in Total mode, or null.
@@ -543,7 +597,7 @@ export const phantomTool = tool => typeof tool === 'string' && /^mcp__phantom(_w
 // Remotion export (writes a folder) keep the normal rules.
 export const PHANTOM_SCRIPTS = fileURLToPath(new URL('../scripts', import.meta.url));
 const PHANTOM_CLIS = {
-  'agent.mjs': () => true,
+  'agent.mjs': args => args[0] !== 'events' || (args.length <= 2 && args.slice(1).every(arg => /^[A-Za-z0-9_-]{1,200}$/.test(arg))),
   'canvas.mjs': args => !args.some(arg => arg === '--remotion' || arg.startsWith('--remotion=')),
   'workspace-browser.mjs': () => true,
   'branches.mjs': args => args.length === 0 || ['status', 'help', '--help', '-h'].includes(args[0]),
@@ -570,23 +624,160 @@ export function phantomCommand(line) {
   return Boolean(name && PHANTOM_CLIS[name](args));
 }
 
+// ---- Dangerous: what still asks in Total, flagged "Puede romper algo" ------
+// Credential files are also guarded against READING, in every mode.
+const SECRET_DIRS = ['.ssh', '.gnupg', '.aws'].map(dir => path.join(HOME, dir));
+const SECRET_FILES = ['.netrc', '.npmrc', '.pypirc', '.docker/config.json', '.kube/config', '.config/gh/hosts.yml', '.git-credentials'].map(file => path.join(HOME, file));
+function isSecret(file) {
+  const base = path.basename(file);
+  return SECRET_FILES.includes(file) || SECRET_DIRS.some(dir => under(dir, file))
+    || (/^\.env(\..+)?$/.test(base) && !/^\.env\.(example|sample|template)$/.test(base))
+    || /\.(pem|key)$/.test(base) || /^id_(rsa|ed25519)/.test(base);
+}
+function secretPath(target, cwd) {
+  if (typeof target !== 'string' || !target) return false;
+  const expanded = expandHome(target);
+  if (/^~|\$/.test(expanded)) return false;
+  const absolute = path.resolve(cwd || '/', expanded);
+  return [absolute, real(absolute)].some(isSecret);
+}
+function systemPath(target, cwd) {
+  if (typeof target !== 'string' || !target) return false;
+  const expanded = expandHome(target);
+  if (/^~|\$/.test(expanded)) return false;
+  const absolute = real(path.resolve(cwd || '/', expanded));
+  if (under('/var/tmp', absolute)) return false;
+  return ['/etc', '/usr', '/boot', '/var', '/opt'].some(dir => under(dir, absolute));
+}
+const startupFile = (target, cwd) => typeof target === 'string' && target && !/^~$|\$/.test(expandHome(target)) && PROTECTED_FILES.includes(path.resolve(cwd || '/', expandHome(target)));
+const sensitiveWrite = (target, cwd) => secretPath(target, cwd) || startupFile(target, cwd) || systemPath(target, cwd);
+
+const SECRET_READERS = new Set(['cat', 'tac', 'nl', 'less', 'more', 'head', 'tail', 'grep', 'egrep', 'fgrep', 'rg', 'strings', 'base64', 'xxd', 'od', 'hexdump', 'bat', 'source', '.']);
+const PKG_INSTALL = new Set(['apt', 'apt-get', 'dnf', 'yum', 'pacman', 'yay', 'paru', 'zypper', 'brew', 'snap', 'flatpak']);
+const SYSTEM_PROCESSES = new Set(['Xorg', 'X', 'Xwayland', 'systemd', 'init', 'sshd', 'dbus-daemon', 'NetworkManager', 'gdm', 'sddm', 'lightdm', 'gnome-shell', 'plasmashell', 'pipewire', 'login']);
+
+function bashFindings(line, cwd) {
+  const out = [], add = (kind, reason) => out.push({ kind, reason });
+  if (typeof line !== 'string' || !line.trim()) return out;
+  if (/:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/.test(line)) add('other', 'fork bomb: agota los procesos de la máquina');
+  if (/\/proc\/[^\s/]*\/environ/.test(line)) add('other', 'vuelca el entorno de un proceso');
+  const tokens = tokenize(line.replace(/\$\(|<\(|>\(|`/g, ' ; ').replace(/\)/g, ' ; '));
+  if (!tokens) return out;
+  const segment = words => {
+    const args = [...words];
+    for (;;) {
+      while (args.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(args[0])) args.shift();
+      if (args[0] === 'rtk') { args.shift(); if (args[0] === 'proxy') args.shift(); continue; }
+      if (['time', 'nice', 'nohup', 'command', 'builtin', 'exec', 'sudo', 'doas', 'pkexec'].includes(args[0])) { args.shift(); continue; }
+      if (args[0] === 'env') { args.shift(); while (args[0] && (args[0].startsWith('-') || args[0].includes('='))) args.shift(); if (!args.length) add('other', 'env vuelca todo el entorno'); continue; }
+      if (args[0] === 'timeout' || args[0] === 'xargs') { const skip = args.shift() === 'timeout'; while (args[0]?.startsWith('-')) args.shift(); if (skip) args.shift(); continue; }
+      break;
+    }
+    if (!args.length) return;
+    const [command, ...rest] = args, name = path.basename(command), paths = pathArgs(rest), sub = paths[0] ?? '';
+    const has = re => rest.some(arg => re.test(arg));
+    if (name === 'printenv' && !paths.length) add('other', 'printenv vuelca todo el entorno');
+    if (name === 'export' && rest.includes('-p')) add('other', 'export -p vuelca todo el entorno');
+    if (name === 'set' && !rest.length) add('other', 'set vuelca todo el entorno');
+    if (['security', 'secret-tool', 'pass'].includes(name) || (/^gpg2?$/.test(name) && rest.includes('--export-secret-keys'))) add('other', `${name} accede a secretos del sistema`);
+    if (SECRET_READERS.has(name)) { const file = paths.find(arg => secretPath(arg, cwd)); if (file) add('read', `lee ${file}, un archivo de credenciales`); }
+    if (WRITE_COMMANDS.has(name) && !((name === 'sed' || name === 'perl') && !has(/^-i|^--in-place/))) {
+      const copies = COPY_COMMANDS.has(name) || name === 'tar';
+      const secret = paths.find(arg => secretPath(arg, cwd));
+      if (secret) add(copies ? 'read' : 'other', `${name} toca ${secret}, un archivo de credenciales`);
+      const targets = COPY_COMMANDS.has(name) ? paths.slice(-1) : name === 'tar' ? [flagValue(rest, '-C', '--directory')].filter(Boolean) : paths;
+      const target = targets.find(arg => sensitiveWrite(arg, cwd));
+      if (target) add('other', `${name} escribe en ${target}, una zona sensible del sistema o de credenciales`);
+    }
+    if (name === 'git') {
+      const tail = [...rest];
+      while (tail[0]?.startsWith('-')) { const flag = tail.shift(); if (flag === '-C' || flag === '-c') tail.shift(); }
+      const [gsub = '', ...a] = tail, g = re => a.some(arg => re.test(arg));
+      if (gsub === 'reset' && g(/^--hard$/)) add('other', 'git reset --hard descarta cambios sin guardar');
+      if (gsub === 'clean' && g(/^-[a-zA-Z]*f|^--force$/)) add('other', 'git clean -f borra archivos sin seguimiento');
+      if (gsub === 'branch' && (g(/^-[a-zA-Z]*D/) || ((g(/^--delete$/) || g(/^-[a-zA-Z]*d/)) && (g(/^--force$/) || g(/^-[a-zA-Z]*f/))))) add('other', 'git branch -D borra una rama aunque no esté integrada');
+      if (['filter-branch', 'filter-repo'].includes(gsub)) add('other', `git ${gsub} reescribe toda la historia`);
+      if (gsub === 'update-ref' && g(/^(-d|--delete)$/)) add('other', 'git update-ref -d borra una referencia');
+      if (gsub === 'reflog' && ['expire', 'delete'].includes(a[0])) add('other', 'git reflog borra el historial de recuperación');
+      if (gsub === 'stash' && ['clear', 'drop'].includes(a[0])) add('other', `git stash ${a[0]} descarta trabajo guardado`);
+      if (gsub === 'worktree' && a[0] === 'remove' && g(/^(--force|-[a-zA-Z]*f)$/)) add('other', 'git worktree remove --force descarta un worktree con cambios');
+      if (gsub === 'config' && g(/^--(global|system)$/)) add('other', 'git config global cambia la configuración de todos tus repositorios');
+    }
+    if (name === 'rm' && has(/^-[a-zA-Z]*[rR]|^--recursive$/)) { const git = paths.find(arg => path.basename(arg.replace(/\/+$/, '')) === '.git'); if (git) add('other', `rm borra el directorio ${git} y toda su historia`); }
+    if (PACKAGE_MANAGERS.has(name) && npmGlobal(name, rest)) add('other', `${name} instala paquetes globales`);
+    if (['pip', 'pip3'].includes(name) && sub === 'install' && has(/^(--user|--break-system-packages)$/)) add('other', `${name} install fuera de un entorno virtual`);
+    if (['pipx', 'cargo', 'go', 'gem'].includes(name) && sub === 'install') add('other', `${name} install instala software en tu usuario`);
+    if (PKG_INSTALL.has(name) && has(/^(install|remove|purge|-S\w*|-R\w*|-U\w*)$/)) add('other', `${name} instala o quita paquetes del sistema`);
+    if ((name === 'systemctl' || name === 'service') && has(/^(start|stop|restart|enable|disable|mask)$/)) add('other', `${name} cambia servicios del sistema`);
+    if (name === 'systemctl' && has(/^(poweroff|reboot|suspend|halt|hibernate)$/)) add('other', `systemctl ${sub} apaga o suspende la máquina`);
+    if (['shutdown', 'reboot', 'poweroff', 'halt'].includes(name)) add('other', `${name} apaga o reinicia la máquina`);
+    if (name === 'crontab' && !(rest.length && rest.every(arg => arg === '-l'))) add('other', 'crontab cambia las tareas programadas');
+    if (['chmod', 'chown', 'chgrp'].includes(name) && has(/^-[a-zA-Z]*R|^--recursive$/)) { const wide = paths.slice(1).find(arg => !inside(cwd, arg)); if (wide) add('other', `${name} -R cambia permisos de ${wide}, fuera de la carpeta`); }
+    if (name === 'kill' && (rest.includes('1') || rest.at(-1) === '-1')) add('other', 'kill sobre el PID 1 o sobre todos los procesos');
+    if (name === 'killall' && (has(/^-(9|KILL|SIGKILL)$/) || paths.some(proc => SYSTEM_PROCESSES.has(proc)))) add('other', 'killall mata procesos del sistema');
+    if (name === 'pkill' && (has(/^-(9|KILL|SIGKILL)$/) && (rest.includes('-1') || paths.some(proc => ['systemd', 'init'].includes(proc))))) add('other', 'pkill -9 sobre procesos del sistema');
+  };
+  let words = [];
+  const close = () => { if (words.length) segment(words); words = []; };
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.op) { close(); continue; }
+    if (token.redirect) {
+      const target = tokens[++i]?.word;
+      if (target === undefined) continue;
+      if (token.redirect.startsWith('<')) { if (secretPath(target, cwd)) add('read', `lee ${target}, un archivo de credenciales`); }
+      else if (sensitiveWrite(target, cwd)) add('other', `escribe en ${target}, una zona sensible del sistema o de credenciales`);
+      continue;
+    }
+    words.push(token.word);
+  }
+  close();
+  return out;
+}
+const npmGlobal = (name, rest) => rest.some(arg => /^(-g|--global|--location=global)$/.test(arg)) || (name === 'yarn' && rest[0] === 'global');
+
+const SECRET_READ_FIELDS = { Read: 'file_path', NotebookRead: 'notebook_path', Grep: 'path', Glob: 'path', LS: 'path' };
+// Why reading would expose credentials, or null. Checked in every mode.
+export function secretRead(tool, input, cwd) {
+  if (tool === 'Bash') return bashFindings(input?.command, cwd).find(found => found.kind === 'read')?.reason ?? null;
+  const target = input?.[SECRET_READ_FIELDS[tool]];
+  return secretPath(target, cwd) ? `lee ${target}, un archivo de credenciales` : null;
+}
+
+// Why a call still asks in Total mode (it "puede romper algo"), or null.
+export function danger(tool, input, cwd) {
+  const read = secretRead(tool, input, cwd);
+  if (read) return read;
+  const field = EDIT_TOOLS[tool];
+  if (field && sensitiveWrite(input?.[field], cwd)) return `escribe en ${input[field]}, una zona sensible del sistema o de credenciales`;
+  const hard = hardStop(tool, input, cwd);
+  if (hard) return hard;
+  const bad = catastrophic(tool, input);
+  if (bad) return bad;
+  return tool === 'Bash' ? bashFindings(input?.command, cwd)[0]?.reason ?? null : null;
+}
+
 export const PERMISSION_MODES = ['ask', 'auto', 'full'];
 
-// mode 'full': everything goes except the short hard list above, which asks.
+// mode 'full' (YOLO): everything goes except danger(): destructive Git,
+// credentials and .env, installing or changing the system, disks and the
+// machine itself. Those ask with danger:true ("Puede romper algo").
 // mode 'auto': everything goes except the hard list and the sensitive actions
 // above (destructive, commit/push, external tools and services, databases).
-// mode 'ask': it may read anything, but every change asks.
+// mode 'ask': it may read anything but credentials; every change asks.
 export function permissionDecision({ tool, input = {}, cwd, mode = 'ask', ownBranch = false }) {
   const key = grantKey(tool, input, cwd);
+  const secret = secretRead(tool, input, cwd);
+  if (secret) return { allow: false, key, danger: true, reason: `Puede romper algo: ${secret}` };
   if (READ_TOOLS.has(tool) || phantomTool(tool)) return { allow: true, key };
   if (tool === 'Bash' && phantomCommand(input.command)) return { allow: true, key };
   if (mode === 'full') {
-    const reason = hardStop(tool, input, cwd);
-    return reason ? { allow: false, key, reason: `Acción delicada, pregunta incluso en modo Total: ${reason}` } : { allow: true, key };
+    const reason = danger(tool, input, cwd);
+    return reason ? { allow: false, key, danger: true, reason: `Puede romper algo: ${reason}` } : { allow: true, key };
   }
   if (mode === 'auto') {
     const hard = hardStop(tool, input, cwd, true);
-    if (hard) return { allow: false, key, reason: `Acción delicada: ${hard}` };
+    if (hard) return { allow: false, key, danger: true, reason: `Acción delicada: ${hard}` };
     const found = sensitive(tool, input, cwd, ownBranch);
     return found ? { allow: false, key: found.key || key, reason: found.reason } : { allow: true, key };
   }

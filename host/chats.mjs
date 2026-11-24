@@ -80,8 +80,10 @@ function inOwnWorktree(node, cwd) {
   const tree = node.data?.worktree?.path, here = cwd && realpath(cwd);
   return Boolean(tree && here && realpath(tree) === here);
 }
-// How a turn handles permissions. 'full': everything except a short list of
-// dangerous actions, which still asks. 'auto': the agent works without
+// How a turn handles permissions. 'full' (Total, YOLO): everything without
+// asking except what can break something (danger(): destructive Git,
+// credentials and .env, installing or changing the system, disks and shutdown),
+// which asks with a red "Puede romper algo" flag. 'auto': the agent works without
 // interruptions and asks only for sensitive actions (destructive, commit and
 // push, external tools and services, databases). 'ask': every change asks.
 // Inside the card's own Phantom worktree the default is 'auto'; elsewhere (the
@@ -787,8 +789,8 @@ export class Chats {
     const turn = this.gates.get(token); assert(turn && !turn.finished, 'Permiso fuera de una respuesta en curso');
     if (tool === QUESTION_TOOL) return this.askQuestion(turn, input, toolUseId);
     const decision = permissionDecision({ tool, input, cwd: turn.cwd, mode: turn.mode, ownBranch: turn.ownBranch });
-    if (decision.allow || turn.thread.grants?.includes(decision.key)) return { behavior: 'allow', updatedInput: input };
-    const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
+    if (decision.allow || (!decision.danger && turn.thread.grants?.includes(decision.key))) return { behavior: 'allow', updatedInput: input };
+    const part = { type: 'permission', id: randomUUID(), tool: tool.slice(0, 120), detail: toolDetail(input, turn.cwd), reason: decision.reason, key: decision.key, status: 'pending', ...(decision.danger ? { danger: true } : {}), ...(typeof toolUseId === 'string' ? { toolUseId: toolUseId.slice(0, 200) } : {}) };
     turn.message.parts.push(part); turn.schedule();
     return new Promise(resolve => turn.pending.set(part.id, { part, input, resolve }));
   }
@@ -844,6 +846,7 @@ export class Chats {
       turn.pending.delete(entry.part.id); entry.part.status = status;
       entry.resolve(status === 'denied' ? { behavior: 'deny', message: 'El usuario rechazó este permiso en Phantom Workspace.' } : { behavior: 'allow', updatedInput: entry.input });
     };
+    if (decision === 'always' && request.part.danger) decision = 'allow';
     if (decision === 'always') {
       turn.thread.grants = [...new Set([...(turn.thread.grants || []), request.part.key])].slice(-200);
       for (const entry of [...turn.pending.values()]) if (entry.part.key === request.part.key) settle(entry, entry === request ? 'always' : 'allowed');

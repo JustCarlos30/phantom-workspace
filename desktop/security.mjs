@@ -167,6 +167,29 @@ export function validateInvocation(method, payload) {
   }
 }
 
+export const EXPORT_MAX_BYTES = 16 * 1024 * 1024;
+
+export function normalizeExportPath(filePath) {
+  if (typeof filePath !== 'string' || !filePath) return null;
+  return filePath.toLowerCase().endsWith('.json') ? filePath : `${filePath}.json`;
+}
+
+export function checkExportSize(data, maxBytes = EXPORT_MAX_BYTES) {
+  const text = JSON.stringify(data);
+  if (text === undefined) throw new Error('Exportación debe contener JSON válido');
+  if (Buffer.byteLength(text) > maxBytes) {
+    throw new Error('La exportación supera 16 MB. Desactiva «Incluir historial al exportar» e inténtalo de nuevo.');
+  }
+  return text;
+}
+
+// Maps a save dialog result to the outcome reported to the renderer.
+export function classifyExportResult(result, written) {
+  if (!result || result.canceled || !result.filePath) return { status: 'cancelled' };
+  const destination = normalizeExportPath(result.filePath);
+  return written ? { status: 'saved', path: destination } : { status: 'pending', path: destination };
+}
+
 export function validateCloseReady(payload, outstandingId = payload?.requestId) {
   validateID(payload?.requestId);
   if (Object.keys(payload).some(key => !['requestId', 'discard'].includes(key))
