@@ -330,8 +330,10 @@ try {
     const input = page.getByRole('combobox', { name: 'Buscar paneles y herramientas' });
     await poll(() => input.evaluate(element => element === document.activeElement), 'foco de paleta');
     await type('Cambiar proyecto'); await press('Enter');
-    await page.getByRole('dialog', { name: 'Cambiar proyecto', exact: true }).waitFor();
+    const picker = page.getByRole('dialog', { name: 'Cambiar proyecto', exact: true });
+    await picker.waitFor();
     await page.getByRole('dialog', { name: 'Paleta del workspace' }).waitFor({ state: 'hidden' });
+    await poll(() => picker.evaluate(el => el.contains(document.activeElement)), 'foco dentro del selector de proyectos');
     await press('Escape'); await dialog().waitFor({ state: 'hidden' }); await canvasOwnsFocus();
     await capture('07-final');
   });
