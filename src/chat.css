@@ -335,8 +335,8 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 0; color: var(--muted); font: var(--t-support); cursor: default; }
 .pc-controls > .pc-model-picker { flex: 0 1 auto; max-width: 200px; }
 @container pc-isle (max-width: 520px) {
-  .pc-session-chip > span, .pc-controls .pc-model > span, .pc-context-low { display: none; }
-  .pc-session-chip, .pc-controls .pc-model { padding: 0 8px; }
+  .pc-session-chip > span, .pc-controls .pc-model > span, .pc-controls > .pc-permission > span, .pc-context-low { display: none; }
+  .pc-session-chip, .pc-controls .pc-model, .pc-controls > .pc-permission { padding: 0 8px; }
 }
 @container pc-isle (max-width: 400px) { .pc-controls > .pc-effort { display: none; } }
 /* One line: the model name truncates before anything wraps. */

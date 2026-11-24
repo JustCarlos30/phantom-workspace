@@ -6,7 +6,7 @@ import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceActivity, VoiceTranscript, dictationPreview } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
-import { ContextMeter, Message, PermissionRow, ProviderChoices, QueuedMessages, SessionChip, SessionContext, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
+import { ContextMeter, Message, PermissionRow, PermissionSwitch, ProviderChoices, configurePermission, QueuedMessages, SessionChip, SessionContext, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
 import PhantomOrchestrator from './PhantomOrchestrator';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude', hint: 'Claude Code en la carpeta del proyecto' }, { id: 'opencode', label: 'OpenCode', hint: 'OpenCode en la carpeta del proyecto' }, { id: 'codex', label: 'Codex', hint: 'Codex en la carpeta del proyecto' }];
@@ -132,7 +132,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
         <div className="pc-controls">
           <VoiceActivity voice={voice} hint="Esc descarta · Enter envía" />
           {voice.status === 'idle' && onTask && <button type="button" className="pc-icon phantom-chat-task" title="Convertir en tarea" aria-label="Convertir el texto en una tarea" disabled={!draft.trim()} onClick={() => onTask(draft.trim())}><ListPlus size={18} /></button>}
-          {voice.status === 'idle' && messages.length > 0 && <SessionChip cwd={workspace.canonicalPath || workspace.name}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionChip>}
+          {voice.status === 'idle' && messages.length > 0 && <><SessionChip cwd={workspace.canonicalPath || workspace.name}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionChip><PermissionSwitch mode={permissionMode} provider={active} descriptions={PERMISSIONS} disabled={!chat} onChange={configurePermission(api, workspace, pickerNode, notify)} /></>}
           <span className="pc-bar-space" />
           <ContextMeter meta={meta} {...compaction.meter} onNew={messages.length ? () => clear().catch(() => {}) : undefined} />
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : 'Dictar por voz'} aria-label="Dictar por voz" onClick={toggleVoice}><Mic size={18} /></button>}
