@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useComposerSize } from '../hooks/useComposerSize';
-import { Activity, AlertCircle, ArrowUp, Check, Compass, GitBranch, GitMerge, ListChecks, ListPlus, MessageSquare, Mic, MessageSquarePlus, Square, X } from 'lucide-react';
+import { Activity, AlertCircle, ArrowUp, Compass, GitBranch, GitMerge, ListChecks, ListPlus, MessageSquare, Mic, MessageSquarePlus, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
@@ -138,7 +138,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
           meter={<ContextMeter meta={meta} {...compaction.meter} onNew={messages.length ? () => clear().catch(() => {}) : undefined} />}>
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : 'Dictar por voz'} aria-label="Dictar por voz" onClick={toggleVoice}><Mic size={18} /></button>}
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}
-          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected, ready: !!chat })}>{dictating || armed ? <Check size={18} /> : <ArrowUp size={18} />}</button>}
+          {(!running || draft.trim() || dictating || armed) && <button type="submit" className="pc-send" title={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar · Enter' : running ? 'Poner en espera · ↵' : 'Enviar · ↵ enviar · ⇧↵ línea'} aria-label={armed ? 'Se enviará al terminar la transcripción' : dictating ? 'Terminar dictado y enviar' : running ? 'Poner mensaje en espera' : 'Enviar mensaje'} aria-busy={armed} disabled={!canSubmit({ status: voice.status, draft, armed, sending, connected, ready: !!chat })}><ArrowUp size={18} /></button>}
         </ComposerControls>
       </div>
       {compaction.form}
