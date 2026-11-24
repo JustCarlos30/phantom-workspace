@@ -290,7 +290,11 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-folder p { margin: 0; padding: 0 16px 12px 60px; overflow-wrap: anywhere; color: var(--muted); font: var(--t-code); }
 .pc-session-settings { min-width: 0; }
 .pc-session-settings > summary { display: flex; align-items: center; justify-content: space-between; min-height: 28px; color: var(--muted); font: var(--t-support); cursor: pointer; list-style: none; }
-.pc-session-settings[open] { max-height: 260px; overflow: auto; }
+.pc-session-settings[open] { max-height: 260px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.pc-session-row:focus:not(:focus-visible):not(:hover) { background-color: transparent; }
+.pc-session-row:active:not(:disabled, :hover) { background-color: transparent; }
+.pc-session-settings:has(.pc-session-row:hover) .pc-session-row[aria-expanded="true"]:not(:hover) { background-color: transparent; }
+.pc-session-row[aria-expanded="true"]:not(:hover) { background-color: transparent; color: var(--ink); font-weight: 500; }
 .pc-session-settings > summary:focus-visible, .pc-folder > summary:focus-visible { outline: var(--focus-width) solid var(--on); outline-offset: calc(-1 * var(--focus-offset)); }
 .pc-session-context .pc-effort { align-self: flex-end; }
 
@@ -575,9 +579,10 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 }
 /* In a menu the current value is a lit veil with its check, not a light key:
    the key belongs to the one selection of the island. */
-.pc-agent-menu button[aria-checked="true"], .pc-models-list button[aria-selected="true"], .pc-effort-menu [role="option"].is-active {
-  background: var(--fill-3); color: var(--ink); box-shadow: var(--shadow-rim);
+.pc-agent-menu button[aria-checked="true"], .pc-models-list button[aria-selected="true"], .pc-effort-menu [role="option"][aria-selected="true"] {
+  background: none; color: var(--ink); font-weight: 500; box-shadow: none;
 }
+.pc-effort-menu [role="option"].is-active { background: var(--fill-2); box-shadow: none; }
 .pc-agent-menu button[aria-checked="true"] > svg:last-child { color: inherit; }
 
 /* Context nudge: a calm, dismissible note above the composer. */
