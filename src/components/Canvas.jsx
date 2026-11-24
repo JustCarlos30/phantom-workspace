@@ -8,7 +8,8 @@ import { useInlineName } from '../hooks/useInlineName';
 import { useFitDensity } from '../hooks/useFitDensity';
 import { toolForKey } from '../hooks/canvas-tool-keys.mjs';
 import { isEditingTarget } from '../hooks/inputOwnership';
-import { formatBinding } from '../hooks/workspace-commands.mjs';
+import { COMMANDS, formatBinding } from '../hooks/workspace-commands.mjs';
+import '../keyboard-navigation.css';
 import { canScroll, hasScrollable, createWheelGesture, isDiscreteWheel, wheelZoomFactor } from '../hooks/wheelGesture';
 import { Presence, PresenceGroup } from './Presence';
 import { cameraTier, useCanvasCamera } from '../hooks/useCanvasCamera';
@@ -47,7 +48,7 @@ const sameIds = (a, b) => a.length === b.length && a.every((id, index) => id ===
 const REFERENCE_CHROME = 70;
 const NO_COMMENTS = [];
 
-export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, keyboardMode = 'navigation', onKeyboardMode, focusRequest, bindings, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, showCharacter = false }) {
+export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, onChange, onCamera, focused, onFocus, selected, onSelect, keyboardMode = 'navigation', onKeyboardMode, focusRequest, bindings, onShortcuts, obscured, inputBlocked, navigationBlocked, onMenu, onRelaunch, onCloseTerminal, fitRequest, jumpRequest, connection, renameRequest, flush, registerBeforeFlush, terminalActivity = {}, spaceId = null, showCharacter = false }) {
   const navFit = useFitDensity(NAV_FIT);
   const root = useRef(null);
   const stage = useRef(null);
@@ -86,6 +87,16 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
   const space = useRef(false);
   const [marquee, setMarquee] = useState(null);
   const [navigationMenu, setNavigationMenu] = useState(null);
+  const keyboardHelp = useMemo(() => {
+    const groups = new Map();
+    for (const command of COMMANDS) {
+      const binding = bindings?.[command.id] === undefined ? command.defaultBinding : bindings[command.id];
+      if (!binding) continue;
+      if (!groups.has(command.group)) groups.set(command.group, []);
+      groups.get(command.group).push({ ...command, binding });
+    }
+    return [...groups];
+  }, [bindings]);
   const previewRef = useRef({});
   // Board: where the pointer last was (a paste lands there), the comment being
   // written, the open thread and how many references are still arriving.
@@ -627,6 +638,16 @@ export default function Canvas({ workspace, api, refresh, notify, onOpenPanel, o
     {navigationMenu && <div className="canvas-popover" id={navigationMenu === 'zoom' ? 'canvas-zoom-options' : 'canvas-gesture-help'} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setNavigationMenu(null); root.current.querySelector(`[aria-controls="${e.currentTarget.id}"]`)?.focus(); } }}>
       <div className="canvas-popover-heading"><strong>{navigationMenu === 'zoom' ? 'Vista del canvas' : 'Muévete por tu espacio'}</strong><button aria-label="Cerrar controles del canvas" onClick={() => setNavigationMenu(null)}><X size={14} /></button></div>
       {navigationMenu === 'zoom' ? <><button onClick={() => { fit(); setNavigationMenu(null); }}>Ajustar todos los paneles<kbd>{formatBinding(bindings?.['fit-all'])}</kbd></button><button disabled={!selected.length} onClick={() => { fit(true); setNavigationMenu(null); }}>Acercar a la selección<kbd>2</kbd></button><div className="canvas-zoom-presets">{[.25, .5, 1, 1.5].map(zoom => <button key={zoom} onClick={() => { zoomAt(zoom); setNavigationMenu(null); }}>{zoom * 100}%</button>)}</div></> : <dl><div><dt>Mover mapa</dt><dd><kbd>Espacio</kbd> + arrastrar</dd></div><div><dt>Desplazar</dt><dd>Trackpad / rueda central</dd></div><div><dt>Zoom al cursor</dt><dd><kbd>{MOD}</kbd> + rueda / pellizco</dd></div><div><dt>Seleccionar varios</dt><dd>Arrastrar en el fondo</dd></div><div><dt>Sumar selección</dt><dd><kbd>Shift</kbd> + arrastrar</dd></div><div><dt>Zoom real / ajustar</dt><dd><kbd>1</kbd> / <kbd>{formatBinding(bindings?.['fit-all'])}</kbd></dd></div><div><dt>Pegar imagen, video o enlace</dt><dd><kbd>{MOD}</kbd> + <kbd>V</kbd> / soltar</dd></div><div><dt>Comentar</dt><dd><kbd>C</kbd> + clic</dd></div></dl>}
+      {navigationMenu === 'help' && <>
+        <div className="canvas-keyboard-help">
+          <strong>Teclado</strong>
+          {keyboardHelp.map(([group, commands]) => <section key={group} aria-label={group}>
+            <h4>{group}</h4>
+            <dl>{commands.map(command => <div key={command.id}><dt>{command.title}</dt><dd><kbd>{formatBinding(command.binding)}</kbd></dd></div>)}</dl>
+          </section>)}
+        </div>
+        {onShortcuts && <button onClick={() => { setNavigationMenu(null); onShortcuts(); }}>Configurar atajos</button>}
+      </>}
     </div>}</>}
     </div>
   </section>;
