@@ -244,7 +244,7 @@ test('Geometría: 320/480/640/960, menús completos, controles clicables y foco 
 const popState = page => page.evaluate(() => {
   const pop = document.querySelector('.pc-session-pop'), r = pop.getBoundingClientRect();
   const points = [[r.x + 8, r.y + 8], [r.right - 8, r.y + 8], [r.x + 8, r.bottom - 8], [r.right - 8, r.bottom - 8]];
-  return { portal: pop.parentElement === document.body, position: getComputedStyle(pop).position, scroll: pop.scrollHeight - pop.clientHeight, rect: { x: r.x, y: r.y, right: r.right, bottom: r.bottom }, vw: innerWidth, vh: innerHeight, clipped: points.some(([x, y]) => !pop.contains(document.elementFromPoint(x, y))), expanded: document.querySelector('.pc-session-chip').parentElement.open };
+  return { portal: pop.parentElement === document.body, position: getComputedStyle(pop).position, opaque: getComputedStyle(pop).backgroundImage !== 'none', scroll: pop.scrollHeight - pop.clientHeight, rect: { x: r.x, y: r.y, right: r.right, bottom: r.bottom }, vw: innerWidth, vh: innerHeight, clipped: points.some(([x, y]) => !pop.contains(document.elementFromPoint(x, y))), expanded: document.querySelector('.pc-session-chip').parentElement.open };
 });
 
 test('Popover de sesión: portaleado, completo y sin scroll con viewport de 720px', async () => {
@@ -255,6 +255,8 @@ test('Popover de sesión: portaleado, completo y sin scroll con viewport de 720p
       const s = await popState(page);
       assert.equal(s.portal, true, `${surface}: portal a body`);
       assert.equal(s.position, 'fixed');
+      assert.equal(s.opaque, true, `${surface}: fondo opaco; el hilo no se transparenta ${JSON.stringify(s)}`);
+      await page.screenshot({ path: `${artifacts}/composer-${surface}-480-session-pop.png` });
       assert.ok(s.scroll <= 1, `${surface}: sin scroll interno ${JSON.stringify(s)}`);
       assert.ok(s.rect.x >= 0 && s.rect.y >= 0 && s.rect.right <= s.vw && s.rect.bottom <= s.vh, `${surface}: dentro del viewport ${JSON.stringify(s)}`);
       assert.equal(s.clipped, false, `${surface}: sin recorte ${JSON.stringify(s)}`);
@@ -298,6 +300,35 @@ test('Popover de sesión: rueda dentro no cierra, rueda fuera (conversación) s�
     assert.equal(await page.locator('.pc-session-chip').evaluate(el => el.parentElement.open), false, 'rueda fuera cierra');
     results.push('card/720px alto: la rueda dentro del popover no lo cierra y fuera sí.');
   } finally { await close(page); }
+});
+
+test('Modelo: catálogo largo sin solapamiento con el control a 320/480/900', async () => {
+  for (const surface of ['card', 'dock']) for (const width of [320, 480, 900]) {
+    const page = await render({ surface, width, catalog: 120 });
+    try {
+      await page.locator(barModel).click();
+      await page.getByRole('textbox', { name: 'Buscar modelo' }).waitFor();
+      await page.locator(`${barModels} .pc-models-list button`).nth(5).waitFor();
+      const data = await page.evaluate(({ barModel, barModels }) => {
+        const r = el => el.getBoundingClientRect(), button = r(document.querySelector(barModel)), menu = document.querySelector(barModels), box = r(menu), input = r(menu.querySelector('input')), list = menu.querySelector('.pc-models-list'), listBox = r(list);
+        const overlapY = Math.min(box.bottom, button.bottom) - Math.max(box.y, button.y), overlapX = Math.min(box.right, button.right) - Math.max(box.x, button.x);
+        return { overlap: overlapX > .5 && overlapY > .5, inputHeight: input.height, inputInside: input.y >= box.y - .5 && input.bottom <= listBox.y + .5, scrolls: list.scrollHeight > list.clientHeight, listHeight: listBox.height, left: box.x, right: box.right, viewport: innerWidth };
+      }, { barModel, barModels });
+      assert.equal(data.overlap, false, JSON.stringify(data));
+      assert.ok(data.inputHeight >= 34, JSON.stringify(data));
+      assert.equal(data.inputInside, true, JSON.stringify(data));
+      assert.equal(data.scrolls, true, JSON.stringify(data));
+      assert.ok(data.listHeight > 60 && data.left >= -.5 && data.right <= data.viewport + .5, JSON.stringify(data));
+      await page.getByRole('textbox', { name: 'Buscar modelo' }).fill('proveedor-sintetico/modelo-117-con-sufijo-largo');
+      await page.locator(`${barModels} [role=option]`).filter({ hasText: 'modelo-117' }).first().waitFor();
+      await page.waitForFunction(sel => document.querySelectorAll(`${sel} [role=option]`).length === 1, barModels);
+      await page.screenshot({ path: `${artifacts}/composer-${surface}-${width}-model-long.png` });
+      await page.locator(`${barModels} [role=option]`).first().click();
+      assert.equal(await page.locator(barModels).count(), 0);
+      assert.match(await page.locator(barModel).getAttribute('aria-label'), /modelo-117/);
+      results.push(`${surface}/${width}px: catálogo de 120 modelos, input intacto, lista con scroll, sin solape con el botón y selección aplicada.`);
+    } finally { await close(page); }
+  }
 });
 
 test('Voz: recorder real con audio sintético, grabación/transcripción/revisión estables a todos los anchos', async () => {
