@@ -51,7 +51,8 @@ after(async () => {
 });
 
 async function render(options = {}) {
-  const page = await browser.newPage({ viewport: { width: options.width || 480, height: 900 }, reducedMotion: 'reduce' });
+  const height = options.height || 900;
+  const page = await browser.newPage({ viewport: { width: options.width || 480, height }, reducedMotion: 'reduce' });
   page.setDefaultTimeout(7000);
   const errors = [], requests = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -64,7 +65,7 @@ async function render(options = {}) {
   });
   await page.setContent('<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body class="app-shell"><div id="fixture"></div></body></html>');
   await page.addStyleTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.css')).text });
-  await page.addStyleTag({ content: 'body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: 850px; position: relative; container-type: inline-size; } #fixture > .phantom-chat { position: relative; inset: auto; width: 100%; height: 100%; }' });
+  await page.addStyleTag({ content: 'body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: ${options.fixtureHeight || height - 50}px; position: relative; container-type: inline-size; } #fixture > .phantom-chat { position: relative; inset: auto; width: 100%; height: 100%; }' });
   await page.addScriptTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.js')).text });
   await page.evaluate(options => window.mountComposer(options), options);
   await page.locator(barModel).waitFor();
@@ -235,6 +236,49 @@ test('Geometría: 320/480/640/960, menús completos, controles clicables y foco 
       await page.locator('.pc-send').click({ trial: true });
       await page.locator('.phantom-chat-mic').click({ trial: true });
       results.push(`${surface}/${width}px: geometría, hit-test, menús de contexto/modelo/effort, Tab, Enter, Space, Escape y foco de retorno.`);
+    } finally { await close(page); }
+  }
+});
+
+const popState = page => page.evaluate(() => {
+  const pop = document.querySelector('.pc-session-pop'), r = pop.getBoundingClientRect();
+  const points = [[r.x + 8, r.y + 8], [r.right - 8, r.y + 8], [r.x + 8, r.bottom - 8], [r.right - 8, r.bottom - 8]];
+  return { portal: pop.parentElement === document.body, position: getComputedStyle(pop).position, scroll: pop.scrollHeight - pop.clientHeight, rect: { x: r.x, y: r.y, right: r.right, bottom: r.bottom }, vw: innerWidth, vh: innerHeight, clipped: points.some(([x, y]) => !pop.contains(document.elementFromPoint(x, y))), expanded: document.querySelector('.pc-session-chip').parentElement.open };
+});
+
+test('Popover de sesión: portaleado, completo y sin scroll con viewport de 720px', async () => {
+  for (const surface of ['card', 'dock']) {
+    const page = await render({ surface, width: 480, height: 720 });
+    try {
+      await openContext(page);
+      const s = await popState(page);
+      assert.equal(s.portal, true, `${surface}: portal a body`);
+      assert.equal(s.position, 'fixed');
+      assert.ok(s.scroll <= 1, `${surface}: sin scroll interno ${JSON.stringify(s)}`);
+      assert.ok(s.rect.x >= 0 && s.rect.y >= 0 && s.rect.right <= s.vw && s.rect.bottom <= s.vh, `${surface}: dentro del viewport ${JSON.stringify(s)}`);
+      assert.equal(s.clipped, false, `${surface}: sin recorte ${JSON.stringify(s)}`);
+      await page.locator('.pc-session-pop .pc-session-label').first().click();
+      assert.equal((await popState(page)).expanded, true, 'clic dentro no cierra');
+      await page.mouse.click(2, 2);
+      assert.equal(await page.locator('.pc-session-pop').count(), 0, 'clic fuera cierra');
+      results.push(`${surface}/720px alto: popover portaleado fixed, sin scroll interno, dentro del viewport y sin recorte.`);
+    } finally { await close(page); }
+  }
+});
+
+test('Popover de sesión: sin espacio arriba abre abajo o se ajusta, completo en viewport', async () => {
+  for (const surface of ['card', 'dock']) {
+    const page = await render({ surface, width: 480, height: 720 });
+    try {
+      // Moves the composer to the top so there is no room above the chip.
+      await page.addStyleTag({ content: '#fixture > * { position: fixed !important; top: 0 !important; left: 0; right: 0; bottom: auto !important; height: 300px !important; }' });
+      await openContext(page);
+      const chip = await page.locator('.pc-session-chip').boundingBox();
+      const s = await popState(page);
+      assert.ok(s.rect.x >= 0 && s.rect.y >= 0 && s.rect.right <= s.vw && s.rect.bottom <= s.vh, `${surface}: dentro del viewport ${JSON.stringify(s)}`);
+      assert.ok(s.rect.y >= chip.y + chip.height - 1 || s.rect.bottom <= chip.y + 1, `${surface}: no tapa el chip`);
+      assert.equal(s.clipped, false, `${surface}: sin recorte ${JSON.stringify(s)}`);
+      results.push(`${surface}: sin espacio arriba, el popover se recoloca y queda completo en el viewport.`);
     } finally { await close(page); }
   }
 });

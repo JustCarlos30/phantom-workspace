@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useComposerSize } from '../hooks/useComposerSize';
 import { AlertCircle, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
@@ -210,18 +211,36 @@ export function useCompaction({ chat, connected, capabilities, compact, continue
 
 // «Contexto de la sesión» as a chip in the island; its settings open above it.
 export function SessionChip({ cwd, branch, workspaceName, children }) {
-  const root = useRef(null), [open, setOpen] = useState(false);
+  const root = useRef(null), pop = useRef(null), [open, setOpen] = useState(false), [place, setPlace] = useState(null);
   useEffect(() => {
     if (!open) return;
-    const outside = e => { if (!root.current?.contains(e.target)) root.current.open = false; };
+    const outside = e => { if (!root.current?.contains(e.target) && !pop.current?.contains(e.target)) { root.current.open = false; setOpen(false); } };
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]);
+  // The popover lives on <body> (fixed): the card and canvas node clip and scale their children.
+  useLayoutEffect(() => {
+    if (!open) { setPlace(null); return; }
+    const measure = () => {
+      const rect = root.current?.querySelector('summary')?.getBoundingClientRect();
+      if (!rect) return;
+      const margin = 12, width = Math.min(440, window.innerWidth - margin * 2);
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+      const above = rect.top - 8 - margin, below = window.innerHeight - rect.bottom - 8 - margin;
+      const up = above >= Math.min(420, below);
+      const next = { left, width, maxHeight: Math.max(120, up ? above : below), ...(up ? { bottom: window.innerHeight - rect.top + 8 } : { top: rect.bottom + 8 }) };
+      setPlace(prev => prev && Object.keys(next).length === Object.keys(prev).length && Object.keys(next).every(k => prev[k] === next[k]) ? prev : next);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => { window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
   }, [open]);
   const { name, own } = sessionChipLabel({ cwd, branch, workspaceName });
   return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
     onKeyDown={e => { if (e.key === 'Escape' && root.current.open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
     <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></summary>
-    <div className="pc-session-pop">{children}</div>
+    {open && place && createPortal(<div ref={pop} className="pc pc-session-pop" style={place} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>{children}</div>, document.body)}
   </details>;
 }
 
