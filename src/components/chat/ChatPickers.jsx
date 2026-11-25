@@ -103,6 +103,8 @@ export function EffortMenu({ label, heading, ariaName, title, levels, selected, 
     if (!open) return;
     setActive(Math.max(0, options.indexOf(selected)));
     list.current?.focus({ preventScroll: true });
+    // Inline in the session panel the menu opens below the row: bring it into view.
+    list.current?.scrollIntoView?.({ block: 'nearest' });
     const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);

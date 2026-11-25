@@ -305,6 +305,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-session-chip { display: flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 0 12px 0 10px; border-radius: var(--r-pill); color: var(--muted); font: var(--t-support); list-style: none; cursor: pointer; transition: background-color var(--dur-fast) linear; }
 .pc-session-chip::-webkit-details-marker { display: none; }
 .pc-session-chip > svg { flex-shrink: 0; }
+.pc-session-chip:has(> svg:only-child) { padding: 0; justify-content: center; width: 36px; }
 .pc-session-chip > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-session-chip:hover, .pc-session-settings[open] > .pc-session-chip { background: var(--control-fill); color: var(--ink); }
 .pc-session-pop { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 6; display: flex; flex-direction: column; gap: 12px; width: min(440px, 100%); max-height: 60vh; overflow: auto; padding: 8px; border-radius: var(--r-obj); background: var(--object-fill) var(--menu); box-shadow: var(--shadow-chrome); color: var(--ink); cursor: default; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
@@ -355,7 +356,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-field { container: pc-isle / inline-size; }
 .pc-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 0; color: var(--muted); font: var(--t-support); cursor: default; }
 .pc-controls:has(> .pc-selectors) { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: normal; }
-.pc-selectors { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.4fr) minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; }
+.pc-selectors { display: grid; grid-template-columns: auto auto minmax(0, 1.4fr) minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; }
 .pc-selectors:empty { display: none; }
 .pc-selectors > * { min-width: 0; max-width: 100%; }
 .pc-selectors > .pc-model-picker > .pc-model, .pc-selectors > .pc-effort > .pc-reasoning { width: 100%; height: 36px; padding-inline: 8px; }
@@ -371,8 +372,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-composer-actions .pc-context-panel { max-width: 100%; max-height: min(400px, 60vh); overflow-y: auto; }
 .pc-selectors > .pc-effort > .pc-effort-menu { max-height: min(320px, 60vh); overflow-y: auto; }
 @container pc-isle (max-width: 400px) {
-  .pc-selectors { grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr); }
-  .pc-selectors > .pc-session-settings { grid-column: 1 / -1; }
+  .pc-selectors { grid-template-columns: auto auto minmax(0, 1.2fr) minmax(0, 1fr); }
   .pc-composer-actions .pc-context-low { display: none; }
 }
 @container pc-isle (max-width: 520px) {
@@ -695,8 +695,8 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 }
 .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-permission[data-mode] { padding: 0 11px; }
 :is(.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip, .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning):hover:not(:disabled):not([data-disabled]) { background: var(--control-hover); }
-.pc.pc .pc-selectors > .pc-session-settings { flex: 0 1 160px; }
-.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip { width: 100%; }
+.pc.pc .pc-selectors > .pc-session-settings { flex: 0 0 auto; }
+.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip { width: 32px; padding: 0; justify-content: center; }
 .pc.pc .pc-selectors > .pc-model-picker { flex: 0 1 auto; }
 .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning { width: auto; max-width: 100%; }
 .pc.pc .pc-selectors > .pc-model-picker > .pc-model > span { max-width: 18ch; }
