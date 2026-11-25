@@ -9,8 +9,11 @@ test('activity connects exact Card bindings only to the current terminal session
   const task = { id: 'card-exact', status: 'blocked' };
   assert.deepEqual(taskLinks(task, sessions, nodes).map(s => s.id), ['current']);
   const model = buildActivity({ workspace: { nodes }, sessions, tasks: [task] });
-  assert.equal(model.needs[0].cardId, 'card-exact');
-  assert.equal(model.needs[0].sessions[0].nodeId, 'node');
+  assert.equal(model.needs.length, 0);
+  const [item] = model.stuck[0].items;
+  assert.equal(item.cardId, 'card-exact');
+  assert.equal(item.sessions[0].nodeId, 'node');
+  assert.equal(item.nodeId, 'node');
   assert.equal(model.sessions.find(s => s.id === 'old').cardId, '');
   assert.equal(cardIdOf({ ref: { kind: 'card', id: 'notice-card' } }), 'notice-card');
   assert.equal(cardIdOf({ ref: { kind: 'branch', id: 'card-looking-name' } }), '');
