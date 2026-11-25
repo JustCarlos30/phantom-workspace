@@ -34,6 +34,22 @@ test('interface scale IPC is desktop-local, exact-shaped and strictly bounded', 
   assert.throws(() => validateInvocation('desktop.interfaceScale.reset', {}));
 });
 
+test('agent observability RPCs: exact renderer methods are allowed, the agent API never reaches the renderer', async () => {
+  const { HOST_METHODS, LOCAL_METHODS } = await import('../desktop/security.mjs');
+  for (const method of ['agent.traces.list', 'agent.traces.detail', 'supervisor.read', 'supervisor.configure', 'supervisor.refresh']) {
+    assert.equal(HOST_METHODS.has(method), true);
+    assert.equal(LOCAL_METHODS.has(method), false);
+    assert.doesNotThrow(() => validateInvocation(method, { workspaceId }));
+  }
+  // Agent-side methods and near-miss names stay outside the allowlist: renderer frames cannot mint terminal capabilities.
+  for (const method of ['terminal.agent.trace', 'terminal.agent.traces', 'agent.traces', 'agent.traces.record', 'agent.traces.close', 'supervisor.ingest', 'supervisor.updateSnapshot', 'supervisor.close', 'supervisor']) {
+    assert.equal(HOST_METHODS.has(method), false);
+    assert.throws(() => validateInvocation(method, { workspaceId }), /Método desktop no permitido/);
+  }
+  assert.throws(() => validateInvocation('agent.traces.detail', null));
+  assert.throws(() => validateInvocation('supervisor.configure', JSON.parse('{"workspaceId":"w","patch":{"__proto__":{}}}')));
+});
+
 test('chat context RPCs pass the desktop host allowlist with existing JSON limits', async () => {
   const { HOST_METHODS, LOCAL_METHODS } = await import('../desktop/security.mjs');
   for (const method of ['chat.compaction.capabilities', 'chat.compact', 'chat.continue']) {

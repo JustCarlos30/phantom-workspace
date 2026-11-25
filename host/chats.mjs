@@ -15,6 +15,7 @@ import { claudeRoutingArgs, resolveRouting, roleOfChat } from '../shared/routing
 import { provisionBrowserTerminal, credentialFile } from './agent-browser.mjs';
 import { driveOpenCode, openCodeServerEnv } from './opencode-chat.mjs';
 import { codexModels } from './chat-models.mjs';
+import { adaptTraceEvent, adaptTurnTrace, createTraceState, traceRootId } from './agent-trace-adapters.mjs';
 
 // Chat cards drive an agent CLI headlessly, one process per turn, and render
 // its structured event stream. No PTY is involved: the conversation lives in
@@ -415,6 +416,8 @@ export function applyCodexEvent(turn, event) {
     const agent = agentOf(part), threads = Array.isArray(item.receiver_thread_ids) ? item.receiver_thread_ids : [];
     if (typeof item.prompt === 'string' && item.prompt) { agent.prompt = clipText(item.prompt, MAX_AGENT_PROMPT); part.detail ||= clipText(item.prompt.split('\n')[0], 240); }
     if (threads.length) agent.type = threads.length > 1 ? `${threads.length} hilos` : `hilo ${String(threads[0]).slice(0, 12)}`;
+    // The durable trace of a child is its thread; the card keeps them so «Ver detalle» can name the right agent.
+    if (threads.length) agent.threadIds = threads.filter(thread => typeof thread === 'string').slice(0, 8);
     const states = item.agents_states && typeof item.agents_states === 'object' ? Object.values(item.agents_states) : [];
     const said = states.map(s => s?.message).filter(m => typeof m === 'string' && m).at(-1); if (said) agent.text = clipText(said, MAX_AGENT_TEXT);
     settleTool(part, item.status === 'failed' ? 'error' : event.type === 'item.completed' || item.status === 'completed' ? 'done' : 'running');
@@ -438,10 +441,16 @@ export function normalizeQuestions(questions) {
   });
 }
 
+const NO_TRACE = () => {};
 export class Chats {
   // role(workspace, node) → { env, instructions }: the card's identity under Incorporaciones.
-  constructor(store, emit, role = () => ({ env: {}, instructions: '' }), { codexHome } = {}) {
+  // onTrace(record): optional; receives normalized agent-trace records (host/agent-traces.mjs record())
+  // for the root and its sub-agents, with the real workspaceId/nodeId. Its failures never reach the turn;
+  // they are counted in this.traceFailures.
+  constructor(store, emit, role = () => ({ env: {}, instructions: '' }), { codexHome, onTrace } = {}) {
     this.codexHome = codexHome;
+    this.onTrace = typeof onTrace === 'function' ? onTrace : NO_TRACE;
+    this.traceFailures = { count: 0, last: null };
     this.store = store; this.emit = emit; this.role = role; this.turns = new Map(); this.operations = new Map(); this.drains = new Map(); this.dirty = false; this.closed = false;
     this.filename = path.join(store.dir, 'chats.json');
     this.nodes = {};
@@ -466,6 +475,16 @@ export class Chats {
     this.timer = setInterval(() => { if (this.dirty) this.save(); }, 2000); this.timer.unref();
   }
   save() { this.dirty = false; atomicJSON(this.filename, this.nodes); }
+  // `records` is a thunk so an adapter error is also contained: tracing never breaks a turn.
+  trace(records) {
+    if (this.onTrace === NO_TRACE) return;
+    const failed = error => { this.traceFailures.count++; this.traceFailures.last = String(error?.message ?? error).slice(0, 300); };
+    try {
+      for (const record of records()) {
+        try { const result = this.onTrace(record); if (result && typeof result.catch === 'function') result.catch(failed); } catch (error) { failed(error); }
+      }
+    } catch (error) { failed(error); }
+  }
   thread(nodeId, provider) {
     const entry = this.nodes[nodeId] ??= { threads: {} };
     const thread = entry.threads[provider] ??= { sessionId: null, messages: [] };
@@ -632,6 +651,10 @@ export class Chats {
     if (!thread.continuations?.length && !thread.compactions?.length && thread.messages.length > MAX_MESSAGES) thread.messages.splice(0, thread.messages.length - MAX_MESSAGES);
     const turn = { message: reply, sessionId: thread.sessionId, streamed: new Set(), freshText: true, cwd, ownBranch: inOwnWorktree(node, cwd), mode: chatMode(node, cwd), autoApprove: ['auto', 'full'].includes(explicitMode(node.data.chat)), thread, pending: new Map(), token: provider === 'claude' ? randomUUID() : null, error: '', stderr: '', stopped: false, finished: false, timer: null };
     const started = Date.now();
+    // Trace identity of this turn: the root agent is stable per card and provider; events are scoped by the turn.
+    const traceState = createTraceState(), requestedModel = continuation?.model || node.data.chat.models?.[provider];
+    const traceBase = { workspaceId: workspace.id, nodeId: node.id, provider, state: traceState, turnId: reply.id, model: requestedModel };
+    let roleInstructions = '';
     turn.model = continuation?.model || node.data.chat.models?.[provider] || thread.meta?.model;
     // Session facts as known right now: the turn's own readings over the thread's.
     const meta = () => {
@@ -658,6 +681,7 @@ export class Chats {
       if (error && !turn.stopped) reply.error = error;
       else delete reply.error;
       reply.finishedAt = now();
+      this.trace(() => adaptTurnTrace({ ...traceBase, phase: 'end', status: reply.status, error: reply.status === 'error' ? reply.error : '' }));
       if (continuation) {
         Object.assign(continuation, { status: reply.status, toSessionId: turn.sessionId || null, finishedAt: reply.finishedAt, ...(error ? { error } : {}) });
         if (!turn.sessionId) thread.sessionId = continuation.fromSessionId;
@@ -684,6 +708,7 @@ export class Chats {
       // Own process group: stopping a turn must also stop the tools it launched.
       if (turn.token) this.gates.set(turn.token, turn);
       const role = this.role(workspace, node);
+      roleInstructions = typeof role.instructions === 'string' ? role.instructions : '';
       turn.browserSession = this.browserSession(node.id); turn.workspaceId = workspace.id;
       // A capability left by an interrupted host is stale; replace it.
       fs.rmSync(credentialFile(this.store.dir, turn.browserSession), { force: true });
@@ -712,6 +737,7 @@ export class Chats {
         const reading = await codexContextReading(file);
         if (!reading || turn.finished || this.turns.get(node.id) !== turn) return;
         turn.contextTokens = reading.tokens; turn.contextSource = 'codex:request-v1'; turn.contextWindow = reading.window;
+        this.trace(() => [{ workspaceId: workspace.id, nodeId: node.id, provider, id: traceRootId({ nodeId: node.id, provider }), context: { tokens: reading.tokens, window: reading.window, source: 'codex:request-v1' } }]);
         schedule();
       }).catch(() => {});
     };
@@ -719,6 +745,7 @@ export class Chats {
       if (!raw.trim()) return;
       let event; try { event = JSON.parse(raw); } catch { return; }
       if (!event || typeof event !== 'object') return;
+      this.trace(() => adaptTraceEvent({ ...traceBase, event }));
       if (apply(turn, event)) schedule();
       if (provider === 'codex' && (event.type === 'turn.completed' || event.type === 'item.completed' && Date.now() - lastContextRead >= 2000)) readContext();
     };
@@ -733,7 +760,7 @@ export class Chats {
     if (provider === 'opencode') driveOpenCode(child, {
       signal: turn.controller.signal,
       cwd, sessionId: thread.sessionId, message, model: node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], password: env.OPENCODE_SERVER_PASSWORD,
-      onEvent: event => { if (!turn.finished && !turn.stopped && apply(turn, event)) schedule(); },
+      onEvent: event => { if (turn.finished || turn.stopped) return; this.trace(() => adaptTraceEvent({ ...traceBase, event })); if (apply(turn, event)) schedule(); },
       onPermission: request => this.requestOpenCodePermission(turn, request),
       onQuestion: async request => {
         if (turn.finished || turn.stopped) return { behavior: 'deny' };
@@ -753,6 +780,7 @@ export class Chats {
       finish(code);
     });
     this.dirty = true;
+    this.trace(() => adaptTurnTrace({ ...traceBase, phase: 'start', message, instructions: roleInstructions }));
     this.emit({ type: 'chat.update', workspaceId: workspace.id, nodeId: node.id, provider, running: true, meta: meta(), messages: [structuredClone(user), structuredClone(reply)], queue: structuredClone(thread.queue ?? []) });
     return { ok: true, messageId: reply.id };
   }

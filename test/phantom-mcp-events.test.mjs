@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { serve, PHANTOM_MCP_TOOL } from '../scripts/phantom-mcp.mjs';
+import { serve, PHANTOM_MCP_TOOL, tracesRequest, TRACES_MCP_TOOL } from '../scripts/phantom-mcp.mjs';
 import { EVENT_NAME, EVENTS_METHOD } from '../shared/workspace-events.mjs';
 
 const EXTENSION = 'io.modelcontextprotocol/events';
@@ -203,4 +203,67 @@ test('las tools existentes siguen anunciadas junto a la extensión', async () =>
   await until(() => h.responseTo(10));
   assert.equal(h.responseTo(10).result.tools[0].name, PHANTOM_MCP_TOOL);
   h.end();
+});
+
+test('la tool traces es de solo lectura: reenvía solo la sesión propia y valida sus argumentos', async () => {
+  const host = fakeHost([{ items: [] }, { agent: null, events: [], cursor: null, hasMore: false }]);
+  const h = harness({ call: host.call });
+  h.send({ id: 20, method: 'tools/list' });
+  await until(() => h.responseTo(20));
+  assert.deepEqual(h.responseTo(20).result.tools.map(tool => tool.name), [PHANTOM_MCP_TOOL, 'traces']);
+  h.send({ id: 21, method: 'tools/call', params: { name: 'traces', arguments: {} } });
+  h.send({ id: 22, method: 'tools/call', params: { name: 'traces', arguments: { id: 'toolu_A1', cursor: '12', limit: 5 } } });
+  await until(() => h.responseTo(21) && h.responseTo(22));
+  assert.deepEqual(host.calls.map(call => [call.method, call.payload]), [
+    ['terminal.agent.traces', { sessionId: 'session-1' }],
+    ['terminal.agent.traces', { sessionId: 'session-1', id: 'toolu_A1', cursor: '12', limit: 5 }],
+  ]);
+  assert.equal(h.responseTo(21).result._meta[UNTRUSTED], true);
+  for (const [id, args] of [[23, { workspaceId: 'w1' }], [24, { id: '../etc' }], [25, { id: 'a', limit: 0 }], [26, { id: 'a', cursor: 'x' }], [27, { limit: 3 }], [28, { sessionId: 'otra' }]]) {
+    h.send({ id, method: 'tools/call', params: { name: 'traces', arguments: args } });
+    await until(() => h.responseTo(id));
+    assert.equal(h.responseTo(id).result.isError, true);
+  }
+  assert.equal(host.calls.length, 2, 'invalid arguments never reach the host');
+  h.end();
+});
+
+test('traces sin sesión de terminal es Forbidden y no llama al host', async () => {
+  const host = fakeHost();
+  const h = harness({ call: host.call, env: {} });
+  h.send({ id: 30, method: 'tools/call', params: { name: 'traces', arguments: {} } });
+  await until(() => h.responseTo(30));
+  assert.equal(h.responseTo(30).result.isError, true);
+  assert.match(h.responseTo(30).result.content[0].text, /^Forbidden/);
+  assert.equal(host.calls.length, 0);
+  h.end();
+});
+
+const SESSION_ENV = { PHANTOM_TERMINAL_SESSION_ID: 'session-1', PHANTOM_WORKSPACE_SOCKET: '/tmp/host.sock' };
+
+test('tracesRequest: la herramienta se llama traces y exige sesión y socket del entorno', () => {
+  assert.equal(TRACES_MCP_TOOL, 'traces');
+  assert.match(tracesRequest({}, {}).error, /^Forbidden/);
+  assert.match(tracesRequest({}, { PHANTOM_TERMINAL_SESSION_ID: 'session-1' }).error, /^Forbidden/);
+  assert.match(tracesRequest({}, { PHANTOM_WORKSPACE_SOCKET: '/tmp/host.sock' }).error, /^Forbidden/);
+  assert.deepEqual(tracesRequest({}, SESSION_ENV), { payload: { sessionId: 'session-1' } });
+});
+
+test('tracesRequest: solo reenvía id, cursor y limit y la sesión sale del entorno, nunca de los argumentos', () => {
+  assert.deepEqual(tracesRequest({ id: 'toolu_A1', cursor: '12', limit: 5 }, SESSION_ENV), { payload: { sessionId: 'session-1', id: 'toolu_A1', cursor: '12', limit: 5 } });
+  for (const args of [{ sessionId: 'otra' }, { workspaceId: 'w' }, { nodeId: 'n' }, { path: '/etc/passwd' }, { id: 'a', extra: 1 }]) {
+    assert.match(tracesRequest(args, SESSION_ENV).error, /Argumentos no válidos/, JSON.stringify(args));
+  }
+  for (const args of [null, [], 'x', 7]) assert.ok(tracesRequest(args, SESSION_ENV).error, String(args));
+});
+
+test('tracesRequest: valida la forma de id, cursor y limit y exige id para paginar', () => {
+  for (const args of [{ id: '../etc' }, { id: 'a/b' }, { id: '' }, { id: 5 }, { id: 'x'.repeat(201) }, { id: 'a', cursor: 'abc' }, { id: 'a', cursor: '-1' }, { id: 'a', cursor: 12 },
+    { id: 'a', limit: 0 }, { id: 'a', limit: 201 }, { id: 'a', limit: 1.5 }, { id: 'a', limit: '5' }]) {
+    assert.ok(tracesRequest(args, SESSION_ENV).error, JSON.stringify(args));
+  }
+  assert.match(tracesRequest({ cursor: '3' }, SESSION_ENV).error, /requieren un id/);
+  assert.match(tracesRequest({ limit: 3 }, SESSION_ENV).error, /requieren un id/);
+  assert.deepEqual(tracesRequest({ id: 'a', limit: 200 }, SESSION_ENV).payload, { sessionId: 'session-1', id: 'a', limit: 200 });
+  assert.deepEqual(tracesRequest({ id: 'a:b@c+d.e-f_g' }, SESSION_ENV).payload, { sessionId: 'session-1', id: 'a:b@c+d.e-f_g' });
 });

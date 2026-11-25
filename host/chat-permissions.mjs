@@ -588,7 +588,9 @@ export function sensitive(tool, input, cwd, ownBranch = false) {
 
 // Phantom's own MCP tools (and its approval gate) only read and organize
 // this app's context.
-export const phantomTool = tool => typeof tool === 'string' && /^mcp__phantom(_workspace_chat)?__/.test(tool);
+// The read-only agent history tool (phantom_workspace.traces) is the only tool of the Codex server allowed by name:
+// the CLI tool of that server runs shell-equivalent commands and keeps going through phantomCliAllowed.
+export const phantomTool = tool => typeof tool === 'string' && /^mcp__phantom(_workspace_chat)?__|^mcp__phantom_workspace__traces$/.test(tool);
 
 // Phantom Workspace's own CLIs talk to this app (its socket), not to the
 // system: every agent — Claude, Codex, OpenCode — may run them in any mode,
