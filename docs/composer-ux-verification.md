@@ -27,6 +27,10 @@ Las pruebas generan PNG, JSON e informe Markdown exclusivamente en `.test-artifa
 
 El job `composer-test` conserva Playwright v1.58.0-noble, ejecución ephemeral, sin puertos ni secretos, red desactivada al ejecutar y bind limitado al workspace.
 
+## Popover del chip de sesión
+
+El popover `.pc-session-pop` se renderiza en un portal a `document.body` con `position: fixed`, anclado al chip (no ya `absolute` dentro de `.pc-field`). `test/composer-ux.test.mjs` añade, para card y dock: con viewport de 720 px de alto, `scrollHeight <= clientHeight + 1`, rect dentro del viewport y esquinas sin recorte (`elementFromPoint`); clic dentro no cierra, clic fuera sí; y con el compositor sin espacio arriba el popover abre abajo o se ajusta, completo en el viewport. Estas pruebas se redactaron sin ejecutarse en este intento; las informa el controlador.
+
 ## Límites de la evidencia
 
 Chromium headless y mediciones DOM acreditan la UI renderizada, no una revisión visual humana. MediaStream generado y ASR sintético ejercitan el recorder y los estados de voz, no micrófono físico ni reconocimiento nativo. No se acredita revisión visual humana ni reconocimiento nativo.
