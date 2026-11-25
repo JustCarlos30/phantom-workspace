@@ -88,7 +88,9 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
   const [openKey, setOpenKey] = useState(''), [sent, setSent] = useState([]);
   const view = VIEWS.includes(filter) ? filter : 'needs';
   const { now, later } = activity.pending, count = now.length, stuck = activity.pending.stuck || [];
-  const opened = [...now, ...stuck].some(item => item.key === openKey) ? openKey : '';
+  const [allCauses, setAllCauses] = useState(false);
+  const shownStuck = allCauses ? stuck : stuck.slice(0, 3), hiddenStuck = stuck.slice(3);
+  const opened = [...now, ...shownStuck].some(item => item.key === openKey) ? openKey : '';
   useEffect(() => { setSent(keys => keys.filter(key => now.some(item => item.key === key))); }, [now]);
   const failing = Object.values(activity.sources).some(source => source?.error);
   useEffect(() => {
@@ -151,7 +153,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
               clear(); setSent(keys => keys.includes(item.key) ? keys : [...keys, item.key]);
             })} />}
           </>}>{sent.includes(item.key) && <span role="status">Enviado</span>}{opened === item.key && decide(item)}</Row>)}</Group>}
-          {stuck.length > 0 && <Group id="activity-stuck" title="Se atoraron" total={stuck.reduce((sum, group) => sum + group.count, 0)}>{stuck.map(group => <Row key={group.key} kind="failed" title={`${group.label} · ${group.count}`} meta={[group.meaning]} expanded={opened === group.key} onOpen={() => setOpenKey(opened === group.key ? '' : group.key)} detail={opened === group.key && <>
+          {stuck.length > 0 && <Group id="activity-stuck" title="Se atoraron" total={stuck.reduce((sum, group) => sum + group.count, 0)}>{shownStuck.map(group => <Row key={group.key} kind="failed" title={`${group.label} · ${group.count}`} meta={[group.meaning]} expanded={opened === group.key} onOpen={() => setOpenKey(opened === group.key ? '' : group.key)} detail={opened === group.key && <>
             <p className="activity-copy">{group.next}</p>
             <ul className="activity-stuck-list">{group.items.slice(0, 5).map(task => <li key={task.key}>
               <span className="activity-stuck-title" title={task.headline}>{task.headline}</span>
@@ -159,7 +161,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
               {toCard(task, false) || toSession(task, undefined, false)}
             </li>)}</ul>
             {group.items.length > 5 && <p className="activity-copy">y {group.items.length - 5} más</p>}
-          </>} />)}</Group>}
+          </>} />)}{hiddenStuck.length > 0 && <button type="button" className="activity-link" aria-expanded={allCauses} onClick={() => setAllCauses(!allCauses)}>{allCauses ? 'Ver menos' : `${hiddenStuck.length} ${hiddenStuck.length === 1 ? 'causa más' : 'causas más'} · ${hiddenStuck.reduce((sum, group) => sum + group.count, 0)} ${hiddenStuck.reduce((sum, group) => sum + group.count, 0) === 1 ? 'tarea' : 'tareas'}`}</button>}</Group>}
           {later.length > 0 && <Group id="activity-later" title="Cuando puedas">{later.map(item => <Row key={item.key} kind={item.need} title={item.headline} meta={[item.context]}>{tidy(item)}</Row>)}</Group>}
           {!count && !stuck.length && !later.length && <EmptyState className="activity-empty" size="compact" icon={CheckCircle2} description="Aquí aparecerá lo que necesite una decisión tuya." />}
         </>}

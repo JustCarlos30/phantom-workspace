@@ -1,6 +1,8 @@
 // Source semantics only: a PTY and a controller process are not agent progress.
 import { isReadyBranch } from './incorporaciones-model.mjs';
-import { explainReason, resolutionOf } from './phantom-desk.mjs';
+import { explainReason, resolutionOf, titleOf } from './phantom-desk.mjs';
+
+const OTHER_MEANING = 'Motivos distintos; abre cada tarea para leer el suyo.';
 export const itemsOf = value => Array.isArray(value) ? value : Array.isArray(value?.items) ? value.items : [];
 const text = value => typeof value === 'string' ? value : '';
 const states = {
@@ -235,9 +237,9 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
   const stuckByCause = new Map();
   for (const t of byRecent(taskRows.filter(t => STUCK.includes(t.status) && !resolutionOf(t)))) {
     const explain = explainReason([t.raw?.reason, t.reason].find(value => typeof value === 'string' && value.trim()) || '');
-    if (!stuckByCause.has(explain.cause)) stuckByCause.set(explain.cause, { key: `stuck:${explain.cause}`, group: 'stuck', need: 'failed', cause: explain.cause, label: explain.label, meaning: explain.meaning, next: explain.next, count: 0, at: 0, items: [] });
+    if (!stuckByCause.has(explain.cause)) stuckByCause.set(explain.cause, { key: `stuck:${explain.cause}`, group: 'stuck', need: 'failed', cause: explain.cause, label: explain.label, meaning: explain.cause === 'other' ? OTHER_MEANING : explain.meaning, next: explain.next, count: 0, at: 0, items: [] });
     const group = stuckByCause.get(explain.cause), first = t.sessions[0];
-    group.items.push({ key: `task:${t.id}`, cardId: t.id, id: t.id, headline: t.title, context: first?.title || '', ...(explain.child ? { child: explain.child } : {}), nodeId: first?.nodeId || null, sessions: t.sessions, at: t.at });
+    group.items.push({ key: `task:${t.id}`, cardId: t.id, id: t.id, headline: titleOf(text(t.raw?.contract?.goal) || text(t.contract?.goal) || t.title), context: first?.title || '', ...(explain.child ? { child: explain.child } : {}), nodeId: first?.nodeId || null, sessions: t.sessions, at: t.at });
     group.count = group.items.length;
     group.at = Math.max(group.at, t.at || 0);
   }

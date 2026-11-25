@@ -319,6 +319,30 @@ test('Las atoradas se agrupan por causa con etiqueta humana: más tareas primero
   assert.ok(stuck.every(group => group.meaning && group.next));
 });
 
+test('El titular de una atorada sale de «## Título» o de la primera frase, con tope de 90', () => {
+  const tasks = [
+    { id: 'a', status: 'blocked', raw: { contract: { goal: '## Título\nArreglar el login\n## Propósito\nMucho texto' } } },
+    { id: 'b', status: 'blocked', raw: { contract: { goal: 'Primera frase. Segunda frase larga.' } } },
+    { id: 'c', status: 'blocked', raw: { contract: { goal: 'x'.repeat(300) } } },
+  ];
+  const items = buildActivity({ tasks }).stuck[0].items;
+  assert.equal(items.find(item => item.id === 'a').headline, 'Arreglar el login');
+  assert.equal(items.find(item => item.id === 'b').headline, 'Primera frase.');
+  assert.ok(items.every(item => item.headline.length <= 90));
+  assert.equal(items.find(item => item.id === 'c').headline.length, 90);
+});
+
+test('El grupo «other» usa un significado genérico, nunca el motivo crudo de una tarea', () => {
+  const tasks = [
+    { id: 'a', status: 'blocked', raw: { reason: 'claude_code_error: success You hit your 5-hour limit' } },
+    { id: 'b', status: 'failed', reason: 'algo totalmente distinto' },
+  ];
+  const { stuck } = buildActivity({ tasks });
+  assert.equal(stuck.length, 1);
+  assert.equal(stuck[0].cause, 'other');
+  assert.equal(stuck[0].meaning, 'Motivos distintos; abre cada tarea para leer el suyo.');
+});
+
 test('Una atorada con sucesora o con commits ya integrados desaparece de stuck', () => {
   const tasks = [
     { id: 'sucedida', status: 'blocked', resolution: { supersededBy: 'nueva', landed: 0 } },
