@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { createResampler, floatToPCM16 } from './voiceStream.mjs';
 import { STREAM_RATE } from './voice-pcm.js';
 import { createDictationSession } from './voice-backup.mjs';
+import { createWarmThrottle } from './voice-warm.mjs';
 
 // One lease covers permission, capture AND transcription across every surface.
 let microphoneOwner = null;
@@ -63,6 +64,18 @@ export function useVoiceRecorder({ api, workspaceId, scopeId = workspaceId, enab
   useEffect(() => { if (!enabled) { dispose(); transition('idle'); } }, [enabled, dispose]);
   // Load the speech model before the first dictation so live text starts at once.
   useEffect(() => { if (enabled && workspaceId) apiRef.current('voice.stream.warm', { workspaceId }).catch(() => {}); }, [enabled, workspaceId]);
+  useEffect(() => {
+    if (!enabled || !workspaceId) return undefined;
+    const throttle = createWarmThrottle(60000);
+    throttle.shouldWarm();
+    const rewarm = () => {
+      if (document.visibilityState === 'hidden' || phase.current !== 'idle' || !throttle.shouldWarm()) return;
+      try { Promise.resolve(apiRef.current('voice.stream.warm', { workspaceId })).catch(() => {}); } catch {}
+    };
+    window.addEventListener('focus', rewarm);
+    document.addEventListener('visibilitychange', rewarm);
+    return () => { window.removeEventListener('focus', rewarm); document.removeEventListener('visibilitychange', rewarm); };
+  }, [enabled, workspaceId]);
   const stop = useCallback(() => {
     if (phase.current !== 'recording') return;
     cancelled.current = false; transition('transcribing');
