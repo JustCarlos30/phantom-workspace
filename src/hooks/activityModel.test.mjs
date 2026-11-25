@@ -67,7 +67,8 @@ test('Sesiones ocultas son operativas y estados de tareas solo se propagan con v
   assert.equal(model.sessions[0].hidden, true);
   assert.equal(model.sessions[0].nodeId, 'n');
   assert.equal(model.sessions[0].label, 'Bloqueada');
-  assert.equal(model.needs.length, 1, 'Una tarea bloqueada no se duplica como intervención de sesión');
+  assert.equal(model.needs.length, 0, 'Una tarea atorada no es una decisión ni se duplica como intervención de sesión');
+  assert.deepEqual(model.stuck[0].items.map(item => [item.id, item.nodeId, item.context]), [['t', 'n', 'Oculta']]);
   const unrelated = buildActivity({ workspace: { nodes }, sessions, tasks: [{ id: 't', status: 'blocked' }] });
   assert.equal(unrelated.sessions[0].label, 'En espera');
 });
@@ -120,7 +121,8 @@ test('Terminadas reúne tareas cerradas e incorporaciones, lo más reciente prim
   });
   assert.deepEqual(activity.finished.map(item => [item.key, item.tone]), [['merge:m', 'done'], ['task:drop', 'cancelled'], ['merge:r', 'cancelled'], ['task:old', 'done']]);
   assert.deepEqual(activity.inProgress.map(item => [item.id, item.tone, item.label]), [['run', 'working', 'Trabajando'], ['wait', 'waiting', 'Sin empezar']]);
-  assert.deepEqual(activity.needs.map(item => item.id), ['stuck']);
+  assert.deepEqual(activity.needs, []);
+  assert.deepEqual(activity.stuck.flatMap(group => group.items.map(item => item.id)), ['stuck']);
   assert.deepEqual(buildActivity({ merges: { available: false, history: [{ id: 'x', status: 'merged' }] } }).finished, []);
 });
 
@@ -211,7 +213,7 @@ test('«Cuando puedas»: ramas listas, main sin guardar y cola sin nadie integra
   assert.deepEqual(tended.pending.later.map(row => row.need), ['ready']);
   assert.deepEqual(buildActivity({ merges: { ...merges, orchestrator: { nodeId: 'o', running: false } } }).pending.later.map(row => row.need), ['ready', 'unsaved', 'queue']);
   assert.deepEqual(buildActivity({ merges: { ...merges, available: false } }).pending.later, []);
-  assert.deepEqual(buildActivity({}).pending, { now: [], later: [] });
+  assert.deepEqual(buildActivity({}).pending, { now: [], later: [], stuck: [] });
 });
 
 test('«En curso» y «Hoy»: quien trabaja una vez, lo cerrado hoy y los avisos nuevos', () => {
@@ -255,7 +257,8 @@ test('La prioridad conserva rangos y pone primero la espera más antigua, descon
     chats: [{ nodeId: 'c1', pending: [{ ...permission, requestedAt: 300 }] }, { nodeId: 'phantom:w', pending: [{ ...permission, requestedAt: 100 }] }, { nodeId: 'c2', pending: [{ ...question, createdAt: 50 }] }],
     tasks: [{ id: 'new', status: 'blocked', updatedAt: 500 }, { id: 'unknown', status: 'blocked' }, { id: 'old', status: 'blocked', updatedAt: 200 }, { id: 'approval', status: 'awaiting_approval', updatedAt: 600 }],
   });
-  assert.deepEqual(model.needs.map(item => item.key), ['chat:phantom:w', 'chat:c1', 'chat:c2', 'task:approval', 'task:old', 'task:new', 'task:unknown']);
+  assert.deepEqual(model.needs.map(item => item.key), ['chat:phantom:w', 'chat:c1', 'chat:c2', 'task:approval']);
+  assert.deepEqual(model.stuck[0].items.map(item => item.key), ['task:new', 'task:old', 'task:unknown']);
   assert.deepEqual(model.needs.slice(0, 3).map(item => item.at), [100, 300, 50]);
   assert.equal(buildActivity({ workspace: { nodes: chatNodes }, chats: [{ nodeId: 'c1', pending: [permission] }] }).needs[0].at, 0);
 });
@@ -284,6 +287,104 @@ test('El extracto elimina cromo y dibujo, recorta espacios y conserva las últim
   assert.deepEqual(excerptLines(['uno', 'dos', 'tres'], 2), ['dos', 'tres']);
   assert.deepEqual(excerptLines(undefined), []);
   assert.deepEqual(excerptLines(['> npm test', 'Resultado: listo']), ['> npm test', 'Resultado: listo']);
+});
+
+test('Una tarea blocked, failed o error no cuenta como decisión y aparece en stuck', () => {
+  const tasks = ['blocked', 'failed', 'error'].map(status => ({ id: status, status, title: `Tarea ${status}`, updatedAt: 100 }));
+  const model = buildActivity({ tasks });
+  assert.equal(model.count, 0);
+  assert.deepEqual(model.needs, []);
+  assert.deepEqual(model.pending.now, []);
+  assert.equal(model.stuck, model.pending.stuck);
+  assert.deepEqual(model.stuck.map(group => [group.key, group.group, group.need, group.count]), [['stuck:other', 'stuck', 'failed', 3]]);
+  assert.deepEqual(model.stuck[0].items.map(item => [item.key, item.cardId, item.headline, item.context, item.nodeId]), tasks.map(t => [`task:${t.id}`, t.id, t.title, '', null]));
+  assert.deepEqual(buildActivity({ tasks: [] }).stuck, []);
+});
+
+test('Las atoradas se agrupan por causa con etiqueta humana: más tareas primero, empate por la más reciente', () => {
+  const tasks = [
+    { id: 'a', status: 'blocked', raw: { reason: 'Verificación fallida tras reparar', updatedAt: 100 } },
+    { id: 'b', status: 'failed', reason: 'verificación fallida', updatedAt: 300 },
+    { id: 'c', status: 'blocked', raw: { reason: 'Hijo h1: presupuesto de tiempo agotado', updatedAt: 900 } },
+    { id: 'd', status: 'blocked', raw: { reason: 'Presupuesto de tokens agotado', updatedAt: 200 } },
+    { id: 'e', status: 'error', updatedAt: 50 },
+  ];
+  const { stuck } = buildActivity({ tasks });
+  assert.deepEqual(stuck.map(group => [group.key, group.label, group.count, group.at]), [
+    ['stuck:budget', 'Se quedó sin tiempo/tokens', 2, 900], ['stuck:verification', 'Tests en rojo', 2, 300], ['stuck:other', 'Phantom la bloqueó', 1, 50],
+  ]);
+  assert.deepEqual(stuck.map(group => group.items.map(item => item.id)), [['c', 'd'], ['b', 'a'], ['e']]);
+  assert.equal(stuck[0].items[0].child, 'h1');
+  assert.equal('child' in stuck[0].items[1], false);
+  assert.ok(stuck.every(group => group.meaning && group.next));
+});
+
+test('El titular de una atorada sale de «## Título» o de la primera frase, con tope de 90', () => {
+  const tasks = [
+    { id: 'a', status: 'blocked', raw: { contract: { goal: '## Título\nArreglar el login\n## Propósito\nMucho texto' } } },
+    { id: 'b', status: 'blocked', raw: { contract: { goal: 'Primera frase. Segunda frase larga.' } } },
+    { id: 'c', status: 'blocked', raw: { contract: { goal: 'x'.repeat(300) } } },
+  ];
+  const items = buildActivity({ tasks }).stuck[0].items;
+  assert.equal(items.find(item => item.id === 'a').headline, 'Arreglar el login');
+  assert.equal(items.find(item => item.id === 'b').headline, 'Primera frase.');
+  assert.ok(items.every(item => item.headline.length <= 90));
+  assert.equal(items.find(item => item.id === 'c').headline.length, 90);
+});
+
+test('El grupo «other» usa un significado genérico, nunca el motivo crudo de una tarea', () => {
+  const tasks = [
+    { id: 'a', status: 'blocked', raw: { reason: 'claude_code_error: success You hit your 5-hour limit' } },
+    { id: 'b', status: 'failed', reason: 'algo totalmente distinto' },
+  ];
+  const { stuck } = buildActivity({ tasks });
+  assert.equal(stuck.length, 1);
+  assert.equal(stuck[0].cause, 'other');
+  assert.equal(stuck[0].meaning, 'Motivos distintos; abre cada tarea para leer el suyo.');
+});
+
+test('Una atorada con sucesora o con commits ya integrados desaparece de stuck', () => {
+  const tasks = [
+    { id: 'sucedida', status: 'blocked', resolution: { supersededBy: 'nueva', landed: 0 } },
+    { id: 'integrada', status: 'blocked', resolution: { supersededBy: null, landed: 2 } },
+    { id: 'viva', status: 'blocked', resolution: { supersededBy: null, landed: 0 } },
+    { id: 'sin', status: 'failed' },
+  ];
+  const model = buildActivity({ tasks });
+  assert.deepEqual(model.stuck.flatMap(group => group.items.map(item => item.id)).sort(), ['sin', 'viva']);
+  assert.equal(model.count, 0);
+  assert.deepEqual(buildActivity({ tasks: tasks.slice(0, 2) }).stuck, []);
+});
+
+test('Una tarea que espera respuesta sigue siendo una decisión aunque haya atoradas', () => {
+  const tasks = [{ id: 'asks', status: 'awaiting_input', title: 'Pregunta' }, { id: 'perm', status: 'needs_approval' }, { id: 'stuck', status: 'blocked' }];
+  const model = buildActivity({ tasks });
+  assert.deepEqual(model.needs.map(item => [item.key, item.need]), [['task:perm', 'approval'], ['task:asks', 'input']]);
+  assert.equal(model.count, 2);
+  assert.deepEqual(model.stuck.flatMap(group => group.items.map(item => item.id)), ['stuck']);
+});
+
+test('Un permiso de chat y un conflicto de integración cuentan junto a tareas atoradas', () => {
+  const merges = { available: true, base: { branch: 'main', uncommitted: 0 }, active: [], history: [], queue: [{ id: 'r', nodeId: 't1', title: 'Navegación', status: 'conflict', conflicts: ['a.js'] }] };
+  const model = buildActivity({
+    workspace: { id: 'w', nodes: chatNodes }, merges,
+    sessions: [{ id: 's1', nodeId: 't1', status: 'running' }],
+    chats: [{ nodeId: 'c1', running: true, pending: [permission] }],
+    tasks: [{ id: 'k1', status: 'blocked', raw: { sessionId: 's1' } }, { id: 'k2', status: 'failed' }],
+  });
+  assert.deepEqual(model.needs.map(row => row.key), ['chat:c1', 'merge:r']);
+  assert.equal(model.count, 2);
+  assert.equal(model.stuck[0].count, 2);
+  assert.equal(model.stuck[0].items.find(item => item.id === 'k1').nodeId, 't1');
+});
+
+test('El día a día no pierde filas: las atoradas no ocultan lo que está en curso ni lo de hoy', () => {
+  const now = new Date(2026, 10, 13, 15, 0).getTime();
+  const base = { now, tasks: [{ id: 'run', title: 'Viva', status: 'running' }, { id: 'hecha', title: 'Hecha', status: 'completed', raw: { updatedAt: new Date(2026, 10, 13, 11, 0).toISOString() } }] };
+  const withStuck = buildActivity({ ...base, tasks: [...base.tasks, { id: 'x', status: 'blocked' }, { id: 'y', status: 'failed' }] });
+  const plain = buildActivity(base);
+  assert.deepEqual(withStuck.current, plain.current);
+  assert.deepEqual(withStuck.today, plain.today);
 });
 
 test('El dock toma la primera necesidad del modelo', () => {

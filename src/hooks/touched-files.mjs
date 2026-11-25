@@ -38,6 +38,27 @@ export function parseDiffLines(text) {
   });
 }
 
+// Side panel placement next to the session card: right outside, else left outside, else overlaid on the viewport's right.
+export function placePanel(card, viewport, { margin = 12, maxWidth = 760, minWidth = 360, minHeight = 320 } = {}) {
+  const vw = viewport.width, vh = viewport.height;
+  const height = Math.min(Math.max(card.height, minHeight), Math.max(120, vh - margin * 2));
+  const top = Math.max(margin, Math.min(card.top, vh - margin - height));
+  const right = vw - card.right - margin, left = card.left - margin;
+  if (right >= minWidth) return { side: 'right', left: card.right, top, width: Math.min(maxWidth, right), height };
+  if (left >= minWidth) { const width = Math.min(maxWidth, left); return { side: 'left', left: card.left - width, top, width, height }; }
+  const width = Math.max(1, Math.min(maxWidth, vw - margin * 2));
+  return { side: 'overlay', left: Math.max(margin, vw - margin - width), top, width, height };
+}
+
+// Path to select after the list changed: keeps the current one, else the file now at its old position (or the last).
+export function nextSelection(files, current, previous) {
+  const list = Array.isArray(files) ? files : [];
+  if (!list.length) return null;
+  if (list.some(file => file.path === current)) return current;
+  const index = Array.isArray(previous) ? previous.findIndex(file => file.path === current) : -1;
+  return list[Math.min(Math.max(index, 0), list.length - 1)].path;
+}
+
 // Keeps the previous array when the list did not change, so React does not re-render.
 export function sameFiles(a, b) {
   if (a === b) return true;

@@ -136,7 +136,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
         <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
-          <SessionChip cwd={workspace.canonicalPath || workspace.name} workspaceName={workspace.name}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionChip>
+          <SessionChip cwd={workspace.canonicalPath || workspace.name} workspaceName={workspace.name}>{context}</SessionChip>
           <PermissionSwitch mode={permissionMode} provider={active} descriptions={PERMISSIONS} disabled={!chat} onChange={configurePermission(api, workspace, pickerNode, notify)} />
           <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={!chat || running} />
           <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} observed={meta.model} disabled={!chat || running} />
