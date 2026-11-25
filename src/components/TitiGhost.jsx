@@ -21,8 +21,12 @@ export default function TitiGhost({ mood = 'calm', size = 30, still = false, cla
     if (!ctx) return undefined;
     const dpr = window.devicePixelRatio || 1;
     const body = getComputedStyle(canvas).getPropertyValue('--identity-ink').trim() || '#ece6d8';
-    canvas.width = Math.round(44 * dpr);
-    canvas.height = Math.round(44 * dpr);
+    // 9u grid (ghost is 8u wide incl. arms, 7u tall) at a whole-pixel module so it stays crisp at any size.
+    const cssSize = canvas.clientWidth || size;
+    const u = Math.max(1, Math.round((cssSize * dpr) / 9));
+    const px = 9 * u;
+    canvas.width = px;
+    canvas.height = px;
     const random = rng(1000);
     let sim = simRef.current;
     if (!sim) {
@@ -33,10 +37,10 @@ export default function TitiGhost({ mood = 'calm', size = 30, still = false, cla
     const { rig } = sim;
     const step = dt => { sim.t += dt; withRandom(sim.random, () => rig.update(dt, sim.t)); };
     const draw = () => {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, 44, 44);
-      drawGhost(ctx, 4 + 6, 2 + 6, 4, rig.small || rig.G, { ...LOD[4], body }, P);
+      ctx.clearRect(0, 0, px, px);
+      drawGhost(ctx, Math.round(1.5 * u), u, u, rig.small || rig.G, { ...LOD[4], body }, P);
     };
     let raf = 0;
     if (moving) {
@@ -56,7 +60,7 @@ export default function TitiGhost({ mood = 'calm', size = 30, still = false, cla
       draw();
     }
     return () => { if (raf) cancelAnimationFrame(raf); };
-  }, [state, moving]);
+  }, [state, moving, size]);
 
-  return <canvas {...props} ref={canvasRef} width={44} height={44} style={{ width: size, height: size, ...props.style }} aria-hidden="true" className={className} data-motion={moving ? 'running' : 'stopped'} />;
+  return <canvas {...props} ref={canvasRef} width={36} height={36} style={{ width: size, height: size, ...props.style }} aria-hidden="true" className={className} data-motion={moving ? 'running' : 'stopped'} />;
 }
