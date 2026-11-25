@@ -81,7 +81,22 @@
 .activity-tray.needs-tray .activity-stuck-list button:not(.icon-button) { padding: 0 14px; white-space: nowrap; }
 .activity-item:has(.activity-need-title[aria-expanded=true]) { align-items: start; }
 .activity-item:has(.activity-need-title[aria-expanded=true]) > .activity-actions { grid-column: 2 / -1; max-width: none; }
+.activity-tray .need-track { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; max-width: 360px; margin: 12px 0 10px; padding: 0; list-style: none; }
+.activity-tray .need-track li { padding-top: 10px; background: linear-gradient(var(--progress-track), var(--progress-track)) top / 100% var(--progress-height) no-repeat; font: var(--t-micro); color: var(--ink-3); white-space: nowrap; }
+.activity-tray .need-track li[data-step=done] { background-image: linear-gradient(var(--muted), var(--muted)); color: var(--muted); }
+.activity-tray .need-track li[data-step=fail] { background-image: linear-gradient(var(--danger), var(--danger)); color: var(--ink); }
+.activity-tray .need-lanes { display: grid; grid-template-columns: 248px minmax(0, 1fr); align-items: center; gap: 0 12px; margin: 12px 0 8px; }
+.activity-tray .need-lanes svg { display: block; overflow: visible; }
+.activity-tray .need-lanes .lane { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+.activity-tray .need-lanes .dot { fill: var(--muted); }
+.activity-tray .need-lanes .clash { fill: none; stroke: var(--danger); stroke-width: 1; stroke-dasharray: 2 3; }
+.activity-tray .need-lanes .hit { fill: var(--danger); }
+.activity-tray .need-lanes figcaption { display: grid; grid-template-rows: 24px 24px; align-items: center; font: var(--t-micro); color: var(--muted); white-space: nowrap; }
+.activity-tray .need-files { display: grid; gap: 2px; margin: 0 0 4px; padding: 0; list-style: none; }
+.activity-tray .need-files code { font: var(--t-code); color: var(--ink); background: none; padding: 0; }
+.activity-tray .need-files .need-more { color: var(--muted); }
 @media (max-width: 760px) {
+  .activity-tray .need-lanes { grid-template-columns: minmax(0, 1fr); }
   .activity-body { display: flex; flex-direction: column; overflow: auto; }
   .activity-tray-scroll { overflow: visible; padding-inline: 14px; }
   .activity-item { grid-template-columns: 36px minmax(0, 1fr); }
