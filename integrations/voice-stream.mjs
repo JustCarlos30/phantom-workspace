@@ -375,8 +375,9 @@ export async function shutdownVoiceStreams() {
 // transcribeSegment(wavBuffer) → text is supplied by voice.mjs for voice.stream.recover.
 export async function handleVoiceStream(method, payload, context, transcribeSegment) {
   if (!METHODS.has(method)) return { handled: false };
-  const { workspace } = await requireWorkspace(payload, context);
   const settings = context.state?.settings ?? context.state?.data?.settings ?? {};
+  if (method === 'voice.stream.warm' && settings.voicePreload === false) return { handled: true, result: { ready: false } };
+  const { workspace } = await requireWorkspace(payload, context);
   if (method === 'voice.stream.warm') {
     // Load the model ahead of the first dictation; never disturbs an active one.
     const { engine, busy } = await acquireEngine(context, settings);

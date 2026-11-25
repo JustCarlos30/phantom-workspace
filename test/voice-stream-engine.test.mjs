@@ -102,6 +102,12 @@ elif case == "long":
     assert result["text"] == result["confirmed"]
 `;
 
+test('warm con voicePreload=false no arranca el motor', async () => {
+  const { handleVoiceStream } = await import('../integrations/voice-stream.mjs');
+  const out = await handleVoiceStream('voice.stream.warm', {}, { state: { settings: { voicePreload: false } } });
+  assert.deepEqual(out, { handled: true, result: { ready: false } });
+});
+
 for (const [name, scenario] of [
   ['Confirmar por pausa conserva la cola; sin voz conserva un segundo', 'tail'],
   ['Decodificación usa beam 1 parcial y 2 confirmado con VAD sensible', 'beam'],
