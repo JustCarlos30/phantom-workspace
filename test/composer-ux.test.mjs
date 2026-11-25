@@ -149,7 +149,8 @@ test('Permisos: guardar/quitar explícitos contra el validador productivo, sin c
       assert.equal(await checkbox.isChecked(), false);
       await checkbox.click();
       await saved(page, 'Guardado para nuevas conversaciones: Pregunta todo.');
-      await page.locator('.pc-session-context .pc-permission').click();
+      await page.locator('.pc-selectors > .pc-permission').click();
+      await openContext(page);
       await page.getByRole('button', { name: 'Guardar permisos actuales: Autónomo' }).waitFor();
       let calls = await page.evaluate(() => window.fixture.calls.filter(call => call.method === 'workspace.update'));
       assert.equal(calls.length, 1, 'Cambiar permisos actuales no guarda defaults');
