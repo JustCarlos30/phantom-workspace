@@ -302,11 +302,19 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-folder p { margin: 0; padding: 0 16px 12px 60px; overflow-wrap: anywhere; color: var(--muted); font: var(--t-code); }
 /* «Contexto de la sesión»: a chip in the island; its settings open above the island. */
 .pc-session-settings { flex: 0 1 auto; min-width: 0; }
+.pc-thread[hidden] { display: none; }
+.pc-session-view { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior: contain; padding: 12px; background: var(--well-terminal); color: var(--ink); }
+.phantom-chat .pc-session-view { background: var(--well); }
+.pc-session-view > header { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pc-session-view h3 { margin: 0; font: var(--t-control); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-session-back { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 12px 0 8px; border: 0; border-radius: var(--r-pill); background: var(--control-fill); color: var(--ink); font: var(--t-control); cursor: pointer; }
+.pc-session-back:focus-visible { outline: var(--focus-width) solid var(--on); outline-offset: calc(-1 * var(--focus-offset)); }
+.pc-session-chip { border: 0; background: transparent; text-align: left; }
 .pc-session-chip { display: flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 0 12px 0 10px; border-radius: var(--r-pill); color: var(--muted); font: var(--t-support); list-style: none; cursor: pointer; transition: background-color var(--dur-fast) linear; }
 .pc-session-chip::-webkit-details-marker { display: none; }
 .pc-session-chip > svg { flex-shrink: 0; }
 .pc-session-chip > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.pc-session-chip:hover, .pc-session-settings[open] > .pc-session-chip { background: var(--control-fill); color: var(--ink); }
+.pc-session-chip:hover, .pc-session-chip[aria-expanded="true"] { background: var(--control-fill); color: var(--ink); }
 .pc-session-pop { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 6; display: flex; flex-direction: column; gap: 12px; width: min(440px, 100%); max-height: 60vh; overflow: auto; padding: 8px; border-radius: var(--r-obj); background: var(--object-fill) var(--menu); box-shadow: var(--shadow-chrome); color: var(--ink); cursor: default; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
 .pc-session-pop::before { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; padding: var(--object-ring-width); pointer-events: none; background: linear-gradient(var(--object-edge-top), var(--object-edge-bottom)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .pc-session-chip:focus-visible, .pc-folder > summary:focus-visible { outline: var(--focus-width) solid var(--on); outline-offset: calc(-1 * var(--focus-offset)); }
@@ -402,6 +410,10 @@ button.pc-model:focus-visible { outline: 2px solid var(--pc-hue); outline-offset
 button.pc-model > svg:last-child { color: var(--muted); }
 /* Opens upward: the composer sits on the card's bottom edge. */
 .pc-models { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; width: 320px; max-width: 100%; max-height: min(320px, 60cqh); border: 0; border-radius: var(--r-obj); background: var(--object-fill) var(--menu); box-shadow: var(--shadow-chrome); overflow: hidden; animation: island-in var(--dur) var(--ease-out); transform-origin: bottom left; }
+.pc-selectors:has(> .pc-model-picker > .pc-models) { position: relative; }
+.pc-selectors > .pc-model-picker > .pc-models { left: 0; right: 0; width: auto; max-width: 360px; }
+.pc-models > input { flex: 0 0 36px; box-sizing: border-box; min-width: 0; }
+.pc-models .pc-models-list { flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; }
 .pc-models input { height: 36px; margin: 6px 6px 0; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--ink); font: var(--t-control); font-weight: 400; }
 .pc-models input:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
 .pc-models-list { display: flex; flex-direction: column; padding: 5px; overflow-y: auto; }

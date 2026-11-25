@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useComposerSize } from '../hooks/useComposerSize';
-import { AlertCircle, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Square, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
@@ -209,20 +209,32 @@ export function useCompaction({ chat, connected, capabilities, compact, continue
 }
 
 // «Contexto de la sesión» as a chip in the island; its settings open above it.
-export function SessionChip({ cwd, branch, workspaceName, children }) {
-  const root = useRef(null), [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const outside = e => { if (!root.current?.contains(e.target)) root.current.open = false; };
-    document.addEventListener('pointerdown', outside, true);
-    return () => document.removeEventListener('pointerdown', outside, true);
-  }, [open]);
+// The settings replace the thread inside the same card; the thread stays mounted
+// (hidden) so scroll, draft and composer state survive the round trip.
+export function useSessionSettings(thread) {
+  const [open, setOpen] = useState(false), saved = useRef(0), trigger = useRef(null), was = useRef(false);
+  useLayoutEffect(() => {
+    if (was.current && !open) { if (thread.current) thread.current.scrollTop = saved.current; trigger.current?.focus({ preventScroll: true }); }
+    was.current = open;
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggle = () => setOpen(value => { if (!value) saved.current = thread.current?.scrollTop || 0; return !value; });
+  return { open, trigger, toggle, close: () => setOpen(false) };
+}
+
+export function SessionChip({ cwd, branch, workspaceName, settings }) {
   const { name, own } = sessionChipLabel({ cwd, branch, workspaceName });
-  return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
-    onKeyDown={e => { if (e.key === 'Escape' && root.current.open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
-    <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></summary>
-    <div className="pc-session-pop">{children}</div>
-  </details>;
+  return <span className="pc-session-settings">
+    <button ref={settings.trigger} type="button" className="pc-session-chip" aria-expanded={settings.open} aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined} onClick={settings.toggle}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></button>
+  </span>;
+}
+
+export function SessionSettingsView({ settings, children }) {
+  const back = useRef(null);
+  useEffect(() => { back.current?.focus({ preventScroll: true }); }, []);
+  return <section className="pc-session-view" aria-label="Configuración de la sesión" onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); settings.close(); } }}>
+    <header><button ref={back} type="button" className="pc-session-back" onClick={settings.close}><ArrowLeft size={14} aria-hidden="true" />Volver</button><h3>Configuración de la sesión</h3></header>
+    {children}
+  </section>;
 }
 
 export function ComposerControls({ selectors, leading, meter, voice, hint, children }) {
@@ -249,6 +261,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   draftRef.current = draft;
   const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
+  const settings = useSessionSettings(thread);
   const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
     onText: text => {
       const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
@@ -350,7 +363,8 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
     {planSummary(node.data?.plan) && <details className="plan-phases-toggle pc-plan"><summary><PlanPhases plan={node.data.plan} compact /></summary><PlanPhases plan={node.data.plan} /></details>}
-    <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
+    {settings.open && <SessionSettingsView settings={settings}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionSettingsView>}
+    <div ref={thread} hidden={settings.open} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}
         {!messages.length && connected && chat && <div className="pc-session-new">
@@ -375,9 +389,9 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
         <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
-          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>
+          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name} settings={settings} />
           <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
-          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
+          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running || settings.open} />
           <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
         </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} /></>}
           meter={<ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />}>

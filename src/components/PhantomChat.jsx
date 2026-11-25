@@ -6,7 +6,7 @@ import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
 import { VoiceTranscript, dictationPreview } from './VoiceActivity';
 import { useVoiceDraft } from './VoiceProvider';
-import { ComposerControls, ContextMeter, Message, ModelPicker, PermissionRow, PermissionSwitch, ProviderChoices, QueuedMessages, ReasoningPicker, SessionChip, SessionContext, configurePermission, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
+import { ComposerControls, ContextMeter, Message, ModelPicker, PermissionRow, PermissionSwitch, ProviderChoices, QueuedMessages, ReasoningPicker, SessionChip, SessionContext, SessionSettingsView, useSessionSettings, configurePermission, useCompaction, useEnabledProviders, withEdited } from './ChatCard';
 import PhantomOrchestrator from './PhantomOrchestrator';
 
 const PROVIDERS = [{ id: 'claude', label: 'Claude', hint: 'Claude Code en la carpeta del proyecto' }, { id: 'opencode', label: 'OpenCode', hint: 'OpenCode en la carpeta del proyecto' }, { id: 'codex', label: 'Codex', hint: 'Codex en la carpeta del proyecto' }];
@@ -40,6 +40,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
   const arm = value => { armedRef.current = value; setArmed(value); };
   const [switching, setSwitching] = useState(false);
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
+  const settings = useSessionSettings(thread);
   useEffect(() => { setPending(null); }, [chat?.provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
   const active = pending || chat?.provider || 'claude';
@@ -111,7 +112,8 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
       <button type="button" role="tab" id="pd-tab-orchestrator" aria-controls="pd-panel" aria-selected={tab === 'orchestrator'} data-tone={status?.tone} onClick={() => onTab?.('orchestrator')}><GitMerge size={14} aria-hidden="true" /><span className="pd-tab-label">Orquestador</span>{status?.integration && status.queued > 0 && <b aria-label={`${status.queued} en cola`}>{status.queued}</b>}{status?.integration && !status.queued && status.tone !== 'idle' && <i className="pd-tab-dot" aria-hidden="true" />}</button>
     </div>
     {tab === 'orchestrator' ? <div className="pd-panel" id="pd-panel" role="tabpanel" aria-labelledby="pd-tab-orchestrator"><PhantomOrchestrator workspace={workspace} api={api} notify={notify} connected={connected} status={status} onOpenPanel={onOpenPanel} /></div> : <>
-    <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
+    {settings.open && <SessionSettingsView settings={settings}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionSettingsView>}
+    <div ref={thread} hidden={settings.open} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{!connected ? 'Sin conexión con el host' : 'Cargando la conversación…'}</p>}
         {!messages.length && connected && chat && <div className="pc-session-new"><ProviderChoices active={active} enabled={enabled} disabled={running || switching} onChoose={chooseProvider} />{context}<details className="phantom-chat-starters"><summary>Ideas para empezar</summary><div className="phantom-chat-suggestions">{SUGGESTIONS.map(({ icon: Icon, text }) => <button key={text} type="button" disabled={running || sending} onClick={() => submit(text)}><Icon size={16} aria-hidden="true" /><span>{text}</span></button>)}</div></details></div>}
@@ -130,9 +132,9 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
         <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
-          <SessionChip cwd={workspace.canonicalPath || workspace.name} workspaceName={workspace.name}><ProviderChoices active={active} enabled={enabled} disabled={running || switching || !chat} onChoose={chooseProvider} />{context}</SessionChip>
+          <SessionChip cwd={workspace.canonicalPath || workspace.name} workspaceName={workspace.name} settings={settings} />
           <PermissionSwitch mode={permissionMode} provider={active} descriptions={PERMISSIONS} disabled={!chat} onChange={configurePermission(api, workspace, pickerNode, notify)} />
-          <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={!chat || running} />
+          <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={!chat || running || settings.open} />
           <ReasoningPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} observed={meta.model} disabled={!chat || running} />
         </>} leading={onTask && <button type="button" className="pc-icon phantom-chat-task" title="Convertir en tarea" aria-label="Convertir el texto en una tarea" disabled={!draft.trim() || voice.status !== 'idle'} onClick={() => onTask(draft.trim())}><ListPlus size={18} /></button>}
           meter={<ContextMeter meta={meta} {...compaction.meter} onNew={messages.length ? () => clear().catch(() => {}) : undefined} />}>
