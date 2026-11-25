@@ -216,7 +216,8 @@ export function SessionChip({ cwd, branch, workspaceName, children }) {
     if (!open) return;
     const outside = e => { if (!root.current?.contains(e.target) && !pop.current?.contains(e.target)) { root.current.open = false; setOpen(false); } };
     document.addEventListener('pointerdown', outside, true);
-    return () => document.removeEventListener('pointerdown', outside, true);
+    document.addEventListener('wheel', outside, { capture: true, passive: true });
+    return () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('wheel', outside, true); };
   }, [open]);
   // The popover lives on <body> (fixed): the card and canvas node clip and scale their children.
   useLayoutEffect(() => {

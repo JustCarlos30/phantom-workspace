@@ -65,7 +65,7 @@ async function render(options = {}) {
   });
   await page.setContent('<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body class="app-shell"><div id="fixture"></div></body></html>');
   await page.addStyleTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.css')).text });
-  await page.addStyleTag({ content: 'body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: ${options.fixtureHeight || height - 50}px; position: relative; container-type: inline-size; } #fixture > .phantom-chat { position: relative; inset: auto; width: 100%; height: 100%; }' });
+  await page.addStyleTag({ content: `body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: ${options.fixtureHeight || height - 50}px; position: relative; container-type: inline-size; } #fixture > .phantom-chat { position: relative; inset: auto; width: 100%; height: 100%; }` });
   await page.addScriptTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.js')).text });
   await page.evaluate(options => window.mountComposer(options), options);
   await page.locator(barModel).waitFor();
@@ -281,6 +281,22 @@ test('Popover de sesión: sin espacio arriba abre abajo o se ajusta, completo en
       results.push(`${surface}: sin espacio arriba, el popover se recoloca y queda completo en el viewport.`);
     } finally { await close(page); }
   }
+});
+
+test('Popover de sesión: rueda dentro no cierra, rueda fuera (conversación) sí', async () => {
+  const page = await render({ surface: 'card', width: 480, height: 720 });
+  try {
+    await openContext(page);
+    const box = await page.locator('.pc-session-pop').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 120);
+    assert.equal((await popState(page)).expanded, true, 'rueda dentro no cierra');
+    await page.mouse.move(2, 2);
+    await page.mouse.wheel(0, 120);
+    await page.waitForFunction(() => !document.querySelector('.pc-session-pop'));
+    assert.equal(await page.locator('.pc-session-chip').evaluate(el => el.parentElement.open), false, 'rueda fuera cierra');
+    results.push('card/720px alto: la rueda dentro del popover no lo cierra y fuera sí.');
+  } finally { await close(page); }
 });
 
 test('Voz: recorder real con audio sintético, grabación/transcripción/revisión estables a todos los anchos', async () => {
