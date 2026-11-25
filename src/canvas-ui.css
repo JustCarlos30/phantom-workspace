@@ -1333,3 +1333,7 @@ select:not([multiple]):not([size]) {
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 select:disabled { cursor: not-allowed; }
+
+/* Ctrl+Shift+F: selector rápido de paneles, centrado como una paleta y no anclado al riel. */
+.panel-index-scrim { z-index: 40; background: color-mix(in srgb, var(--bg, #000) 35%, transparent); }
+.panel-index { position: fixed; z-index: 41; top: 14vh; left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); max-height: min(70vh, 560px); }
