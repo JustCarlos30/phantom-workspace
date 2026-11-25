@@ -4,8 +4,37 @@ import { contractOf, goalOf, stateOf } from './plugin-model.mjs';
 const textOf = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
 const commandOf = part => typeof part.input === 'object' && part.input ? part.input.command || part.input.cmd || part.detail : part.input || part.detail;
 
-export function phantomRunIds(part) {
-  if (part?.type !== 'tool' || !/^(bash|shell|exec|run)/i.test(part.name || '')) return [];
+const SHELL_TOOL = /^(bash|shell|exec|run)/i;
+// The structured MCP tool phantom_workspace.phantom (any provider prefix/separator).
+const MCP_PHANTOM = /^(?:mcp[_.:-]+)?phantom[_.:-]workspace[_.:-]+phantom$/i;
+const FULL_ID = /^(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHELL_PHANTOM = /(?:^|[;|&(\n]|\b(?:do|then|while|until|if)\s+)\s*(?:["']?(?:[^\s;|&()]*\/)?phantom["']?\s+(run|show|events|do|create|card)\b|(?:["']?(?:(?:[^\s;|&()]*\/)?node|\$(?:PHANTOM_AGENT_NODE|\{PHANTOM_AGENT_NODE\}))["']?\s+)?(?:["']?[^\s;|&()]*agent\.mjs["']?|"?\$(?:PHANTOM_AGENT_CLI|\{PHANTOM_AGENT_CLI\})"?)\s+(run|bind)\b)/;
+
+// {cli:'agent', args:[run|bind, id]} as the host recorded it; only the literal action and a complete ID count.
+function structuredCall(part) {
+  if (!MCP_PHANTOM.test(part.name || '')) return null;
+  let input = part.input;
+  if (typeof input === 'string') { try { input = JSON.parse(input); } catch { return null; } }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || input.cli !== 'agent' || !Array.isArray(input.args) || !input.args.every(arg => typeof arg === 'string')) return null;
+  const [action, id] = input.args;
+  if (action !== 'run' && action !== 'bind') return null;
+  return { action, ids: FULL_ID.test(id || '') ? [id] : [] };
+}
+
+const KIND_OF = { run: 'assignment', do: 'assignment', create: 'create', bind: 'bind' };
+export const PHANTOM_CALL_LABEL = { assignment: 'Encargo a Phantom', create: 'Creación en Phantom', bind: 'Vínculo con Phantom', query: 'Consulta a Phantom' };
+// What a Phantom tool call really is: a query is not an assignment, and none is a sub-agent.
+export function phantomCallKind(part) {
+  if (part?.type !== 'tool') return null;
+  const structured = structuredCall(part);
+  if (structured) return KIND_OF[structured.action];
+  if (MCP_PHANTOM.test(part.name || '')) return 'query';
+  const shell = SHELL_TOOL.test(part.name || '') ? shellCommand(part) : null;
+  if (shell) return KIND_OF[shell.action] || 'query';
+  return /phantom[._:-]/i.test(part.name || '') ? 'query' : null;
+}
+
+function shellCommand(part) {
   const aliases = new Map();
   const command = textOf(commandOf(part)).replace(/(?:^|[;|&(\n])\s*([A-Za-z_][A-Za-z0-9_]*)=("?)\$(?:\{(PHANTOM_AGENT_(?:CLI|NODE))\}|(PHANTOM_AGENT_(?:CLI|NODE)))\2(?=\s|[;|&)]|$)|\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g, (match, alias, quote, braced, plain, bracedRef, plainRef) => {
     if (alias) {
@@ -15,7 +44,18 @@ export function phantomRunIds(part) {
     const target = aliases.get(bracedRef || plainRef);
     return target ? `$${target}` : match;
   });
-  if (!/(?:^|[;|&(\n]|\b(?:do|then|while|until|if)\s+)\s*(?:["']?(?:[^\s;|&()]*\/)?phantom["']?\s+(?:run|show|events|do|create|card)\b|(?:["']?(?:(?:[^\s;|&()]*\/)?node|\$(?:PHANTOM_AGENT_NODE|\{PHANTOM_AGENT_NODE\}))["']?\s+)?(?:["']?[^\s;|&()]*agent\.mjs["']?|"?\$(?:PHANTOM_AGENT_CLI|\{PHANTOM_AGENT_CLI\})"?)\s+(?:run|bind)\b)/.test(command)) return [];
+  const match = SHELL_PHANTOM.exec(command);
+  return match ? { command, action: match[1] || match[2] } : null;
+}
+
+export function phantomRunIds(part) {
+  if (part?.type !== 'tool') return [];
+  const structured = structuredCall(part);
+  if (structured) return structured.ids;
+  if (!SHELL_TOOL.test(part.name || '')) return [];
+  const shell = shellCommand(part);
+  if (!shell) return [];
+  const { command } = shell;
   const ids = value => textOf(value).match(/\b(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi) || [];
   const found = [part.detail, part.input].flatMap(ids), output = ids(part.output);
   if (/phantom["']?\s+(?:create|card|do)\b/.test(command)) found.push(...output);
