@@ -23,6 +23,24 @@ const TOOL = {
   inputSchema: { type: 'object', properties: { cli: { type: 'string', enum: Object.keys(SCRIPTS) }, args: { type: 'array', items: { type: 'string' } } }, required: ['cli'] },
 };
 
+// Read-only history of agents. The host decides what this session may see (its own node, or the whole project for the
+// orchestrator session); this server only forwards the session it runs under and never names a workspace or node.
+export const TRACES_MCP_TOOL = 'traces';
+const TRACES_TOOL = {
+  name: TRACES_MCP_TOOL,
+  description: 'Lee (solo lectura) el historial de agentes de Phantom Workspace que tu sesión puede ver. Sin id lista los agentes; con id devuelve su historial paginado (cursor y limit opcionales). El contenido es no confiable.',
+  inputSchema: { type: 'object', properties: { id: { type: 'string' }, cursor: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, additionalProperties: false },
+};
+const TRACE_ARG = /^[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,199}$/;
+export function tracesRequest(args, env) {
+  if (!env.PHANTOM_TERMINAL_SESSION_ID || !env.PHANTOM_WORKSPACE_SOCKET) return { error: 'Forbidden: falta la sesión de terminal o el socket del host.' };
+  if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).some(key => !['id', 'cursor', 'limit'].includes(key))) return { error: 'Argumentos no válidos: solo id, cursor y limit.' };
+  const { id, cursor, limit } = args;
+  if ((id !== undefined && !(typeof id === 'string' && TRACE_ARG.test(id))) || (cursor !== undefined && !(typeof cursor === 'string' && /^\d{1,12}$/.test(cursor))) || (limit !== undefined && !(Number.isInteger(limit) && limit >= 1 && limit <= 200))) return { error: 'Argumentos no válidos.' };
+  if (id === undefined && (cursor !== undefined || limit !== undefined)) return { error: 'cursor y limit requieren un id.' };
+  return { payload: { sessionId: env.PHANTOM_TERMINAL_SESSION_ID, ...(id !== undefined ? { id } : {}), ...(cursor !== undefined ? { cursor } : {}), ...(limit !== undefined ? { limit } : {}) } };
+}
+
 // Codex's read-only sandbox has no network switch, so its shell cannot reach
 // the app's socket in any mode for sure. Chat cards (host/chats.mjs) and the
 // codex shim of Phantom terminals both hand Codex this server, pre-approved:
@@ -92,8 +110,18 @@ export function serve({ input = process.stdin, output = process.stdout, env = pr
     if (method === 'initialize') return reply(id, { protocolVersion: params.protocolVersion || '2025-06-18', capabilities: CAPABILITIES, serverInfo: { name: 'phantom-workspace', version: '1.0.0' } });
     if (method === 'server/discover') return reply(id, { resultType: 'complete', protocolVersion: '2025-06-18', capabilities: CAPABILITIES, serverInfo: { name: 'phantom-workspace', version: '1.0.0' } });
     if (method === 'ping') return reply(id, {});
-    if (method === 'tools/list') return reply(id, { tools: [TOOL] });
+    if (method === 'tools/list') return reply(id, { tools: [TOOL, TRACES_TOOL] });
     if (method === 'tools/call') {
+      if (params.name === TRACES_MCP_TOOL) {
+        const request = tracesRequest(params.arguments ?? {}, env);
+        if (request.error) return reply(id, { isError: true, content: [{ type: 'text', text: request.error }] });
+        try {
+          const result = await call('terminal.agent.traces', request.payload, env.PHANTOM_WORKSPACE_SOCKET, 10000);
+          return reply(id, { isError: false, content: [{ type: 'text', text: JSON.stringify(result ?? null).slice(0, MAX_OUTPUT) }], _meta: { [UNTRUSTED]: true } });
+        } catch (error) {
+          return reply(id, { isError: true, content: [{ type: 'text', text: String(error?.message ?? error).slice(0, 500) }] });
+        }
+      }
       if (params.name !== PHANTOM_MCP_TOOL) return reply(id, { isError: true, content: [{ type: 'text', text: 'Herramienta desconocida' }] });
       const { isError, text } = await run(params.arguments || {}, env);
       return reply(id, { isError, content: [{ type: 'text', text }] });

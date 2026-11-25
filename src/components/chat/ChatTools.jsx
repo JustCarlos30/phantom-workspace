@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Check, ChevronRight, Cpu, FileText, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, Pencil, Search, SquareTerminal, Wrench, X } from 'lucide-react';
 import ToolOutput from '../ToolOutput';
 import { PhantomGlyph } from '../Glyphs';
-import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity } from '../../hooks/phantom-run-link.mjs';
+import { phantomCallKind, PHANTOM_CALL_LABEL, summarizePhantomRun, summarizePhantomActivity } from '../../hooks/phantom-run-link.mjs';
 import { itemsOf } from '../../hooks/plugin-model.mjs';
 
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^(check|verify)$/, ListChecks, 'check'], [/^todo/, ListChecks, 'todo']];
@@ -16,13 +16,13 @@ const TOOL_STATES = { error: 'Falló', stopped: 'Detenida' };
 export const ToolRow = React.memo(function ToolRow({ part }) {
   const [open, setOpen] = useState(false);
   const [, Icon, kind] = toolKind(part.name);
-  const phantom = phantomRunIds(part).length > 0 || /phantom[._:-]/i.test(part.name);
+  const call = phantomCallKind(part), phantom = call !== null;
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
   const [doing, did] = TOOL_VERBS[kind] || ['Usando', 'Usó'];
   const codeDetail = ['read', 'edit', 'shell', 'search', 'web'].includes(kind);
   const summary = <>
     <span className="pc-tool-mark" aria-hidden="true">{phantom ? <PhantomGlyph size={16} /> : <Icon size={16} />}</span>
-    <span className="pc-tool-label" title={part.name}>{phantom ? 'Phantom' : part.status === 'running' ? doing : did}</span>
+    <span className="pc-tool-label" title={part.name}>{phantom ? PHANTOM_CALL_LABEL[call] : part.status === 'running' ? doing : did}</span>
     {!phantom && !TOOL_VERBS[kind] && <span className="pc-tool-name">{part.name}</span>}
     <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail || undefined}>{part.detail}</span>
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
@@ -157,9 +157,15 @@ function StepState({ status }) {
   if (status === 'stopped') return <span className="pc-tool-state">detenido</span>;
   return <Check className="pc-tool-state is-done" size={14} aria-label="Completado" />;
 }
-export const SubagentCard = React.memo(function SubagentCard({ part }) {
+export const SubagentCard = React.memo(function SubagentCard({ part, onOpenAgent }) {
   const [open, setOpen] = useState(false);
   const agent = part.agent || { steps: [] }, steps = agent.steps || [], total = Math.max(agent.total || 0, steps.length);
+  const model = typeof agent.model === 'string' ? agent.model.trim() : '';
+  // The id the durable history uses for this agent: Claude, the call's own id; OpenCode, the child session the call
+  // reported; Codex, its single receiver thread (a call over several threads has no single agent to open).
+  const traceId = typeof agent.sessionId === 'string' && agent.sessionId ? agent.sessionId
+    : Array.isArray(agent.threadIds) ? (agent.threadIds.length === 1 ? agent.threadIds[0] : '')
+    : part.id != null ? String(part.id) : '';
   const running = part.status === 'running', current = running ? steps.findLast(step => step.status === 'running') || steps.at(-1) : null;
   const hidden = total - steps.length;
   return <section className={`pc-subagent is-${part.status}`} aria-label={`Subagente${agent.type ? ` ${agent.type}` : ''}: ${part.detail || part.name}`}>
@@ -167,6 +173,7 @@ export const SubagentCard = React.memo(function SubagentCard({ part }) {
       <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={16} /></span>
       <span className="pc-subagent-label">Subagente</span>
       {agent.type && <span className="pc-subagent-type">{agent.type}</span>}
+      <span className="pc-subagent-type pc-subagent-model" title={model || undefined}>{model ? model.split('/').at(-1) : 'Modelo no disponible'}</span>
       <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={14} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
     </header>
     <p className="pc-subagent-goal" title={part.detail}>{part.detail || part.name}</p>
@@ -189,6 +196,7 @@ export const SubagentCard = React.memo(function SubagentCard({ part }) {
       <summary><ChevronRight size={14} aria-hidden="true" />Resultado</summary>
       <div className="pc-subagent-output">{open && <ToolOutput part={part} kind="agent" />}</div>
     </details>}
+    {onOpenAgent && traceId && <button type="button" className="pc-phantom-open" onClick={() => onOpenAgent(traceId)}>Ver detalle e historial</button>}
   </section>;
 });
 

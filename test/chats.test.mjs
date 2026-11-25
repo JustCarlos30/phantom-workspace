@@ -7,6 +7,8 @@ import { createHost } from '../host/server.mjs';
 import { Chats, applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
 import { mergeChat } from '../src/hooks/chatState.js';
 import { handleIntegration } from '../integrations/index.mjs';
+import { createAgentTraceStore } from '../host/agent-traces.mjs';
+import { adaptTraceEvent, adaptTurnTrace, createTraceState, traceRootId } from '../host/agent-trace-adapters.mjs';
 
 const until = async fn => { const end = Date.now() + 5000; while (Date.now() < end) { if (await fn()) return; await new Promise(r => setTimeout(r, 25)); } throw new Error('Timed out'); };
 const turn = () => ({ message: { parts: [] }, sessionId: null, streamed: new Set(), freshText: true, cwd: '/repo', error: '' });
@@ -745,6 +747,90 @@ test('the project\'s Phantom chat runs in the project folder with its identity, 
   chat = await host.invoke('chat.get', ref);
   assert.deepEqual([chat.permissionMode, chat.mode], ['auto', 'auto']);
   assert.equal(host.chats.nodes[ref.nodeId].settings.permissionMode, undefined);
+});
+
+test('chat turns emit trace records for the root and nested children with the real workspace and node; a failing sink never breaks the turn', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-chat-trace-'));
+  const claude = fixture(root, 'claude', `const out=o=>console.log(JSON.stringify(o));process.stdin.resume();process.stdin.on('end',()=>{
+    out({type:'system',subtype:'init',session_id:'sid-t',model:'claude-observed'});
+    out({type:'assistant',message:{id:'m1',model:'claude-observed',content:[{type:'tool_use',id:'toolu_A',name:'Agent',input:{description:'Buscar',prompt:'Encuentra X',subagent_type:'Explore'}}]}});
+    out({type:'assistant',parent_tool_use_id:'toolu_A',message:{id:'m2',content:[{type:'tool_use',id:'toolu_B',name:'Agent',input:{description:'Nieto',prompt:'Mira'}}]}});
+    out({type:'assistant',parent_tool_use_id:'toolu_B',message:{id:'m3',content:[{type:'text',text:'hecho'}]}});
+    out({type:'user',parent_tool_use_id:'toolu_A',message:{content:[{type:'tool_result',tool_use_id:'toolu_B',content:'ok'}]}});
+    out({type:'user',message:{content:[{type:'tool_result',tool_use_id:'toolu_A',content:'listo'}]}});
+    out({type:'result',subtype:'success',is_error:false,result:'ok',session_id:'sid-t',usage:{output_tokens:1}});});`);
+  const host = await createHost({ dataDir: path.join(root, 'state'), handleIntegration: () => ({ handled: false }) });
+  const traces = createAgentTraceStore({ dataDir: path.join(root, 'traces') });
+  t.after(async () => { traces.close(); await host.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await host.invoke('settings.update', { patch: { claudePath: claude } });
+  const w = await host.invoke('workspace.open', { path: root });
+  const node = await host.invoke('node.create', { workspaceId: w.id, type: 'terminal', data: { chat: { provider: 'claude', models: { claude: 'sonnet' } } } });
+  const ref = { workspaceId: w.id, nodeId: node.id }, records = [];
+  host.chats.onTrace = record => { records.push(record); if (records.length === 1) throw new Error('sink roto'); traces.record(record); };
+  await host.invoke('chat.send', { ...ref, text: 'hola' });
+  await until(async () => !(await host.invoke('chat.get', ref)).running);
+  assert.equal((await host.invoke('chat.get', ref)).messages.at(-1).status, 'done', 'the sink failure did not reach the turn');
+  assert.deepEqual([host.chats.traceFailures.count, host.chats.traceFailures.last], [1, 'sink roto']);
+  assert.ok(records.every(record => record.workspaceId === w.id && record.nodeId === node.id && record.provider === 'claude'));
+  assert.deepEqual([records[0].event.kind, records[0].status, records[0].context.assignment], ['turn.start', 'running', 'hola']);
+  const rootId = `root:${node.id}:claude`, list = traces.list({ workspaceId: w.id }).items, byId = id => list.find(item => item.id === id);
+  assert.deepEqual([rootId, 'toolu_A', 'toolu_B'].map(id => [byId(id).parentId, byId(id).status]), [[null, 'done'], [rootId, 'done'], ['toolu_A', 'done']]);
+  assert.equal(byId(rootId).requestedModel, 'sonnet'); assert.equal(byId(rootId).observedModel, 'claude-observed');
+  const events = id => traces.detail({ workspaceId: w.id, id, limit: 200 }).events;
+  assert.ok(events('toolu_B').some(event => event.text === 'hecho'));
+  assert.ok(!events(rootId).some(event => event.text === 'hecho'), 'nested output never lands on the root');
+  assert.deepEqual(events(rootId).at(-1).kind, 'turn.end');
+});
+
+test('Chats takes an optional onTrace: sync and async failures are counted, and without it no adapter runs', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-chat-sink-'));
+  const seen = [], traced = new Chats({ dir: root }, () => {}, undefined, { onTrace: record => { seen.push(record.id); return Promise.reject(new Error('async')); } });
+  const quiet = new Chats({ dir: root }, () => {});
+  t.after(() => { clearInterval(traced.timer); clearInterval(quiet.timer); fs.rmSync(root, { recursive: true, force: true }); });
+  traced.trace(() => [{ id: 'a' }, { id: 'b' }]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual([seen, traced.traceFailures.count], [['a', 'b'], 2]);
+  traced.trace(() => { throw new Error('adapter roto'); });
+  assert.deepEqual([traced.traceFailures.count, traced.traceFailures.last], [3, 'adapter roto']);
+  quiet.trace(() => { throw new Error('nunca se llama'); });
+  assert.equal(quiet.traceFailures.count, 0);
+});
+
+test('onTrace keeps nested children under their real parent, settles the open ones and counts a record that claims another node', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-chat-nested-'));
+  const traces = createAgentTraceStore({ dataDir: root });
+  const chats = new Chats({ dir: root }, () => {}, undefined, { onTrace: record => traces.record(record) });
+  t.after(() => { clearInterval(chats.timer); traces.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  const state = createTraceState(), base = { workspaceId: 'w1', nodeId: 'n1', provider: 'claude', state, turnId: 't1' };
+  const rootId = traceRootId({ nodeId: 'n1', provider: 'claude' });
+  const events = [
+    { type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', id: 'toolu_A', name: 'Agent', input: { description: 'Uno', prompt: 'Primer encargo' } }] } },
+    { type: 'assistant', parent_tool_use_id: 'toolu_A', message: { id: 'm2', content: [{ type: 'tool_use', id: 'toolu_B', name: 'Agent', input: { description: 'Dos', prompt: 'Segundo encargo' } }] } },
+    { type: 'assistant', parent_tool_use_id: 'toolu_B', message: { id: 'm3', content: [{ type: 'text', text: 'habla el nieto' }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_A', content: 'listo' }] } },
+  ];
+  chats.trace(() => adaptTurnTrace({ ...base, phase: 'start', message: 'delega' }));
+  for (const event of events) chats.trace(() => adaptTraceEvent({ ...base, event }));
+  chats.trace(() => adaptTurnTrace({ ...base, phase: 'end', status: 'done' }));
+  assert.equal(chats.traceFailures.count, 0);
+  const by = Object.fromEntries(traces.list({ workspaceId: 'w1' }).items.map(item => [item.id, item]));
+  assert.deepEqual([rootId, 'toolu_A', 'toolu_B'].map(id => [by[id].parentId, by[id].status]), [[null, 'done'], [rootId, 'done'], ['toolu_A', 'unknown']]);
+  const texts = id => traces.detail({ workspaceId: 'w1', id, limit: 200 }).events.map(event => event.text);
+  assert.ok(texts('toolu_B').includes('habla el nieto'));
+  assert.ok(!texts('toolu_A').includes('habla el nieto') && !texts(rootId).includes('habla el nieto'), 'a grandchild never writes on its ancestors');
+  assert.equal(by.toolu_B.context.assignment.text, 'Segundo encargo');
+  // A record that names another node for an existing agent is refused by the store; the turn only sees a counted failure.
+  chats.trace(() => [{ workspaceId: 'w1', nodeId: 'otro', id: 'toolu_A', event: { id: 'intruso', kind: 'message', text: 'x' } }]);
+  assert.equal(chats.traceFailures.count, 1);
+  assert.match(chats.traceFailures.last, /otro nodo/);
+  assert.ok(!texts('toolu_A').includes('x'));
+});
+
+test('a Codex delegation keeps its receiver threads so the card can open the right agent', () => {
+  const x = turn();
+  applyCodexEvent(x, { type: 'item.completed', item: { id: 'sp', type: 'collab_tool_call', tool: 'spawn_agent', prompt: 'Revisa', receiver_thread_ids: ['t-1'], status: 'completed' } });
+  applyCodexEvent(x, { type: 'item.completed', item: { id: 'sp2', type: 'collab_tool_call', tool: 'spawn_agent', prompt: 'Revisa dos', receiver_thread_ids: ['t-1', 't-2', 7], status: 'completed' } });
+  assert.deepEqual(x.message.parts.map(part => part.agent.threadIds), [['t-1'], ['t-1', 't-2']]);
 });
 
 test('messages written while the agent works wait their turn; a stop pauses the line', async t => {
