@@ -78,6 +78,107 @@ export function authorize(principal, request = {}, lookup) {
   return { workspaceIds, ownerNodeIds: [node.id], audiences: ['workspace', 'owner'], role: orchestrator ? 'orchestrator' : 'worker' };
 }
 
+// --- Observabilidad de agentes: validación de RPC, permisos y saneado de registros -------------------------------
+// Los RPC del renderer (agent.traces.*, supervisor.*) y los de agentes (terminal.agent.trace[s]) comparten estos
+// validadores, pero nunca la superficie: el renderer nombra el workspace; un agente solo existe por su sesión PTY vigente.
+export const TRACE_RENDERER_METHODS = Object.freeze(['agent.traces.list', 'agent.traces.detail', 'supervisor.read', 'supervisor.configure', 'supervisor.refresh']);
+export const TRACE_AGENT_METHODS = Object.freeze(['terminal.agent.trace', 'terminal.agent.traces']);
+export const TRACE_MAX_RECORDS = 50;
+export const TRACE_MAX_BYTES = 256 * 1024;
+const TRACE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,199}$/;
+const TRACE_PROVIDERS = new Set(['claude', 'codex', 'opencode']);
+const RECORD_KEYS = new Set(['id', 'parentId', 'provider', 'name', 'model', 'modelSource', 'status', 'context', 'event', 'providerAgentId', 'matchOnly', 'parent', 'workspaceId', 'nodeId', 'taskId', 'runId']);
+const refuse = (message) => { throw new Error(message); };
+const plainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
+function traceId(value, name) {
+  if (typeof value !== 'string' || !TRACE_ID.test(value)) refuse(`${name} no válido`);
+  return value;
+}
+
+/** Parámetros exactos de un RPC de observabilidad; cualquier clave extra o fuera de rango se rechaza. */
+export function traceParams(method, payload) {
+  if (!plainObject(payload)) refuse('Parámetros no válidos');
+  const allowed = {
+    'agent.traces.list': ['workspaceId', 'nodeId'],
+    'agent.traces.detail': ['workspaceId', 'id', 'cursor', 'limit'],
+    'terminal.agent.traces': ['sessionId', 'id', 'cursor', 'limit'],
+    'supervisor.read': ['workspaceId'],
+    'supervisor.refresh': ['workspaceId'],
+    'supervisor.configure': ['workspaceId', 'patch'],
+  }[method];
+  if (!allowed) refuse('Método de trazas desconocido');
+  for (const key of Object.keys(payload)) if (!allowed.includes(key)) refuse(`Clave no permitida: ${String(key).slice(0, 40)}`);
+  const out = {};
+  if (allowed.includes('sessionId')) out.sessionId = traceId(payload.sessionId, 'sessionId');
+  if (allowed.includes('workspaceId')) out.workspaceId = traceId(payload.workspaceId, 'workspaceId');
+  if (payload.nodeId !== undefined && payload.nodeId !== null) out.nodeId = traceId(payload.nodeId, 'nodeId');
+  if (allowed.includes('id') && (method !== 'terminal.agent.traces' || payload.id !== undefined)) out.id = traceId(payload.id, 'id');
+  if (payload.cursor !== undefined && payload.cursor !== null) {
+    if (typeof payload.cursor !== 'string' || !/^\d{1,12}$/.test(payload.cursor)) refuse('cursor no válido');
+    out.cursor = payload.cursor;
+  }
+  if (payload.limit !== undefined && payload.limit !== null) {
+    if (!Number.isInteger(payload.limit) || payload.limit < 1 || payload.limit > 200) refuse('limit debe ser un entero entre 1 y 200');
+    out.limit = payload.limit;
+  }
+  if (method === 'supervisor.configure') {
+    if (!plainObject(payload.patch) || Object.keys(payload.patch).length > 8) refuse('patch no válido');
+    out.patch = payload.patch;
+  }
+  return out;
+}
+
+/** Lo que la UI lee: el total medido por el proveedor es la suma de sus campos; nunca se estima ni se hereda. */
+export function publicTraceAgent(agent) {
+  const tokens = agent?.context?.tokens;
+  if (!tokens || tokens.available !== true || !Number.isFinite(tokens.measured)) return agent;
+  return { ...agent, context: { ...agent.context, tokens: { ...tokens, total: tokens.measured } } };
+}
+
+/**
+ * Qué agentes de trazas puede leer una sesión: solo con sesión PTY viva y vigente (misma regla que workspace.events).
+ * Un worker lee los agentes de su propio nodo; la sesión orquestadora, los de su workspace. Nunca otros proyectos.
+ */
+export function authorizeTraceRead(sessionId, lookup) {
+  const grant = authorize({ sessionId }, {}, lookup);
+  const session = lookup.session(sessionId);
+  return { workspaceId: session.workspaceId, nodeId: grant.role === 'worker' ? session.nodeId : null, role: grant.role };
+}
+
+/**
+ * Registros que un hook de agente envía por su sesión: el host impone workspace y nodo de la sesión, descarta
+ * taskId/runId (el agente no puede probarlos) y rechaza padres/actores que pertenezcan a otro nodo.
+ * identity: { workspaceId, nodeId, taskId?, resolveAgent(id) -> {nodeId}|null }
+ */
+export function sanitizeTraceRecords(records, identity) {
+  if (!Array.isArray(records) || records.length < 1 || records.length > TRACE_MAX_RECORDS) refuse(`Se esperan entre 1 y ${TRACE_MAX_RECORDS} registros`);
+  if (JSON.stringify(records).length > TRACE_MAX_BYTES) refuse('Los registros superan el límite de tamaño');
+  const local = new Map();
+  const owner = (id) => local.get(id) ?? identity.resolveAgent(id);
+  const foreign = (id) => { const found = owner(id); return !!found && found.nodeId !== identity.nodeId; };
+  return records.map((raw) => {
+    if (!plainObject(raw)) refuse('Registro no válido');
+    for (const key of Object.keys(raw)) if (!RECORD_KEYS.has(key)) refuse(`Campo de registro no permitido: ${String(key).slice(0, 40)}`);
+    const record = { ...raw, workspaceId: identity.workspaceId, nodeId: identity.nodeId };
+    traceId(record.id, 'id');
+    delete record.runId;
+    if (record.taskId !== undefined && record.taskId !== null && record.taskId !== identity.taskId) delete record.taskId;
+    if (record.provider !== undefined && record.provider !== null && !TRACE_PROVIDERS.has(record.provider)) refuse('Proveedor no permitido');
+    for (const key of ['parentId', 'providerAgentId']) if (record[key] !== undefined && record[key] !== null) traceId(record[key], key);
+    if (foreign(record.id)) refuse('El agente pertenece a otro nodo');
+    if (record.parentId && foreign(record.parentId)) refuse('El padre pertenece a otro nodo');
+    if (plainObject(record.event) && record.event.actorId !== undefined) {
+      const actor = record.event.actorId;
+      if (typeof actor !== 'string' || !TRACE_ID.test(actor)) refuse('actorId no válido');
+      if (foreign(actor)) refuse('El actor pertenece a otro nodo');
+      if (actor !== record.parentId && !owner(actor)) record.event = { ...record.event, actorId: undefined };
+    }
+    local.set(record.id, { nodeId: identity.nodeId });
+    return record;
+  });
+}
+
 export function createHostEvents({ stallMs, unattendedMs, tickMs = 30000, broadcast = () => {}, now = Date.now } = {}) {
   const model = createWorkspaceEvents({ stallMs, unattendedMs, now });
   const owned = new Map();
