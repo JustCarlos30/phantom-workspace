@@ -1337,3 +1337,17 @@ select:disabled { cursor: not-allowed; }
 /* Ctrl+Shift+F: selector rápido de paneles, centrado como una paleta y no anclado al riel. */
 .panel-index-scrim { z-index: 40; background: color-mix(in srgb, var(--bg, #000) 35%, transparent); }
 .panel-index { position: fixed; z-index: 41; top: 14vh; left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); max-height: min(70vh, 560px); }
+
+/* Paneles agrupados por lo que necesitan de ti, y proyectos con su estado. */
+.index-group-title { display: flex; align-items: center; justify-content: space-between; margin: 10px 12px 4px; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.index-group:first-child .index-group-title { margin-top: 2px; }
+.index-group[data-state="attention"] .index-group-title { color: var(--attention); }
+.index-group[data-state="working"] .index-group-title { color: var(--working); }
+.index-group-title b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.index-type { display: inline-flex; align-items: center; gap: 6px; }
+.index-dot, .tw-project-status i { display: inline-block; width: 6px; height: 6px; flex-shrink: 0; border-radius: var(--r-pill); background: var(--ink-3, var(--muted)); opacity: .7; }
+.index-dot.is-attention, .tw-project-status.is-attention i { background: var(--attention); opacity: 1; }
+.index-dot.is-working, .tw-project-status.is-working i { background: var(--working); opacity: 1; }
+.tw-project-status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; font-size: 11px; color: var(--muted); }
+.tw-project-status.is-attention { color: var(--attention); }
+.tw-project-status.is-working { color: var(--working); }
