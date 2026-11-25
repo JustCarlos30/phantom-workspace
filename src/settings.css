@@ -188,3 +188,12 @@ textarea.st-input { flex: auto; width: 100%; text-align: left; resize: vertical;
 .st .st-select:hover:not(:disabled) { background-color: var(--control-hover); }
 .st-select option { background: var(--surface); color: var(--ink); padding: 6px 12px; }
 @media (pointer: coarse) { .st-select { height: 44px; } }
+
+/* The shared select rule (canvas-ui.css, !important) put the chevron 9px from the edge and
+   shrank the padding; in settings the arrow must line up with the row's 12px inset. */
+.st select.st-select:not([multiple]):not([size]) {
+  padding-inline: 12px 36px !important;
+  background-position: right 12px center !important;
+  background-size: 12px 12px !important;
+  line-height: 20px;
+}

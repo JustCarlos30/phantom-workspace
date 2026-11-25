@@ -1,5 +1,8 @@
 // Source semantics only: a PTY and a controller process are not agent progress.
 import { isReadyBranch } from './incorporaciones-model.mjs';
+import { explainReason, resolutionOf, titleOf } from './phantom-desk.mjs';
+
+const OTHER_MEANING = 'Motivos distintos; abre cada tarea para leer el suyo.';
 export const itemsOf = value => Array.isArray(value) ? value : Array.isArray(value?.items) ? value.items : [];
 const text = value => typeof value === 'string' ? value : '';
 const states = {
@@ -64,6 +67,8 @@ export function activityTitle(item) {
 export function integrationState(item) {
   return ({ queued: 'En cola', merging: 'Integrando', conflict: 'Conflicto', failed: 'Tests fallidos', merged: 'En main', rejected: 'Rechazada', withdrawn: 'Retirada' })[item?.status] || 'Estado desconocido';
 }
+export const STUCK_STEPS = ['Preparar', 'Agente', 'Checks', 'Revisor', 'Listo'];
+const STUCK_STEP = { baseline: 0, 'baseline-dirty': 0, snapshot: 0, 'git-dirty': 0, 'workspace-gone': 0, budget: 1, 'no-change': 1, engine: 1, 'out-of-scope': 1, verification: 2, 'checks-mutate': 2, 'weak-checks': 2, judge: 3 };
 export function integrationGroups(merges) {
   if (merges?.available !== true) return { ready: [], decisions: [], active: [] };
   const queue = itemsOf(merges.queue);
@@ -153,6 +158,9 @@ const SESSION_NEED = {
   lost: 'Se perdió la sesión', failed: 'Falló', blocked: 'Está bloqueada',
 };
 const RANK = { permission: 0, question: 1, approval: 2 };
+// A blocked or failed Phantom task is not waiting on a reply: it is stuck, and
+// is reported by cause apart from the decisions that do need you.
+const STUCK = ['blocked', 'failed', 'error'];
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
 // chats: [{ nodeId, running, pending: [part] }] — what each chat card (and the
 // project's Phantom conversation, `phantom:<workspace>`) is waiting on.
@@ -198,7 +206,7 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
     needs.push(chatNeed(entry, main ? 'Phantom' : node.title || 'Chat', main ? 'phantom' : node.data?.chat?.provider, main));
     claim(node?.id);
   }
-  for (const t of taskRows.filter(t => t.needsYou)) {
+  for (const t of taskRows.filter(t => t.needsYou && !STUCK.includes(t.status))) {
     const kind = rowKind(t), where = t.sessions[0]?.title;
     needs.push({ ...t, key: `task:${t.id}`, target: 'tasks', source: 'Phantom · phantom.list', group: 'now', need: kind, headline: t.title, context: [kind === 'blocked' ? 'Tarea bloqueada' : `Tarea · ${t.label}`, where].filter(Boolean).join(' · ') });
     claim(...t.sessions.map(s => s.nodeId));
@@ -217,14 +225,32 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
   }
   for (const item of integrations.decisions) {
     if (item.nodeId && claimed.has(item.nodeId)) continue;
-    const name = text(item.title) || 'Una rama', files = itemsOf(item.conflicts).slice(0, 2).join(', ');
-    const [need, headline, context] = item.status === 'conflict' ? ['conflict', `${name} choca con ${base}`, files ? `Conflicto en ${files}` : 'No se puede integrar hasta resolverlo']
+    const name = text(item.title) || 'Una rama', conflictFiles = itemsOf(item.conflicts).filter(file => typeof file === 'string' && file.trim()), files = conflictFiles.slice(0, 2).join(', ');
+    const [need, headline, context] = item.status === 'conflict' ? ['conflict', `${name} choca con ${base}`, conflictFiles.length ? 'No se puede integrar hasta resolverlo' : files ? `Conflicto en ${files}` : 'No se puede integrar hasta resolverlo']
       : item.status === 'failed' ? ['checks', `${name}: tests fallidos`, 'Hay que corregirlos y volver a enviarla']
         : ['blocked', `${name} está bloqueada`, text(item.step) || 'El agente no puede continuar'];
-    needs.push({ ...item, key: `merge:${item.id || item.nodeId}`, target: 'integration', label: item.status === 'blocked' ? 'Bloqueada' : integrationState(item), source: 'Host · merge.status', group: 'now', need, headline, context });
+    const lanes = item.status === 'conflict' ? (() => {
+      const live = item.nodeId ? itemsOf(merges?.active).find(entry => entry.nodeId === item.nodeId) : null;
+      const ok = value => Number.isFinite(value) && value >= 0;
+      return live && ok(live.ahead) && ok(live.behind) ? { ahead: Math.floor(live.ahead), behind: Math.floor(live.behind) } : { ahead: null, behind: null };
+    })() : null;
+    needs.push({ ...item, ...(lanes ? { files: conflictFiles, base, ...lanes } : {}), key: `merge:${item.id || item.nodeId}`, target: 'integration', label: item.status === 'blocked' ? 'Bloqueada' : integrationState(item), source: 'Host · merge.status', group: 'now', need, headline, context });
     claim(item.nodeId);
   }
   needs.sort((a, b) => (RANK[a.need] ?? 3) - (RANK[b.need] ?? 3) || (a.at || Infinity) - (b.at || Infinity));
+
+  // «Atoradas»: stuck Phantom tasks by cause. One with a successor or with
+  // commits already landed in its scope is resolved by other means.
+  const stuckByCause = new Map();
+  for (const t of byRecent(taskRows.filter(t => STUCK.includes(t.status) && !resolutionOf(t)))) {
+    const explain = explainReason([t.raw?.reason, t.reason].find(value => typeof value === 'string' && value.trim()) || '');
+    if (!stuckByCause.has(explain.cause)) stuckByCause.set(explain.cause, { key: `stuck:${explain.cause}`, group: 'stuck', need: 'failed', cause: explain.cause, step: STUCK_STEP[explain.cause] ?? null, label: explain.label, meaning: explain.cause === 'other' ? OTHER_MEANING : explain.meaning, next: explain.next, count: 0, at: 0, items: [] });
+    const group = stuckByCause.get(explain.cause), first = t.sessions[0];
+    group.items.push({ key: `task:${t.id}`, cardId: t.id, id: t.id, headline: titleOf(text(t.raw?.contract?.goal) || text(t.contract?.goal) || t.title), context: first?.title || '', ...(explain.child ? { child: explain.child } : {}), nodeId: first?.nodeId || null, sessions: t.sessions, at: t.at });
+    group.count = group.items.length;
+    group.at = Math.max(group.at, t.at || 0);
+  }
+  const stuck = [...stuckByCause.values()].sort((a, b) => b.count - a.count || b.at - a.at);
 
   // «Cuando puedas»: nothing is stuck on these, they are the project's housekeeping.
   const later = [];
@@ -258,5 +284,5 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
     ...finished.filter(item => item.at && sameDay(item.at, now)).map(item => ({ key: item.key, target: item.target, cardId: cardIdOf(item) || (item.target === 'tasks' ? item.id : ''), nodeId: item.nodeId || item.sessions?.[0]?.nodeId || null, headline: text(item.title) || activityTitle(item), state: item.label, tone: item.tone, at: item.at })),
     ...notices.filter(n => !n.needsYou && (!n.read || (n.at && sameDay(n.at, now)))).map(n => ({ key: `notice:${n.id}`, target: 'notice', id: n.id, notice: n, cardId: cardIdOf(n), nodeId: n.nodeId || null, headline: text(n.title) || 'Aviso', state: n.read ? '' : 'Nuevo', tone: n.read ? 'read' : 'unread', read: n.read, at: n.at })),
   ]);
-  return { integrations, inProgress, finished, activeSessions, sessions: sessionRows, sessionCount: itemsOf(sessions).length, unknownViews: sessionRows.filter(s => !s.descriptor).length, tasks: taskRows, notices, branches, needs, pending: { now: needs, later }, count: needs.length, current, today, pendingBranches: branches.filter(b => b.label === 'No integrada').length, unknownBranches: branches.filter(b => b.label === 'Integración desconocida').length, unread: notices.filter(n => !n.read).length };
+  return { integrations, inProgress, finished, activeSessions, sessions: sessionRows, sessionCount: itemsOf(sessions).length, unknownViews: sessionRows.filter(s => !s.descriptor).length, tasks: taskRows, notices, branches, needs, stuck, pending: { now: needs, later, stuck }, count: needs.length, current, today, pendingBranches: branches.filter(b => b.label === 'No integrada').length, unknownBranches: branches.filter(b => b.label === 'Integración desconocida').length, unread: notices.filter(n => !n.read).length };
 }

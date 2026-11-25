@@ -30,13 +30,9 @@ Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { 
 let root;
 window.mountComposer = async ({ surface = 'card', width = 320, saved = null, failSaves = 0, running = false, catalog = 0 } = {}) => {
   root?.unmount();
-  window.fixture = { calls: [], unknown: [], failSaves, finish: null, addMessage: null };
+  window.fixture = { calls: [], unknown: [], failSaves, finish: null };
   const initialWorkspace = { ...exampleWorkspace, canonicalPath: '/synthetic/proyectos/proyecto-con-un-nombre-muy-largo-para-revisar-el-truncado', sessionDefaults: saved === null ? undefined : { permissionMode: saved } };
   let chat = { provider: 'claude', permissionMode: 'ask', models: { claude: 'claude-modelo-sintetico-con-un-nombre-muy-largo' }, reasoning: { claude: 'high' }, running, messages: [{ id: 'composer-message', role: 'user', parts: [{ type: 'text', text: 'Conversación sintética existente.' }] }], queue: [], meta: { model: 'claude-modelo-sintetico-con-un-nombre-muy-largo', contextSource: 'claude:request-v1', contextTokens: 150000, contextWindow: 200000 } };
-  window.fixture.addMessage = text => {
-    chat = { ...chat, messages: [...chat.messages, { id: `m${chat.messages.length}`, role: 'assistant', status: 'done', parts: [{ type: 'text', text }] }] };
-    emit({ type: 'chat.update', reset: true, nodeId: chatNode.id });
-  };
   function Fixture() {
     const [workspace, setWorkspace] = React.useState(initialWorkspace);
     const [config, setConfig] = React.useState(chat);

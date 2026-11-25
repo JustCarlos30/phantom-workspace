@@ -122,6 +122,51 @@ button.pd-deleg-item:focus-visible { outline: 2px solid var(--accent); outline-o
 .pd-deleg-plan { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pd-deleg-child { display: flex; flex-direction: column; min-width: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; color: var(--ink); }
 .pd-deleg-cards, .pd-deleg-cards > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+/* Agent traces: tree, supervisor and one agent's detail, inside the same panel. No borders; state is a dot and words. */
+.pd-agent-row[data-tone="live"] .pd-deleg-dot { background: var(--working); }
+.pd-agent-row[data-tone="blocked"] .pd-deleg-dot { background: var(--danger); }
+.pd-agent-row[data-tone="done"] .pd-deleg-dot { background: var(--accent); }
+.pd-sup-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.pd-sup-head .pd-deleg-head { flex: 1; }
+.pd-sup-meta, .pd-sup-summary p { margin: 0; }
+.pd-sup-meta { display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; }
+.pd-sup-summary { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.pd-sup-proposals, .pd-sup-feed ol, .pd-agent-children, .pd-agent-history { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pd-sup-proposals li { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.pd-sup-feed { font-size: 11px; color: var(--muted); }
+.pd-sup-feed summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; }
+.pd-sup-feed li { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+.pd-agent { display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-wrap: anywhere; }
+.pd-agent strong { color: var(--ink); font-size: 13px; font-weight: 600; }
+.pd-agent small, .pd-agent code, .pd-agent dt { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.pd-agent code { font-family: monospace; }
+.pd-agent-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.pd-agent-select { flex: 1 1 140px; min-width: 0; max-width: 100%; }
+.pd-agent-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pd-agent-head[data-tone="live"] strong::before, .pd-agent-head[data-tone="blocked"] strong::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; vertical-align: middle; border-radius: var(--r-pill); background: var(--working); }
+.pd-agent-head[data-tone="blocked"] strong::before { background: var(--danger); }
+.pd-agent-facts { display: flex; flex-direction: column; gap: 6px; margin: 0; min-width: 0; }
+.pd-agent-facts > div { display: grid; grid-template-columns: minmax(84px, 36%) minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.pd-agent-facts dd { margin: 0; min-width: 0; font-size: 12px; line-height: 1.45; color: var(--ink); }
+.pd-agent-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pd-agent-section h3 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.pd-agent-block { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; line-height: 1.45; }
+.pd-agent-block summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+.pd-agent-children li { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.pd-agent-link { padding: 4px 0; min-height: 28px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; text-align: start; cursor: pointer; }
+.pd-agent-link:hover { text-decoration: underline; }
+.pd-agent-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-row); }
+.pd-agent-history { gap: 10px; }
+.pd-agent-history li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; min-width: 0; font-size: 12px; line-height: 1.45; overflow-anchor: auto; }
+.pd-agent-history li > :not(time):not(.pd-agent-owner) { grid-column: 1 / -1; }
+.pd-agent-owner { color: var(--ink); font-weight: 600; font-size: 11px; }
+.pd-agent-owner[data-foreign] { color: var(--accent); }
+.pd-agent-history time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: end; }
+.pd-agent-event { color: var(--muted); font-size: 11px; }
+.pd-agent-event-text { color: var(--ink); }
+.pd-agent-history details { min-width: 0; }
+.pd-agent-history summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+.pd-agent pre { max-width: 100%; margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pd-session { display: flex; flex-direction: column; gap: 10px; padding: 0; background: none; }
 .pd-session-head { display: flex; align-items: center; gap: 10px; }
 .pd-open-session { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; max-width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }

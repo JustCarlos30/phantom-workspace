@@ -40,7 +40,7 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
       <div className="pc-models-list" role="listbox" aria-label="Modelos disponibles">
         {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={14} aria-hidden="true" />}</button>}
         {!needle && groups.length > 0 && <div className="menu-separator" role="separator" />}
-        {groups.map((group, g) => <React.Fragment key={group.name}>{g > 0 && <div className="menu-separator" role="separator" />}<h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
+        {groups.map((group, g) => <React.Fragment key={`${g}:${group.name}`}>{g > 0 && <div className="menu-separator" role="separator" />}<h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
         {custom && items.length > 0 && <div className="menu-separator" role="separator" />}
         {custom && <button type="button" role="option" aria-selected={false} onClick={() => choose(custom)}><span>Usar <span className="pc-mono">{custom}</span></span></button>}
         {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
@@ -103,6 +103,8 @@ export function EffortMenu({ label, heading, ariaName, title, levels, selected, 
     if (!open) return;
     setActive(Math.max(0, options.indexOf(selected)));
     list.current?.focus({ preventScroll: true });
+    // Inline in the session panel the menu opens below the row: bring it into view.
+    list.current?.scrollIntoView?.({ block: 'nearest' });
     const outside = e => { if (!root.current?.contains(e.target)) setOpen(false); };
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);

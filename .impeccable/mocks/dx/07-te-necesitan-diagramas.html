@@ -1,0 +1,133 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Te necesitan · diagramas en el detalle</title><link rel="stylesheet" href="shared.css"><style>
+body{width:auto;height:auto;min-height:100vh;overflow:auto;padding:32px 36px 40px}
+.hoja{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.col{width:520px;flex:none}
+.rot{font:500 12px/16px var(--sans);color:var(--ink3);margin:0 0 10px 4px}
+.panel{width:520px;border-radius:22px;background:rgba(19,16,25,.92);box-shadow:0 30px 60px -30px rgba(3,1,8,.95),0 0 0 1px rgba(255,255,255,.06);padding:22px 20px}
+.panel h2{font:650 20px/26px var(--sans);letter-spacing:-.01em}
+.panel .gl{margin-top:18px}.panel .gl:first-of-type{margin-top:16px}
+.r{display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 14px}
+.r .av{width:36px;height:36px;border-radius:18px;display:grid;place-items:center;flex:none;background:rgba(233,180,106,.14);color:var(--attention)}
+.r .av.q{background:var(--fill2);color:var(--muted)}.r .av.d{background:rgba(238,120,138,.14);color:var(--danger)}
+.r .tx{flex:1;min-width:0}.r .tx b{display:block;font:600 14px/20px var(--sans)}.r .tx span{display:block;color:var(--muted);font:400 13px/18px var(--sans)}
+.r .n{color:var(--ink3);font:500 13px/18px var(--sans);font-variant-numeric:tabular-nums}
+.r .ch{color:var(--ink3)}
+.det{padding:4px 16px 14px 62px;box-shadow:0 -1px 0 rgba(255,255,255,.055)}
+.det p{font:400 13px/19px var(--sans);color:var(--muted);padding-top:12px}.det p b{color:var(--ink);font-weight:550}
+.tk{padding:12px 0 8px;box-shadow:0 -1px 0 rgba(255,255,255,.055)}.tk:first-of-type{box-shadow:none}
+.tk b{display:block;font:550 13px/18px var(--sans)}.tk span{display:block;font:400 12px/16px var(--sans);color:var(--muted);margin-bottom:4px}
+.tk span.d{color:var(--danger)}
+.pipe{display:block;width:100%;max-width:440px;height:28px}
+.pipe .ln{stroke:var(--fill3);stroke-width:1}
+.pipe .ok circle{fill:var(--s2);stroke:var(--ink3);stroke-width:1}.pipe .ok path{fill:none;stroke:var(--ink3);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.pipe .ko circle{fill:var(--danger);stroke:var(--danger);stroke-width:1}.pipe .ko path{fill:none;stroke:var(--s2);stroke-width:1.75;stroke-linecap:round}
+.pipe .po circle{fill:var(--s2);stroke:var(--ink3);stroke-width:1}
+.pipe text{font:400 11px var(--sans);text-anchor:middle;fill:var(--ink3)}
+.pipe .ok text{fill:var(--ink3)}.pipe .ko text{fill:var(--ink);font-weight:600}
+.der{display:flex;justify-content:flex-end;padding:4px 0 2px}
+.dg{display:block;width:100%;height:68px;margin:10px 0 4px}
+.dg .l{stroke:var(--ink3);stroke-width:1;fill:none}
+.dg .c{fill:var(--s2);stroke:var(--muted);stroke-width:1.5}
+.dg .base{fill:var(--s2);stroke:var(--ink);stroke-width:1.5}
+.dg .x{stroke:var(--danger);stroke-width:1;fill:none}
+.dg .bad{fill:var(--danger);stroke:var(--danger)}.dg .xx{stroke:var(--s2);stroke-width:1.5;stroke-linecap:round}
+.dg text{font:400 11px var(--sans);fill:var(--muted)}.dg text.k{fill:var(--ink);font-weight:600}.dg text.dn{fill:var(--danger)}
+.fl{list-style:none;margin:6px 0 0;padding:0}
+.fl li{display:flex;align-items:center;gap:10px;height:32px;box-shadow:0 -1px 0 rgba(255,255,255,.055)}.fl li:first-child{box-shadow:none}
+.fl code{background:none;padding:0;font:500 12.5px/18px var(--mono);flex:1}
+.fl em{font-style:normal;font:500 12px/16px var(--sans);color:var(--danger)}
+.acc{display:flex;justify-content:flex-end;padding-top:10px}
+.nota{margin:28px 4px 0;max-width:1100px;font:400 13px/20px var(--sans);color:var(--ink3)}
+</style>
+<body>
+<div class="hoja">
+
+<!-- 1 · tarea atorada -->
+<div class="col"><p class="rot">Tarea atorada · tests en rojo</p>
+<div class="panel"><h2>Se atoraron 14</h2>
+ <p class="gl">Se atoraron, por causa</p>
+ <div class="grp">
+  <div class="r"><div class="av d" data-i="warn"></div><div class="tx"><b>Tests en rojo</b><span>5 tareas · el agente no puede seguir solo</span></div><span class="n">12</span><span class="ch" data-i="down" data-c="s"></span></div>
+  <div class="det">
+   <p><b>Siguiente paso:</b> pídele a un agente que corrija los tests y vuelva a correr los checks.</p>
+   <div class="tk" style="margin-top:8px"><b>Tests de cámara</b><span class="d">2 de 5 checks en rojo</span>
+    <svg class="pipe" viewBox="0 0 440 28" role="img" aria-label="Murió en Checks">
+     <line class="ln" x1="44" y1="7" x2="396" y2="7"/>
+     <g class="ok"><circle cx="44" cy="7" r="6"/><path d="M41 7l2 2 4-4"/><text x="44" y="25">Preparar</text></g>
+     <g class="ok"><circle cx="132" cy="7" r="6"/><path d="M129 7l2 2 4-4"/><text x="132" y="25">Agente</text></g>
+     <g class="ko"><circle cx="220" cy="7" r="6"/><path d="M217.5 4.5l5 5M222.5 4.5l-5 5"/><text x="220" y="25">Checks</text></g>
+     <g class="po"><circle cx="308" cy="7" r="3"/><text x="308" y="25">Revisor</text></g>
+     <g class="po"><circle cx="396" cy="7" r="3"/><text x="396" y="25">Listo</text></g>
+    </svg>
+    <div class="der"><span class="btn q">Ver tarea</span></div></div>
+   <div class="tk"><b>Glifos de sesión</b><span class="d">Se quedó sin tokens</span>
+    <svg class="pipe" viewBox="0 0 440 28" role="img" aria-label="Murió en Agente">
+     <line class="ln" x1="44" y1="7" x2="396" y2="7"/>
+     <g class="ok"><circle cx="44" cy="7" r="6"/><path d="M41 7l2 2 4-4"/><text x="44" y="25">Preparar</text></g>
+     <g class="ko"><circle cx="132" cy="7" r="6"/><path d="M129.500 4.500l5 5M134.500 4.500l-5 5"/><text x="132" y="25">Agente</text></g>
+     <g class="po"><circle cx="220" cy="7" r="3"/><text x="220" y="25">Checks</text></g>
+     <g class="po"><circle cx="308" cy="7" r="3"/><text x="308" y="25">Revisor</text></g>
+     <g class="po"><circle cx="396" cy="7" r="3"/><text x="396" y="25">Listo</text></g>
+    </svg>
+    <div class="der"><span class="btn q">Ver tarea</span></div></div>
+   <div class="tk"><b>Protección de inercia</b><span class="d">Requisito sin acreditar</span>
+    <svg class="pipe" viewBox="0 0 440 28" role="img" aria-label="Murió en Revisor">
+     <line class="ln" x1="44" y1="7" x2="396" y2="7"/>
+     <g class="ok"><circle cx="44" cy="7" r="6"/><path d="M41 7l2 2 4-4"/><text x="44" y="25">Preparar</text></g>
+     <g class="ok"><circle cx="132" cy="7" r="6"/><path d="M129 7l2 2 4-4"/><text x="132" y="25">Agente</text></g>
+     <g class="ok"><circle cx="220" cy="7" r="6"/><path d="M217 7l2 2 4-4"/><text x="220" y="25">Checks</text></g>
+     <g class="ko"><circle cx="308" cy="7" r="6"/><path d="M305.500 4.500l5 5M310.500 4.500l-5 5"/><text x="308" y="25">Revisor</text></g>
+     <g class="po"><circle cx="396" cy="7" r="3"/><text x="396" y="25">Listo</text></g>
+    </svg>
+    <div class="der"><span class="btn q">Ver tarea</span></div></div>
+  </div>
+ </div>
+</div></div>
+
+<!-- 2 · conflicto -->
+<div class="col"><p class="rot">Conflicto con main</p>
+<div class="panel"><h2>Te necesitan 3</h2>
+ <p class="gl">Decide ahora</p>
+ <div class="grp">
+  <div class="r"><div class="av d" data-i="warn"></div><div class="tx"><b>Canvas.jsx choca con main</b><span>Navegación del canvas · no se puede integrar hasta resolverlo</span></div><span class="ch" data-i="down" data-c="s"></span></div>
+  <div class="det">
+   <svg class="dg" viewBox="0 0 480 68" role="img" aria-label="La rama lleva 3 commits y main 2 nuevos; chocan al integrar">
+    <line class="l" x1="10" y1="14" x2="360" y2="14"/>
+    <path class="l" d="M60 14 C80 14 80 54 100 54 L360 54"/>
+    <line class="x" x1="360" y1="14" x2="360" y2="54"/>
+    <circle class="base" cx="60" cy="14" r="5"/>
+    <circle class="c" cx="170" cy="14" r="4"/><circle class="c" cx="265" cy="14" r="4"/>
+    <circle class="c" cx="140" cy="54" r="4"/><circle class="c" cx="220" cy="54" r="4"/><circle class="c" cx="300" cy="54" r="4"/>
+    <g class="bad"><circle cx="360" cy="14" r="6"/><circle cx="360" cy="54" r="6"/></g>
+    <path class="xx" d="M357.500 11.500l5 5M362.500 11.500l-5 5M357.500 51.500l5 5M362.500 51.500l-5 5"/>
+    <text class="k" x="378" y="18">main</text><text x="378" y="31">2 nuevos</text>
+    <text class="k" x="378" y="58">rama</text>
+<text x="418" y="58">3 adelante</text>
+    <text x="60" y="34" text-anchor="middle">punto común</text>
+    <text class="dn" x="368" y="38">choque</text>
+   </svg>
+   <ul class="fl"><li><code>src/components/Canvas.jsx</code><em>2 bloques</em></li><li><code>src/canvas/viewport.mjs</code><em>1 bloque</em></li></ul>
+   <div class="acc"><span class="btn p">Pedirle que lo resuelva</span></div>
+  </div>
+ </div>
+</div></div>
+
+<!-- 3 · plegado -->
+<div class="col"><p class="rot">Plegado (así se ve sin abrir nada)</p>
+<div class="panel"><h2>Te necesitan 3</h2>
+ <p class="gl">Decide ahora</p>
+ <div class="grp"><div class="r"><div class="av" data-i="shield"></div><div class="tx"><b>Instalar <code>expo-camera</code></b><span>Phantom Mobile · pide permiso para un comando</span></div><span class="btn">Rechazar</span><span class="btn p">Aprobar</span></div></div>
+ <p class="gl">Se atoraron 14</p>
+ <div class="grp">
+  <div class="r"><div class="av d" data-i="warn"></div><div class="tx"><b>Tests en rojo</b></div><span class="n">12</span><span class="ch" data-i="right" data-c="s"></span></div>
+  <div class="r"><div class="av d" data-i="warn"></div><div class="tx"><b>Sin tokens</b></div><span class="n">1</span><span class="ch" data-i="right" data-c="s"></span></div>
+  <div class="r"><div class="av d" data-i="warn"></div><div class="tx"><b>Requisito sin acreditar</b></div><span class="n">1</span><span class="ch" data-i="right" data-c="s"></span></div>
+  <div class="r"><div class="av q" data-i="down"></div><div class="tx"><b>3 causas más</b></div><span class="n">5 tareas</span></div>
+ </div>
+ <p class="gl">Cuando puedas</p>
+ <div class="grp"><div class="r"><div class="av q" data-i="git"></div><div class="tx"><b>2 ramas listas para main</b><span>Tests de cámara · Glifos de sesión</span></div><span class="btn">Revisar</span></div></div>
+</div></div>
+
+</div>
+<p class="nota">Origen de los datos en producción: el paso fallido saldría de la causa del bloqueo y de las fases del último intento; el conflicto, de merge.status → conflicts (archivos y bloques). Nada de esto está implementado: es un mock para aprobar los diagramas antes de llevarlos a producción.</p>
+<script src="shared.js"></script>

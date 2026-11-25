@@ -1,6 +1,8 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useComposerSize } from '../hooks/useComposerSize';
-import { AlertCircle, ArrowLeft, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Square, X } from 'lucide-react';
+import { AgentOpenContext } from '../hooks/useAgentTraces';
+import { AlertCircle, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Settings2, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
@@ -65,12 +67,12 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel, onOpenAgent }) {
   if (message.role === 'user') return <blockquote className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></blockquote>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} onOpenAgent={onOpenAgent} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel, onOpenAgent }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const elapsed = useElapsed(message.createdAt, streaming);
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
@@ -86,7 +88,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'phantom'
         ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
-        ? <SubagentCard key={group.part.id} part={group.part} />
+        ? <SubagentCard key={group.part.id} part={group.part} onOpenAgent={onOpenAgent} />
       : group.type === 'permission'
         ? <PermissionRow key={group.id} part={group} onAnswer={onAnswer} />
       : group.type === 'question'
@@ -159,11 +161,8 @@ export function SessionContext({ node, workspace, api, notify, provider, label, 
     <h3>Contexto</h3>
     <div className="pc-context-rows">
       <details className="pc-folder"><summary className="pc-session-row"><span className="pc-session-badge is-folder"><Folder size={18} aria-hidden="true" /></span><span className="pc-session-label">Carpeta</span><span className="pc-session-value pc-mono" title={cwd}>{cwd}</span><ChevronRight size={16} aria-hidden="true" /></summary><p>{cwd}{branch && <><br />{AUTO_BRANCH.test(branch) ? 'Copia propia de esta sesión' : `Rama: ${branch}`}</>}</p></details>
-      <PermissionSwitch row mode={permissionMode} provider={provider} descriptions={descriptions} disabled={!ready} onChange={configurePermission(api, workspace, node, notify)} />
       <ProjectPermissions key={workspace.id} workspace={workspace} api={api} mode={permissionMode} provider={provider} disabled={!ready} />
-      <ModelPicker row node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!ready || running} />
     </div>
-    <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!ready || running} />
   </section>;
 }
 
@@ -209,32 +208,39 @@ export function useCompaction({ chat, connected, capabilities, compact, continue
 }
 
 // «Contexto de la sesión» as a chip in the island; its settings open above it.
-// The settings replace the thread inside the same card; the thread stays mounted
-// (hidden) so scroll, draft and composer state survive the round trip.
-export function useSessionSettings(thread) {
-  const [open, setOpen] = useState(false), saved = useRef(0), trigger = useRef(null), was = useRef(false);
+export function SessionChip({ cwd, branch, workspaceName, children }) {
+  const root = useRef(null), pop = useRef(null), [open, setOpen] = useState(false), [place, setPlace] = useState(null);
+  useEffect(() => {
+    if (!open) return;
+    const outside = e => { if (!root.current?.contains(e.target) && !pop.current?.contains(e.target)) { root.current.open = false; setOpen(false); } };
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('wheel', outside, { capture: true, passive: true });
+    return () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('wheel', outside, true); };
+  }, [open]);
+  // The popover lives on <body> (fixed): the card and canvas node clip and scale their children.
   useLayoutEffect(() => {
-    if (was.current && !open) { if (thread.current) thread.current.scrollTop = saved.current; trigger.current?.focus({ preventScroll: true }); }
-    was.current = open;
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggle = () => setOpen(value => { if (!value) saved.current = thread.current?.scrollTop || 0; return !value; });
-  return { open, trigger, toggle, close: () => setOpen(false) };
-}
-
-export function SessionChip({ cwd, branch, workspaceName, settings }) {
-  const { name, own } = sessionChipLabel({ cwd, branch, workspaceName });
-  return <span className="pc-session-settings">
-    <button ref={settings.trigger} type="button" className="pc-session-chip" aria-expanded={settings.open} aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined} onClick={settings.toggle}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></button>
-  </span>;
-}
-
-export function SessionSettingsView({ settings, children }) {
-  const back = useRef(null);
-  useEffect(() => { back.current?.focus({ preventScroll: true }); }, []);
-  return <section className="pc-session-view" aria-label="Configuración de la sesión" onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); settings.close(); } }}>
-    <header><button ref={back} type="button" className="pc-session-back" onClick={settings.close}><ArrowLeft size={14} aria-hidden="true" />Volver</button><h3>Configuración de la sesión</h3></header>
-    {children}
-  </section>;
+    if (!open) { setPlace(null); return; }
+    const measure = () => {
+      const rect = root.current?.querySelector('summary')?.getBoundingClientRect();
+      if (!rect) return;
+      const margin = 12, width = Math.min(440, window.innerWidth - margin * 2);
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+      const above = rect.top - 8 - margin, below = window.innerHeight - rect.bottom - 8 - margin;
+      const up = above >= Math.min(420, below);
+      const next = { left, width, maxHeight: Math.max(120, up ? above : below), ...(up ? { bottom: window.innerHeight - rect.top + 8 } : { top: rect.bottom + 8 }) };
+      setPlace(prev => prev && Object.keys(next).length === Object.keys(prev).length && Object.keys(next).every(k => prev[k] === next[k]) ? prev : next);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => { window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
+  }, [open]);
+  const { own } = sessionChipLabel({ cwd, branch, workspaceName });
+  return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
+    onKeyDown={e => { if (e.key === 'Escape' && root.current.open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
+    <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Settings2 size={16} aria-hidden="true" /></summary>
+    {open && place && createPortal(<div ref={pop} className="pc pc-session-pop" style={place} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>{children}</div>, document.body)}
+  </details>;
 }
 
 export function ComposerControls({ selectors, leading, meter, voice, hint, children }) {
@@ -250,7 +256,12 @@ export function ComposerControls({ selectors, leading, meter, voice, hint, child
   </div>;
 }
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel, onOpenAgent: openAgentProp }) {
+  // The canvas does not pass props down to this card: the app offers the dock opener by context and the card adds
+  // its own identity (project, card) to the agent the user clicked. An explicit prop (the dock chat) wins.
+  const openAgentContext = useContext(AgentOpenContext), workspaceId = workspace.id, nodeId = node.id;
+  const onOpenAgent = useCallback(id => { if (openAgentProp) openAgentProp(id); else openAgentContext?.({ workspaceId, nodeId, id }); }, [openAgentProp, openAgentContext, workspaceId, nodeId]);
+  const hasOpenAgent = Boolean(openAgentProp || openAgentContext);
   const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
@@ -261,7 +272,6 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   draftRef.current = draft;
   const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
-  const settings = useSessionSettings(thread);
   const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
     onText: text => {
       const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
@@ -363,8 +373,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
     <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
     {planSummary(node.data?.plan) && <details className="plan-phases-toggle pc-plan"><summary><PlanPhases plan={node.data.plan} compact /></summary><PlanPhases plan={node.data.plan} /></details>}
-    {settings.open && <SessionSettingsView settings={settings}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionSettingsView>}
-    <div ref={thread} hidden={settings.open} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
+    <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}
         {!messages.length && connected && chat && <div className="pc-session-new">
@@ -372,7 +381,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <section className="pc-session-section"><h3>Interfaz</h3><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} /></section>
           {context}
         </div>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} onOpenAgent={hasOpenAgent ? onOpenAgent : undefined} />)}
         {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{delegatingLabel}{progress && progress.idle ? ` · inactivo ${progress.idle}` : ''}</span>{(progress?.warning || healthView.warning) && <span className="pc-run-health-warning" role="status">{progress?.warning || healthView.warning}</span>}{progress?.blocker && <span className="pc-run-health-warning" role="alert">{`${progress.blocker.title}: ${progress.blocker.summary}`}</span>}</p>}
       </div>
     </div>
@@ -388,10 +397,10 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
-          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name} settings={settings} />
+        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={<>
+          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}>{context}</SessionChip>
           <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
-          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running || settings.open} />
+          <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
           <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
         </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} /></>}
           meter={<ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />}>

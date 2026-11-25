@@ -80,3 +80,33 @@ export function groupSessionRows(rows = []) {
     .map((group, index) => ({ ...group, rows: rows.filter(row => sessionPriority(row) === index) }))
     .filter(group => group.rows.length);
 }
+
+// Ctrl+Shift+F: every panel of the project, terminals classified by what they
+// need from you; the rest of the panels follow as one plain group.
+export function groupPanelIndex(nodes = [], sessions = {}, now = Date.now()) {
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const terminals = buildSessionRows(nodes.map(n => (n.data?.hidden ? { ...n, data: { ...n.data, hidden: false } } : n)).filter(n => n.type === 'terminal'), sessions, now).rows;
+  const groups = groupSessionRows(terminals).map(group => ({ ...group, items: group.rows.map(row => ({ node: byId.get(row.id), status: row.statusLabel, state: group.key, time: row.time, provider: row.providerLabel })) }));
+  const others = nodes.filter(n => n.type !== 'terminal');
+  if (others.length) groups.push({ key: 'other', label: 'Otros paneles', rows: others, items: others.map(node => ({ node, status: '', state: 'other', time: '', provider: '' })) });
+  return groups;
+}
+
+// Ctrl+Shift+P: what each project is doing. Declared agent status is all a
+// project that is not open has; the open one also passes its live sessions.
+const NEEDS = new Set(['blocked', 'awaiting_approval', 'needs_approval', 'awaiting_input', 'waiting_for_input', 'needs_input', 'failed', 'error']);
+const BUSY = new Set(['running', 'working', 'doing', 'verifying', 'recovering']);
+export function projectStatus(project, sessions = null) {
+  const terminals = (project?.nodes || []).filter(n => n.type === 'terminal' && !n.data?.hidden);
+  let needs = 0, working = 0;
+  for (const node of terminals) {
+    const live = sessions?.[node.id], declared = node.data?.agent?.status;
+    if (live ? live.needsYou : NEEDS.has(declared)) needs++;
+    else if (live ? live.tone === 'working' : BUSY.has(declared)) working++;
+  }
+  const alerts = (project?.attention || []).filter(a => !a.acknowledgedAt && !a.acknowledged && !a.acked).length;
+  const attention = needs || (sessions ? 0 : alerts);
+  const state = attention ? 'attention' : working ? 'working' : 'rest';
+  const label = attention ? `${attention} ${attention === 1 ? 'necesita' : 'necesitan'} tu atención` : working ? `${working} trabajando` : terminals.length ? 'En reposo' : 'Sin sesiones';
+  return { state, label, needs: attention, working, sessions: terminals.length };
+}

@@ -51,7 +51,8 @@ after(async () => {
 });
 
 async function render(options = {}) {
-  const page = await browser.newPage({ viewport: { width: options.width || 480, height: 900 }, reducedMotion: 'reduce' });
+  const height = options.height || 900;
+  const page = await browser.newPage({ viewport: { width: options.width || 480, height }, reducedMotion: 'reduce' });
   page.setDefaultTimeout(7000);
   const errors = [], requests = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -64,7 +65,7 @@ async function render(options = {}) {
   });
   await page.setContent('<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body class="app-shell"><div id="fixture"></div></body></html>');
   await page.addStyleTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.css')).text });
-  await page.addStyleTag({ content: 'body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: 850px; position: relative; container-type: inline-size; } #fixture > .phantom-chat { position: relative; inset: auto; width: 100%; height: 100%; }' });
+  await page.addStyleTag({ content: `body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: ${options.fixtureHeight || height - 50}px; position: relative; container-type: inline-size; } #fixture > .phantom-chat { position: relative; inset: auto; width: 100%; height: 100%; }` });
   await page.addScriptTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.js')).text });
   await page.evaluate(options => window.mountComposer(options), options);
   await page.locator(barModel).waitFor();
@@ -91,7 +92,7 @@ async function focusAt(page, selector, surface, width, step, visible = false) {
   } catch (error) {
     const diagnostic = await page.evaluate(selector => {
       const describe = el => el && ({ tag: el.tagName, class: el.className, label: el.getAttribute('aria-label'), disabled: el.disabled, visible: el.checkVisibility(), focusVisible: el.matches(':focus-visible') });
-      return { active: describe(document.activeElement), targets: [...document.querySelectorAll(selector)].map(describe), contextOpen: document.querySelector('.pc-session-chip')?.getAttribute('aria-expanded') };
+      return { active: describe(document.activeElement), targets: [...document.querySelectorAll(selector)].map(describe), contextOpen: document.querySelector('.pc-session-settings')?.open };
     }, selector);
     assert.fail(`${context}: foco esperado en ${selector}; ${JSON.stringify(diagnostic)}; ${error.message}`);
   }
@@ -103,7 +104,7 @@ async function geometry(page, surface, width, state, menu = null) {
     const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
     const visible = el => el.checkVisibility() && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
     const field = document.querySelector('.pc-field'), bounds = rect(field);
-    const targets = [...field.querySelectorAll('.pc-selectors > .pc-session-settings > .pc-session-chip, .pc-selectors > .pc-permission, .pc-selectors > .pc-model-picker > button, .pc-selectors > .pc-effort > button, .pc-composer-actions button')].filter(visible);
+    const targets = [...field.querySelectorAll('.pc-selectors > .pc-session-settings > summary, .pc-selectors > .pc-permission, .pc-selectors > .pc-model-picker > button, .pc-selectors > .pc-effort > button, .pc-composer-actions button')].filter(visible);
     const controls = targets.map(el => ({ name: el.getAttribute('aria-label') || el.title || el.textContent, ...rect(el), disabled: el.disabled }));
     const overlaps = [];
     for (let i = 0; i < controls.length; i++) for (let j = i + 1; j < controls.length; j++) {
@@ -149,7 +150,8 @@ test('Permisos: guardar/quitar explícitos contra el validador productivo, sin c
       assert.equal(await checkbox.isChecked(), false);
       await checkbox.click();
       await saved(page, 'Guardado para nuevas conversaciones: Pregunta todo.');
-      await page.locator('.pc-session-context .pc-permission').click();
+      await page.locator('.pc-selectors > .pc-permission').click();
+      await openContext(page);
       await page.getByRole('button', { name: 'Guardar permisos actuales: Autónomo' }).waitFor();
       let calls = await page.evaluate(() => window.fixture.calls.filter(call => call.method === 'workspace.update'));
       assert.equal(calls.length, 1, 'Cambiar permisos actuales no guarda defaults');
@@ -203,7 +205,7 @@ test('Geometría: 320/480/640/960, menús completos, controles clicables y foco 
       assert.notEqual(await page.locator('.pc-session-chip').evaluate(el => getComputedStyle(el).outlineStyle), 'none', `${surface}/${width}px/Tab desde mensaje: contorno de foco`);
       await page.keyboard.press('Enter');
       await page.getByRole('checkbox', { name: checkboxName }).waitFor();
-      await geometry(page, surface, width, 'context-menu', '.pc-session-view');
+      await geometry(page, surface, width, 'context-menu', '.pc-session-pop');
       await page.locator('.pc-project-permissions input').focus();
       await page.keyboard.press('Space');
       await saved(page, 'Guardado para nuevas conversaciones');
@@ -239,36 +241,65 @@ test('Geometría: 320/480/640/960, menús completos, controles clicables y foco 
   }
 });
 
-test('Configuración integrada: abrir/volver conserva borrador, conversación y llegada de mensajes', async () => {
-  for (const surface of ['card', 'dock']) for (const width of [320, 480]) {
-    const page = await render({ surface, width });
+const popState = page => page.evaluate(() => {
+  const pop = document.querySelector('.pc-session-pop'), r = pop.getBoundingClientRect();
+  const points = [[r.x + 8, r.y + 8], [r.right - 8, r.y + 8], [r.x + 8, r.bottom - 8], [r.right - 8, r.bottom - 8]];
+  return { portal: pop.parentElement === document.body, position: getComputedStyle(pop).position, opaque: getComputedStyle(pop).backgroundImage !== 'none', scroll: pop.scrollHeight - pop.clientHeight, rect: { x: r.x, y: r.y, right: r.right, bottom: r.bottom }, vw: innerWidth, vh: innerHeight, clipped: points.some(([x, y]) => !pop.contains(document.elementFromPoint(x, y))), expanded: document.querySelector('.pc-session-chip').parentElement.open };
+});
+
+test('Popover de sesión: portaleado, completo y sin scroll con viewport de 720px', async () => {
+  for (const surface of ['card', 'dock']) {
+    const page = await render({ surface, width: 480, height: 720 });
     try {
-      await page.locator('textarea').fill('Borrador que no se pierde');
-      await page.screenshot({ path: `${artifacts}/composer-${surface}-${width}-settings-before.png` });
       await openContext(page);
-      assert.equal(await page.locator('.pc-session-pop').count(), 0, 'Sin popup grande');
-      assert.equal(await page.locator('.pc-session-view').count(), 1);
-      assert.equal(await page.locator('.pc-thread').evaluate(el => el.hidden), true);
-      assert.equal(await page.locator('textarea').inputValue(), 'Borrador que no se pierde');
-      if (surface === 'card') {
-        await page.evaluate(() => window.fixture.addMessage('Mensaje llegado con la configuración abierta'));
-        await page.waitForFunction(() => document.querySelector('.pc-thread').textContent.includes('Mensaje llegado'));
-        assert.equal(await page.locator('.pc-session-view').count(), 1, 'Recibir mensajes no cierra la configuración');
-      }
-      await page.screenshot({ path: `${artifacts}/composer-${surface}-${width}-settings-open.png` });
-      await page.keyboard.press('Escape');
-      await focusAt(page, '.pc-session-chip', surface, width, 'Escape cierra configuración');
-      assert.equal(await page.locator('.pc-session-view').count(), 0);
-      assert.equal(await page.locator('.pc-thread').evaluate(el => el.hidden), false);
-      assert.match(await page.locator('.pc-thread').textContent(), /Conversación sintética existente\./);
-      assert.equal(await page.locator('textarea').inputValue(), 'Borrador que no se pierde');
-      await page.locator('.pc-session-chip').click();
-      await page.getByRole('button', { name: 'Volver' }).click();
-      assert.equal(await page.locator('.pc-session-view').count(), 0);
-      assert.equal(await page.locator('textarea').inputValue(), 'Borrador que no se pierde');
-      results.push(`${surface}/${width}px: configuración en el área principal, Volver/Escape restauran conversación, borrador y foco; mensaje recibido no la cierra.`);
+      const s = await popState(page);
+      assert.equal(s.portal, true, `${surface}: portal a body`);
+      assert.equal(s.position, 'fixed');
+      assert.equal(s.opaque, true, `${surface}: fondo opaco; el hilo no se transparenta ${JSON.stringify(s)}`);
+      await page.screenshot({ path: `${artifacts}/composer-${surface}-480-session-pop.png` });
+      assert.ok(s.scroll <= 1, `${surface}: sin scroll interno ${JSON.stringify(s)}`);
+      assert.ok(s.rect.x >= 0 && s.rect.y >= 0 && s.rect.right <= s.vw && s.rect.bottom <= s.vh, `${surface}: dentro del viewport ${JSON.stringify(s)}`);
+      assert.equal(s.clipped, false, `${surface}: sin recorte ${JSON.stringify(s)}`);
+      await page.locator('.pc-session-pop .pc-session-label').first().click();
+      assert.equal((await popState(page)).expanded, true, 'clic dentro no cierra');
+      await page.mouse.click(2, 2);
+      assert.equal(await page.locator('.pc-session-pop').count(), 0, 'clic fuera cierra');
+      results.push(`${surface}/720px alto: popover portaleado fixed, sin scroll interno, dentro del viewport y sin recorte.`);
     } finally { await close(page); }
   }
+});
+
+test('Popover de sesión: sin espacio arriba abre abajo o se ajusta, completo en viewport', async () => {
+  for (const surface of ['card', 'dock']) {
+    const page = await render({ surface, width: 480, height: 720 });
+    try {
+      // Moves the composer to the top so there is no room above the chip.
+      await page.addStyleTag({ content: '#fixture > * { position: fixed !important; top: 0 !important; left: 0; right: 0; bottom: auto !important; height: 300px !important; }' });
+      await openContext(page);
+      const chip = await page.locator('.pc-session-chip').boundingBox();
+      const s = await popState(page);
+      assert.ok(s.rect.x >= 0 && s.rect.y >= 0 && s.rect.right <= s.vw && s.rect.bottom <= s.vh, `${surface}: dentro del viewport ${JSON.stringify(s)}`);
+      assert.ok(s.rect.y >= chip.y + chip.height - 1 || s.rect.bottom <= chip.y + 1, `${surface}: no tapa el chip`);
+      assert.equal(s.clipped, false, `${surface}: sin recorte ${JSON.stringify(s)}`);
+      results.push(`${surface}: sin espacio arriba, el popover se recoloca y queda completo en el viewport.`);
+    } finally { await close(page); }
+  }
+});
+
+test('Popover de sesión: rueda dentro no cierra, rueda fuera (conversación) sí', async () => {
+  const page = await render({ surface: 'card', width: 480, height: 720 });
+  try {
+    await openContext(page);
+    const box = await page.locator('.pc-session-pop').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 120);
+    assert.equal((await popState(page)).expanded, true, 'rueda dentro no cierra');
+    await page.mouse.move(2, 2);
+    await page.mouse.wheel(0, 120);
+    await page.waitForFunction(() => !document.querySelector('.pc-session-pop'));
+    assert.equal(await page.locator('.pc-session-chip').evaluate(el => el.parentElement.open), false, 'rueda fuera cierra');
+    results.push('card/720px alto: la rueda dentro del popover no lo cierra y fuera sí.');
+  } finally { await close(page); }
 });
 
 test('Modelo: catálogo largo sin solapamiento con el control a 320/480/900', async () => {
@@ -288,7 +319,7 @@ test('Modelo: catálogo largo sin solapamiento con el control a 320/480/900', as
       assert.equal(data.inputInside, true, JSON.stringify(data));
       assert.equal(data.scrolls, true, JSON.stringify(data));
       assert.ok(data.listHeight > 60 && data.left >= -.5 && data.right <= data.viewport + .5, JSON.stringify(data));
-      await page.getByRole('textbox', { name: 'Buscar modelo' }).fill('modelo-117');
+      await page.getByRole('textbox', { name: 'Buscar modelo' }).fill('proveedor-sintetico/modelo-117-con-sufijo-largo');
       await page.locator(`${barModels} [role=option]`).filter({ hasText: 'modelo-117' }).first().waitFor();
       await page.waitForFunction(sel => document.querySelectorAll(`${sel} [role=option]`).length === 1, barModels);
       await page.screenshot({ path: `${artifacts}/composer-${surface}-${width}-model-long.png` });
