@@ -1,6 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { summarize, groupByFolder, parseDiffLines, sameFiles } from '../src/hooks/touched-files.mjs';
+import { summarize, groupByFolder, parseDiffLines, sameFiles, placePanel, nextSelection } from '../src/hooks/touched-files.mjs';
+
+test('placePanel sits right of the card when there is room', () => {
+  const p = placePanel({ left: 100, top: 50, right: 500, height: 600 }, { width: 1600, height: 900 });
+  assert.deepEqual(p, { side: 'right', left: 500, top: 50, width: 760, height: 600 });
+});
+
+test('placePanel goes left when the right side is too narrow', () => {
+  const p = placePanel({ left: 900, top: 50, right: 1300, height: 600 }, { width: 1400, height: 900 });
+  assert.equal(p.side, 'left');
+  assert.equal(p.left + p.width, 900);
+  assert.equal(p.width, 760);
+});
+
+test('placePanel overlays inside a narrow viewport and never leaves it', () => {
+  const p = placePanel({ left: 20, top: 700, right: 400, height: 600 }, { width: 500, height: 800 });
+  assert.equal(p.side, 'overlay');
+  assert.ok(p.left >= 12 && p.left + p.width <= 488);
+  assert.ok(p.top >= 12 && p.top + p.height <= 788);
+});
+
+test('nextSelection keeps, advances or empties', () => {
+  const a = [{ path: 'a' }, { path: 'b' }, { path: 'c' }];
+  assert.equal(nextSelection(a, 'b', a), 'b');
+  assert.equal(nextSelection([a[0], a[2]], 'b', a), 'c');
+  assert.equal(nextSelection([a[0], a[1]], 'c', a), 'b');
+  assert.equal(nextSelection([], 'a', a), null);
+});
 
 const files = [
   { path: 'src/a.js', status: 'M', added: 10, removed: 2, uncommitted: true },

@@ -71,7 +71,7 @@ export function ProjectPermissions({ workspace, api, mode, provider, disabled })
   };
   return <div className="pc-project-permissions" aria-busy={busy}>
     <label><input ref={checkbox} type="checkbox" checked={saved !== null} disabled={disabled || busy} onChange={e => save(e.target.checked ? mode : null)} /><span>Usar estos permisos en nuevas conversaciones de este proyecto</span></label>
-    <p role="status">{busy ? 'Guardando…' : saved !== null ? `Guardado para nuevas conversaciones: ${permissionLabel(saved, provider)}.` : 'Sin permisos recordados para nuevas conversaciones.'} Las conversaciones existentes conservan sus permisos.</p>
+    <p role="status" title={`${busy ? 'Guardando…' : saved !== null ? `Guardado para nuevas conversaciones: ${permissionLabel(saved, provider)}.` : 'Sin permisos recordados para nuevas conversaciones.'} Las conversaciones existentes conservan sus permisos.`}>{busy ? 'Guardando…' : saved !== null ? `Guardado para nuevas conversaciones: ${permissionLabel(saved, provider)}.` : 'Sin permisos recordados para nuevas conversaciones.'} Las conversaciones existentes conservan sus permisos.</p>
     {saved !== null && saved !== mode && <button type="button" disabled={disabled || busy} onClick={() => save(mode)}>Guardar permisos actuales: {permissionLabel(mode, provider)}</button>}
     {error && <p className="is-error" role="alert">No se pudieron guardar los permisos: {error}</p>}
   </div>;
