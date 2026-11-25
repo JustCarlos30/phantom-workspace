@@ -1,6 +1,6 @@
 import { createContext, useCallback, useEffect, useRef, useState } from 'react';
 import { subscribe } from './useWorkspace';
-import { mergeTraceEvents } from './delegation-model.mjs';
+import { mergeTraceEvents, agentOpenRequest } from './delegation-model.mjs';
 
 // Host events only mark a resource as changed; every read goes through the exact RPCs.
 // No polling: one read in flight per resource, change bursts coalesce into a single re-read,
@@ -10,6 +10,21 @@ const COALESCE_MS = 400;
 // How a canvas card asks the app to open one of its sub-agents in the dock. The canvas reaches ChatCard through
 // CanvasNode, which has no such prop, so the app provides this function by context: open({ workspaceId, nodeId, id }).
 export const AgentOpenContext = createContext(null);
+
+// The app side of that opener, shared by App.jsx and the rendered test so both run the same code: a request is checked
+// with agentOpenRequest (incomplete or foreign-project ones are dropped), kept until the dock's Orquestador consumes it,
+// and openOrchestrator() brings the dock to that tab.
+export function useAgentOpener(activeWorkspaceId, openOrchestrator) {
+  const [agentRequest, setAgentRequest] = useState(null);
+  const openAgent = useCallback(request => {
+    const checked = agentOpenRequest(request, activeWorkspaceId);
+    if (!checked) return;
+    setAgentRequest(checked);
+    openOrchestrator();
+  }, [activeWorkspaceId, openOrchestrator]);
+  const consumeAgentRequest = useCallback(() => setAgentRequest(null), []);
+  return { agentRequest, openAgent, consumeAgentRequest };
+}
 const IDLE = { key: '', data: null, error: null, loading: false, updatedAt: null };
 const NONE = [];
 

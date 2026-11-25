@@ -2,8 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import ChatCard from '../../src/components/ChatCard.jsx';
 import PhantomChat from '../../src/components/PhantomChat.jsx';
-import { AgentOpenContext } from '../../src/hooks/useAgentTraces.js';
-import { agentOpenRequest } from '../../src/hooks/delegation-model.mjs';
+import { AgentOpenContext, useAgentOpener } from '../../src/hooks/useAgentTraces.js';
 import { workspace as exampleWorkspace, chatNode } from '../../src/stories/fixtures.js';
 import '../../src/styles.css';
 import '../../src/studio.css';
@@ -46,7 +45,6 @@ window.mountObservability = ({ surface = 'both', width = 900 } = {}) => {
   const nodes = ['node-x', 'node-y'].map((id, index) => ({ ...chatNode, id, title: `Conversación ${id.slice(-1).toUpperCase()}`, y: index * 440, data: { chat: chatOf(id), agent: { status: 'idle' } } }));
   const workspace = { ...exampleWorkspace, id: WORKSPACE_ID, nodes };
   function Fixture() {
-    const [request, setRequest] = React.useState(null);
     const [tab, setTab] = React.useState('orchestrator');
     const api = React.useCallback(async (method, payload) => {
       window.fixture.calls.push({ method, payload });
@@ -62,16 +60,13 @@ window.mountObservability = ({ surface = 'both', width = 900 } = {}) => {
       window.fixture.unknown.push(method);
       throw new Error(`Método sin fixture: ${method}`);
     }, []);
-    // Same wiring as App.jsx: ChatCard reaches the opener through AgentOpenContext (no onOpenAgent prop is passed to the
-    // card, as the canvas does not pass one), the request is checked with the same agentOpenRequest, the dock goes to
-    // its Orquestador tab and the productive PhantomChat hands the request to PhantomOrchestrator, which consumes it.
-    const openAgent = React.useCallback(value => {
-      const checked = agentOpenRequest(value, workspace.id);
-      if (!checked) return;
-      window.fixture.requests.push(checked);
-      setRequest(checked);
-      setTab('orchestrator');
-    }, []);
+    // Same wiring as App.jsx, with the same code: ChatCard reaches the opener through AgentOpenContext (no onOpenAgent
+    // prop is passed to the card, as the canvas does not pass one), useAgentOpener — the hook App.jsx itself uses —
+    // validates the request, the dock goes to its Orquestador tab and the productive PhantomChat hands the request to
+    // PhantomOrchestrator, which consumes it. Only the dock tab state (App's openPhantomChat) is reproduced here.
+    const openOrchestrator = React.useCallback(() => setTab('orchestrator'), []);
+    const { agentRequest: request, openAgent, consumeAgentRequest } = useAgentOpener(WORKSPACE_ID, openOrchestrator);
+    React.useEffect(() => { if (request) window.fixture.requests.push(request); }, [request]);
     window.fixture.open = openAgent;
     return <div className="ao-layout" data-surface={surface}>
       {surface !== 'dock' && <div className="ao-canvas" aria-label="Canvas">
@@ -81,7 +76,7 @@ window.mountObservability = ({ surface = 'both', width = 900 } = {}) => {
           </div>)}
         </AgentOpenContext.Provider>
       </div>}
-      {surface !== 'canvas' && <PhantomChat workspace={workspace} api={api} notify={() => {}} connected tab={tab} onTab={setTab} status={{ tone: 'working', orchestrator: null }} onOpenPanel={(type, data) => window.fixture.panels.push({ type, data })} agentRequest={request} onAgentRequestConsumed={() => setRequest(null)} onTask={() => {}} />}
+      {surface !== 'canvas' && <PhantomChat workspace={workspace} api={api} notify={() => {}} connected tab={tab} onTab={setTab} status={{ tone: 'working', orchestrator: null }} onOpenPanel={(type, data) => window.fixture.panels.push({ type, data })} agentRequest={request} onAgentRequestConsumed={consumeAgentRequest} onTask={() => {}} />}
     </div>;
   }
   const container = document.getElementById('fixture');

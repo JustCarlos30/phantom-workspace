@@ -43,7 +43,7 @@ after(async () => {
     `Generado por \`node --test test/agent-observability-ui.test.mjs\` el ${new Date().toISOString()}.`,
     'React productivo (ChatCard, PhantomChat y PhantomOrchestrator) con su CSS real, Chromium headless, bundle esbuild y page.setContent; sin servidor HTTP.',
     'Backend de la fixture: módulos reales `agent-traces` y `workspace-supervisor` sobre un directorio temporal. **El proveedor es una fixture** (eventos con forma de Claude stream-json y resumidor falso); no se ejecutó ningún proveedor real ni se activó el supervisor en proyectos del usuario.',
-    'No acredita seguridad del host ni la integración de `App.jsx` con el dock real (ver docs/agent-observability.md).', '',
+    'No acredita seguridad del host ni el montaje de `App.jsx` completo: comparte con ella `useAgentOpener`, pero el `Provider` y el estado de pestaña del dock están reproducidos (ver docs/agent-observability.md).', '',
     '## Aceptaciones observadas', ...(results.length ? results.map(result => `- ${result}`) : ['Ninguna aceptación completada. Este informe no acredita éxito.']), '',
     '## Geometría', '| Superficie | Ancho | Estado | Overflow horizontal px |', '| --- | ---: | --- | ---: |', ...measurements.map(m => `| ${m.surface} | ${m.width} | ${m.state} | ${m.overflow} |`), '',
   ].join('\n'));

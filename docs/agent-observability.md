@@ -34,7 +34,7 @@ Este documento describe qué registra Phantom Workspace de cada agente, cómo se
 
 ### Abrir un agente desde el canvas
 
-`Canvas` y `CanvasNode` no pasan props hasta `ChatCard`, así que `App.jsx` ofrece el abridor por `AgentOpenContext`. `ChatCard` añade su propia identidad (proyecto y tarjeta) al agente pulsado, `App.openAgent` valida con `agentOpenRequest` (descarta lo incompleto o de otro proyecto), abre el dock en «Orquestador» y `PhantomChat` entrega la petición a `PhantomOrchestrator`, que la consume una vez.
+`Canvas` y `CanvasNode` no pasan props hasta `ChatCard`, así que `App.jsx` ofrece el abridor por `AgentOpenContext`. `ChatCard` añade su propia identidad (proyecto y tarjeta) al agente pulsado, `useAgentOpener` (hook de `useAgentTraces.js`, el mismo que usa `App.jsx`) valida con `agentOpenRequest` (descarta lo incompleto o de otro proyecto), abre el dock en «Orquestador» y `PhantomChat` entrega la petición a `PhantomOrchestrator`, que la consume una vez.
 
 Mapeo del id local de la tarjeta al id durable (`SubagentCard`): Claude usa el id de la llamada `Agent`; OpenCode, la sesión hija que la llamada reportó (`agent.sessionId`; antes de reportarla el detalle dirá «Agente no encontrado»); Codex, su único hilo receptor (`agent.threadIds`); una llamada sobre varios hilos no tiene un único agente y no ofrece el enlace.
 
@@ -72,12 +72,12 @@ Un proveedor que no expone un dato lo declara no disponible; nunca se atribuye a
 Lo que sí ejercitan las pruebas con código productivo:
 
 - `test/workspace-events-host.test.mjs`: host real (`createHost`), socket, PTY `/bin/sh` y `dataDir` temporal; aislamiento por sesión/rol, revocación, reinicio, eventos del host, supervisor con snapshot construido de datos reales.
-- `test/agent-observability-ui.test.mjs`: `ChatCard`, `PhantomChat` y `PhantomOrchestrator` productivos con su CSS real en Chromium, respaldados por los módulos reales `agent-traces` y `workspace-supervisor`. El clic en «Ver detalle e historial» recorre `ChatCard` → `AgentOpenContext` → `agentOpenRequest` → pestaña Orquestador → `PhantomChat` (`agentRequest`) → `PhantomOrchestrator`, como en `App.jsx`; solo el estado propio de `App.jsx` está reproducido por la fixture. Genera capturas e informe en `.test-artifacts/` (ignorado). Se ejecuta sin red con `docker compose run --rm agent-observability-test`.
+- `test/agent-observability-ui.test.mjs`: `ChatCard`, `PhantomChat` y `PhantomOrchestrator` productivos con su CSS real en Chromium, respaldados por los módulos reales `agent-traces` y `workspace-supervisor`. El clic en «Ver detalle e historial» recorre `ChatCard` → `AgentOpenContext` → `useAgentOpener` (el hook que usa `App.jsx`, con `agentOpenRequest`) → pestaña Orquestador → `PhantomChat` (`agentRequest`) → `PhantomOrchestrator`; de `App.jsx` solo se reproduce en la fixture el estado de pestaña del dock (`openPhantomChat`) y el `Provider`. Genera capturas e informe en `.test-artifacts/` (ignorado). Se ejecuta sin red con `docker compose run --rm agent-observability-test`.
 - `test/chats.test.mjs` y `test/desktop-security.test.mjs`: `onTrace` de hijos con el host real y la separación de RPC de operador y de agente.
 
 ## Pendientes y límites conocidos
 
-- **`App.jsx` no se monta en ninguna prueba.** La cadena `ChatCard` → contexto → validación → `PhantomChat` → Orquestador se ejercita con componentes y validación productivos, pero el estado propio de `App.jsx` (`agentRequest`, `openPhantomChat`, el `Provider`) lo reproduce la fixture y solo se comprueba por lectura y por `npm run build`.
+- **`App.jsx` no se monta en ninguna prueba.** La cadena `ChatCard` → contexto → `useAgentOpener` → `PhantomChat` → Orquestador se ejercita con componentes y el hook productivos (App y fixture comparten `useAgentOpener`), pero lo propio de `App.jsx` (`openPhantomChat`/`chooseDockTab`, el `<AgentOpenContext.Provider>` alrededor de `Canvas` y el paso de `agentRequest` a `PhantomChat`) solo se comprueba por lectura y por `npm run build`; que `Canvas`/`CanvasNode` rendericen `ChatCard` sin props se comprueba por lectura.
 - Sin evidencia de sesiones reales de Claude, Codex u OpenCode ni del supervisor con Claude Code.
 - Las llamadas a MCP dentro de un turno se ven por el evento de herramienta del proveedor (`mcp__phantom_workspace__phantom` con su entrada estructurada). El adaptador `mcp` (llamada JSON-RPC con `agentId`) existe y está probado, pero ningún camino de producción lo alimenta todavía.
 - Storybook no tiene fixture de `agent.traces.*` ni `supervisor.*`: el Orquestador solo muestra sus estados de error/no disponible. `test/storybook-smoke.mjs` tolera exactamente esas cinco lecturas sin fixture; cualquier otra llamada sin fixture sigue fallando.

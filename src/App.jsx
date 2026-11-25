@@ -54,8 +54,7 @@ import RailUsage from './components/RailUsage.jsx';
 import './shell.css';
 import PhantomChat from './components/PhantomChat';
 import { DOCK_TABS, dockStatus } from './hooks/phantom-dock.mjs';
-import { AgentOpenContext } from './hooks/useAgentTraces';
-import { agentOpenRequest } from './hooks/delegation-model.mjs';
+import { AgentOpenContext, useAgentOpener } from './hooks/useAgentTraces';
 import './phantom-chat.css';
 import './panels.css';
 import './menus.css';
@@ -196,14 +195,8 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
   // A sub-agent clicked in any canvas card opens its detail in the dock's Orquestador tab. The request names the
   // workspace, the card (node) and the agent explicitly; one for another project than the active one is dropped.
   // ChatCard reaches this through AgentOpenContext (Canvas and CanvasNode pass no such prop).
-  const [agentRequest, setAgentRequest] = useState(null);
-  const openAgent = useCallback(request => {
-    const checked = agentOpenRequest(request, activeWorkspaceId);
-    if (!checked) return;
-    setAgentRequest(checked);
-    openPhantomChat(true, 'orchestrator');
-  }, [activeWorkspaceId, openPhantomChat]);
-  const consumeAgentRequest = useCallback(() => setAgentRequest(null), []);
+  const openOrchestrator = useCallback(() => openPhantomChat(true, 'orchestrator'), [openPhantomChat]);
+  const { agentRequest, openAgent, consumeAgentRequest } = useAgentOpener(activeWorkspaceId, openOrchestrator);
   // A dictation turned into a task opens the voice capture with that text.
   const [voiceText, setVoiceText] = useState('');
   const [compactRail, setCompactRail] = useState(() => window.matchMedia('(max-width: 850px)').matches);
