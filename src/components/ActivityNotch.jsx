@@ -161,7 +161,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
               {toCard(task, false) || toSession(task, undefined, false)}
             </li>)}</ul>
             {group.items.length > 5 && <p className="activity-copy">y {group.items.length - 5} más</p>}
-          </>} />)}{hiddenStuck.length > 0 && <button type="button" className="activity-link" aria-expanded={allCauses} onClick={() => setAllCauses(!allCauses)}>{allCauses ? 'Ver menos' : `${hiddenStuck.length} ${hiddenStuck.length === 1 ? 'causa más' : 'causas más'} · ${hiddenStuck.reduce((sum, group) => sum + group.count, 0)} ${hiddenStuck.reduce((sum, group) => sum + group.count, 0) === 1 ? 'tarea' : 'tareas'}`}</button>}</Group>}
+          </>} />)}{hiddenStuck.length > 0 && <li className="activity-more"><button type="button" className="activity-link" aria-expanded={allCauses} onClick={() => setAllCauses(!allCauses)}>{allCauses ? 'Ver menos' : `${hiddenStuck.length} ${hiddenStuck.length === 1 ? 'causa más' : 'causas más'} · ${hiddenStuck.reduce((sum, group) => sum + group.count, 0)} ${hiddenStuck.reduce((sum, group) => sum + group.count, 0) === 1 ? 'tarea' : 'tareas'}`}</button></li>}</Group>}
           {later.length > 0 && <Group id="activity-later" title="Cuando puedas">{later.map(item => <Row key={item.key} kind={item.need} title={item.headline} meta={[item.context]}>{tidy(item)}</Row>)}</Group>}
           {!count && !stuck.length && !later.length && <EmptyState className="activity-empty" size="compact" icon={CheckCircle2} description="Aquí aparecerá lo que necesite una decisión tuya." />}
         </>}

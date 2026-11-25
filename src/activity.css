@@ -40,6 +40,8 @@
 .activity-tray button:disabled { opacity: .55; cursor: default; }
 .activity-tray.needs-tray button.is-primary, .activity-tray.needs-tray button.is-primary:not(:disabled):hover { background: var(--on); color: var(--on-ink); box-shadow: none; }
 .activity-tray.needs-tray button.activity-link { min-height: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font: inherit; }
+.activity-tray.needs-tray .activity-more { display: flex; justify-content: flex-start; padding: 4px 14px 8px 64px; }
+.activity-tray.needs-tray .activity-more button.activity-link { font: var(--t-support); color: var(--muted); }
 .activity-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 6px 0; font: var(--t-support); color: var(--muted); }
 .activity-tray .activity-copy { margin: 0; font: var(--t-support); color: var(--muted); }
 .activity-tray .activity-empty { margin: 16px 6px; }
