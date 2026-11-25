@@ -1,7 +1,8 @@
 import React, { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useComposerSize } from '../hooks/useComposerSize';
 import { AgentOpenContext } from '../hooks/useAgentTraces';
-import { AlertCircle, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Square, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Settings2, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { canSubmit, mergeDictation, sendAction } from '../hooks/voice-send.mjs';
@@ -160,11 +161,8 @@ export function SessionContext({ node, workspace, api, notify, provider, label, 
     <h3>Contexto</h3>
     <div className="pc-context-rows">
       <details className="pc-folder"><summary className="pc-session-row"><span className="pc-session-badge is-folder"><Folder size={18} aria-hidden="true" /></span><span className="pc-session-label">Carpeta</span><span className="pc-session-value pc-mono" title={cwd}>{cwd}</span><ChevronRight size={16} aria-hidden="true" /></summary><p>{cwd}{branch && <><br />{AUTO_BRANCH.test(branch) ? 'Copia propia de esta sesión' : `Rama: ${branch}`}</>}</p></details>
-      <PermissionSwitch row mode={permissionMode} provider={provider} descriptions={descriptions} disabled={!ready} onChange={configurePermission(api, workspace, node, notify)} />
       <ProjectPermissions key={workspace.id} workspace={workspace} api={api} mode={permissionMode} provider={provider} disabled={!ready} />
-      <ModelPicker row node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!ready || running} />
     </div>
-    <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!ready || running} />
   </section>;
 }
 
@@ -211,18 +209,37 @@ export function useCompaction({ chat, connected, capabilities, compact, continue
 
 // «Contexto de la sesión» as a chip in the island; its settings open above it.
 export function SessionChip({ cwd, branch, workspaceName, children }) {
-  const root = useRef(null), [open, setOpen] = useState(false);
+  const root = useRef(null), pop = useRef(null), [open, setOpen] = useState(false), [place, setPlace] = useState(null);
   useEffect(() => {
     if (!open) return;
-    const outside = e => { if (!root.current?.contains(e.target)) root.current.open = false; };
+    const outside = e => { if (!root.current?.contains(e.target) && !pop.current?.contains(e.target)) { root.current.open = false; setOpen(false); } };
     document.addEventListener('pointerdown', outside, true);
-    return () => document.removeEventListener('pointerdown', outside, true);
+    document.addEventListener('wheel', outside, { capture: true, passive: true });
+    return () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('wheel', outside, true); };
   }, [open]);
-  const { name, own } = sessionChipLabel({ cwd, branch, workspaceName });
+  // The popover lives on <body> (fixed): the card and canvas node clip and scale their children.
+  useLayoutEffect(() => {
+    if (!open) { setPlace(null); return; }
+    const measure = () => {
+      const rect = root.current?.querySelector('summary')?.getBoundingClientRect();
+      if (!rect) return;
+      const margin = 12, width = Math.min(440, window.innerWidth - margin * 2);
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+      const above = rect.top - 8 - margin, below = window.innerHeight - rect.bottom - 8 - margin;
+      const up = above >= Math.min(420, below);
+      const next = { left, width, maxHeight: Math.max(120, up ? above : below), ...(up ? { bottom: window.innerHeight - rect.top + 8 } : { top: rect.bottom + 8 }) };
+      setPlace(prev => prev && Object.keys(next).length === Object.keys(prev).length && Object.keys(next).every(k => prev[k] === next[k]) ? prev : next);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => { window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
+  }, [open]);
+  const { own } = sessionChipLabel({ cwd, branch, workspaceName });
   return <details ref={root} className="pc-session-settings" onToggle={e => setOpen(e.currentTarget.open)}
     onKeyDown={e => { if (e.key === 'Escape' && root.current.open) { e.preventDefault(); e.stopPropagation(); root.current.open = false; root.current.querySelector('summary')?.focus({ preventScroll: true }); } }}>
-    <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Folder size={14} aria-hidden="true" /><span>{name}{own && <span> · copia</span>}</span></summary>
-    <div className="pc-session-pop">{children}</div>
+    <summary className="pc-session-chip" aria-label={`Contexto de la sesión: ${cwd || 'carpeta desconocida'}${own ? ' · copia propia de esta sesión' : ''}`} title={own ? `${cwd} · copia propia de esta sesión` : cwd || undefined}><Settings2 size={16} aria-hidden="true" /></summary>
+    {open && place && createPortal(<div ref={pop} className="pc pc-session-pop" style={place} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>{children}</div>, document.body)}
   </details>;
 }
 
@@ -381,7 +398,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
         <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
-          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}><AgentChoices node={node} workspace={workspace} api={api} notify={notify} disabled={running} /><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} />{context}</SessionChip>
+          <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}>{context}</SessionChip>
           <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
           <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
           <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
