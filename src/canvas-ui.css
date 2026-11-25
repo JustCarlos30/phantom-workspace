@@ -1349,8 +1349,8 @@ select:disabled { cursor: not-allowed; }
 .index-group-title b { font-weight: 500; font-variant-numeric: tabular-nums; }
 .index-type { display: inline-flex; align-items: center; gap: 6px; }
 .index-dot, .tw-project-status i { display: inline-block; width: 6px; height: 6px; flex-shrink: 0; border-radius: var(--r-pill); background: var(--ink-3, var(--muted)); opacity: .7; }
-.index-dot.is-attention, .tw-project-status.is-attention i { background: var(--attention); opacity: 1; }
-.index-dot.is-working, .tw-project-status.is-working i { background: var(--working); opacity: 1; }
+.index-dot.is-attention, .tw-project-status.is-attention i { background: currentColor; color: var(--attention); opacity: 1; }
+.index-dot.is-working, .tw-project-status.is-working i { background: currentColor; color: var(--working); opacity: 1; }
 .tw-project-status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; font-size: 11px; color: var(--muted); }
 .tw-project-status.is-attention { color: var(--attention); }
 .tw-project-status.is-working { color: var(--working); }
