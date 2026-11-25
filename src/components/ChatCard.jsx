@@ -1,6 +1,7 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useComposerSize } from '../hooks/useComposerSize';
+import { AgentOpenContext } from '../hooks/useAgentTraces';
 import { AlertCircle, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Settings2, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
@@ -66,12 +67,12 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel, onOpenAgent }) {
   if (message.role === 'user') return <blockquote className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></blockquote>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} onOpenAgent={onOpenAgent} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel, onOpenAgent }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const elapsed = useElapsed(message.createdAt, streaming);
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
@@ -87,7 +88,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'phantom'
         ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
-        ? <SubagentCard key={group.part.id} part={group.part} />
+        ? <SubagentCard key={group.part.id} part={group.part} onOpenAgent={onOpenAgent} />
       : group.type === 'permission'
         ? <PermissionRow key={group.id} part={group} onAnswer={onAnswer} />
       : group.type === 'question'
@@ -255,7 +256,12 @@ export function ComposerControls({ selectors, leading, meter, voice, hint, child
   </div>;
 }
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel, onOpenAgent: openAgentProp }) {
+  // The canvas does not pass props down to this card: the app offers the dock opener by context and the card adds
+  // its own identity (project, card) to the agent the user clicked. An explicit prop (the dock chat) wins.
+  const openAgentContext = useContext(AgentOpenContext), workspaceId = workspace.id, nodeId = node.id;
+  const onOpenAgent = useCallback(id => { if (openAgentProp) openAgentProp(id); else openAgentContext?.({ workspaceId, nodeId, id }); }, [openAgentProp, openAgentContext, workspaceId, nodeId]);
+  const hasOpenAgent = Boolean(openAgentProp || openAgentContext);
   const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
@@ -375,7 +381,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <section className="pc-session-section"><h3>Interfaz</h3><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} /></section>
           {context}
         </div>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} onOpenAgent={hasOpenAgent ? onOpenAgent : undefined} />)}
         {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{delegatingLabel}{progress && progress.idle ? ` · inactivo ${progress.idle}` : ''}</span>{(progress?.warning || healthView.warning) && <span className="pc-run-health-warning" role="status">{progress?.warning || healthView.warning}</span>}{progress?.blocker && <span className="pc-run-health-warning" role="alert">{`${progress.blocker.title}: ${progress.blocker.summary}`}</span>}</p>}
       </div>
     </div>

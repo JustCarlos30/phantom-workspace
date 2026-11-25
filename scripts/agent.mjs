@@ -1,6 +1,8 @@
 import net from 'node:net';
 import fs from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { adaptHookTrace } from '../host/agent-trace-adapters.mjs';
 import { EVENTS_METHOD } from '../shared/workspace-events.mjs';
 
 export function invokeAgent(method, payload, socketPath, timeout=10000) {
@@ -72,8 +74,18 @@ export async function main(args=process.argv.slice(2), env=process.env) {
       if(args.length!==1)return;
       const chunks=[];let size=0;
       for await(const chunk of process.stdin){size+=Buffer.byteLength(chunk);if(size>1024*1024){process.stdin.destroy();return;}chunks.push(chunk);}
-      const op=subagentOp(JSON.parse(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk))).toString('utf8')));
-      if(op&&env.PHANTOM_TERMINAL_SESSION_ID&&env.PHANTOM_WORKSPACE_SOCKET)await invokeAgent('terminal.agent.subagent',{sessionId:env.PHANTOM_TERMINAL_SESSION_ID,op},env.PHANTOM_WORKSPACE_SOCKET,3000);
+      const payload=JSON.parse(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk))).toString('utf8'));
+      // The legacy op feeds the live list; the records feed the durable trace history (the host derives workspace and node from the session).
+      const op=subagentOp(payload),records=adaptHookTrace(payload,{provider:'claude'}),sessionId=env.PHANTOM_TERMINAL_SESSION_ID,socket=env.PHANTOM_WORKSPACE_SOCKET;
+      if(sessionId&&socket) {
+        const calls=[];
+        if(op)calls.push(['terminal.agent.subagent',{sessionId,op}]);
+        if(records.length)calls.push(['terminal.agent.trace',{sessionId,records}]);
+        const results=await Promise.allSettled(calls.map(([method,body])=>invokeAgent(method,body,socket,3000)));
+        // Hooks never block the agent; failures stay observable in the file the operator names.
+        const failed=results.flatMap((result,index)=>result.status==='rejected'?[{method:calls[index][0],error:String(result.reason?.message??result.reason).slice(0,300)}]:[]);
+        if(failed.length&&path.isAbsolute(env.PHANTOM_AGENT_HOOK_LOG??''))fs.appendFileSync(env.PHANTOM_AGENT_HOOK_LOG,failed.map(item=>JSON.stringify({at:new Date().toISOString(),hook:payload?.hook_event_name,...item})).join('\n')+'\n',{mode:0o600});
+      }
     } catch {}
     return;
   }
