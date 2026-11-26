@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { AlertTriangle, ArrowLeft, Check, GitBranch, Clock, Columns3, ExternalLink, FileText, Layers, LayoutDashboard, Pause, Play, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Square, X, XCircle } from 'lucide-react';
 import { Button, Field, ErrorNotice, DataView, useResource, useOperation } from './PluginPrimitives';
 import { itemsOf, contractOf, stateOf, refOf, goalOf, emptyCardForm, cardFormOf, buildCardInput, cardActions, executionFacts } from '../hooks/plugin-model.mjs';
-import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf, checkResult, eventLabel, eventDetails, phaseOf, titleOf, sectionsOf, explainReason, runSummary, groupByCause, tailOf } from '../hooks/phantom-desk.mjs';
+import { ZONES, STATUS, buildDesk, changedStatuses, statusMap, statusLabel, statusTone, relative, duration, lastLine, budgetText, argvText, runsOf, parseCommand, commandOf, budgetFieldsOf, budgetJsonOf, checkResult, eventLabel, eventDetails, phaseOf, titleOf, humanTitleOf, briefOf, storyOf, sectionsOf, runSummary, groupByCause, tailOf } from '../hooks/phantom-desk.mjs';
 import { cardLocations } from '../hooks/branches-model.mjs';
 import { useEnabledProviders } from './ChatCard';
 const unavailableReason = reason => reason?.replace(/^Phantom unavailable: /, '') || 'sin motivo informado';
@@ -80,7 +80,7 @@ function CheckEvidence({ title, evidence }) {
 }
 
 const MESSAGE_LINES = 6;
-const TABS = [['summary', 'Resumen'], ['changes', 'Cambios'], ['verification', 'Verificación'], ['activity', 'Actividad']];
+const TABS = [['changes', 'Cambios'], ['verification', 'Verificación'], ['activity', 'Actividad']];
 const msText = value => value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(1)} s`;
 
 function Tabs({ label, tabs, children }) {
@@ -148,16 +148,20 @@ function CardDetail({ resolve, id, catalog, workspace, api, refresh, notify, plu
   const depStatus = dep => catalog?.lookup?.get(dep);
   const goal = native ? goalOf(native) : catalog?.goal || id;
   const reason = native?.reason || catalog?.reason || '';
-  const explain = reason ? explainReason(reason) : null;
   const message = typeof run?.summary?.message === 'string' ? run.summary.message.trim() : '';
+  const story = storyOf({ status, reason, run, message });
+  const title = humanTitleOf(goal) || titleOf(goal) || id;
+  const failedRaw = story.check ? (lastRound || run?.evidence?.baseline)?.checks?.find(check => check.passed === false) : null;
+  const failedTail = failedRaw ? tailOf([failedRaw.error, failedRaw.stderr, failedRaw.stdout].filter(text => typeof text === 'string' && text).join('\n'), 12) : '';
+  const canReplace = ['blocked', 'failed'].includes(status);
   const shortMessage = message.split('\n').slice(0, MESSAGE_LINES).join('\n').slice(0, 600);
   const hour = at => at ? new Date(at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '··:··';
-  return <article className="pc-sheet pc-contract" aria-label={`Detalle ${titleOf(goal) || id}`}>
+  return <article className="pc-sheet pc-contract" aria-label={`Detalle ${title}`}>
     <header className="pc-contract-head">
       <button type="button" className="pc-icon pc-back" aria-label="Volver a la mesa" onClick={onClose}><ArrowLeft size={15} /></button>
       <div className="pc-contract-title">
         <div className="pc-contract-meta"><StatusPill status={status} /></div>
-        <h2 className="pc-goal-summary">{titleOf(goal) || id}</h2>
+        <h2 className="pc-goal-summary">{title}</h2>
       </div>
       <button type="button" className="pc-icon" aria-label="Actualizar detalle, eventos y controladores" title="Actualizar" onClick={reload}><RefreshCw size={14} className={detail.loading ? 'spinning' : ''} /></button>
       <button type="button" className="pc-icon pc-close" aria-label="Cerrar detalle" onClick={onClose}><X size={15} /></button>
@@ -166,24 +170,33 @@ function CardDetail({ resolve, id, catalog, workspace, api, refresh, notify, plu
     {detail.error && <ErrorNotice error={detail.error} retry={detail.reload} />}
     {value?.available === false && <p className="pc-notice">Phantom no está disponible: {unavailableReason(value.reason)}.</p>}
     {ready && <>
-      <section className="pc-next" aria-label={explain ? 'Qué pasó' : 'Siguiente paso'}>
-        <div className="pc-next-copy">
-          {explain ? <><strong className="pc-what-label"><AlertTriangle size={14} aria-hidden="true" />{explain.label}{explain.child ? ` · subtarea ${explain.child}` : ''}</strong><span>{explain.meaning}</span><span className="pc-what-next">{explain.next}</span></>
-            : <><strong>Siguiente paso</strong><span>{available.length ? 'Solo se muestran las acciones que Phantom admite ahora para esta Card.' : 'Phantom no admite acciones sobre esta Card en su estado actual.'}</span></>}
-        </div>
+      <section className="pc-block" aria-label="Qué hace">
+        <h3 className="pc-block-title">Qué hace</h3>
+        <p className="pc-prose pc-brief">{briefOf(goal) || title}</p>
+        <details className="pc-full-goal"><summary>Ver encargo completo</summary>
+          {sectionsOf(goal).filter(section => section.heading || section.body).map((section, index) => <section key={index} className="pc-goal-section">{section.heading && <h4 className="pc-label">{section.heading}</h4>}<p className="pc-prose">{section.body}</p></section>)}
+        </details>
+      </section>
+      <section className="pc-block" aria-label="Qué pasó">
+        <h3 className="pc-block-title">Qué pasó</h3>
+        <ol className="pc-stepper" aria-label="Avance de la Card">{story.steps.map((step, index) => {
+          const state = index < story.current ? 'done' : index === story.current ? (story.failed ? 'failed' : story.tone === 'done' ? 'done' : 'current') : 'todo';
+          return <li key={step} className={`is-${state}`} aria-current={state === 'current' || state === 'failed' ? 'step' : undefined}><i aria-hidden="true" />{step}{state === 'failed' ? ' · se atoró' : ''}</li>;
+        })}</ol>
+        <p className={`pc-why${story.failed ? ' is-alert' : ''}`}>{story.why}</p>
+        {story.check && <div className="pc-failed-check"><strong>{story.check.name}</strong>{failedTail && <pre tabIndex={0} aria-label={`Salida de ${story.check.name}`}>{failedTail}</pre>}</div>}
         {message && <div className="pc-message"><span className="pc-label">Mensaje final del agente</span><p>{fullMessage ? message : shortMessage}</p>{message.length > shortMessage.length && <button type="button" className="pc-link" aria-expanded={fullMessage} onClick={() => setFullMessage(old => !old)}>{fullMessage ? 'Ver menos' : 'Ver completo'}</button>}</div>}
-        {facts.blocked && <p className="pc-reason" role="alert"><AlertTriangle size={14} aria-hidden="true" />{facts.blocked}</p>}
-        {(available.length > 0 || actions.run) && <div className="pc-next-actions">
+      </section>
+      <section className="pc-next" aria-label="Qué hago ahora">
+        <h3 className="pc-block-title">Qué hago ahora</h3>
+        <p className="pc-what-next">{story.next}{!available.length && story.failed ? ' Phantom no admite acciones directas ahora; corrige el contrato en un reemplazo.' : ''}</p>
+        {facts.blocked &&<p className="pc-reason" role="alert"><AlertTriangle size={14} aria-hidden="true" />{facts.blocked}</p>}
+        {(available.length > 0 || actions.run || canReplace) && <div className="pc-next-actions">
           {available.map(([action, label, Icon], index) => <Button key={action} icon={Icon} tone={index === 0 ? 'primary' : undefined} disabled={controlsBlocked || (action === 'run' && Boolean(facts.blocked))} onClick={() => control(action)}>{label}</Button>)}
+          {canReplace && <Button tone={available.length ? undefined : 'primary'} disabled={op.busy} aria-expanded={Boolean(editing)} onClick={() => setEditing(old => old ? null : { ...native, id })}>{editing ? 'Ocultar reemplazo' : 'Preparar reemplazo'}</Button>}
           {actions.run && <details className="pc-run-options"><summary>Opciones de ejecución</summary><div className="pc-model"><Field label="Modelo para ejecutar" hint={`Vacío: ${facts.requested} (${facts.requestedSource}). ${openCode ? 'Claude Code («claude-code/…») u OpenCode («proveedor/modelo»).' : 'Solo Claude Code.'}`}><input list={modelList} value={model} onChange={e => setModel(e.target.value)} placeholder="claude-code/sonnet" /></Field><datalist id={modelList}>{models.data?.models?.map(item => <option key={item} value={item} />)}</datalist><Button disabled={models.loading} onClick={models.reload}>{openCode ? 'Ver modelos habilitados' : 'Ver modelos Claude Code'}</Button></div></details>}
         </div>}
       </section>
-      {resolve && ['blocked', 'failed'].includes(status) && <section className="pc-resolve" aria-label="Resolver bloqueo">
-        <strong>Resolver bloqueo</strong>
-        <span>{explain ? `${explain.label}. ${explain.meaning} ${explain.next}.` : 'Phantom no informó el motivo.'}</span>
-        <span className="pc-quiet">{available.some(([action]) => action === 'recover' || action === 'verify') ? 'Puedes recuperar o verificar con las acciones de arriba.' : 'Phantom no admite recuperar ni verificar ahora. Corrige contrato o presupuesto en un reemplazo; el original se conserva y no se ejecuta nada hasta que lo lances.'}</span>
-        <Button disabled={op.busy} aria-expanded={Boolean(editing)} onClick={() => setEditing(old => old ? null : { ...native, id })}>{editing ? 'Ocultar reemplazo' : 'Preparar reemplazo'}</Button>
-      </section>}
       <ErrorNotice error={op.error} clear={op.clear} />{op.busy && <p role="status" className="pc-status">Enviando acción…</p>}
       <dl className="pc-facts pc-summary" aria-label="Resumen de la última ejecución">
         <div><dt>Cambios</dt><dd className="pc-num">{summary.files ? `${summary.files} ${summary.files === 1 ? 'archivo' : 'archivos'} · +${summary.added} −${summary.removed}` : 'Sin cambios registrados'}</dd></div>
@@ -191,13 +204,8 @@ function CardDetail({ resolve, id, catalog, workspace, api, refresh, notify, plu
         <div><dt>Duración</dt><dd className="pc-num">{run ? duration(run.startedAt, run.endedAt) || 'No informada' : 'Sin ejecuciones'}</dd></div>
         <div><dt>Intentos</dt><dd className="pc-num">{summary.attempts}</dd></div>
       </dl>
-      <Tabs label="Secciones de la Card" tabs={TABS}>{tab => tab === 'summary' ? <>
-        {sectionsOf(goal).filter(section => section.heading || section.body).map((section, index) => <section key={index} className="pc-goal-section">{section.heading && <h4 className="pc-label">{section.heading}</h4>}<p className="pc-prose">{section.body}</p></section>)}
-        <h4 className="pc-label">Alcance · {contract.scope?.length || 0} archivos</h4>
-        {contract.scope?.length ? <ul className="pc-list">{contract.scope.map(path => <li key={path}><FileText size={13} aria-hidden="true" className="pc-list-icon" /><code>{path}</code></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="No declarado." />}
-        <h4 className="pc-label">Dependencias</h4>
-        {contract.dependencies?.length ? <div className="pc-deps">{contract.dependencies.map(dep => { const known = depStatus(dep); return <span key={dep} className={`pc-dep pc-${statusTone(known?.status)}`} title={known?.goal || dep}><i aria-hidden="true" />{known ? `${known.title || titleOf(known.goal)} · ${statusLabel(known.status)}` : dep}</span>; })}</div> : <EmptyState className="pc-quiet" size="compact" description="Ninguna." />}
-      </> : tab === 'changes' ? <>
+      <details className="pc-tech"><summary>Detalles técnicos</summary><div className="pc-tech-body">
+      <Tabs label="Secciones de la Card" tabs={TABS}>{tab => tab === 'changes' ? <>
         {files.length ? <ul className="pc-list">{files.map(file => <li key={file.path}><FileText size={13} aria-hidden="true" className="pc-list-icon" /><code>{file.path}</code><span className="pc-diffstat pc-num"><span className="is-add">+{file.added ?? 0}</span> <span className="is-del">−{file.removed ?? 0}</span></span></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="Sin cambios registrados" />}
         {run?.summary?.patch && <pre className="pc-output pc-patch" tabIndex={0} aria-label="Parche">{run.summary.patch}</pre>}
         {run?.summary?.patchTruncated && <p className="pc-quiet">Phantom recortó el parche; el completo está en el worktree de la tarea.</p>}
@@ -207,10 +215,12 @@ function CardDetail({ resolve, id, catalog, workspace, api, refresh, notify, plu
           : <p className="pc-quiet">Sin verificación posterior disponible; no acredita aprobación.</p>}
         {rounds.some(round => round !== lastRound) && <details className="pc-check-evidence"><summary>Rondas anteriores · {rounds.filter(round => round !== lastRound).length}</summary>{rounds.filter(round => round !== lastRound).map((round, index) => <CheckEvidence key={round.round ?? index} title={`Pruebas posteriores · ronda ${round.round ?? index + 1}`} evidence={round} />)}</details>}
         <details className="pc-check-evidence"><summary>Pruebas iniciales (baseline)</summary><CheckEvidence title="Pruebas iniciales · baseline del worktree" evidence={run.evidence?.baseline} /></details>
-      </> : events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.seq ?? event.id ?? index}><span className="pc-num">{hour(event.at)}</span><div><strong>{eventLabel(event.type)}</strong>{typeof event.data?.reason === 'string' && <p>{event.data.reason}</p>}</div></li>)}</ol> : events.loading ? <p className="pc-quiet" role="status">Leyendo eventos…</p> : events.data?.available === false ? <p className="pc-notice">{events.data.reason}</p> : <EmptyState className="pc-quiet" size="compact" description="Sin eventos observados." />}</Tabs>
-      <details className="pc-tech"><summary>Detalles técnicos</summary><div className="pc-tech-body">
-        <details className="pc-full-goal"><summary>Objetivo completo</summary><p>{goalOf(native)}</p></details>
+      </> : events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.seq ?? event.id ?? index}><span className="pc-num">{hour(event.at)}</span><div><strong>{eventLabel(event.type)}</strong> <code>{event.type}</code>{typeof event.data?.reason === 'string' && <p>{event.data.reason}</p>}<details className="pc-check-evidence"><summary>Detalles del evento</summary><p>{event.at} · Tarea: {event.task_id} · Ejecución: {event.run_id || 'No informada'}</p><pre>{eventDetails(event)}</pre></details></div></li>)}</ol> : events.loading ? <p className="pc-quiet" role="status">Leyendo eventos…</p> : events.data?.available === false ? <p className="pc-notice">{events.data.reason}</p> : <EmptyState className="pc-quiet" size="compact" description="Sin eventos observados." />}</Tabs>
         <p className="pc-quiet">{phaseOf(native)}</p>
+        <h4 className="pc-label">Alcance · {contract.scope?.length || 0} archivos</h4>
+        {contract.scope?.length ? <ul className="pc-list">{contract.scope.map(path => <li key={path}><FileText size={13} aria-hidden="true" className="pc-list-icon" /><code>{path}</code></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="No declarado." />}
+        <h4 className="pc-label">Dependencias</h4>
+        {contract.dependencies?.length ? <div className="pc-deps">{contract.dependencies.map(dep => { const known = depStatus(dep); return <span key={dep} className={`pc-dep pc-${statusTone(known?.status)}`} title={known?.goal || dep}><i aria-hidden="true" />{known ? `${known.title || titleOf(known.goal)} · ${statusLabel(known.status)}` : dep}</span>; })}</div> : <EmptyState className="pc-quiet" size="compact" description="Ninguna." />}
         {reason && <p className="pc-reason"><AlertTriangle size={14} aria-hidden="true" />Motivo de tarea: {reason}</p>}
         <dl className="pc-facts pc-execution" aria-label="Ejecución efectiva">
           <div><dt>Cliente</dt><dd>{facts.client}</dd></div>
@@ -235,15 +245,11 @@ function CardDetail({ resolve, id, catalog, workspace, api, refresh, notify, plu
       </div>
       <section><h3 className="pc-label">Ejecuciones</h3>
         <p className="pc-quiet">Se muestran las ejecuciones devueltas por Phantom; show puede informar solo la última. Actualiza para observar cambios reales.</p>
-        {runs.length ? <ul className="pc-runs">{runs.map((run, index) => <li key={run.id || index}><StatusPill status={run.status} /><code>{run.id}</code><span>{run.mode === 'verification' ? 'Verificación' : 'Ejecución'}</span><span className="pc-quiet">{relative(run.startedAt)}</span><span className="pc-num">{duration(run.startedAt, run.endedAt)}</span>{Number.isFinite(run.turns) && <span className="pc-quiet">{run.turns} turnos · {run.tools ?? 0} herramientas</span>}<div className="pc-run-evidence"><p>Motivo de ejecución: {run.reason || 'No informado'}</p><CheckEvidence title="Pruebas iniciales · baseline del worktree" evidence={run.evidence?.baseline} />{run.evidence?.verification?.map(round => <CheckEvidence key={round.round} title={`Pruebas posteriores · ronda ${round.round}`} evidence={round} />) || <CheckEvidence title="Pruebas posteriores" />}</div></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="Sin ejecuciones registradas." />}
+        {runs.length ? <ul className="pc-runs">{runs.map((run, index) => <li key={run.id || index}><StatusPill status={run.status} /><code>{run.id}</code><span>{run.mode === 'verification' ? 'Verificación' : 'Ejecución'}</span><span className="pc-quiet">{relative(run.startedAt)}</span><span className="pc-num">{duration(run.startedAt, run.endedAt)}</span>{Number.isFinite(run.turns) && <span className="pc-quiet">{run.turns} turnos · {run.tools ?? 0} herramientas</span>}<div className="pc-run-evidence"><p>Motivo de ejecución: {run.reason || 'No informado'}</p></div></li>)}</ul> : <EmptyState className="pc-quiet" size="compact" description="Sin ejecuciones registradas." />}
       </section>
       {related.length > 0 && <section><h3 className="pc-label">Procesos del controlador</h3>{related.map(item => <div key={item.id} className="pc-controller"><div className="pc-controller-head"><StatusPill status={item.status === 'running' ? 'running' : item.status === 'failed' ? 'blocked' : item.status} /><span>{item.action}</span><span className="pc-quiet">{relative(item.createdAt)}</span></div>{item.output && <pre className="pc-output">{item.output.slice(-4000)}</pre>}</div>)}<p className="pc-quiet">El fin del controlador no completa la Card; el estado lo decide Phantom.</p></section>}
-      <section><h3 className="pc-label">Eventos recientes</h3>
-        {events.data?.truncated && <p className="pc-quiet">Se muestran los últimos 100 eventos; historial completo en la fuente nativa.</p>}
-        {events.error ? <ErrorNotice error={events.error} retry={events.reload} /> : eventItems.length ? <ol className="pc-events">{eventItems.map((event, index) => <li key={event.seq ?? event.id ?? index}><span className="pc-num">{event.at ? new Date(event.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '··:··'}</span><div><strong>{eventLabel(event.type)}</strong> <code>{event.type}</code>{typeof event.data?.reason === 'string' && <p>{event.data.reason}</p>}<details className="pc-check-evidence"><summary>Detalles del evento</summary><p>{event.at} · Tarea: {event.task_id} · Ejecución: {event.run_id || 'No informada'}</p><pre>{eventDetails(event)}</pre></details></div></li>)}</ol> : events.loading ? <p className="pc-quiet" role="status">Leyendo eventos…</p> : events.data?.available === false ? <p className="pc-notice">{events.data.reason}</p> : <EmptyState className="pc-quiet" size="compact" description="Sin eventos observados." />}
-      </section>
+      {events.data?.truncated && <p className="pc-quiet">Se muestran los últimos 100 eventos; historial completo en la fuente nativa.</p>}
       <div className="pc-sheet-actions">
-        <Button disabled={op.busy} aria-expanded={Boolean(editing)} onClick={() => setEditing(old => old ? null : { ...native, id })}>{editing ? 'Ocultar reemplazo' : 'Preparar reemplazo'}</Button>
         {onOpenPanel && <Button icon={ExternalLink} onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, ref: refOf(native) }, goalOf(native))}>Abrir referencia en otro panel</Button>}
       </div>
       <div className="pc-source"><DataView value={value} label="Ver fuente nativa" />{events.data && <DataView value={events.data} label="Ver historial de eventos" />}</div>
@@ -303,8 +309,9 @@ export function DeskCard({ card, selected, fresh, onSelect, now, runModel, onRun
     {live && <span className="pc-pulse" aria-hidden="true" />}
     <span className="pc-card-main">
       <span className="pc-card-goal">{card.title}</span>
+      {card.brief && <span className="pc-card-brief">{card.brief}</span>}
       <span className="pc-card-meta" id={metaId}><StatusPill status={card.status} />{fresh && <span className="pc-new">Cambió de estado</span>}{card.updatedAt && <span>{relative(card.updatedAt, now)}</span>}{where && <span className="pc-where" title={where.branch || 'Carpeta del proyecto'}><GitBranch size={10} aria-hidden="true" />{where.label}</span>}</span>
-      {card.resolutionText ? <span className="pc-card-reason">{card.resolutionText}</span> : card.explain && <span className="pc-card-reason">{card.explain.label}</span>}
+      {card.resolutionText ? <span className="pc-card-reason">{card.resolutionText}</span> : decide && (card.why || card.explain) && <span className="pc-card-reason is-alert">{card.why || card.explain.label}</span>}
       {live && <span className="pc-card-line">{line || (card.controller ? 'Sin salida recibida todavía.' : 'Ejecución registrada por Phantom fuera de este host.')}</span>}
     </span>
     {live && card.controller?.createdAt && <span className="pc-num pc-elapsed"><Clock size={12} aria-hidden="true" />{duration(card.controller.createdAt, null, now)}</span>}

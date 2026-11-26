@@ -99,6 +99,56 @@ test('formatters stay honest about missing data', () => {
   assert.deepEqual(runsOf({ runs: [{ id: 'a' }, { id: 'b' }] }).map(run => run.id), ['b', 'a']);
 });
 
+import { humanTitleOf, briefOf, failedCheckOf, storyOf } from '../src/hooks/phantom-desk.mjs';
+test('humanTitleOf prefers the Título section and strips agent jargon', () => {
+  assert.equal(humanTitleOf('## Título\nCards que se entienden\n\n## Propósito\nx'), 'Cards que se entienden');
+  assert.equal(humanTitleOf('BUG: Implementar el login con Google (decisión 2026-11-26). Más detalle.'), 'El login con Google');
+  assert.equal(humanTitleOf('Sustituye task_abc123 con un arreglo del menú. Resto.'), 'Con un arreglo del menú');
+  const long = humanTitleOf('Arreglar ' + 'una cosa muy larga '.repeat(10));
+  assert.ok(long.length <= 70 && long.endsWith('…'));
+  assert.equal(humanTitleOf(''), '');
+});
+test('briefOf prefers human sections and drops ids and long paths', () => {
+  assert.equal(briefOf('## Título\nT\n\n## Para el usuario\nVes qué hace cada tarea. Y por qué se atoró.\n\n## Otra\nz'), 'Ves qué hace cada tarea. Y por qué se atoró.');
+  assert.equal(briefOf('## Propósito / resultado observable\nLa mesa explica los bloqueos con task_abc123 en src/a/b/c.js claros.'), 'La mesa explica los bloqueos con en claros.');
+  assert.equal(briefOf('Arreglar el login. Debe recordar la sesión. Y otra cosa.'), 'Debe recordar la sesión. Y otra cosa.');
+  assert.ok(briefOf('Titulo. ' + 'palabra '.repeat(100)).length <= 220);
+  assert.equal(briefOf(''), '');
+});
+test('failedCheckOf finds the real failing check and ignores stack frames', () => {
+  const run = { evidence: { verification: [
+    { round: 1, available: true, checks: [{ name: 'viejo', passed: false, stderr: 'x' }] },
+    { round: 2, available: true, checks: [{ name: 'ok', passed: true }, { name: 'unit', passed: false, stderr: '\nError: boom\n  at foo (a.js:1)\n  at bar (b.js:2)\n\n' }] }] } };
+  assert.deepEqual(failedCheckOf(run), { name: 'unit', line: 'Error: boom' });
+  assert.deepEqual(failedCheckOf({ evidence: { baseline: { available: true, checks: [{ name: 'base', passed: false, reason: 'Salida 1' }] } } }), { name: 'base', line: 'Salida 1' });
+  assert.equal(failedCheckOf({ evidence: { verification: [{ available: true, checks: [{ name: 'a', passed: true }] }] } }), null);
+  assert.equal(failedCheckOf(null), null);
+});
+test('storyOf explains blocks with the real check, the agent message, or plain status', () => {
+  const run = { evidence: { verification: [{ available: true, checks: [{ name: 'unit', passed: false, stdout: 'not ok 3 - parse' }] }] } };
+  const verification = storyOf({ status: 'blocked', reason: 'Verificación fallida', run });
+  assert.equal(verification.why, 'Falló «unit»: not ok 3 - parse');
+  assert.equal(verification.current, 2); assert.equal(verification.failed, true); assert.equal(verification.tone, 'blocked');
+  const other = storyOf({ status: 'blocked', reason: 'Algo raro interno', message: 'Me falta permiso para escribir en config.json. Detalle largo.' });
+  assert.equal(other.why, 'Me falta permiso para escribir en config.json.');
+  assert.equal(storyOf({ status: 'blocked', reason: 'Algo raro' }).why, 'Algo raro');
+});
+test('storyOf keeps completed and running stories short and coherent', () => {
+  const done = storyOf({ status: 'completed' });
+  assert.equal(done.current, 3); assert.equal(done.failed, false); assert.equal(done.tone, 'done');
+  const running = storyOf({ status: 'running' });
+  assert.equal(running.current, 1); assert.equal(running.tone, 'live'); assert.deepEqual(running.steps, ['Preparada', 'Trabajando', 'Verificando', 'Lista']);
+});
+test('buildDesk adds brief and why without dropping existing fields', () => {
+  const desk = buildDesk([task('b1', 'blocked', '## Título\nArreglar menú\n\n## Para el usuario\nEl menú abre bien.', { reason: 'git_dirty' }), task('r1', 'running', 'Corre. Algo más.')]);
+  const blocked = desk.cards.find(card => card.id === 'b1'), running = desk.cards.find(card => card.id === 'r1');
+  assert.equal(blocked.title, 'Arreglar menú');
+  assert.equal(blocked.brief, 'El menú abre bien.');
+  assert.match(blocked.why, /cambios sin confirmar/);
+  assert.equal(blocked.explain.cause, 'git-dirty'); assert.equal(blocked.zone, 'decide');
+  assert.equal(running.why, '');
+});
+
 import { parseCommand, commandOf, budgetFieldsOf, budgetJsonOf } from '../src/hooks/phantom-desk.mjs';
 import { checkResult, eventLabel, eventDetails, phaseOf } from '../src/hooks/phantom-desk.mjs';
 test('execution evidence never turns declarations or missing artifacts into success', () => {
