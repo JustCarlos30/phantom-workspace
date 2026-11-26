@@ -717,7 +717,11 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 @container pc-isle (max-width: 520px) {
   .pc.pc .pc-selectors > .pc-permission > span { display: none; }
 }
-@container pc-isle (max-width: 540px) {
+@container pc-isle (min-width: 641px) {
+  .pc.pc .pc-selectors > .pc-model-picker, .pc.pc .pc-selectors > .pc-effort { flex: 0 0 auto; }
+  .pc.pc .pc-controls:has(> .pc-selectors) > .pc-composer-actions:has(.voice-activity) { flex: 1 1 0; min-width: 0; }
+}
+@container pc-isle (max-width: 640px) {
   .pc.pc .pc-controls:has(> .pc-selectors) { flex-direction: column; align-items: stretch; }
   .pc.pc .pc-selectors { flex-wrap: wrap; width: 100%; }
   .pc.pc .pc-selectors > * { flex: 0 1 auto; min-width: 0; }

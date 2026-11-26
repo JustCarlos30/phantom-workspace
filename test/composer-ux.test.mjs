@@ -241,8 +241,8 @@ test('Geometría: 320/480/640/960, menús completos, controles clicables y foco 
   }
 });
 
-test('Barra en una sola fila: selectores y acciones comparten línea a 640/960', async () => {
-  for (const surface of ['card', 'dock']) for (const width of [640, 960]) {
+test('Barra en una sola fila: selectores y acciones comparten línea a 960', async () => {
+  for (const surface of ['card', 'dock']) for (const width of [960]) {
     const page = await render({ surface, width });
     try {
       const data = await geometry(page, surface, width, 'one-row');
