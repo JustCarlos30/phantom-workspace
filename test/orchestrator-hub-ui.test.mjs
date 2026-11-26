@@ -46,7 +46,7 @@ async function render(options = {}) {
   await page.route('**/*', route => { requests.push(route.request().url()); return route.abort(); });
   await page.setContent('<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body class="app-shell"><div id="fixture"></div></body></html>');
   await page.addStyleTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.css')).text });
-  await page.addStyleTag({ content: 'body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: 860px; max-width: 100%; position: relative; container-type: inline-size; overflow: hidden; }' });
+  await page.addStyleTag({ content: 'body.app-shell { margin: 0; min-width: 0; display: block; } #fixture { height: 860px; max-width: 100%; position: relative; container-type: inline-size; overflow: hidden; } #fixture .oh-surface { position: absolute; inset: 0; }' });
   await page.addScriptTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.js')).text });
   await page.evaluate(options => window.mountHub(options), { ...options, width });
   await page.getByRole('heading', { name: options.ready || /^Se rompió/ }).waitFor();
@@ -67,7 +67,7 @@ test('agrupa «Se rompió» y «Te necesita» por proyecto arriba, lo que va bie
   const broken = await region(page, /^Se rompió/).innerText();
   assert.match(broken, /Alfa · pagos/);
   assert.match(broken, /Beta · web/);
-  assert.match(broken, /Incorporación[\s\S]*feat\/landing/);
+  assert.match(broken, /feat\/landing[\s\S]*Incorporación/);
   assert.doesNotMatch(broken, /Gamma/);
   const needs = await region(page, /^Te necesita/).innerText();
   assert.match(needs, /Alfa · pagos[\s\S]*Sesión/);
@@ -125,6 +125,12 @@ test('la línea del supervisor muestra su estado real, llamadas y resumen con ho
   assert.equal(await alfa.locator('.oh-sup-summary time').count(), 1, 'el resumen lleva su hora');
   const beta = await projects.locator('.oh-fine-item', { hasText: 'Beta · web' }).innerText();
   assert.match(beta, /Límite por hora alcanzado · 12 de 12 llamadas/);
+  const [limit, attention] = await page.evaluate(() => {
+    const state = [...document.querySelectorAll('.oh-sup-state')].find(el => el.textContent === 'Límite por hora alcanzado');
+    const probe = document.createElement('i'); probe.style.color = 'var(--attention)'; document.body.append(probe);
+    const out = [getComputedStyle(state).color, getComputedStyle(probe).color]; probe.remove(); return out;
+  });
+  assert.notEqual(limit, attention, 'el límite por hora no usa el color de atención');
   assert.match(await projects.locator('.oh-fine-item', { hasText: 'Gamma · docs' }).innerText(), /Aún sin resumen\.[\s\S]*Supervisor: Desactivado/);
   const all = await page.locator('.oh').innerText();
   assert.doesNotMatch(all, /Coste|coste|USD|\$/);
@@ -203,6 +209,85 @@ test('sin desborde horizontal a 320 px ni a 1600 px', async () => {
     await close(page);
   }
   results.push(`Sin desborde horizontal a 320 y 1600 px, composer siempre visible y borrador conservado; capturas en ${artifacts}/.`);
+});
+
+// Resolves a design token to the computed value of a property, so assertions compare real rendered styles.
+const resolve = (page, token, property = 'color') => page.evaluate(([token, property]) => {
+  const probe = document.createElement('i'); probe.style[property] = `var(${token})`; document.body.append(probe);
+  const value = getComputedStyle(probe)[property]; probe.remove(); return value;
+}, [token, property]);
+
+test('filas planas en reposo con disco de 32 px y glifo en el tono del estado', async () => {
+  const page = await render({ width: 900 });
+  const rows = page.locator('.oh-row');
+  assert.ok(await rows.count() >= 3);
+  const transparent = 'rgba(0, 0, 0, 0)';
+  for (const state of await rows.evaluateAll(list => list.map(row => { const style = getComputedStyle(row); return { background: style.backgroundColor, padding: style.paddingLeft, shadow: style.boxShadow, border: style.borderTopWidth }; })))
+    assert.deepEqual(state, { background: transparent, padding: '0px', shadow: 'none', border: '0px' }, 'fila plana sin caja en reposo');
+  assert.equal(await page.locator('.oh-fine-item').first().evaluate(el => getComputedStyle(el).backgroundColor), transparent, 'proyecto plano');
+  const fill2 = await resolve(page, '--fill-2', 'backgroundColor');
+  for (const [tone, token] of [['danger', '--danger'], ['attention', '--attention']]) {
+    const disc = page.locator(`.oh-row[data-tone="${tone}"] .oh-disc`).first();
+    const box = await disc.boundingBox();
+    assert.deepEqual([Math.round(box.width), Math.round(box.height)], [32, 32]);
+    assert.equal(await disc.evaluate(el => getComputedStyle(el).backgroundColor), fill2);
+    assert.equal(await disc.evaluate(el => getComputedStyle(el).color), await resolve(page, token), `glifo en ${token}`);
+    const svg = disc.locator('svg');
+    assert.equal(await svg.getAttribute('width'), '18');
+    assert.equal(await svg.getAttribute('stroke-width'), '1.75');
+  }
+  assert.equal(await page.locator('.oh-kind').first().evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)', 'sin píldora de tipo');
+  await close(page);
+  results.push('Filas planas sin relleno, borde ni sombra en reposo; disco de 32 px en --fill-2 con glifo Lucide de 18 px (trazo 1,75) en rojo/ámbar según el estado; sin píldora de tipo.');
+});
+
+test('una sola acción primaria marfil y encabezados de grupo sin color de estado', async () => {
+  const page = await render({ width: 900 });
+  const actions = await page.locator('.oh-action').evaluateAll(list => list.map(el => ({ background: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color, height: el.getBoundingClientRect().height, shadow: getComputedStyle(el).boxShadow, border: getComputedStyle(el).borderTopWidth })));
+  const primary = await resolve(page, '--primary', 'backgroundColor'), secondary = await resolve(page, '--control-fill', 'backgroundColor');
+  assert.equal(actions.filter(action => action.background === primary).length, 1, 'exactamente una primaria');
+  assert.equal(actions[0].background, primary, 'la primera acción del grupo más urgente es la primaria');
+  assert.equal(actions[0].color, await resolve(page, '--primary-ink'));
+  for (const action of actions.slice(1)) assert.equal(action.background, secondary);
+  for (const action of actions) { assert.ok(action.height >= 40, 'objetivo mínimo de 40 px'); assert.equal(action.shadow, 'none'); assert.equal(action.border, '0px'); }
+  const [danger, attention, ink3] = await Promise.all(['--danger', '--attention', '--ink-3'].map(token => resolve(page, token)));
+  const titles = await page.locator('.oh-group-title').evaluateAll(list => list.map(el => getComputedStyle(el).color));
+  assert.equal(titles.length, 3);
+  for (const color of titles) { assert.equal(color, ink3); assert.notEqual(color, danger); assert.notEqual(color, attention); }
+  assert.ok(await page.getByRole('heading', { name: /^Se rompió/ }).isVisible());
+  await close(page);
+  results.push('Una única acción primaria marfil (primera del grupo más urgente), el resto en --control-fill, todas ≥ 40 px sin sombra ni borde; encabezados de grupo en --ink-3, sin rojo ni ámbar.');
+});
+
+test('compositor: isla de 720 px centrada, Enviar marfil con borrador y campo de al menos 40 px', async () => {
+  const page = await render({ width: 1600 });
+  const field = page.locator('.oh-field'), box = page.getByRole('textbox', { name: /^Mensaje para el orquestador/ });
+  const send = page.getByRole('button', { name: /^Enviar al orquestador/ });
+  const primary = await resolve(page, '--primary', 'backgroundColor');
+  assert.notEqual(await send.evaluate(el => getComputedStyle(el).backgroundColor), primary, 'sin borrador Enviar no es marfil');
+  await box.fill('Revisa la rama de pagos');
+  await until(async () => await send.isEnabled());
+  await until(async () => await send.evaluate(el => getComputedStyle(el).backgroundColor) === primary, 2000).catch(() => {});
+  assert.equal(await send.evaluate(el => getComputedStyle(el).backgroundColor), primary, 'con borrador Enviar es marfil');
+  const geometry = await page.evaluate(() => {
+    const field = document.querySelector('.oh-field').getBoundingClientRect(), surface = document.querySelector('.oh-surface').getBoundingClientRect();
+    return { width: field.width, left: field.left - surface.left, right: surface.right - field.right };
+  });
+  assert.equal(await field.evaluate(el => getComputedStyle(el).maxWidth), '720px');
+  assert.ok(geometry.width <= 720 && geometry.width > 700, `isla de 720 px (${geometry.width})`);
+  assert.ok(Math.abs(geometry.left - geometry.right) <= 1, 'isla centrada');
+  assert.ok(await box.evaluate(el => el.getBoundingClientRect().height) >= 40, 'campo mínimo de 40 px');
+  assert.equal(await field.evaluate(el => getComputedStyle(el).backgroundColor), await resolve(page, '--composer-fill', 'backgroundColor'));
+  await box.focus();
+  assert.equal(await field.evaluate(el => getComputedStyle(el).backgroundColor), await resolve(page, '--composer-fill-lit', 'backgroundColor'), 'foco «luz»');
+  assert.equal(await field.evaluate(el => getComputedStyle(el, '::after').transitionDuration), '0s', 'sin transición con movimiento reducido');
+  const sizes = await page.locator('.oh-controls button').evaluateAll(list => list.map(el => [el.getBoundingClientRect().width, el.getBoundingClientRect().height]));
+  assert.ok(sizes.length >= 2);
+  for (const [width, height] of sizes) assert.deepEqual([Math.round(width), Math.round(height)], [36, 36]);
+  assert.equal(await page.getByRole('combobox', { name: 'Proyecto destino' }).evaluate(el => el.tagName), 'SELECT');
+  assert.ok(await field.locator('.oh-target').count() === 1, 'el selector «Para» está dentro de la isla');
+  await close(page);
+  results.push('Compositor: isla de máx. 720 px centrada con --composer-fill y foco «luz», campo ≥ 40 px, controles circulares de 36 px, selector «Para» nativo dentro de la isla y Enviar marfil solo con borrador.');
 });
 
 async function until(check, ms = 5000) {

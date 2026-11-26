@@ -21,11 +21,11 @@ window.mountHub = ({ width = 900, selected = 'hub-alfa', connected = true, scena
     const [online, setOnline] = React.useState(connected);
     window.hub.select = setWorkspaceId;
     window.hub.connect = setOnline;
-    return <OrchestratorHub workspaces={orchestratorHubWorkspaces} selectedWorkspaceId={workspaceId} api={host.invoke} connected={online}
+    return <div className="oh-surface"><OrchestratorHub workspaces={orchestratorHubWorkspaces} selectedWorkspaceId={workspaceId} api={host.invoke} connected={online}
       notify={() => {}}
       onOpenPanel={(type, data, title, workspace) => window.hub.opened.push({ type, data, title, workspaceId: workspace })}
       onSelectWorkspace={(id, focus) => window.hub.selections.push({ workspaceId: id, focus: focus || null })}
-      onClose={() => { window.hub.closed++; }} />;
+      onClose={() => { window.hub.closed++; }} /></div>;
   }
   const container = document.getElementById('fixture');
   container.style.width = `${width}px`;
