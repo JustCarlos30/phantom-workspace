@@ -145,6 +145,111 @@ export function traceResult(agent, events) {
   return text.trim() ? { available: true, text: text.slice(0, 4000) } : { available: false, text: '', reason: traceStatus(agent?.status).tone === 'done' ? 'El agente terminó sin resultado registrado.' : 'Aún sin resultado registrado.' };
 }
 
+// ---- One shape for a chat sub-agent and for a Phantom assignment ----
+// delegateView(input, now) -> {
+//   kind: 'subagent' | 'run', id, label: 'Subagente' | 'Encargo', title,
+//   tone: 'live' (working) | 'attention' (needs the user) | 'error' | 'done' (real success)
+//       | 'stopped' (not moving: stopped, cancelled, queued) | 'unknown' (no recorded state),
+//   stateLabel,
+//   now: { label, detail } | null      what it is doing right now, only if recorded
+//   duration: string                   '' when no start was recorded
+//   model: string | null               short model name, null when not recorded
+//   meta: string[]                     recorded counts only (steps, turns, tools, checks)
+//   attention: { label, meaning } | null   only a real blocker, failed checks or a pending question
+//   sections: [{ key, label, count? }] the <details> worth opening; absent data has no section
+// }
+// Inputs: a chat tool part with part.agent (type, model, steps, total, text, prompt; part.status, output, detail),
+// or a Phantom assignment: the summarizePhantomRun summary plus `activity` (summarizePhantomActivity) and `id`.
+// Either may carry `question` (string) when the caller found a pending question that belongs to it.
+// Nothing is derived from step counts: no percentage, no progress.
+const short = value => { const text = flat(value, 120); return text ? text.split('/').at(-1) : null; };
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+const questionOf = value => flat(typeof value === 'string' ? value : value?.question, 240);
+const SUBAGENT_STATE = { running: ['Trabajando', 'live'], done: ['Terminó', 'done'], error: ['Falló', 'error'], stopped: ['Detenido', 'stopped'] };
+
+function subagentView(part, now) {
+  const agent = part.agent && typeof part.agent === 'object' && !Array.isArray(part.agent) ? part.agent : {};
+  const steps = Array.isArray(agent.steps) ? agent.steps : [], total = Math.max(finite(agent.total) ?? 0, steps.length);
+  const [stateLabel, baseTone] = SUBAGENT_STATE[part.status] || ['Estado no disponible', 'unknown'];
+  const question = baseTone === 'live' ? questionOf(part.question ?? agent.question) : '';
+  const step = baseTone === 'live' ? steps.findLast(item => item?.status === 'running') || steps.at(-1) : null;
+  const doing = step ? { label: flat(step.name, 120), detail: flat(step.detail) } : null;
+  const type = flat(agent.type, 80);
+  return {
+    kind: 'subagent', id: part.id == null ? '' : String(part.id), label: 'Subagente',
+    title: flat(part.detail) || flat(part.name) || 'Sin descripción',
+    tone: question ? 'attention' : baseTone, stateLabel: question ? 'Espera tu respuesta' : stateLabel,
+    now: doing && doing.label ? doing : null,
+    duration: isoOf(agent.startedAt) ? duration(agent.startedAt, isoOf(agent.endedAt) || undefined, now) : '',
+    model: short(agent.model),
+    meta: [type, total > 0 ? plural(total, 'paso', 'pasos') : ''].filter(Boolean),
+    attention: question ? { label: 'Pregunta pendiente', meaning: question } : null,
+    sections: [
+      total > 0 && { key: 'steps', label: 'Pasos', count: total },
+      typeof agent.prompt === 'string' && agent.prompt.trim() && { key: 'prompt', label: 'Instrucción' },
+      typeof agent.text === 'string' && agent.text.trim() && { key: 'said', label: 'Último mensaje' },
+      typeof part.output === 'string' && part.output.trim() && { key: 'output', label: 'Resultado' },
+    ].filter(Boolean),
+  };
+}
+
+function runView(run) {
+  const summary = run && typeof run === 'object' ? run : {}, activity = summary.activity && typeof summary.activity === 'object' ? summary.activity : null;
+  const status = typeof summary.status === 'string' ? summary.status : 'unknown';
+  const checks = Array.isArray(summary.checks) ? summary.checks : [];
+  const failed = checks.filter(check => check?.passed === false);
+  const working = summary.live === true && status !== 'ready';
+  const blocker = summary.blocker && typeof summary.blocker === 'object' ? summary.blocker : null;
+  const question = questionOf(summary.question);
+  const attention = question ? { label: 'Pregunta pendiente', meaning: question }
+    : blocker ? { label: flat(blocker.label, 120) || 'Phantom la bloqueó', meaning: flat(blocker.meaning, 240) || flat(blocker.reason, 240) || 'Phantom no informó el motivo.' }
+    : failed.length && !working ? { label: failed.length === 1 ? 'Un check falló' : `${failed.length} checks fallaron`, meaning: failed.map(check => flat(check.name, 80)).filter(Boolean).join(' · ') || 'Phantom no informó cuáles.' }
+    : null;
+  const known = status !== 'unknown' && typeof summary.label === 'string' && summary.label;
+  const tone = status === 'failed' ? 'error' : attention ? 'attention' : working ? 'live' : status === 'completed' ? 'done' : status === 'cancelled' || status === 'ready' ? 'stopped' : 'unknown';
+  const current = working ? activity?.current : null, line = working ? flat(summary.line) : '';
+  const doing = current?.label ? { label: flat(current.label, 120), detail: flat(current.detail) } : line ? { label: 'Salida', detail: line } : null;
+  const results = checks.some(check => check?.result && check.result !== 'Sin resultado');
+  const activityTotal = finite(activity?.total) ?? 0;
+  return {
+    kind: 'run', id: typeof summary.id === 'string' ? summary.id : '', label: 'Encargo',
+    title: flat(summary.title) || flat(summary.goal) || 'Sin título',
+    tone, stateLabel: known ? summary.label : 'Estado no disponible', now: doing,
+    duration: typeof summary.duration === 'string' ? summary.duration : '', model: short(summary.model),
+    meta: [
+      finite(summary.turns) !== null ? plural(summary.turns, 'turno', 'turnos') : '',
+      finite(summary.tools) !== null ? plural(summary.tools, 'herramienta', 'herramientas') : '',
+      checks.length ? results ? `${finite(summary.passed) ?? 0} de ${checks.length} checks` : plural(checks.length, 'check sin resultado', 'checks sin resultado') : '',
+    ].filter(Boolean),
+    attention,
+    sections: [
+      Array.isArray(summary.phases) && summary.phases.length > 0 && { key: 'phases', label: 'Fases' },
+      checks.length > 0 && { key: 'checks', label: 'Checks', count: checks.length },
+      activityTotal > 0 && { key: 'activity', label: 'Actividad', count: activityTotal },
+      typeof summary.output === 'string' && summary.output.trim() && { key: 'output', label: 'Salida' },
+    ].filter(Boolean),
+  };
+}
+
+export function delegateView(input, now = Date.now()) {
+  return input?.type === 'tool' && input.agent ? subagentView(input, now) : runView(input);
+}
+
+// The live line over a turn: only what is working now. Accepts raw inputs or views already built.
+export function delegateSummary(parts, runs) {
+  const view = entry => entry?.kind && entry.tone ? entry : delegateView(entry);
+  const seen = new Set();
+  const subagents = (Array.isArray(parts) ? parts : []).filter(part => {
+    if (part?.type !== 'tool' || !part.agent || part.status !== 'running') return false;
+    const key = part.id == null ? '' : String(part.id);
+    if (key && seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).length;
+  const assignments = (Array.isArray(runs) ? runs : []).filter(run => view(run).tone === 'live').length;
+  return [subagents && plural(subagents, 'subagente', 'subagentes'), assignments && plural(assignments, 'encargo', 'encargos')].filter(Boolean).join(' · ');
+}
+
 export function chatSubagents(messages) {
   const result = [];
   for (const message of Array.isArray(messages) ? messages : []) {

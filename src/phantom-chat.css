@@ -111,18 +111,47 @@ button.pd-deleg-item { cursor: pointer; }
 button.pd-deleg-item:hover { background: var(--fill-2); }
 button.pd-deleg-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pd-deleg-dot { flex-shrink: 0; width: 6px; height: 6px; margin-top: 5px; border-radius: var(--r-pill); background: var(--muted); }
-.pd-deleg-row[data-status="working"] .pd-deleg-dot { background: var(--working); }
-.pd-deleg-row[data-status="blocked"] .pd-deleg-dot { background: var(--danger); }
-.pd-deleg-row[data-status="review"] .pd-deleg-dot { background: var(--accent); }
-.pd-deleg-what { font-size: 12px; line-height: 1.45; }
-.pd-deleg-row[data-purpose="none"] .pd-deleg-what { color: var(--warning); }
 .pd-deleg code { font-family: monospace; }
+/* Compartidas con PlanPhases y el plan de la terminal. */
 .pd-deleg-plan-block { min-width: 0; margin: 6px 0 8px 22px; overflow-wrap: anywhere; }
-.pd-deleg-subs { list-style: none; padding: 0; margin: 6px 0 8px 22px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.pd-deleg-sub { display: flex; flex-direction: column; min-width: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; color: var(--ink); }
 .pd-deleg-plan { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pd-deleg-child { display: flex; flex-direction: column; min-width: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; color: var(--ink); }
-.pd-deleg-cards, .pd-deleg-cards > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+/* Delegación: la misma fila que la Actividad del chat (40 px, glifo de 16 en columna de 32). El estado es una palabra
+   en su tono; los hijos de una card y los subagentes cuelgan de su fila con una guía de 1 px. Sin cajas ni bordes. */
+.pd-delegation { --row-px: 8px; --row-gap: 8px; gap: 4px; }
+.pd-del-list, .pd-del-nest ul { list-style: none; margin: 0; padding: 0; min-width: 0; }
+.pd-del { min-width: 0; padding-inline-start: min(calc(var(--deleg-depth, 0) * 12px), 40%); }
+.pd-del + .pd-del { margin-top: 1px; }
+.pd-del-row { display: flex; align-items: center; gap: var(--row-gap); min-height: var(--activity-row-height); min-width: 0; padding: var(--activity-row-py) var(--row-px); border-radius: var(--r-row); color: var(--muted); font: var(--t-support); list-style: none; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
+.pd-del-row::-webkit-details-marker { display: none; }
+.pd-del-row:hover { background: var(--row-hover); }
+.pd-del-row:active { background: var(--row-press); }
+.pd-del-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pd-del-mark { display: grid; place-items: center; flex-shrink: 0; width: var(--icon-col); height: 20px; color: var(--ink-3); }
+.pd-del-label { flex-shrink: 0; color: var(--ink); font: var(--t-control); white-space: nowrap; }
+.pd-del-title { flex: 1 1 0; min-width: 4ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pd-del-state { display: flex; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 55%; overflow: hidden; white-space: nowrap; color: var(--ink-3); font: var(--t-micro); }
+.pd-del-state > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.pd-del-time { flex-shrink: 0; font-weight: 400; }
+.pd-del-caret { flex-shrink: 0; opacity: 0; transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
+.pd-del-row:hover > .pd-del-caret, .pd-del-row:focus-visible > .pd-del-caret, details[open] > .pd-del-row > .pd-del-caret { opacity: 1; }
+details[open] > .pd-del-row > .pd-del-caret { transform: rotate(90deg); }
+.pd-del-row[data-tone="live"] .pd-del-mark, .pd-del-row[data-tone="live"] .pd-del-state > span:first-child { color: var(--working); }
+.pd-del-row[data-tone="attention"] .pd-del-mark, .pd-del-row[data-tone="attention"] .pd-del-state > span:first-child { color: var(--attention); }
+.pd-del-row[data-tone="error"] .pd-del-mark, .pd-del-row[data-tone="error"] .pd-del-state > span:first-child { color: var(--danger); }
+.pd-del-row[data-tone="done"] .pd-del-state > span:first-child { color: var(--success); }
+.pd-del-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 2px 8px 8px calc(var(--row-px) + var(--icon-col) + var(--row-gap)); color: var(--muted); font: var(--t-support); overflow-wrap: anywhere; }
+.pd-del-body p { margin: 0; }
+.pd-del-body code { font: 12px/16px var(--mono); color: var(--muted); }
+.pd-del-attn { color: var(--attention); font: var(--t-micro); }
+.pd-del-k { margin-inline-end: 6px; color: var(--ink-3); }
+.pd-del-go { align-self: flex-start; padding: 4px 8px; margin-inline-start: -8px; border: 0; border-radius: var(--r-ctl); background: none; color: var(--ink); font: var(--t-micro); cursor: pointer; }
+.pd-del-go:hover { background: var(--fill-2); }
+.pd-del-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pd-del-nest { position: relative; min-width: 0; padding-inline-start: 16px; }
+.pd-del-nest::before { content: ''; position: absolute; left: calc(var(--row-px) + var(--icon-col) / 2); top: 0; bottom: 20px; width: var(--divider-width); background: var(--divider); }
+.pd-del-plan { margin: 0; padding: 4px var(--row-px) 4px calc(var(--row-px) + var(--icon-col) + var(--row-gap)); color: var(--ink-3); font: var(--t-support); }
+.pd-del-group { margin: 8px 0 0; padding-inline: var(--row-px); color: var(--ink-3); font: var(--t-micro); }
 /* Agent traces: tree, supervisor and one agent's detail, inside the same panel. No borders; state is a dot and words. */
 .pd-agent-row[data-tone="live"] .pd-deleg-dot { background: var(--working); }
 .pd-agent-row[data-tone="blocked"] .pd-deleg-dot { background: var(--danger); }
