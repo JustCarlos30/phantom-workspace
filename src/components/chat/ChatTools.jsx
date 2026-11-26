@@ -4,6 +4,7 @@ import ToolOutput from '../ToolOutput';
 import { PhantomGlyph } from '../Glyphs';
 import { phantomCallKind, PHANTOM_CALL_LABEL, summarizePhantomRun, summarizePhantomActivity } from '../../hooks/phantom-run-link.mjs';
 import { itemsOf } from '../../hooks/plugin-model.mjs';
+import { livePollDelay } from '../../hooks/poll-schedule.mjs';
 import { delegateView } from '../../hooks/delegation-model.mjs';
 
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^(check|verify)$/, ListChecks, 'check'], [/^todo/, ListChecks, 'todo']];
@@ -85,7 +86,7 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel, onTone }) {
     if (open && stepsRef.current) stepsRef.current.scrollTop = stepsRef.current.scrollHeight;
   }, [state, open]);
   useEffect(() => {
-    let disposed = false, timer;
+    let disposed = false, timer, live = false;
     setState(null);
     setChosen(null);
     if (typeof api !== 'function' || !workspaceId) {
@@ -103,13 +104,21 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel, onTone }) {
         if (!detail || detail.available === false || detail.task?.available === false || controllers?.available === false || !Array.isArray(controllers?.items)) throw new Error('No disponible');
         const summary = summarizePhantomRun(detail, itemsOf(controllers), id);
         setState({ ...summary, activity: summarizePhantomActivity(activity, detail.contract?.workspace || detail.task?.contract?.workspace), model: summary.model || activity?.model });
-        if (summary.live) timer = setTimeout(refresh, 3000);
+        live = summary.live;
+        arm();
       } catch {
         if (!disposed) setState({ error: true });
       }
     };
+    const arm = () => {
+      clearTimeout(timer); timer = undefined;
+      const delay = livePollDelay({ hidden: document.hidden, base: 5000 });
+      if (live && delay !== null && !disposed) timer = setTimeout(refresh, delay);
+    };
+    const onVisibility = () => { if (!document.hidden && live) { clearTimeout(timer); refresh(); } else arm(); };
+    document.addEventListener('visibilitychange', onVisibility);
     refresh();
-    return () => { disposed = true; clearTimeout(timer); };
+    return () => { disposed = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility); };
   }, [api, workspaceId, id, attempt]);
   const view = state && !state.error ? delegateView({ ...state, id }) : null, tone = view?.tone ?? null;
   useEffect(() => { onTone?.(id, tone); }, [onTone, id, tone]);

@@ -20,6 +20,7 @@ import { ProviderTile } from './Glyphs';
 import { phantomRunIds, turnRunIds } from '../hooks/phantom-run-link.mjs';
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
 import { delegateSummary } from '../hooks/delegation-model.mjs';
+import { livePollDelay } from '../hooks/poll-schedule.mjs';
 import { runHealthView } from '../hooks/run-health-view.mjs';
 import { runProgressView } from '../hooks/run-progress-view.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
@@ -319,8 +320,16 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   useEffect(() => { if (connected && turnPhase === 'idle' && typeof api === 'function') refreshRuns.current(); }, [connected, turnPhase, workspace.id]);
   useEffect(() => {
     if (!connected || !liveRuns || typeof api !== 'function') return;
-    const timer = setInterval(() => refreshRuns.current(), 3000);
-    return () => clearInterval(timer);
+    let timer;
+    const tick = () => {
+      clearTimeout(timer); timer = undefined;
+      const delay = livePollDelay({ hidden: document.hidden, base: 5000 });
+      if (delay !== null) timer = setTimeout(async () => { await refreshRuns.current(); tick(); }, delay);
+    };
+    const onVisibility = () => { if (!document.hidden) { refreshRuns.current(); } tick(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    tick();
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility); };
   }, [connected, liveRuns, workspace.id]);
   const [ackedRun, setAckedRun] = useState(null);
   const finishedRun = delegation.outcome === 'attention' ? runs.latest : null;
