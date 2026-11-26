@@ -253,7 +253,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const closeEnvBrowsers=(workspaceId,names,environmentId)=>{
     if(!names?.length)return;
     const gone=n=>n.type==='browser'&&names.includes(n.data?.envService)&&(n.data?.envEnvironmentId??null)===(environmentId??null);
-    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);w.nodes=w.nodes.filter(n=>!gone(n));});
+    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);for(const n of w.nodes.filter(gone))forgetNode(w,n,dataDir);w.nodes=w.nodes.filter(n=>!gone(n));});
   };
   async function envBrowser(w,sender,service) {
     const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name&&(n.data?.envEnvironmentId??null)===(service.environmentId??null));
@@ -623,7 +623,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(node?.type==='terminal','Terminal node not found');
       runWake.cancel(node.id,'La terminal se cerró');
       await terminals.closeNode(node.id);chats.removeNode(node.id);await envRelease(w.id,null,node.id);
-      return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
     // Chat cards: a terminal node whose data.chat.provider selects an agent CLI
     // driven headlessly. data.chat changes only through chat.configure.

@@ -113,11 +113,21 @@ export function pushAttention(workspace, item) {
   workspace.attention.push(item);
   if (workspace.attention.length > ATTENTION_LIMIT) workspace.attention.splice(0, workspace.attention.length - ATTENTION_LIMIT);
 }
+// Pins whose panel is gone (closed by an older version without cleanup) are
+// dropped on load so one stale comment cannot make the whole state unreadable.
+export function dropOrphanComments(input) {
+  for (const w of Array.isArray(input?.workspaces) ? input.workspaces : []) {
+    if (!Array.isArray(w?.comments) || !Array.isArray(w.nodes)) continue;
+    const ids = new Set(w.nodes.map(n => n?.id));
+    w.comments = w.comments.filter(c => c?.nodeId === null || c?.nodeId === undefined || ids.has(c.nodeId));
+  }
+  return input;
+}
 export class Store {
   constructor(dir = dataHome()) {
     this.dir = path.resolve(dir); fs.mkdirSync(this.dir, {recursive:true, mode:0o700}); fs.chmodSync(this.dir, 0o700);
     this.filename = path.join(this.dir, 'state.json');
-    this.state = fs.existsSync(this.filename) ? validateState(JSON.parse(fs.readFileSync(this.filename, 'utf8'))) : {schemaVersion:1,activeWorkspaceId:null,workspaces:[],settings:{},lastSavedAt:null};
+    this.state = fs.existsSync(this.filename) ? validateState(dropOrphanComments(JSON.parse(fs.readFileSync(this.filename, 'utf8')))) : {schemaVersion:1,activeWorkspaceId:null,workspaces:[],settings:{},lastSavedAt:null};
     // A restart cannot establish whether an in-flight delivery reached the chat.
     // Keep the brief and expose uncertainty rather than silently delivering again.
     let interrupted = false;
