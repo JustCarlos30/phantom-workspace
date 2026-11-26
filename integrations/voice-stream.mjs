@@ -354,10 +354,13 @@ async function acquireEngine(context, settings) {
   const script = config.streamArgv.find(arg => path.basename(arg) === 'voice-stream.py');
   const helper = script ? await lstat(path.join(path.dirname(script), 'voice_text.py')).catch(() => null) : null;
   config.streamArgv = buildStreamArgv(config.streamArgv, settings, Boolean(helper?.isFile()));
+  if (!await executableOnPath(config.streamArgv[0])) throw new Error('Ejecutable de voz no disponible');
+  // No await between reading and registering the engine: concurrent warm/start
+  // calls (e.g. React StrictMode double effects) would each spawn a model and
+  // orphan all but the last, leaking ~1 GB of VRAM per orphan.
   let engine = engines.get(root);
   if (engine?.session) return { root, config, engine, busy: true };
   if (!engine || engine.closed || JSON.stringify(engine.config) !== JSON.stringify(config)) {
-    if (!await executableOnPath(config.streamArgv[0])) throw new Error('Ejecutable de voz no disponible');
     engine?.close();
     engine = new Engine(config, root); engines.set(root, engine);
   }
