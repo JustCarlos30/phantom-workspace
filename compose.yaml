@@ -27,6 +27,21 @@ services:
       lifecycle: ephemeral
       purpose: "Aceptación offline de historial de agentes y supervisor con Chromium; proveedor y resumidor son fixtures"
       card: "task_147c8d07/agent-observability"
+  changes-review-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.composer-test
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    network_mode: none
+    restart: "no"
+    command: ["node", "--test", "test/touched-files-panel.test.mjs", "test/changes-canvas.test.mjs"]
+    x-phantom:
+      lifecycle: ephemeral
+      purpose: "Aceptación offline del modelo y acompañante de revisión de cambios"
+      card: "task_d4781a0a-baf0-4822-839a-7bd421feb6de/changes-review"
   storybook:
     build:
       context: .
