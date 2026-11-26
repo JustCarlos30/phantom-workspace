@@ -717,20 +717,20 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 @container pc-isle (max-width: 520px) {
   .pc.pc .pc-selectors > .pc-permission > span { display: none; }
 }
-@container pc-isle (max-width: 440px) {
-  .pc.pc .pc-composer-actions .pc-context-share { display: none; }
-  .pc.pc .pc-selectors, .pc.pc .pc-controls:has(> .pc-selectors), .pc.pc .pc-composer-actions { gap: 4px; }
-  .pc.pc .pc-selectors > .pc-model-picker > .pc-model > span { max-width: 9ch; }
+@container pc-isle (max-width: 540px) {
+  .pc.pc .pc-controls:has(> .pc-selectors) { flex-direction: column; align-items: stretch; }
+  .pc.pc .pc-selectors { flex-wrap: wrap; width: 100%; }
+  .pc.pc .pc-selectors > * { flex: 0 1 auto; min-width: 0; }
+  .pc.pc .pc-composer-actions { width: 100%; flex-wrap: wrap; justify-content: space-between; padding-bottom: 4px; }
+  .pc.pc .pc-controls:has(> .pc-selectors) > .pc-composer-actions { padding-bottom: 4px; }
+  .pc.pc .pc-composer-tools { flex: 0 1 auto; }
+  .pc.pc .pc-composer-send { flex: 1 1 auto; justify-content: flex-end; }
 }
-@container pc-isle (max-width: 360px) {
-  .pc.pc .pc-controls:has(> .pc-selectors) { flex-wrap: wrap; }
-  .pc.pc .pc-selectors { flex-wrap: wrap; flex-basis: 100%; }
-  .pc.pc .pc-composer-actions { flex-wrap: wrap; margin-left: auto; }
+@container pc-isle (max-width: 400px) {
+  .pc.pc .pc-composer-actions .pc-context-share { display: none; }
+  .pc.pc .pc-composer-actions { gap: 4px; }
 }
 @media (pointer: coarse) { :is(.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip, .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning) { height: 44px; min-height: 44px; } }
 /* Mientras se dicta, el medidor de voz ocupa la fila de acciones: nuevo/contexto vuelven al terminar. */
 .pc.pc .pc-composer-actions:has(.voice-activity) { flex-wrap: nowrap; }
 .pc.pc .pc-composer-actions:has(.voice-activity) .pc-composer-tools { display: none; }
-@container pc-isle (max-width: 360px) {
-  .pc.pc .pc-composer-actions:has(.voice-activity) { flex-wrap: wrap; flex: 1 1 100%; min-width: 0; max-width: 100%; }
-}
