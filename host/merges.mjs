@@ -48,6 +48,19 @@ export class GitPolling {
   }
 }
 
+const CLOSED_LIMIT = 60;
+// Keeps every open item and only the most recent closed ones; returns true when something was dropped.
+export function pruneIntegrationQueue(integration) {
+  const queue = integration?.queue;
+  if (!Array.isArray(queue)) return false;
+  const stamp = item => Date.parse(item.finishedAt ?? item.updatedAt) || 0;
+  const closed = queue.filter(item => !OPEN.includes(item.status));
+  if (closed.length <= CLOSED_LIMIT) return false;
+  const keep = new Set(closed.sort((a, b) => stamp(b) - stamp(a)).slice(0, CLOSED_LIMIT));
+  integration.queue = queue.filter(item => OPEN.includes(item.status) || keep.has(item));
+  return true;
+}
+
 export class Merges {
   constructor({ store, terminals, mutate, emit }) {
     Object.assign(this, { store, terminals, mutate, emit });
@@ -56,6 +69,7 @@ export class Merges {
     // A merge cannot outlive the host: Git either finished it or left it for the next attempt.
     let interrupted = false;
     for (const w of store.state.workspaces) for (const item of w.integration?.queue ?? []) if (item.status === 'merging') { item.status = 'queued'; interrupted = true; }
+    for (const w of store.state.workspaces) interrupted = pruneIntegrationQueue(w.integration) || interrupted;
     if (interrupted) store.persist();
   }
   of(w) { return w.integration ?? { enabled: false, plan: '', queue: [] }; }
@@ -275,7 +289,7 @@ export class Merges {
         const cardId = node.data.agent?.cardId || '';
         if (item) { delete item.conflicts; delete item.checks; delete item.failure; delete item.error; Object.assign(item, { headOid, cardId, summary: summary || item.summary, status: 'queued', updatedAt: now() }); }
         else { item = { id: randomUUID(), nodeId: node.id, title: node.title, branch, cardId, summary, note: '', status: 'queued', headOid, base: base.branch, requestedAt: now(), updatedAt: now() }; integration.queue.push(item); }
-        if (integration.queue.length > 500) integration.queue.splice(integration.queue.findIndex(item => !OPEN.includes(item.status)), 1);
+        pruneIntegrationQueue(integration);
         const target = current.nodes.find(n => n.id === node.id);
         target.data.agent = { ...target.data.agent, step: (summary || 'Listo para incorporar').slice(0, 1000), status: 'review', source: 'agent', updatedAt: now() };
         return { ...item, position: integration.queue.filter(item => OPEN.includes(item.status)).indexOf(item) + 1 };

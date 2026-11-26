@@ -23,6 +23,7 @@ import { deliverToOrchestrator } from './orchestrator-route.mjs';
 import { validateLaunch, createProcessLimit, processList, validateEnv, createEnvLimit } from './processes.mjs';
 import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
+import { stateView } from './state-view.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
@@ -436,7 +437,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='android.approve') return android.approve(p);
     if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
-    if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
+    if(method==='state.get') return stateView(store.state,{workspaceId:p?.workspaceId});
     if(method==='settings.update') {
       object(p.patch);
       // Provider policy keys are validated as a whole; providers.configure is the dedicated path.
