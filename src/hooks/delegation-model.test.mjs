@@ -393,3 +393,13 @@ test('counts include hidden terminals and normalize invalid status', () => {
   assert.equal(rows[2].status, 'review');
   assert.equal(rows[3].status, 'idle');
 });
+
+test('terminals stored with worktree or agent null still produce rows', () => {
+  const { rows } = build([
+    terminal('orchestrator', { role: 'orchestrator', worktree: null, agent: null }),
+    terminal('project', { worktree: null, worktreeReason: 'sin Git' }),
+  ]);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map(row => row.branch), ['', '']);
+  assert.equal(rows[0].status, 'idle');
+});

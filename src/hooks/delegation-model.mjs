@@ -193,7 +193,9 @@ export function withCardPlans(delegation, tasks) {
 export function buildDelegation(workspace, { now = Date.now() } = {}) {
   const nodes = (workspace?.nodes || []).filter(node => node.type === 'terminal' && !node.data?.process);
   const rows = nodes.map(node => {
-    const { agent = {}, handoff, worktree = {}, role, hidden } = node.data || {};
+    const { handoff, role, hidden } = node.data || {};
+    // Stored as null for terminals without their own copy: a destructuring default would not cover it.
+    const agent = node.data?.agent || {}, worktree = node.data?.worktree || {};
     const what = agent.cardTitle || handoff?.title || '';
     let why = (handoff?.brief || '').replace(/\s+/g, ' ').trim();
     if (what && why.startsWith(`${what} `)) why = why.slice(what.length).trim();
