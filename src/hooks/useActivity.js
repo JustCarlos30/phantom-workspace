@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, subscribe } from './useWorkspace';
 import { buildActivity, pendingChat, pendingParts } from './activityModel.mjs';
 
-const empty = () => ({ sessions: {}, tasks: {}, git: {}, limits: {}, merges: {} });
+import { createCoalescer } from './poll-schedule.mjs';
+
+// These events do not change the task catalogue; phantom.list is re-read only if it is stale.
+const lightEvents = new Set(['terminal.exit', 'tool.status']);
+const empty =() => ({ sessions: {}, tasks: {}, git: {}, limits: {}, merges: {} });
 const relevant = new Set(['state.changed', 'attention.new', 'terminal.exit', 'tool.status', 'task.changed', 'git.changed', 'session.changed']);
 async function readSource(name, method, payload) {
   let timeout;
@@ -69,16 +73,17 @@ export function useActivity(workspace, connection, workspaceReadAt) {
   const identity = `${workspace?.id || ''}:${connection.status}:${base}`;
   const current = useRef(identity); current.current = identity;
   useEffect(() => {
-    let disposed = false, timer, inFlight = false, again = false, revision = 0, online = connection.status === 'connected';
+    let disposed = false, needTasks = false, inFlight = false, again = false, revision = 0, online = connection.status === 'connected';
     const sources = empty();
     const valid = () => !disposed && current.current === identity;
     const publish = () => { if (valid()) setSnapshot({ key: identity, sources: { ...sources } }); };
-    async function load() {
+    async function load(light = false) {
       if (!valid() || !workspace?.id || !online) return;
-      if (inFlight) { again = true; return; }
+      if (inFlight) { again = true; needTasks = needTasks || !light; return; }
       inFlight = true;
       const request = ++revision;
       const queries = { sessions: ['terminal.list', {}], tasks: ['phantom.list', { topic: 'tasks' }], git: ['git.inspect', base ? { base } : {}], limits: ['limits.read', {}], merges: ['merge.status', {}] };
+      if (light && sources.tasks.at && Date.now() - sources.tasks.at < 5000) delete queries.tasks;
       for (const name of Object.keys(queries)) sources[name] = { ...sources[name], loading: true };
       publish();
       await Promise.all(Object.entries(queries).map(async ([name, [method, payload]]) => {
@@ -93,22 +98,25 @@ export function useActivity(workspace, connection, workspaceReadAt) {
         publish();
       }));
       inFlight = false;
-      if (again && valid()) { again = false; schedule(); }
+      if (again && valid()) { again = false; coalescer.trigger(); }
     }
-    function schedule() { if (!timer && valid()) timer = setTimeout(() => { timer = null; load(); }, 250); }
-    runner.current = load;
+    const coalescer = createCoalescer({ delay: 400, minGap: 2000, run: () => { const light = !needTasks; needTasks = false; load(light); } });
+    runner.current = () => load();
     load();
     const interval = setInterval(() => { setTick(t => t + 1); load(); }, 20000);
     const off = subscribe(event => {
       if (event.type === 'connection') {
         online = event.status === 'connected';
-        if (!online) { ++revision; clearTimeout(timer); timer = null; }
-        else schedule();
+        if (!online) ++revision;
+        else { needTasks = true; coalescer.trigger(); }
         return;
       }
-      if (relevant.has(event.type) && (!event.workspaceId || event.workspaceId === workspace?.id)) schedule();
+      if (relevant.has(event.type) && (!event.workspaceId || event.workspaceId === workspace?.id)) {
+        if (!lightEvents.has(event.type)) needTasks = true;
+        coalescer.trigger();
+      }
     });
-    return () => { disposed = true; ++revision; clearTimeout(timer); clearInterval(interval); off(); };
+    return () => { disposed = true; ++revision; coalescer.dispose(); clearInterval(interval); off(); };
   }, [identity, workspace?.id, connection.status, base]);
   const sources = snapshot.key === identity ? snapshot.sources : empty();
   const chats = useChatPending(workspace, connection.status === 'connected');
