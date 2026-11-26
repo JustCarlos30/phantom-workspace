@@ -405,7 +405,13 @@ La card es la caja. Dentro no hay líneas:
 
 ## Panel de Phantom
 
-Isla a la derecha, espejo geométrico del rail: `--r-isle`, hueco `--gutter`, material vertical y sombra común de objeto, sin backdrop-filter. El espacio de trabajo cede su ancho. Cabecera de 56 px, «Phantom» en Título y contexto en Apoyo; ámbar si necesita al usuario. Conserva Chat y Orquestador, cola de incorporaciones y conversión explícita en tarea. Proveedor, contexto, campo y controles usan la presentación E5 descrita arriba.
+Isla a la derecha, espejo geométrico del rail: `--r-isle`, hueco `--gutter`, material vertical y sombra común de objeto, sin backdrop-filter. El espacio de trabajo cede su ancho. Cabecera de 56 px, «Phantom» en Título y contexto en Apoyo; ámbar si necesita al usuario. Conserva Chat y Agentes (antes «Orquestador»: historial de agentes y cola de incorporaciones, con el enlace «Abrir orquestador» a la sección global) y la conversión explícita en tarea. Proveedor, contexto, campo y controles usan la presentación E5 descrita arriba.
+
+## Orquestador global
+
+Sección propia de la app, no una pestaña ni una fila de la lista de sesiones. `OrchestratorHub` se monta en `App.jsx` (`hubOpen`), fuera de `PhantomChat` y de su `key` por workspace: cambiar de proyecto no la remonta ni pierde su borrador o lectura. Se abre con `OrchestratorHubButton` (cabecera, junto al chat de Phantom), `OrchestratorRailEntry` (riel, encima de la lista), la acción `openOrchestrator` y Ctrl ⇧ Espacio; con el foco dentro del chat de Phantom, Ctrl ⇧ Espacio sigue cerrando el chat. Los contadores salen del mismo inbox que muestra la sección. Un clic en una fila, o en un aviso de escritorio, pasa por `createNavigation` (`useDesktopAlerts.js`): cambia de proyecto si hace falta y, cuando ese proyecto es el activo, enfoca el nodo o abre el panel allí.
+
+Pendientes: la superficie se coloca con estilo en línea en `App.jsx` (`.oh-surface`) porque la hoja de estilos queda fuera de este encargo; y el nodo orquestador de cada proyecto sigue listándose como una sesión más en la lista de sesiones (ocultarlo exige tocar `SidebarPanels`/`sidebarModel`).
 
 ## Estados y «Bordes vivos»
 

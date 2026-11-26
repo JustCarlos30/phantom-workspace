@@ -212,9 +212,25 @@ export class Merges {
   returnToWorker(w, item, step) {
     const node = w.nodes.find(n => n.id === item.nodeId);
     if (node) node.data.agent = { ...node.data.agent, step: step.replace(/[\x00-\x1f\x7f]+/g, ' ').slice(0, 1000), status: 'blocked', source: 'agent', updatedAt: now() };
-    const attention = { id: randomUUID(), title: `${item.title}: ${step}`.slice(0, 512), source: 'incorporaciones', ref: item.id, nodeId: item.nodeId, createdAt: now(), observedAt: now() };
+    this.notice(w, item, item.status === 'rejected' ? 'rejected' : item.failure, step);
+  }
+  // Attention for the user, deduplicated by eventKey so an automatic retry does not repeat it. Never touches the worker.
+  notice(w, item, failure, step) {
+    const eventKey = `merge:${item.id}:${failure}:${item.headOid}`;
+    if (w.attention.some(a => a.eventKey === eventKey)) return;
+    const attention = { id: randomUUID(), title: `${item.title}: ${step}`.slice(0, 512), source: 'incorporaciones', ref: item.id, nodeId: item.nodeId, failure, branch: item.branch, eventKey, createdAt: now(), observedAt: now() };
+    if (failure === 'conflict') attention.conflicts = (item.conflicts || []).slice(0, 3);
     pushAttention(w, attention);
     queueMicrotask(() => this.emit({ type: 'attention.new', workspaceId: w.id, item: attention }));
+  }
+  // The problem is in the project checkout: warn the user, the request stays queued.
+  checkoutNotice(workspaceId, requestId, failure, step) {
+    try {
+      this.change(workspaceId, (integration, current) => {
+        const item = integration.queue.find(item => item.id === requestId);
+        if (item) this.notice(current, item, failure, step);
+      });
+    } catch { /* Workspace may have been removed. */ }
   }
 
   async handle(method, p) {
@@ -348,13 +364,17 @@ export class Merges {
     try {
       const base = await this.base(w), { source } = base;
       const id = this.item(this.of(this.store.getWorkspace(w.id)), requestId, ['queued']).id;
-      assert(!await git(source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de incorporar.');
+      const precheck = (ok, message) => { if (!ok) { this.checkoutNotice(w.id, id, 'error', message); assert(false, message); } };
+      precheck(!await git(source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ''), 'El checkout del proyecto tiene un merge sin terminar. Termínalo o abórtalo antes de incorporar.');
       const command = checks === false ? '' : checksFor(this.store.getWorkspace(w.id), source);
-      if (command) assert(!await git(source, ['status', '--porcelain', '--untracked-files=no']), `El checkout de ${base.branch} tiene cambios sin commitear; los checks no serían fiables.`);
+      if (command) precheck(!await git(source, ['status', '--porcelain', '--untracked-files=no']), `El checkout de ${base.branch} tiene cambios sin commitear; los checks no serían fiables.`);
       const queued = this.change(w.id, integration => { const item = this.item(integration, id, ['queued']); delete item.failure; delete item.error; return Object.assign(item, { status: 'merging', startedAt: now(), by, base: base.branch, updatedAt: now() }); });
       const env = { PHANTOM_MERGE_TOKEN: mergeToken(this.store.dir, w.id) };
       if (!await git(source, ['cat-file', '-e', `${queued.headOid}^{commit}`]).then(() => true, () => false)) {
-        this.change(w.id, integration => Object.assign(this.item(integration, id, ['merging']), { status: 'queued', failure: 'stale', error: `El commit enviado (${queued.headOid.slice(0, 8)}) ya no existe en el repositorio.`, updatedAt: now() }));
+        this.change(w.id, (integration, current) => {
+          const item = Object.assign(this.item(integration, id, ['merging']), { status: 'queued', failure: 'stale', error: `El commit enviado (${queued.headOid.slice(0, 8)}) ya no existe en el repositorio.`, updatedAt: now() });
+          this.notice(current, item, 'stale', item.error);
+        });
         throw new Error(`El commit enviado por ${queued.branch} ya no existe; vuelve a solicitar la incorporación.`);
       }
       try {
@@ -364,7 +384,10 @@ export class Merges {
         if (await git(source, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => '')) await git(source, ['merge', '--abort'], { env });
         if (!conflicts.length) {
           // Not a content conflict (dirty checkout, hook, identity…): the request stays queued.
-          this.change(w.id, integration => Object.assign(this.item(integration, id, ['merging']), { status: 'queued', failure: 'error', error: error.message.slice(0, 1000), updatedAt: now() }));
+          this.change(w.id, (integration, current) => {
+            const item = Object.assign(this.item(integration, id, ['merging']), { status: 'queued', failure: 'error', error: error.message.slice(0, 1000), updatedAt: now() });
+            this.notice(current, item, 'error', `No se pudo iniciar el merge en ${base.branch}: ${error.message.split('\n')[0]}`.slice(0, 400));
+          });
           throw new Error(`No se pudo incorporar ${queued.branch} en ${base.branch}: ${error.message}`);
         }
         return this.change(w.id, (integration, current) => {

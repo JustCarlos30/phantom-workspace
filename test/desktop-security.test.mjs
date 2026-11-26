@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { killElectronGroup } from './support/electron-process.mjs';
 import {
   authorizedPath, browserNode, browserURL, clampBounds, contentSecurityPolicy, createReviewMedia,
-  isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, nativeUIBounds, validateCloseReady, validateInvocation, validateJSON,
+  isHostTransportError, isLocalUIURL, isTrustedSender, isWithin, LOCAL_METHODS, nativeUIBounds, validateCloseReady, validateInvocation, validateJSON,
 } from '../desktop/security.mjs';
 
 await mkdir('/tmp/opencode', { recursive: true });
@@ -191,6 +191,29 @@ test('desktop notifications accept bounded text and only the branches target', (
   }
 });
 
+test('desktop notifications route to a bounded workspace and node for the session target', () => {
+  for (const payload of [{ title: 'Sesión', target: 'session', workspaceId, nodeId: id },
+    { title: 'Ramas', target: 'branches', workspaceId }, { title: 'Solo proyecto', workspaceId: 'w'.repeat(128) },
+    { title: 'Solo panel', nodeId: 'n'.repeat(128) }]) {
+    assert.doesNotThrow(() => validateInvocation('desktop.notify', payload));
+  }
+  for (const payload of [{ title: 'ok', workspaceId: '' }, { title: 'ok', workspaceId: 'w'.repeat(129) },
+    { title: 'ok', workspaceId: 1 }, { title: 'ok', workspaceId: null }, { title: 'ok', workspaceId: undefined },
+    { title: 'ok', nodeId: '' }, { title: 'ok', nodeId: 'n'.repeat(129) }, { title: 'ok', nodeId: ['x'] },
+    { title: 'ok', nodeId: undefined }, { title: 'ok', target: 'settings' }, { title: 'ok', workspaceId, nodeId: id, extra: true }]) {
+    assert.throws(() => validateInvocation('desktop.notify', payload));
+  }
+});
+
+test('desktop badge accepts only an exact integer count between 0 and 9999', () => {
+  for (const count of [0, 3, 9999]) assert.doesNotThrow(() => validateInvocation('desktop.badge', { count }));
+  for (const payload of [{}, { count: -1 }, { count: 10000 }, { count: 1.5 }, { count: '3' }, { count: null },
+    { count: NaN }, { count: Infinity }, { count: undefined }, { count: 1, workspaceId }, { count: 1, title: 'x' }]) {
+    assert.throws(() => validateInvocation('desktop.badge', payload));
+  }
+  assert.equal(LOCAL_METHODS.has('desktop.badge'), true);
+});
+
 test('navigation accepts HTTP(S)/blank and rejects executable, local, credentialed and ambiguous URLs', () => {
   assert.equal(browserURL('https://example.com/a?q=1#ok'), 'https://example.com/a?q=1#ok');
   assert.equal(browserURL('http://localhost:3000'), 'http://localhost:3000/');
@@ -263,7 +286,7 @@ test('native browser identity is checked against the current canonical state, ty
 
 test('RPC exposes only contract methods with bounded, finite plain JSON payloads', () => {
   assert.doesNotThrow(() => validateInvocation('limits.read', {}));
-  for (const method of ['terminal.write', 'workspace.open', 'desktop.info', 'browser.capture', 'browser.inspect', 'voice.transcribe', 'host.shutdown', 'providers.list', 'providers.models', 'providers.configure']) {
+  for (const method of ['orchestrator.send', 'terminal.write', 'workspace.open', 'desktop.info', 'browser.capture', 'browser.inspect', 'voice.transcribe', 'host.shutdown', 'providers.list', 'providers.models', 'providers.configure']) {
     assert.doesNotThrow(() => validateInvocation(method, {}));
   }
   for (const method of ['shell.exec', 'fs.readFile', 'browser.executeJavaScript', 'desktop.spawn', '__proto__', null]) {
