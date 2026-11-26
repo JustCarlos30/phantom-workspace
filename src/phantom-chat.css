@@ -81,6 +81,7 @@
 /* Tabs: Chat and Orquestador share the dock. */
 .pd-tabs { margin: 8px 12px 0; flex-shrink: 0; }
 .pd-tabs button { position: relative; flex: 1; min-width: 0; }
+.app-shell .pd-tabs.control-segmented { display: flex; box-sizing: border-box; margin: 8px var(--gutter) 0; width: auto; }
 .app-shell .pd-tabs.control-segmented > button { display: flex; justify-content: center; gap: 8px; }
 .app-shell .pd-tabs.control-segmented > button[aria-selected="true"] { background: var(--on); color: var(--on-ink); }
 .app-shell .pd-tabs.control-segmented > button[aria-selected="true"]:active { background: var(--on-press); }
