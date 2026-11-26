@@ -15,7 +15,17 @@ test('subagent card and its children shrink within the available width', () => {
   const children = chat.match(/(?:^|\n)\.pc-subagent\s*>\s*\*\s*\{([^}]*)\}/)?.[1];
   assert.ok(children, '.pc-subagent > * rule exists');
   assert.match(children, /(?:^|;)\s*min-width:\s*0\s*(?:;|$)/);
-  assert.match(chat, /\.pc-subagent-head\s*\{[^}]*flex-wrap:\s*wrap/, 'state remains visible on narrow sessions');
+  // The row is one 40 px line: the title gives way (ellipsis) so state and time stay visible on narrow sessions.
+  const row = chat.match(/(?:^|\n)\.pc-subagent-head\s*\{([^}]*)\}/)?.[1];
+  assert.ok(row, '.pc-subagent-head rule exists');
+  assert.match(row, /(?:^|;)\s*min-height:\s*var\(--activity-row-height\)\s*(?:;|$)/);
+  assert.match(row, /(?:^|;)\s*min-width:\s*0\s*(?:;|$)/);
+  assert.doesNotMatch(row, /flex-wrap:\s*wrap/);
+  const title = chat.match(/(?:^|\n)\.pc-delegate-title\s*\{([^}]*)\}/)?.[1];
+  assert.ok(title, '.pc-delegate-title rule exists');
+  for (const pattern of [/min-width:\s*0\s*(?:;|$)/, /overflow:\s*hidden/, /text-overflow:\s*ellipsis/, /white-space:\s*nowrap/]) assert.match(title, pattern);
+  assert.match(chat, /\.pc-delegate-state\s*\{[^}]*flex-shrink:\s*0/, 'the state never gives way to the title');
+  assert.match(chat, /\.pc-delegate-body\s*\{[^}]*min-width:\s*0/, 'the details body shrinks too');
 });
 
 test('phantom link and its children shrink within the available width', () => {
