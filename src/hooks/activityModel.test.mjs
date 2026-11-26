@@ -62,6 +62,26 @@ test('Vínculos por identidad real; títulos, PID, rama y carpeta no unen tareas
   assert.equal(taskLinks({ raw: { refs: [{ kind: 'card', id: 's' }] } }, sessions, nodes).length, 0);
 });
 
+test('Un estado de agente en curso devuelve tone working', () => {
+  for (const agentState of ['running', 'working', 'doing', 'verifying', 'recovering']) {
+    const state = sessionState({ status: 'running', agentState });
+    assert.equal(state.tone, 'working');
+    assert.equal(state.needsYou, false);
+  }
+});
+
+test('Bloqueada o fallida no es needsYou, ni por agente ni por tarea ligada', () => {
+  for (const agentState of ['blocked', 'failed', 'error']) {
+    const state = sessionState({ status: 'running', agentState });
+    assert.equal(state.needsYou, false);
+    assert.equal(state.tone, 'neutral');
+  }
+  const linked = sessionState({ status: 'running' }, true, [{ id: 't', status: 'blocked' }]);
+  assert.deepEqual([linked.needsYou, linked.label, linked.tone], [false, 'Bloqueada', 'neutral']);
+  assert.equal(sessionState({ status: 'running' }, true, [{ id: 't', status: 'failed' }]).label, 'Falló');
+  assert.equal(sessionState({ status: 'running' }, true, [{ id: 't', status: 'awaiting_input' }]).needsYou, true);
+});
+
 test('Sesiones ocultas son operativas y estados de tareas solo se propagan con vínculo real', () => {
   const model = buildActivity({ workspace: { nodes }, sessions, tasks: [{ id: 't', status: 'blocked', raw: { sessionId: 's' } }] });
   assert.equal(model.sessions[0].hidden, true);
