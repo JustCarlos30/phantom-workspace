@@ -241,6 +241,25 @@ test('Geometría: 320/480/640/960, menús completos, controles clicables y foco 
   }
 });
 
+test('Barra en una sola fila: selectores y acciones comparten línea a 480/640/960', async () => {
+  for (const surface of ['card', 'dock']) for (const width of [480, 640, 960]) {
+    const page = await render({ surface, width });
+    try {
+      const data = await geometry(page, surface, width, 'one-row');
+      const centers = await page.evaluate(() => {
+        const visible = el => el.checkVisibility() && el.getBoundingClientRect().width > 0;
+        return [...document.querySelectorAll('.pc-selectors > *, .pc-composer-actions button')].filter(visible)
+          .map(el => { const r = el.getBoundingClientRect(); return r.y + r.height / 2; });
+      });
+      assert.ok(centers.length >= 5, `${surface}/${width}px: controles visibles`);
+      assert.ok(Math.max(...centers) - Math.min(...centers) < 4, `${surface}/${width}px: una sola fila ${JSON.stringify(centers)}`);
+      assert.deepEqual(data.overlaps, []);
+      assert.deepEqual(data.outside, []);
+      assert.equal(data.overflow, 0);
+    } finally { await close(page); }
+  }
+});
+
 const popState = page => page.evaluate(() => {
   const pop = document.querySelector('.pc-session-pop'), r = pop.getBoundingClientRect();
   const points = [[r.x + 8, r.y + 8], [r.right - 8, r.y + 8], [r.x + 8, r.bottom - 8], [r.right - 8, r.bottom - 8]];
