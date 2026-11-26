@@ -1,14 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, GitBranch, Folder, RotateCcw } from 'lucide-react';
 import { ProviderTile, providerKey } from './Glyphs';
 import { AGENT_LABELS } from './AgentIdentity';
 import { useTerminalTail } from '../hooks/useTerminalTail';
-import { formatSince, stateTone, useNow } from '../hooks/terminalPulse.mjs';
+import { useNow } from '../hooks/terminalPulse.mjs';
 import { runProgressView } from '../hooks/run-progress-view.mjs';
+import { terminalJourney } from '../hooks/terminal-journey.mjs';
 import { CopyButton } from './CopyButton';
 import { ModeSwitch } from './ChatCard';
 import EmptyState from './EmptyState.jsx';
 import PlanPhases from './PlanPhases';
+import TerminalJourney, { TerminalDelegates } from './TerminalJourney.jsx';
 import TouchedFiles from './TouchedFiles.jsx';
 
 const LINE_HEIGHT = 22;
@@ -61,11 +63,20 @@ export function locationOf(node, workspace) {
 const HM = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
 const hm = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? HM.format(t) : ''; };
 
-// Progreso en vivo de un run Phantom delegado (node.data.agent.run).
+// Recorrido de la terminal (node.data + tail.screenState/connected). Los datos viven en node; un socket futuro solo cambia las props.
+export function useTerminalJourney({ node, tail, connected = true, enabled = true }) {
+  const agent = node.data?.agent || {};
+  const live = !!agent.run && !['completed', 'blocked', 'cancelled'].includes(agent.run.phase);
+  const now = useNow(enabled && (live || !!agent.step || !!agent.run), live ? 5000 : 15000);
+  return useMemo(() => terminalJourney({ node, screenState: tail?.screenState, connected, now }), [node, tail?.screenState, connected, now]);
+}
+
+// Una terminal sin nada que contar (sin plan, run ni actividad) no pinta franja.
+export const journeyVisible = view => !!view && (view.needsAttention || !!view.activity || view.phases.length > 0 || !!view.blocker || ['working', 'error', 'review'].includes(view.tone));
+
+// El detalle del bloqueo (con sus acciones) y el registro viven aquí; el resto del progreso lo muestra TerminalJourney.
 export function RunProgress({ run, workspaceId, api, notify }) {
-  const live = !!run && !['completed', 'blocked', 'cancelled'].includes(run.phase);
-  const now = useNow(live, 1000);
-  const view = runProgressView(run, now);
+  const view = runProgressView(run, Date.now());
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,7 +92,7 @@ export function RunProgress({ run, workspaceId, api, notify }) {
     return () => clearTimeout(timer);
   }, [run?.phase]);
   useEffect(() => { if (open && log.current) log.current.scrollTop = log.current.scrollHeight; }, [open, view?.lines.length, view?.lines.at(-1)?.text]);
-  if (!view) return null;
+  if (!view || (!view.blocker && !view.lines.length)) return null;
   const { blocker } = view;
   async function amend() {
     setBusy(true); setError('');
@@ -91,16 +102,7 @@ export function RunProgress({ run, workspaceId, api, notify }) {
     } catch (err) { setError(err?.message || String(err)); }
     finally { setBusy(false); }
   }
-  return <section className={`pt-run${flash ? ' is-flash' : ''}`} data-tone={view.tone} aria-label="Progreso del encargo">
-    <div className="pt-run-head">
-      <strong className="pt-run-phase">{view.label}</strong>
-      {view.activity && <span className="pt-run-activity" title={view.activity}>{view.activity}</span>}
-      <span className="pt-run-times">{view.elapsed}{view.idle && ` · inactivo ${view.idle}`}</span>
-    </div>
-    {view.warning && <p className="pt-run-warning" data-level={view.level} role="status">{view.warning}</p>}
-    {view.children.items.length > 0 && <ul className="pt-run-children" aria-label={`Hijos ${view.children.done} de ${view.children.total}`}>
-      {view.children.items.map(item => <li key={item.key} data-status={item.status}><span>{item.key}</span><em>{item.statusLabel}</em>{item.activity && <small title={item.activity}>{item.activity}</small>}</li>)}
-    </ul>}
+  return <section className={`pt-run${flash ? ' is-flash' : ''}`} data-tone={view.tone} aria-label="Bloqueo y registro del encargo">
     {blocker && <div className="pt-run-blocker" role="alert">
       <strong>{blocker.title}</strong>
       {blocker.summary && <p>{blocker.summary}</p>}
@@ -134,9 +136,8 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
   const agent = node.data?.agent || {};
   const provider = providerOf(node, tail?.foreground);
   const state = effectiveStatus(agent, tail?.screenState);
-  const updatedAt = agent.updatedAt != null && agent.updatedAt !== '' ? new Date(agent.updatedAt) : null;
-  const hasTime = !!updatedAt && Number.isFinite(updatedAt.getTime());
-  const now = useNow(!overview && !!agent.step && hasTime);
+  const journey = useTerminalJourney({ node, tail, connected, enabled: !overview });
+  const showJourney = !overview && journeyVisible(journey);
   const preparing = !sessionId && node.data?.launchState === 'creating';
   const status = !connected ? 'disconnected' : !sessionId ? 'lost' : tail?.status || 'connecting';
   const { cwd, branch, where } = locationOf(node, workspace);
@@ -163,18 +164,16 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
       {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
       {state && <AgentState agent={agent} status={state} reason={tail?.screenReason} />}
       {overview && <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>}
-      {agent.step && (overview ? <p className="pt-card-step" title={agent.step}>{agent.step}</p> : <div className="pt-card-now" data-tone={agent.run?.phase === 'blocked' ? 'attention' : stateTone(state)}>
-        <i aria-hidden="true" />
-        <p key={agent.step} className="pt-card-step" title={agent.step}>{agent.step}</p>
-        {hasTime && <time dateTime={updatedAt.toISOString()} title={`${updatedAt.toLocaleString()} · ${agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}`}>{formatSince(now - updatedAt.getTime())}</time>}
-      </div>)}
+      {overview && agent.step && <p className="pt-card-step" title={agent.step}>{agent.step}</p>}
+      {showJourney && <div className="pt-journey" data-tone={journey.tone}><TerminalJourney view={{ ...journey, blocker: null }} compact /></div>}
       {!overview && agent.run && <RunProgress run={agent.run} workspaceId={workspace?.id} api={api} notify={notify} />}
-      <PlanPhases plan={node.data?.plan} compact />
+      {overview && <PlanPhases plan={node.data?.plan} compact />}
     </div>
     {overview && !agent.step && <p className="pt-card-glimpse" aria-hidden="true">{glimpse || (ended || preparing ? '' : '…')}</p>}
     {!overview && <div className={`pt-card-screen ${alternate ? 'is-alternate' : ''}`} role="log" aria-label={`Últimas líneas de ${node.title}`} aria-live="off" style={alternate ? { '--rows': tail.lines.length || 1, '--cols': tail.cols || 80 } : undefined}>
       {tail?.lines?.length ? <pre>{alternate ? tail.lines.join('\n') : tail.lines.map((line, index) => <React.Fragment key={index}><span className={`pt-card-line${index === currentLine ? ' is-current' : ''}`}>{line}</span>{index < tail.lines.length - 1 ? '\n' : null}</React.Fragment>)}</pre> : preparing || !sessionId || error || !tail ? <p className="pt-card-status" role="status">{emptyText}</p> : <EmptyState className="pt-card-empty" description={emptyText} />}
     </div>}
+    {!overview && journey.delegates.total > 0 && <div className="pt-delegates"><TerminalDelegates view={journey} /></div>}
     {!overview && <footer className="pt-card-footer">
       <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{where}</span></span>
       <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>
