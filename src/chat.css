@@ -247,6 +247,16 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-phantom-final { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
 .pc-phantom-warning .pc-phantom-open { margin-left: 6px; text-decoration: underline; background: none; border: 0; padding: 0 2px; cursor: pointer; }
 .pc-phantom-warning .pc-phantom-open:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pc-phantom-run::before { display: none; }
+.pc-phantom-run > :not(.pc-phantom-head) { margin-left: var(--row-px); }
+.pc-phantom-run .pc-phantom-head { display: grid; gap: 4px; min-width: 0; padding: var(--activity-row-py) var(--row-px) 4px; }
+.pc-phantom-run .pc-phantom-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.pc-phantom-run .pc-phantom-brand { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font: var(--t-micro); letter-spacing: .08em; }
+.pc-phantom-run .pc-delegate-state { min-width: 0; text-align: right; white-space: normal; overflow-wrap: anywhere; }
+.pc-phantom-run .pc-phantom-title { margin: 0; color: var(--ink); font: var(--t-control); white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.pc-phantom-run .pc-phantom-summary { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-block: 0 4px; color: var(--muted); }
+.pc-phantom-run .pc-subagent-more > summary { max-width: 100%; }
+.pc-phantom-run .pc-phantom-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pc-working-agents { color: var(--ink); }
 
 .pc-thinking { color: var(--ink-3); font: var(--t-support); }
