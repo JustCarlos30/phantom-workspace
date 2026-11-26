@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowUp, ArrowUpRight, Mic, RefreshCw, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUp, ArrowUpRight, ChevronRight, Cpu, Mic, RefreshCw, SquareTerminal, X } from 'lucide-react';
+import { PhantomGlyph } from './Glyphs';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { VoiceActivity, VoiceTranscript, dictationPreview } from './VoiceActivity';
@@ -10,7 +11,7 @@ import Incorporaciones from './Incorporaciones';
 import { preferredCardMode } from './ChatCard';
 import { ErrorNotice, Switch, useResource } from './PluginPrimitives';
 import { buildCola } from '../hooks/incorporaciones-model.mjs';
-import { agentTree, agoLabel, buildDelegation, mergeTraceEvents, traceEventOwner, traceEventView, traceResult, traceView, withCardPlans, withChatSubagents } from '../hooks/delegation-model.mjs';
+import { agentTree, agoLabel, buildDelegation, delegateView, mergeTraceEvents, traceEventOwner, traceEventView, traceResult, traceView, withCardPlans, withChatSubagents } from '../hooks/delegation-model.mjs';
 import { useChatSubagents } from '../hooks/useChatSubagents';
 import { useAgentDetail, useAgentTraces, useSupervisor } from '../hooks/useAgentTraces';
 import { formatCost, formatTokens } from '../hooks/chatState';
@@ -19,10 +20,57 @@ import '../incorporaciones.css';
 
 const AGENT = { working: 'Trabajando', blocked: 'Bloqueado', review: 'En espera', idle: 'En espera' };
 
-function CardPlan({ plan }) {
-  return <div className="pd-deleg-plan-block">
-    <small>Plan · {plan.done} de {plan.total} completadas</small>
-    <ul className="pd-deleg-plan" aria-label="Plan de la card">{plan.children.map(child => <li key={child.key} className="pd-deleg-child" data-status={child.status}><small>{child.status === 'sin registrar' ? 'Sin registrar' : statusLabel(child.status)}</small><span>{child.goal}</span></li>)}</ul>
+// Terminal sessions, Phantom tasks and sub-agents all go through delegateView, so they read like the chat's Actividad rows.
+// Only what the host recorded is passed in: a session's own status and step, a task's native status, a sub-agent's live entry.
+const SESSION_STATE = { working: ['running', 'Trabajando'], blocked: ['blocked', 'Bloqueado'], review: ['review', 'Lista para revisión'], idle: ['idle', 'En espera'] };
+const sessionView = row => {
+  const [status, label] = SESSION_STATE[row.status] || SESSION_STATE.idle, working = row.status === 'working';
+  return delegateView({
+    id: row.id, title: row.title, status, label, live: working,
+    activity: working && row.step ? { current: { label: 'Paso', detail: row.step } } : null,
+    blocker: row.status === 'blocked' ? { label: 'Bloqueado', meaning: row.step || 'La sesión no informó el motivo.' } : null,
+  });
+};
+const taskView = ({ id = '', goal, status }) => delegateView({
+  id, title: goal, status, label: status === 'sin registrar' ? 'Sin registrar' : statusLabel(status),
+  live: ['running', 'verifying', 'recovering'].includes(status),
+  blocker: status === 'blocked' ? { label: 'Bloqueada', meaning: 'Phantom no informó el motivo.' } : null,
+});
+const subagentView = sub => delegateView({ type: 'tool', id: sub.id, detail: sub.description, status: 'running', agent: { type: sub.type } });
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+
+function DelegateRow({ view, label = view.label, Glyph, children }) {
+  return <details className="pd-del-details">
+    <summary className="pd-del-row" data-tone={view.tone}>
+      <span className="pd-del-mark" aria-hidden="true"><Glyph size={16} /></span>
+      <span className="pd-del-label">{label}</span>
+      <span className="pd-del-title" title={view.title}>{view.title}</span>
+      <span className="pd-del-state"><span>{view.stateLabel}</span>{view.duration && <span className="pd-del-time">· {view.duration}</span>}</span>
+      <ChevronRight className="pd-del-caret" size={14} aria-hidden="true" />
+    </summary>
+    <div className="pd-del-body">
+      {view.attention && <p><span className="pd-del-attn">{view.attention.label}</span> {view.attention.meaning}</p>}
+      {view.now && <p><span className="pd-del-k">{view.now.label}</span>{view.now.detail}</p>}
+      {view.meta.length > 0 && <p>{view.meta.join(' · ')}</p>}
+      {children}
+      <p>{view.duration ? `Duración ${view.duration}` : 'Duración no disponible'} · {view.model ? `Modelo ${view.model}` : 'Modelo no disponible'}</p>
+    </div>
+  </details>;
+}
+
+// What sits under a row: its live sub-agents and, for a coordinated card, the plan's children, joined by a 1 px guide.
+function DelegateNest({ subs, plan, kids }) {
+  if (!subs.length && !kids.length) return null;
+  return <div className="pd-del-nest">
+    {subs.length > 0 && <ul aria-label="Subagentes">{subs.map(({ sub, view }) => <li key={sub.id} className="pd-del"><DelegateRow view={view} Glyph={Cpu}>
+      {sub.background && <p>En segundo plano</p>}
+    </DelegateRow></li>)}</ul>}
+    {kids.length > 0 && <>
+      <p className="pd-del-plan">Plan · {plan.done} de {plan.total} completadas</p>
+      <ul aria-label="Plan de la card">{kids.map(({ child, view }) => <li key={child.key} className="pd-del"><DelegateRow view={view} Glyph={PhantomGlyph}>
+        {child.taskId && <p><code>{child.taskId.slice(0, 13)}</code></p>}
+      </DelegateRow></li>)}</ul>
+    </>}
   </div>;
 }
 
@@ -60,16 +108,31 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
   const taskData = tasks.data ?? (lastTasks?.workspaceId === workspace.id ? lastTasks.data : null);
   const chatSubagents = useChatSubagents(workspace, api, connected);
   const delegation = useMemo(() => withChatSubagents(withCardPlans(buildDelegation(workspace), taskData), chatSubagents), [workspace, taskData, chatSubagents]);
-  const delegates = delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden);
-  const working = delegates.filter(row => row.status === 'working').length;
-  const blocked = delegates.filter(row => row.status === 'blocked').length;
-  const unassigned = delegates.filter(row => row.purpose === 'none').length;
-  const subagents = delegates.reduce((total, row) => total + row.subagents.length, 0);
+  const delegates = useMemo(() => delegation.rows.filter(row => row.role !== 'orchestrator' && !row.hidden), [delegation.rows]);
+  const entries = useMemo(() => delegates.map(row => ({
+    row, view: sessionView(row),
+    subs: row.subagents.map(sub => ({ sub, view: subagentView(sub) })),
+    kids: (row.plan?.children || []).map(child => ({ child, view: taskView({ id: child.taskId, goal: child.goal, status: child.status }) })),
+  })), [delegates]);
+  const cardEntries = useMemo(() => delegation.cards.map(card => ({
+    card, view: taskView({ id: card.id, goal: card.goal, status: card.status }),
+    kids: card.plan.children.map(child => ({ child, view: taskView({ id: child.taskId, goal: child.goal, status: child.status }) })),
+  })), [delegation.cards]);
+  const shown = [
+    ...entries.flatMap(entry => [{ view: entry.view, unassigned: entry.row.purpose === 'none' }, ...entry.subs, ...entry.kids]),
+    ...cardEntries.flatMap(entry => [entry, ...entry.kids]),
+  ].map(item => ({ unassigned: false, ...item }));
+  const count = predicate => shown.filter(({ view, unassigned }) => predicate(view, unassigned)).length;
+  const subagents = count(view => view.kind === 'subagent'), assignments = count((view, unassigned) => view.kind === 'run' && !unassigned);
+  const working = count(view => view.tone === 'live'), attention = count(view => view.tone === 'attention');
+  const failed = count(view => view.tone === 'error'), unassigned = count((view, none) => none);
   const summary = [
+    assignments && plural(assignments, 'encargo', 'encargos'),
+    subagents && plural(subagents, 'subagente', 'subagentes'),
     working && `${working} trabajando`,
-    blocked && `${blocked} ${blocked === 1 ? 'bloqueada' : 'bloqueadas'}`,
+    attention && `${attention} ${attention === 1 ? 'te necesita' : 'te necesitan'}`,
+    failed && `${failed} con error`,
     unassigned && `${unassigned} sin encargo`,
-    subagents && `${subagents} ${subagents === 1 ? 'subagente' : 'subagentes'}`,
   ].filter(Boolean).join(' · ');
   if (selectedId) return <div className="pd-orchestrator" ref={root}>
     <AgentDetail key={workspace.id} workspace={workspace} api={api} connected={connected} id={selectedId} tree={tree} onBack={closeAgent} onSelect={openAgent} />
@@ -87,32 +150,29 @@ export default function PhantomOrchestrator({ workspace, api, notify, connected,
     </section>}
     <SupervisorSection workspace={workspace} api={api} connected={connected} onOpenPanel={onOpenPanel} />
     <AgentsSection workspace={workspace} tree={tree} traces={traces} onSelect={openAgent} />
-    {(delegates.length > 0 || delegation.cards.length > 0) && <section className="pd-deleg" aria-label="Delegación">
+    {(delegates.length > 0 || delegation.cards.length > 0) && <section className="pd-deleg pd-delegation" aria-label="Delegación">
       <div className="pd-deleg-head"><strong>Quién tiene qué</strong>{summary && <small>{summary}</small>}</div>
-      <ul className="pd-deleg-list">{delegates.map(row => {
-        const content = <>
-          <span className="pd-deleg-dot" aria-hidden="true" />
-          <span className="pd-deleg-content">
-            <strong>{row.title}</strong>
-            <small>{{ working: 'Trabajando', blocked: 'Bloqueado', review: 'Lista para revisión', idle: 'En espera' }[row.status]}{row.step ? ` · ${row.step}` : ''}</small>
-            {(row.purpose === 'none' || (row.what && !row.title.endsWith(row.what))) && <span className="pd-deleg-what">{row.purpose === 'none' ? 'Sin tarea ni encargo' : row.what}</span>}
-            {row.why && <small>{row.why}</small>}
-            {row.from && <small>Pedido por {row.from.title}{row.from.external ? ` · ${row.from.workspaceName}` : ''}</small>}
-            {row.branch && <code>{row.branch}</code>}
-          </span>
-        </>;
-        return <li key={row.id} className="pd-deleg-row" data-purpose={row.purpose} data-status={row.status} style={{ '--deleg-depth': row.depth }}>
-          {onOpenPanel
-            ? <button type="button" className="pd-deleg-item" aria-label={`Ir a ${row.title}`} onClick={() => onOpenPanel('terminal', { focusNodeId: row.id })}>{content}</button>
-             : <div className="pd-deleg-item">{content}</div>}
-          {row.plan && <CardPlan plan={row.plan} />}
-          {row.subagents.length > 0 && <ul className="pd-deleg-subs" aria-label="Subagentes">{row.subagents.map(subagent => <li key={subagent.id} className="pd-deleg-sub"><span>Subagente{subagent.type ? ` · ${subagent.type}` : ''}</span>{subagent.description && <span>{subagent.description}</span>}{subagent.background && <span>en segundo plano</span>}</li>)}</ul>}
+      {entries.length > 0 && <ul className="pd-del-list" aria-label="Sesiones con encargo">{entries.map(({ row, view, subs, kids }) => {
+        const none = row.purpose === 'none';
+        return <li key={row.id} className="pd-del" data-purpose={row.purpose} style={{ '--deleg-depth': row.depth }}>
+          <DelegateRow view={view} label={none ? 'Sin encargo' : view.label} Glyph={none ? SquareTerminal : PhantomGlyph}>
+            {row.what && !row.title.endsWith(row.what) && <p>{row.what}</p>}
+            {row.why && <p>{row.why}</p>}
+            {row.from && <p>Pedido por {row.from.title}{row.from.external ? ` · ${row.from.workspaceName}` : ''}</p>}
+            {row.step && row.status !== 'working' && row.status !== 'blocked' && <p><span className="pd-del-k">Último paso</span>{row.step}</p>}
+            {row.branch && <p><code>{row.branch}</code></p>}
+            {onOpenPanel && <button type="button" className="pd-del-go" aria-label={`Ir a ${row.title}`} onClick={() => onOpenPanel('terminal', { focusNodeId: row.id })}>Ir a la sesión</button>}
+          </DelegateRow>
+          <DelegateNest subs={subs} plan={row.plan} kids={kids} />
         </li>;
-      })}</ul>
-      {delegation.cards.length > 0 && <div className="pd-deleg-cards">
-        <strong>Cards sin terminal</strong>
-        {delegation.cards.map(card => <div key={card.id}><strong>{card.goal}</strong><small>{statusLabel(card.status)}</small><CardPlan plan={card.plan} /></div>)}
-      </div>}
+      })}</ul>}
+      {cardEntries.length > 0 && <>
+        <p className="pd-del-group">Cards sin terminal</p>
+        <ul className="pd-del-list" aria-label="Cards sin terminal">{cardEntries.map(({ card, view, kids }) => <li key={card.id} className="pd-del">
+          <DelegateRow view={view} Glyph={PhantomGlyph}><p><code>{card.id.slice(0, 13)}</code></p></DelegateRow>
+          <DelegateNest subs={[]} plan={card.plan} kids={kids} />
+        </li>)}</ul>
+      </>}
     </section>}
     {onOpenPanel
       ? <QueueSummary workspace={workspace} api={api} onOpenPanel={onOpenPanel} hasOrchestrator={Boolean(orchestrator)} />

@@ -19,6 +19,7 @@ import Markdown, { CopyButton } from './Markdown';
 import { ProviderTile } from './Glyphs';
 import { phantomRunIds, turnRunIds } from '../hooks/phantom-run-link.mjs';
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
+import { delegateSummary } from '../hooks/delegation-model.mjs';
 import { runHealthView } from '../hooks/run-health-view.mjs';
 import { runProgressView } from '../hooks/run-progress-view.mjs';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
@@ -47,8 +48,6 @@ export function useElapsed(since, active) {
 }
 
 const isSubagent = part => part.type === 'tool' && Boolean(part.agent);
-// Sub-agents still at work in a reply, for the "Trabajando" line.
-export const activeSubagents = parts => parts.filter(part => isSubagent(part) && part.status === 'running').length;
 
 // Consecutive tool calls read as one activity block between paragraphs of prose.
 // The AskUserQuestion call itself is drawn by its question card, not as a tool row.
@@ -79,7 +78,14 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
   const runIds = turnRunIds(message.parts);
-  const delegated = streaming ? activeSubagents(message.parts) : 0;
+  // Assignments report their own tone once Phantom answers; only those working count in the "Trabajando" line.
+  const [runViews, setRunViews] = useState({});
+  const reportRun = useCallback((id, tone) => setRunViews(known => {
+    if (known[id] === tone || (!tone && !(id in known))) return known;
+    const { [id]: gone, ...rest } = known;
+    return tone ? { ...rest, [id]: tone } : rest;
+  }), []);
+  const delegated = streaming ? delegateSummary(message.parts, Object.values(runViews).map(tone => ({ kind: 'run', tone }))) : '';
   const facts = usage ? [usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
   const stamp = [message.model || model, streaming ? formatElapsed(elapsed) : formatDuration(usage?.durationMs) || clock(message.createdAt), ...facts].filter(Boolean).join(' · ');
   return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
@@ -96,8 +102,8 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {runIds.length > 0 && <div className="pc-phantom-final" role="group" aria-label="Estado actual en Phantom">{runIds.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}</div>}
-    {streaming && !waiting && <p className="pc-working" role="status"><span className="pc-tool-mark" aria-hidden="true"><LoaderCircle size={16} /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
+    {runIds.length > 0 && <div className="pc-phantom-final" role="group" aria-label="Estado actual en Phantom">{runIds.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} onTone={reportRun} />)}</div>}
+    {streaming && !waiting && <p className="pc-working" role="status"><span className="pc-tool-mark" aria-hidden="true"><LoaderCircle size={16} /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated && <span className="pc-working-agents"> · {delegated}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
     {(stamp || text) && <footer className="pc-turn-foot">{!streaming && text && <CopyButton text={text} label="Copiar respuesta" />}<time className="pc-num" dateTime={message.createdAt}>{stamp}</time></footer>}

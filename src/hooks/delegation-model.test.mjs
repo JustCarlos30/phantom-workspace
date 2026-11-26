@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDelegation, withCardPlans, chatSubagents, withChatSubagents, agentOpenRequest, agentTree, traceView, traceStatus, traceKind, traceContext, traceEventOwner, traceEventView, traceResult, mergeTraceEvents, agoLabel } from './delegation-model.mjs';
+import { buildDelegation, withCardPlans, chatSubagents, withChatSubagents, agentOpenRequest, agentTree, traceView, traceStatus, traceKind, traceContext, traceEventOwner, traceEventView, traceResult, mergeTraceEvents, agoLabel, delegateView, delegateSummary } from './delegation-model.mjs';
 
 const agent = (id, extra = {}) => ({ id, workspaceId: 'w', nodeId: 'n', ...extra });
 
@@ -379,6 +379,94 @@ test('cycles, self-links and absent data yield each terminal exactly once', () =
   assert.deepEqual(buildDelegation({ id: 'w' }), empty);
 });
 
+const sub = (status, agent = {}, extra = {}) => ({ type: 'tool', id: 'toolu_1', name: 'Agent', status, detail: ' Revisar\n el modelo ', agent: { steps: [], total: 0, ...agent }, ...extra });
+const run = (extra = {}) => ({ id: 'task_1', title: 'Rediseñar filas', goal: 'Rediseñar filas', status: 'running', label: 'En curso', live: true, blocker: null, checks: [], passed: 0, total: 0, duration: '2 min 00 s', line: '', output: '', ...extra });
+
+test('a working sub-agent is live, names its current step and counts steps without a percentage', () => {
+  const view = delegateView(sub('running', { type: 'Explore', model: 'anthropic/claude-sonnet-5-5', total: 12, steps: [{ id: 'a', name: 'Read', detail: 'a.js', status: 'done' }, { id: 'b', name: 'Grep', detail: 'delegate', status: 'running' }, { id: 'c', name: 'Edit', detail: 'x', status: 'done' }], prompt: 'Revisa', text: 'Voy bien' }, { output: '' }));
+  assert.deepEqual([view.kind, view.label, view.id, view.title, view.tone, view.stateLabel], ['subagent', 'Subagente', 'toolu_1', 'Revisar el modelo', 'live', 'Trabajando']);
+  assert.deepEqual(view.now, { label: 'Grep', detail: 'delegate' });
+  assert.equal(view.model, 'claude-sonnet-5-5');
+  assert.deepEqual(view.meta, ['Explore', '12 pasos']);
+  assert.equal(view.attention, null);
+  assert.deepEqual(view.sections.map(section => section.key), ['steps', 'prompt', 'said']);
+  assert.equal(view.sections[0].count, 12);
+  assert.equal(JSON.stringify(view).includes('%'), false);
+});
+
+test('a finished sub-agent is done with no current step and its result as a section', () => {
+  const view = delegateView(sub('done', { type: 'Plan', total: 1, steps: [{ id: 'a', name: 'Read', detail: '', status: 'running' }] }, { output: 'Listo' }));
+  assert.deepEqual([view.tone, view.stateLabel, view.now, view.attention, view.meta], ['done', 'Terminó', null, null, ['Plan', '1 paso']]);
+  assert.deepEqual(view.sections.map(section => section.key), ['steps', 'output']);
+});
+
+test('a failed or stopped sub-agent is error or stopped, never attention, and unknown states say so', () => {
+  const failed = delegateView(sub('error'));
+  assert.deepEqual([failed.tone, failed.stateLabel, failed.attention], ['error', 'Falló', null]);
+  assert.deepEqual([delegateView(sub('stopped')).tone, delegateView(sub('stopped')).stateLabel], ['stopped', 'Detenido']);
+  const unknown = delegateView(sub('mystery'));
+  assert.deepEqual([unknown.tone, unknown.stateLabel, unknown.model, unknown.duration, unknown.meta, unknown.sections], ['unknown', 'Estado no disponible', null, '', [], []]);
+  assert.equal(delegateView(sub('running', {}, { detail: '', name: '' })).title, 'Sin descripción');
+});
+
+test('a sub-agent asks for the user only with a pending question and measures time only from recorded dates', () => {
+  const now = Date.parse('2026-01-01T00:10:00Z');
+  const asking = delegateView(sub('running', { startedAt: '2026-01-01T00:08:00Z' }, { question: ' ¿Borro la rama? ' }), now);
+  assert.deepEqual([asking.tone, asking.stateLabel, asking.attention, asking.duration], ['attention', 'Espera tu respuesta', { label: 'Pregunta pendiente', meaning: '¿Borro la rama?' }, '2 min 00 s']);
+  assert.equal(delegateView(sub('done', {}, { question: 'vieja' })).attention, null, 'a finished agent has no pending question');
+  assert.equal(delegateView(sub('running', { startedAt: 'nunca' }), now).duration, '');
+});
+
+test('a working assignment is live and shows the recorded activity, never a percentage', () => {
+  const view = delegateView(run({ model: 'claude-code/sonnet', turns: 7, tools: 31, activity: { current: { label: 'Editar', detail: 'src/a.mjs' }, total: 31 }, phases: [{ key: 'prep' }], checks: [{ name: 'build', result: 'Sin resultado' }] }));
+  assert.deepEqual([view.kind, view.label, view.id, view.title, view.tone, view.stateLabel, view.duration, view.model], ['run', 'Encargo', 'task_1', 'Rediseñar filas', 'live', 'En curso', '2 min 00 s', 'sonnet']);
+  assert.deepEqual(view.now, { label: 'Editar', detail: 'src/a.mjs' });
+  assert.deepEqual(view.meta, ['7 turnos', '31 herramientas', '1 check sin resultado']);
+  assert.deepEqual(view.sections.map(section => section.key), ['phases', 'checks', 'activity']);
+  assert.equal(JSON.stringify(view).includes('%'), false);
+  assert.deepEqual(delegateView(run({ line: 'compilando' })).now, { label: 'Salida', detail: 'compilando' });
+  assert.equal(delegateView(run()).now, null);
+});
+
+test('a blocked assignment needs the user with the real cause; a failed one is error and keeps the cause', () => {
+  const blocker = { status: 'blocked', label: 'Conflicto al integrar', meaning: 'Dos ramas tocan el mismo archivo', reason: 'x' };
+  const blocked = delegateView(run({ status: 'blocked', label: 'Bloqueada', live: false, blocker }));
+  assert.deepEqual([blocked.tone, blocked.stateLabel, blocked.attention, blocked.now], ['attention', 'Bloqueada', { label: 'Conflicto al integrar', meaning: 'Dos ramas tocan el mismo archivo' }, null]);
+  const failed = delegateView(run({ status: 'failed', label: 'Falló', live: false, blocker: { ...blocker, status: 'failed' } }));
+  assert.deepEqual([failed.tone, failed.attention.label], ['error', 'Conflicto al integrar']);
+});
+
+test('failed checks make a stopped assignment need the user, even a completed one, and are never green', () => {
+  const checks = [{ name: 'build', passed: true, result: 'Pasó' }, { name: 'test', passed: false, result: 'Falló' }, { name: 'lint', passed: false, result: 'Falló' }];
+  const done = delegateView(run({ status: 'completed', label: 'Completada', live: false, checks, passed: 1, total: 3 }));
+  assert.deepEqual([done.tone, done.attention], ['attention', { label: '2 checks fallaron', meaning: 'test · lint' }]);
+  assert.ok(done.meta.includes('1 de 3 checks'));
+  const one = delegateView(run({ status: 'ready', label: 'Lista', live: false, checks: [{ name: 'test', passed: false, result: 'Falló' }] }));
+  assert.equal(one.attention.label, 'Un check falló');
+  assert.equal(delegateView(run({ status: 'running', checks })).tone, 'live', 'while it still works the system is handling the failure');
+  const clean = delegateView(run({ status: 'completed', label: 'Completada', live: false, checks: [{ name: 'build', passed: true, result: 'Pasó' }], passed: 1, total: 1 }));
+  assert.deepEqual([clean.tone, clean.attention], ['done', null]);
+});
+
+test('an assignment with no data says it is not available instead of inventing a state', () => {
+  for (const input of [undefined, null, {}, 'x']) {
+    const view = delegateView(input);
+    assert.deepEqual([view.kind, view.tone, view.stateLabel, view.title, view.id, view.now, view.model, view.duration, view.attention, view.meta, view.sections], ['run', 'unknown', 'Estado no disponible', 'Sin título', '', null, null, '', null, [], []], String(input));
+  }
+  assert.equal(delegateView(run({ status: 'cancelled', label: 'Cancelada', live: false })).tone, 'stopped');
+  assert.equal(delegateView(run({ status: 'ready', label: 'Lista', live: true })).tone, 'stopped', 'queued is not working');
+});
+
+test('the live line counts only what works now and agrees in singular and plural', () => {
+  const parts = [sub('running'), sub('running', {}, { id: 'toolu_2' }), sub('running', {}, { id: 'toolu_1' }), sub('done', {}, { id: 'toolu_3' }), { type: 'tool', status: 'running', id: 'plain' }, null];
+  assert.equal(delegateSummary(parts, [run(), run({ id: 'task_2' }), run({ status: 'completed', live: false })]), '2 subagentes · 2 encargos');
+  assert.equal(delegateSummary([sub('running')], [run()]), '1 subagente · 1 encargo');
+  assert.equal(delegateSummary([sub('running')], []), '1 subagente');
+  assert.equal(delegateSummary([], [run()]), '1 encargo');
+  assert.equal(delegateSummary(null, undefined), '');
+  assert.equal(delegateSummary([sub('done')], [delegateView(run()), delegateView(run({ status: 'failed', live: false }))]), '1 encargo', 'views already built are accepted');
+});
+
 test('counts include hidden terminals and normalize invalid status', () => {
   const { rows, counts } = build([
     terminal('working', { hidden: true, agent: { cardId: 'c', status: 'working', step: 'Editing' }, worktree: { branch: 'feature' } }),
@@ -392,4 +480,14 @@ test('counts include hidden terminals and normalize invalid status', () => {
   assert.equal(rows[0].branch, 'feature');
   assert.equal(rows[2].status, 'review');
   assert.equal(rows[3].status, 'idle');
+});
+
+test('terminals stored with worktree or agent null still produce rows', () => {
+  const { rows } = build([
+    terminal('orchestrator', { role: 'orchestrator', worktree: null, agent: null }),
+    terminal('project', { worktree: null, worktreeReason: 'sin Git' }),
+  ]);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map(row => row.branch), ['', '']);
+  assert.equal(rows[0].status, 'idle');
 });
