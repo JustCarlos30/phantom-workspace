@@ -20,6 +20,8 @@ import { phantomRunIds, turnRunIds } from '../hooks/phantom-run-link.mjs';
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
 import { runHealthView } from '../hooks/run-health-view.mjs';
 import { runProgressView } from '../hooks/run-progress-view.mjs';
+import { terminalJourney } from '../hooks/terminal-journey.mjs';
+import TerminalJourney, { TerminalDelegates } from './TerminalJourney';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 import { compactionBlocked } from '../hooks/context-view.mjs';
 import { AGENT_MODES, AgentChoices, ModeSwitch, PermissionRow, PermissionSwitch, ProjectPermissions } from './chat/ChatPermissions';
@@ -316,6 +318,18 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const delegating = phase === 'delegating', healthView = runHealthView(runHealth);
   const progress = runProgressView(node.data?.agent?.run, Date.now());
   const delegatingLabel = progress ? `${progress.label}${progress.activity ? ` · ${progress.activity}` : ''}` : healthView.line;
+  // Recorrido de la terminal con los datos que ya llegan; un socket futuro solo cambia estas props.
+  const journey = terminalJourney({ node, connected, messages, running, controllers });
+  // Una decisión humana (permiso, pregunta, bloqueo humano o declarado) nunca queda en reposo ni se apaga por «visto».
+  // Recuperación automática, espera de dependencia y causa desconocida no se marcan como decisión humana.
+  const needsYou = Boolean(waitingOn) || journey.needsAttention || journey.blocker?.kind === 'human';
+  const decisionRef = useRef(null);
+  const goToDecision = () => {
+    const target = decisionRef.current?.querySelector('.pc-dock, .pc-question.is-pending');
+    if (!target) return;
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    target.querySelector('button, input, textarea')?.focus({ preventScroll: true });
+  };
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
@@ -323,9 +337,10 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     setAnnouncement(phase === 'running' ? `${label} está respondiendo` : phase === 'waiting' ? `${label} ${waiting.toLowerCase()}` : phase === 'delegating' ? `${label} ${delegatingLabel.toLowerCase()}` : `${label} terminó de responder`);
   }, [phase, chat, label]);
   const last = messages.at(-1);
-  const basePulse = useChatPulse({ nodeId: node.id, chat, running: running || delegating, waitingOn, last, seen });
-  const pulse = !chat || waitingOn || running || delegating ? basePulse : finishedRun && ackedRun !== finishedRun.id ? 'pulse-attention' : basePulse;
-  const panelState = waitingOn ? 'attention' : running || delegating ? 'working' : error || last?.status === 'error' || finishedRun ? 'error' : last?.role === 'assistant' && last.status === 'done' || delegation.outcome === 'turn' ? 'finished' : 'rest';
+  const basePulse = useChatPulse({ nodeId: node.id, chat, running: running || delegating, waitingOn: needsYou, last, seen });
+  const failing = journey.tone === 'error';
+  const pulse = !chat || needsYou || running || delegating ? basePulse : finishedRun && ackedRun !== finishedRun.id ? 'pulse-attention' : failing && !basePulse ? 'pulse-error' : basePulse;
+  const panelState = needsYou ? 'attention' : running || delegating ? 'working' : error || failing || last?.status === 'error' || finishedRun ? 'error' : last?.role === 'assistant' && last.status === 'done' || delegation.outcome === 'turn' ? 'finished' : 'rest';
   useEffect(() => { onPulse?.(node.id, pulse, panelState); }, [onPulse, node.id, pulse, panelState]);
   useEffect(() => () => onPulse?.(node.id, ''), [onPulse, node.id]);
   // Follow the reply while the reader is at the end; never yank them back up.
@@ -355,18 +370,21 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const context =<SessionContext node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} model={model} permissionMode={permissionMode} running={running} ready={!!chat} />;
   if (overview) {
     const lastText = last?.parts.findLast?.(part => part.type === 'text')?.text;
-    return <div className="pt-card pc is-overview" data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
+    return <div className="pt-card pc is-overview" data-agent={needsYou ? 'approval' : running ? 'working' : 'idle'}>
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
-        {(running || waiting) && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{plainMarkdown(lastText).slice(-240)}</p>}
-        <PlanPhases plan={node.data?.plan} compact />
+        <TerminalJourney view={journey} compact />
       </div>
     </div>;
   }
-  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={waiting ? 'approval' : running ? 'working' : 'idle'}>
+  return <div ref={decisionRef} className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={needsYou ? 'approval' : running ? 'working' : 'idle'}>
     <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
-    {planSummary(node.data?.plan) && <details className="plan-phases-toggle pc-plan"><summary><PlanPhases plan={node.data.plan} compact /></summary><PlanPhases plan={node.data.plan} /></details>}
+    <div className="pc-journey">
+      <TerminalJourney view={journey} />
+      {waitingOn && <button type="button" className="pc-journey-go" onClick={goToDecision}>{waitingOn.type === 'question' ? 'Ir a la pregunta' : 'Ir al permiso'}</button>}
+      {planSummary(node.data?.plan) && <details className="tj-more pc-journey-plan"><summary><ChevronRight size={14} aria-hidden="true" />Plan completo</summary><PlanPhases plan={node.data.plan} /></details>}
+    </div>
     <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}
@@ -376,10 +394,11 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           {context}
         </div>}
         {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
-        {delegating && !running && !waiting && <p className="pc-working pc-run-health" data-level={healthView.level}><span className="pc-run-health-line">{delegatingLabel}{progress && progress.idle ? ` · inactivo ${progress.idle}` : ''}</span>{(progress?.warning || healthView.warning) && <span className="pc-run-health-warning" role="status">{progress?.warning || healthView.warning}</span>}{progress?.blocker && <span className="pc-run-health-warning" role="alert">{`${progress.blocker.title}: ${progress.blocker.summary}`}</span>}</p>}
+        {delegating && !running && !waiting && (!progress || healthView.warning) && <p className="pc-working pc-run-health" data-level={healthView.level}>{!progress && <span className="pc-run-health-line">{delegatingLabel}</span>}{healthView.warning && <span className="pc-run-health-warning" role="status">{healthView.warning}</span>}</p>}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
+    <div className="pc-delegates"><TerminalDelegates view={journey} /></div>
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" data-dictating={voice.status !== 'idle' || undefined} onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
       <ContextNudge key={`${node.id}.${chat?.messages?.[0]?.id || 'empty'}`} nodeId={node.id} firstMessageId={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />

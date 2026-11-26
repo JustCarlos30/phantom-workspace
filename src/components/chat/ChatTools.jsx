@@ -12,19 +12,38 @@ const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name
 const TOOL_VERBS = { read: ['Leyendo', 'Leyó'], edit: ['Editando', 'Editó'], shell: ['Ejecutando', 'Ejecutó'], search: ['Buscando', 'Buscó'], web: ['Consultando', 'Consultó'], agent: ['Delegando', 'Delegó'], todo: ['Actualizando el plan', 'Actualizó el plan'] };
 const TOOL_STATES = { error: 'Falló', stopped: 'Detenida' };
 
+// Propósito cotidiano de una llamada a Phantom (CLI o herramienta); null si no se reconoce, y entonces queda «Phantom».
+const PHANTOM_PURPOSE = {
+  run: ['Lanzando un encargo', 'Lanzó un encargo'], show: ['Consultando una tarea', 'Consultó una tarea'], status: ['Consultando una tarea', 'Consultó una tarea'],
+  events: ['Revisando el historial de una tarea', 'Revisó el historial de una tarea'], do: ['Ejecutando una tarea', 'Ejecutó una tarea'],
+  create: ['Creando una tarea', 'Creó una tarea'], card: ['Preparando una tarea', 'Preparó una tarea'], bind: ['Vinculando la terminal con su tarea', 'Vinculó la terminal con su tarea'],
+  list: ['Consultando las tareas', 'Consultó las tareas'], context: ['Buscando contexto del proyecto', 'Buscó contexto del proyecto'], source: ['Leyendo una fuente del proyecto', 'Leyó una fuente del proyecto'],
+  skills: ['Buscando una guía de trabajo', 'Buscó una guía de trabajo'],
+};
+const PHANTOM_CLI = /(?:\bphantom["']?|agent\.mjs["']?|\$\{?PHANTOM_AGENT_CLI\}?"?)\s+(run|show|status|events|do|create|card|bind|list)\b/i;
+function phantomPurpose(part) {
+  const name = String(part.name || ''), input = part.input;
+  const command = typeof input === 'string' ? input : input?.command || input?.cmd || part.detail || '';
+  const named = /phantom[._:-]+([a-z]+)/i.exec(name)?.[1]?.toLowerCase();
+  const cli = /^(bash|shell|exec|run)/i.test(name) ? PHANTOM_CLI.exec(command)?.[1]?.toLowerCase() : null;
+  const purpose = PHANTOM_PURPOSE[cli || named];
+  return purpose ? { purpose, command: String(command) } : null;
+}
+
 // One action, one quiet line: a dot, what was done, and on what. The dot and the verb's tense say whether it is still running.
 export const ToolRow = React.memo(function ToolRow({ part }) {
   const [open, setOpen] = useState(false);
   const [, Icon, kind] = toolKind(part.name);
   const phantom = phantomRunIds(part).length > 0 || /phantom[._:-]/i.test(part.name);
-  const expandable = Boolean(part.output || (kind === 'edit' && part.change));
+  const human = phantom ? phantomPurpose(part) : null;
+  const expandable = Boolean(part.output || (kind === 'edit' && part.change) || human?.command);
   const [doing, did] = TOOL_VERBS[kind] || ['Usando', 'Usó'];
   const codeDetail = ['read', 'edit', 'shell', 'search', 'web'].includes(kind);
   const summary = <>
     <span className="pc-tool-mark" aria-hidden="true">{phantom ? <PhantomGlyph size={16} /> : <Icon size={16} />}</span>
-    <span className="pc-tool-label" title={part.name}>{phantom ? 'Phantom' : part.status === 'running' ? doing : did}</span>
+    <span className="pc-tool-label" title={part.name}>{human ? human.purpose[part.status === 'running' ? 0 : 1] : phantom ? 'Phantom' : part.status === 'running' ? doing : did}</span>
     {!phantom && !TOOL_VERBS[kind] && <span className="pc-tool-name">{part.name}</span>}
-    <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail || undefined}>{part.detail}</span>
+    <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={human ? undefined : part.detail || undefined}>{human ? '' : part.detail}</span>
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
     {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`}>
       {part.status === 'error' && <X size={14} aria-hidden="true" />}
@@ -35,8 +54,8 @@ export const ToolRow = React.memo(function ToolRow({ part }) {
   const className = `pc-tool is-${part.status}`;
   if (!expandable) return <li className={className} data-kind={kind}><div className="pc-tool-row">{summary}</div></li>;
   return <li className={className} data-kind={kind}><details onToggle={e => { if (e.target === e.currentTarget) setOpen(e.currentTarget.open); }}><summary className="pc-tool-row">{summary}</summary><div className="pc-tool-output">
-    <p className="pc-tool-context"><span>{part.name}</span>{part.detail && (kind !== 'shell' || part.status === 'error') && <span className={codeDetail ? 'is-code' : undefined}>{part.detail}</span>}</p>
-    {open && <ToolOutput part={part} kind={kind} />}
+    <p className="pc-tool-context"><span>{part.name}</span>{human?.command ? <span className="is-code">{human.command}</span> : part.detail && (kind !== 'shell' || part.status === 'error') && <span className={codeDetail ? 'is-code' : undefined}>{part.detail}</span>}</p>
+    {open && (!human || part.output) && <ToolOutput part={part} kind={kind} />}
   </div></details></li>;
 });
 
@@ -82,36 +101,48 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
     {activity.hidden > 0 && <li className="pc-subagent-hidden">{activity.hidden} pasos anteriores</li>}
     {activity.steps.map(step => { const [, Icon] = toolKind(step.kind); return <li key={step.id} className={`is-${step.status}`}><Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.label}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} /></li>; })}
   </ol>;
+  // Resumen: objetivo, actividad y resultado. Lo que falta de evidencia vive solo en el detalle, como texto discreto.
+  const ran = state.checks.some(check => check.result !== 'Sin resultado');
+  const known = state.phases.filter(phase => phase.state !== 'unobserved' && phase.state !== 'unknown');
+  const missing = state.phases.filter(phase => phase.state === 'unobserved' || phase.state === 'unknown');
+  const attempts = state.activity.runs;
   return <section className="pc-subagent pc-phantom-run" aria-label={`Encargo Phantom ${id}`}>
     <header className="pc-subagent-head">
       <span className="pc-subagent-mark" aria-hidden="true"><PhantomGlyph size={16} /></span>
       <span className="pc-subagent-label">Encargo Phantom</span>
       <code className="pc-phantom-id" title={id}>{id.slice(0, 13)}</code>
       <span className={`pc-phantom-status is-${state.tone}`} role="status">{state.label}</span>
-      {state.model && <span className="pc-subagent-type" title={state.model}>{state.model.split('/').at(-1)}</span>}
     </header>
     <p className="pc-subagent-goal">{state.title}</p>
     {state.goal && state.goal !== state.title && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Descripción completa</summary><pre className="pc-subagent-prompt">{state.goal}</pre></details>}
-    <ol className="pc-phantom-phases" aria-label="Fases del encargo">{state.phases.map(phase => <li key={phase.key} className={`is-${phase.state}`} title={phase.detail}><span>{phase.label}</span><b>{phase.text}</b>{phase.detail && <i>{phase.detail}</i>}</li>)}</ol>
     {state.blocker && <div className="pc-phantom-blocker" role="alert"><strong>{state.blocker.label}</strong><span>{state.blocker.meaning}</span>
       {onOpenPanel ? <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, resolve: true }, state.title)}>Resolver bloqueo</button> : <span className="pc-quiet">Resolver bloqueo no está disponible: este chat no puede abrir el panel Phantom.</span>}</div>}
     {state.activity.runs.length <= 1 && state.activity.reason && <p className="pc-phantom-reason" role="alert">{state.activity.reason}</p>}
     {state.activity.runs.length === 1 && state.activity.runs[0].reasonRaw && state.activity.runs[0].reasonRaw !== state.activity.runs[0].reason && <details className="pc-subagent-more"><summary>Detalle técnico</summary><pre className="pc-phantom-reason">{state.activity.runs[0].reasonRaw}</pre></details>}
     {state.live && state.activity.current && <p className="pc-subagent-now" role="status" aria-label="Actividad actual"><LoaderCircle className="spinning" size={14} aria-hidden="true" /><span className="pc-tool-name">{state.activity.current.label}</span><span className="pc-tool-detail" title={state.activity.current.detail}>{state.activity.current.detail}</span></p>}
-    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>· {state.duration}</span>}{state.turns !== undefined && <span>· {state.turns} turnos</span>}{state.tools !== undefined && <span>· {state.tools} herramientas</span>}</p>
-    {state.activity.runs.length > 1 ? <div className="pc-phantom-attempts">{state.activity.runs.map((run, index) => <details className="pc-subagent-more" key={run.runId}>
-      <summary><ChevronRight size={14} aria-hidden="true" />Intento {run.attempt} de {state.activity.runs.length}</summary>
-      {run.reason && <p className="pc-phantom-reason" role="alert">{run.reason}</p>}
-      {run.reasonRaw && run.reasonRaw !== run.reason && <details className="pc-subagent-more"><summary>Detalle técnico</summary><pre className="pc-phantom-reason">{run.reasonRaw}</pre></details>}
-      {stepList(run, index === state.activity.runs.length - 1)}
-    </details>)}</div> : (state.activity.total > 0 || state.activity.runs.length > 0 || state.activity.reason) && <details className="pc-subagent-more" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
+    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>· {state.duration}</span>}{ran && <span>· Checks {state.passed} de {state.total} pasados</span>}</p>
+    {state.line && <p className="pc-subagent-said">{state.line}</p>}
+    <details className="pc-subagent-more pc-phantom-detail">
+      <summary><ChevronRight size={14} aria-hidden="true" />Detalle</summary>
+      {known.length > 0 && <ol className="pc-phantom-phases" aria-label="Fases del encargo">{known.map(phase => <li key={phase.key} className={`is-${phase.state}`} title={phase.detail}><span>{phase.label}</span><b>{phase.text}</b>{phase.detail && <i>{phase.detail}</i>}</li>)}</ol>}
+      {missing.length > 0 && <p className="pc-phantom-gap">Sin evidencia registrada: {missing.map(phase => phase.detail ? `${phase.label} (${phase.detail})` : phase.label).join(', ')}.</p>}
+      <p className="pc-phantom-meta">{state.model && <span title={state.model}>Modelo {state.model.split('/').at(-1)}</span>}{state.turns !== undefined && <span>{state.model ? '· ' : ''}{state.turns} turnos</span>}{state.tools !== undefined && <span>· {state.tools} herramientas</span>}{!state.model && state.turns === undefined && state.tools === undefined && <span className="pc-phantom-gap">Sin datos de modelo, turnos ni herramientas.</span>}</p>
+    </details>
+    {attempts.length > 1 ? <details className="pc-subagent-more pc-phantom-attempts-group">
+      <summary><ChevronRight size={14} aria-hidden="true" />Intentos · {attempts.length}</summary>
+      <div className="pc-phantom-attempts">{attempts.map((run, index) => <details className="pc-subagent-more" key={run.runId}>
+        <summary><ChevronRight size={14} aria-hidden="true" />Intento {run.attempt} de {attempts.length}</summary>
+        {run.reason && <p className="pc-phantom-reason" role="alert">{run.reason}</p>}
+        {run.reasonRaw && run.reasonRaw !== run.reason && <details className="pc-subagent-more"><summary>Detalle técnico</summary><pre className="pc-phantom-reason">{run.reasonRaw}</pre></details>}
+        {stepList(run, index === attempts.length - 1)}
+      </details>)}</div>
+    </details> : (state.activity.total > 0 || state.activity.runs.length > 0 || state.activity.reason) && <details className="pc-subagent-more" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
       <summary><ChevronRight size={14} aria-hidden="true" />Pasos del encargo · {state.activity.total}</summary>
       {stepList(state.activity, true)}
     </details>}
-    {state.line && <p className="pc-subagent-said">{state.line}</p>}
     {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}
-    {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Checks · {state.passed}/{state.total} pasados</summary><ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
-    {state.live && state.total > 0 && <progress className="pc-progress" max={state.total} value={state.passed} aria-label={`${state.passed} de ${state.total} checks pasados`} />}
+    {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />{ran ? `Checks · ${state.passed}/${state.total} pasados` : `Checks declarados · ${state.total}`}</summary>{!ran && <p className="pc-phantom-gap">Aún sin resultados registrados.</p>}<ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
+    {state.live && ran && <progress className="pc-progress" max={state.total} value={state.passed} aria-label={`${state.passed} de ${state.total} checks pasados`} />}
     {onOpenPanel && <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, state.title)}>Abrir en Phantom</button>}
   </section>;
 }

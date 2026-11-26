@@ -50,30 +50,21 @@
 .pt-card-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 2px 14px 14px; font-size: 12px; flex-shrink: 0; }
 .pt-card-identity > .pt-state { margin-left: auto; }
 .pt-card-step { flex-basis: 100%; margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; text-wrap: pretty; }
-.pt-card-now { display: flex; align-items: baseline; gap: 8px; flex-basis: 100%; min-width: 0; }
-.pt-card-now > i { width: 6px; height: 6px; flex-shrink: 0; align-self: flex-start; margin-top: 7px; border-radius: 0; background: var(--ink-3); }
-.pt-card-now[data-tone="working"] > i { background: var(--working); }
-.pt-card-now[data-tone="attention"] > i { background: var(--attention); }
-.pt-card-now > .pt-card-step { flex: 1; min-width: 0; animation: materialize var(--dur) var(--ease-out); }
-.pt-card-now > time, .pt-bar-since { color: var(--ink-3); font-size: 12px; flex-shrink: 0; white-space: nowrap; }
-@media (prefers-reduced-motion: reduce) { .pt-card-now > .pt-card-step { animation: none; } }
+/* Franja de recorrido (TerminalJourney): fuera del área xterm/scroll y siempre visible; sus detalles plegables escrollan por dentro. */
+.pt-journey { display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; min-width: 0; max-height: 40vh; overflow: auto; }
+.pt-card-identity > .pt-journey { flex-basis: 100%; }
+.pt-journey:empty { display: none; }
+.pt-focus > .pt-journey { padding: 8px 16px; }
+.pt-delegates { flex-shrink: 0; min-width: 0; padding: 4px 14px 8px; }
+.pt-focus > .pt-delegates { max-height: 30vh; overflow: auto; padding: 8px 16px; }
+/* Canvas compacto: el recorrido en reposo o trabajando se retira; lo que espera a la persona se queda visible. */
+.canvas-node.compact .pt-journey:is([data-tone="idle"], [data-tone="working"]) > .tj { display: none; }
 /* ---------- Progreso de run Phantom (node.data.agent.run) ---------- */
 .pt-run { --run-tone: var(--ink-3); flex-basis: 100%; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--surface-2); font-size: 12px; color: var(--muted); }
 .pt-run[data-tone="working"] { --run-tone: var(--working); }
 .pt-run[data-tone="attention"] { --run-tone: var(--attention); }
 .pt-run[data-tone="review"] { --run-tone: var(--success); }
 .pt-run[data-tone="error"] { --run-tone: var(--danger); }
-.pt-run-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.pt-run-phase { color: var(--run-tone); font-weight: 600; flex-shrink: 0; }
-.pt-run-activity { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
-.pt-run-times { flex-shrink: 0; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pt-run-warning { margin: 0; color: var(--attention); font-weight: 600; }
-.pt-run-warning[data-level="alert"] { color: var(--danger); }
-.pt-run-children { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.pt-run-children li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.pt-run-children li > span { font-family: var(--mono); color: var(--ink); flex-shrink: 0; }
-.pt-run-children li > em { font-style: normal; color: var(--ink-3); flex-shrink: 0; }
-.pt-run-children li > small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
 .pt-run-blocker { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .pt-run-blocker > strong { color: var(--danger); }
 .pt-run-blocker p { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
@@ -142,7 +133,6 @@
 .pt-context { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0 16px 8px; background: var(--surface); color: var(--muted); font-size: 12px; flex-shrink: 0; }
 .pt-context .pt-chip { display: inline-flex; flex: 1; min-width: 0; max-width: none; padding: 0; background: transparent; }
 .pt-context .pt-session { display: inline-flex; padding: 0; }
-.pt-bar-step { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink); font-size: 13px; }
 .pt-bar-tools { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .pt-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; max-width: 260px; padding: 0 10px; border-radius: var(--r-pill); background: var(--fill); color: var(--muted); font-size: 12px; }
 .pt-chip > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -178,7 +168,6 @@
 .terminal-history-end { position: absolute; right: 22px; bottom: 18px; z-index: 2; display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 13px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--ink); font-size: 12px; box-shadow: var(--shadow-float); }
 .terminal-history-end:hover { background: var(--surface-3); }
 .terminal-history-end:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@container (max-width: 860px) { .pt-bar-step { flex-basis: 100%; } }
 @container (max-width: 480px) { .pt-bar .pt-provider { display: none; } }
 
 /* ---------- Semantic zoom: overview tiles (zoom < 45%) ----------

@@ -10,10 +10,10 @@ import { createTerminalStream } from '../hooks/terminalStream';
 import { writeOwnedTerminalInput } from '../hooks/inputOwnership';
 import AgentIdentity from './AgentIdentity';
 import PlanPhases from './PlanPhases';
+import TerminalJourney, { TerminalDelegates } from './TerminalJourney.jsx';
 import { planSummary } from '../hooks/plan-view.mjs';
-import { AgentState, ProviderBadge, effectiveStatus, locationOf, providerOf, sessionLabel } from './TerminalCard';
+import { AgentState, ProviderBadge, RunProgress, effectiveStatus, journeyVisible, locationOf, providerOf, sessionLabel, useTerminalJourney } from './TerminalCard';
 import { useTerminalTail } from '../hooks/useTerminalTail';
-import { formatSince, useNow } from '../hooks/terminalPulse.mjs';
 import { ModeSwitch } from './ChatCard';
 
 // Phantom engine theme: the well matches the card plane and the caret and
@@ -199,10 +199,10 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
   const statusLabel = sessionLabel(status, preparing);
   const changeFontSize = value => onChange(node.id, { data: { ...node.data, fontSize: value } });
   const agent = node.data?.agent || {};
-  const updatedAt = agent.updatedAt != null && agent.updatedAt !== '' ? new Date(agent.updatedAt) : null;
-  const hasTime = !!updatedAt && Number.isFinite(updatedAt.getTime());
-  const now = useNow(!overview && !!agent.step && hasTime);
   const { tail } = useTerminalTail({ sessionId, api, lines: 1, enabled: status === 'running', connected });
+  const journey = useTerminalJourney({ node, tail, connected, enabled: !overview });
+  const showJourney = !overview && journeyVisible(journey);
+  const plan = planSummary(node.data?.plan);
   const provider = providerOf(node, tail?.foreground);
   const { branch, where } = locationOf(node, workspace);
   return <div className="terminal-panel pt-focus" data-agent={agent.status || 'idle'}>
@@ -211,8 +211,6 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
         <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />
         {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
         {effectiveStatus(agent, tail?.screenState) && <AgentState agent={agent} status={effectiveStatus(agent, tail?.screenState)} />}
-        {agent.step && <span className="pt-bar-step" title={agent.step}>{agent.step}</span>}
-        {!overview && agent.step && hasTime && <time className="pt-bar-since" dateTime={updatedAt.toISOString()} title={`${updatedAt.toLocaleString()} · ${agent.source === 'agent' ? 'Reportado por agente' : 'Declarado manualmente'}`}>{formatSince(now - updatedAt.getTime())}</time>}
       </div>
       <div className="pt-bar-tools">
         <button type="button" title="Dictar en esta terminal · Ctrl/Cmd + Shift + M" aria-label="Dictar en esta terminal" disabled={!connected || status !== 'running'} onClick={() => openDictation(destination.current)}><Mic size={15} strokeWidth={1.75} /></button>
@@ -229,7 +227,11 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
       <span className="pt-session" role="status"><i className={`status-dot ${status}`} aria-hidden="true" />{statusLabel}</span>
     </div>
     <AgentIdentity node={node} workspace={workspace} api={api} refresh={refresh} flush={flush} onOpenPanel={onOpenPanel} />
-    {planSummary(node.data?.plan) && <details className="plan-phases-toggle pt-plan"><summary>Plan<PlanPhases plan={node.data.plan} compact /></summary><PlanPhases plan={node.data.plan} /></details>}
+    {(showJourney || (!overview && agent.run)) && <div className="pt-journey" data-tone={journey.tone}>
+      {showJourney && <TerminalJourney view={{ ...journey, blocker: null }} />}
+      {agent.run && <RunProgress run={agent.run} workspaceId={workspace?.id} api={api} notify={notify} />}
+    </div>}
+    {plan && <details className="plan-phases-toggle pt-plan"><summary>Plan<small className="plan-phases-progress" aria-label={`${plan.done} de ${plan.total} fases hechas`}>{plan.done}/{plan.total}</small></summary><PlanPhases plan={node.data.plan} /></details>}
     {(setupActive || setupFailed) && <section className={`terminal-setup ${setupFailed ? 'has-error' : ''}`} aria-label="Preparación de dependencias">
       <div className="terminal-setup-heading"><span role="status">{setupActive ? (setup.status === 'installing' ? 'Instalando dependencias…' : 'Preparando dependencias…') : setup.status === 'cancelled' ? 'Preparación cancelada' : 'No se pudieron instalar las dependencias'}</span>{setupActive && <progress aria-label="Instalación en curso" />}{setupFailed && status === 'running' && <button onClick={() => api('terminal.setup.retry', { sessionId }).then(session => setSetup(session.setup)).catch(e => notify(e.message, 'error'))}>Reintentar instalación</button>}</div>
       <small>La terminal y el agente ya están disponibles. Los comandos del proyecto pueden requerir que termine la instalación.</small>
@@ -238,5 +240,6 @@ export default function TerminalPanel({ node, workspace, api, active, overview =
     <div ref={host} className="terminal-host" />
     {readingHistory && <button type="button" className="terminal-history-end" onClick={() => { cancelAnchorRef.current?.(); if (terminal.current?.buffer.active.type === 'normal') terminal.current.scrollToBottom(); }}><ArrowDown size={14} strokeWidth={1.75} aria-hidden="true" />Ir al final</button>}
     {(error || !preparing && (status === 'lost' || status === 'exited')) && <div className="terminal-message"><AlertCircle size={15} strokeWidth={1.75} /><span>{error || (status === 'exited' ? 'La sesión ha finalizado. El historial se conserva.' : node.data?.launchError || 'Esta vista no tiene una sesión activa.')}</span>{sessionId && <button disabled={status === 'connecting' || status === 'disconnected'} onClick={() => streamRef.current?.retry()}><RotateCcw size={13} strokeWidth={1.75} /> Reconectar</button>}{status !== 'disconnected' && status !== 'connecting' && <button onClick={() => onRelaunch(node)}>Nueva sesión</button>}</div>}
+    {!overview && journey.delegates.total > 0 && <div className="pt-delegates"><TerminalDelegates view={journey} /></div>}
   </div>;
 }
