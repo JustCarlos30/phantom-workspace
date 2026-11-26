@@ -25,7 +25,7 @@ export function VoiceTranscript({ voice, draft = '' }) {
   </div>;
 }
 
-export function VoiceActivity({ voice, onFinish, hint }) {
+export function VoiceActivity({ voice, onFinish, hint, finishLabel = 'Terminar dictado y revisar' }) {
   const root = useRef(null);
   const [seconds, setSeconds] = useState(0);
   const focusField = () => root.current?.closest('.pc-composer, .voice-review')?.querySelector('textarea')?.focus({ preventScroll: true });
@@ -50,7 +50,7 @@ export function VoiceActivity({ voice, onFinish, hint }) {
     {voice.status !== 'recording' && <span className="voice-status">{LABELS[voice.status]}</span>}
     {hint && <span className="voice-hint">{hint}</span>}
     <button type="button" className="voice-discard" aria-label="Descartar dictado" title="Descartar dictado · Esc" onClick={() => { focusField(); voice.cancel(); }}><X size={18} /></button>
-    {onFinish && <button type="button" className="voice-finish" aria-label="Terminar dictado" title="Terminar dictado y revisar" disabled={voice.status !== 'recording'} onClick={onFinish}><Check size={18} /></button>}
+    {onFinish && <button type="button" className="voice-finish" aria-label={finishLabel} title={finishLabel} disabled={voice.status !== 'recording'} onClick={onFinish}><Check size={18} /></button>}
     {voice.notice && <p className="voice-notice">{voice.notice}</p>}
   </div>;
 }

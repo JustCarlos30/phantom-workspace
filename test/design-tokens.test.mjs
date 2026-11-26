@@ -364,14 +364,14 @@ test('E5 dictation is a field preview and a real-level meter without decorative 
   assert.match(source, /if \(voice.status === 'idle'\) return draft/);
   assert.match(source, /if \(voice.status === 'idle'\) return null/);
   assert.match(source, /aria-label="Descartar dictado"/);
-  assert.match(source, /aria-label="Terminar dictado"/);
+  assert.match(source, /aria-label=\{finishLabel\}/);
   assert.match(css, /\.voice-live-confirmed\s*\{ color: var\(--ink\)/);
   assert.match(css, /\.voice-live-partial\s*\{ color: var\(--muted\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none !important; transition: none !important/);
   for (const file of ['ChatCard', 'PhantomChat', 'PhantomOrchestrator']) {
     const component = readFileSync(path.join(root, `src/components/${file}.jsx`), 'utf8');
     assert.match(component, /<VoiceTranscript voice=\{voice\} draft=\{draft\}/);
-    assert.match(component, /hint="Esc descarta · Enter envía"/);
+    assert.doesNotMatch(component, /hint="Esc descarta/);
     assert.match(component, /value=\{preview\} readOnly=\{voice.status !== 'idle'\}/);
     assert.match(component, /sendAction\(/);
     assert.match(component, /canSubmit\(/);
