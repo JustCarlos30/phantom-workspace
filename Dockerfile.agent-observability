@@ -1,0 +1,6 @@
+FROM mcr.microsoft.com/playwright:v1.58.0-noble
+WORKDIR /workspace
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 ELECTRON_SKIP_BINARY_DOWNLOAD=1
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
+CMD ["node", "--test", "test/agent-observability-ui.test.mjs"]

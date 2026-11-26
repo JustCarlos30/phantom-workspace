@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ago, buildActivity, branchState, classifyNotice, classifyTask, excerptLines, freshness, integrationState, leadNeed, pendingChat, rowKind, sessionState, taskLinks, timeOf, waiting } from './activityModel.mjs';
+import { STUCK_STEPS, ago, buildActivity,branchState, classifyNotice, classifyTask, excerptLines, freshness, integrationState, leadNeed, pendingChat, rowKind, sessionState, taskLinks, timeOf, waiting } from './activityModel.mjs';
 
 test('Un shell abierto no acredita actividad del agente y salir no acredita éxito', () => {
   assert.equal(sessionState({ status: 'running' }).label, 'En espera');
@@ -60,6 +60,26 @@ test('Vínculos por identidad real; títulos, PID, rama y carpeta no unen tareas
   assert.equal(taskLinks({ raw: { nodeId: 'n' } }, sessions, nodes).length, 1);
   assert.equal(taskLinks({ title: 'Oculta', raw: { branch: 'feature', pid: 2, contract: { workspace: '/same' } } }, sessions, nodes).length, 0);
   assert.equal(taskLinks({ raw: { refs: [{ kind: 'card', id: 's' }] } }, sessions, nodes).length, 0);
+});
+
+test('Un estado de agente en curso devuelve tone working', () => {
+  for (const agentState of ['running', 'working', 'doing', 'verifying', 'recovering']) {
+    const state = sessionState({ status: 'running', agentState });
+    assert.equal(state.tone, 'working');
+    assert.equal(state.needsYou, false);
+  }
+});
+
+test('Bloqueada o fallida no es needsYou, ni por agente ni por tarea ligada', () => {
+  for (const agentState of ['blocked', 'failed', 'error']) {
+    const state = sessionState({ status: 'running', agentState });
+    assert.equal(state.needsYou, false);
+    assert.equal(state.tone, 'neutral');
+  }
+  const linked = sessionState({ status: 'running' }, true, [{ id: 't', status: 'blocked' }]);
+  assert.deepEqual([linked.needsYou, linked.label, linked.tone], [false, 'Bloqueada', 'neutral']);
+  assert.equal(sessionState({ status: 'running' }, true, [{ id: 't', status: 'failed' }]).label, 'Falló');
+  assert.equal(sessionState({ status: 'running' }, true, [{ id: 't', status: 'awaiting_input' }]).needsYou, true);
 });
 
 test('Sesiones ocultas son operativas y estados de tareas solo se propagan con vínculo real', () => {
@@ -196,7 +216,7 @@ test('Una sesión aparece una sola vez: el permiso del chat calla a su rama y a 
   assert.deepEqual([model.pending.now[1].headline, model.pending.now[1].context], ['Pide permiso para continuar', 'Navegación']);
   assert.equal(model.pending.now[2].headline, 'Tests de cámara: tests fallidos');
   const alone = buildActivity({ workspace: { id: 'w', nodes: chatNodes }, merges });
-  assert.deepEqual(alone.pending.now.map(row => [row.headline, row.context]), [['Phantom Mobile choca con main', 'Conflicto en Canvas.jsx'], ['Navegación choca con main', 'Conflicto en Canvas.jsx, App.jsx'], ['Tests de cámara: tests fallidos', 'Hay que corregirlos y volver a enviarla']]);
+  assert.deepEqual(alone.pending.now.map(row => [row.headline, row.context]), [['Phantom Mobile choca con main', 'No se puede integrar hasta resolverlo'], ['Navegación choca con main', 'No se puede integrar hasta resolverlo'], ['Tests de cámara: tests fallidos', 'Hay que corregirlos y volver a enviarla']]);
 });
 
 test('«Cuando puedas»: ramas listas, main sin guardar y cola sin nadie integrando; nada de esto cuenta', () => {
@@ -317,6 +337,39 @@ test('Las atoradas se agrupan por causa con etiqueta humana: más tareas primero
   assert.equal(stuck[0].items[0].child, 'h1');
   assert.equal('child' in stuck[0].items[1], false);
   assert.ok(stuck.every(group => group.meaning && group.next));
+});
+
+test('Cada causa atorada dice en qué paso se detuvo', () => {
+  const tasks = [
+    { id: 'a', status: 'blocked', reason: 'verificación fallida' },
+    { id: 'b', status: 'blocked', reason: 'Presupuesto de tokens agotado' },
+    { id: 'c', status: 'blocked', reason: 'judge_rejected' },
+    { id: 'd', status: 'blocked', reason: 'regresión previa en un check' },
+  ];
+  const { stuck } = buildActivity({ tasks });
+  assert.deepEqual(Object.fromEntries(stuck.map(group => [group.cause, group.step])), { verification: 2, budget: 1, judge: 3, baseline: 0 });
+  assert.deepEqual(STUCK_STEPS, ['Preparar', 'Agente', 'Checks', 'Revisor', 'Listo']);
+});
+
+test('Una causa desconocida no tiene paso', () => {
+  const { stuck } = buildActivity({ tasks: [{ id: 'x', status: 'error', updatedAt: 5 }] });
+  assert.equal(stuck[0].cause, 'other');
+  assert.equal(stuck[0].step, null);
+});
+
+test('Un conflicto con rama activa del mismo nodo trae archivos y distancia', () => {
+  const merges = { available: true, base: { branch: 'main', uncommitted: 0 }, history: [], active: [{ id: 'a1', nodeId: 'n1', status: 'working', ahead: 3, behind: 5 }], queue: [{ id: 'r1', nodeId: 'n1', title: 'Rama', status: 'conflict', conflicts: ['a.js', '', 'b.js', 'c.js'] }] };
+  const [row] = buildActivity({ merges }).pending.now;
+  assert.deepEqual([row.files, row.ahead, row.behind, row.context], [['a.js', 'b.js', 'c.js'], 3, 5, 'No se puede integrar hasta resolverlo']);
+});
+
+test('Un conflicto sin rama activa o sin números deja ahead y behind en null', () => {
+  const queue = [{ id: 'r1', nodeId: 'n1', title: 'Rama', status: 'conflict', conflicts: ['a.js'] }];
+  const base = { available: true, base: { branch: 'main', uncommitted: 0 }, history: [], queue };
+  for (const active of [[], [{ id: 'a1', nodeId: 'n1', status: 'working', ahead: 'x', behind: 2 }], [{ id: 'a1', nodeId: 'otro', status: 'working', ahead: 1, behind: 2 }]]) {
+    const [row] = buildActivity({ merges: { ...base, active } }).pending.now;
+    assert.deepEqual([row.files, row.ahead, row.behind], [['a.js'], null, null]);
+  }
 });
 
 test('El titular de una atorada sale de «## Título» o de la primera frase, con tope de 90', () => {

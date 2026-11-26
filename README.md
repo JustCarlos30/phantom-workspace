@@ -307,6 +307,8 @@ node node_modules/playwright/cli.js install chromium
 npm run dev
 ```
 
+`npm run dev` recarga en vivo la interfaz (`src/`, vía Vite) y reinicia Electron solo al cambiar `desktop/` o `shared/`; el host y sus sesiones siguen vivos. El host no se reinicia automáticamente: al cambiar `host/`, `integrations/` o `shared/` se imprime un aviso y se reinicia a mano cuando no haya sesiones trabajando. Flags extra para Electron: `npm run dev -- --ozone-platform=x11` o `PHANTOM_ELECTRON_FLAGS="..."`.
+
 ```sh
 npm test
 node test/desktop-motion.mjs

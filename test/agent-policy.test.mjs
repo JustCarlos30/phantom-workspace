@@ -486,17 +486,20 @@ test('Claude Code and Codex started in a Phantom terminal receive the terminal p
   assert.ok(!policy.includes("'''"));
 });
 
-test('Claude shim adds six async hooks only when terminal hooks are enabled and settings are free', t => {
+// Deliberate change: the durable agent history needs the tool events of the root and of every sub-agent (not only the
+// Agent call) plus SubagentStart and Stop. The hook CLI forwards them to the host, which attributes them to the live
+// session; hooks stay async and never block the agent. Nothing about permissions or the policy changes here.
+test('Claude shim adds eight async hooks only when terminal hooks are enabled and settings are free', t => {
   const { run, policy }=fakeAgents(t);
   const env={PHANTOM_AGENT_CLI:'/x/agent.mjs',PHANTOM_TERMINAL_SESSION_ID:'s'};
   const argv=run('claude',['hi'],env);
   assert.deepEqual(argv.slice(0,3),['--append-system-prompt',policy.replace(/\n+$/,''),'--settings']);
   assert.equal(argv[4],'hi');
   const hooks=JSON.parse(argv[3]).hooks;
-  assert.deepEqual(Object.keys(hooks).sort(),['PostToolUse','PostToolUseFailure','PreToolUse','SessionEnd','SessionStart','SubagentStop']);
+  assert.deepEqual(Object.keys(hooks).sort(),['PostToolUse','PostToolUseFailure','PreToolUse','SessionEnd','SessionStart','Stop','SubagentStart','SubagentStop']);
   for(const [event,entries] of Object.entries(hooks)) {
     assert.equal(entries.length,1);
-    assert.equal(entries[0].matcher,['PreToolUse','PostToolUse','PostToolUseFailure'].includes(event)?'Agent':undefined);
+    assert.equal(entries[0].matcher,undefined,`${event} covers every tool: the trace attributes each call to its agent`);
     assert.deepEqual(entries[0].hooks,[{type:'command',command:'"${PHANTOM_AGENT_NODE:-node}" "$PHANTOM_AGENT_CLI" subagent',async:true}]);
   }
   for(const args of [['--settings','{}','hi'],['--settings={}','hi']])assert.deepEqual(run('claude',args,env),['--append-system-prompt',policy.replace(/\n+$/,''),...args]);

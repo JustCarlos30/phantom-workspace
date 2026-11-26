@@ -21,6 +21,7 @@
 // fin de run > run vivo > trabajo declarado > reposo > desconocido. Sin conexión no se deduce nada vivo.
 import { runProgressView, formatDuration } from './run-progress-view.mjs';
 import { phaseState } from './plan-view.mjs';
+import { phantomCallKind, PHANTOM_CALL_LABEL } from './phantom-run-link.mjs';
 
 const list = value => Array.isArray(value) ? value : [];
 const when = value => { const t = typeof value === 'number' ? value : Date.parse(value); return Number.isFinite(t) ? t : null; };
@@ -33,27 +34,13 @@ const TOOL_VERBS = [
   [/^(web|fetch)/, 'Consultando la web', 'Consultó la web'], [/^(task|agent)/, 'Delegando', 'Delegó'],
   [/^(check|verify)$/, 'Verificando', 'Verificó'], [/^todo/, 'Actualizando el plan', 'Actualizó el plan'],
 ];
-const PHANTOM_VERBS = {
-  run: ['Lanzando un encargo', 'Lanzó un encargo'], show: ['Consultando una tarea', 'Consultó una tarea'], status: ['Consultando una tarea', 'Consultó una tarea'],
-  events: ['Revisando el historial de una tarea', 'Revisó el historial de una tarea'], do: ['Ejecutando una tarea', 'Ejecutó una tarea'],
-  create: ['Creando una tarea', 'Creó una tarea'], card: ['Preparando una tarea', 'Preparó una tarea'], bind: ['Vinculando la terminal con su tarea', 'Vinculó la terminal con su tarea'],
-  context: ['Buscando contexto del proyecto', 'Buscó contexto del proyecto'], source: ['Leyendo una fuente del proyecto', 'Leyó una fuente del proyecto'],
-  skills: ['Buscando una guía de trabajo', 'Buscó una guía de trabajo'],
-};
-const PHANTOM_CLI = /(?:\bphantom["']?|agent\.mjs["']?|\$\{?PHANTOM_AGENT_CLI\}?"?)\s+(run|show|status|events|do|create|card|bind)\b/i;
-
-// Traduce una herramienta a su propósito cotidiano; `detail` conserva el texto técnico.
+// Las llamadas a Phantom se nombran con el mismo vocabulario que la fila de herramienta del chat (phantom-run-link).
 function describe(name, detail, live) {
   const tool = clean(name, 120), tech = clean(detail), lower = tool.toLowerCase();
-  const slot = live ? 0 : 1;
-  const named = /phantom/i.test(tool) ? /phantom[._:-]+([a-z]+)/i.exec(tool)?.[1]?.toLowerCase() ?? '' : null;
-  const cli = /^(bash|shell|exec|run)/.test(lower) || /\s/.test(tool) || !tool ? PHANTOM_CLI.exec(tech || tool)?.[1]?.toLowerCase() : null;
-  if (named !== null || cli) {
-    const verb = PHANTOM_VERBS[cli || named] || ['Usando Phantom', 'Usó Phantom'];
-    return { label: verb[slot], detail: tech || tool, phantom: true };
-  }
+  const call = phantomCallKind({ type: 'tool', name: tool, input: tech || undefined, detail: tech });
+  if (call) return { label: PHANTOM_CALL_LABEL[call], detail: tech || tool, phantom: true };
   const known = TOOL_VERBS.find(([pattern]) => pattern.test(lower));
-  if (known) return { label: known[1 + slot], detail: tech, phantom: false };
+  if (known) return { label: known[live ? 1 : 2], detail: tech, phantom: false };
   return { label: tool ? `${live ? 'Usando' : 'Usó'} ${tool}` : '', detail: tech, phantom: false };
 }
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity, turnRunIds, linkedRunBadge } from './phantom-run-link.mjs';
+import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity, turnRunIds, linkedRunBadge, phantomCallKind, PHANTOM_CALL_LABEL } from './phantom-run-link.mjs';
 
 const id = 'task_12345678-1234-1234-1234-123456789abc';
 const card = 'card_abcdef12-1234-1234-1234-123456789abc';
@@ -55,6 +55,83 @@ test('resume checks, verificaciones e intentos con sus motivos', () => {
   assert.equal(summary.runs[1].steps[0].label, 'Verificar');
   assert.deepEqual(summary.current, summary.runs[1].current);
   assert.deepEqual(summary.steps, summary.runs[1].steps);
+});
+
+const mcp = (input, name = 'mcp__phantom_workspace__phantom') => ({ type: 'tool', name, detail: 'phantom', input });
+test('enlaza run y bind del MCP estructurado con cualquier prefijo de herramienta', () => {
+  for (const name of ['mcp__phantom_workspace__phantom', 'phantom_workspace.phantom', 'phantom_workspace_phantom', 'Phantom_Workspace:phantom']) {
+    for (const action of ['run', 'bind']) {
+      assert.deepEqual(phantomRunIds(mcp({ cli: 'agent', args: [action, id, 'openai/model'] }, name)), [id], `${name} ${action}`);
+    }
+  }
+  assert.deepEqual(phantomRunIds(mcp(JSON.stringify({ cli: 'agent', args: ['bind', card] }))), [card]);
+});
+test('MCP estructurado valida acción, ID completo y forma; ignora la salida', () => {
+  for (const input of [{ cli: 'agent', args: ['show', id] }, { cli: 'agent', args: ['run', 'task_123'] }, { cli: 'agent', args: ['run', `${id}x`] }, { cli: 'agent', args: ['run'] }, { cli: 'agent', args: ['run', 7] }, { cli: 'phantom', args: ['run', id] }, { args: ['run', id] }, { cli: 'agent', args: `run ${id}` }, 'no es json', null, undefined]) {
+    assert.deepEqual(phantomRunIds({ ...mcp(input), output: `${id} ${card}` }), [], JSON.stringify(input));
+  }
+  assert.deepEqual(phantomRunIds(mcp({ cli: 'agent', args: ['run', id] }, 'mcp__otro__phantom')), []);
+  assert.deepEqual(phantomRunIds({ ...mcp({ cli: 'agent', args: ['run', id] }), type: 'text' }), []);
+});
+test('phantomCallKind distingue encargo, vínculo y consulta sin llamar subagente a nada', () => {
+  assert.equal(phantomCallKind(mcp({ cli: 'agent', args: ['run', id] })), 'assignment');
+  assert.equal(phantomCallKind(mcp({ cli: 'agent', args: ['bind', id] })), 'bind');
+  assert.equal(phantomCallKind(mcp({ cli: 'agent', args: ['run', 'x'] })), 'assignment');
+  assert.equal(phantomCallKind(mcp({ cli: 'phantom', args: ['show', id] })), 'query');
+  assert.equal(phantomCallKind(mcp(undefined)), 'query');
+  assert.equal(phantomCallKind({ type: 'tool', name: 'phantom.list', input: {} }), 'query');
+  assert.equal(phantomCallKind(shell(`phantom show ${id}`)), 'query');
+  assert.equal(phantomCallKind(shell(`phantom run ${id}`)), 'assignment');
+  assert.equal(phantomCallKind(shell('phantom create --goal x')), 'create');
+  assert.equal(phantomCallKind(shell(`node agent.mjs bind ${card}`)), 'bind');
+  assert.equal(phantomCallKind(shell('echo hola')), null);
+  assert.equal(phantomCallKind({ type: 'tool', name: 'Task', agent: { type: 'Explore' } }), null);
+  assert.equal(phantomCallKind(null), null);
+  assert.equal(PHANTOM_CALL_LABEL.query, 'Consulta a Phantom');
+  assert.notEqual(PHANTOM_CALL_LABEL.assignment, PHANTOM_CALL_LABEL.query);
+});
+test('turnRunIds suma ids del MCP y de shells sin duplicar y sin buscar en la salida', () => {
+  const parts = [mcp({ cli: 'agent', args: ['bind', card] }), shell(`node agent.mjs run ${id}`), { ...mcp({ cli: 'agent', args: ['run', id] }), output: `otro ${card} task_ffffffff-1234-1234-1234-123456789abc` }];
+  assert.deepEqual(turnRunIds(parts), [card, id]);
+});
+test('el MCP estructurado no sustituye los alias de shell ni los ids literales del detalle', () => {
+  assert.deepEqual(phantomRunIds({ ...mcp({ cli: 'agent', args: ['run', id] }), detail: `phantom run ${card}` }), [id]);
+  assert.deepEqual(phantomRunIds(shell(`C="$PHANTOM_AGENT_CLI"; "$C" bind ${card}`)), [card]);
+});
+
+test('phantomCallKind clasifica el MCP estructurado con cualquier prefijo y separador', () => {
+  for (const name of ['mcp__phantom_workspace__phantom', 'mcp.phantom_workspace.phantom', 'phantom_workspace:phantom', 'Phantom_Workspace__Phantom']) {
+    assert.equal(phantomCallKind(mcp({ cli: 'agent', args: ['run', id] }, name)), 'assignment', name);
+    assert.equal(phantomCallKind(mcp({ cli: 'agent', args: ['bind', card] }, name)), 'bind', name);
+    assert.equal(phantomCallKind(mcp({ cli: 'agent', args: ['show', id] }, name)), 'query', name);
+  }
+});
+
+test('phantomCallKind: un vínculo con ID incompleto sigue siendo vínculo pero no enlaza ninguna ejecución', () => {
+  const part = mcp({ cli: 'agent', args: ['bind', 'card_123'] });
+  assert.equal(phantomCallKind(part), 'bind');
+  assert.deepEqual(phantomRunIds(part), []);
+  const extra = mcp({ cli: 'agent', args: ['run', id, 'openai/model', '--flag'] });
+  assert.equal(phantomCallKind(extra), 'assignment');
+  assert.deepEqual(phantomRunIds(extra), [id]);
+});
+
+test('phantomCallKind: una entrada malformada es una consulta, nunca un encargo ni un subagente', () => {
+  for (const input of ['no es json', null, undefined, 7, { cli: 'agent', args: ['run', 7] }, { cli: 'agent', args: 'run' }, { cli: 'otro', args: ['run', id] }]) {
+    assert.equal(phantomCallKind(mcp(input)), 'query', JSON.stringify(input));
+    assert.deepEqual(phantomRunIds(mcp(input)), [], JSON.stringify(input));
+  }
+  assert.equal(phantomCallKind({ ...mcp({ cli: 'agent', args: ['run', id] }), type: 'text' }), null);
+  assert.equal(phantomCallKind({ type: 'tool', name: 'Task', agent: { type: 'Explore' } }), null);
+});
+
+test('phantomCallKind: otras herramientas de Phantom son consultas y no enlazan ejecuciones', () => {
+  const traces = { type: 'tool', name: 'mcp__phantom_workspace__traces', input: { id: 'toolu_A1' }, output: id };
+  assert.equal(phantomCallKind(traces), 'query');
+  assert.deepEqual(phantomRunIds(traces), []);
+  assert.equal(phantomCallKind({ type: 'tool', name: 'Read', input: { file_path: 'a.txt' } }), null);
+  assert.equal(new Set(Object.values(PHANTOM_CALL_LABEL)).size, 4);
+  for (const kind of ['assignment', 'create', 'bind', 'query']) assert.ok(PHANTOM_CALL_LABEL[kind]);
 });
 
 test('enlaza agent.mjs run', () => {

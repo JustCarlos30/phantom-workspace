@@ -28,7 +28,7 @@ Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { 
 } } });
 
 let root;
-window.mountComposer = async ({ surface = 'card', width = 320, saved = null, failSaves = 0, running = false } = {}) => {
+window.mountComposer = async ({ surface = 'card', width = 320, saved = null, failSaves = 0, running = false, catalog = 0 } = {}) => {
   root?.unmount();
   window.fixture = { calls: [], unknown: [], failSaves, finish: null };
   const initialWorkspace = { ...exampleWorkspace, canonicalPath: '/synthetic/proyectos/proyecto-con-un-nombre-muy-largo-para-revisar-el-truncado', sessionDefaults: saved === null ? undefined : { permissionMode: saved } };
@@ -53,7 +53,7 @@ window.mountComposer = async ({ surface = 'card', width = 320, saved = null, fai
         emit({ type: 'chat.update', reset: true, nodeId: payload.nodeId });
         return chat;
       }
-      if (method === 'chat.models') return { items: [{ id: 'claude-modelo-sintetico-con-un-nombre-muy-largo', group: 'Modelos sintéticos' }] };
+      if (method === 'chat.models') return { items: [{ id: 'claude-modelo-sintetico-con-un-nombre-muy-largo', group: 'Modelos sintéticos' }, ...Array.from({ length: catalog }, (_, i) => ({ id: `proveedor-sintetico/modelo-${String(i).padStart(3, '0')}-con-sufijo-largo`, group: `Grupo ${i % 4}` }))] };
       if (method === 'state.get') return { settings: {} };
       if (method === 'phantom.controllers') return { items: [] };
       if (method === 'repo.changes') return { files: [], base: 'main', truncated: false };

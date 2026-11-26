@@ -195,6 +195,35 @@ test('operational errors leave queued requests blocked until reconfigured', asyn
   assert.equal(f.workspace.integration.autoBlocked, undefined);
 });
 
+test('a conflict raises attention with failure, branch, first three conflicts and a stable eventKey', async t => {
+  const f = autoFixture(t);
+  const events = []; f.merges.emit = e => events.push(e);
+  await f.submit(f.worker('one', 'base.txt', 'one\n')); await f.submit(f.worker('two', 'base.txt', 'two\n'));
+  await f.configure({ auto: true }); await f.settled();
+  const [item] = f.workspace.attention, request = f.workspace.integration.queue[1];
+  assert.equal(f.workspace.attention.length, 1);
+  assert.equal(item.source, 'incorporaciones'); assert.equal(item.failure, 'conflict'); assert.equal(item.branch, 'two');
+  assert.deepEqual(item.conflicts, ['base.txt']); assert.equal(item.ref, request.id);
+  assert.equal(item.eventKey, `merge:${request.id}:conflict:${request.headOid}`);
+  await until(() => events.some(e => e.type === 'attention.new'));
+});
+
+test('a merge that cannot start raises one attention without blocking the worker, and a retry does not duplicate it', async t => {
+  const f = autoFixture(t);
+  const events = []; f.merges.emit = e => events.push(e);
+  fs.writeFileSync(path.join(f.repository, '.git', 'hooks', 'pre-merge-commit'), '#!/bin/sh\necho rechazado >&2\nexit 1\n', { mode: 0o755 });
+  await f.submit(f.worker('one'));
+  const id = f.workspace.integration.queue[0].id;
+  for (let i = 0; i < 2; i++) await assert.rejects(f.merges.execute(f.workspace, id, { by: 'orchestrator' }), /No se pudo incorporar/);
+  const request = f.workspace.integration.queue[0];
+  assert.equal(request.status, 'queued');
+  assert.equal(f.workspace.attention.length, 1);
+  const [item] = f.workspace.attention;
+  assert.equal(item.failure, 'error'); assert.equal(item.branch, 'one'); assert.equal(item.eventKey, `merge:${id}:error:${request.headOid}`);
+  assert.notEqual(f.workspace.nodes[0].data.agent?.status, 'blocked');
+  await until(() => events.filter(e => e.type === 'attention.new').length === 1);
+});
+
 test('resume drains enabled automatic projects and stats use the latest thirty integrations', async t => {
   const f = autoFixture(t);
   await f.submit(f.worker('one'));

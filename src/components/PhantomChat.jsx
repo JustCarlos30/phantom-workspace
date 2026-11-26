@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useComposerSize } from '../hooks/useComposerSize';
 import { Activity, AlertCircle, ArrowUp, Compass, GitBranch, GitMerge, ListChecks, ListPlus, MessageSquare, Mic, MessageSquarePlus, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
@@ -27,11 +27,17 @@ const PERMISSIONS = {
 // project and runs it in the project folder. Typed or dictated text is sent only
 // by explicit Send, and a dictation can become a task instead. Orquestador shows
 // the session that integrates the terminals' work and its queue.
-export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership, tab = 'chat', onTab, status, onOpenPanel, onTask }) {
+export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership, tab = 'chat', onTab, status, onOpenPanel, onTask, agentRequest, onAgentRequestConsumed, onOpenOrchestrator }) {
   const nodeId = `phantom:${workspace.id}`;
   // The host owns the provider; `pending` only shows a switch in flight.
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId, provider: 'phantom', api, connected });
   const [pending, setPending] = useState(null);
+  // A sub-agent clicked here, or in a canvas card (App hands it down as agentRequest), opens its detail in the
+  // Orquestador tab; the tab consumes the request once.
+  const [agentFocus, setAgentFocus] = useState(null);
+  const openAgent = useCallback(id => { setAgentFocus({ id, workspaceId: workspace.id }); onTab?.('orchestrator'); }, [onTab, workspace.id]);
+  const consumeAgentFocus = useCallback(() => { setAgentFocus(null); onAgentRequestConsumed?.(); }, [onAgentRequestConsumed]);
+  const focusedAgent = agentRequest ?? agentFocus;
   const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${nodeId}`);
   const [sending, setSending] = useState(false);
   const [armed, setArmed] = useState(false);
@@ -108,14 +114,14 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
     </header>
     <div className="pd-tabs control-segmented" role="tablist" aria-label="Vistas de Phantom">
       <button type="button" role="tab" id="pd-tab-chat" aria-controls="pd-panel" aria-selected={tab === 'chat'} onClick={() => onTab?.('chat')}><MessageSquare size={14} aria-hidden="true" /><span className="pd-tab-label">Chat</span>{running && <i className="pd-tab-live" aria-label="respondiendo" />}</button>
-      <button type="button" role="tab" id="pd-tab-orchestrator" aria-controls="pd-panel" aria-selected={tab === 'orchestrator'} data-tone={status?.tone} onClick={() => onTab?.('orchestrator')}><GitMerge size={14} aria-hidden="true" /><span className="pd-tab-label">Orquestador</span>{status?.integration && status.queued > 0 && <b aria-label={`${status.queued} en cola`}>{status.queued}</b>}{status?.integration && !status.queued && status.tone !== 'idle' && <i className="pd-tab-dot" aria-hidden="true" />}</button>
+      <button type="button" role="tab" id="pd-tab-orchestrator" aria-controls="pd-panel" aria-selected={tab === 'orchestrator'} data-tone={status?.tone} onClick={() => onTab?.('orchestrator')}><GitMerge size={14} aria-hidden="true" /><span className="pd-tab-label">Agentes</span>{status?.integration && status.queued > 0 && <b aria-label={`${status.queued} en cola`}>{status.queued}</b>}{status?.integration && !status.queued && status.tone !== 'idle' && <i className="pd-tab-dot" aria-hidden="true" />}</button>
     </div>
-    {tab === 'orchestrator' ? <div className="pd-panel" id="pd-panel" role="tabpanel" aria-labelledby="pd-tab-orchestrator"><PhantomOrchestrator workspace={workspace} api={api} notify={notify} connected={connected} status={status} onOpenPanel={onOpenPanel} /></div> : <>
+    {tab === 'orchestrator' ? <div className="pd-panel" id="pd-panel" role="tabpanel" aria-labelledby="pd-tab-orchestrator">{onOpenOrchestrator && <button type="button" className="pd-open-orchestrator button" onClick={onOpenOrchestrator}>Abrir orquestador</button>}<PhantomOrchestrator workspace={workspace} api={api} notify={notify} connected={connected} status={status} onOpenPanel={onOpenPanel} agentFocus={focusedAgent} onAgentFocusConsumed={consumeAgentFocus} /></div> : <>
     <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{!connected ? 'Sin conexión con el host' : 'Cargando la conversación…'}</p>}
         {!messages.length && connected && chat && <div className="pc-session-new"><ProviderChoices active={active} enabled={enabled} disabled={running || switching} onChoose={chooseProvider} />{context}<details className="phantom-chat-starters"><summary>Ideas para empezar</summary><div className="phantom-chat-suggestions">{SUGGESTIONS.map(({ icon: Icon, text }) => <button key={text} type="button" disabled={running || sending} onClick={() => submit(text)}><Icon size={16} aria-hidden="true" /><span>{text}</span></button>)}</div></details></div>}
-        {messages.map(message => <Message key={message.id} message={message} label="Phantom" provider={active} model={meta.model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
+        {messages.map(message => <Message key={message.id} message={message} label="Phantom" provider={active} model={meta.model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} onOpenAgent={openAgent} />)}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
@@ -129,7 +135,7 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label="Mensaje para Phantom" placeholder={running ? 'Phantom está respondiendo · lo que envíes queda en espera' : 'Pregunta o da una instrucción a Phantom…'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
+        <ComposerControls voice={voice} onFinish={() => submit()} finishLabel="Terminar dictado y enviar · Enter" selectors={<>
           <SessionChip cwd={workspace.canonicalPath || workspace.name} workspaceName={workspace.name}>{context}</SessionChip>
           <PermissionSwitch mode={permissionMode} provider={active} descriptions={PERMISSIONS} disabled={!chat} onChange={configurePermission(api, workspace, pickerNode, notify)} />
           <ModelPicker node={pickerNode} workspace={workspace} api={api} notify={notify} provider={active} label={label} observed={meta.model} disabled={!chat || running} />

@@ -27,7 +27,7 @@ export function prunePhantomControllers(workspace, live = controllers, dataDir) 
   if (!Array.isArray(items)) return false;
   const active = item => item.status === 'running' || live.has(item.id);
   const recent = new Set(items.filter(item => !active(item)).sort((a, b) =>
-    (Date.parse(b.endedAt ?? b.createdAt) || 0) - (Date.parse(a.endedAt ?? a.createdAt) || 0)).slice(0, 20));
+    (Date.parse(b.endedAt ?? b.createdAt) || 0) - (Date.parse(a.endedAt ?? a.createdAt) || 0)).slice(0, 8));
   let changed = false;
   const retained = items.filter(item => active(item) || recent.has(item));
   for (const item of retained) if (!active(item) && typeof item.output === 'string' && item.output.length > OUTPUT_TAIL) {
@@ -55,6 +55,31 @@ function configuration(workspace, context) {
   const config = validatePluginPreferences(workspace.plugins).phantom.config;
   return Object.fromEntries(['phantomPath', 'phantomData', 'model'].map(key => [key, config[key] || context.state?.settings?.[key] || undefined]));
 }
+const READ_COMMANDS = new Set(['list', 'show', 'events', 'memory-list', 'memory-history', 'skill-list', 'skill-show']);
+const READ_CACHE_TTL = 2000, FAMILY_CACHE_TTL = 5000, READ_CACHE_MAX = 500;
+const readCache = new Map(), familyCache = new Map();
+export function invalidatePhantomReadCache() { readCache.clear(); familyCache.clear(); }
+function readCacheMs(context) {
+  const value = context?.phantomReadCacheMs ?? process.env.PHANTOM_READ_CACHE_MS;
+  // An injected transport (tests) bypasses the cache unless the TTL is set explicitly.
+  if ((value === undefined || value === '') && context?.execFile) return 0;
+  const ms = value === undefined || value === '' ? READ_CACHE_TTL : Number(value);
+  return Number.isFinite(ms) && ms >= 0 ? ms : READ_CACHE_TTL;
+}
+// In-flight dedupe plus a short TTL. Failures are never kept; invalidation drops pending entries so they are not stored.
+function cached(cache, key, ttl, load) {
+  const now = Date.now(), hit = cache.get(key);
+  if (hit && hit.expires > now) return hit.promise;
+  if (cache.size >= READ_CACHE_MAX) {
+    for (const [k, entry] of cache) if (entry.expires <= now) cache.delete(k);
+    for (const k of cache.keys()) { if (cache.size < READ_CACHE_MAX) break; cache.delete(k); }
+  }
+  const entry = { expires: Infinity, promise: undefined };
+  entry.promise = Promise.resolve().then(load).then(value => { if (cache.get(key) === entry) entry.expires = Date.now() + ttl; return value; },
+    error => { if (cache.get(key) === entry) cache.delete(key); throw error; });
+  cache.delete(key); cache.set(key, entry);
+  return entry.promise;
+}
 async function client(payload, context) {
   const { root, workspace } = await workspaceRoot(context, payload);
   const config = configuration(workspace, context);
@@ -67,7 +92,16 @@ async function client(payload, context) {
     // Native Phantom owns this database. Never copy or open it through Store.
     flags.push('--data', nativeHome);
   }
-  const call = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root, maxBuffer: PHANTOM_MAX_BUFFER, timeout: 30000 });
+  const run = args => jsonCommand(context, process.execPath, [cli, ...args, ...flags], { cwd: root, maxBuffer: PHANTOM_MAX_BUFFER, timeout: 30000 });
+  const call = async args => {
+    if (!READ_COMMANDS.has(args[0])) {
+      invalidatePhantomReadCache();
+      try { return await run(args); } finally { invalidatePhantomReadCache(); }
+    }
+    const ttl = readCacheMs(context);
+    if (!ttl) return run(args);
+    return structuredClone(await cached(readCache, stable({ cli, flags, nativeHome, root, args }), ttl, () => run(args)));
+  };
   return { root, workspace, cli, flags, call, config, nativeHome, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
 }
 function unavailableReason(error) {
@@ -88,6 +122,14 @@ export async function phantomStatus(payload, context) {
 }
 // Every checkout of this repository, keyed by canonical path, with the branch it holds.
 async function family(client, context) {
+  const ttl = readCacheMs(context);
+  if (!ttl) return loadFamily(client, context);
+  const roots = await cached(familyCache, client.root, ttl === READ_CACHE_TTL ? FAMILY_CACHE_TTL : ttl, () => loadFamily(client, context));
+  const copy = new Map([...roots].map(([k, v]) => [k, { ...v }]));
+  if (roots.git) copy.git = true;
+  return copy;
+}
+async function loadFamily(client, context) {
   const roots = new Map([[client.root, { path: client.root, branch: null, main: true }]]);
   try {
     const { stdout } = await command(context, 'git', ['--no-optional-locks', 'worktree', 'list', '--porcelain', '-z'], { cwd: client.root });
@@ -497,6 +539,7 @@ async function controlOwned(payload, context, c, originInfo = runOrigin(payload,
   // Retain descriptors across host restarts; a stale descriptor is never a kill authority.
   for (const old of c.workspace.phantomControllers) if (old !== descriptor && old.status === 'running' && !controllers.has(old.id)) old.status = 'lost';
   prunePhantomControllers(c.workspace, controllers, context.dataDir);
+  invalidatePhantomReadCache();
   await context.persist();
   let child;
   try { child = spawnCommand(context, process.execPath, ['--import', controllerPreload, c.cli, payload.action, task.id, ...(payload.action === 'run' ? ['--model', payload.model] : []), ...c.flags], { cwd: c.root, stdio: ['ignore', 'pipe', 'pipe'] }); }
@@ -519,6 +562,7 @@ async function controlOwned(payload, context, c, originInfo = runOrigin(payload,
     if (finished) return; finished = true; clearTimeout(timer); clearTimeout(hardTimer);
     Object.assign(descriptor, { status: descriptor.stopRequested ? 'stopped' : error || code !== 0 ? 'failed' : 'completed', exitCode: code, signal, endedAt: observedAt(), ...(error || code !== 0 ? { error: error?.message || descriptor.output.trim().slice(-1500) || `Phantom terminó con código ${code ?? 'desconocido'}` } : {}) });
     controllers.delete(descriptor.id);
+    invalidatePhantomReadCache();
     prunePhantomControllers(c.workspace, controllers, context.dataDir);
     emit({ type: 'tool.status', status: descriptor.status, result: { ...descriptor } });
     Promise.resolve(context.persist()).catch(() => {});

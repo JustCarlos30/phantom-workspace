@@ -49,7 +49,7 @@ export function VoiceDictation({ target, api, connected, onClose }) {
       {voice.busyElsewhere && <p role="status">Otro dictado está usando el micrófono. Detén o cancela su audio para grabar aquí.</p>}
       <div className="voice-review">
         <label>Transcripción editable<div className="pc-input" data-preview={voice.status !== 'idle' || undefined}><VoiceTranscript voice={voice} draft={text} /><textarea rows={5} maxLength={32768} value={dictationPreview(voice, text)} readOnly={voice.status !== 'idle'} onChange={event => setText(event.target.value)} /></div></label>
-        <VoiceActivity voice={voice} onFinish={voice.stop} hint="Esc descarta · Revisa antes de insertar" />
+        <VoiceActivity voice={voice} onFinish={voice.stop} />
         {voice.status === 'idle' && <div className="voice-actions"><button type="button" className="button" disabled={!connected || voice.busyElsewhere} onClick={voice.start}><Mic size={16} />Grabar dictado</button></div>}
       </div>
       <div className="voice-actions"><button type="button" className="button primary" disabled={!text.trim() || target.kind === 'none' || voice.status !== 'idle' || !connected || inserting} onClick={insert}>{inserting ? 'Insertando…' : target.kind === 'terminal' ? 'Insertar en terminal' : 'Insertar en campo'}</button></div>

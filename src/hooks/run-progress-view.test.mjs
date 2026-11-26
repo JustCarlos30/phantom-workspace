@@ -176,15 +176,15 @@ test('recorrido: sin datos o sin conexión es desconocido y no inventa fases, ac
   assert.deepEqual([offline.tone, offline.statusLabel], ['unknown', 'Sin conexión']);
 });
 
-test('recorrido: traduce Phantom a un propósito cotidiano y conserva el texto técnico con su antigüedad', () => {
-  const command = 'node "$PHANTOM_AGENT_CLI" show task_1234';
+test('recorrido: nombra Phantom con el vocabulario del chat (phantom-run-link) y conserva el texto técnico con su antigüedad', () => {
+  const command = 'node "$PHANTOM_AGENT_CLI" run task_1234';
   const messages = [turn([{ type: 'tool', id: 't1', name: 'Bash', detail: command, status: 'running' }])];
   const view = terminalJourney({ node: node({ status: 'working' }), messages, now: T0 + 25_000 });
-  assert.deepEqual([view.activity.label, view.activity.detail, view.activity.age, view.activity.status], ['Consultando una tarea', command, '20 s', 'running']);
+  assert.deepEqual([view.activity.label, view.activity.detail, view.activity.age, view.activity.status], ['Encargo a Phantom', command, '20 s', 'running']);
   const run = terminalJourney({ node: node({ run: base }), now: T0 + 40_000 });
   assert.deepEqual([run.activity.label, run.activity.detail, run.activity.source, run.activity.age], ['Editando', 'src/x.css', 'run', '30 s']);
   const finished = terminalJourney({ node: node(), messages: [turn([{ type: 'tool', id: 't2', name: 'mcp__phantom__context', detail: 'convenciones', status: 'done' }], 'done')], now: T0 + 65_000 });
-  assert.deepEqual([finished.activity.label, finished.activity.status, finished.activity.age], ['Buscó contexto del proyecto', 'done', '1 min']);
+  assert.deepEqual([finished.activity.label, finished.activity.status, finished.activity.age], ['Consulta a Phantom', 'done', '1 min']);
   assert.equal(finished.lastEventAt, '2026-11-23T12:00:05.000Z');
 });
 

@@ -20,8 +20,9 @@
 .tj-phase[data-status="done"] .tj-mark { color: var(--success); }
 .tj-phase[data-status="current"] .tj-mark { background: var(--ink-3); color: var(--on-ink); }
 .tj[data-tone="working"] .tj-phase[data-status="current"] .tj-mark { background: var(--working); color: var(--on-ink); }
-.tj[data-tone="attention"] .tj-phase[data-status="current"] .tj-mark { background: var(--attention); color: var(--on-ink); }
-.tj-phase[data-status="blocked"] .tj-mark { background: var(--attention); color: var(--on-ink); }
+/* Atención es tinta o marca compacta, nunca una superficie teñida: el círculo conserva su plano y solo el icono toma el tono. */
+.tj[data-tone="attention"] .tj-phase[data-status="current"] .tj-mark { background: var(--surface-2); color: var(--attention); }
+.tj-phase[data-status="blocked"] .tj-mark { background: var(--surface-2); color: var(--attention); }
 .tj[data-tone="error"] .tj-phase[data-status="blocked"] .tj-mark { background: var(--danger); color: var(--on-ink); }
 .tj-phase[data-status="stopped"] .tj-mark { color: var(--muted); }
 .tj-phase-label { max-width: 100%; overflow: hidden; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
@@ -55,7 +56,8 @@
 .tj-delegate[data-status="running"] .tj-delegate-dot { background: var(--working); }
 .tj-delegate[data-status="done"] .tj-delegate-dot { background: var(--success); }
 .tj-delegate[data-status="error"] .tj-delegate-dot { background: var(--danger); }
-.tj-delegate[data-status="blocked"] .tj-delegate-dot { background: var(--attention); }
+.tj-delegate[data-status="blocked"] .tj-delegate-dot { background: var(--ink); }
+.tj-delegate[data-status="blocked"] .tj-delegate-state { color: var(--attention); }
 .tj-delegate-main { display: flex; gap: 6px; min-width: 0; }
 .tj-delegate-main strong { min-width: 0; overflow: hidden; color: var(--ink); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .tj-delegate-main em { flex-shrink: 0; color: var(--ink-3); font-style: normal; }

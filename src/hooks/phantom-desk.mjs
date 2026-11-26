@@ -35,6 +35,53 @@ export function titleOf(goal, max = 90) {
   return title.length > max ? `${title.slice(0, max - 1).trimEnd()}…` : title;
 }
 
+const cutWords = (text, max) => {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.5 ? cut.slice(0, space) : cut).replace(/[\s,;:.\-–—]+$/, '')}…`;
+};
+const stripIds = text => text.replace(/\btask_[\w-]+/gi, '').replace(/`[^`]*`/g, '').replace(/(?:[\w.-]+\/){2,}[\w.-]*/g, '').replace(/\s+([,.;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+
+// Human title: «## Título» wins; otherwise the first sentence without agent jargon.
+export function humanTitleOf(goal, max = 70) {
+  let title = titleOf(goal, 1000);
+  if (!title) return '';
+  title = title.replace(/\s*\([^)]*(?:\d{4}-\d{2}-\d{2}|decisi[oó]n|aprob|task_)[^)]*\)/gi, '')
+    .replace(/^(?:BUG|FIX|TODO|FEAT|CHORE)\s*:\s*/i, '')
+    .replace(/^Sustituye\s+task_[\w-]+\s*[:,]?\s*/i, '')
+    .replace(/^Implementa(?:r)?\s+/i, '');
+  title = stripIds(title).replace(/^[\s:,.;\-–—]+/, '').replace(/[.:;,]+$/, '').trim();
+  if (!title) return titleOf(goal, max);
+  return cutWords(title.charAt(0).toUpperCase() + title.slice(1), max);
+}
+
+// One or two readable sentences about what the task does.
+export function briefOf(goal, max = 220) {
+  const sections = sectionsOf(goal);
+  const wanted = [/^para el usuario/i, /^prop[oó]sito/i, /^despu[eé]s esperado/i];
+  let source = '';
+  for (const pattern of wanted) {
+    const section = sections.find(item => pattern.test(item.heading) && item.body);
+    if (section) { source = section.body; break; }
+  }
+  if (!source) {
+    const text = String(goal || '').trim();
+    const title = titleOf(text, 1000);
+    source = text.split(/\r?\n/).filter(line => line.trim() && !/^#{1,6}\s/.test(line.trim())).join(' ');
+    if (title && source.startsWith(title)) source = source.slice(title.length);
+    else if (title) source = source.replace(title, '');
+  }
+  const clean = stripIds(source.replace(/^\s*(?:[-*]|\d+[.)])\s+/gm, '').replace(/\*\*|__/g, '').replace(/\s*\r?\n\s*/g, ' ')).replace(/^[\s:,.;\-–—]+/, '');
+  const sentences = clean.split(/(?<=[.!?])\s+/).filter(Boolean);
+  let out = '';
+  for (const sentence of sentences.slice(0, 2)) {
+    if (out && `${out} ${sentence}`.length > max) break;
+    out = out ? `${out} ${sentence}` : sentence;
+  }
+  return cutWords(out, max);
+}
+
 export function sectionsOf(goal) {
   const text = String(goal || '').trim();
   const sections = []; let current = { heading: '', body: [] };
@@ -70,6 +117,45 @@ export function explainReason(reason) {
   const found = CAUSES.find(([, pattern]) => pattern.test(body));
   const [cause, label, meaning, next] = found ? [found[0], found[2], found[3], found[4]] : ['other', 'Phantom la bloqueó', body || 'Phantom no informó el motivo.', 'Abre la Card y lee qué pasó antes de decidir'];
   return { cause, label, meaning, next, ...(child ? { child: child[1].trim() } : {}) };
+}
+
+const meaningfulLine = value => {
+  if (typeof value !== 'string') return '';
+  const lines = value.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').split(/\r?\n/).map(line => line.trim()).filter(line => line && !/^at\s/.test(line));
+  return lines.at(-1) || '';
+};
+
+// First failed check of the last available verification round (baseline when
+// no round exists). Never invents a failure: no failed check → null.
+export function failedCheckOf(run) {
+  const rounds = Array.isArray(run?.evidence?.verification) ? run.evidence.verification.filter(round => round?.available) : [];
+  const evidence = rounds.length ? rounds.at(-1) : run?.evidence?.baseline?.available ? run.evidence.baseline : null;
+  const check = Array.isArray(evidence?.checks) ? evidence.checks.find(item => item?.passed === false) : null;
+  if (!check) return null;
+  const line = [check.error, check.stderr, check.stdout, check.reason].map(meaningfulLine).find(Boolean) || '';
+  return { name: check.name || 'Check sin nombre', line: line.length > 140 ? `${line.slice(0, 139).trimEnd()}…` : line };
+}
+
+export const STORY_STEPS = ['Preparada', 'Trabajando', 'Verificando', 'Lista'];
+const STEP_OF_CAUSE = { verification: 2, 'weak-checks': 2, baseline: 2, 'checks-mutate': 2, 'baseline-dirty': 2, 'git-dirty': 0, snapshot: 0, 'workspace-gone': 0 };
+const firstSentence = text => String(text || '').trim().split(/\r?\n/).find(line => line.trim())?.trim().split(/(?<=[.!?])\s+/)[0].slice(0, 200) || '';
+
+// Plain-language story of a task: where it is, why it stopped, what to do.
+export function storyOf({ status, reason, run, message } = {}) {
+  const base = { steps: STORY_STEPS, current: 0, failed: false, check: null };
+  if (status === 'completed') return { ...base, current: 3, why: 'Terminó y Phantom la dio por buena.', next: 'No hay nada que hacer; revisa los cambios si quieres.', tone: 'done' };
+  if (status === 'cancelled') return { ...base, why: 'Se canceló antes de terminar.', next: 'Crea un reemplazo si todavía la necesitas.', tone: 'muted' };
+  if (status === 'running' || status === 'recovering') return { ...base, current: 1, why: status === 'recovering' ? 'Phantom está recuperando el trabajo.' : 'El agente está trabajando en ella.', next: 'Espera; aquí verás el avance.', tone: 'live' };
+  if (status === 'verifying') return { ...base, current: 2, why: 'Phantom está comprobando que el cambio funciona.', next: 'Espera el resultado de las pruebas.', tone: 'live' };
+  if (status === 'blocked' || status === 'failed') {
+    const explain = explainReason(reason);
+    const check = failedCheckOf(run);
+    const agent = explain.cause === 'other' ? firstSentence(message) : '';
+    const current = check ? 2 : STEP_OF_CAUSE[explain.cause] ?? 1;
+    const why = check ? `Falló «${check.name}»${check.line ? `: ${check.line}` : '.'}` : agent || explain.meaning;
+    return { ...base, current, failed: true, check, why, next: explain.next, tone: 'blocked' };
+  }
+  return { ...base, why: 'Está lista para ejecutarse.', next: 'Ejecútala cuando quieras.', tone: 'idle' };
 }
 
 export function resolutionOf(card) {
@@ -111,7 +197,8 @@ export function buildDesk(items = [], controllers = [], query = '', location = '
     const resolution = status === 'blocked' ? resolutionOf(item) : null;
     const goal = goalOf(item);
     return {
-      id: item.id, goal, title: titleOf(goal) || item.id, status, kind: item.kind || raw.kind || 'card', reason,
+      id: item.id, goal, title: humanTitleOf(goal) || titleOf(goal) || item.id, brief: briefOf(goal),
+      why: status === 'blocked' || status === 'failed' ? storyOf({ status, reason }).why : '', status, kind: item.kind || raw.kind || 'card', reason,
       explain: status === 'blocked' || status === 'failed' ? explainReason(reason) : null, resolution,
       updatedAt: raw.updatedAt || raw.createdAt || null, controller,
       dependencies: Array.isArray(contractOf(raw).dependencies) ? contractOf(raw).dependencies : [],

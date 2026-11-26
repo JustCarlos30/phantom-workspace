@@ -121,7 +121,7 @@ export function RunProgress({ run, workspaceId, api, notify }) {
   </section>;
 }
 
-export default function TerminalCard({ node, workspace, api, notify, overview = false, connected = true, enabled = true, onOpen, onRelaunch }) {
+export default function TerminalCard({ node, workspace, api, notify, overview = false, connected = true, enabled = true, reviewOnly = false, onOpen, onRelaunch }) {
   const card = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     finally { setTrusting(false); }
   }
   const glimpse = overview ? (tail?.lines || []).filter(line => line.trim()).slice(-3).join('\n') : null;
-  return <div ref={card} className={`pt-card ${overview ? 'is-overview' : ''}`} data-agent={state || 'idle'} data-session={status} onDoubleClick={e => { if (!e.target.closest('button')) onOpen(); }}>
+  return <div ref={card} className={`pt-card ${overview ? 'is-overview' : ''}`} style={reviewOnly ? { display: 'none' } : undefined} data-agent={state || 'idle'} data-session={status} onDoubleClick={e => { if (!e.target.closest('button')) onOpen(); }}>
     <div className="pt-card-identity">
       {!overview && <ModeSwitch node={node} workspace={workspace} api={api} notify={notify} />}
       {provider.kind !== 'shell' && <ProviderBadge provider={provider} />}
@@ -177,7 +177,7 @@ export default function TerminalCard({ node, workspace, api, notify, overview = 
     {!overview && <footer className="pt-card-footer">
       <span className="pt-card-location" title={cwd}>{branch ? <GitBranch size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}<span>{where}</span></span>
       <span className="pt-card-session"><i className={`status-dot ${status}`} aria-hidden="true" />{sessionLabel(status, preparing)}</span>
-      <TouchedFiles node={node} workspace={workspace} api={api} enabled={enabled && visible} />
+      <TouchedFiles node={node} workspace={workspace} api={api} enabled={connected && enabled && visible} />
       {trustAsked && <button type="button" className="pt-card-action" disabled={trusting} onClick={trust} title={`Confiar en ${project} para Claude Code`} aria-label={`Confiar en el proyecto ${project}`}>Confiar en este proyecto</button>}
       {ended && <button type="button" className="pt-card-action" onClick={() => onRelaunch(node)}><RotateCcw size={14} aria-hidden="true" />Nueva sesión</button>}
       <button type="button" className="pt-card-action is-primary" onClick={onOpen} title="Abrir terminal · doble clic">Abrir<ArrowUpRight size={14} aria-hidden="true" /></button>

@@ -388,14 +388,17 @@ async function invokeLocal(method, payload) {
   }
   if (method === 'desktop.notify') {
     if (!Notification.isSupported()) return { shown: false };
-    const { title, body = '', target } = payload;
+    const { title, body = '', target, workspaceId, nodeId } = payload;
     const notification = new Notification({ title, body, silent: false });
     notification.on('click', () => {
       openMainWindow();
-      emit({ type: 'desktop.notification', action: 'open', target });
+      emit({ type: 'desktop.notification', action: 'open', target, workspaceId, nodeId });
     });
     notification.show();
     return { shown: true };
+  }
+  if (method === 'desktop.badge') {
+    return { supported: app.setBadgeCount(payload.count) === true };
   }
   if (method === 'desktop.closeReady') {
     validateCloseReady(payload, closeAttempt?.requestId ?? null);

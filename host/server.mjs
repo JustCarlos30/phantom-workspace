@@ -19,13 +19,19 @@ import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 import { MobileAccess } from './mobile.mjs';
 import { agentProjects, resolveHandoffProject, validateHandoff, handoffCommand, handoffPosition, createHandoffLimit } from './handoffs.mjs';
+import { deliverToOrchestrator } from './orchestrator-route.mjs';
 import { validateLaunch, createProcessLimit, processList, validateEnv, createEnvLimit } from './processes.mjs';
 import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
+import { stateView } from './state-view.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
-import { createHostEvents, EVENTS_METHOD } from './workspace-events.mjs';
+import { createHostEvents, EVENTS_METHOD, TRACE_RENDERER_METHODS, traceParams, publicTraceAgent, authorizeTraceRead, sanitizeTraceRecords } from './workspace-events.mjs';
+import { createAgentTraceStore, isTraceModel, clipTrace } from './agent-traces.mjs';
+import { traceRootId } from './agent-trace-adapters.mjs';
+import { createWorkspaceSupervisor } from './workspace-supervisor.mjs';
+import { createSupervisorSummarizer } from './supervisor-provider.mjs';
 import { startPatch, finishPatch, cardNode } from './run-binding.mjs';
 import { createRunWatch, createNoticeLimit, buildRun, stepLine, amendNotice, AMEND_STEP } from './run-watch.mjs';
 import { assertClientAllowed, assertClientModel, configurePolicy, executionPolicy } from '../shared/execution-policy.mjs';
@@ -66,7 +72,7 @@ export function probeSocket(socketPath) { return new Promise(resolve => { const 
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
 }
-export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions}={}) {
+export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions,traceOptions,supervisorOptions}={}) {
   assert(!process.versions.electron,'Run the host with system Node, never Electron');
   dataDir=path.resolve(dataDir); fs.mkdirSync(dataDir,{recursive:true,mode:0o700}); fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock'), lockPath=path.join(dataDir,'host.lock');
@@ -75,7 +81,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const arbitration=net.createServer();
   await new Promise((resolve,reject)=>{arbitration.once('error',()=>reject(new Error('Host already running or starting')));arbitration.listen('\0phantom-workspace-'+createHash('sha256').update(fs.realpathSync(dataDir)).digest('hex'),resolve);});
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
-  let store,terminals,chats,merges,branches,repo,server,mobile,android,providers,closingPromise,ownsSocket=false;
+  let store,terminals,chats,merges,branches,repo,server,mobile,android,providers,traces,supervisor,closingPromise,ownsSocket=false;
   const clients=new Set();
   const limits=providerOptions?.limits??createLimits();
   // Effective provider policy: read from settings on every use, never cached as a fallback.
@@ -87,7 +93,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const outputs = new WeakMap();
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
-  const hostEvents=createHostEvents({broadcast:event=>broadcast(event)});
+  // The renderer feed also feeds the supervisor's local feed: the same events, no second source.
+  const hostEvents=createHostEvents({broadcast:event=>{broadcast(event);if(event.type==='workspace.event')feedSupervisor(event.event);}});
+  function feedSupervisor(event){try{if(supervisor&&!closingPromise)supervisor.ingest({...event,...(event.kind==='card'&&event.entityId?{taskId:event.entityId}:{})});}catch{}}
   const emit=event=>{
     try{if(store&&!closingPromise)hostEvents.feed(event,sessionId=>terminals?.sessions.find(s=>s.id===sessionId)?.nodeId);}catch{}
     const terminalExit=event.type==='terminal.exit',toolFinish=event.type==='tool.status'&&['failed','completed'].includes(event.status);
@@ -113,6 +121,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(store&&!closingPromise)runWake.accept(event);
     }catch{}
     try{const step=store&&!closingPromise?planTarget(event):null;if(step)planChain(step).catch(()=>{});}catch{}
+    try{if(store&&traces&&!closingPromise){traceRun(event);traceExit(event);}}catch{}
     // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
     if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
   };
@@ -245,7 +254,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const closeEnvBrowsers=(workspaceId,names,environmentId)=>{
     if(!names?.length)return;
     const gone=n=>n.type==='browser'&&names.includes(n.data?.envService)&&(n.data?.envEnvironmentId??null)===(environmentId??null);
-    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);w.nodes=w.nodes.filter(n=>!gone(n));});
+    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);for(const n of w.nodes.filter(gone))forgetNode(w,n,dataDir);w.nodes=w.nodes.filter(n=>!gone(n));});
   };
   async function envBrowser(w,sender,service) {
     const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name&&(n.data?.envEnvironmentId??null)===(service.environmentId??null));
@@ -272,9 +281,143 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       return integration(method,payload,{dataDir,workspace:payload.workspaceId?store.getWorkspace(payload.workspaceId):undefined,getWorkspace:id=>store.getWorkspace(id),state:store.state,persist:()=>persist(payload.workspaceId),emit,chatRunning:nodeId=>chats?.turns.has(nodeId),sessions:terminals.sessions.map(s=>terminals.descriptor(s)),...(envCwd!==undefined?{envCwd}:{})});
     })();inFlightIntegrations.add(request);try{return await request;}finally{inFlightIntegrations.delete(request);}
   };
+  // --- Agent observability: durable traces (host/agent-traces.mjs) and the workspace supervisor ---------------------
+  // Ownership is explicit data. A Phantom run is attributed to the node its verified origin names; a chat root is
+  // the deterministic root of that node and provider; PTY sub-agents arrive only through their live session.
+  const RUN_STATUS={running:'running',completed:'done',failed:'error',stopped:'stopped'};
+  const traceNode=(w,nodeId)=>nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===nodeId&&n.type==='terminal');
+  function traceRun(event){
+    const r=event?.result;
+    if(event?.type!=='tool.status'||r?.source!=='phantom'||r.action!=='run'||!RUN_STATUS[event.status])return;
+    if(typeof r.id!=='string'||typeof r.taskId!=='string'||typeof r.origin?.nodeId!=='string')return;
+    const workspaceId=event.workspaceId??r.workspaceId,w=store.state.workspaces.find(w=>w.id===workspaceId);
+    let node;try{node=w&&traceNode(w,r.origin.nodeId);}catch{}
+    if(!node)return; // an owner the host cannot verify is not recorded
+    const id=`run:${r.id}`,nodeId=r.origin.nodeId,existing=traces.list({workspaceId,nodeId}).items;
+    const known=existing.find(agent=>agent.id===id);
+    const parent={};
+    if(!known){
+      const parentRun=typeof r.parentTaskId==='string'?existing.find(agent=>agent.provider==='phantom'&&agent.taskId===r.parentTaskId):null;
+      const provider=r.origin.via==='chat'?node.data?.chat?.provider:null;
+      if(parentRun)parent.parentId=parentRun.id;
+      else if(['claude','codex','opencode'].includes(provider))parent.parentId=traceRootId({nodeId,provider});
+      else parent.parent={available:false,reason:'Sin evidencia explícita de qué sesión del origen lanzó esta ejecución'};
+    }
+    const title=clipTrace(r.title??r.goal??'',120).text.replace(/\s+/g,' ').trim()||`Encargo ${r.taskId.slice(-8)}`;
+    traces.record({workspaceId,nodeId,id,...parent,provider:'phantom',name:title,
+      ...(isTraceModel(r.requestedModel)?{model:r.requestedModel,modelSource:'requested'}:{}),
+      status:RUN_STATUS[event.status],taskId:r.taskId,runId:r.id,
+      event:{id:`${id}:${event.status}`,kind:'run',status:RUN_STATUS[event.status],text:`Ejecución ${{running:'en curso',completed:'terminada',failed:'fallida',stopped:'detenida'}[event.status]}`}});
+    scheduleSnapshot(workspaceId);
+  }
+  // A PTY that ends closes the agents it hosted; what they achieved is not invented, only that the session ended.
+  function traceExit(event){
+    if(event?.type!=='terminal.exit'||typeof event.sessionId!=='string')return;
+    const session=terminals.sessions.find(s=>s.id===event.sessionId);if(!session)return;
+    const {workspaceId,nodeId}=session;
+    for(const agent of traces.list({workspaceId,nodeId}).items){
+      if(agent.provider==='phantom'||['done','error','stopped','cancelled','interrupted'].includes(agent.status))continue;
+      traces.record({workspaceId,nodeId,id:agent.id,status:'stopped',event:{id:`exit:${event.sessionId}`,kind:'session.end',status:'stopped',text:`La terminal terminó${Number.isInteger(event.exitCode)?` (código ${event.exitCode})`:''}`}});
+    }
+  }
+  const traceLookup=workspaceId=>{
+    const map=new Map();
+    for(const agent of traces.list({workspaceId}).items){map.set(agent.id,agent);if(agent.providerAgentId)map.set(agent.providerAgentId,agent);}
+    return id=>map.get(id)??null;
+  };
+  const traceReads=new Map();
+  function traceReadLimit(sessionId){
+    const now=Date.now(),recent=(traceReads.get(sessionId)??[]).filter(t=>now-t<1000);
+    assert(recent.length<20,'Demasiadas consultas de trazas; espera un momento');
+    recent.push(now);traceReads.set(sessionId,recent);
+    if(traceReads.size>500)for(const [key,value] of traceReads)if(!value.some(t=>now-t<1000))traceReads.delete(key);
+  }
+  const sessionLookup={session:id=>terminals.sessions.find(s=>s.id===id),workspaces:()=>store.state.workspaces};
+  // Hooks of an agent running in a live PTY: the host imposes workspace and node from that session.
+  function traceIngest(p){
+    for(const key of Object.keys(p))assert(['sessionId','records'].includes(key),`Clave de traza desconocida: ${key}`);
+    const session=terminals.get(p.sessionId),w=store.getWorkspace(session.workspaceId),node=w.nodes.find(n=>n.id===session.nodeId);
+    assert(node?.type==='terminal'&&session.status==='running'&&node.data.sessionId===session.id,'Las trazas requieren la sesión viva actual del panel');
+    const cardId=node.data.agent?.cardId;
+    const records=sanitizeTraceRecords(p.records,{workspaceId:w.id,nodeId:node.id,taskId:typeof cardId==='string'&&cardId?cardId:undefined,resolveAgent:traceLookup(w.id)});
+    const rejected=[];let recorded=0,duplicates=0;
+    records.forEach((record,index)=>{try{const result=traces.record(record);if(result.duplicate)duplicates++;else recorded++;}catch(error){rejected.push({index,reason:String(error.message).slice(0,200)});}});
+    assert(rejected.length<records.length,rejected[0]?.reason);
+    return {recorded,duplicates,rejected};
+  }
+  // Read-only view for an agent: its own node (worker) or its workspace (orchestrator). Another project is never visible.
+  function traceAgentRead(p){
+    const q=traceParams('terminal.agent.traces',p);
+    traceReadLimit(q.sessionId);
+    const grant=authorizeTraceRead(q.sessionId,sessionLookup);
+    if(q.id===undefined){const list=traces.list({workspaceId:grant.workspaceId,...(grant.nodeId?{nodeId:grant.nodeId}:{})});return {...list,items:list.items.map(publicTraceAgent)};}
+    const detail=traces.detail({workspaceId:grant.workspaceId,id:q.id,cursor:q.cursor,limit:q.limit});
+    if(detail.agent&&grant.nodeId&&detail.agent.nodeId!==grant.nodeId)return {agent:null,events:[],cursor:q.cursor??null,hasMore:false,availability:{available:false,reason:'Agente no encontrado'}};
+    return {...detail,agent:detail.agent?publicTraceAgent(detail.agent):null};
+  }
+  // Supervisor snapshot: real agents, integration queue and declared task dependencies of that project; unknown stays unavailable.
+  const snapshots=new Map(),snapshotTimers=new Map();
+  const FULL_TASK=/^(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  async function buildSnapshot(workspaceId){
+    const w=store.getWorkspace(workspaceId),snapshot={};
+    try{
+      snapshot.agents={available:true,items:traces.list({workspaceId}).items.map(a=>({id:a.id,...(a.parentId?{parentId:a.parentId}:{}),...(a.taskId?{taskId:a.taskId}:{}),...(a.runId?{runId:a.runId}:{}),name:a.name??undefined,
+        status:{running:'working'}[a.status]??a.status,provider:a.provider??undefined,model:a.model??undefined,currentActivity:a.currentActivity?.text||a.currentActivity?.tool||undefined,lastActivityAt:a.lastActivityAt}))};
+    }catch(error){snapshot.agents={available:false,reason:'Las trazas no están disponibles'};}
+    try{
+      const status=await bounded(merges.status(w),8000,'Merge status');
+      if(!status.available)snapshot.merges={available:false,reason:status.reason||'La cola de integración no está disponible'};
+      else if(!status.enabled)snapshot.merges={available:false,reason:'Incorporaciones está desactivado en este proyecto'};
+      else snapshot.merges={available:true,items:status.queue.map(item=>({id:item.id,status:item.status,title:item.summary||undefined,queuedAt:item.requestedAt,
+        // Ready only with host evidence: a queued request whose submitted commit is inspectable, current and already contains the base.
+        ready:item.status==='queued'&&item.inspection?.available===true&&item.stale===false&&item.behind===0}))};
+    }catch(error){snapshot.merges={available:false,reason:'No se pudo leer la cola de integración'};}
+    try{
+      const answer=await bounded(routeIntegration('phantom.list',{workspaceId,topic:'tasks'}),5000,'Phantom tasks');
+      if(!answer?.handled||!answer.result?.available||!Array.isArray(answer.result.items))snapshot.dependencies={available:false,reason:answer?.result?.reason||'Phantom no informó las tareas'};
+      else{
+        // Task dependencies only (declared in a task's contract); software dependencies are not inferred here.
+        const items=[];
+        for(const item of answer.result.items){const raw=item?.raw??item,from=raw?.id??item?.id,deps=raw?.contract?.dependencies;if(!FULL_TASK.test(from??'')||!Array.isArray(deps))continue;for(const to of deps)if(typeof to==='string'&&FULL_TASK.test(to))items.push({id:`task:${from}:${to}`,source:'declared',from,to});}
+        snapshot.dependencies={available:true,reason:'Solo dependencias de tareas declaradas en el contrato; las de software no se infieren',items};
+      }
+    }catch(error){snapshot.dependencies={available:false,reason:'No se pudieron leer las tareas de Phantom'};}
+    return snapshot;
+  }
+  async function ensureSnapshot(workspaceId,force=false){
+    if(!supervisor||closingPromise)return;
+    let entry=snapshots.get(workspaceId);if(!entry){entry={at:0,sig:null,inflight:null};snapshots.set(workspaceId,entry);}
+    if(entry.inflight)return entry.inflight;
+    if(!force&&Date.now()-entry.at<10000)return;
+    entry.inflight=(async()=>{
+      try{const snapshot=await buildSnapshot(workspaceId);if(closingPromise)return;entry.at=Date.now();const sig=JSON.stringify(snapshot);if(sig!==entry.sig){entry.sig=sig;supervisor.updateSnapshot(workspaceId,snapshot);}}
+      catch{/* An unreadable workspace keeps its previous snapshot. */}
+      finally{entry.inflight=null;}
+    })();
+    return entry.inflight;
+  }
+  // Disabled supervisors cost nothing: the snapshot is only rebuilt for projects that enabled it.
+  function scheduleSnapshot(workspaceId){
+    if(!supervisor||closingPromise||snapshotTimers.has(workspaceId))return;
+    const timer=setTimeout(()=>{snapshotTimers.delete(workspaceId);try{if(supervisor.read({workspaceId}).config.enabled)ensureSnapshot(workspaceId,true);}catch{}},1500);
+    timer.unref?.();snapshotTimers.set(workspaceId,timer);
+  }
+  async function traceRenderer(method,p){
+    const q=traceParams(method,p);
+    store.getWorkspace(q.workspaceId);
+    if(method==='agent.traces.list'){const list=traces.list(q);return {...list,items:list.items.map(publicTraceAgent)};}
+    if(method==='agent.traces.detail'){const detail=traces.detail(q);return {...detail,agent:detail.agent?publicTraceAgent(detail.agent):null};}
+    if(method==='supervisor.read'){if(supervisor.read(q).config.enabled)await ensureSnapshot(q.workspaceId);return supervisor.read(q);}
+    if(method==='supervisor.configure'){const result=supervisor.configure(q);if(result.config.enabled)ensureSnapshot(q.workspaceId,true).catch(()=>{});return result;}
+    await ensureSnapshot(q.workspaceId,true);
+    return supervisor.refresh(q);
+  }
   async function invoke(method,p={}) {
     assert(!closingPromise,'Host is shutting down');
     text(method,'method',128); object(p);
+    if(TRACE_RENDERER_METHODS.includes(method)) return traceRenderer(method,p);
+    if(method==='terminal.agent.trace') return traceIngest(p);
+    if(method==='terminal.agent.traces') return traceAgentRead(p);
     if(method===EVENTS_METHOD) return hostEvents.query(p,{session:id=>terminals.sessions.find(s=>s.id===id),workspaces:()=>store.state.workspaces});
     if(method==='mobile.status') return mobile.status();
     if(method==='mobile.start') return mobile.start(p);
@@ -294,7 +437,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='android.approve') return android.approve(p);
     if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
-    if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
+    if(method==='state.get') return stateView(store.state,{workspaceId:p?.workspaceId});
     if(method==='settings.update') {
       object(p.patch);
       // Provider policy keys are validated as a whole; providers.configure is the dedicated path.
@@ -464,6 +607,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;if(patch.name!==undefined)current.title=patch.name.trim();else if(changedCard&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(validated.cardTitle||'');if(named)current.title=named;}current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
     }
+    if(method==='orchestrator.send') return deliverToOrchestrator({store,terminals,chats,invoke},p);
     if(method==='terminal.setup.retry') return terminals.retrySetup(p.sessionId);
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);
     if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
@@ -480,7 +624,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(node?.type==='terminal','Terminal node not found');
       runWake.cancel(node.id,'La terminal se cerró');
       await terminals.closeNode(node.id);chats.removeNode(node.id);await envRelease(w.id,null,node.id);
-      return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
     // Chat cards: a terminal node whose data.chat.provider selects an agent CLI
     // driven headlessly. data.chat changes only through chat.configure.
@@ -581,6 +725,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   function close() {
     if(closingPromise)return closingPromise;
     runWatch.stop();runWake.close();hostEvents.close();
+    // Cancels any summary in flight (its Claude Code process included) and every pending timer.
+    for(const timer of snapshotTimers.values())clearTimeout(timer);snapshotTimers.clear();traceReads.clear();
+    try{supervisor?.close();}catch{}
     closingPromise=(async()=>{
       try {
         try { await Promise.all([mobile?.stop(),android?.stop()]); } finally {
@@ -588,7 +735,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
           // production adapters solely to close a host using injected fixtures.
           await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Integration drain').catch(()=>{});
           try {if(shutdownIntegration)await bounded(Promise.resolve().then(()=>shutdownIntegration()),5000,'Integration shutdown');}
-          finally {try {await chats?.close();await terminals?.close();} finally {store?.close();}}
+          finally {try {await chats?.close();await terminals?.close();} finally {traces?.close();store?.close();}}
           await bounded(Promise.allSettled([...inFlightIntegrations]),500,'Final integration drain').catch(()=>{});
           store?.flush();
         }
@@ -602,7 +749,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   try {
     assert(!await probeSocket(socketPath),'Host already running'); if(fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    store=new Store(dataDir);terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node));
+    store=new Store(dataDir);
+    // Persistent under dataDir. The supervisor stays disabled per project until the operator enables it; its default
+    // summarizer runs Claude Code only under the execution policy, and tests inject their own.
+    traces=createAgentTraceStore({dataDir,now:traceOptions?.now,limits:traceOptions?.limits,onChange:({workspaceId})=>{broadcast({type:'agent.traces.changed',workspaceId});scheduleSnapshot(workspaceId);}});
+    supervisor=createWorkspaceSupervisor({dataDir,...supervisorOptions,
+      summarize:supervisorOptions?.summarize??createSupervisorSummarizer({settings:()=>store.state.settings,workspaceOf:id=>store.state.workspaces.find(w=>w.id===id)}),
+      onChange:({workspaceId})=>broadcast({type:'supervisor.changed',workspaceId})});
+    terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node),{onTrace:record=>traces.record(record)});
     providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
     android=new AndroidGateway({hostDataDir:dataDir,listWorkspaces:()=>store.state.workspaces});
@@ -625,7 +779,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       send(socket,{event:{type:'connection',status:'connected'}});
     });
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(socketPath,()=>{ownsSocket=true;fs.chmodSync(socketPath,0o600);resolve();});});
-    return {invoke,close,store,terminals,chats,merges,server,socketPath,emit};
+    return {invoke,close,store,terminals,chats,merges,traces,supervisor,server,socketPath,emit};
   } catch(e) {await close();throw e;}
 }
 export const startHost=createHost;

@@ -1,6 +1,7 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useComposerSize } from '../hooks/useComposerSize';
+import { AgentOpenContext } from '../hooks/useAgentTraces';
 import { AlertCircle, ArrowUp, Brain, ChevronRight, Folder, LoaderCircle, MessageSquarePlus, Pencil, Settings2, Square, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
@@ -13,15 +14,19 @@ import { locationOf } from './TerminalCard';
 import { sessionChipLabel } from '../hooks/sessionChipLabel.mjs';
 import PlanPhases from './PlanPhases';
 import TouchedFiles from './TouchedFiles.jsx';
+import { ChangesCanvasContext } from './ChangesCanvasContext.jsx';
+import { appendReviewComment } from '../hooks/changes-canvas.mjs';
 import { planSummary } from '../hooks/plan-view.mjs';
 import Markdown, { CopyButton } from './Markdown';
 import { ProviderTile } from './Glyphs';
 import { phantomRunIds, turnRunIds } from '../hooks/phantom-run-link.mjs';
 import { delegatedRuns, delegationState } from '../hooks/delegated-runs.mjs';
+import { delegateSummary } from '../hooks/delegation-model.mjs';
+import { livePollDelay } from '../hooks/poll-schedule.mjs';
 import { runHealthView } from '../hooks/run-health-view.mjs';
 import { runProgressView } from '../hooks/run-progress-view.mjs';
 import { terminalJourney } from '../hooks/terminal-journey.mjs';
-import TerminalJourney, { TerminalDelegates } from './TerminalJourney';
+import TerminalJourney from './TerminalJourney';
 import { plainMarkdown } from '../hooks/markdownTable.mjs';
 import { compactionBlocked } from '../hooks/context-view.mjs';
 import { AGENT_MODES, AgentChoices, ModeSwitch, PermissionRow, PermissionSwitch, ProjectPermissions } from './chat/ChatPermissions';
@@ -48,8 +53,6 @@ export function useElapsed(since, active) {
 }
 
 const isSubagent = part => part.type === 'tool' && Boolean(part.agent);
-// Sub-agents still at work in a reply, for the "Trabajando" line.
-export const activeSubagents = parts => parts.filter(part => isSubagent(part) && part.status === 'running').length;
 
 // Consecutive tool calls read as one activity block between paragraphs of prose.
 // The AskUserQuestion call itself is drawn by its question card, not as a tool row.
@@ -68,19 +71,26 @@ function groupParts(parts) {
 }
 const clock = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); };
 
-export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
+export const Message = React.memo(function Message({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel, onOpenAgent }) {
   if (message.role === 'user') return <blockquote className="pc-message is-user"><Markdown source={message.parts.map(part => part.text).join('\n')} /></blockquote>;
-  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />;
+  return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} onOpenAgent={onOpenAgent} />;
 });
 
-function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel }) {
+function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel, onOpenAgent }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const elapsed = useElapsed(message.createdAt, streaming);
   const waiting = message.parts.some(part => ['permission', 'question'].includes(part.type) && part.status === 'pending');
   const text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('\n\n');
   const groups = groupParts(message.parts.filter(part => !(part.type === 'permission' && part.status === 'pending')));
   const runIds = turnRunIds(message.parts);
-  const delegated = streaming ? activeSubagents(message.parts) : 0;
+  // Assignments report their own tone once Phantom answers; only those working count in the "Trabajando" line.
+  const [runViews, setRunViews] = useState({});
+  const reportRun = useCallback((id, tone) => setRunViews(known => {
+    if (known[id] === tone || (!tone && !(id in known))) return known;
+    const { [id]: gone, ...rest } = known;
+    return tone ? { ...rest, [id]: tone } : rest;
+  }), []);
+  const delegated = streaming ? delegateSummary(message.parts, Object.values(runViews).map(tone => ({ kind: 'run', tone }))) : '';
   const facts = usage ? [usage.outputTokens ? `${formatTokens(usage.outputTokens)} tokens de salida` : '', Number.isFinite(usage.costUsd) && usage.costUsd > 0 ? formatCost(usage.costUsd) : ''].filter(Boolean) : [];
   const stamp = [message.model || model, streaming ? formatElapsed(elapsed) : formatDuration(usage?.durationMs) || clock(message.createdAt), ...facts].filter(Boolean).join(' · ');
   return <article className={`pc-message is-agent is-${message.status}`} aria-label={`Respuesta de ${label || provider}`}>
@@ -89,7 +99,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'phantom'
         ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
       : group.type === 'subagent'
-        ? <SubagentCard key={group.part.id} part={group.part} />
+        ? <SubagentCard key={group.part.id} part={group.part} onOpenAgent={onOpenAgent} />
       : group.type === 'permission'
         ? <PermissionRow key={group.id} part={group} onAnswer={onAnswer} />
       : group.type === 'question'
@@ -97,8 +107,8 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
       : group.type === 'thinking'
         ? <details key={i} className="pc-thinking"><summary><Brain size={14} aria-hidden="true" />Razonamiento<ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" /></summary><p>{group.text}</p></details>
         : <Markdown key={i} source={group.text} streaming={streaming && i === groups.length - 1} />)}
-    {runIds.length > 0 && <div className="pc-phantom-final" role="group" aria-label="Estado actual en Phantom">{runIds.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}</div>}
-    {streaming && !waiting && <p className="pc-working" role="status"><span className="pc-tool-mark" aria-hidden="true"><LoaderCircle size={16} /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated > 0 && <span className="pc-working-agents"> · {delegated === 1 ? '1 subagente activo' : `${delegated} subagentes activos`}</span>}</p>}
+    {runIds.length > 0 && <div className="pc-phantom-final" role="group" aria-label="Estado actual en Phantom">{runIds.map(id => <PhantomRunCard key={id} id={id} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} onTone={reportRun} />)}</div>}
+    {streaming && !waiting && <p className="pc-working" role="status"><span className="pc-tool-mark" aria-hidden="true"><LoaderCircle size={16} /></span>{message.parts.length ? 'Trabajando' : 'Pensando'}{delegated && <span className="pc-working-agents"> · {delegated}</span>}</p>}
     {message.status === 'stopped' && <p className="pc-note">Respuesta detenida.</p>}
     {message.error && <p className="pc-note is-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{message.error}</span></p>}
     {(stamp || text) && <footer className="pc-turn-foot">{!streaming && text && <CopyButton text={text} label="Copiar respuesta" />}<time className="pc-num" dateTime={message.createdAt}>{stamp}</time></footer>}
@@ -244,20 +254,25 @@ export function SessionChip({ cwd, branch, workspaceName, children }) {
   </details>;
 }
 
-export function ComposerControls({ selectors, leading, meter, voice, hint, children }) {
+export function ComposerControls({ selectors, leading, meter, voice, hint, onFinish, finishLabel, children }) {
   return <div className="pc-controls">
     <div className="pc-selectors" role="group" aria-label="Configuración de la conversación">{selectors}</div>
     <div className="pc-composer-actions">
       <div className="pc-composer-tools">{leading}{meter}</div>
       <div className="pc-composer-send">
-        <VoiceActivity voice={voice} onFinish={voice.stop} hint={hint} />
+        <VoiceActivity voice={voice} onFinish={onFinish || voice.stop} hint={hint} finishLabel={finishLabel} />
         {children}
       </div>
     </div>
   </div>;
 }
 
-export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel }) {
+export default function ChatCard({ node, workspace, api, notify, overview = false, focused = false, connected = true, seen = false, onPulse, onOpenPanel, onOpenAgent: openAgentProp }) {
+  // The canvas does not pass props down to this card: the app offers the dock opener by context and the card adds
+  // its own identity (project, card) to the agent the user clicked. An explicit prop (the dock chat) wins.
+  const openAgentContext = useContext(AgentOpenContext), workspaceId = workspace.id, nodeId = node.id;
+  const onOpenAgent = useCallback(id => { if (openAgentProp) openAgentProp(id); else openAgentContext?.({ workspaceId, nodeId, id }); }, [openAgentProp, openAgentContext, workspaceId, nodeId]);
+  const hasOpenAgent = Boolean(openAgentProp || openAgentContext);
   const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
@@ -268,6 +283,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   draftRef.current = draft;
   const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
+  const changesCanvas = useContext(ChangesCanvasContext);
   const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
     onText: text => {
       const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
@@ -277,6 +293,15 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const voice = { ...recorderVoice, cancel: () => { arm(false); recorderVoice.cancel(); } };
   const listening = voice.status === 'recording';
   const dictating = listening || voice.status === 'transcribing';
+  const commentOnChanges = comment => {
+    const next = appendReviewComment(draftRef.current, comment);
+    if (next === draftRef.current || !connected || voice.status !== 'idle') return;
+    arm(false);
+    draftRef.current = next;
+    setDraft(next);
+    changesCanvas?.close(node.id);
+    requestAnimationFrame(() => input.current?.focus({ preventScroll: true }));
+  };
   useLayoutEffect(() => { if (voice.status === 'idle' || !connected || overview) arm(false); }, [voice.status, connected, overview]);
   useLayoutEffect(() => { arm(false); }, [workspace.id, node.id, provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
@@ -309,8 +334,16 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   useEffect(() => { if (connected && turnPhase === 'idle' && typeof api === 'function') refreshRuns.current(); }, [connected, turnPhase, workspace.id]);
   useEffect(() => {
     if (!connected || !liveRuns || typeof api !== 'function') return;
-    const timer = setInterval(() => refreshRuns.current(), 3000);
-    return () => clearInterval(timer);
+    let timer;
+    const tick = () => {
+      clearTimeout(timer); timer = undefined;
+      const delay = livePollDelay({ hidden: document.hidden, base: 5000 });
+      if (delay !== null) timer = setTimeout(async () => { await refreshRuns.current(); tick(); }, delay);
+    };
+    const onVisibility = () => { if (!document.hidden) { refreshRuns.current(); } tick(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    tick();
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility); };
   }, [connected, liveRuns, workspace.id]);
   const [ackedRun, setAckedRun] = useState(null);
   const finishedRun = delegation.outcome === 'attention' ? runs.latest : null;
@@ -318,18 +351,13 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const delegating = phase === 'delegating', healthView = runHealthView(runHealth);
   const progress = runProgressView(node.data?.agent?.run, Date.now());
   const delegatingLabel = progress ? `${progress.label}${progress.activity ? ` · ${progress.activity}` : ''}` : healthView.line;
-  // Recorrido de la terminal con los datos que ya llegan; un socket futuro solo cambia estas props.
-  const journey = terminalJourney({ node, connected, messages, running, controllers });
+  // Recorrido del run o plan con los datos que ya llegan. Solo se pinta si hay fases o bloqueo: permisos, preguntas,
+  // «Trabajando» y delegaciones ya tienen su sitio en el hilo y el dock.
+  const journey = terminalJourney({ node, connected, messages, running });
+  const showJourney = journey.phases.length > 0 || !!journey.blocker;
   // Una decisión humana (permiso, pregunta, bloqueo humano o declarado) nunca queda en reposo ni se apaga por «visto».
   // Recuperación automática, espera de dependencia y causa desconocida no se marcan como decisión humana.
   const needsYou = Boolean(waitingOn) || journey.needsAttention || journey.blocker?.kind === 'human';
-  const decisionRef = useRef(null);
-  const goToDecision = () => {
-    const target = decisionRef.current?.querySelector('.pc-dock, .pc-question.is-pending');
-    if (!target) return;
-    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    target.querySelector('button, input, textarea')?.focus({ preventScroll: true });
-  };
   useEffect(() => {
     if (!chat) return;
     const before = seenPhase.current; seenPhase.current = phase;
@@ -373,18 +401,18 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
     return <div className="pt-card pc is-overview" data-agent={needsYou ? 'approval' : running ? 'working' : 'idle'}>
       <div className="pt-card-identity">
         <span className="pt-provider is-agent"><ProviderTile provider={provider} /><span>{label}</span></span>
+        {(running || waiting) && <span className={`pt-state ${waiting ? 'is-approval' : 'is-working'}`}><i aria-hidden="true" />{waiting || 'Respondiendo'}</span>}
         {lastText && <p className="pt-card-step">{plainMarkdown(lastText).slice(-240)}</p>}
-        <TerminalJourney view={journey} compact />
+        {showJourney ? <TerminalJourney view={journey} compact /> : <PlanPhases plan={node.data?.plan} compact />}
       </div>
     </div>;
   }
-  return <div ref={decisionRef} className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={needsYou ? 'approval' : running ? 'working' : 'idle'}>
+  return <div className={`pt-card pc ${focused ? 'is-focused' : ''}`} data-provider={provider} data-agent={needsYou ? 'approval' : running ? 'working' : 'idle'}>
     <span className="pc-live" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
-    <div className="pc-journey">
+    {showJourney && <div className="pc-journey">
       <TerminalJourney view={journey} />
-      {waitingOn && <button type="button" className="pc-journey-go" onClick={goToDecision}>{waitingOn.type === 'question' ? 'Ir a la pregunta' : 'Ir al permiso'}</button>}
       {planSummary(node.data?.plan) && <details className="tj-more pc-journey-plan"><summary><ChevronRight size={14} aria-hidden="true" />Plan completo</summary><PlanPhases plan={node.data.plan} /></details>}
-    </div>
+    </div>}
     <div ref={thread} className="pc-thread" role="log" aria-label={`Conversación con ${label}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}
@@ -393,12 +421,11 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <section className="pc-session-section"><h3>Interfaz</h3><ModeSwitch node={node} workspace={workspace} api={api} notify={notify} disabled={running} /></section>
           {context}
         </div>}
-        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} />)}
+        {messages.map(message => <Message key={message.id} message={message} label={label} provider={provider} model={model} onAnswer={answer} onReply={reply} api={api} workspaceId={workspace.id} onOpenPanel={onOpenPanel} onOpenAgent={hasOpenAgent ? onOpenAgent : undefined} />)}
         {delegating && !running && !waiting && (!progress || healthView.warning) && <p className="pc-working pc-run-health" data-level={healthView.level}>{!progress && <span className="pc-run-health-line">{delegatingLabel}</span>}{healthView.warning && <span className="pc-run-health-warning" role="status">{healthView.warning}</span>}</p>}
       </div>
     </div>
     {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
-    <div className="pc-delegates"><TerminalDelegates view={journey} /></div>
     {pendingAsks.length > 0 && <div className="pc-dock">{pendingAsks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
     <form className="pc-composer" data-dictating={voice.status !== 'idle' || undefined} onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
       <ContextNudge key={`${node.id}.${chat?.messages?.[0]?.id || 'empty'}`} nodeId={node.id} firstMessageId={chat?.messages?.[0]?.id || 'empty'} meta={meta} onReveal={() => setReveal(n => n + 1)} />
@@ -410,12 +437,12 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={messages.length > 0 && <>
+        <ComposerControls voice={voice} onFinish={() => submit()} finishLabel="Terminar dictado y enviar · Enter" selectors={<>
           <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}>{context}</SessionChip>
           <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
           <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
           <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
-        </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} /></>}
+        </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} onComment={connected && voice.status === 'idle' ? commentOnChanges : undefined} /></>}
           meter={<ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />}>
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : `Dictar a ${label}`} aria-label={`Dictar a ${label}`} onClick={voice.start}><Mic size={18} /></button>}
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}

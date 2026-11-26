@@ -54,7 +54,36 @@ test('parseDiffLines classifies meta, hunk, add, del and context', () => {
   assert.deepEqual(parseDiffLines(''), []);
 });
 
+test('parseDiffLines tracks old and new line numbers across edits and hunks', () => {
+  const parsed = parseDiffLines('@@ -4,2 +8,3 @@\n same\n-old\n+new\n+next\n@@ -20 +22 @@\n-last\n+latest');
+  assert.deepEqual(parsed.slice(1, 5).map(({ kind, oldLine, newLine, hunkIndex }) => ({ kind, oldLine, newLine, hunkIndex })), [
+    { kind: 'ctx', oldLine: 4, newLine: 8, hunkIndex: 0 },
+    { kind: 'del', oldLine: 5, newLine: null, hunkIndex: 0 },
+    { kind: 'add', oldLine: null, newLine: 9, hunkIndex: 0 },
+    { kind: 'add', oldLine: null, newLine: 10, hunkIndex: 0 },
+  ]);
+  assert.deepEqual(parsed.slice(6).map(({ oldLine, newLine, hunkIndex }) => ({ oldLine, newLine, hunkIndex })), [
+    { oldLine: 20, newLine: null, hunkIndex: 1 },
+    { oldLine: null, newLine: 22, hunkIndex: 1 },
+  ]);
+});
+
+test('parseDiffLines marks malformed hunk bodies as metadata without inventing line numbers', () => {
+  const parsed = parseDiffLines('@@ malformed @@\n text\n@@ -1 +1 @@\n+valid');
+  assert.equal(parsed[1].kind, 'meta');
+  assert.deepEqual(parsed[3], { kind: 'add', text: 'valid', oldLine: null, newLine: 1, hunkIndex: 1 });
+});
+
+test('parseDiffLines honors zero-start hunks for additions to an empty file', () => {
+  const parsed = parseDiffLines('@@ -0,0 +1,2 @@\n+first\n+second');
+  assert.deepEqual(parsed.slice(1).map(({ kind, oldLine, newLine, hunkIndex }) => ({ kind, oldLine, newLine, hunkIndex })), [
+    { kind: 'add', oldLine: null, newLine: 1, hunkIndex: 0 },
+    { kind: 'add', oldLine: null, newLine: 2, hunkIndex: 0 },
+  ]);
+});
+
 test('sameFiles detects stable lists', () => {
   assert.equal(sameFiles(files, files.map(file => ({ ...file }))), true);
   assert.equal(sameFiles(files, files.map((file, i) => i ? file : { ...file, added: 11 })), false);
+  assert.equal(sameFiles([{ ...files[0], originalPath: 'src/old.js' }], [{ ...files[0], originalPath: 'src/older.js' }]), false);
 });

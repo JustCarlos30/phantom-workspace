@@ -18,6 +18,8 @@ OpenCode chat turns use an owned `opencode serve` on authenticated loopback HTTP
 - `store.mjs`: `Store`, `dataHome`, `canonicalFolder`, `validateState`, `validateHistory`, `atomicJSON`, validation helpers `assert`, `object`, `text`, and constants `NODE_TYPES`, `MAX_HISTORY`. Store methods: `persist()`, `getWorkspace(id)`, `open(path)`, `transaction(fn)`.
 - `terminals.mjs`: `Terminals`, `dimensions(cols?,rows?)`. Terminal manager methods: `create(workspace,node,options)`, `descriptor(session)`, `get(id)`, `attach(id,fromSeq?)`, `write(id,data)`, `resize(id,cols,rows)`, `stop(id)`, `flush()`, `save()`, `close()`; `capture(session,entry)` is an internal snapshot helper.
 
+- `orchestrator.send {workspaceId,text}` → `{workspaceId,nodeId,mode:'chat'|'pty',created}` (`orchestrator-route.mjs`). Habla con el orquestador del proyecto sin abrir su terminal. Solo esas dos claves; `text` de 1 a 8000 caracteres, sin caracteres de control salvo `\n`. Si el nodo (`data.role==='orchestrator'`) es un chat, entrega por `chat.send`; si es PTY con sesión viva, escribe el texto y Enter con `terminals.write`; si no hay orquestador, crea el nodo en modo chat y su sesión (`created:true`; exige Incorporaciones activas, como `node.create`). No cambia permisos de incorporación ni el merge guard y no entrega token de merge. Permitido al renderer.
+
 Production integration dispatch dynamically imports `handleIntegration` from `../integrations/index.mjs`. Tests may inject it through `createHost`; absent production integrations produce an error, never fabricated success.
 
 ## Terminal worktree dependencies

@@ -1,5 +1,8 @@
 import { assert } from './store.mjs';
 
+// Live list of a terminal's sub-agents (node.data.subagents): short, in-memory state that resets with the
+// session. The durable history (events, parents, outcomes) is host/agent-traces.mjs; both are fed by the hook CLI.
+
 export function validateSubagentOp(op) {
   assert(op && typeof op==='object' && !Array.isArray(op),'Invalid subagent operation');
   const keys={start:['op','id','type','description','background'],background:['op','id','agentId'],end:['op','id','agentId'],reset:['op']};

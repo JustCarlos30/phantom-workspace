@@ -23,7 +23,14 @@ La política no modifica `AGENTS.md`, `CLAUDE.md` ni la configuración personal/
 
 ## Subagentes de Claude Code
 
-En terminales PTY, el shim añade hooks asíncronos de `SessionStart`, `SessionEnd`, `SubagentStop` y de `PreToolUse`, `PostToolUse`, `PostToolUseFailure` para la herramienta `Agent`. Se suman a los hooks del usuario/proyecto y muestran los subagentes bajo su terminal en Delegación. Solo envían identidad, tipo, descripción y estado: no envían prompts ni mensajes. `PHANTOM_AGENT_HOOKS_OFF=1` los desactiva; un `--settings` propio también los omite. Codex y OpenCode en terminal no reportan subagentes.
+En terminales PTY, el shim añade hooks asíncronos de `SessionStart`, `SessionEnd`, `SubagentStart`, `SubagentStop`, `Stop` y de `PreToolUse`, `PostToolUse`, `PostToolUseFailure` para todas las herramientas. Se suman a los hooks del usuario/proyecto. Cada evento viaja por dos canales independientes:
+
+- **Lista viva** (`terminal.agent.subagent`): solo para la herramienta `Agent`; envía identidad, tipo, descripción y estado, sin prompts ni mensajes, y muestra los subagentes bajo su terminal en Delegación.
+- **Historial durable** (`terminal.agent.trace`, ver [agent-observability.md](agent-observability.md)): registros acotados y con secretos redactados de lo que hizo cada agente (herramienta, entrada y salida recortadas, y el encargo del subagente). El host impone workspace y nodo desde la sesión viva; `transcript_path` nunca se lee ni se reenvía.
+
+`PHANTOM_AGENT_HOOKS_OFF=1` los desactiva; un `--settings` propio también los omite. Un fallo del host no bloquea al agente: si `PHANTOM_AGENT_HOOK_LOG` apunta a una ruta absoluta, el fallo se anota ahí. Codex y OpenCode en terminal no reportan subagentes por hooks; sus turnos en tarjetas de chat sí se registran desde su flujo de eventos.
+
+Una llamada a la herramienta MCP `phantom_workspace.phantom` con `{cli:'agent', args:['run'|'bind', ID]}` se muestra como encargo o vínculo solo si la acción y el ID completo son literales; cualquier otra consulta se muestra como «Consulta a Phantom» y nunca como subagente.
 
 ## Política y ejecución controlada
 

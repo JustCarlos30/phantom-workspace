@@ -42,14 +42,18 @@ export function sessionState(session, connected = true, linkedTasks = []) {
   if (session?.status === 'lost') return { label: 'Sesión perdida', needsYou: true, tone: 'warning' };
   const agent = text(session?.agentState) || text(session?.agent?.status);
   const explicit = agent ? classifyTask({ status: agent }) : null;
-  const intervention = linkedTasks.find(t => classifyTask(t).needsYou);
+  const stuck = status => ['blocked', 'failed', 'error'].includes(status);
+  const intervention = linkedTasks.find(t => classifyTask(t).needsYou && !stuck(classifyTask(t).status));
   if (intervention) return { needsYou: true, label: classifyTask(intervention).label, tone: 'warning' };
   // What the terminal screen shows right now outranks a declared 'working': an
   // agent sitting on a question needs you even if it never reported it.
   const screen = text(session?.screenState);
   if (screen === 'awaiting_approval') return { needsYou: true, label: session?.screenReason === 'trust' ? 'Pide confiar en la carpeta' : 'Pide permiso', tone: 'warning', screen };
   if (screen === 'awaiting_input' && !explicit?.needsYou) return { needsYou: true, label: 'Terminó · tu turno', tone: 'warning', screen };
-  if (explicit) return { needsYou: explicit.needsYou, label: explicit.label, tone: explicit.needsYou ? 'warning' : 'neutral' };
+  if (explicit) {
+    const needsYou = explicit.needsYou && !stuck(explicit.status);
+    return { needsYou, label: explicit.label, tone: needsYou ? 'warning' : ['running', 'working', 'doing', 'verifying', 'recovering'].includes(explicit.status) ? 'working' : 'neutral' };
+  }
   if (screen === 'working') return { needsYou: false, label: 'Trabajando', tone: 'working', screen };
   if (linkedTasks.length) return { needsYou: false, label: classifyTask(linkedTasks[0]).label, tone: 'neutral' };
   return { label: session?.status === 'running' ? 'En espera' : 'Sin datos', needsYou: false, tone: 'unknown' };
@@ -67,6 +71,8 @@ export function activityTitle(item) {
 export function integrationState(item) {
   return ({ queued: 'En cola', merging: 'Integrando', conflict: 'Conflicto', failed: 'Tests fallidos', merged: 'En main', rejected: 'Rechazada', withdrawn: 'Retirada' })[item?.status] || 'Estado desconocido';
 }
+export const STUCK_STEPS = ['Preparar', 'Agente', 'Checks', 'Revisor', 'Listo'];
+const STUCK_STEP = { baseline: 0, 'baseline-dirty': 0, snapshot: 0, 'git-dirty': 0, 'workspace-gone': 0, budget: 1, 'no-change': 1, engine: 1, 'out-of-scope': 1, verification: 2, 'checks-mutate': 2, 'weak-checks': 2, judge: 3 };
 export function integrationGroups(merges) {
   if (merges?.available !== true) return { ready: [], decisions: [], active: [] };
   const queue = itemsOf(merges.queue);
@@ -223,11 +229,16 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
   }
   for (const item of integrations.decisions) {
     if (item.nodeId && claimed.has(item.nodeId)) continue;
-    const name = text(item.title) || 'Una rama', files = itemsOf(item.conflicts).slice(0, 2).join(', ');
-    const [need, headline, context] = item.status === 'conflict' ? ['conflict', `${name} choca con ${base}`, files ? `Conflicto en ${files}` : 'No se puede integrar hasta resolverlo']
+    const name = text(item.title) || 'Una rama', conflictFiles = itemsOf(item.conflicts).filter(file => typeof file === 'string' && file.trim()), files = conflictFiles.slice(0, 2).join(', ');
+    const [need, headline, context] = item.status === 'conflict' ? ['conflict', `${name} choca con ${base}`, conflictFiles.length ? 'No se puede integrar hasta resolverlo' : files ? `Conflicto en ${files}` : 'No se puede integrar hasta resolverlo']
       : item.status === 'failed' ? ['checks', `${name}: tests fallidos`, 'Hay que corregirlos y volver a enviarla']
         : ['blocked', `${name} está bloqueada`, text(item.step) || 'El agente no puede continuar'];
-    needs.push({ ...item, key: `merge:${item.id || item.nodeId}`, target: 'integration', label: item.status === 'blocked' ? 'Bloqueada' : integrationState(item), source: 'Host · merge.status', group: 'now', need, headline, context });
+    const lanes = item.status === 'conflict' ? (() => {
+      const live = item.nodeId ? itemsOf(merges?.active).find(entry => entry.nodeId === item.nodeId) : null;
+      const ok = value => Number.isFinite(value) && value >= 0;
+      return live && ok(live.ahead) && ok(live.behind) ? { ahead: Math.floor(live.ahead), behind: Math.floor(live.behind) } : { ahead: null, behind: null };
+    })() : null;
+    needs.push({ ...item, ...(lanes ? { files: conflictFiles, base, ...lanes } : {}), key: `merge:${item.id || item.nodeId}`, target: 'integration', label: item.status === 'blocked' ? 'Bloqueada' : integrationState(item), source: 'Host · merge.status', group: 'now', need, headline, context });
     claim(item.nodeId);
   }
   needs.sort((a, b) => (RANK[a.need] ?? 3) - (RANK[b.need] ?? 3) || (a.at || Infinity) - (b.at || Infinity));
@@ -237,7 +248,7 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
   const stuckByCause = new Map();
   for (const t of byRecent(taskRows.filter(t => STUCK.includes(t.status) && !resolutionOf(t)))) {
     const explain = explainReason([t.raw?.reason, t.reason].find(value => typeof value === 'string' && value.trim()) || '');
-    if (!stuckByCause.has(explain.cause)) stuckByCause.set(explain.cause, { key: `stuck:${explain.cause}`, group: 'stuck', need: 'failed', cause: explain.cause, label: explain.label, meaning: explain.cause === 'other' ? OTHER_MEANING : explain.meaning, next: explain.next, count: 0, at: 0, items: [] });
+    if (!stuckByCause.has(explain.cause)) stuckByCause.set(explain.cause, { key: `stuck:${explain.cause}`, group: 'stuck', need: 'failed', cause: explain.cause, step: STUCK_STEP[explain.cause] ?? null, label: explain.label, meaning: explain.cause === 'other' ? OTHER_MEANING : explain.meaning, next: explain.next, count: 0, at: 0, items: [] });
     const group = stuckByCause.get(explain.cause), first = t.sessions[0];
     group.items.push({ key: `task:${t.id}`, cardId: t.id, id: t.id, headline: titleOf(text(t.raw?.contract?.goal) || text(t.contract?.goal) || t.title), context: first?.title || '', ...(explain.child ? { child: explain.child } : {}), nodeId: first?.nodeId || null, sessions: t.sessions, at: t.at });
     group.count = group.items.length;

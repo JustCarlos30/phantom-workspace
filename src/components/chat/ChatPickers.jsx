@@ -40,7 +40,7 @@ export function ModelPicker({ node, workspace, api, notify, provider, label, obs
       <div className="pc-models-list" role="listbox" aria-label="Modelos disponibles">
         {!needle && <button type="button" role="option" aria-selected={!selected} onClick={() => choose(null)}><span>Predeterminado de {label}</span>{!selected && <Check size={14} aria-hidden="true" />}</button>}
         {!needle && groups.length > 0 && <div className="menu-separator" role="separator" />}
-        {groups.map((group, g) => <React.Fragment key={group.name}>{g > 0 && <div className="menu-separator" role="separator" />}<h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
+        {groups.map((group, g) => <React.Fragment key={`${g}:${group.name}`}>{g > 0 && <div className="menu-separator" role="separator" />}<h4>{group.name}</h4>{group.items.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === selected} onClick={() => choose(item.id)}><span className="pc-mono">{item.id}</span>{item.id === selected && <Check size={14} aria-hidden="true" />}</button>)}</React.Fragment>)}
         {custom && items.length > 0 && <div className="menu-separator" role="separator" />}
         {custom && <button type="button" role="option" aria-selected={false} onClick={() => choose(custom)}><span>Usar <span className="pc-mono">{custom}</span></span></button>}
         {!catalog && !failure && <p role="status">Leyendo modelos…</p>}
