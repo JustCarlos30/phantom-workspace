@@ -291,6 +291,96 @@ test('compositor: isla de 720 px centrada, Enviar marfil con borrador y campo de
   results.push('Compositor: isla de máx. 720 px centrada con --composer-fill y foco «luz», campo ≥ 40 px, controles circulares de 36 px, selector «Para» nativo dentro de la isla y Enviar marfil solo con borrador.');
 });
 
+const thread = (page, project = 'Alfa') => region(page, new RegExp(`^Conversación con el orquestador de ${project}`));
+
+test('el hilo del orquestador del proyecto destino muestra su respuesta, es colapsable y conserva la última lectura sin conexión', async () => {
+  const page = await render({ width: 900 });
+  const box = thread(page);
+  await box.getByText(/La rama choca con main en el esquema de facturas/).waitFor();
+  assert.match(await box.innerText(), /Revisa por qué se bloqueó la migración/);
+  const toggle = box.getByRole('button', { name: /^Conversación/ });
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'true', 'abierto por defecto con mensajes');
+  assert.match(await toggle.innerText(), /2 mensajes/);
+  assert.equal(await page.locator('.oh-thread .pc-thread').evaluate(el => getComputedStyle(el).backgroundColor), await resolve(page, '--well-terminal', 'backgroundColor'), 'pozo opaco');
+  assert.equal(await page.locator('.oh-thread .pc-column').evaluate(el => getComputedStyle(el).maxWidth), '720px', 'columna de 720 px');
+  await page.evaluate(() => window.hub.connect(false));
+  await page.getByText(/Sin conexión con el host/).first().waitFor();
+  assert.match(await thread(page).innerText(), /La rama choca con main/, 'se conserva la última lectura');
+  await page.evaluate(() => window.hub.connect(true));
+  await until(async () => await page.getByRole('textbox', { name: /^Mensaje para el orquestador/ }).isEnabled());
+  await thread(page).getByRole('button', { name: /^Conversación/ }).click();
+  assert.equal(await thread(page).getByRole('button', { name: /^Conversación/ }).getAttribute('aria-expanded'), 'false');
+  assert.equal(await thread(page).getByRole('log').count(), 0, 'colapsado oculta los mensajes');
+  await page.screenshot({ path: `${artifacts}/orchestrator-hub-thread-900.png` });
+  await close(page);
+  results.push('Hilo con la respuesta del orquestador de Alfa sobre pozo opaco y columna de 720 px, botón colapsable con aria-expanded y contador, y última lectura conservada sin conexión.');
+});
+
+test('enviar con un orquestador de chat usa chat.send al nodo y el mensaje aparece en el hilo', async () => {
+  const page = await render({ width: 900 });
+  await thread(page).getByText(/La rama choca/).waitFor();
+  const box = page.getByRole('textbox', { name: /^Mensaje para el orquestador/ });
+  await box.fill('Resuelve primero el conflicto de facturas');
+  await box.press('Enter');
+  await until(async () => (await box.inputValue()) === '');
+  await thread(page).getByText('Resuelve primero el conflicto de facturas', { exact: true }).waitFor();
+  await thread(page).getByText(/Recibido: Resuelve primero/).waitFor();
+  const calls = await page.evaluate(() => window.hub.calls.filter(call => /send$/.test(call.method)));
+  assert.deepEqual(calls.map(call => [call.method, call.payload]), [['chat.send', { workspaceId: 'hub-alfa', nodeId: 'n-alfa-orch', text: 'Resuelve primero el conflicto de facturas' }]]);
+  await close(page);
+  results.push('Con nodo de chat, el compositor envía con chat.send { workspaceId, nodeId, text } (sin orchestrator.send) y el mensaje y la respuesta aparecen en el hilo.');
+});
+
+test('un permiso pendiente del orquestador se responde desde el hub', async () => {
+  const page = await render({ width: 900 });
+  const box = thread(page);
+  await box.getByRole('group', { name: /write pide permiso/ }).waitFor();
+  await box.getByRole('button', { name: 'Aprobar' }).click();
+  await until(async () => (await box.getByRole('button', { name: 'Aprobar' }).count()) === 0);
+  await box.getByText('Aprobado').waitFor();
+  const answers = await page.evaluate(() => window.hub.calls.filter(call => call.method === 'chat.permission.answer').map(call => call.payload));
+  assert.deepEqual(answers, [{ workspaceId: 'hub-alfa', nodeId: 'n-alfa-orch', requestId: 'hub-perm', decision: 'allow' }]);
+  await close(page);
+  results.push('Permiso pendiente en el hilo con Rechazar/Siempre/Aprobar; Aprobar llama chat.permission.answer al nodo y la fila pasa a «Aprobado».');
+});
+
+test('cambiar de destino cambia de hilo: terminal con «Abrir sesión», sin orquestador con estado vacío, y el borrador sigue', async () => {
+  const page = await render({ width: 900 });
+  const draft = page.getByRole('textbox', { name: /^Mensaje para el orquestador/ });
+  await draft.fill('Borrador entre proyectos');
+  await page.evaluate(() => window.hub.select('hub-beta'));
+  await page.getByText('El orquestador de Beta · web corre como terminal').waitFor();
+  assert.equal(await thread(page).count(), 0, 'sin hilo de chat para un PTY');
+  await page.getByRole('button', { name: 'Abrir sesión' }).click();
+  assert.deepEqual(await page.evaluate(() => window.hub.selections.at(-1)), { workspaceId: 'hub-beta', focus: { nodeId: 'n-beta-orch' } });
+  await page.evaluate(() => window.hub.select('hub-gamma'));
+  await page.getByText('Aún no hay orquestador en Gamma · docs. Tu primer mensaje lo crea.').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Abrir sesión' }).count(), 0);
+  assert.equal(await draft.inputValue(), 'Borrador entre proyectos');
+  await page.evaluate(() => window.hub.select('hub-alfa'));
+  await thread(page).getByText(/La rama choca/).waitFor();
+  assert.equal(await draft.inputValue(), 'Borrador entre proyectos');
+  await close(page);
+  results.push('Destino Beta: línea «corre como terminal» con «Abrir sesión» (onSelectWorkspace con nodeId); Gamma: «Aún no hay orquestador… Tu primer mensaje lo crea.»; volver a Alfa recupera el hilo y el borrador nunca se pierde.');
+});
+
+test('con el hilo abierto no hay desborde horizontal a 320 px y la lista y el compositor siguen a la vista', async () => {
+  const page = await render({ width: 320 });
+  await thread(page).getByText(/La rama choca/).waitFor();
+  const found = await page.evaluate(() => {
+    const size = selector => { const el = document.querySelector(selector); return { over: el.scrollWidth - el.clientWidth, height: el.getBoundingClientRect().height }; };
+    return { page: document.documentElement.scrollWidth - window.innerWidth, thread: size('.oh-thread'), column: size('.oh-thread .pc-column'), body: size('.oh-body'), hub: size('.oh') };
+  });
+  measurements.push({ width: '320 con hilo', overflow: Math.max(found.page, found.thread.over, found.column.over, found.body.over, found.hub.over, 0) });
+  assert.ok(found.page <= 0 && found.thread.over <= 1 && found.column.over <= 1 && found.body.over <= 1 && found.hub.over <= 1, `overflow ${JSON.stringify(found)}`);
+  assert.ok(found.thread.height <= 161, `el hilo limita su alto (${found.thread.height})`);
+  assert.ok(found.body.height >= 200, `la lista conserva espacio (${found.body.height})`);
+  assert.ok(await page.getByRole('textbox', { name: /^Mensaje para el orquestador/ }).isVisible());
+  await page.screenshot({ path: `${artifacts}/orchestrator-hub-thread-320.png` });
+  await close(page);
+  results.push('A 320 px con el hilo abierto: sin desborde horizontal, hilo limitado a 160 px, lista con espacio propio y compositor visible.');
+});
+
 async function until(check, ms = 5000) {
   const end = Date.now() + ms;
   while (!await check()) {

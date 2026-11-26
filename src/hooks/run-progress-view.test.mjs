@@ -147,19 +147,39 @@ test('recorrido: reparación y juez salen de la fase real y no dan por hechas la
   assert.equal(repair.statusLabel, 'Reparación 2');
   assert.equal(repair.tone, 'working');
   assert.equal(repair.needsAttention, false);
-  assert.deepEqual(repair.phases.map(p => [p.kind, p.status]), [['develop', 'pending'], ['checks', 'pending'], ['repair', 'current'], ['judge', 'pending']]);
+  assert.deepEqual(repair.phases.map(p => [p.kind, p.status]), [['develop', 'done'], ['checks', 'done'], ['repair', 'current'], ['judge', 'pending']]);
   assert.equal(repair.phases[2].detail, '2 rondas');
   const judge = terminalJourney({ node: node({ run: { ...base, phase: 'judge' } }), now: T0 + 20_000 });
   assert.equal(judge.statusLabel, 'Juez revisando');
   assert.deepEqual(judge.phases.filter(p => p.current).map(p => p.kind), ['judge']);
-  assert.equal(judge.phases.some(p => p.status === 'done'), false);
+  assert.deepEqual(judge.phases.map(p => [p.kind, p.status]), [['develop', 'done'], ['checks', 'done'], ['judge', 'current']]);
+  const judged = terminalJourney({ node: node({ run: { ...base, phase: 'judge', round: 1 } }), now: T0 + 20_000 });
+  assert.deepEqual(judged.phases.map(p => [p.kind, p.status]), [['develop', 'done'], ['checks', 'done'], ['repair', 'done'], ['judge', 'current']]);
+  const early = terminalJourney({ node: node({ run: base }), now: T0 + 20_000 });
+  assert.deepEqual(early.phases.map(p => [p.kind, p.status]), [['develop', 'current'], ['checks', 'pending'], ['judge', 'pending']]);
+});
+
+test('recorrido: en reparación Desarrollo y Checks ya ocurrieron y se marcan hechos', () => {
+  const view = terminalJourney({ node: node({ run: { ...base, phase: 'repair', round: 1 } }), now: T0 + 20_000 });
+  assert.deepEqual(view.phases.map(p => [p.key, p.status, p.detail]), [['agent', 'done', ''], ['checks', 'done', ''], ['repair', 'current', '1 ronda'], ['judge', 'pending', '']]);
+});
+
+test('recorrido: un bloqueo tras reparar conserva el camino recorrido y termina en Bloqueado', () => {
+  const view = terminalJourney({ node: node({ run: { ...blocked({ category: 'budget', autonomy: 'human' }), round: 2 } }), now: T0 });
+  assert.deepEqual(view.phases.map(p => [p.key, p.status, p.detail]), [['agent', 'done', ''], ['checks', 'done', ''], ['repair', 'done', '2 rondas'], ['blocked', 'blocked', '']]);
+  assert.equal(view.phases.at(-1).current, true);
+  assert.equal(view.phases.some(p => p.kind === 'judge'), false);
+  const early = terminalJourney({ node: node({ run: blocked({ category: 'budget', autonomy: 'human' }) }), now: T0 });
+  assert.deepEqual(early.phases.map(p => [p.key, p.status]), [['agent', 'done'], ['blocked', 'blocked']]);
+  const cancelled = terminalJourney({ node: node({ run: { ...base, phase: 'cancelled', round: 1 } }), now: T0 });
+  assert.deepEqual(cancelled.phases.map(p => [p.key, p.status]), [['agent', 'done'], ['checks', 'done'], ['repair', 'done'], ['cancelled', 'stopped']]);
 });
 
 test('recorrido: terminar no infiere integración ni la inventa', () => {
   const done = terminalJourney({ node: node({ run: { ...base, phase: 'completed', elapsedMs: 90_000 } }), now: T0 + 999_000 });
   assert.equal(done.statusLabel, 'Terminó');
   assert.equal(done.tone, 'review');
-  assert.deepEqual(done.phases.map(p => [p.key, p.status, p.detail]), [['completed', 'done', 'Sin datos de integración']]);
+  assert.deepEqual(done.phases.map(p => [p.key, p.status, p.detail]), [['agent', 'done', ''], ['completed', 'done', 'Sin datos de integración']]);
   assert.equal(done.phases.some(p => p.kind === 'integration'), false);
   const plan = { phases: [{ key: 'dev', title: 'Desarrollo', status: 'done' }, { key: 'int', title: 'Integrar a main', status: 'pending' }] };
   const declared = terminalJourney({ node: node({ run: { ...base, phase: 'completed' } }, { plan }) });

@@ -1,5 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUp, ClipboardList, GitMerge, Inbox, Mic, RefreshCw, SquareTerminal, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, ChevronDown, ChevronRight, ClipboardList, GitMerge, Inbox, LoaderCircle, Mic, RefreshCw, SquareTerminal, X } from 'lucide-react';
+import { Message, PermissionRow } from './ChatCard';
+import { useChat } from '../hooks/useChat';
+import { orchestratorNode } from '../hooks/phantom-dock.mjs';
 import { useComposerSize } from '../hooks/useComposerSize';
 import { useOrchestratorInbox } from '../hooks/useOrchestratorInbox';
 import { routeTarget, supervisorLine } from '../hooks/orchestrator-inbox.mjs';
@@ -107,16 +110,48 @@ function Projects({ projects, now, handlers }) {
   </section>;
 }
 
-function Composer({ inbox, selectedWorkspaceId, api, connected, notify }) {
+const THREAD_LIMIT = 20;
+
+// The conversation with the target project's orchestrator, read in place. Chat
+// orchestrators show their thread; a terminal one points to its session.
+function Thread({ name, workspaceId, node, chat, error, connected, answer, reply, api, onOpenPanel, onSelectWorkspace }) {
+  const [choice, setChoice] = useState(null);
+  const thread = useRef(null), pinned = useRef(true);
+  const messages = chat?.messages || [];
+  const shown = messages.slice(-THREAD_LIMIT);
+  const asks = shown.flatMap(message => (message.parts || []).filter(part => part.type === 'permission' && part.status === 'pending'));
+  const expanded = choice ?? messages.length > 0;
+  useLayoutEffect(() => { const el = thread.current; if (el && pinned.current) el.scrollTop = el.scrollHeight; }, [messages, asks.length, expanded]);
+  const bodyId = `oh-thread-${workspaceId}`;
+  return <section className="oh-thread" aria-label={`Conversación con el orquestador de ${name}`}>
+    <button type="button" className="oh-thread-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setChoice(!expanded)}>
+      {expanded ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+      <span>Conversación</span>{messages.length > 0 && <span className="oh-thread-count">{plural(messages.length, 'mensaje', 'mensajes')}</span>}
+      {chat?.running && <span className="oh-thread-state">Trabajando…</span>}
+    </button>
+    {expanded && <div id={bodyId} ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label={`Mensajes del orquestador de ${name}`} aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
+      <div className="pc-column">
+        {!messages.length && !error && <p className="oh-muted" role="status">{chat ? 'Aún no hay mensajes. Escribe abajo para empezar.' : connected ? 'Cargando la conversación…' : 'Sin conexión con el host'}</p>}
+        {shown.map(message => <Message key={message.id} message={message} label="Orquestador" provider={chat.provider} onAnswer={answer} onReply={reply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} />)}
+        {chat?.running && <p className="pc-working" role="status"><LoaderCircle size={16} aria-hidden="true" />Trabajando…</p>}
+        {asks.length > 0 && <div className="pc-dock">{asks.map(part => <PermissionRow key={part.id} part={part} onAnswer={answer} />)}</div>}
+      </div>
+    </div>}
+    {error && <p className="pc-error" role="alert"><AlertCircle size={14} aria-hidden="true" /><span>{error}</span></p>}
+  </section>;
+}
+
+function ThreadLine({ name, workspaceId, node, onSelectWorkspace }) {
+  if (!node) return <p className="oh-thread-line oh-muted">Aún no hay orquestador en {name}. Tu primer mensaje lo crea.</p>;
+  return <div className="oh-thread-line"><p>El orquestador de {name} corre como terminal</p>
+    <button type="button" className="oh-link" onClick={() => onSelectWorkspace?.(workspaceId, { nodeId: node.id })}>Abrir sesión</button></div>;
+}
+
+function Composer({ inbox, target, name, onPick, send, api, connected, notify }) {
   const [draft, setDraft] = useVoiceDraft(DRAFT_KEY);
-  const [picked, setPicked] = useState(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [armed, setArmed] = useState(false);
-  useEffect(() => { setPicked(null); }, [selectedWorkspaceId]);
-  const target = routeTarget(inbox, { selectedWorkspaceId: picked || selectedWorkspaceId });
-  const project = inbox.projects.find(p => p.workspaceId === target.workspaceId);
-  const name = project?.name || 'un proyecto';
   const input = useRef(null), armedRef = useRef(false), draftRef = useRef(draft), submitRef = useRef(null);
   draftRef.current = draft;
   const arm = value => { armedRef.current = value; setArmed(value); };
@@ -142,7 +177,7 @@ function Composer({ inbox, selectedWorkspaceId, api, connected, notify }) {
     if (!text) return;
     setSending(true); setError('');
     try {
-      await api('orchestrator.send', { workspaceId: target.workspaceId, text });
+      if (send) await send(text); else await api('orchestrator.send', { workspaceId: target.workspaceId, text });
       setDraft('');
       notify?.(`Enviado al orquestador de ${name}`, 'success');
     } catch (err) { setError(err?.message || String(err)); }
@@ -156,7 +191,7 @@ function Composer({ inbox, selectedWorkspaceId, api, connected, notify }) {
       <div className="oh-input" data-preview={voice.status !== 'idle' || undefined}><VoiceTranscript voice={voice} draft={draft} /><textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para el orquestador de ${name}`} placeholder={connected ? `Indica algo al orquestador de ${name}…` : 'Sin conexión con el host'} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} /></div>
       <div className="oh-tools">
       <label className="oh-target"><span>Para</span>
-        <select value={target.workspaceId || ''} disabled={!inbox.projects.length} aria-label="Proyecto destino" onChange={e => setPicked(e.target.value)}>
+        <select value={target.workspaceId || ''} disabled={!inbox.projects.length} aria-label="Proyecto destino" onChange={e => onPick(e.target.value)}>
           {!inbox.projects.length && <option value="">Sin proyectos</option>}
           {inbox.projects.map(p => <option key={p.workspaceId} value={p.workspaceId}>{p.name}</option>)}
         </select>
@@ -175,6 +210,18 @@ function Composer({ inbox, selectedWorkspaceId, api, connected, notify }) {
 export default function OrchestratorHub({ workspaces, selectedWorkspaceId, api, connected, notify, onOpenPanel, onSelectWorkspace, onClose }) {
   const { inbox, status, error, reload } = useOrchestratorInbox({ workspaces, api, connected });
   const body = useRef(null);
+  const [picked, setPicked] = useState(null);
+  useEffect(() => { setPicked(null); }, [selectedWorkspaceId]);
+  const target = routeTarget(inbox, { selectedWorkspaceId: picked || selectedWorkspaceId });
+  const targetName = inbox.projects.find(p => p.workspaceId === target.workspaceId)?.name || 'un proyecto';
+  const node = orchestratorNode((workspaces || []).find(w => w.id === target.workspaceId));
+  const provider = node?.data?.chat?.provider;
+  const thread = useChat({ workspaceId: target.workspaceId, nodeId: node?.id, provider, api, connected });
+  // useChat drops its reading when the connection goes; keep the last one per thread.
+  const threadKey = provider ? `${target.workspaceId}:${node.id}` : '';
+  const last = useRef({ key: '', chat: null });
+  if (thread.chat) last.current = { key: threadKey, chat: thread.chat };
+  const chat = thread.chat || (last.current.key === threadKey ? last.current.chat : null);
   const now = inbox.updatedAt ? Date.parse(inbox.updatedAt) : Date.now();
   const handlers = { onOpenPanel, onSelectWorkspace };
   const projects = inbox.projects;
@@ -205,6 +252,9 @@ export default function OrchestratorHub({ workspaces, selectedWorkspaceId, api, 
       <Group id="oh-needs" title="Te necesita" tone="attention" projects={projects} pick={p => p.needsYou} now={now} handlers={handlers} primary={inbox.broken === 0 && !projects.some(p => p.broken.length)} />
       {projects.length > 0 && <Projects projects={projects} now={now} handlers={handlers} />}
     </div>
-    <Composer inbox={inbox} selectedWorkspaceId={selectedWorkspaceId} api={api} connected={connected} notify={notify} />
+    {target.workspaceId && (provider
+      ? <Thread key={threadKey} name={targetName} workspaceId={target.workspaceId} node={node} chat={chat} error={connected ? thread.error : ''} connected={connected} answer={thread.answer} reply={thread.reply} api={api} onOpenPanel={onOpenPanel} onSelectWorkspace={onSelectWorkspace} />
+      : <ThreadLine name={targetName} workspaceId={target.workspaceId} node={node} onSelectWorkspace={onSelectWorkspace} />)}
+    <Composer inbox={inbox} target={target} name={targetName} onPick={setPicked} send={provider ? thread.send : null} api={api} connected={connected} notify={notify} />
   </section>;
 }

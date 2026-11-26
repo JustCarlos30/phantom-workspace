@@ -11,7 +11,8 @@ const Frame = ({ width = 720, children }) => <div style={{ width, maxWidth: '100
 const hub = props => <OrchestratorHub workspaces={orchestratorHubWorkspaces} selectedWorkspaceId="hub-alfa" api={demo.api} connected notify={noop} onOpenPanel={noop} onSelectWorkspace={noop} onClose={noop} {...props} />;
 
 export const OrquestadorGlobal = { render: () => <Frame>{hub()}</Frame> };
-export const OrquestadorGlobal320 = { render: () => <Frame width={320}>{hub()}</Frame> };
+export const OrquestadorGlobalConversacion = { render: () => <Frame>{hub()}</Frame> };
+export const OrquestadorGlobal320= { render: () => <Frame width={320}>{hub()}</Frame> };
 export const OrquestadorGlobalVacio = { render: () => <Frame>{hub({ workspaces: [] })}</Frame> };
 export const OrquestadorGlobalCargando = { render: () => <Frame>{hub()}</Frame>, parameters: { host: { scenario: 'loading' } } };
 export const OrquestadorGlobalError = { render: () => <Frame>{hub()}</Frame>, parameters: { host: { scenario: 'error' } } };

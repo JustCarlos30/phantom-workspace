@@ -5,6 +5,8 @@ import { createHost, orchestratorHubWorkspaces } from '../../src/stories/host-mo
 import '../../src/styles.css';
 import '../../src/studio.css';
 import '../../src/canvas-ui.css';
+import '../../src/chat.css';
+import '../../src/phantom-chat.css';
 
 // The productive OrchestratorHub with its real CSS. The host is the catalog's
 // synthetic one (scenario 'orchestrator-hub'): three invented projects, and an
@@ -15,6 +17,7 @@ let root, host;
 window.mountHub = ({ width = 900, selected = 'hub-alfa', connected = true, scenario = 'orchestrator-hub', malformed = false } = {}) => {
   root?.unmount(); host?.dispose();
   host = createHost({ scenario, overrides: malformed ? garbage : scenario === 'error' ? { 'supervisor.read': () => ({}) } : {} });
+  window.phantom = host; // the chat thread follows host events through the app's event hub
   window.hub = { calls: host.calls, unknown: host.unknown, opened: [], selections: [], closed: 0 };
   function Fixture() {
     const [workspaceId, setWorkspaceId] = React.useState(selected);
