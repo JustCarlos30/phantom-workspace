@@ -108,7 +108,7 @@ export function validateState(input, { clone = true } = {}) {
   assert(Buffer.byteLength(JSON.stringify(state)) <= 16 * 1024 * 1024, 'State too large');
   return state;
 }
-export const ATTENTION_LIMIT = 300;
+export const ATTENTION_LIMIT = 120;
 export function pushAttention(workspace, item) {
   workspace.attention.push(item);
   if (workspace.attention.length > ATTENTION_LIMIT) workspace.attention.splice(0, workspace.attention.length - ATTENTION_LIMIT);

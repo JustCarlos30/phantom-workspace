@@ -24,16 +24,16 @@ test('finished output goes to a private file and only the tail stays inline', t 
 });
 
 test('retired runs lose their output file and unsafe ids never touch the filesystem', t => {
-  const data = dir(t), items = Array.from({ length: 22 }, (_, i) => run(i));
+  const data = dir(t), items = Array.from({ length: 10 }, (_, i) => run(i));
   const workspace = { phantomControllers: items };
   prunePhantomControllers(workspace, new Map(), data);
-  assert.equal(workspace.phantomControllers.length, 20);
+  assert.equal(workspace.phantomControllers.length, 8);
   const logs = fs.readdirSync(path.join(data, 'controller-output')).sort();
-  assert.equal(logs.length, 20); assert.ok(!logs.includes('run-0.log') && !logs.includes('run-1.log'));
-  // Retired item with a file: run-2 becomes the oldest once 20 newer runs exist.
+  assert.equal(logs.length, 8); assert.ok(!logs.includes('run-0.log') && !logs.includes('run-1.log'));
+  // Retired item with a file: run-2 becomes the oldest once 8 newer runs exist.
   workspace.phantomControllers.push(run(30), run(31));
   prunePhantomControllers(workspace, new Map(), data);
-  assert.equal(fs.readdirSync(path.join(data, 'controller-output')).length, 20);
+  assert.equal(fs.readdirSync(path.join(data, 'controller-output')).length, 8);
   assert.ok(!fs.existsSync(path.join(data, 'controller-output', 'run-2.log')));
 
   const evil = { phantomControllers: [{ ...run(1), id: '../escape' }] };
