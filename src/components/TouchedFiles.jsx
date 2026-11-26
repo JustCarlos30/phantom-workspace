@@ -213,6 +213,7 @@ function FileReview({ api, workspaceId, tree, file, revision, wide, active, onCo
 
 export default function TouchedFiles({ node, workspace, api, enabled = true, onComment }) {
   const canvas = useContext(ChangesCanvasContext);
+  const hadFiles = useRef(false);
   const tree = node.data?.worktree?.path;
   const scope = `${workspace.id}:${tree}`;
   const root = useRef(null), button = useRef(null), pop = useRef(null), list = useRef(null), previous = useRef([]);
@@ -365,13 +366,14 @@ export default function TouchedFiles({ node, workspace, api, enabled = true, onC
     else setLocalExpanded(value => !value);
   };
   const panelStyle = expanded ? { inset: 16 } : placement ? { left: placement.left, top: placement.top, width: placement.width, height: placement.height } : { inset: 16 };
+  if (files?.length > 0) hadFiles.current = true;
   if (!tree) return null;
   return <span ref={root} className="tf" onDoubleClick={e => e.stopPropagation()}>
-    <button ref={button} type="button" className="tf-badge" aria-haspopup="dialog" aria-expanded={open} title="Archivos tocados en esta sesión" onClick={() => open ? close() : canvas ? canvas.open(node.id) : setLocalOpen(true)}>
+    {(hadFiles.current || error || open) && <button ref={button} type="button" className="tf-badge" aria-haspopup="dialog" aria-expanded={open} title="Archivos tocados en esta sesión" onClick={() => open ? close() : canvas ? canvas.open(node.id) : setLocalOpen(true)}>
       <FileDiff size={14} aria-hidden="true" />
       <span>{files ? plural(total.count) : 'Cambios'}{error ? ' · error' : ''}</span>
       {(total.added > 0 || total.removed > 0) && <span className="tf-stat"><span className="tf-add">+{total.added}</span><span className="tf-del">−{total.removed}</span></span>}
-    </button>
+    </button>}
     {ready && portal && createPortal(<div ref={pop} className={`tf-panel${canvas ? ' is-canvas' : ' is-fallback'}${compact ? ' is-compact' : ''}${expanded ? ' is-expanded' : ''}`} role="dialog" aria-modal="false" aria-label="Archivos tocados" tabIndex={-1} style={{ ...panelStyle, '--tf-list-width': `${listWidth}px` }} onScrollCapture={e => { if (e.target.dataset.tfScroll) (expanded ? expandedScrollPositions.current : scrollPositions.current).set(e.target, { top: e.target.scrollTop, left: e.target.scrollLeft }); }} onKeyDown={onKeyDown} onKeyUp={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onWheel={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       <header className="tf-head">
         <FileDiff size={18} aria-hidden="true" />
