@@ -5,13 +5,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-// The queued-count badge on the Phantom "Orquestador" tab must keep its digit
+// The queued-count badge on the Phantom "Agentes" tab must keep its digit
 // centred inside its pill and stay inside the tab, even in a narrow panel.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-test('Orquestador tab label is a truncating span next to the badge', async () => {
+test('Agentes tab label is a truncating span next to the badge', async () => {
   const jsx = await readFile(path.join(root, 'src/components/PhantomChat.jsx'), 'utf8');
-  assert.match(jsx, /<span className="pd-tab-label">Orquestador<\/span>/);
+  assert.match(jsx, /<span className="pd-tab-label">Agentes<\/span>/);
   assert.match(jsx, /<span className="pd-tab-label">Chat<\/span>/);
 });
 
@@ -22,7 +22,7 @@ test('badge digit is centred and stays inside the tab', { timeout: 60000 }, asyn
   const links = css.map(f => `<link rel="stylesheet" href="${pathToFileURL(path.join(root, 'src', f))}">`).join('');
   const tabs = [400, 340, 260, 200].map(w => `<aside class="phantom-chat pc" data-w="${w}" style="position:relative;inset:auto;margin:8px;width:${w}px;height:60px"><div class="pd-tabs control-segmented" role="tablist">`
     + `<button type="button" role="tab" aria-selected="true"><svg width="14" height="14"></svg><span class="pd-tab-label">Chat</span><i class="pd-tab-live"></i></button>`
-    + `<button type="button" role="tab" aria-selected="false" data-tone="waiting"><svg width="14" height="14"></svg><span class="pd-tab-label">Orquestador</span><b>2</b></button>`
+    + `<button type="button" role="tab" aria-selected="false" data-tone="waiting"><svg width="14" height="14"></svg><span class="pd-tab-label">Agentes</span><b>2</b></button>`
     + `</div></aside>`).join('');
   const browser = await chromium.launch();
   try {
@@ -47,7 +47,7 @@ test('badge digit is centred and stays inside the tab', { timeout: 60000 }, asyn
       assert.ok(Math.abs(r.glyph.y - r.pill.y) <= 1, `${r.w}px: digit off-centre vertically (${r.glyph.y} vs ${r.pill.y})`);
       assert.ok(Math.abs(r.pill.y - r.tab.y) <= 1, `${r.w}px: badge not vertically centred in tab`);
       assert.ok(r.pill.width >= 16, `${r.w}px: badge squashed`);
-      assert.ok(r.tab.right <= r.list.right + 0.5, `${r.w}px: Orquestador tab overflows the tab bar (${r.tab.right} > ${r.list.right})`);
+      assert.ok(r.tab.right <= r.list.right + 0.5, `${r.w}px: Agentes tab overflows the tab bar (${r.tab.right} > ${r.list.right})`);
       assert.ok(r.pill.right <= r.list.right + 0.5, `${r.w}px: badge overflows the tab bar`);
       assert.ok(r.pill.left >= r.tab.left && r.pill.right <= r.tab.right, `${r.w}px: badge overflows the tab`);
     }

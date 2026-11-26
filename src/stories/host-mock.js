@@ -1,6 +1,38 @@
 import { state, workspace, tasks, taskRun, messages, date, graph, branches, merge, environment, plugin, skill, conventions } from './fixtures.js';
 import { claudeModelCatalog, executionPolicy } from '../../shared/execution-policy.mjs';
 
+// SYNTHETIC: three projects for the global Orquestador (scenario 'orchestrator-hub').
+// Alfa: a session asking permission and a blocked card with no terminal; Beta: an
+// incorporation in conflict; Gamma: work in progress, nothing to review.
+const minutesAgo = minutes => new Date(Date.now() - minutes * 60000).toISOString();
+const hubTerminal = (id, title, sessionId) => ({ id, type: 'terminal', title, x: 0, y: 0, w: 480, h: 320, data: { sessionId } });
+export const orchestratorHubWorkspaces = [
+  { id: 'hub-alfa', name: 'Alfa · pagos', nodes: [hubTerminal('n-alfa-1', 'Migración de cobros', 's-alfa-1')] },
+  { id: 'hub-beta', name: 'Beta · web', nodes: [hubTerminal('n-beta-1', 'Landing nueva', 's-beta-1')] },
+  { id: 'hub-gamma', name: 'Gamma · docs', nodes: [] },
+];
+export function orchestratorHubData(workspaceId) {
+  if (workspaceId === 'hub-alfa') return {
+    sessions: [{ id: 's-alfa-1', nodeId: 'n-alfa-1', workspaceId, status: 'running', screenState: 'awaiting_approval', screenStateAt: Date.now() - 4 * 60000, createdAt: minutesAgo(40) }],
+    tasks: { available: true, items: [{ id: 'task_alfa_card', status: 'blocked', title: 'Migrar el esquema de facturas', updatedAt: minutesAgo(30), raw: { reason: 'Conflicto en la rama al incorporar', contract: { goal: 'Migrar el esquema de facturas' } }, location: { path: '/synthetic/alfa', branch: 'feat/facturas' } }] },
+    merges: { available: true, queue: [], active: [], history: [] },
+    supervisor: { workspaceId, enabled: true, status: 'pending', summary: 'Una sesión espera permiso para escribir en la base de datos de cobros.', summaryAt: minutesAgo(6), usage: { callsLastHour: 3, maxCallsPerHour: 12 }, alerts: [], pending: 2 },
+  };
+  if (workspaceId === 'hub-beta') return {
+    sessions: [],
+    tasks: { available: true, items: [] },
+    merges: { available: true, queue: [{ id: 'merge-beta', status: 'conflict', title: 'feat/landing', nodeId: 'n-beta-1', requestedAt: minutesAgo(120) }], active: [], history: [] },
+    supervisor: { workspaceId, enabled: true, status: 'rate-limited', summary: 'La rama de la landing choca con main en dos archivos.', summaryAt: minutesAgo(50), usage: { callsLastHour: 12, maxCallsPerHour: 12 }, alerts: [], pending: 1 },
+  };
+  if (workspaceId === 'hub-gamma') return {
+    sessions: [],
+    tasks: { available: true, items: [{ id: 'task_gamma_run', status: 'running', title: 'Reescribir la guía de instalación', updatedAt: minutesAgo(2) }] },
+    merges: { available: true, queue: [], active: [], history: [] },
+    supervisor: { workspaceId, enabled: false, status: 'disabled', summary: '', summaryAt: null, usage: { callsLastHour: 0, maxCallsPerHour: 12 }, alerts: [], pending: 0 },
+  };
+  return { sessions: [], tasks: { available: true, items: [] }, merges: { available: true, queue: [], active: [], history: [] }, supervisor: { workspaceId, status: 'disabled', summary: '', usage: {}, alerts: [] } };
+}
+
 export function createHost({ scenario = 'data', overrides = {}, workspaceId = workspace.id } = {}) {
   const listeners = new Set(), pending = new Set(), calls = [], unknown = [];
   const model = structuredClone(state);
@@ -93,6 +125,14 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
     'browser.navigate': () => { throw new Error('Navegación nativa aislada en el catálogo.'); },
     'desktop.openExternal': () => ({ simulated: true }),
     'node.update': p => { const node = model.workspaces[0].nodes.find(n => n.id === p.id); if (node) Object.assign(node, p.patch); return node || p.patch; },
+    'orchestrator.send': p => ({ workspaceId: p.workspaceId, nodeId: 'orchestrator-demo', mode: 'chat', created: false }),
+    'voice.stream.cancel': () => ({}),
+    ...(scenario === 'orchestrator-hub' ? {
+      'terminal.list': p => orchestratorHubData(p.workspaceId).sessions,
+      'phantom.list': p => orchestratorHubData(p.workspaceId).tasks,
+      'merge.status': p => orchestratorHubData(p.workspaceId).merges,
+      'supervisor.read': p => orchestratorHubData(p.workspaceId).supervisor,
+    } : {}),
     ...overrides,
   };
   return {

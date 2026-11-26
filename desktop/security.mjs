@@ -22,6 +22,7 @@ export const HOST_METHODS = new Set([
   'chat.get', 'chat.configure', 'chat.send', 'chat.stop', 'chat.clear', 'chat.compaction.capabilities', 'chat.compact', 'chat.continue', 'chat.queue.remove', 'chat.queue.send', 'chat.models', 'chat.permission.answer', 'chat.question.answer',
   'task.create', 'task.update', 'task.remove', 'mission.create', 'mission.update', 'mission.remove',
   'workflow.save', 'workflow.remove', 'context.pin', 'context.unpin', 'context.scan', 'context.read', 'skills.catalog', 'skills.read',
+  'orchestrator.send',
   'attention.list', 'attention.ack', 'attention.create', 'storage.export', 'storage.import', 'host.shutdown',
   'git.inspect', 'services.list', 'services.pin', 'services.remove', 'docker.list', 'docker.logs', 'docker.action',
   // Entorno: el renderer observa y baja servicios; subir y ejecutar jobs es de las terminales.
@@ -107,7 +108,7 @@ export function byteRange(header, size) {
 }
 export const LOCAL_METHODS = new Set([
   'dialog.openFolder', 'dialog.openFile', 'desktop.openPath', 'desktop.openExternal', 'desktop.openBrowser', 'desktop.previewImage',
-  'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady', 'desktop.notify',
+  'desktop.export', 'desktop.info', 'desktop.quit', 'desktop.closeReady', 'desktop.notify', 'desktop.badge',
   'desktop.interfaceScale.get', 'desktop.interfaceScale.set',
   'browser.attach', 'browser.bounds', 'browser.navigate', 'browser.back', 'browser.forward',
   'browser.reload', 'browser.detach', 'browser.capture', 'browser.inspect',
@@ -160,13 +161,25 @@ export function validateInvocation(method, payload) {
   }
   if (method === 'desktop.closeReady') validateCloseReady(payload);
   if (method === 'desktop.notify') {
-    if (Object.keys(payload).some(key => !['title', 'body', 'target'].includes(key))
+    if (Object.keys(payload).some(key => !['title', 'body', 'target', 'workspaceId', 'nodeId'].includes(key))
       || typeof payload.title !== 'string' || payload.title.length < 1 || payload.title.length > 120
       || ('body' in payload && (typeof payload.body !== 'string' || payload.body.length > 300))
-      || ('target' in payload && !['branches'].includes(payload.target))) {
+      || ('target' in payload && !['branches', 'session'].includes(payload.target))
+      || ('workspaceId' in payload && !isBoundedID(payload.workspaceId))
+      || ('nodeId' in payload && !isBoundedID(payload.nodeId))) {
       throw new Error('Notificación desktop no válida');
     }
   }
+  if (method === 'desktop.badge') {
+    const keys = Object.keys(payload);
+    if (keys.length !== 1 || keys[0] !== 'count' || !Number.isInteger(payload.count) || payload.count < 0 || payload.count > 9999) {
+      throw new Error('Contador desktop no válido');
+    }
+  }
+}
+
+function isBoundedID(value) {
+  return typeof value === 'string' && value.length >= 1 && value.length <= 128;
 }
 
 export const EXPORT_MAX_BYTES = 16 * 1024 * 1024;
