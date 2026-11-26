@@ -353,6 +353,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-error { display: flex; align-items: flex-start; gap: 6px; max-width: 720px; margin: 0 auto; padding: 8px 16px; background: transparent; color: var(--ink); font-size: 12px; line-height: 1.45; flex-shrink: 0; }
 .pc-error > svg { flex-shrink: 0; margin-top: 2px; color: var(--danger); }
 .pc-dock { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: var(--composer-max); margin: 0 auto; padding: 0 12px 8px; flex-shrink: 0; }
+.pc-dock { background: var(--well-terminal); }
 .pc.is-focused .pc-dock { padding: 0 20px 10px; }
 .pc-composer { position: relative; display: flex; flex-direction: column; gap: var(--composer-gap); width: 100%; max-height: calc(100% - 40px); min-height: 0; margin: 0; padding: 0 24px 24px; flex-shrink: 0; background: var(--well-terminal); }
 .pc-composer[data-dictating] .pc-field { box-shadow: inset 0 0 0 1px var(--voice-composer-divider); }
@@ -551,7 +552,6 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-ask-body p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .pc-ask-body strong { color: var(--ink); font-weight: 600; }
 .pc-ask-body code { overflow: hidden; color: var(--ink); font: 12px/1.4 var(--mono); white-space: nowrap; text-overflow: ellipsis; }
-.pc-ask.is-danger.is-pending { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pc-del) 45%, transparent); }
 .pc-ask.is-danger .pc-ask-icon { color: var(--pc-del); }
 .pc-ask-flag { display: inline-flex; align-items: center; gap: 4px; justify-self: start; color: var(--pc-del); font-size: 11px; font-weight: 600; line-height: 1.4; }
 .pc-ask-actions { display: flex; gap: 6px; flex-shrink: 0; }
@@ -695,7 +695,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc.pc .pc-send:hover:not(:disabled):not(.is-stop) { background: var(--primary-hover); }
 .pc.pc .pc-send:active:not(:disabled):not(.is-stop) { background: var(--primary-press); }
 .pc.pc .pc-send:disabled { background: var(--control-fill); color: var(--ink-3); }
-.pc:has(.pc-session-new) > .pc-composer { background: transparent; }
+.pc:has(.pc-session-new) > :is(.pc-composer, .pc-dock) { background: transparent; }
 @media (pointer: coarse) { .pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send, .voice-activity) > :is(.pc-icon, .phantom-chat-mic, .pc-send, .voice-discard, .voice-finish) { min-width: 44px; min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .pc-session-row, .pc .spinning { animation: none !important; transition: none !important; } }
 
