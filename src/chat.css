@@ -274,6 +274,8 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-progress::-webkit-progress-bar { background: var(--progress-track); }
 .pc-progress::-webkit-progress-value { background: var(--working); border-radius: var(--r-pill); }
 .pc-subagent > .pc-progress { width: calc(100% - 60px - var(--row-px)); margin: 0 0 8px 60px; }
+.pc-subagent.pc-phantom-run > .pc-phantom-head { margin: 0; }
+.pc-subagent.pc-phantom-run > .pc-progress { width: calc(100% - 2 * var(--row-px)); margin: 0 var(--row-px) 8px; }
 @media (prefers-reduced-motion: no-preference) {
   svg.pc-tool-state.is-running { animation: none; }
 }
