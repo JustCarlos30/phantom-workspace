@@ -2,7 +2,7 @@ import React from 'react';
 import { expect, userEvent, within } from 'storybook/test';
 import TerminalPanel from '../components/TerminalPanel';
 import TerminalCard from '../components/TerminalCard';
-import ChatCard, { PermissionSwitch, ContextMeter, QueuedMessages } from '../components/ChatCard';
+import ChatCard, { PermissionSwitch, ContextMeter, QueuedMessages, PhantomRunCard } from '../components/ChatCard';
 import PhantomChat from '../components/PhantomChat';
 import PhantomOrchestrator from '../components/PhantomOrchestrator';
 import { demo, Panel } from './decorators';
@@ -79,6 +79,65 @@ export const PermisosProyecto = { ...Compositor320, play: async ({ canvasElement
   await userEvent.click(await canvas.findByRole('checkbox', { name: 'Usar estos permisos en nuevas conversaciones de este proyecto' }));
 } };
 export const PermisosProyectoError = { ...PermisosProyecto, args: { ...Compositor320.args, saveError: true } };
+// Encargo Phantom: formas de datos compatibles con summarizePhantomRun / delegateView. Todo sintético y estable.
+const RUN_ID = 'task_00000000-0000-4000-8000-000000000001';
+const GOAL = '## Título\nRediseñar la tarjeta de encargos Phantom para que el objetivo se lea completo en el chat sin truncarse a una sola línea.\n\n## Propósito\nSintético.';
+const CHECKS = [{ name: 'Estados y delegación', argv: ['node', '--test'] }, { name: 'Build app', argv: ['npm', 'run', 'build'] }];
+const RUN_FIXTURES = {
+  completed: { status: 'completed', run: { requestedModel: 'claude-code/sonnet', startedAt: '2026-11-26T10:00:00.000Z', endedAt: '2026-11-26T10:12:30.000Z', turns: 12, tools: 40, evidence: { verification: [{ available: true, checks: CHECKS.map(check => ({ ...check, passed: true, executed: true })) }] } }, controllers: [{ taskId: RUN_ID, status: 'completed', output: 'salida técnica del controlador' }], activity: { available: true, items: [], total: 0, runs: [] } },
+  running: { status: 'running', run: { requestedModel: 'claude-code/sonnet', startedAt: '2026-11-26T10:00:00.000Z', turns: 3, tools: 8 }, controllers: [{ taskId: RUN_ID, status: 'running', startedAt: '2026-11-26T10:00:00.000Z', output: 'editando archivos' }], activity: { available: true, total: 1, items: [{ id: 's1', tool: 'edit', target: 'src/components/chat/ChatTools.jsx', status: 'running' }], runs: [] } },
+  blocked: { status: 'blocked', reason: 'Falta una decisión material sobre el alcance.', run: { requestedModel: 'claude-code/sonnet', startedAt: '2026-11-26T10:00:00.000Z', endedAt: '2026-11-26T10:03:00.000Z' }, controllers: [{ taskId: RUN_ID, status: 'completed' }], activity: { available: true, items: [], total: 0, runs: [] } },
+};
+function runApi(kind, opened) {
+  const fixture = RUN_FIXTURES[kind];
+  return async method => {
+    if (method === 'phantom.detail') return { available: true, task: { id: RUN_ID, status: fixture.status, goal: GOAL, reason: fixture.reason, contract: { goal: GOAL, checks: CHECKS }, run: fixture.run } };
+    if (method === 'phantom.controllers') return { available: true, items: fixture.controllers };
+    if (method === 'phantom.events') return fixture.activity;
+    return { available: false };
+  };
+}
+function RunExample({ kind, width }) {
+  const [opened, setOpened] = React.useState('');
+  const api = React.useMemo(() => runApi(kind), [kind]);
+  const onOpenPanel = React.useCallback((panel, target) => setOpened(`Abre ${panel}${target.resolve ? ' (resolver bloqueo)' : ''}: ${target.cardId}`), []);
+  return <div style={{ width, maxWidth: '100%' }}>
+    <PhantomRunCard id={RUN_ID} api={api} workspaceId="ws-sintetico" onOpenPanel={onOpenPanel} />
+    <p role="status" aria-label="Destino abierto" style={{ font: '12px/16px var(--mono)', color: 'var(--muted)' }}>{opened}</p>
+  </div>;
+}
+const toggleDetails = async canvasElement => {
+  const canvas = within(canvasElement);
+  const summary = await canvas.findByText('Detalles de ejecución');
+  const details = summary.closest('details');
+  await expect(details).not.toHaveAttribute('open');
+  await userEvent.click(summary);
+  await expect(details).toHaveAttribute('open');
+  await userEvent.click(summary);
+  await expect(details).not.toHaveAttribute('open');
+};
+export const EncargoPhantomCompletada = { render: () => <RunExample kind="completed" width={720} />, play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await expect(await canvas.findByText('2 de 2 checks pasados')).toBeVisible();
+  await toggleDetails(canvasElement);
+  await userEvent.click(canvas.getByRole('button', { name: 'Ver resultado' }));
+  await expect(canvas.getByRole('status', { name: 'Destino abierto' })).toHaveTextContent(`phantom-cards: ${RUN_ID}`);
+} };
+export const EncargoPhantomEnEjecucion = { render: () => <RunExample kind="running" width={720} />, play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await expect(await canvas.findByRole('status', { name: 'Actividad actual' })).toBeVisible();
+  await expect(canvas.getByRole('progressbar', { name: '0 de 2 checks pasados' })).toBeVisible();
+  await toggleDetails(canvasElement);
+} };
+export const EncargoPhantomBloqueada = { render: () => <RunExample kind="blocked" width={720} />, play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(await canvas.findByRole('button', { name: 'Resolver bloqueo' }));
+  await expect(canvas.getByRole('status', { name: 'Destino abierto' })).toHaveTextContent('resolver bloqueo');
+} };
+export const EncargoPhantomEstrecha = { render: () => <RunExample kind="completed" width={360} />, play: async ({ canvasElement }) => {
+  await toggleDetails(canvasElement);
+} };
+
 export const PermisosProyectoGuardados = { ...Compositor320, args: { ...Compositor320.args, saved: 'auto' }, play: async ({ canvasElement }) => {
   await userEvent.click(await within(canvasElement).findByText('worktree-con-nombre-largo'));
 } };

@@ -44,22 +44,24 @@ export const ToolRow = React.memo(function ToolRow({ part }) {
 // One recipe for a delegation, sub-agent or Phantom assignment: a 40 px row (glyph, kind, title, state, time), the
 // current action while it works, one attention line with its real action, and a single <details> for the rest.
 // `sections` are [label, content, count?]; only recorded data gets one. The view decides tone and attention.
-function Delegate({ view, glyph, ariaLabel, className = '', open, onToggle, sections, actions = [], progress, fallback }) {
+// Optional `head` (replaces the one-row head), `summary` (a line under it) and `detailsLabel` (disclosure text) serve Phantom runs.
+function Delegate({ view, glyph, ariaLabel, className = '', open, onToggle, sections, actions = [], progress, fallback, head, summary, detailsLabel }) {
   const attention = view.attention || fallback || null, buttons = actions.filter(Boolean);
   return <section className={`pc-subagent is-${view.tone} ${className}`.trim()} aria-label={ariaLabel}>
-    <div className="pc-subagent-head">
+    {head || <div className="pc-subagent-head">
       <span className="pc-subagent-mark" aria-hidden="true">{glyph}</span>
       <span className="pc-subagent-label">{view.label}</span>
       <span className="pc-delegate-title" title={view.title}>{view.title}</span>
       <span className="pc-delegate-state" role="status">{view.stateLabel}</span>
       {view.duration && <span className="pc-delegate-time pc-num">{view.duration}</span>}
-    </div>
+    </div>}
+    {summary}
     {view.now && <p className="pc-subagent-now" role="status" aria-label="Actividad actual"><LoaderCircle className="spinning" size={14} aria-hidden="true" /><span className="pc-tool-name">{view.now.label}</span><span className="pc-tool-detail" title={view.now.detail}>{view.now.detail}</span></p>}
     {progress}
     {attention && <p className="pc-delegate-attention" role="alert"><strong>{attention.label}</strong><span>{attention.meaning}</span></p>}
     {buttons.length > 0 && <div className="pc-delegate-actions">{buttons}</div>}
     <details className="pc-subagent-more" open={open} onToggle={onToggle}>
-      <summary><ChevronRight size={14} aria-hidden="true" />{sections.map(([label]) => label).join(' · ')}</summary>
+      <summary><ChevronRight size={14} aria-hidden="true" />{detailsLabel || sections.map(([label]) => label).join(' · ')}</summary>
       <div className="pc-delegate-body">
         {view.meta.length > 0 && <p className="pc-delegate-meta">{view.meta.join(' · ')}</p>}
         {sections.map(([label, content, count]) => <div key={label} className="pc-delegate-section">
@@ -141,14 +143,21 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel, onTone }) {
     </>],
   ].filter(Boolean);
   const open_ = target => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, ...target }, state.title);
-  return <Delegate view={view} glyph={<PhantomGlyph size={16} />} ariaLabel={`Encargo Phantom ${id}`} className="pc-phantom-run" open={open}
+  const head = <div className="pc-phantom-head">
+    <div className="pc-phantom-bar"><span className="pc-phantom-brand"><PhantomGlyph size={14} />PHANTOM</span><span className="pc-delegate-state" role="status">{view.stateLabel}</span></div>
+    <h4 className="pc-phantom-title">{view.title}</h4>
+  </div>;
+  const checked = state.total > 0 ? results ? `${state.passed} de ${state.total} checks pasados` : `${state.total} ${state.total === 1 ? 'check sin resultado' : 'checks sin resultado'}` : '';
+  const facts = [checked, view.duration].filter(Boolean);
+  const summary = facts.length > 0 ? <p className="pc-phantom-summary">{facts.map((fact, index) => <span key={index} className={index === facts.length - 1 && view.duration ? 'pc-num' : undefined}>{fact}</span>)}</p> : null;
+  return <Delegate view={view} glyph={<PhantomGlyph size={16} />} ariaLabel={`Encargo Phantom ${id}`} className="pc-phantom-run" open={open} head={head} summary={summary} detailsLabel="Detalles de ejecución"
     onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}
     sections={sections}
     fallback={view.tone === 'error' && !attempts && activity.reason ? { label: 'Motivo', meaning: activity.reason } : null}
     progress={state.live && state.total > 0 && <progress className="pc-progress" max={state.total} value={state.passed} aria-label={`${state.passed} de ${state.total} checks pasados`} />}
     actions={onOpenPanel ? [
       state.blocker && <button key="resolve" type="button" className="pc-phantom-open" onClick={() => open_({ resolve: true })}>Resolver bloqueo</button>,
-      <button key="open" type="button" className="pc-phantom-open" onClick={() => open_({})}>Abrir en Phantom</button>,
+      <button key="open" type="button" className="pc-phantom-open" onClick={() => open_({})}>{view.tone === 'done' ? 'Ver resultado' : 'Abrir en Phantom'}</button>,
     ] : []} />;
 }
 
