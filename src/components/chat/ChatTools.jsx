@@ -4,6 +4,7 @@ import ToolOutput from '../ToolOutput';
 import { PhantomGlyph } from '../Glyphs';
 import { phantomCallKind, PHANTOM_CALL_LABEL, summarizePhantomRun, summarizePhantomActivity } from '../../hooks/phantom-run-link.mjs';
 import { itemsOf } from '../../hooks/plugin-model.mjs';
+import { delegateView } from '../../hooks/delegation-model.mjs';
 
 const TOOL_KINDS = [[/^(read|view|cat|notebookread)/, FileText, 'read'], [/^(edit|multiedit|write|patch|apply|notebookedit)/, Pencil, 'edit'], [/^(bash|shell|exec|run)/, SquareTerminal, 'shell'], [/^(grep|glob|search|list|ls|find|toolsearch)/, Search, 'search'], [/^(web|fetch)/, Globe, 'web'], [/^(task|agent)/, Cpu, 'agent'], [/^(check|verify)$/, ListChecks, 'check'], [/^todo/, ListChecks, 'todo']];
 const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name).toLowerCase())) || [null, Wrench, 'other'];
@@ -40,7 +41,41 @@ export const ToolRow = React.memo(function ToolRow({ part }) {
   </div></details></li>;
 });
 
-export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
+// One recipe for a delegation, sub-agent or Phantom assignment: a 40 px row (glyph, kind, title, state, time), the
+// current action while it works, one attention line with its real action, and a single <details> for the rest.
+// `sections` are [label, content, count?]; only recorded data gets one. The view decides tone and attention.
+function Delegate({ view, glyph, ariaLabel, className = '', open, onToggle, sections, actions = [], progress, fallback }) {
+  const attention = view.attention || fallback || null, buttons = actions.filter(Boolean);
+  return <section className={`pc-subagent is-${view.tone} ${className}`.trim()} aria-label={ariaLabel}>
+    <div className="pc-subagent-head">
+      <span className="pc-subagent-mark" aria-hidden="true">{glyph}</span>
+      <span className="pc-subagent-label">{view.label}</span>
+      <span className="pc-delegate-title" title={view.title}>{view.title}</span>
+      <span className="pc-delegate-state" role="status">{view.stateLabel}</span>
+      {view.duration && <span className="pc-delegate-time pc-num">{view.duration}</span>}
+    </div>
+    {view.now && <p className="pc-subagent-now" role="status" aria-label="Actividad actual"><LoaderCircle className="spinning" size={14} aria-hidden="true" /><span className="pc-tool-name">{view.now.label}</span><span className="pc-tool-detail" title={view.now.detail}>{view.now.detail}</span></p>}
+    {progress}
+    {attention && <p className="pc-delegate-attention" role="alert"><strong>{attention.label}</strong><span>{attention.meaning}</span></p>}
+    {buttons.length > 0 && <div className="pc-delegate-actions">{buttons}</div>}
+    <details className="pc-subagent-more" open={open} onToggle={onToggle}>
+      <summary><ChevronRight size={14} aria-hidden="true" />{sections.map(([label]) => label).join(' · ')}</summary>
+      <div className="pc-delegate-body">
+        {view.meta.length > 0 && <p className="pc-delegate-meta">{view.meta.join(' · ')}</p>}
+        {sections.map(([label, content, count]) => <div key={label} className="pc-delegate-section">
+          <h5 className="pc-delegate-heading">{label}{count !== undefined && ` · ${count}`}</h5>
+          {content}
+        </div>)}
+      </div>
+    </details>
+  </section>;
+}
+
+function Facts({ rows }) {
+  return <dl className="pc-delegate-facts">{rows.map(([name, value, title]) => <React.Fragment key={name}><dt>{name}</dt><dd title={title}>{value}</dd></React.Fragment>)}</dl>;
+}
+
+export function PhantomRunCard({ id, api, workspaceId, onOpenPanel, onTone }) {
   const [state, setState] = useState(null);
   const [chosen, setChosen] = useState(null);
   const [attempt, setAttempt] = useState(0);
@@ -76,44 +111,45 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel }) {
     refresh();
     return () => { disposed = true; clearTimeout(timer); };
   }, [api, workspaceId, id, attempt]);
+  const view = state && !state.error ? delegateView({ ...state, id }) : null, tone = view?.tone ?? null;
+  useEffect(() => { onTone?.(id, tone); }, [onTone, id, tone]);
+  useEffect(() => () => onTone?.(id, null), [onTone, id]);
   if (!state) return null;
   if (state.error) return <p className="pc-phantom-warning" role="alert">Seguimiento Phantom no disponible para <code>{id.slice(0, 13)}</code>. <button type="button" className="pc-phantom-open" onClick={() => setAttempt(n => n + 1)}>Reintentar</button></p>;
   const stepList = (activity, latest = false) => <ol className="pc-subagent-steps" ref={latest ? stepsRef : undefined} aria-label="Pasos del encargo">
     {activity.hidden > 0 && <li className="pc-subagent-hidden">{activity.hidden} pasos anteriores</li>}
     {activity.steps.map(step => { const [, Icon] = toolKind(step.kind); return <li key={step.id} className={`is-${step.status}`}><Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.label}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} /></li>; })}
   </ol>;
-  return <section className="pc-subagent pc-phantom-run" aria-label={`Encargo Phantom ${id}`}>
-    <header className="pc-subagent-head">
-      <span className="pc-subagent-mark" aria-hidden="true"><PhantomGlyph size={16} /></span>
-      <span className="pc-subagent-label">Encargo Phantom</span>
-      <code className="pc-phantom-id" title={id}>{id.slice(0, 13)}</code>
-      <span className={`pc-phantom-status is-${state.tone}`} role="status">{state.label}</span>
-      {state.model && <span className="pc-subagent-type" title={state.model}>{state.model.split('/').at(-1)}</span>}
-    </header>
-    <p className="pc-subagent-goal">{state.title}</p>
-    {state.goal && state.goal !== state.title && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Descripción completa</summary><pre className="pc-subagent-prompt">{state.goal}</pre></details>}
-    <ol className="pc-phantom-phases" aria-label="Fases del encargo">{state.phases.map(phase => <li key={phase.key} className={`is-${phase.state}`} title={phase.detail}><span>{phase.label}</span><b>{phase.text}</b>{phase.detail && <i>{phase.detail}</i>}</li>)}</ol>
-    {state.blocker && <div className="pc-phantom-blocker" role="alert"><strong>{state.blocker.label}</strong><span>{state.blocker.meaning}</span>
-      {onOpenPanel ? <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, resolve: true }, state.title)}>Resolver bloqueo</button> : <span className="pc-quiet">Resolver bloqueo no está disponible: este chat no puede abrir el panel Phantom.</span>}</div>}
-    {state.activity.runs.length <= 1 && state.activity.reason && <p className="pc-phantom-reason" role="alert">{state.activity.reason}</p>}
-    {state.activity.runs.length === 1 && state.activity.runs[0].reasonRaw && state.activity.runs[0].reasonRaw !== state.activity.runs[0].reason && <details className="pc-subagent-more"><summary>Detalle técnico</summary><pre className="pc-phantom-reason">{state.activity.runs[0].reasonRaw}</pre></details>}
-    {state.live && state.activity.current && <p className="pc-subagent-now" role="status" aria-label="Actividad actual"><LoaderCircle className="spinning" size={14} aria-hidden="true" /><span className="pc-tool-name">{state.activity.current.label}</span><span className="pc-tool-detail" title={state.activity.current.detail}>{state.activity.current.detail}</span></p>}
-    <p className="pc-phantom-meta"><span>{state.phase}</span>{state.duration && <span>· {state.duration}</span>}{state.turns !== undefined && <span>· {state.turns} turnos</span>}{state.tools !== undefined && <span>· {state.tools} herramientas</span>}</p>
-    {state.activity.runs.length > 1 ? <div className="pc-phantom-attempts">{state.activity.runs.map((run, index) => <details className="pc-subagent-more" key={run.runId}>
-      <summary><ChevronRight size={14} aria-hidden="true" />Intento {run.attempt} de {state.activity.runs.length}</summary>
-      {run.reason && <p className="pc-phantom-reason" role="alert">{run.reason}</p>}
-      {run.reasonRaw && run.reasonRaw !== run.reason && <details className="pc-subagent-more"><summary>Detalle técnico</summary><pre className="pc-phantom-reason">{run.reasonRaw}</pre></details>}
-      {stepList(run, index === state.activity.runs.length - 1)}
-    </details>)}</div> : (state.activity.total > 0 || state.activity.runs.length > 0 || state.activity.reason) && <details className="pc-subagent-more" open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
-      <summary><ChevronRight size={14} aria-hidden="true" />Pasos del encargo · {state.activity.total}</summary>
-      {stepList(state.activity, true)}
-    </details>}
-    {state.line && <p className="pc-subagent-said">{state.line}</p>}
-    {state.output && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Salida del ejecutor</summary><pre className="pc-subagent-prompt">{state.output}</pre></details>}
-    {state.total > 0 && <details className="pc-subagent-more"><summary><ChevronRight size={14} aria-hidden="true" />Checks · {state.passed}/{state.total} pasados</summary><ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul></details>}
-    {state.live && state.total > 0 && <progress className="pc-progress" max={state.total} value={state.passed} aria-label={`${state.passed} de ${state.total} checks pasados`} />}
-    {onOpenPanel && <button type="button" className="pc-phantom-open" onClick={() => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id }, state.title)}>Abrir en Phantom</button>}
-  </section>;
+  const { activity } = state, attempts = activity.runs.length > 1, only = activity.runs.length === 1 ? activity.runs[0] : null;
+  const has = key => view.sections.some(section => section.key === key);
+  const results = state.checks.some(check => check.result !== 'Sin resultado');
+  const sections = [
+    !attempts && has('activity') && ['Pasos', stepList(activity, true), activity.total],
+    has('phases') && ['Fases', <ol className="pc-phantom-phases" aria-label="Fases del encargo">{state.phases.map(phase => <li key={phase.key} className={`is-${phase.state}`} title={phase.detail}><span>{phase.label}</span><b>{phase.text}</b>{phase.detail && <i>{phase.detail}</i>}</li>)}</ol>],
+    has('checks') && ['Checks', <ul className="pc-phantom-checks">{state.checks.map((check, index) => <li key={index} className={check.passed === false ? 'is-failed' : undefined}>{check.name || `Check ${index + 1}`} · {check.result}</li>)}</ul>, results ? `${state.passed}/${state.total}` : `${state.total} sin resultado`],
+    attempts && ['Intentos', <div className="pc-phantom-attempts">{activity.runs.map((run, index) => <details className="pc-subagent-more" key={run.runId}>
+      <summary><ChevronRight size={14} aria-hidden="true" />Intento {run.attempt} de {activity.runs.length}</summary>
+      {run.reason && <p className="pc-phantom-reason">{run.reason}</p>}
+      {run.reasonRaw && run.reasonRaw !== run.reason && <pre className="pc-phantom-reason">{run.reasonRaw}</pre>}
+      {stepList(run, index === activity.runs.length - 1)}
+    </details>)}</div>, activity.runs.length],
+    state.goal && state.goal !== state.title && ['Encargo', <pre className="pc-subagent-prompt">{state.goal}</pre>],
+    has('output') && ['Salida', <pre className="pc-subagent-prompt">{state.output}</pre>],
+    ['Detalle técnico', <>
+      <Facts rows={[['ID', <code>{id.slice(0, 13)}</code>, id], ['Modelo', state.model || 'No disponible'], ...(state.phase ? [['Fase', state.phase]] : []), ...(!attempts && activity.reason ? [['Motivo', activity.reason]] : [])]} />
+      {only?.reasonRaw && only.reasonRaw !== only.reason && <pre className="pc-phantom-reason">{only.reasonRaw}</pre>}
+    </>],
+  ].filter(Boolean);
+  const open_ = target => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, ...target }, state.title);
+  return <Delegate view={view} glyph={<PhantomGlyph size={16} />} ariaLabel={`Encargo Phantom ${id}`} className="pc-phantom-run" open={open}
+    onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}
+    sections={sections}
+    fallback={view.tone === 'error' && !attempts && activity.reason ? { label: 'Motivo', meaning: activity.reason } : null}
+    progress={state.live && state.total > 0 && <progress className="pc-progress" max={state.total} value={state.passed} aria-label={`${state.passed} de ${state.total} checks pasados`} />}
+    actions={onOpenPanel ? [
+      state.blocker && <button key="resolve" type="button" className="pc-phantom-open" onClick={() => open_({ resolve: true })}>Resolver bloqueo</button>,
+      <button key="open" type="button" className="pc-phantom-open" onClick={() => open_({})}>Abrir en Phantom</button>,
+    ] : []} />;
 }
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -148,9 +184,8 @@ export const ToolGroup = React.memo(function ToolGroup({ items }) {
 }, (previous, next) => previous.items.length === next.items.length && previous.items.every((part, i) => part === next.items[i]));
 
 // A delegation: the agent handed work to a sub-agent (Claude's Agent/Task,
-// OpenCode's task, Codex's spawn_agent). Drawn as its own card in the turn so
+// OpenCode's task, Codex's spawn_agent). Drawn as an activity row (see Delegate) so
 // the user sees who was delegated, what it is doing now and how it ended.
-const AGENT_STATE = { running: 'Trabajando', done: 'Terminó', error: 'Falló', stopped: 'Detenido' };
 function StepState({ status }) {
   if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />;
   if (status === 'error') return <X className="pc-tool-state is-error" size={14} aria-label="Falló" />;
@@ -166,38 +201,24 @@ export const SubagentCard = React.memo(function SubagentCard({ part, onOpenAgent
   const traceId = typeof agent.sessionId === 'string' && agent.sessionId ? agent.sessionId
     : Array.isArray(agent.threadIds) ? (agent.threadIds.length === 1 ? agent.threadIds[0] : '')
     : part.id != null ? String(part.id) : '';
-  const running = part.status === 'running', current = running ? steps.findLast(step => step.status === 'running') || steps.at(-1) : null;
+  const view = delegateView(part.agent ? part : { ...part, type: 'tool', agent: {} });
+  const has = key => view.sections.some(section => section.key === key);
   const hidden = total - steps.length;
-  return <section className={`pc-subagent is-${part.status}`} aria-label={`Subagente${agent.type ? ` ${agent.type}` : ''}: ${part.detail || part.name}`}>
-    <header className="pc-subagent-head">
-      <span className="pc-subagent-mark" aria-hidden="true"><Cpu size={16} /></span>
-      <span className="pc-subagent-label">Subagente</span>
-      {agent.type && <span className="pc-subagent-type">{agent.type}</span>}
-      <span className="pc-subagent-type pc-subagent-model" title={model || undefined}>{model ? model.split('/').at(-1) : 'Modelo no disponible'}</span>
-      <span className="pc-subagent-state" role="status">{running && <LoaderCircle className="spinning" size={14} aria-hidden="true" />}{AGENT_STATE[part.status] || part.status}{total > 0 && <span className="pc-num"> · {total} {total === 1 ? 'paso' : 'pasos'}</span>}</span>
-    </header>
-    <p className="pc-subagent-goal" title={part.detail}>{part.detail || part.name}</p>
-    {current && <p className="pc-subagent-now"><span className="pc-tool-name">{current.name}</span><span className="pc-tool-detail" title={current.detail}>{current.detail}</span></p>}
-    {agent.text && <p className="pc-subagent-said" title={agent.text}>{agent.text}</p>}
-    {steps.length > 0 && <details className="pc-subagent-more">
-      <summary><ChevronRight size={14} aria-hidden="true" />Pasos del subagente</summary>
-      <ol className="pc-subagent-steps">
-        {hidden > 0 && <li className="pc-subagent-hidden">{hidden} {hidden === 1 ? 'paso anterior' : 'pasos anteriores'} sin detalle</li>}
-        {steps.map(step => { const [, Icon] = toolKind(step.name); return <li key={step.id} className={`is-${step.status}`}>
-          <Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
-        </li>; })}
-      </ol>
-    </details>}
-    {agent.prompt && <details className="pc-subagent-more">
-      <summary><ChevronRight size={14} aria-hidden="true" />Encargo</summary>
-      <pre className="pc-subagent-prompt">{agent.prompt}</pre>
-    </details>}
-    {part.output && <details className="pc-subagent-more" onToggle={e => { if (e.target === e.currentTarget) setOpen(e.currentTarget.open); }}>
-      <summary><ChevronRight size={14} aria-hidden="true" />Resultado</summary>
-      <div className="pc-subagent-output">{open && <ToolOutput part={part} kind="agent" />}</div>
-    </details>}
-    {onOpenAgent && traceId && <button type="button" className="pc-phantom-open" onClick={() => onOpenAgent(traceId)}>Ver detalle e historial</button>}
-  </section>;
+  const sections = [
+    has('steps') && ['Pasos', <ol className="pc-subagent-steps">
+      {hidden > 0 && <li className="pc-subagent-hidden">{hidden} {hidden === 1 ? 'paso anterior' : 'pasos anteriores'} sin detalle</li>}
+      {steps.map(step => { const [, Icon] = toolKind(step.name); return <li key={step.id} className={`is-${step.status}`}>
+        <Icon size={14} aria-hidden="true" /><span className="pc-tool-name">{step.name}</span><span className="pc-tool-detail" title={step.detail}>{step.detail}</span><StepState status={step.status} />
+      </li>; })}
+    </ol>, total],
+    has('said') && ['Último mensaje', <p className="pc-delegate-text">{agent.text}</p>],
+    has('prompt') && ['Instrucciones', <pre className="pc-subagent-prompt">{agent.prompt}</pre>],
+    has('output') && ['Resultado', <div className="pc-subagent-output">{open && <ToolOutput part={part} kind="agent" />}</div>],
+    ['Detalle técnico', <Facts rows={[['ID', part.id == null ? 'No disponible' : <code>{String(part.id).slice(0, 13)}</code>, part.id == null ? undefined : String(part.id)], ['Modelo', model || 'No disponible']]} />],
+  ].filter(Boolean);
+  return <Delegate view={view} glyph={<Cpu size={16} />} ariaLabel={`Subagente${agent.type ? ` ${agent.type}` : ''}: ${part.detail || part.name}`}
+    onToggle={e => { if (e.target === e.currentTarget) setOpen(e.currentTarget.open); }} sections={sections}
+    actions={[onOpenAgent && traceId && <button key="trace" type="button" className="pc-phantom-open" onClick={() => onOpenAgent(traceId)}>Ver detalle e historial</button>]} />;
 });
 
 const OTHER = '\u0000other';

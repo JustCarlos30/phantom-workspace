@@ -180,20 +180,38 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .tv-json .tv-str { color: var(--pc-add); }
 .tv-json .tv-num, .tv-json .tv-lit { color: var(--pc-caution); }
 
-.pc-subagent { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 8px; padding: 8px 16px 12px; background: none; font: var(--t-support); overflow: hidden; }
+/* A delegation (sub-agent or Phantom assignment) is an activity row, not a card: 40 px row, glyph in the 32 px column,
+   the current action under it while it works, one attention line, one <details> for the rest. The state sets the weight:
+   lime working, amber only when it needs you, red error, green real success. */
+.pc-subagent { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 0; padding: 0 0 8px; background: none; font: var(--t-support); overflow: hidden; }
 .pc-subagent > * { min-width: 0; }
 .pc-subagent::before { content: ''; position: absolute; left: 32px; top: 10px; bottom: 18px; width: var(--divider-width); background: var(--divider); }
-.pc-subagent > :not(.pc-subagent-head) { margin-left: 44px; }
-.pc-subagent-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--row-gap); min-width: 0; color: var(--muted); }
-.pc-subagent-mark { position: relative; display: grid; place-items: center; width: var(--icon-col); height: 20px; background: var(--well); color: var(--ink); flex-shrink: 0; }
-.pc-subagent-label { color: var(--ink); font: var(--t-control); }
-.pc-subagent-type { font: var(--t-support); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
-.pc-subagent-state { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex-shrink: 0; }
-.pc-subagent.is-running .pc-subagent-state { color: var(--ink); }
-.pc-subagent.is-error .pc-subagent-state { color: var(--pc-del); }
-.pc-subagent-goal { margin: 0; color: var(--ink); font-size: 13px; font-weight: 550; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.pc-subagent-now { display: flex; gap: 8px; min-width: 0; margin: 0; color: var(--muted); font: 12px/1.4 var(--mono); }
-.pc-subagent-said { margin: 0; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.pc-subagent > :not(.pc-subagent-head) { margin: 0 var(--row-px) 4px 60px; }
+.pc-subagent-head { display: flex; align-items: center; gap: var(--row-gap); min-height: var(--activity-row-height); min-width: 0; padding: var(--activity-row-py) var(--row-px); color: var(--muted); }
+.pc-subagent-mark { position: relative; display: grid; place-items: center; width: var(--icon-col); height: 20px; background: var(--well); color: var(--muted); flex-shrink: 0; }
+.pc-subagent-label { flex-shrink: 0; color: var(--ink); font: var(--t-control); white-space: nowrap; }
+.pc-delegate-title { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; }
+.pc-delegate-state { flex-shrink: 0; font: var(--t-micro); white-space: nowrap; }
+.pc-delegate-time { flex-shrink: 0; color: var(--ink-3); font: var(--t-micro); white-space: nowrap; }
+.pc-subagent.is-live .pc-subagent-mark, .pc-subagent.is-live .pc-delegate-state { color: var(--working); }
+.pc-subagent.is-attention .pc-subagent-mark, .pc-subagent.is-attention .pc-delegate-state { color: var(--attention); }
+.pc-subagent.is-error .pc-subagent-mark, .pc-subagent.is-error .pc-delegate-state { color: var(--danger); }
+.pc-subagent.is-done .pc-delegate-state { color: var(--success); }
+.pc-subagent-now { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font: 12px/1.4 var(--mono); }
+.pc-subagent-now > svg { flex-shrink: 0; color: var(--working); }
+.pc-delegate-attention { display: flex; flex-wrap: wrap; gap: 2px 8px; color: var(--muted); overflow-wrap: anywhere; }
+.pc-delegate-attention > strong { color: var(--attention); font-weight: 600; }
+.pc-subagent.is-error .pc-delegate-attention > strong { color: var(--danger); }
+.pc-delegate-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.pc-delegate-body { display: grid; gap: 12px; min-width: 0; padding-top: 8px; }
+.pc-delegate-meta { margin: 0; color: var(--ink-3); }
+.pc-delegate-section { display: grid; gap: 4px; min-width: 0; }
+.pc-delegate-heading { margin: 0; color: var(--ink-3); font: 600 12px/16px var(--sans); }
+.pc-delegate-text { margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pc-delegate-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; }
+.pc-delegate-facts > dt { color: var(--ink-3); }
+.pc-delegate-facts > dd { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.pc-delegate-facts code { font: 12px/16px var(--mono); }
 .pc-subagent-more { color: var(--muted); }
 .pc-subagent-more > summary { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 5px; border-radius: var(--r-pill); cursor: pointer; list-style: none; transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
 .pc-subagent-more > summary::-webkit-details-marker { display: none; }
@@ -201,24 +219,18 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-subagent-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pc-subagent-more > summary > svg { transition: transform var(--dur-fast) var(--ease-out); }
 .pc-subagent-more[open] > summary > svg { transform: rotate(90deg); }
-.pc-subagent-steps { display: grid; gap: 1px; margin: 4px 0 0; padding: 0 0 0 10px; border-left: 1px solid var(--hairline); list-style: none; }
+.pc-subagent-steps { display: grid; gap: 1px; max-height: 220px; margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--hairline); overflow-y: auto; list-style: none; }
 .pc-subagent-steps > li { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 22px; font: 12px/1.4 var(--mono); }
 .pc-subagent-steps > li > .pc-tool-name { font-weight: 500; }
 .pc-subagent-steps > li.is-error > .pc-tool-name { color: var(--pc-del); }
 .pc-subagent-hidden { color: var(--muted); font-style: italic; }
-.pc-subagent-prompt { margin: 4px 0 0; padding: 8px 0; background: none; color: var(--ink); font: var(--t-code); white-space: pre-wrap; word-break: break-word; }
-.pc-subagent-output { margin-top: 4px; }
+.pc-subagent-prompt { margin: 0; padding: 0; background: none; color: var(--ink); font: var(--t-code); white-space: pre-wrap; word-break: break-word; }
+.pc-subagent-output { min-width: 0; }
 .pc-phantom-link { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .pc-phantom-link > * { min-width: 0; }
-.pc-phantom-run .pc-subagent-head { flex-wrap: wrap; }
-.pc-phantom-id { color: var(--muted); font-size: 11px; }
-.pc-phantom-status { margin-left: auto; color: var(--muted); }
-.pc-phantom-status.is-live { color: var(--working); }
-.pc-phantom-status.is-blocked { color: var(--attention); }
-.pc-phantom-status.is-done { color: var(--success); }
-.pc-phantom-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; color: var(--muted); }
-.pc-phantom-checks { margin: 4px 0; padding-left: 20px; }
-.pc-phantom-reason { margin: 4px 0; color: var(--attention); overflow-wrap: anywhere; }
+.pc-phantom-checks { margin: 0; padding-left: 20px; }
+.pc-phantom-checks > .is-failed { color: var(--danger); }
+.pc-phantom-reason { margin: 0; color: var(--muted); overflow-wrap: anywhere; white-space: pre-wrap; }
 .pc-phantom-attempts { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 6px; }
 .pc-phantom-attempts > details { min-width: 0; }
 .pc-phantom-open { justify-self: start; color: var(--ink); font-size: 12px; }
@@ -228,9 +240,8 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-phantom-phases i { font-style: normal; flex-basis: 100%; }
 .pc-phantom-phases .is-current b { color: var(--working); }
 .pc-phantom-phases .is-done b { color: var(--success); }
-.pc-phantom-phases .is-failed b, .pc-phantom-phases .is-blocked b { color: var(--attention); }
-.pc-phantom-blocker { display: grid; gap: 4px; justify-items: start; color: var(--attention); }
-.pc-phantom-blocker > span { color: var(--muted); }
+.pc-phantom-phases .is-failed b { color: var(--danger); }
+.pc-phantom-phases .is-blocked b { color: var(--attention); }
 .pc-phantom-warning, .pc-phantom-command { margin: 0; color: var(--muted); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .pc-phantom-run .pc-subagent-more > summary, .pc-phantom-run .pc-subagent-more > summary > svg { transition: none; } }
 .pc-phantom-final { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
@@ -252,7 +263,7 @@ details[open] > summary > .pc-tool-caret { transform: rotate(90deg); }
 .pc-progress { display: block; width: 100%; height: var(--progress-height); border: 0; border-radius: var(--r-pill); overflow: hidden; background: var(--progress-track); accent-color: var(--working); }
 .pc-progress::-webkit-progress-bar { background: var(--progress-track); }
 .pc-progress::-webkit-progress-value { background: var(--working); border-radius: var(--r-pill); }
-.pc-subagent > .pc-progress { width: calc(100% - 44px); }
+.pc-subagent > .pc-progress { width: calc(100% - 60px - var(--row-px)); margin: 0 0 8px 60px; }
 @media (prefers-reduced-motion: no-preference) {
   svg.pc-tool-state.is-running { animation: none; }
 }
