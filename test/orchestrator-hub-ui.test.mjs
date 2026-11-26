@@ -205,6 +205,7 @@ test('sin desborde horizontal a 320 px ni a 1600 px', async () => {
     assert.ok(await box.isVisible(), `${width}px: composer visible`);
     await box.fill(`Borrador a ${width}px`);
     assert.equal(await box.inputValue(), `Borrador a ${width}px`, `${width}px: borrador conservado`);
+    await until(async () => await page.getByRole('button', { name: /^Enviar al orquestador/ }).isEnabled());
     await page.screenshot({ path: `${artifacts}/orchestrator-hub-${width}.png` });
     await close(page);
   }
@@ -265,6 +266,7 @@ test('compositor: isla de 720 px centrada, Enviar marfil con borrador y campo de
   const send = page.getByRole('button', { name: /^Enviar al orquestador/ });
   const primary = await resolve(page, '--primary', 'backgroundColor');
   assert.notEqual(await send.evaluate(el => getComputedStyle(el).backgroundColor), primary, 'sin borrador Enviar no es marfil');
+  assert.equal(await field.evaluate(el => getComputedStyle(el).backgroundColor), await resolve(page, '--composer-fill', 'backgroundColor'), 'reposo');
   await box.fill('Revisa la rama de pagos');
   await until(async () => await send.isEnabled());
   await until(async () => await send.evaluate(el => getComputedStyle(el).backgroundColor) === primary, 2000).catch(() => {});
@@ -277,7 +279,6 @@ test('compositor: isla de 720 px centrada, Enviar marfil con borrador y campo de
   assert.ok(geometry.width <= 720 && geometry.width > 700, `isla de 720 px (${geometry.width})`);
   assert.ok(Math.abs(geometry.left - geometry.right) <= 1, 'isla centrada');
   assert.ok(await box.evaluate(el => el.getBoundingClientRect().height) >= 40, 'campo mínimo de 40 px');
-  assert.equal(await field.evaluate(el => getComputedStyle(el).backgroundColor), await resolve(page, '--composer-fill', 'backgroundColor'));
   await box.focus();
   assert.equal(await field.evaluate(el => getComputedStyle(el).backgroundColor), await resolve(page, '--composer-fill-lit', 'backgroundColor'), 'foco «luz»');
   assert.equal(await field.evaluate(el => getComputedStyle(el, '::after').transitionDuration), '0s', 'sin transición con movimiento reducido');
