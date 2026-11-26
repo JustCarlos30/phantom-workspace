@@ -27,7 +27,7 @@ export function prunePhantomControllers(workspace, live = controllers, dataDir) 
   if (!Array.isArray(items)) return false;
   const active = item => item.status === 'running' || live.has(item.id);
   const recent = new Set(items.filter(item => !active(item)).sort((a, b) =>
-    (Date.parse(b.endedAt ?? b.createdAt) || 0) - (Date.parse(a.endedAt ?? a.createdAt) || 0)).slice(0, 20));
+    (Date.parse(b.endedAt ?? b.createdAt) || 0) - (Date.parse(a.endedAt ?? a.createdAt) || 0)).slice(0, 8));
   let changed = false;
   const retained = items.filter(item => active(item) || recent.has(item));
   for (const item of retained) if (!active(item) && typeof item.output === 'string' && item.output.length > OUTPUT_TAIL) {

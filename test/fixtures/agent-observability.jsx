@@ -76,7 +76,7 @@ window.mountObservability = ({ surface = 'both', width = 900 } = {}) => {
           </div>)}
         </AgentOpenContext.Provider>
       </div>}
-      {surface !== 'canvas' && <PhantomChat workspace={workspace} api={api} notify={() => {}} connected tab={tab} onTab={setTab} status={{ tone: 'working', orchestrator: null }} onOpenPanel={(type, data) => window.fixture.panels.push({ type, data })} agentRequest={request} onAgentRequestConsumed={consumeAgentRequest} onTask={() => {}} />}
+      {surface !== 'canvas' && <PhantomChat workspace={workspace} api={api} notify={() => {}} connected tab={tab} onTab={setTab} status={{ tone: 'working', orchestrator: null }} onOpenPanel={(type, data) => window.fixture.panels.push({ type, data })} agentRequest={request} onAgentRequestConsumed={consumeAgentRequest} onOpenOrchestrator={() => { window.fixture.hubOpened = (window.fixture.hubOpened || 0) + 1; }} onTask={() => {}} />}
     </div>;
   }
   const container = document.getElementById('fixture');

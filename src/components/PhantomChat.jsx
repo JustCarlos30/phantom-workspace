@@ -27,7 +27,7 @@ const PERMISSIONS = {
 // project and runs it in the project folder. Typed or dictated text is sent only
 // by explicit Send, and a dictation can become a task instead. Orquestador shows
 // the session that integrates the terminals' work and its queue.
-export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership, tab = 'chat', onTab, status, onOpenPanel, onTask, agentRequest, onAgentRequestConsumed }) {
+export default function PhantomChat({ workspace, api, notify, connected, onClose, focusRequest, onFocusOwnership, tab = 'chat', onTab, status, onOpenPanel, onTask, agentRequest, onAgentRequestConsumed, onOpenOrchestrator }) {
   const nodeId = `phantom:${workspace.id}`;
   // The host owns the provider; `pending` only shows a switch in flight.
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId, provider: 'phantom', api, connected });
@@ -114,9 +114,9 @@ export default function PhantomChat({ workspace, api, notify, connected, onClose
     </header>
     <div className="pd-tabs control-segmented" role="tablist" aria-label="Vistas de Phantom">
       <button type="button" role="tab" id="pd-tab-chat" aria-controls="pd-panel" aria-selected={tab === 'chat'} onClick={() => onTab?.('chat')}><MessageSquare size={14} aria-hidden="true" /><span className="pd-tab-label">Chat</span>{running && <i className="pd-tab-live" aria-label="respondiendo" />}</button>
-      <button type="button" role="tab" id="pd-tab-orchestrator" aria-controls="pd-panel" aria-selected={tab === 'orchestrator'} data-tone={status?.tone} onClick={() => onTab?.('orchestrator')}><GitMerge size={14} aria-hidden="true" /><span className="pd-tab-label">Orquestador</span>{status?.integration && status.queued > 0 && <b aria-label={`${status.queued} en cola`}>{status.queued}</b>}{status?.integration && !status.queued && status.tone !== 'idle' && <i className="pd-tab-dot" aria-hidden="true" />}</button>
+      <button type="button" role="tab" id="pd-tab-orchestrator" aria-controls="pd-panel" aria-selected={tab === 'orchestrator'} data-tone={status?.tone} onClick={() => onTab?.('orchestrator')}><GitMerge size={14} aria-hidden="true" /><span className="pd-tab-label">Agentes</span>{status?.integration && status.queued > 0 && <b aria-label={`${status.queued} en cola`}>{status.queued}</b>}{status?.integration && !status.queued && status.tone !== 'idle' && <i className="pd-tab-dot" aria-hidden="true" />}</button>
     </div>
-    {tab === 'orchestrator' ? <div className="pd-panel" id="pd-panel" role="tabpanel" aria-labelledby="pd-tab-orchestrator"><PhantomOrchestrator workspace={workspace} api={api} notify={notify} connected={connected} status={status} onOpenPanel={onOpenPanel} agentFocus={focusedAgent} onAgentFocusConsumed={consumeAgentFocus} /></div> : <>
+    {tab === 'orchestrator' ? <div className="pd-panel" id="pd-panel" role="tabpanel" aria-labelledby="pd-tab-orchestrator">{onOpenOrchestrator && <button type="button" className="pd-open-orchestrator button" onClick={onOpenOrchestrator}>Abrir orquestador</button>}<PhantomOrchestrator workspace={workspace} api={api} notify={notify} connected={connected} status={status} onOpenPanel={onOpenPanel} agentFocus={focusedAgent} onAgentFocusConsumed={consumeAgentFocus} /></div> : <>
     <div ref={thread} className="pc-thread phantom-chat-thread" role="log" aria-label="Conversación con Phantom" aria-live="off" onScroll={e => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
       <div className="pc-column">
         {!messages.length && (!connected || !chat) && <p role="status">{!connected ? 'Sin conexión con el host' : 'Cargando la conversación…'}</p>}

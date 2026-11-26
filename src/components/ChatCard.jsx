@@ -14,6 +14,8 @@ import { locationOf } from './TerminalCard';
 import { sessionChipLabel } from '../hooks/sessionChipLabel.mjs';
 import PlanPhases from './PlanPhases';
 import TouchedFiles from './TouchedFiles.jsx';
+import { ChangesCanvasContext } from './ChangesCanvasContext.jsx';
+import { appendReviewComment } from '../hooks/changes-canvas.mjs';
 import { planSummary } from '../hooks/plan-view.mjs';
 import Markdown, { CopyButton } from './Markdown';
 import { ProviderTile } from './Glyphs';
@@ -279,6 +281,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   draftRef.current = draft;
   const arm = value => { armedRef.current = value; setArmed(value); };
   const thread = useRef(null), input = useRef(null), pinned = useRef(true);
+  const changesCanvas = useContext(ChangesCanvasContext);
   const recorderVoice = useVoiceRecorder({ api, workspaceId: workspace.id, scopeId: `${node.id}:${provider}`, enabled: connected && !overview,
     onText: text => {
       const merged = mergeDictation(draftRef.current, text), pendingSend = armedRef.current;
@@ -288,6 +291,15 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const voice = { ...recorderVoice, cancel: () => { arm(false); recorderVoice.cancel(); } };
   const listening = voice.status === 'recording';
   const dictating = listening || voice.status === 'transcribing';
+  const commentOnChanges = comment => {
+    const next = appendReviewComment(draftRef.current, comment);
+    if (next === draftRef.current || !connected || voice.status !== 'idle') return;
+    arm(false);
+    draftRef.current = next;
+    setDraft(next);
+    changesCanvas?.close(node.id);
+    requestAnimationFrame(() => input.current?.focus({ preventScroll: true }));
+  };
   useLayoutEffect(() => { if (voice.status === 'idle' || !connected || overview) arm(false); }, [voice.status, connected, overview]);
   useLayoutEffect(() => { arm(false); }, [workspace.id, node.id, provider]);
   const running = !!chat?.running, messages = chat?.messages || [], meta = chat?.meta || {};
@@ -417,7 +429,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
           <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />
           <ReasoningPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} observed={model} disabled={!chat || running} />
-        </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} /></>}
+        </>} leading={<><button type="button" className="pc-icon pc-new-conversation" title="Conversación nueva" aria-label="Empezar una conversación nueva" disabled={running || !messages.length || voice.status !== 'idle'} onClick={startNew}><MessageSquarePlus size={18} /></button><TouchedFiles node={node} workspace={workspace} api={api} enabled={connected} onComment={connected && voice.status === 'idle' ? commentOnChanges : undefined} /></>}
           meter={<ContextMeter meta={meta} {...compaction.meter} reveal={reveal} onNew={messages.length ? startNew : undefined} />}>
           {voice.status === 'idle' && <button type="button" className="phantom-chat-mic" disabled={!connected || voice.busyElsewhere} title={voice.busyElsewhere ? 'Otro dictado en curso: detén o cancela su audio' : `Dictar a ${label}`} aria-label={`Dictar a ${label}`} onClick={voice.start}><Mic size={18} /></button>}
           {running && <button type="button" className="pc-send is-stop" title="Detener respuesta" aria-label="Detener respuesta" onClick={() => stop().catch(() => {})}><Square size={14} /></button>}

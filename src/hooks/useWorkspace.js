@@ -3,6 +3,7 @@ import { createSaveQueue } from './saveQueue';
 import { createCloseHandler } from './closeProtocol';
 import { createDraftRegistry } from './inlineName';
 import { structuralShare } from './structuralShare';
+import { mergePartialState } from './stateMerge.js';
 import { createEventHub } from './eventHub.js';
 
 export const api = (method, payload = {}) => {
@@ -34,13 +35,24 @@ export function useWorkspace(notify) {
     ...w, ...queue.current?.entries.get(`workspace:${w.id}`)?.patch,
     nodes: (w.nodes || []).map(n => ({ ...n, ...queue.current?.entries.get(`${w.id}:${n.id}`)?.patch })),
   })) }), []);
-  const refresh = useCallback(async () => {
+  const latest = useRef(null);
+  const refresh = useCallback(async workspaceIds => {
     if (transport.current.revision && transport.current.status !== 'connected') throw new Error('Espera a recuperar la conexión para actualizar el proyecto.');
     const version = ++generation.current, transportRevision = transport.current.revision;
     try {
-      const next = await api('state.get');
+      const ids = Array.isArray(workspaceIds) ? workspaceIds : null;
+      let next = null;
+      if (ids?.length) {
+        let merged = latest.current;
+        for (const workspaceId of ids) {
+          merged = mergePartialState(merged, await api('state.get', { workspaceId }));
+          if (!merged) break;
+        }
+        next = merged;
+      }
+      if (!next) next = await api('state.get');
       if (transport.current.revision !== transportRevision) throw new Error('La conexión cambió durante la lectura. Espera a la reconexión.');
-      if (mounted.current && version === generation.current) { setState(previous => structuralShare(previous, overlay(next))); setStateReadAt(Date.now()); setReadError(''); }
+      if (mounted.current && version === generation.current) { latest.current = next; setState(previous => structuralShare(previous, overlay(next))); setStateReadAt(Date.now()); setReadError(''); }
       // Bootstrap only: operation/read errors never define transport status.
       if (transport.current.status === 'connecting' && transportRevision === 0) {
         transport.current.status = 'connected';
@@ -84,7 +96,8 @@ export function useWorkspace(notify) {
   const finishClose = useCallback(requestId => closeHandler.current(requestId), []);
   useEffect(() => {
     mounted.current = true;
-    let eventTimer;
+    let eventTimer, full = false;
+    const pending = new Set();
     const off = subscribe(e => {
       if (e.type === 'desktop.beforeClose' && e.requestId) { finishClose(e.requestId); return; }
       if (e.type === 'desktop.closeCancelled' && e.requestId) { closeHandler.current.cancel(e.requestId); return; }
@@ -94,7 +107,7 @@ export function useWorkspace(notify) {
         if (status === 'connected' && previous === 'connected') return;
         transport.current = { status, revision: transport.current.revision + 1 };
         setConnection({ status, message: e.message || '' });
-        clearTimeout(eventTimer); ++generation.current;
+        clearTimeout(eventTimer); pending.clear(); full = false; ++generation.current;
         if (status === 'connected' && previous !== 'connected') {
           // Retry acknowledged and pending writes before replacing the snapshot.
           const activeDrain = queue.current.draining;
@@ -103,7 +116,12 @@ export function useWorkspace(notify) {
         return;
       }
       if (transport.current.status === 'connected' && ['state.changed', 'attention.new', 'terminal.exit'].includes(e.type)) {
-        clearTimeout(eventTimer); eventTimer = setTimeout(() => refresh().catch(() => {}), 100);
+        if (e.type === 'terminal.exit' || !e.workspaceId) full = true; else pending.add(e.workspaceId);
+        clearTimeout(eventTimer); eventTimer = setTimeout(() => {
+          const ids = full || pending.size > 3 ? null : [...pending];
+          pending.clear(); full = false;
+          refresh(ids).catch(() => {});
+        }, 100);
       }
     });
     refresh().catch(() => {});

@@ -26,15 +26,21 @@ export function parseDiffLines(text) {
   if (typeof text !== 'string' || !text) return [];
   const lines = text.split('\n');
   if (lines.at(-1) === '') lines.pop();
-  let inHunk = false;
+  let oldLine = null, newLine = null, hunkIndex = -1;
   return lines.map(line => {
-    if (line.startsWith('@@')) { inHunk = true; return { kind: 'hunk', text: line }; }
-    if (line.startsWith('diff --git')) { inHunk = false; return { kind: 'meta', text: line }; }
+    if (line.startsWith('@@')) {
+      const match = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      hunkIndex++;
+      oldLine = match ? Number(match[1]) : null;
+      newLine = match ? Number(match[2]) : null;
+      return { kind: 'hunk', text: line, oldLine: null, newLine: null, hunkIndex };
+    }
+    if (line.startsWith('diff --git')) { oldLine = newLine = null; return { kind: 'meta', text: line }; }
     if (line.startsWith('\\')) return { kind: 'meta', text: line };
-    if (!inHunk) return { kind: 'meta', text: line };
-    if (line[0] === '+') return { kind: 'add', text: line.slice(1) };
-    if (line[0] === '-') return { kind: 'del', text: line.slice(1) };
-    return { kind: 'ctx', text: line.slice(1) };
+    if (oldLine === null || newLine === null) return { kind: 'meta', text: line };
+    if (line[0] === '+') return { kind: 'add', text: line.slice(1), oldLine: null, newLine: newLine++, hunkIndex };
+    if (line[0] === '-') return { kind: 'del', text: line.slice(1), oldLine: oldLine++, newLine: null, hunkIndex };
+    return { kind: 'ctx', text: line.slice(1), oldLine: oldLine++, newLine: newLine++, hunkIndex };
   });
 }
 
@@ -63,5 +69,5 @@ export function nextSelection(files, current, previous) {
 export function sameFiles(a, b) {
   if (a === b) return true;
   if (!a || !b || a.length !== b.length) return false;
-  return a.every((file, i) => { const other = b[i]; return file.path === other.path && file.status === other.status && file.added === other.added && file.removed === other.removed && file.uncommitted === other.uncommitted; });
+  return a.every((file, i) => { const other = b[i]; return file.path === other.path && file.originalPath === other.originalPath && file.status === other.status && file.added === other.added && file.removed === other.removed && file.uncommitted === other.uncommitted; });
 }

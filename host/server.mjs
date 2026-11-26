@@ -19,9 +19,11 @@ import { roleEnv } from './merge-guard.mjs';
 import { handleReference, forgetNode, mentionBrief } from './references.mjs';
 import { MobileAccess } from './mobile.mjs';
 import { agentProjects, resolveHandoffProject, validateHandoff, handoffCommand, handoffPosition, createHandoffLimit } from './handoffs.mjs';
+import { deliverToOrchestrator } from './orchestrator-route.mjs';
 import { validateLaunch, createProcessLimit, processList, validateEnv, createEnvLimit } from './processes.mjs';
 import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
+import { stateView } from './state-view.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
@@ -252,7 +254,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const closeEnvBrowsers=(workspaceId,names,environmentId)=>{
     if(!names?.length)return;
     const gone=n=>n.type==='browser'&&names.includes(n.data?.envService)&&(n.data?.envEnvironmentId??null)===(environmentId??null);
-    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);w.nodes=w.nodes.filter(n=>!gone(n));});
+    if(store.getWorkspace(workspaceId).nodes.some(gone))mutate(workspaceId,()=>{const w=store.getWorkspace(workspaceId);for(const n of w.nodes.filter(gone))forgetNode(w,n,dataDir);w.nodes=w.nodes.filter(n=>!gone(n));});
   };
   async function envBrowser(w,sender,service) {
     const existing=store.getWorkspace(w.id).nodes.find(n=>n.type==='browser'&&n.data?.agentTerminal===sender.id&&n.data?.envService===service.name&&(n.data?.envEnvironmentId??null)===(service.environmentId??null));
@@ -435,7 +437,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='android.approve') return android.approve(p);
     if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
-    if(method==='state.get') {const state=structuredClone(store.state);delete state.terminalHistory;state.settings=publicSettings(state.settings);return state;}
+    if(method==='state.get') return stateView(store.state,{workspaceId:p?.workspaceId});
     if(method==='settings.update') {
       object(p.patch);
       // Provider policy keys are validated as a whole; providers.configure is the dedicated path.
@@ -605,6 +607,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
       return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;if(patch.name!==undefined)current.title=patch.name.trim();else if(changedCard&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(validated.cardTitle||'');if(named)current.title=named;}current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
     }
+    if(method==='orchestrator.send') return deliverToOrchestrator({store,terminals,chats,invoke},p);
     if(method==='terminal.setup.retry') return terminals.retrySetup(p.sessionId);
     if(method==='terminal.attach') return terminals.attach(p.sessionId,p.fromSeq);
     if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
@@ -621,7 +624,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(node?.type==='terminal','Terminal node not found');
       runWake.cancel(node.id,'La terminal se cerró');
       await terminals.closeNode(node.id);chats.removeNode(node.id);await envRelease(w.id,null,node.id);
-      return mutate(w.id,()=>{store.getWorkspace(w.id).nodes=store.getWorkspace(w.id).nodes.filter(n=>n.id!==node.id);return {ok:true};});
+      return mutate(w.id,()=>{const current=store.getWorkspace(w.id);forgetNode(current,node,dataDir);current.nodes=current.nodes.filter(n=>n.id!==node.id);return {ok:true};});
     }
     // Chat cards: a terminal node whose data.chat.provider selects an agent CLI
     // driven headlessly. data.chat changes only through chat.configure.

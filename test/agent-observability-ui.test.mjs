@@ -150,6 +150,16 @@ async function measure(page, surface, width, state) {
   assert.ok(found.page <= 0 && found.fixture <= 1 && found.dock <= 1, `${surface} ${width}px ${state}: overflow horizontal ${JSON.stringify(found)}`);
 }
 
+test('the right-hand tab is «Agentes» and offers «Abrir orquestador» for the global section', async t => {
+  const world = createWorld(t); populate(world);
+  const page = await render(world, { surface: 'both', width: 900 });
+  await page.getByRole('tab', { name: 'Agentes' }).waitFor();
+  assert.equal(await page.getByRole('tab', { name: /^Orquestador/ }).count(), 0);
+  await page.getByRole('button', { name: 'Abrir orquestador' }).click();
+  assert.equal(await page.evaluate(() => window.fixture.hubOpened), 1);
+  await close(page);
+});
+
 test('clicking a sub-agent in any canvas card opens that agent in the dock, with no mixing between cards', async t => {
   const world = createWorld(t); populate(world);
   const page = await render(world, { surface: 'both', width: 900 });
@@ -226,6 +236,7 @@ test('long histories paginate with a continuable cursor and finished or restarte
   await row('toolu_A3').click();
   await detail(page).waitFor();
   const items = detail(page).getByRole('list', { name: 'Historial del agente' }).getByRole('listitem');
+  await until(async () => (await items.count()) > 0);
   const firstPage = await items.count();
   assert.equal(firstPage, 50, 'the first page holds one bounded page of events');
   const more = detail(page).getByRole('button', { name: 'Cargar más historial' });
