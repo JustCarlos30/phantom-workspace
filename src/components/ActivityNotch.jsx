@@ -162,8 +162,9 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
         {!activity.connected && <p className="activity-note" role="status">Sin conexión.</p>}
         {activity.connected && failing && <p className="activity-note" role="status">{STALE}. <button type="button" className="activity-link" onClick={activity.retry}>Reintentar</button></p>}
         {view === 'needs' && <>
-          {count > 0 && <Group id="activity-now" title="Decide ahora">{now.map(item => <Row key={item.key} kind={item.need} title={item.headline} meta={[item.context, waiting(item.at, activity.now)]} expanded={opened === item.key} onOpen={() => setOpenKey(item.key)} detail={opened === item.key && <>
+          {count > 0 && <Group id="activity-now" title="Decide ahora">{now.map(item => <Row key={item.key} kind={item.need} title={item.headline} meta={[item.context, waiting(item.at, activity.now)]} expanded={opened === item.key} onOpen={() => setOpenKey(item.key)} detail={<>
             {item.need === 'conflict' && <ConflictLanes item={item} />}
+            {opened === item.key && <>
             {item.excerpt && <TerminalExcerpt item={item} api={api} activity={activity} />}
             {item.need === 'permission' && item.code && <pre className="activity-excerpt activity-command" aria-label="Comando">{item.code}</pre>}
             {item.reply === 'terminal' && <TerminalReply key={item.key} item={item} disabled={!!busy || !activity.connected} send={(text, clear) => run(item.key, async () => {
@@ -172,9 +173,11 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
               await api('terminal.write', { sessionId: item.sessionId, data: '\r' });
               clear(); setSent(keys => keys.includes(item.key) ? keys : [...keys, item.key]);
             })} />}
+            </>}
           </>}>{sent.includes(item.key) && <span role="status">Enviado</span>}{opened === item.key && decide(item)}</Row>)}</Group>}
-          {stuck.length > 0 && <Group id="activity-stuck" title="Se atoraron" total={stuck.reduce((sum, group) => sum + group.count, 0)}>{shownStuck.map(group => <Row key={group.key} kind="failed" title={`${group.label} · ${group.count}`} meta={[group.meaning]} expanded={opened === group.key} onOpen={() => setOpenKey(opened === group.key ? '' : group.key)} detail={opened === group.key && <>
+          {stuck.length > 0 && <Group id="activity-stuck" title="Se atoraron" total={stuck.reduce((sum, group) => sum + group.count, 0)}>{shownStuck.map(group => <Row key={group.key} kind="failed" title={`${group.label} · ${group.count}`} meta={[group.meaning]} expanded={opened === group.key} onOpen={() => setOpenKey(opened === group.key ? '' : group.key)} detail={<>
             {Number.isInteger(group.step) && <ol className="need-track" aria-label={`Se detuvo en ${STUCK_STEPS[group.step]}, paso ${group.step + 1} de 5`}>{STUCK_STEPS.map((name, index) => <li key={name} data-step={index < group.step ? 'done' : index === group.step ? 'fail' : 'todo'}>{name}</li>)}</ol>}
+            {opened === group.key && <>
             <p className="activity-copy">{group.next}</p>
             <ul className="activity-stuck-list">{group.items.slice(0, 5).map(task => <li key={task.key}>
               <span className="activity-stuck-title" title={task.headline}>{task.headline}</span>
@@ -182,6 +185,7 @@ export function ActivityTray({ activity, workspace, api, notify, filter = 'needs
               {toCard(task, false) || toSession(task, undefined, false)}
             </li>)}</ul>
             {group.items.length > 5 && <p className="activity-copy">y {group.items.length - 5} más</p>}
+            </>}
           </>} />)}{hiddenStuck.length > 0 && <li className="activity-more"><button type="button" className="activity-link" aria-expanded={allCauses} onClick={() => setAllCauses(!allCauses)}>{allCauses ? 'Ver menos' : `${hiddenStuck.length} ${hiddenStuck.length === 1 ? 'causa más' : 'causas más'} · ${hiddenStuck.reduce((sum, group) => sum + group.count, 0)} ${hiddenStuck.reduce((sum, group) => sum + group.count, 0) === 1 ? 'tarea' : 'tareas'}`}</button></li>}</Group>}
           {later.length > 0 && <Group id="activity-later" title="Cuando puedas">{later.map(item => <Row key={item.key} kind={item.need} title={item.headline} meta={[item.context]}>{tidy(item)}</Row>)}</Group>}
           {!count && !stuck.length && !later.length && <EmptyState className="activity-empty" size="compact" icon={CheckCircle2} description="Aquí aparecerá lo que necesite una decisión tuya." />}
