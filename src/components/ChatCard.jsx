@@ -243,13 +243,13 @@ export function SessionChip({ cwd, branch, workspaceName, children }) {
   </details>;
 }
 
-export function ComposerControls({ selectors, leading, meter, voice, hint, children }) {
+export function ComposerControls({ selectors, leading, meter, voice, hint, onFinish, finishLabel, children }) {
   return <div className="pc-controls">
     <div className="pc-selectors" role="group" aria-label="Configuración de la conversación">{selectors}</div>
     <div className="pc-composer-actions">
       <div className="pc-composer-tools">{leading}{meter}</div>
       <div className="pc-composer-send">
-        <VoiceActivity voice={voice} onFinish={voice.stop} hint={hint} />
+        <VoiceActivity voice={voice} onFinish={onFinish || voice.stop} hint={hint} finishLabel={finishLabel} />
         {children}
       </div>
     </div>
@@ -397,7 +397,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
           <VoiceTranscript voice={voice} draft={draft} />
           <textarea ref={input} rows={1} value={preview} readOnly={voice.status !== 'idle'} disabled={!connected} aria-label={`Mensaje para ${label}`} placeholder={running ? `${label} está respondiendo · lo que envíes queda en espera` : `Escribe a ${label}…`} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         </div>
-        <ComposerControls voice={voice} hint="Esc descarta · Enter envía" selectors={<>
+        <ComposerControls voice={voice} onFinish={() => submit()} finishLabel="Terminar dictado y enviar · Enter" selectors={<>
           <SessionChip cwd={locationOf(node, workspace).cwd} branch={locationOf(node, workspace).branch} workspaceName={workspace.name}>{context}</SessionChip>
           <PermissionSwitch mode={permissionMode} provider={provider} disabled={!chat} onChange={configurePermission(api, workspace, node, notify)} />
           <ModelPicker node={node} workspace={workspace} api={api} notify={notify} provider={provider} label={label} observed={model} disabled={!chat || running} />

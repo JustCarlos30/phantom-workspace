@@ -340,12 +340,12 @@ test('Voz: recorder real con audio sintético, grabación/transcripción/revisi�
       await page.locator('.voice-activity[data-state=recording]').waitFor();
       const recording = await geometry(page, surface, width, 'recording');
       await page.getByRole('button', { name: 'Descartar dictado' }).click({ trial: true });
-      await page.getByRole('button', { name: 'Terminar dictado', exact: true }).click();
+      await page.locator('.voice-finish').click();
       await page.locator('.voice-activity[data-state=transcribing]').waitFor();
       const transcribing = await geometry(page, surface, width, 'transcribing');
       await page.waitForFunction(() => typeof window.fixture.finish === 'function');
       await page.evaluate(() => window.fixture.finish());
-      await page.waitForFunction(() => document.querySelector('textarea').value === 'Texto sintético revisable.');
+      await page.waitForFunction(() => window.fixture.calls.some(call => call.method === 'chat.send'));
       const review = await geometry(page, surface, width, 'review');
       for (const sample of [recording, transcribing, review]) {
         assert.ok(Math.abs(sample.bounds.height - initial.bounds.height) <= 1, 'La isla conserva altura durante voz');
@@ -353,8 +353,7 @@ test('Voz: recorder real con audio sintético, grabación/transcripción/revisi�
         assert.deepEqual(sample.controls.slice(0, 3).map(({ x, y, width, height }) => ({ x, y, width, height })), initial.controls.slice(0, 3).map(({ x, y, width, height }) => ({ x, y, width, height })), 'Selectores estables');
       }
       assert.equal(await page.locator('textarea').getAttribute('readonly'), null);
-      assert.equal(await page.evaluate(() => window.fixture.calls.filter(call => call.method === 'chat.send').length), 0, 'Revisión no envía automáticamente');
-      await page.getByRole('button', { name: 'Poner mensaje en espera' }).click({ trial: true });
+      assert.equal(await page.evaluate(() => window.fixture.calls.filter(call => call.method === 'chat.send').length), 1, 'La palomita termina el dictado y envía directamente');
       results.push(`${surface}/${width}px: grabando → transcribiendo → revisión, sin salto de isla/selectores, con respuesta concurrente y botones de detener/enviar; audio/ASR sintéticos.`);
     } finally { await close(page); }
   }
