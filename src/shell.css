@@ -15,7 +15,7 @@
 /* «Guardado» is a quiet check; saving and errors say it in words. */
 .app-shell .save-state.is-quiet { color: var(--ink-3); }
 .app-shell .save-state > .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.app-shell .header-controls { padding: 0 8px 0 14px; gap: 4px; }
+.app-shell .header-controls { padding: 0 8px 0 14px; gap: 10px; }
 .app-shell .header-controls .icon-button { width: var(--target); height: var(--target); border-radius: 50%; background: var(--control-fill); color: var(--ink); }
 .app-shell .header-controls .icon-button:hover:not(:disabled) { background-color: var(--control-hover); color: var(--ink); }
 .app-shell .header-controls .icon-button:is(.active, [aria-pressed="true"], [aria-expanded="true"]) { background-color: var(--control-fill); color: var(--ink); box-shadow: none; }

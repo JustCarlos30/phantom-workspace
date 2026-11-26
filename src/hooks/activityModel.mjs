@@ -42,14 +42,18 @@ export function sessionState(session, connected = true, linkedTasks = []) {
   if (session?.status === 'lost') return { label: 'Sesión perdida', needsYou: true, tone: 'warning' };
   const agent = text(session?.agentState) || text(session?.agent?.status);
   const explicit = agent ? classifyTask({ status: agent }) : null;
-  const intervention = linkedTasks.find(t => classifyTask(t).needsYou);
+  const stuck = status => ['blocked', 'failed', 'error'].includes(status);
+  const intervention = linkedTasks.find(t => classifyTask(t).needsYou && !stuck(classifyTask(t).status));
   if (intervention) return { needsYou: true, label: classifyTask(intervention).label, tone: 'warning' };
   // What the terminal screen shows right now outranks a declared 'working': an
   // agent sitting on a question needs you even if it never reported it.
   const screen = text(session?.screenState);
   if (screen === 'awaiting_approval') return { needsYou: true, label: session?.screenReason === 'trust' ? 'Pide confiar en la carpeta' : 'Pide permiso', tone: 'warning', screen };
   if (screen === 'awaiting_input' && !explicit?.needsYou) return { needsYou: true, label: 'Terminó · tu turno', tone: 'warning', screen };
-  if (explicit) return { needsYou: explicit.needsYou, label: explicit.label, tone: explicit.needsYou ? 'warning' : 'neutral' };
+  if (explicit) {
+    const needsYou = explicit.needsYou && !stuck(explicit.status);
+    return { needsYou, label: explicit.label, tone: needsYou ? 'warning' : ['running', 'working', 'doing', 'verifying', 'recovering'].includes(explicit.status) ? 'working' : 'neutral' };
+  }
   if (screen === 'working') return { needsYou: false, label: 'Trabajando', tone: 'working', screen };
   if (linkedTasks.length) return { needsYou: false, label: classifyTask(linkedTasks[0]).label, tone: 'neutral' };
   return { label: session?.status === 'running' ? 'En espera' : 'Sin datos', needsYou: false, tone: 'unknown' };
