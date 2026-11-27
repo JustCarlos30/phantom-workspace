@@ -120,8 +120,12 @@ export class Branches {
       return row;
     }));
     // Worktrees without a branch still hold files; show them so nothing stays hidden.
-    for (const tree of trees.filter(item => !item.branch)) {
-      const exists = !tree.prunable && fs.existsSync(tree.path), changes = exists ? await status(tree.path).catch(() => []) : [];
+    // Read in parallel (bounded by the polling limit): run artifacts can leave hundreds of them.
+    const detached = await Promise.all(trees.filter(item => !item.branch).map(async tree => {
+      const exists = !tree.prunable && fs.existsSync(tree.path);
+      return { tree, exists, changes: exists ? await status(tree.path).catch(() => []) : [] };
+    }));
+    for (const { tree, exists, changes } of detached) {
       rows.push({ name: null, oid: tree.oid ?? null, detached: true, isBase: false, last: null, worktree: { path: tree.path, exists, main: real(tree.path) === base.source, locked: Boolean(tree.locked) }, terminal: null, ahead: 0, behind: 0, committed: [], changes: changes.slice(0, MAX_FILES), changeCount: changes.length, changeSummary: summarizeChanges(changes), conflicts: null, request: null });
     }
     // Files touched (committed or not) by more than one branch with pending work: order matters there.

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { readyLabel, readySummary, readyTitle, trackReady } from './ready-branches.mjs';
 
+const HIDDEN_INTERVAL = 60000;
+
 export function useReadyBranches(api, workspace, connection, notify) {
   const tracking = useRef(null);
   const inFlight = useRef(false);
@@ -10,7 +12,7 @@ export function useReadyBranches(api, workspace, connection, notify) {
   }
   useEffect(() => {
     const tracker = tracking.current;
-    let disposed = false;
+    let disposed = false, lastLoad = 0;
     if (!workspaceId || connection.status !== 'connected' || tracker.unavailable) return;
     const valid = () => !disposed && tracking.current === tracker;
     async function desktopNotify(body) {
@@ -23,6 +25,10 @@ export function useReadyBranches(api, workspace, connection, notify) {
     }
     async function load() {
       if (!valid() || tracker.unavailable || inFlight.current) return;
+      // Each overview spawns Git for every branch and worktree: a hidden window still
+      // notifies, just less often.
+      if (document.hidden && tracker.seen && Date.now() - lastLoad < HIDDEN_INTERVAL) return;
+      lastLoad = Date.now();
       inFlight.current = true;
       try {
         // Workspace state has no Git flag: the first overview discovers availability.
