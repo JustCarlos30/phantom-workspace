@@ -617,8 +617,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-ask-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .pc-ask-actions button { min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 500; line-height: 1; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-ask-actions button:hover:not(:disabled) { background: var(--row-hover); }
-.pc-ask-actions button.is-primary { background: var(--pc-solid); color: var(--pc-solid-ink); }
-.pc-ask-actions button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-solid) 86%, var(--muted)); }
+.pc-ask-actions button.is-primary { font-weight: 600; }
 .pc-ask-actions button:disabled { opacity: .5; cursor: default; }
 .pc-ask-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pc-ask-state { flex-shrink: 0; color: var(--muted); font-size: 11px; }
@@ -723,8 +722,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-thread { background: var(--well-terminal); }
 .pc-send:not(:disabled):not(.is-stop), .pc-send:not(:disabled):not(.is-stop):hover,
 .pc-question-actions button.is-primary,
-.pc-question-actions button.is-primary:hover:not(:disabled),
-.pc-ask-actions button.is-primary, .pc-ask-actions button.is-primary:hover:not(:disabled) {
+.pc-question-actions button.is-primary:hover:not(:disabled) {
   background: var(--primary); color: var(--primary-ink); box-shadow: var(--shadow-key);
 }
 /* In a menu the current value is a lit veil with its check, not a light key:
