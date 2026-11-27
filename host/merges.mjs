@@ -15,6 +15,8 @@ const now = () => new Date().toISOString();
 const line = (value, label, max) => { text(value, label, max); assert(!/[\x00-\x1f\x7f]/.test(value), `${label} debe ser una sola línea`); return value.trim(); };
 const count = value => value ? value.split('\n').length : 0;
 
+export const IMMUTABLE_TTL = 10 * 60 * 1000;
+
 export class GitPolling {
   constructor(execute = git) { this.entries = new Map(); this.active = 0; this.waiters = []; this.execute = execute; }
   invalidate() { this.entries.clear(); }
@@ -44,7 +46,8 @@ export class GitPolling {
     // Only immutable object queries survive a poll; checkout and file facts stay fresh.
     const command = args[0] === '--literal-pathspecs' ? args[1] : args[0];
     const immutable = ['rev-list', 'diff', 'merge-tree', 'ls-tree'].includes(command) && args.some(arg => /^[0-9a-f]{40,64}(?:\.\.\.?[0-9a-f]{40,64})?$/.test(arg));
-    return this.read(JSON.stringify(['git', cwd, args]), () => this.limit(() => this.execute(cwd, args)), immutable ? 2000 : 0);
+    // Keyed by object ids, these never change: keep them across polls (host mutations still clear them).
+    return this.read(JSON.stringify(['git', cwd, args]), () => this.limit(() => this.execute(cwd, args)), immutable ? IMMUTABLE_TTL : 0);
   }
 }
 

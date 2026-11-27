@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHost } from '../host/server.mjs';
 import { GUARD_MARKER, mergeToken, integrationPolicy } from '../host/merge-guard.mjs';
 import { main as agent } from '../scripts/agent.mjs';
-import { Merges, GitPolling } from '../host/merges.mjs';
+import { Merges, GitPolling, IMMUTABLE_TTL } from '../host/merges.mjs';
 
 const until = async (fn, ms = 8000) => { const end = Date.now() + ms; while (Date.now() < end) { const value = await fn(); if (value) return value; await new Promise(r => setTimeout(r, 30)); } throw new Error('Timed out'); };
 // Git as a process of a given terminal would run it: only the environment tells the guard who is asking.
@@ -51,13 +51,13 @@ test('polling limits Git processes, retries errors and does not revive invalidat
   assert.equal(await polling.read('pending', () => 'new'), 'new');
 });
 
-test('immutable polling results expire after two seconds', async t => {
+test('immutable polling results survive polls until IMMUTABLE_TTL', async t => {
   t.mock.timers.enable({ apis: ['Date'] });
   let calls = 0;
   const polling = new GitPolling(async () => String(++calls));
   const args = ['rev-list', '--count', 'a'.repeat(40)];
   assert.equal(await polling.git('/repo', args), '1');
-  t.mock.timers.tick(1999);
+  t.mock.timers.tick(IMMUTABLE_TTL - 1);
   assert.equal(await polling.git('/repo', args), '1');
   t.mock.timers.tick(1);
   assert.equal(await polling.git('/repo', args), '2');

@@ -28,8 +28,17 @@ export function validateChecks(value) {
   return value.trim();
 }
 
+// One suite at a time across the host: concurrent merges would otherwise run several
+// full test suites at once and saturate the machine (and the UI with it).
+let queue = Promise.resolve();
+export function runChecks(cwd, command, options) {
+  const run = queue.then(() => runChecksNow(cwd, command, options));
+  queue = run.catch(() => {});
+  return run;
+}
+
 // Runs in its own process group so a timeout stops the whole tree (npm → node --test → children).
-export function runChecks(cwd, command, { timeout = CHECKS_TIMEOUT } = {}) {
+function runChecksNow(cwd, command, { timeout = CHECKS_TIMEOUT } = {}) {
   const started = Date.now();
   return new Promise(resolve => {
     let output = '', timedOut = false;
