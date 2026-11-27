@@ -18,6 +18,7 @@ export const COMMANDS = Object.freeze([
   { id: 'fit-all', title: 'Ver todos los paneles', group: 'Navegación', defaultBinding: '0', scope: 'navigation' },
   { id: 'return-focus', title: 'Volver al enfoque', group: 'Navegación', defaultBinding: 'Ctrl+Shift+Enter', scope: 'global' },
   { id: 'shortcuts', title: 'Configurar atajos', group: 'Workspace', defaultBinding: 'Ctrl+,', scope: 'global' },
+  { id: 'close-panel', title: 'Cerrar panel o terminal', group: 'Crear panel', defaultBinding: 'Ctrl+Shift+W', scope: 'global' },
   { id: 'create-terminal', title: 'Crear terminal', group: 'Crear panel', defaultBinding: 'Ctrl+Shift+T', scope: 'global' },
   { id: 'create-browser', title: 'Crear navegador', group: 'Crear panel', defaultBinding: 'Ctrl+Shift+B', scope: 'global' },
   { id: 'create-note', title: 'Crear nota', group: 'Crear panel', defaultBinding: 'Ctrl+Shift+N', scope: 'global' },

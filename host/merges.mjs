@@ -190,7 +190,12 @@ export class Merges {
       const overlaps = (inspection.files || []).filter(file => touching.has(file) && touching.get(file).some(other => other.id !== item.nodeId))
         .slice(0, 25).map(file => ({ path: file, with: touching.get(file).filter(other => other.id !== item.nodeId).map(other => other.title) }));
       // Legacy requests without a captured Card ID remain unknown even if the terminal is rebound.
-      return { ...item, position: index + 1, stale: fact ? fact.head !== item.headOid : null, inspection, files: inspection.files || [], fileCount: inspection.fileCount ?? null, overlaps, behind: inspection.behind ?? null };
+      let integrated = null;
+      if (['failed', 'conflict'].includes(item.status) && inspection.available) {
+        try { await git(source, ['merge-base', '--is-ancestor', item.headOid, base.oid]); integrated = true; }
+        catch (error) { integrated = error?.code === 1 || error?.status === 1 || error?.exitCode === 1 ? false : null; }
+      }
+      return { ...item, integrated, position: index + 1, stale: fact ? fact.head !== item.headOid : null, inspection, files: inspection.files || [], fileCount: inspection.fileCount ?? null, overlaps, behind: inspection.behind ?? null };
     }));
     const requested = new Set(open.map(item => item.nodeId));
     // Work not yet requested: commits or edits to integrate, or a live agent that declared what it is doing.

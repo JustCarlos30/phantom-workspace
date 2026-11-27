@@ -6,7 +6,7 @@ test('Un shell abierto no acredita actividad del agente y salir no acredita éxi
   assert.equal(sessionState({ status: 'running' }).label, 'En espera');
   assert.equal(sessionState({ status: 'exited', exitCode: 0 }).label, 'Cerrada');
   assert.equal(sessionState({ status: 'exited', exitCode: 2 }).label, 'Cerrada · código 2');
-  assert.equal(sessionState({ status: 'lost' }).needsYou, true);
+  assert.deepEqual(sessionState({ status: 'lost' }), { label: 'Sesión perdida', needsYou: false, tone: 'unknown' });
   assert.equal(sessionState({ status: 'running', agentState: 'running' }).label, 'Trabajando');
   assert.equal(sessionState({ status: 'running' }, false).label, 'Sin conexión');
   assert.equal(sessionState(null).label, 'Sin datos');
@@ -19,14 +19,27 @@ test('Estados explícitos de tareas y desconocidos no se convierten en progreso'
   assert.equal(classifyTask({ status: 'alien' }).label, 'Sin datos');
 });
 
-test('Leer un aviso no lo aprueba ni resuelve una intervención', () => {
+test('Un aviso acusado no cuenta; leerlo no lo aprueba', () => {
   const notice = { status: 'awaiting_approval', acknowledgedAt: '2026-11-11' };
-  assert.deepEqual(classifyNotice(notice), { read: true, approved: false, needsYou: true });
+  assert.deepEqual(classifyNotice(notice), { read: true, approved: false, needsYou: false });
   assert.deepEqual(classifyNotice({ approved: true }), { read: false, approved: true, needsYou: false });
   const before = buildActivity({ workspace: { attention: [{ id: 'n', status: 'blocked' }] } });
   const after = buildActivity({ workspace: { attention: [{ id: 'n', status: 'blocked', acknowledgedAt: 'now' }] } });
-  assert.equal(before.needs.length, after.needs.length);
+  assert.equal(before.needs.length, 1);
+  assert.equal(after.needs.length, 0);
   assert.equal(after.unread, 0);
+});
+
+test('Contador: avisos de tareas ya resueltas, sesiones perdidas e incorporaciones integradas no cuentan', () => {
+  const notice = { id: 'w', status: 'failed', source: 'phantom', eventKey: 'wake-blocked:x', cardId: 'k' };
+  const count = tasks => buildActivity({ workspace: { attention: [notice] }, tasks }).needs.length;
+  assert.equal(count([{ id: 'k', status: 'completed' }]), 0);
+  assert.equal(count([{ id: 'k', status: 'blocked' }]), 1);
+  assert.equal(count([]), 1);
+  const merges = integrated => ({ available: true, queue: [{ id: 'm', status: 'failed', title: 'r', integrated }], active: [] });
+  assert.equal(buildActivity({ workspace: {}, merges: merges(true) }).needs.length, 0);
+  assert.equal(buildActivity({ workspace: {}, merges: merges(false) }).needs.length, 1);
+  assert.equal(buildActivity({ workspace: {}, merges: merges(null) }).needs.length, 1);
 });
 
 test('Los avisos de fin de proceso Phantom no requieren intervención', () => {
@@ -46,9 +59,9 @@ test('Leer un aviso de proceso de otra fuente lo retira de necesidades', () => {
   }
 });
 
-test('Un aviso bloqueado sin eventKey sigue requiriendo intervención aunque esté leído', () => {
+test('Un aviso bloqueado sin eventKey deja de requerir intervención una vez leído', () => {
   const notice = { id: 'n', status: 'blocked', acknowledgedAt: '2026-11-11' };
-  assert.deepEqual(buildActivity({ workspace: { attention: [notice] } }).needs.map(item => item.id), ['n']);
+  assert.deepEqual(buildActivity({ workspace: { attention: [notice] } }).needs, []);
 });
 
 const nodes = [{ id: 'n', type: 'terminal', title: 'Oculta', data: { sessionId: 's', hidden: true, worktree: { branch: 'feature' } } }];
@@ -264,8 +277,7 @@ test('Las pantallas conservan la espera y solo las sesiones vivas admiten texto 
   assert.deepEqual([approval.at, approval.reply, approval.excerpt], [0, null, true]);
   const input = row({ status: 'running', agentState: 'awaiting_input' });
   assert.deepEqual([input.need, input.reply, input.excerpt], ['input', 'terminal', true]);
-  const lost = row({ status: 'lost' });
-  assert.deepEqual([lost.sessionId, lost.live, lost.reply, lost.excerpt], ['s', false, null, false]);
+  assert.equal(row({ status: 'lost' }), undefined);
   const historical = row({ status: 'exited', agentState: 'awaiting_input' });
   assert.equal(historical, undefined);
   const synthetic = buildActivity({ workspace: { nodes: chatNodes }, chats: [{ nodeId: 'c1', running: true, pending: [permission] }] });
