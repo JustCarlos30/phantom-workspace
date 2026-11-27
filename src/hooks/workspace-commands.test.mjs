@@ -15,7 +15,7 @@ test('el catálogo publica los IDs pactados, defaults únicos y metadatos de UI'
   assert.deepEqual(COMMANDS.map(command => command.id), [
     'palette', 'projects', 'panels', 'left', 'right', 'up', 'down', 'next-session', 'previous-session', 'next-attention',
     'enter-panel', 'leave-panel', 'fit-all', 'return-focus', 'shortcuts',
-    'create-terminal', 'create-browser', 'create-note', 'create-zone',
+    'close-panel', 'create-terminal', 'create-browser', 'create-note', 'create-zone',
   ]);
   for (const command of COMMANDS) {
     assert.ok(command.title && command.group);

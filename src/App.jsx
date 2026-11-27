@@ -499,6 +499,13 @@ function WorkspaceUI({ model, toasts, setToasts, notify }) {
       setCanvasFocusRequest(n => n + 1);
       return;
     }
+    if (id === 'close-panel') {
+      const target = focused || selected[0];
+      const node = target && workspace.nodes.find(n => n.id === target && !n.data?.hidden && !n.hidden);
+      if (!node) { notify('Selecciona o enfoca un panel para cerrarlo.'); return; }
+      if (node.type === 'terminal') onCloseTerminal(node); else operation(() => removeView(node));
+      return;
+    }
     if (id === 'fit-all') {
       setFocused(null); setKeyboardMode('navigation'); setFitRequest(n => n + 1); setCanvasFocusRequest(n => n + 1);
       return;
