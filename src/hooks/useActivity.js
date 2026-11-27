@@ -73,7 +73,7 @@ export function useActivity(workspace, connection, workspaceReadAt) {
   const identity = `${workspace?.id || ''}:${connection.status}:${base}`;
   const current = useRef(identity); current.current = identity;
   useEffect(() => {
-    let disposed = false, needTasks = false, inFlight = false, again = false, revision = 0, online = connection.status === 'connected';
+    let limitsDue = true, disposed = false, needTasks = false, inFlight = false, again = false, revision = 0, online = connection.status === 'connected';
     const sources = empty();
     const valid = () => !disposed && current.current === identity;
     const publish = () => { if (valid()) setSnapshot({ key: identity, sources: { ...sources } }); };
@@ -84,6 +84,8 @@ export function useActivity(workspace, connection, workspaceReadAt) {
       const request = ++revision;
       const queries = { sessions: ['terminal.list', {}], tasks: ['phantom.list', { topic: 'tasks' }], git: ['git.inspect', base ? { base } : {}], limits: ['limits.read', {}], merges: ['merge.status', {}] };
       if (light && sources.tasks.at && Date.now() - sources.tasks.at < 5000) delete queries.tasks;
+      if (!limitsDue) delete queries.limits;
+      limitsDue = false;
       for (const name of Object.keys(queries)) sources[name] = { ...sources[name], loading: true };
       publish();
       await Promise.all(Object.entries(queries).map(async ([name, [method, payload]]) => {
@@ -101,14 +103,18 @@ export function useActivity(workspace, connection, workspaceReadAt) {
       if (again && valid()) { again = false; coalescer.trigger(); }
     }
     const coalescer = createCoalescer({ delay: 400, minGap: 2000, run: () => { const light = !needTasks; needTasks = false; load(light); } });
-    runner.current = () => load();
+    runner.current = () => { limitsDue = true; return load(); };
     load();
     const interval = setInterval(() => { setTick(t => t + 1); load(); }, 20000);
     const off = subscribe(event => {
       if (event.type === 'connection') {
         online = event.status === 'connected';
         if (!online) ++revision;
-        else { needTasks = true; coalescer.trigger(); }
+        else { limitsDue = true; needTasks = true; coalescer.trigger(); }
+        return;
+      }
+      if (event.type === 'limits.changed') {
+        if (Array.isArray(event.data?.providers) && valid()) { sources.limits = { data: event.data, loading: false, at: Date.now(), error: '' }; publish(); }
         return;
       }
       if (relevant.has(event.type) && (!event.workspaceId || event.workspaceId === workspace?.id)) {

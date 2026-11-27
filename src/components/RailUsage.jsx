@@ -34,7 +34,7 @@ export default function RailUsage({ data, loading, error, onRefresh }) {
       <span className="usage-rows">
         {rows.map(r => <span key={r.id} className={`usage-row ${r.available && r.percent != null ? '' : 'usage-off'}`}>
           <span className="usage-name">{r.label}</span>
-          {r.available && r.percent != null ? <><Bar percent={r.percent} tone={r.tone} /><span className="usage-pct" data-tone={r.tone}>{r.percent}%</span>{r.stale && <span className="usage-badge" title={r.retry || undefined}>{r.staleSince}</span>}</> : <span className="usage-none" title={r.retry || r.reason || undefined}>{r.status === 'rate_limited' ? 'En espera' : r.status === 'error' ? 'Error' : 'Sin sesión'}</span>}
+          {r.available && r.percent != null ? <>{(r.rail.length ? r.rail : [{ key: 'peak', label: '', percent: r.percent, tone: r.tone }]).map(w => <span key={w.key} className="usage-win" title={w.label || undefined}>{w.label && <span className="usage-wname">{w.key === 'session' ? '5 h' : 'Sem'}</span>}<Bar percent={w.percent} tone={w.tone} /><span className="usage-pct" data-tone={w.tone}>{w.percent}%</span></span>)}{r.stale && <span className="usage-badge" title={r.retry || undefined}>{r.staleSince}</span>}</> : <span className="usage-none" title={r.retry || r.reason || undefined}>{r.status === 'rate_limited' ? 'En espera' : r.status === 'error' ? 'Error' : 'Sin sesión'}</span>}
         </span>)}
       </span>
       {worst && <span className="usage-mini" data-tone={worst.tone}>{worst.percent}%</span>}

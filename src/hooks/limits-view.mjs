@@ -5,6 +5,17 @@ export function peakWindow(provider) {
   return peak;
 }
 
+const RAIL_WINDOWS = [['session', 'Sesión 5 h', ['Sesión · 5 h']], ['weekly', 'Semanal', ['Semanal · todos los modelos', 'Semanal']]];
+export function railWindows(provider) {
+  const windows = Array.isArray(provider?.windows) ? provider.windows : [];
+  const out = [];
+  for (const [key, short, labels] of RAIL_WINDOWS) {
+    const w = windows.find(x => labels.includes(x?.label) && Number.isFinite(x.percent));
+    if (w) { const percent = Math.round(w.percent); out.push({ key, label: short, percent, tone: toneOf(percent) }); }
+  }
+  return out;
+}
+
 export function toneOf(percent) {
   if (percent >= 90) return 'danger';
   if (percent >= 70) return 'warn';
@@ -55,6 +66,7 @@ export function summarize(data, now = Date.now()) {
       retryAt: p.retryAt ?? null,
       retry: p.retryAt ? retryText(p.retryAt, now) : null,
       percent,
+      rail: railWindows(p),
       tone: percent == null ? 'ok' : toneOf(percent),
       windows: (Array.isArray(p.windows) ? p.windows : []).map(w => {
         const pc = Math.round(Number.isFinite(w.percent) ? w.percent : 0);

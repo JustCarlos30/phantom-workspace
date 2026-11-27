@@ -12,6 +12,7 @@ export const LIMITS_TTL_MS = 4 * 60000;
 export const TRANSIENT_RETRY_MS = 60000;
 const RATE_DEFAULT_MS = 5 * 60000;
 const RATE_MAX_MS = 30 * 60000;
+const POKE_MIN_MS = 30000;
 
 export function parseRetryAfter(value, now = Date.now()) {
   let ms = NaN;
@@ -134,6 +135,7 @@ export function createLimits({ home = os.homedir(), env = process.env, fetchImpl
     const s = state[id];
     const result = await readers[id]({ home, env, fetchImpl });
     const t = now();
+    s.loadedAt = t;
     const { retryAfterMs, ...value } = result;
     if (value.status === 'ok') {
       s.good = value; s.goodAt = t; s.nextAt = t + ttlMs; s.hardUntil = 0;
@@ -150,6 +152,33 @@ export function createLimits({ home = os.homedir(), env = process.env, fetchImpl
     s.pending ??= load(id).finally(() => { s.pending = null; });
     return s.pending;
   };
+  const listeners = new Set();
+  let lastKey = null, timer = null, running = false;
+  const keyOf = providers => JSON.stringify(providers.map(p => [p.id, p.available, p.status, p.stale === true, p.plan, p.limitReached === true, (p.windows || []).map(w => [w.id, w.label, w.percent, w.resetsAt])]));
+  const snapshot = () => ({ observedAt: new Date(now()).toISOString(), providers: Object.keys(readers).map(id => state[id].value).filter(Boolean) });
+  const notify = () => {
+    const data = snapshot();
+    const key = keyOf(data.providers);
+    if (key === lastKey) return;
+    lastKey = key;
+    for (const listener of [...listeners]) { try { listener(data); } catch {} }
+  };
+  const schedule = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (!running) return;
+    const t = now();
+    const due = Math.min(...Object.values(state).map(s => Math.max(s.nextAt, s.hardUntil)));
+    timer = setTimeout(tick, Math.max(1000, due - t));
+    timer.unref?.();
+  };
+  const tick = async () => {
+    timer = null;
+    if (!running) return;
+    const t = now();
+    await Promise.all(Object.keys(readers).filter(id => t >= state[id].hardUntil && t >= state[id].nextAt).map(one));
+    notify();
+    schedule();
+  };
   return {
     // Each provider is cached on its own; a 429 blocks only that provider until Retry-After, even when forced.
     async read({ force = false } = {}) {
@@ -158,7 +187,20 @@ export function createLimits({ home = os.homedir(), env = process.env, fetchImpl
         if (s.value && (t < s.hardUntil || (!force && t < s.nextAt))) return s.value;
         return one(id);
       }));
+      notify();
       return { observedAt: new Date(now()).toISOString(), providers };
+    },
+    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    start() { if (running) return; running = true; tick(); },
+    stop() { running = false; if (timer) { clearTimeout(timer); timer = null; } },
+    async poke() {
+      if (!running) return;
+      const t = now();
+      const ids = Object.keys(readers).filter(id => t >= state[id].hardUntil && (!state[id].loadedAt || t - state[id].loadedAt >= POKE_MIN_MS));
+      if (!ids.length) return;
+      await Promise.all(ids.map(one));
+      notify();
+      schedule();
     },
   };
 }
