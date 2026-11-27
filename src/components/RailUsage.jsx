@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Gauge, RefreshCw } from 'lucide-react';
-import { summarize } from '../hooks/limits-view.mjs';
+import { summarize, freshness } from '../hooks/limits-view.mjs';
 
 function Bar({ percent, tone }) {
   return <span className="usage-bar" data-tone={tone} aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, percent ?? 0))}%` }} /></span>;
@@ -12,6 +12,7 @@ export default function RailUsage({ data, loading, error, onRefresh }) {
   const box = useRef(null);
   const id = useId();
   const rows = useMemo(() => summarize(data), [data, open]);
+  const fresh = useMemo(() => freshness(data), [data, open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -34,18 +35,22 @@ export default function RailUsage({ data, loading, error, onRefresh }) {
       <span className="usage-rows">
         {rows.map(r => <span key={r.id} className={`usage-row ${r.available && r.percent != null ? '' : 'usage-off'}`}>
           <span className="usage-name">{r.label}</span>
-          {r.available && r.percent != null ? <>{(r.rail.length ? r.rail : [{ key: 'peak', label: '', percent: r.percent, tone: r.tone }]).map(w => <span key={w.key} className="usage-win" title={w.label || undefined}>{w.label && <span className="usage-wname">{w.key === 'session' ? '5 h' : 'Sem'}</span>}<Bar percent={w.percent} tone={w.tone} /><span className="usage-pct" data-tone={w.tone}>{w.percent}%</span></span>)}{r.stale && <span className="usage-badge" title={r.retry || undefined}>{r.staleSince}</span>}</> : <span className="usage-none" title={r.retry || r.reason || undefined}>{r.status === 'rate_limited' ? 'En espera' : r.status === 'error' ? 'Error' : 'Sin sesión'}</span>}
+          {r.available && r.percent != null ? <>{(r.rail.length ? r.rail : [{ key: 'peak', label: '', percent: r.percent, tone: r.tone }]).map(w => <span key={w.key} className="usage-win" title={w.label || undefined}>{w.label && <span className="usage-wname">{w.key === 'session' ? '5 h' : 'Sem'}</span>}<Bar percent={w.percent} tone={w.tone} /><span className="usage-pct" data-tone={w.tone}>{w.percent}%</span></span>)}</> : <span className="usage-none" title={r.retry || r.reason || undefined}>{r.status === 'rate_limited' ? 'En espera' : r.status === 'error' ? 'Error' : 'Sin sesión'}</span>}
         </span>)}
       </span>
       {worst && <span className="usage-mini" data-tone={worst.tone}>{worst.percent}%</span>}
     </button>
     {open && <div ref={box} id={id} className="usage-popover" role="dialog" aria-label="Detalle de límites">
       {rows.map(r => <section key={r.id} className="usage-detail">
-        <h3>{r.label}{r.plan && <small>{r.plan}</small>}</h3>
-        {r.stale && <p className="usage-stale"><span className="usage-badge">Desactualizado {r.staleSince}</span></p>}
+        <h3>{r.label}{r.plan && <small className="usage-plan">{r.plan}</small>}</h3>
         {(!r.available || r.stale) && <p className="usage-reason">{r.reason || 'Sin sesión'}{r.retry && ` · ${r.retry}`}</p>}
         {r.windows.map((w, i) => <div key={i} className="usage-window">
-          <span>{w.label}</span><Bar percent={w.percent} tone={w.tone} /><b data-tone={w.tone}>{w.percent}%</b><em>{w.reset}</em>
+          <div className="usage-window-head"><span>{w.label}</span><b data-tone={w.tone}>{w.percent}%</b></div>
+          <span className="usage-track" data-tone={w.tone} role="img" aria-label={`${w.label}: ${w.percent}% usado${w.pace != null ? `, ${w.pace}% del tiempo transcurrido` : ''}`}>
+            <i style={{ width: `${Math.min(100, Math.max(0, w.percent))}%` }} />
+            {w.pace != null && <u className="usage-pace" style={{ left: `${w.pace}%` }} title={`Ritmo: ${w.pace}% del tiempo transcurrido`} />}
+          </span>
+          {w.resetLabel && <em>reinicia {w.resetLabel}</em>}
         </div>)}
         {(() => { const p = (data.providers || []).find(x => x.id === r.id); return <>
           {p?.credits != null && <p className="usage-extra">Créditos: {typeof p.credits === 'object' ? (p.credits.balance ?? JSON.stringify(p.credits)) : String(p.credits)}</p>}
@@ -54,7 +59,10 @@ export default function RailUsage({ data, loading, error, onRefresh }) {
         </>; })()}
       </section>)}
       {rows.some(r => r.status === 'rate_limited' && r.retry) && <p className="usage-reason">Actualizar no consulta a un proveedor en espera por 429: {rows.filter(r => r.status === 'rate_limited' && r.retry).map(r => `${r.label} ${r.retry}`).join('; ')}.</p>}
-      <button type="button" className="usage-refresh" disabled={loading} onClick={() => onRefresh?.()}><RefreshCw size={14} aria-hidden="true" className={loading ? 'spin' : ''} />Actualizar</button>
+      <footer className="usage-foot">
+        <span className="usage-fresh">{fresh.text || 'Sin lecturas'}{fresh.stale && <i className="usage-dot" title={fresh.reason || undefined} role="img" aria-label={`Dato desactualizado: ${fresh.reason || ''}`} />}</span>
+        <button type="button" className="usage-refresh" aria-label="Actualizar límites" title="Actualizar" disabled={loading} onClick={() => onRefresh?.()}><RefreshCw size={14} aria-hidden="true" className={loading ? 'spin' : ''} /></button>
+      </footer>
     </div>}
   </div>;
 }

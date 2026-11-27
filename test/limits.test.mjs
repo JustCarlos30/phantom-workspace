@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createLimits, claudeWindows, codexWindows, parseRetryAfter } from '../host/limits.mjs';
+import { createLimits, LIMITS_TTL_MS, claudeWindows, codexWindows, parseRetryAfter } from '../host/limits.mjs';
 
 const home = () => fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-limits-'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(value)); };
@@ -89,7 +89,7 @@ test('error transitorio conserva datos y reintenta a ~60 s; TTL independiente po
   };
   const limits = createLimits({ home: setup(), env: {}, fetchImpl, now: () => t });
   await limits.read();
-  t += 239000;
+  t += 59000;
   await limits.read();
   assert.deepEqual(calls, { claude: 1, codex: 1 });
   t += 2000; fail = true;
@@ -102,12 +102,12 @@ test('error transitorio conserva datos y reintenta a ~60 s; TTL independiente po
   assert.equal(calls.claude, 2);
   t += 31000;
   await limits.read();
-  assert.deepEqual(calls, { claude: 3, codex: 2 });
+  assert.deepEqual(calls, { claude: 3, codex: 3 });
 });
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-test('subscribe notifica solo cuando cambia el contenido observable', async () => {
+test('subscribe notifica solo cuando cambia el contenido observable (incluido updatedAt)', async () => {
   let t = 1_000_000, percent = 30;
   const fetchImpl = async url => (url.includes('anthropic') ? reply(200, { limits: [{ kind: 'session', percent }] }) : okCodex);
   const limits = createLimits({ home: setup(), env: {}, fetchImpl, ttlMs: 1000, now: () => t });
@@ -115,13 +115,34 @@ test('subscribe notifica solo cuando cambia el contenido observable', async () =
   limits.subscribe(data => seen.push(data));
   await limits.read();
   assert.equal(seen.length, 1);
-  t += 2000;
   await limits.read();
   assert.equal(seen.length, 1);
-  t += 2000; percent = 55;
+  t += 2000;
   await limits.read();
   assert.equal(seen.length, 2);
-  assert.equal(seen[1].providers[0].windows[0].percent, 55);
+  assert.notEqual(seen[1].providers[0].updatedAt, seen[0].providers[0].updatedAt);
+  t += 2000; percent = 55;
+  await limits.read();
+  assert.equal(seen.length, 3);
+  assert.equal(seen[2].providers[0].windows[0].percent, 55);
+});
+
+test('TTL por defecto de 60 s, updatedAt de la última lectura buena y windowSeconds', async () => {
+  assert.equal(LIMITS_TTL_MS, 60000);
+  let t = 5_000_000, fail = false;
+  const fetchImpl = async url => {
+    if (url.includes('anthropic')) return fail ? reply(503, {}) : reply(200, { limits: [{ kind: 'session', percent: 10 }, { kind: 'weekly_all', percent: 20 }, { kind: 'weekly_scoped', percent: 5, scope: { model: { display_name: 'Fable' } } }] });
+    return reply(200, { rate_limit: { primary_window: { used_percent: 1, limit_window_seconds: 18000 } } });
+  };
+  const limits = createLimits({ home: setup(), env: {}, fetchImpl, now: () => t });
+  const c = (await limits.read()).providers[0];
+  assert.equal(c.updatedAt, new Date(5_000_000).toISOString());
+  assert.deepEqual(c.windows.map(w => w.windowSeconds), [18000, 604800, 604800]);
+  t += 61000; fail = true;
+  const s = (await limits.read()).providers[0];
+  assert.equal(s.stale, true);
+  assert.equal(s.updatedAt, new Date(5_000_000).toISOString());
+  assert.deepEqual(claudeWindows({ five_hour: { utilization: 5 }, seven_day_sonnet: { utilization: 9 } }).map(w => w.windowSeconds), [18000, 604800]);
 });
 
 test('el vigilante no consulta a un proveedor con 429 antes de Retry-After', async () => {
@@ -144,7 +165,7 @@ test('el vigilante no consulta a un proveedor con 429 antes de Retry-After', asy
   assert.equal(calls, before);
 });
 
-test('poke respeta el mínimo de 30 s entre lecturas', async () => {
+test('poke respeta el mínimo de 60 s entre lecturas', async () => {
   let t = 1_000_000, calls = 0;
   const fetchImpl = async url => { if (url.includes('anthropic')) calls++; return url.includes('anthropic') ? okClaude : okCodex; };
   const limits = createLimits({ home: setup(), env: {}, fetchImpl, now: () => t });
@@ -155,7 +176,7 @@ test('poke respeta el mínimo de 30 s entre lecturas', async () => {
   assert.equal(calls, 1);
   await limits.poke();
   assert.equal(calls, 1);
-  t += 29000;
+  t += 59000;
   await limits.poke();
   assert.equal(calls, 1);
   t += 2000;
