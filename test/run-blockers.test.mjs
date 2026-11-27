@@ -44,6 +44,17 @@ test('presupuesto: amend x1.5 sobre maxTokens vigente o 500000, luego run', () =
   assert.equal(amendedMaxTokens(900000), 1350000); assert.equal(amendedMaxTokens(undefined), 500000);
 });
 
+test('rate limit: retryAtMs acompaña a retryAt solo cuando hay hora', () => {
+  const now = Date.parse('2026-11-23T18:00:00.000Z');
+  const withTime = cls("You've hit your 5-hour limit · resets 1:50pm (America/Mexico_City)", task, now);
+  assert.equal(withTime.retryAtMs, Date.parse(withTime.retryAt));
+  assert.equal(withTime.retryAtMs, Date.parse('2026-11-23T19:50:00.000Z'));
+  const without = cls("You've hit your 5-hour limit");
+  assert.equal('retryAt' in without, false);
+  assert.equal('retryAtMs' in without, false);
+  assert.equal(without.category, 'rate_limit');
+});
+
 test('rate limit: retryAt solo con zona America/Mexico_City', () => {
   assert.equal(cls("You've hit your 5-hour limit · resets 1:50pm").retryAt, undefined);
   const now = Date.parse('2026-11-23T18:00:00.000Z'); // 12:00 en Ciudad de México

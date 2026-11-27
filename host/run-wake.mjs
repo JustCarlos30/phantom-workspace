@@ -31,6 +31,85 @@ export function wakeMessage({ taskId, controller = {}, task } = {}) {
     ...(blocker ? [blockerText(blocker)] : [])].join(' ');
 }
 
+const splitModel = value => { const s = String(value ?? ''), i = s.indexOf('/'); return i < 0 ? { client: '', model: s } : { client: s.slice(0, i), model: s.slice(i + 1) }; };
+const exhausted = p => !p || p.available === false || p.status === 'rate_limited' || p.status === 'error' || (p.windows || []).some(w => Number(w.percent) >= 100);
+const BACKOFF_BASE_MS = 120000, BACKOFF_MAX_MS = 30 * 60000;
+
+// Rate-limit handling: reroute to a healthy engine or wait in a persistent queue. Never counts as a failure or spends budget.
+export function createQuotaFlow({ decide, queue, inhibitor, limits, enabledEngines, now = Date.now, emit, fetchTask, commitWip, createContract, run, notify, setTimer = setTimeout, clearTimer = clearTimeout, maxInhibitMs = 12 * 3600000 }) {
+  const settled = new Map(), reroutes = new Map();
+  let timer = null, busy = false;
+  const iso = ms => new Date(ms).toISOString();
+  const providersOf = async force => { try { const s = await limits.read(force ? { force: true } : {}); return s?.providers ?? s ?? {}; } catch { return {}; } };
+  const sync = () => {
+    const items = queue.list();
+    clearTimer(timer); timer = null;
+    if (!items.length) { inhibitor.release(); return; }
+    const next = Math.min(...items.map(i => Date.parse(i.notBefore)));
+    const held = items.filter(i => i.inhibit !== false).map(i => Date.parse(i.notBefore));
+    if (held.length) inhibitor.hold(Math.min(Math.max(...held) + 60000, now() + maxInhibitMs), 'Phantom: espera de cuota'); else inhibitor.release();
+    timer = setTimer(() => { void tick(); }, Math.max(1000, next - now())); timer.unref?.();
+  };
+  async function tick() {
+    if (busy) return; busy = true;
+    try {
+      for (const item of queue.due()) {
+        const providers = await providersOf(true);
+        if (exhausted(providers[item.client])) {
+          const attempt = (item.attempt ?? 0) + 1;
+          queue.enqueue({ ...item, attempt, notBefore: iso(now() + Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_MAX_MS)) });
+          continue;
+        }
+        try { await run(item); } catch (error) {
+          const attempt = (item.attempt ?? 0) + 1;
+          queue.enqueue({ ...item, attempt, notBefore: iso(now() + Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_MAX_MS)) });
+          continue;
+        }
+        queue.complete(item.taskId);
+        emit({ type: 'quota.queue', workspaceId: item.workspaceId, taskId: item.taskId, state: 'resumed', from: { client: item.client, model: item.model }, to: { client: item.client, model: item.model }, notBefore: item.notBefore });
+      }
+    } finally { busy = false; sync(); }
+  }
+  async function process(target, controller) {
+    const task = await fetchTask(target);
+    const reason = clean(controller?.error ?? task?.blockedReason ?? task?.reason ?? task?.run?.blockedReason ?? task?.error, 600);
+    const blocker = classifyBlocker(reason, { ...task, id: target.taskId });
+    if (blocker?.category !== 'rate_limit') return false;
+    const from = splitModel(controller?.requestedModel ?? task?.contract?.model);
+    const count = reroutes.get(target.taskId) ?? 0;
+    const providers = await providersOf(false);
+    const decision = decide({ task: { id: target.taskId, ...from }, blocker, providers, enabledEngines: enabledEngines(), reroutes: count, now: now() });
+    const base = { type: 'quota.queue', workspaceId: target.workspaceId, taskId: target.taskId, from };
+    if (decision.action === 'reroute') {
+      await commitWip(target, task);
+      const created = await createContract(target, task, decision.to);
+      const id = created?.id ?? target.taskId;
+      reroutes.set(id, count + 1);
+      emit({ ...base, state: 'rerouted', to: decision.to, notBefore: null });
+      await run({ ...target, taskId: id, client: decision.to.client, model: decision.to.model });
+      return true;
+    }
+    if (decision.action === 'wait') {
+      queue.enqueue({ taskId: target.taskId, workspaceId: target.workspaceId, nodeId: target.nodeId, via: target.via, client: from.client, model: from.model, notBefore: decision.notBefore, inhibit: decision.inhibit, attempt: 0 });
+      emit({ ...base, state: 'waiting', to: null, notBefore: decision.notBefore });
+      sync();
+      return true;
+    }
+    notify?.(target, decision.reason);
+    return false;
+  }
+  return {
+    // Called once per finished phantom run (descriptor id); settled(id) resolves to true when the quota flow took over.
+    accept(target, controller) {
+      if (!target?.id || settled.has(target.id)) return settled.get(target.id);
+      const p = process(target, controller).catch(error => { notify?.(target, error.message); return false; });
+      settled.set(target.id, p); return p;
+    },
+    settled(id) { return settled.get(id) ?? Promise.resolve(false); },
+    tick, sync, close() { clearTimer(timer); timer = null; inhibitor.release(); },
+  };
+}
+
 export function createWakeLimit(max = 4) {
   const counts = new Map();
   return {

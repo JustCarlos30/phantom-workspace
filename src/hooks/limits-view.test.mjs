@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { peakWindow, toneOf, resetIn, summarize } from './limits-view.mjs';
+import { peakWindow, toneOf, resetIn, summarize, queueNote } from './limits-view.mjs';
 
 test('toneOf respeta los límites', () => {
   assert.equal(toneOf(69), 'ok');
@@ -45,4 +45,21 @@ test('summarize cubre disponible, sin sesión y vacío', () => {
   assert.equal(rows[1].reason, 'No hay sesión');
   assert.deepEqual(summarize(undefined), []);
   assert.deepEqual(summarize({}), []);
+});
+
+test('queueNote describe la espera de cuota con hora local HH:MM', () => {
+  const at = new Date(2026, 10, 27, 9, 5).getTime();
+  assert.equal(queueNote({ taskId: 't1', state: 'waiting', notBefore: at }), 'en espera de cuota hasta 09:05');
+  assert.equal(queueNote({ taskId: 't1', state: 'waiting', notBefore: new Date(2026, 10, 27, 21, 30).toISOString() }, null), 'en espera de cuota hasta 21:30');
+  assert.equal(queueNote({ taskId: 't1', state: 'waiting' }), 'en espera de cuota');
+});
+
+test('queueNote indica el traslado a la cuenta B usando el nombre de limits', () => {
+  assert.equal(queueNote({ taskId: 't2', state: 'moved', from: 'A', to: 'B' }), 'movida a cuenta B');
+  assert.equal(queueNote({ taskId: 't2', state: 'moved', from: 'A', to: 'B' }, { providers: [{ id: 'B', label: 'Codex' }] }), 'movida a cuenta Codex');
+});
+
+test('queueNote devuelve null para estados no tratados', () => {
+  assert.equal(queueNote({ taskId: 't3', state: 'running' }), null);
+  assert.equal(queueNote(undefined), null);
 });
