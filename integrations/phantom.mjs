@@ -123,6 +123,16 @@ export async function phantomStatus(payload, context) {
     return { available: true, source: 'phantom', cli: c.cli, ...(version ? { version } : {}), observedAt: observedAt() };
   } catch (error) { return { available: false, source: 'phantom', reason: unavailableReason(error), observedAt: observedAt() }; }
 }
+// Comando para servir `phantom mcp --workspace RAIZ` con la misma CLI y flags del controlador. No lanza procesos;
+// null si el plugin está deshabilitado o el backend no está disponible.
+export async function phantomMcpLaunch(payload, context) {
+  try {
+    const { workspace } = await workspaceRoot(context, payload);
+    if (!validatePluginPreferences(workspace.plugins).phantom.enabled) return null;
+    const c = await client(payload, context);
+    return { command: process.execPath, args: [c.cli, 'mcp', '--workspace', c.root, ...c.flags], root: c.root, backend: c.backend };
+  } catch { return null; }
+}
 // Every checkout of this repository, keyed by canonical path, with the branch it holds.
 async function family(client, context) {
   const ttl = readCacheMs(context);

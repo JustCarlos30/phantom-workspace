@@ -30,7 +30,11 @@ import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, createRunWake, createQuotaFlow } from './run-wake.mjs';
 import { decideRoute, createQuotaQueue } from './quota-queue.mjs';
 import { createSleepInhibitor } from './sleep-inhibit.mjs';
-import { createHostEvents, EVENTS_METHOD, TRACE_RENDERER_METHODS, traceParams, publicTraceAgent, authorizeTraceRead, sanitizeTraceRecords } from './workspace-events.mjs';
+import { createTaskRegistry } from './task-registry.mjs';
+import { createTaskActivityClient } from './task-activity-client.mjs';
+import { createTaskProjection } from '../shared/task-activity.mjs';
+import { classifyBlocker } from '../integrations/run-blockers.mjs';
+import { createHostEvents, authorize as authorizeEvents, EVENTS_METHOD, TRACE_RENDERER_METHODS, traceParams, publicTraceAgent, authorizeTraceRead, sanitizeTraceRecords } from './workspace-events.mjs';
 import { createAgentTraceStore, isTraceModel, clipTrace } from './agent-traces.mjs';
 import { traceRootId } from './agent-trace-adapters.mjs';
 import { createWorkspaceSupervisor } from './workspace-supervisor.mjs';
@@ -75,7 +79,7 @@ export function probeSocket(socketPath) { return new Promise(resolve => { const 
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
 }
-export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions,traceOptions,supervisorOptions}={}) {
+export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions,traceOptions,supervisorOptions,activityOptions}={}) {
   assert(!process.versions.electron,'Run the host with system Node, never Electron');
   dataDir=path.resolve(dataDir); fs.mkdirSync(dataDir,{recursive:true,mode:0o700}); fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock'), lockPath=path.join(dataDir,'host.lock');
@@ -97,8 +101,71 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const send=(socket,message)=>outputs.get(socket)?.(message);
   const broadcast=event=>{for(const c of clients)send(c,{event});};
   // The renderer feed also feeds the supervisor's local feed: the same events, no second source.
-  const hostEvents=createHostEvents({broadcast:event=>{broadcast(event);if(event.type==='workspace.event')feedSupervisor(event.event);}});
+  const hostEvents=createHostEvents({dataDir,broadcast:event=>{broadcast(event);if(event.type==='workspace.event')feedSupervisor(event.event);}});
   function feedSupervisor(event){try{if(supervisor&&!closingPromise)supervisor.ingest({...event,...(event.kind==='card'&&event.entityId?{taskId:event.entityId}:{})});}catch{}}
+  // --- Task activity: harness stream (phantom mcp) -> registry -> projection -> bus. One client per project root. ---
+  // The stream knows tasks, not nodes: the registry maps taskId -> owner; an unknown task is workspace-audience only.
+  const registry=createTaskRegistry({file:path.join(dataDir,'task-registry.json')}),projection=createTaskProjection();
+  const activityClients=new Map(),goalTried=new Set();
+  const learnGoal=(taskId,workspaceId)=>{
+    if(closingPromise||goalTried.has(taskId)||registry.get(taskId)?.goal)return;
+    if(goalTried.size>=5000)goalTried.clear();
+    goalTried.add(taskId);
+    routeIntegration('phantom.detail',{workspaceId,topic:'tasks',id:taskId}).then(a=>{const goal=a?.handled?a.result?.contract?.goal:undefined;if(typeof goal==='string'&&goal&&!closingPromise)registry.remember({taskId,workspaceId:registry.get(taskId)?.workspaceId??workspaceId,goal:goal.slice(0,240)});}).catch(()=>{});
+  };
+  const registerTask=entry=>{try{if(registry.remember(entry))learnGoal(entry.taskId,entry.workspaceId);}catch{}};
+  const activityHandler=workspaceId=>async ev=>{
+    if(closingPromise||typeof ev.taskId!=='string'||!ev.taskId)return;
+    const known=registry.get(ev.taskId);
+    if(!known||(!known.parentId&&typeof ev.parentTaskId==='string'&&ev.parentTaskId))registry.remember({taskId:ev.taskId,workspaceId:known?.workspaceId??workspaceId,parentId:ev.parentTaskId});
+    const entry=registry.resolve(ev.taskId)??{workspaceId};
+    const {raw,activity}=projection.apply(ev,entry);
+    for(const item of raw){
+      if(item.kind==='card'&&item.status==='blocked'&&!item.blocker){try{const b=classifyBlocker(item.reason,{id:item.entityId});item.blocker={category:b.category,autonomy:b.autonomy};}catch{}}
+      hostEvents.ingest(item);
+    }
+    for(const ref of activity)hostEvents.activity(ref);
+    if(ev.type==='task.completed'||ev.type==='task.cancelled')registry.close(ev.taskId);
+    learnGoal(ev.taskId,entry.workspaceId);
+  };
+  const launchActivity=activityOptions?.launch??(handleIntegration?null:async w=>(await import('../integrations/phantom.mjs')).phantomMcpLaunch({workspaceId:w.id},{dataDir,workspace:w,getWorkspace:id=>store.getWorkspace(id),state:store.state}));
+  // Starts/stops clients to match the unarchived workspaces whose Phantom backend is available. Failures only leave a client absent.
+  async function reconcileActivity(){
+    if(!launchActivity||!store||closingPromise)return;
+    const wanted=new Map();
+    for(const w of [...store.state.workspaces]){
+      if(w.archived)continue;
+      try{const l=await launchActivity(w);if(l?.root&&l.command&&!wanted.has(l.root))wanted.set(l.root,{w,l});}catch{}
+      if(closingPromise)return;
+    }
+    for(const [root,item] of [...activityClients]){if(!wanted.has(root)||wanted.get(root).w.id!==item.workspaceId){try{item.client.stop();}catch{}activityClients.delete(root);}}
+    for(const [root,{w,l}] of wanted){
+      if(activityClients.has(root))continue;
+      try{
+        const client=createTaskActivityClient({spawn:activityOptions?.spawn,command:l.command,args:l.args??[],workspace:root,statePath:path.join(dataDir,'task-activity',`${createHash('sha256').update(root).digest('hex').slice(0,32)}.json`),onEvent:activityHandler(w.id),...(activityOptions?.client??{})});
+        activityClients.set(root,{workspaceId:w.id,client});client.start();
+      }catch{activityClients.delete(root);}
+    }
+  }
+  let activityRun=Promise.resolve(),activityQueued=false;
+  const syncActivity=()=>{
+    if(activityQueued||closingPromise)return activityRun;
+    activityQueued=true;
+    activityRun=activityRun.then(()=>{activityQueued=false;return reconcileActivity();}).catch(()=>{});
+    return activityRun;
+  };
+  // Read-only: renderer sees every workspace; an agent session only the ones its grant covers.
+  function activityStatus(p){
+    const lookup={session:id=>terminals.sessions.find(s=>s.id===id),workspaces:()=>store.state.workspaces};
+    let ids;
+    if(p.sessionId!==undefined||'principal' in p)ids=authorizeEvents('principal' in p?p.principal:{sessionId:p.sessionId},p,lookup).workspaceIds;
+    else{if(p.workspaceId!==undefined){assert(typeof p.workspaceId==='string','Invalid workspace ID');store.getWorkspace(p.workspaceId);}ids=p.workspaceId!==undefined?[p.workspaceId]:store.state.workspaces.map(w=>w.id);}
+    const snap=hostEvents.snapshot(),mapping=projection.stats();
+    return {workspaces:ids.map(workspaceId=>{
+      const found=[...activityClients.values()].find(item=>item.workspaceId===workspaceId);
+      return {workspaceId,client:found?found.client.status():null,mapping,bus:{...snap,entities:snap.entities.filter(e=>e.workspaceId===workspaceId)}};
+    })};
+  }
   const emit=event=>{
     try{if(store&&!closingPromise)hostEvents.feed(event,sessionId=>terminals?.sessions.find(s=>s.id===sessionId)?.nodeId);}catch{}
     const terminalExit=event.type==='terminal.exit',toolFinish=event.type==='tool.status'&&['failed','completed'].includes(event.status);
@@ -115,6 +182,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     broadcast(event);
     try{
       const r=event.result;
+      if(store&&!closingPromise&&event.type==='tool.status'&&r?.source==='phantom'&&typeof r.taskId==='string'&&typeof r.origin?.nodeId==='string')registerTask({taskId:r.taskId,workspaceId:event.workspaceId??r.workspaceId,ownerNodeId:r.origin.nodeId,via:r.origin.via==='chat'?'chat':'terminal',goal:r.title??r.goal});
       if(store&&!closingPromise&&event.type==='tool.status'&&event.status==='running'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string')bindRunStart(r,event.workspaceId).catch(()=>{});
       if(store&&!closingPromise&&event.type==='tool.status'&&r?.source==='phantom'&&r.action==='run'&&typeof r.origin?.nodeId==='string'&&typeof r.taskId==='string'){
         const target={id:r.id,taskId:r.taskId,workspaceId:event.workspaceId??r.workspaceId,nodeId:r.origin.nodeId,via:r.origin.via==='chat'?'chat':'terminal',startedAt:r.createdAt};
@@ -249,6 +317,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     mutate(workspaceId,()=>{const current=cardNode(store.getWorkspace(workspaceId).nodes,r.origin);if(!current)return;
       if(patch.cardId!==current.data.agent?.cardId&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(patch.cardTitle);if(named)current.title=named;}
       current.data.agent={...current.data.agent,...patch};});
+    registerTask({taskId:r.taskId,workspaceId,ownerNodeId:r.origin.nodeId,via:r.origin.via==='chat'?'chat':'terminal',goal:patch.cardTitle});
   };
   // A finished Phantom run backing a terminal plan's running phase closes it and, with chain, launches the next registered one.
   const planSeen=new Set();
@@ -296,7 +365,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const dirtyWorkspaces=new Set();let dirtyGlobal=false,dirtyTimer;
   const markChanged=workspaceId=>{
     if(workspaceId)dirtyWorkspaces.add(workspaceId);else dirtyGlobal=true;
-    dirtyTimer??=setImmediate(()=>{dirtyTimer=undefined;const ids=[...dirtyWorkspaces],global=dirtyGlobal;dirtyWorkspaces.clear();dirtyGlobal=false;for(const workspaceId of ids)broadcast({type:'state.changed',workspaceId});if(global)broadcast({type:'state.changed'});});
+    dirtyTimer??=setImmediate(()=>{dirtyTimer=undefined;const ids=[...dirtyWorkspaces],global=dirtyGlobal;dirtyWorkspaces.clear();dirtyGlobal=false;for(const workspaceId of ids)broadcast({type:'state.changed',workspaceId});if(global)broadcast({type:'state.changed'});syncActivity();});
   };
   const persist=workspaceId=>{store.persist();markChanged(workspaceId);};
   const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); markChanged(workspaceId); return value; };
@@ -446,6 +515,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(TRACE_RENDERER_METHODS.includes(method)) return traceRenderer(method,p);
     if(method==='terminal.agent.trace') return traceIngest(p);
     if(method==='terminal.agent.traces') return traceAgentRead(p);
+    if(method==='workspace.events.status') return activityStatus(p);
     if(method===EVENTS_METHOD) return hostEvents.query(p,{session:id=>terminals.sessions.find(s=>s.id===id),workspaces:()=>store.state.workspaces});
     if(method==='mobile.status') return mobile.status();
     if(method==='mobile.start') return mobile.start(p);
@@ -635,7 +705,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         else {validated.providerSessionId='';}
       }
       // Re-resolve after asynchronous catalogs; other clients may have edited/closed the node.
-      return mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;if(patch.name!==undefined)current.title=patch.name.trim();else if(changedCard&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(validated.cardTitle||'');if(named)current.title=named;}current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
+      const updated=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===p.nodeId);assert(current?.type==='terminal','Terminal node not found');const changedCard=validated.cardId!==undefined&&validated.cardId!==current.data.agent?.cardId;if(patch.name!==undefined)current.title=patch.name.trim();else if(changedCard&&isDefaultTerminalTitle(current.title)){const named=cardPanelTitle(validated.cardTitle||'');if(named)current.title=named;}current.data.agent={...current.data.agent,...(changedCard?{step:'',status:'idle'}:{}),...validated,...(patch.step!==undefined||patch.status!==undefined||changedCard?{source:'manual',updatedAt:new Date().toISOString()}: {})};return current;});
+      if(validated.cardId)registerTask({taskId:validated.cardId,workspaceId:w.id,ownerNodeId:node.id,via:'terminal',goal:validated.cardTitle});
+      return updated;
     }
     if(method==='orchestrator.send') return deliverToOrchestrator({store,terminals,chats,invoke},p);
     if(method==='terminal.setup.retry') return terminals.retrySetup(p.sessionId);
@@ -754,7 +826,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   function close() {
     if(closingPromise)return closingPromise;
-    runWatch.stop();runWake.close();quota.close();hostEvents.close();unsubscribeLimits?.();limits.stop?.();
+    runWatch.stop();runWake.close();quota.close();
+    for(const item of activityClients.values()){try{item.client.stop();}catch{}}activityClients.clear();
+    hostEvents.close();unsubscribeLimits?.();limits.stop?.();
     // Cancels any summary in flight (its Claude Code process included) and every pending timer.
     for(const timer of snapshotTimers.values())clearTimeout(timer);snapshotTimers.clear();traceReads.clear();
     try{supervisor?.close();}catch{}
@@ -787,7 +861,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     supervisor=createWorkspaceSupervisor({dataDir,...supervisorOptions,
       summarize:supervisorOptions?.summarize??createSupervisorSummarizer({settings:()=>store.state.settings,workspaceOf:id=>store.state.workspaces.find(w=>w.id===id)}),
       onChange:({workspaceId})=>broadcast({type:'supervisor.changed',workspaceId})});
-    terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node),{onTrace:record=>traces.record(record)});
+    terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit,onTransition:({workspaceId,id,status,branch,ownerNodeId,reason})=>{if(closingPromise)return;hostEvents.ingest({workspaceId,kind:'integration',entityId:id,status:status==='withdrawn'?'rejected':status,title:branch,branch,ownerNodeId,reason:reason??(status==='withdrawn'?'Solicitud retirada':undefined)});}});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node),{onTrace:record=>traces.record(record)});
     providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();limits.start?.();
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
     android=new AndroidGateway({hostDataDir:dataDir,listWorkspaces:()=>store.state.workspaces});
@@ -810,7 +884,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       send(socket,{event:{type:'connection',status:'connected'}});
     });
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(socketPath,()=>{ownsSocket=true;fs.chmodSync(socketPath,0o600);resolve();});});
-    return {invoke,close,store,terminals,chats,merges,traces,supervisor,server,socketPath,emit};
+    syncActivity();
+    return {invoke,close,store,terminals,chats,merges,traces,supervisor,server,socketPath,emit,syncActivity};
   } catch(e) {await close();throw e;}
 }
 export const startHost=createHost;
