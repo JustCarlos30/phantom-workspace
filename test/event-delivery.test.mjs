@@ -61,6 +61,24 @@ function harness(o = {}) {
 const tmpFile = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'evd-')), 'delivery.json');
 const sub = (d, id) => d.status().subscribers.find((s) => s.id === id);
 
+test('isMaterial: orchestrator con cards e integraciones propias sigue reglas de worker', () => {
+  const own = (o) => isMaterial(ev({ audience: 'workspace', ownerNodeId: 'o1', ...o }), O);
+  assert.equal(own({ status: 'completed' }), true);
+  assert.equal(own({ status: 'cancelled' }), true);
+  assert.equal(own({ status: 'running' }), false);
+  assert.equal(own({ status: 'running', alert: 'stalled' }), true);
+  assert.equal(isMaterial(ev({ kind: 'integration', audience: 'workspace', ownerNodeId: 'o1', status: 'queued' }), O), true);
+  assert.equal(isMaterial(ev({ audience: 'workspace', ownerNodeId: 'otro', status: 'completed' }), O), false);
+});
+
+test('isMaterial: assistant con cards e integraciones propias sigue reglas de worker', () => {
+  const own = (o) => isMaterial(ev({ audience: 'owner', ownerNodeId: 'a1', ...o }), A);
+  assert.equal(own({ status: 'completed' }), true);
+  assert.equal(own({ status: 'running' }), false);
+  assert.equal(isMaterial(ev({ kind: 'integration', ownerNodeId: 'a1', status: 'queued' }), A), true);
+  assert.equal(isMaterial(ev({ ownerNodeId: 'otro', status: 'completed' }), A), false);
+});
+
 test('isMaterial: worker', () => {
   const m = (o) => isMaterial(ev(o), W);
   for (const status of ['blocked', 'review', 'completed', 'failed', 'cancelled']) assert.equal(m({ status }), true, status);

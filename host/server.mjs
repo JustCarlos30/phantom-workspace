@@ -309,27 +309,32 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     try{ptyWrite(session.id,message+'\r');return {delivered:true};}catch{return {};}
   };
   // --- Bus -> agents: the host subscribes on behalf of each live session and delivers text notices through the channel its CLI listens to. ---
-  const deliveryTarget=sub=>({workspaceId:sub.workspaceId,nodeId:sub.id,via:sub.via});
+  const deliveryTarget=sub=>({workspaceId:sub.workspaceId,nodeId:sub.id});
+  // The channel is decided on each delivery: live PTY with a foreground agent, else an idle chat, else not ready.
+  const deliveryChannel=(sub,node)=>{
+    let session;try{session=node.data.sessionId?terminals.get(node.data.sessionId):undefined;}catch{}
+    if(session&&session.status==='running'&&session.nodeId===node.id&&foreground(session.id)?.agent)return 'pty';
+    if(node.data.chat?.provider&&!chats.running(node.id)&&chats.turns.size+chats.operations.size<16&&!chats.get(node).queue.length)return 'chat';
+    return null;
+  };
   const deliveryReady=sub=>{
     if(closingPromise)return false;
     const node=wakeNode(deliveryTarget(sub));
-    if(!node)return false;
-    if(sub.via==='chat')return Boolean(node.data.chat?.provider)&&!chats.running(node.id)&&chats.turns.size+chats.operations.size<16&&!chats.get(node).queue.length;
-    const session=terminals.get(node.data.sessionId);
-    return session.status==='running'&&session.nodeId===node.id&&Boolean(foreground(session.id)?.agent);
+    return Boolean(node)&&deliveryChannel(sub,node)!==null;
   };
   const eventDelivery=createEventDelivery({
     file:path.join(dataDir,'event-delivery.json'),
-    subscribe:(filter,listener)=>hostEvents.subscribe(filter,listener),
+    // Card status events without alert are covered by the legacy notice unless the activity stream is live.
+    subscribe:(filter,listener)=>hostEvents.subscribe(filter,ev=>{if(ev?.kind==='card'&&!ev.alert&&!streaming(ev.workspaceId))return;listener(ev);}),
     render:({sub,events})=>renderNotice({sub,events,lookup:id=>registry.get(id)}),
     ready:async sub=>{try{return deliveryReady(sub);}catch{return false;}},
     deliver:async({sub,message})=>{
       if(closingPromise)return {retry:true,reason:'El host se cierra'};
       let node;try{node=wakeNode(deliveryTarget(sub));}catch{}
       if(!node)return {gone:true};
-      let ok=false;try{ok=deliveryReady(sub);}catch{}
-      if(!ok)return {retry:true,reason:'El destinatario no puede recibir ahora'};
-      if(sub.via==='chat'){await(deliveryOptions?.chatSend?deliveryOptions.chatSend(sub,message):chats.send(store.getWorkspace(sub.workspaceId),node,message));return {delivered:true};}
+      let channel=null;try{channel=deliveryChannel(sub,node);}catch{}
+      if(!channel)return {retry:true,reason:'El destinatario no puede recibir ahora'};
+      if(channel==='chat'){await(deliveryOptions?.chatSend?deliveryOptions.chatSend(sub,message):chats.send(store.getWorkspace(sub.workspaceId),node,message));return {delivered:true};}
       try{ptyWrite(node.data.sessionId,message+'\r');return {delivered:true};}catch(error){return {retry:true,reason:error.message};}
     },
     ...deliveryOptions?.delivery,
@@ -344,14 +349,15 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       if(w.archived)continue;
       let assistantId;try{if(chats.mainNode(w).data.chat?.provider)assistantId=Chats.mainId(w);}catch{}
       const live=w.nodes.filter(n=>liveNode(w,n)),orchestrator=live.find(n=>n.data.role==='orchestrator');
-      if(assistantId)want.set(assistantId,{id:assistantId,role:'assistant',workspaceId:w.id,via:'chat',filter:{workspaceIds:[w.id],audiences:['workspace']}});
-      for(const n of live){
+      if(assistantId)want.set(assistantId,{id:assistantId,role:'assistant',workspaceId:w.id,filter:{workspaceIds:[w.id],ownerNodeIds:[assistantId],audiences:['workspace','owner']}});
+      const members=w.nodes.filter(n=>n.type==='terminal'&&(live.includes(n)||n.data?.chat?.provider));
+      for(const n of members){
         if(n===orchestrator){
           const workspaceIds=store.state.workspaces.filter(v=>v.id===w.id||(v.integration?.enabled&&!v.hidden&&!v.archived)).map(v=>v.id);
-          want.set(n.id,{id:n.id,role:'orchestrator',workspaceId:w.id,via:'terminal',...(assistantId?{parentId:assistantId}:{}),filter:{workspaceIds,ownerNodeIds:[n.id],audiences:['workspace','owner']}});
+          want.set(n.id,{id:n.id,role:'orchestrator',workspaceId:w.id,...(assistantId?{parentId:assistantId}:{}),filter:{workspaceIds,ownerNodeIds:[n.id],audiences:['workspace','owner']}});
         }else{
           const parentId=orchestrator?.id??assistantId;
-          want.set(n.id,{id:n.id,role:'worker',workspaceId:w.id,via:'terminal',...(parentId?{parentId}:{}),filter:{workspaceIds:[w.id],ownerNodeIds:[n.id],audiences:['owner']}});
+          want.set(n.id,{id:n.id,role:'worker',workspaceId:w.id,...(parentId?{parentId}:{}),filter:{workspaceIds:[w.id],ownerNodeIds:[n.id],audiences:['owner']}});
         }
       }
     }

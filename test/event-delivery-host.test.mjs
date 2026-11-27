@@ -188,6 +188,79 @@ test('tras reiniciar el host un aviso pendiente se entrega una sola vez', async 
   assert.equal(subscriber(f, node.id).delivered, 1);
 });
 
+async function chatMode(f, node) {
+  f.host.store.getWorkspace(f.workspace.id).nodes.find((n) => n.id === node.id).data.chat = { provider: 'claude' };
+  await f.host.invoke('workspace.update', { id: f.workspace.id, patch: { name: 'Proyecto' } });
+}
+const blocked = (f, id = 'e1') => f.harness.push({ id, taskId: C, parentTaskId: P, type: 'task.blocked', payload: { reason: 'budget exhausted: maxTokens' } });
+const finishedRun = (f, nodeId, via, runId = 'run-x') => f.host.emit({ type: 'tool.status', workspaceId: f.workspace.id, id: runId, status: 'completed', result: { source: 'phantom', action: 'run', id: runId, taskId: P, origin: { nodeId, via }, status: 'completed', exitCode: 0 } });
+
+test('terminal en modo chat sin agente en primer plano recibe el aviso por chat en ese nodo', async (t) => {
+  const f = await fixture(t);
+  const { node, sessionId } = await session(f);
+  await chatMode(f, node);
+  await f.streaming();
+  owned(f, node, P);
+  blocked(f);
+  const sent = await until(() => f.chatSends.find((c) => c.message.includes(C)));
+  assert.equal(sent.id, node.id);
+  assert.equal(f.chatSends.filter((c) => c.message.includes(C)).length, 1);
+  assert.equal(sentTo(f, sessionId, C).length, 0);
+});
+
+test('terminal en modo chat con agente en primer plano usa el PTY', async (t) => {
+  const f = await fixture(t);
+  const { node, sessionId } = await session(f);
+  await chatMode(f, node);
+  f.foreground.add(sessionId);
+  await f.streaming();
+  owned(f, node, P);
+  blocked(f);
+  await until(() => sentTo(f, sessionId, C).length);
+  await pause(200);
+  assert.equal(sentTo(f, sessionId, C).length, 1);
+  assert.equal(f.chatSends.filter((c) => c.id === node.id).length, 0);
+});
+
+test('fin de tarea lanzada desde el chat principal produce un aviso al chat principal con streaming', async (t) => {
+  const f = await fixture(t);
+  const main = `phantom:${f.workspace.id}`;
+  await f.streaming();
+  f.host.emit({ type: 'tool.status', workspaceId: f.workspace.id, id: `ctl-${P}`, status: 'completed', result: { source: 'phantom', action: 'create', taskId: P, title: 'Tarea', origin: { nodeId: main, via: 'chat' } } });
+  f.harness.push({ id: 'e1', taskId: P, type: 'task.completed', payload: {} });
+  await until(() => f.chatSends.find((c) => c.id === main && c.message.includes(P)));
+  await pause(300);
+  assert.equal(f.chatSends.filter((c) => c.id === main && c.message.includes(P)).length, 1);
+});
+
+test('aviso de fin de tarea para un dueño ocupado queda en cola y se entrega una sola vez al quedar libre', async (t) => {
+  const f = await fixture(t, { escalateAfterMs: 600000 });
+  const { node, sessionId } = await session(f);
+  await f.streaming();
+  f.host.emit({ type: 'tool.status', workspaceId: f.workspace.id, id: `ctl-${P}`, status: 'running', result: { source: 'phantom', action: 'create', taskId: P, title: 'Tarea', origin: { nodeId: node.id } } });
+  f.harness.push({ id: 'e1', taskId: C, parentTaskId: P, type: 'task.completed', payload: {} });
+  await until(() => subscriber(f, node.id)?.queued >= 1);
+  assert.equal(f.writes.length + f.chatSends.length, 0);
+  f.foreground.add(sessionId);
+  await until(() => sentTo(f, sessionId, C).length);
+  await pause(300);
+  assert.equal(sentTo(f, sessionId, C).length, 1);
+  assert.equal(subscriber(f, node.id).queued, 0);
+});
+
+test('sin streaming un fin de tarea produce un único aviso (legacy) y ninguno por el bus', async (t) => {
+  const f = await fixture(t, { harness: fakeHarness({ extension: false }) });
+  const { node, sessionId } = await session(f);
+  f.foreground.add(sessionId);
+  await until(async () => (await f.status()).client?.state === 'unsupported');
+  finishedRun(f, node.id, 'terminal');
+  await until(() => sentTo(f, sessionId, 'terminó').length);
+  await pause(400);
+  assert.equal(sentTo(f, sessionId, P).length, 1);
+  assert.equal(subscriber(f, node.id).delivered, 0);
+  assert.equal(subscriber(f, node.id).queued, 0);
+});
+
 test('workspace.events.status incluye delivery filtrado a los workspaces visibles', async (t) => {
   const f = await fixture(t);
   const a = await session(f);

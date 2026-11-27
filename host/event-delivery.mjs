@@ -36,14 +36,16 @@ export function isMaterial(ev, sub) {
   if (sub.workspaceId && ev.workspaceId && ev.workspaceId !== sub.workspaceId) return false;
   const card = ev.kind === 'card';
   const integration = ev.kind === 'integration';
-  if (sub.role === 'worker') {
+  const workerRule = () => {
     if (card) {
       if (!(ev.audience === 'owner' || ev.ownerNodeId === sub.id)) return false;
       if (ev.alert) return ev.alert === 'stalled';
       return WORKER_CARD.has(ev.status) || ev.phase === 'repair';
     }
     return integration && !ev.alert && ev.ownerNodeId === sub.id;
-  }
+  };
+  if (sub.role === 'worker') return workerRule();
+  if ((card || integration) && ev.ownerNodeId === sub.id && workerRule()) return true;
   if (sub.role === 'orchestrator') {
     if (ev.audience !== 'workspace') return false;
     if (ev.alert) return ev.alert === 'unattended';
