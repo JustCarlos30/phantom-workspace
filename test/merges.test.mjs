@@ -395,6 +395,29 @@ test('merge review inspects the submitted commit despite branch movement, rebind
   assert.equal(result.queue[0].checks, undefined, 'queued is not passed checks');
 });
 
+test('queue view marks failed entries whose commit is already in the base as integrated', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-merge-integrated-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => gitAs({}, root, ...args);
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  fs.writeFileSync(path.join(root, 'base.txt'), 'base\n'); git('add', '.'); git('commit', '-m', 'Base');
+  git('checkout', '-b', 'worker');
+  fs.writeFileSync(path.join(root, 'w.txt'), 'w\n'); git('add', '.'); git('commit', '-m', 'W');
+  const headOid = git('rev-parse', 'HEAD');
+  git('checkout', 'main');
+  const request = { id: 'r', nodeId: 'n', title: 'W', branch: 'worker', headOid, status: 'failed' };
+  const queued = { id: 'q', nodeId: 'n', title: 'W', branch: 'worker', headOid, status: 'queued' };
+  const workspace = { id: 'fixture', path: root, nodes: [], integration: { enabled: true, queue: [request, queued] } };
+  const merges = new Merges({ store: { state: { workspaces: [workspace] } }, terminals: { sessions: [] } });
+  let queue = (await merges.status(workspace)).queue;
+  assert.equal(queue.find(i => i.id === 'r').integrated, false);
+  assert.equal(queue.find(i => i.id === 'q').integrated, null, 'queued entries are not checked');
+  git('merge', '--ff-only', 'worker');
+  merges.polling.clear?.();
+  queue = (await merges.status(workspace)).queue;
+  assert.equal(queue.find(i => i.id === 'r').integrated, true);
+});
+
 test('the guard never replaces hooks it does not own, and policies name each role', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-merges-')), repository = path.join(root, 'repository');
   fs.mkdirSync(repository); const git = (...args) => gitAs({}, repository, ...args);
