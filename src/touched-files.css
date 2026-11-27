@@ -1,8 +1,11 @@
 .tf { position: relative; display: inline-flex; min-width: 0; flex-shrink: 0; }
-.tf-badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--muted); font: var(--t-support); white-space: nowrap; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.tf-badge { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; flex-shrink: 0; border-radius: var(--r-ctl); background: var(--fill-2); color: var(--muted); font: var(--t-support); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .tf-badge:hover, .tf-badge[aria-expanded="true"] { background: var(--fill-3); color: var(--ink); }
 .tf-badge:focus-visible, .tf-panel :is(button, input, select, textarea, [role="separator"]):focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tf-badge > svg { flex-shrink: 0; }
+.tf-badge .tf-n { color: var(--ink); }
+.pc-composer-tools .tf-badge { height: var(--control-size); border-radius: var(--r-pill); }
+@media (pointer: coarse) { .tf-badge { min-height: 44px; } }
 .tf-stat { display: inline-flex; gap: 6px; font-variant-numeric: tabular-nums; }
 .tf-add { color: var(--success); }
 .tf-del { color: var(--danger); }

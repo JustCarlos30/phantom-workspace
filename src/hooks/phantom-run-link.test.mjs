@@ -1,10 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity, turnRunIds, linkedRunBadge, phantomCallKind, PHANTOM_CALL_LABEL } from './phantom-run-link.mjs';
+import { phantomRunIds, summarizePhantomRun, summarizePhantomActivity, turnRunIds, linkedRunBadge, phantomCallKind, phantomCallSummary, PHANTOM_CALL_LABEL } from './phantom-run-link.mjs';
 
 const id = 'task_12345678-1234-1234-1234-123456789abc';
 const card = 'card_abcdef12-1234-1234-1234-123456789abc';
 const shell = detail => ({ type: 'tool', name: 'Bash', detail });
+
+test('phantomCallSummary resume acciones sin exponer variables de entorno', () => {
+  const cmd = '"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" context; phantom list --works';
+  const summary = phantomCallSummary(shell(cmd));
+  assert.equal(summary, 'context · list');
+  assert.doesNotMatch(summary, /PHANTOM_AGENT/);
+});
+
+test('phantomCallSummary abrevia el ID a 13 caracteres', () => {
+  assert.equal(phantomCallSummary(shell(`node agent.mjs run ${id}`)), 'run task_12345678');
+  assert.equal(phantomCallSummary(shell(`"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" bind ${card}`)), 'bind card_abcdef12');
+});
+
+test('phantomCallSummary nombra el archivo y lee llamadas estructuradas', () => {
+  assert.equal(phantomCallSummary(shell('phantom create --file docs/contrato.json')), 'create contrato.json');
+  assert.equal(phantomCallSummary({ type: 'tool', name: 'phantom_workspace.phantom', input: { cli: 'agent', args: ['run', id] } }), 'run task_12345678');
+});
+
+test('phantomCallSummary devuelve vacío si no es una llamada Phantom', () => {
+  assert.equal(phantomCallSummary(shell('ls -la')), '');
+  assert.equal(phantomCallSummary({ type: 'text', text: 'hola' }), '');
+  assert.equal(phantomCallSummary(undefined), '');
+});
 
 test('turnRunIds une ids sin duplicar y conserva el orden', () => {
   const parts = [shell(`node agent.mjs run ${id}`), { type: 'text', text: id }, shell(`node agent.mjs bind ${card}`), shell(`node agent.mjs show ${id}`)];
