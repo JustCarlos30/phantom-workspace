@@ -592,7 +592,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       assert(session.status==='running' && node.data.sessionId===session.id,'Report requires the current live terminal session');
       object(p.patch);for(const key of Object.keys(p.patch)) assert(['step','status'].includes(key),'Reports may only update step and status');
       const patch=structuredClone(p.patch);validateAgent(patch);
-      const reported=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return {context:agentContext(w,current,session),agent:current.data.agent};});
+      const reported=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);const prev=current.data.agent;if(prev?.source==='agent'&&Object.keys(patch).every(k=>prev[k]===patch[k]))return {context:agentContext(w,current,session),agent:prev};current.data.agent={...current.data.agent,...patch,source:'agent',updatedAt:new Date().toISOString()};return {context:agentContext(w,current,session),agent:current.data.agent};});
       try{hostEvents.report({workspaceId:w.id,nodeId:node.id,agent:reported.agent});}catch{}
       return reported.context;
     }
