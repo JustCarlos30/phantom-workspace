@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomicJSON, assert, text } from './store.mjs';
 import { permissionDecision, phantomCommand, PHANTOM_SCRIPTS, inside, PERMISSION_MODES } from './chat-permissions.mjs';
-import { codexWriteArgs, phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
+import { claudeMcpConfig, codexWriteArgs, openCodeMcpConfig, phantomEnv, phantomMcpConfig, PHANTOM_MCP_HINT } from '../scripts/phantom-mcp.mjs';
 import { GATE_TOOL as GATE_NAME } from '../scripts/chat-approval-mcp.mjs';
 import { validReasoning } from '../shared/chat-options.mjs';
 import { assertClaudeModel, assertClientAllowed, assertClientModel, CLAUDE_MODEL_ALIASES, DEFAULT_POLICY, executionPolicy, isClaudeLike } from '../shared/execution-policy.mjs';
@@ -100,6 +100,15 @@ export const GATE_TOOL = `mcp__${GATE_SERVER}__${GATE_NAME}`;
 export function gateConfig({ token, socketPath }) {
   return { mcpServers: { [GATE_SERVER]: { type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../scripts/chat-approval-mcp.mjs', import.meta.url))], env: { PHANTOM_CHAT_TOKEN: token, PHANTOM_WORKSPACE_SOCKET: socketPath } } } };
 }
+// OpenCode's server config: the inherited inline config is kept; phantom_workspace is added to its mcp (the user's own entry wins).
+export function openCodeConfigWithPhantom(inherited, phantom) {
+  let config = {};
+  if (inherited !== undefined) {
+    try { config = JSON.parse(inherited); } catch { return inherited; }
+    if (!config || typeof config !== 'object' || Array.isArray(config) || (config.mcp !== undefined && (!config.mcp || typeof config.mcp !== 'object' || Array.isArray(config.mcp)))) return inherited;
+  }
+  return JSON.stringify({ ...config, mcp: { ...openCodeMcpConfig(phantom).mcp, ...config.mcp } });
+}
 // OpenCode asks for the shell command itself (bash) and for reading the CLI
 // outside the folder (external_directory); Phantom's own CLIs pass either way.
 export function phantomRequest(permission, patterns) {
@@ -157,7 +166,8 @@ export function providerArgs(provider, { sessionId, mode = 'ask', autoApprove = 
     return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     ...(reasoning ? ['--effort', reasoning] : []),
     ...(instructions ? ['--append-system-prompt', instructions] : []), ...(model ? ['--model', model] : []), ...(sessionId ? ['--resume', sessionId] : []), ...(mode === 'auto' || mode === 'full' ? ['--permission-mode', 'acceptEdits'] : []),
-    ...(gate ? ['--mcp-config', JSON.stringify(gateConfig(gate)), '--permission-prompt-tool', GATE_TOOL] : []), ...routed.extra];
+    ...(gate || phantom ? ['--mcp-config', JSON.stringify({ mcpServers: { ...(gate ? gateConfig(gate).mcpServers : {}), ...(phantom ? claudeMcpConfig(phantom).mcpServers : {}) } })] : []),
+    ...(gate ? ['--permission-prompt-tool', GATE_TOOL] : []), ...routed.extra];
   }
   return ['serve', '--hostname', '127.0.0.1', '--port', '0'];
 }
@@ -715,7 +725,9 @@ export class Chats {
       turn.browser = provisionBrowserTerminal(this.store.dir, { sessionId: turn.browserSession, workspaceId: workspace.id, nodeId: node.id });
       env = { ...process.env, PWD: cwd, ...role.env, ...turn.browser.env, ...(turn.token ? { MCP_TOOL_TIMEOUT: String(24 * 3600 * 1000), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0' } : {}) };
       if (provider === 'opencode') env = openCodeServerEnv(env);
-      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: continuation?.model || node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' ? phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd) : null, ...(provider === 'claude' ? { routing: { role: roleOfChat(node), config: resolveRouting(this.store.state.settings) } } : {}) }),
+      const mcpEnv = phantomEnv(env, path.join(this.store.dir, 'host.sock'), cwd);
+      if (provider === 'opencode') env = { ...env, OPENCODE_CONFIG_CONTENT: openCodeConfigWithPhantom(env.OPENCODE_CONFIG_CONTENT, mcpEnv) };
+      child = spawn(bin, providerArgs(provider, { sessionId: thread.sessionId, mode: turn.mode, access: explicitMode(node.data.chat) || 'ask', message, cwd, model: continuation?.model || node.data.chat.models?.[provider], reasoning: node.data.chat.reasoning?.[provider], gate: turn.token ? { token: turn.token, socketPath: path.join(this.store.dir, 'host.sock') } : null, instructions: role.instructions, phantom: provider === 'codex' || provider === 'claude' ? mcpEnv : null, ...(provider === 'claude' ? { routing: { role: roleOfChat(node), config: resolveRouting(this.store.state.settings) } } : {}) }),
         // OpenCode trusts PWD over the real working directory; keep both in step.
         // A permission waits for the user as long as it takes.
         { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });

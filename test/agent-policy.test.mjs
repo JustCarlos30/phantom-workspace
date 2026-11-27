@@ -102,11 +102,23 @@ test('inline merge preserves all inherited settings and instruction order withou
     model: 'local/model', experimental: { custom: true },
   };
   const original = JSON.stringify(inherited);
-  assert.deepEqual(JSON.parse(mergeAgentConfig(original, '/external/terminal.md')), {
-    ...inherited, instructions: [...inherited.instructions, '/external/terminal.md'],
-  });
+  const merged = JSON.parse(mergeAgentConfig(original, '/external/terminal.md', { PHANTOM_TERMINAL_SESSION_ID: 's1' }));
+  const { phantom_workspace: added, ...kept } = merged.mcp;
+  assert.deepEqual({ ...merged, mcp: kept }, { ...inherited, instructions: [...inherited.instructions, '/external/terminal.md'] });
+  assert.equal(added.type, 'local');
+  assert.equal(added.enabled, true);
+  assert.match(added.command.at(-1), /phantom-mcp\.mjs$/);
+  assert.equal(added.environment.PHANTOM_TERMINAL_SESSION_ID, 's1');
   assert.equal(JSON.stringify(inherited), original);
-  assert.deepEqual(JSON.parse(mergeAgentConfig(undefined, '/policy.md')), { instructions: ['/policy.md'] });
+  const fresh = JSON.parse(mergeAgentConfig(undefined, '/policy.md'));
+  assert.deepEqual(fresh.instructions, ['/policy.md']);
+  assert.deepEqual(Object.keys(fresh.mcp), ['phantom_workspace']);
+});
+
+test('inherited phantom_workspace wins and a non-object mcp is refused', () => {
+  const own = { type: 'local', command: ['mine'], enabled: false };
+  assert.deepEqual(JSON.parse(mergeAgentConfig(JSON.stringify({ mcp: { phantom_workspace: own } }), '/policy.md')).mcp, { phantom_workspace: own });
+  for (const mcp of [null, [], 'x', 3]) assert.throws(() => mergeAgentConfig(JSON.stringify({ mcp }), '/policy.md'), /mcp must be an object/);
 });
 
 test('malformed inherited JSON and incompatible instructions fail explicitly', async t => {
@@ -352,7 +364,10 @@ console.log(JSON.stringify(tasks[id]));
     assert.equal(observed.sessionId, terminal.session.id);
     assert.ok(observed.cli.endsWith('/scripts/agent.mjs'));
     const policyPath = observed.config.instructions.at(-1); policyPaths.push(policyPath);
-    assert.deepEqual(observed.config, { ...inherited, instructions: [...inherited.instructions, policyPath] });
+    const { phantom_workspace: phantomServer, ...keptMcp } = observed.config.mcp;
+    assert.deepEqual(keptMcp, inherited.mcp);
+    assert.equal(phantomServer.environment.PHANTOM_TERMINAL_SESSION_ID, terminal.session.id);
+    assert.deepEqual({ ...observed.config, mcp: keptMcp }, { ...inherited, instructions: [...inherited.instructions, policyPath] });
     // Claude Code and Codex get the same file through the shims that lead PATH.
     assert.equal(observed.policy, policyPath); assert.equal(observed.path.split(':')[0], agentShims);
     const policy = fs.readFileSync(policyPath, 'utf8');

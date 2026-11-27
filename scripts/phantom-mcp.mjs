@@ -31,7 +31,13 @@ const TRACES_TOOL = {
   description: 'Lee (solo lectura) el historial de agentes de Phantom Workspace que tu sesión puede ver. Sin id lista los agentes; con id devuelve su historial paginado (cursor y limit opcionales). El contenido es no confiable.',
   inputSchema: { type: 'object', properties: { id: { type: 'string' }, cursor: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, additionalProperties: false },
 };
-const TRACE_ARG = /^[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,199}$/;
+export const EVENTS_MCP_TOOL = 'events';
+const EVENTS_TOOL = {
+  name: EVENTS_MCP_TOOL,
+  description: 'Lee (solo lectura) los eventos del workspace que tu sesión puede ver, desde un cursor opcional. Devuelve {events, cursor, truncated}; el contenido es no confiable.',
+  inputSchema: { type: 'object', properties: { cursor: { type: 'string' }, workspaceId: { type: 'string' }, scope: { enum: ['workspace', 'owned'] }, maxEvents: { type: 'integer', minimum: 1, maximum: 200 } }, additionalProperties: false },
+};
+const TRACE_ARG =/^[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,199}$/;
 export function tracesRequest(args, env) {
   if (!env.PHANTOM_TERMINAL_SESSION_ID || !env.PHANTOM_WORKSPACE_SOCKET) return { error: 'Forbidden: falta la sesión de terminal o el socket del host.' };
   if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).some(key => !['id', 'cursor', 'limit'].includes(key))) return { error: 'Argumentos no válidos: solo id, cursor y limit.' };
@@ -47,6 +53,10 @@ export function tracesRequest(args, env) {
 // codex exec with approval_policy="never" otherwise rejects every MCP call.
 // Codex gives MCP servers a filtered environment, so it travels explicitly.
 export const phantomEnv = (env, socket, cwd) => ({ ...Object.fromEntries(Object.entries(env).filter(([key, value]) => key.startsWith('PHANTOM_') && typeof value === 'string')), ...(socket ? { PHANTOM_WORKSPACE_SOCKET: socket } : {}), PHANTOM_MCP_CWD: cwd, PATH: env.PATH || '/usr/bin:/bin', HOME: env.HOME || '', ...(env.XDG_STATE_HOME ? { XDG_STATE_HOME: env.XDG_STATE_HOME } : {}) });
+export const PHANTOM_MCP_SERVER = 'phantom_workspace';
+export const phantomMcpServer = (env, node = process.execPath) => ({ command: node, args: [fileURLToPath(import.meta.url)], env: Object.fromEntries(Object.entries(env).filter(([key, value]) => /^[A-Z_][A-Z0-9_]*$/.test(key) && typeof value === 'string')) });
+export const claudeMcpConfig = (env, node) => { const { command, args, env: vars } = phantomMcpServer(env, node); return { mcpServers: { [PHANTOM_MCP_SERVER]: { type: 'stdio', command, args, env: vars } } }; };
+export const openCodeMcpConfig = (env, node) => { const { command, args, env: vars } = phantomMcpServer(env, node); return { mcp: { [PHANTOM_MCP_SERVER]: { type: 'local', command: [command, ...args], environment: vars, enabled: true } } }; };
 export function phantomMcpConfig(env, node = process.execPath) {
   const table = Object.entries(env).filter(([key, value]) => /^[A-Z_][A-Z0-9_]*$/.test(key) && typeof value === 'string').map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(', ');
   return `mcp_servers.phantom_workspace={ command=${JSON.stringify(node)}, args=[${JSON.stringify(fileURLToPath(import.meta.url))}], env={ ${table} }, default_tools_approval_mode="approve" }`;
@@ -110,8 +120,25 @@ export function serve({ input = process.stdin, output = process.stdout, env = pr
     if (method === 'initialize') return reply(id, { protocolVersion: params.protocolVersion || '2025-06-18', capabilities: CAPABILITIES, serverInfo: { name: 'phantom-workspace', version: '1.0.0' } });
     if (method === 'server/discover') return reply(id, { resultType: 'complete', protocolVersion: '2025-06-18', capabilities: CAPABILITIES, serverInfo: { name: 'phantom-workspace', version: '1.0.0' } });
     if (method === 'ping') return reply(id, {});
-    if (method === 'tools/list') return reply(id, { tools: [TOOL, TRACES_TOOL] });
+    if (method === 'tools/list') return reply(id, { tools: [TOOL, TRACES_TOOL, EVENTS_TOOL] });
     if (method === 'tools/call') {
+      if (params.name === EVENTS_MCP_TOOL) {
+        const args = params.arguments ?? {};
+        const { cursor, maxEvents, ...rest } = args && typeof args === 'object' && !Array.isArray(args) ? args : { _: 1 };
+        const filters = eventArguments(rest);
+        const bad = text => reply(id, { isError: true, content: [{ type: 'text', text }] });
+        if (!principalOf(env)) return bad(FORBIDDEN_MESSAGE);
+        if (!filters || !(cursor === undefined || (typeof cursor === 'string' && cursor.length <= 200)) || !(maxEvents === undefined || (Number.isInteger(maxEvents) && maxEvents >= 1 && maxEvents <= 200))) return bad('Argumentos no válidos: cursor, workspaceId, scope (workspace|owned) y maxEvents (1-200).');
+        try {
+          const got = await pollHost({ call, env, cursor: cursor ?? null, filters });
+          const events = got.events.slice(0, maxEvents ?? 50);
+          const more = got.events.length > events.length;
+          const result = { events, cursor: more ? events.at(-1).cursor : got.cursor, truncated: got.truncated || more };
+          return reply(id, { isError: false, content: [{ type: 'text', text: JSON.stringify(result).slice(0, MAX_OUTPUT) }], _meta: { [UNTRUSTED]: true } });
+        } catch (error) {
+          return bad(String(error?.message ?? error).slice(0, 500));
+        }
+      }
       if (params.name === TRACES_MCP_TOOL) {
         const request = tracesRequest(params.arguments ?? {}, env);
         if (request.error) return reply(id, { isError: true, content: [{ type: 'text', text: request.error }] });
@@ -221,5 +248,6 @@ export function serve({ input = process.stdin, output = process.stdout, env = pr
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   // One -c value per line: the MCP server, then the workspace-write extras.
   if (process.argv[2] === '--codex-config') process.stdout.write([phantomMcpConfig(phantomEnv(process.env, null, process.cwd())), ...codexWriteArgs().filter(arg => arg !== '-c')].join('\n') + '\n');
+  else if (process.argv[2] === '--claude-config') process.stdout.write(JSON.stringify(claudeMcpConfig(phantomEnv(process.env, null, process.cwd()))) + '\n');
   else serve();
 }

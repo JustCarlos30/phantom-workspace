@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHost } from '../host/server.mjs';
-import { Chats, applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
+import { Chats, applyClaudeEvent, applyOpenCodeEvent, applyCodexEvent, openCodeConfigWithPhantom, openCodeModels, providerArgs, toolDetail, toolDiff, toolOutput, validateChat } from '../host/chats.mjs';
 import { mergeChat } from '../src/hooks/chatState.js';
 import { handleIntegration } from '../integrations/index.mjs';
 import { createAgentTraceStore } from '../host/agent-traces.mjs';
@@ -596,6 +596,26 @@ test('OpenCode events become text and tool parts; arguments resume the right ses
   assert.throws(() => validateChat({ models: { claude: '--dangerously-skip-permissions' } }), /Modelo/); assert.throws(() => validateChat({ models: { gpt: 'x' } }), /provider/);
   assert.equal(toolDetail({ command: 'npm   test\n--watch' }), 'npm test --watch');
   assert.throws(() => validateChat({ provider: 'gpt' }), /provider/); assert.throws(() => validateChat({ shell: true }), /Unknown/);
+});
+
+test('Claude y OpenCode reciben phantom_workspace sin tocar la pasarela ni los permisos', () => {
+  const phantom = { PHANTOM_TERMINAL_SESSION_ID: 's', PATH: '/bin' };
+  const only = providerArgs('claude', { message: 'x', phantom });
+  assert.deepEqual(Object.keys(JSON.parse(only[only.indexOf('--mcp-config') + 1]).mcpServers), ['phantom_workspace']);
+  assert.ok(!only.includes('--permission-prompt-tool'));
+  const both = providerArgs('claude', { message: 'x', phantom, gate: { token: 't', socketPath: '/s' } });
+  assert.deepEqual(Object.keys(JSON.parse(both[both.indexOf('--mcp-config') + 1]).mcpServers).sort(), ['phantom_workspace', 'phantom_workspace_chat']);
+  assert.equal(both.filter(arg => arg === '--mcp-config').length, 1);
+  assert.ok(both.includes('--permission-prompt-tool'));
+  assert.ok(!providerArgs('claude', { message: 'x' }).includes('--mcp-config'));
+  const inherited = JSON.stringify({ model: 'm', mcp: { mine: { type: 'local', command: ['x'] }, phantom_workspace: { type: 'local', command: ['own'] } } });
+  const merged = JSON.parse(openCodeConfigWithPhantom(inherited, phantom));
+  assert.equal(merged.model, 'm');
+  assert.deepEqual(merged.mcp.phantom_workspace.command, ['own']);
+  assert.ok(merged.mcp.mine);
+  const fresh = JSON.parse(openCodeConfigWithPhantom(undefined, phantom));
+  assert.equal(fresh.mcp.phantom_workspace.environment.PHANTOM_TERMINAL_SESSION_ID, 's');
+  assert.equal(openCodeConfigWithPhantom('{bad', phantom), '{bad');
 });
 
 test('renderer merge upserts streamed messages and ignores other providers', () => {
