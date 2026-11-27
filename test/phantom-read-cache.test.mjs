@@ -47,6 +47,16 @@ test('identical concurrent lists share one CLI invocation', async t => {
   assert.deepEqual(b, a);
 });
 
+test('concurrent pairs share one observation and one CLI read, with separate objects', async t => {
+  for (let i = 0; i < 20; i++) {
+    const f = await fixture(t);
+    const [a, b] = await Promise.all([f.call('phantom.list', { topic: 'tasks' }), f.call('phantom.list', { topic: 'tasks' })]);
+    assert.equal(a.observedAt, b.observedAt);
+    assert.equal(f.state.reads, 1);
+    assert.notEqual(a.items, b.items);
+  }
+});
+
 test('a second read inside the TTL does not invoke the CLI again', async t => {
   const f = await fixture(t);
   await f.call('phantom.list', { topic: 'tasks' });
