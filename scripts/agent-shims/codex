@@ -37,6 +37,13 @@ case $name in
           exec "$real" "$@" ;;
       esac
     done
+    # Phantom's CLIs as an MCP tool, merged with the user's own servers (no
+    # --strict-mcp-config). The --mcp-config=VALUE form keeps the variadic flag
+    # from swallowing a prompt. A failure here never prevents the launch.
+    if [ -n "$PHANTOM_TERMINAL_SESSION_ID" ] && [ -n "$PHANTOM_WORKSPACE_SOCKET" ] && [ -z "$PHANTOM_AGENT_MCP_OFF" ]; then
+      cfg=$("${PHANTOM_AGENT_NODE:-node}" "$self_dir/../phantom-mcp.mjs" --claude-config 2>/dev/null) || cfg=
+      [ -z "$cfg" ] || set -- "--mcp-config=$cfg" "$@"
+    fi
     hooks=1
     for arg do case $arg in --settings|--settings=*) hooks= ;; esac; done
     if [ -n "$hooks" ] && [ -z "$PHANTOM_AGENT_HOOKS_OFF" ] && [ -n "$PHANTOM_AGENT_CLI" ] && [ -n "$PHANTOM_TERMINAL_SESSION_ID" ]; then

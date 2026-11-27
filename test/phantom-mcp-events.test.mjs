@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { serve, PHANTOM_MCP_TOOL, tracesRequest, TRACES_MCP_TOOL } from '../scripts/phantom-mcp.mjs';
+import { serve, PHANTOM_MCP_TOOL, tracesRequest, TRACES_MCP_TOOL, phantomMcpServer, claudeMcpConfig, openCodeMcpConfig, phantomMcpConfig } from '../scripts/phantom-mcp.mjs';
 import { EVENT_NAME, EVENTS_METHOD } from '../shared/workspace-events.mjs';
 
 const EXTENSION = 'io.modelcontextprotocol/events';
@@ -210,7 +210,7 @@ test('la tool traces es de solo lectura: reenvía solo la sesión propia y valid
   const h = harness({ call: host.call });
   h.send({ id: 20, method: 'tools/list' });
   await until(() => h.responseTo(20));
-  assert.deepEqual(h.responseTo(20).result.tools.map(tool => tool.name), [PHANTOM_MCP_TOOL, 'traces']);
+  assert.deepEqual(h.responseTo(20).result.tools.map(tool => tool.name), [PHANTOM_MCP_TOOL, 'traces', 'events']);
   h.send({ id: 21, method: 'tools/call', params: { name: 'traces', arguments: {} } });
   h.send({ id: 22, method: 'tools/call', params: { name: 'traces', arguments: { id: 'toolu_A1', cursor: '12', limit: 5 } } });
   await until(() => h.responseTo(21) && h.responseTo(22));
@@ -237,6 +237,62 @@ test('traces sin sesión de terminal es Forbidden y no llama al host', async () 
   assert.match(h.responseTo(30).result.content[0].text, /^Forbidden/);
   assert.equal(host.calls.length, 0);
   h.end();
+});
+
+test('la tool events lee con la sesión propia, limita con maxEvents y marca el contenido como no confiable', async () => {
+  const host = fakeHost([{ events: [event(1), event(2), event(3)], cursor: 'cur-3', truncated: false }]);
+  const h = harness({ call: host.call });
+  h.send({ id: 40, method: 'tools/call', params: { name: 'events', arguments: { cursor: 'cur-0', scope: 'owned', maxEvents: 2 } } });
+  await until(() => h.responseTo(40));
+  assert.equal(host.calls[0].method, EVENTS_METHOD);
+  assert.deepEqual(host.calls[0].payload, { principal: { sessionId: 'session-1' }, cursor: 'cur-0', scope: 'owned' });
+  const result = h.responseTo(40).result;
+  assert.equal(result.isError, false);
+  assert.equal(result._meta[UNTRUSTED], true);
+  const body = JSON.parse(result.content[0].text);
+  assert.deepEqual(body.events.map(e => e.cursor), ['cur-1', 'cur-2']);
+  assert.equal(body.cursor, 'cur-2');
+  assert.equal(body.truncated, true);
+  h.end();
+});
+
+test('la tool events rechaza argumentos extra o inválidos y exige sesión sin llamar al host', async () => {
+  const host = fakeHost();
+  const h = harness({ call: host.call });
+  const bad = [{ sessionId: 'otra' }, { maxEvents: 0 }, { maxEvents: 201 }, { scope: 'todo' }, { cursor: 5 }, { workspaceId: '../x' }];
+  for (const [index, args] of bad.entries()) {
+    h.send({ id: 50 + index, method: 'tools/call', params: { name: 'events', arguments: args } });
+    await until(() => h.responseTo(50 + index));
+    assert.equal(h.responseTo(50 + index).result.isError, true);
+  }
+  assert.equal(host.calls.length, 0);
+  h.end();
+  const anon = fakeHost();
+  const g = harness({ call: anon.call, env: {} });
+  g.send({ id: 70, method: 'tools/call', params: { name: 'events', arguments: {} } });
+  await until(() => g.responseTo(70));
+  assert.equal(g.responseTo(70).result.isError, true);
+  assert.match(g.responseTo(70).result.content[0].text, /^Forbidden/);
+  assert.equal(anon.calls.length, 0);
+  g.end();
+});
+
+test('configuración MCP: mismo servidor en formato Claude, OpenCode y Codex', () => {
+  const env = { PHANTOM_TERMINAL_SESSION_ID: 's', PATH: '/bin', lower: 'x' };
+  const server = phantomMcpServer(env, '/usr/bin/node');
+  assert.equal(server.command, '/usr/bin/node');
+  assert.match(server.args[0], /phantom-mcp\.mjs$/);
+  assert.deepEqual(server.env, { PHANTOM_TERMINAL_SESSION_ID: 's', PATH: '/bin' });
+  assert.deepEqual(claudeMcpConfig(env, '/usr/bin/node'), { mcpServers: { phantom_workspace: { type: 'stdio', ...server } } });
+  assert.deepEqual(openCodeMcpConfig(env, '/usr/bin/node'), { mcp: { phantom_workspace: { type: 'local', command: ['/usr/bin/node', ...server.args], environment: server.env, enabled: true } } });
+  assert.match(phantomMcpConfig(env, '/usr/bin/node'), /^mcp_servers\.phantom_workspace=\{ command="\/usr\/bin\/node", args=\[.*default_tools_approval_mode="approve" \}$/);
+});
+
+test('configuración MCP: el nombre del servidor es phantom_workspace y solo hay una entrada por formato', () => {
+  const env = { PHANTOM_TERMINAL_SESSION_ID: 's' };
+  assert.deepEqual(Object.keys(claudeMcpConfig(env, '/usr/bin/node').mcpServers), ['phantom_workspace']);
+  assert.deepEqual(Object.keys(openCodeMcpConfig(env, '/usr/bin/node').mcp), ['phantom_workspace']);
+  assert.equal(openCodeMcpConfig(env, '/usr/bin/node').mcp.phantom_workspace.environment.PHANTOM_TERMINAL_SESSION_ID, 's');
 });
 
 const SESSION_ENV = { PHANTOM_TERMINAL_SESSION_ID: 'session-1', PHANTOM_WORKSPACE_SOCKET: '/tmp/host.sock' };

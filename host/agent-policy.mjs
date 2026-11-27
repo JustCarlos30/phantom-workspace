@@ -4,6 +4,7 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { externalStatePath } from '../integrations/common.mjs';
+import { openCodeMcpConfig, phantomEnv } from '../scripts/phantom-mcp.mjs';
 import { integrationPolicy } from './merge-guard.mjs';
 import { CLAUDE_CLIENT, DEFAULT_POLICY } from '../shared/execution-policy.mjs';
 
@@ -47,7 +48,7 @@ export const POLICY_HINTS = Object.freeze({
   get engine() { return engineHint(); },
 });
 
-export function mergeAgentConfig(inherited, policyPath) {
+export function mergeAgentConfig(inherited, policyPath, env = process.env) {
   let config = {};
   if (inherited !== undefined) {
     try { config = JSON.parse(inherited); }
@@ -57,7 +58,10 @@ export function mergeAgentConfig(inherited, policyPath) {
   if (config.instructions !== undefined && (!Array.isArray(config.instructions) || config.instructions.some(value => typeof value !== 'string'))) {
     throw new Error('Inherited OPENCODE_CONFIG_CONTENT.instructions must be an array of strings; refusing to replace inherited instructions.');
   }
-  return JSON.stringify({ ...config, instructions: [...(config.instructions ?? []), policyPath] });
+  if (config.mcp !== undefined && (!config.mcp || typeof config.mcp !== 'object' || Array.isArray(config.mcp))) {
+    throw new Error('Inherited OPENCODE_CONFIG_CONTENT.mcp must be an object; refusing to replace inherited MCP servers.');
+  }
+  return JSON.stringify({ ...config, instructions: [...(config.instructions ?? []), policyPath], mcp: { ...openCodeMcpConfig(phantomEnv(env, null, process.cwd())).mcp, ...config.mcp } });
 }
 
 export function terminalPolicy({ workspaceId, nodeId, sessionId, cwd, branch, integration }) {
@@ -134,5 +138,5 @@ export async function bootstrapAgentPolicy({ stateDir, workspace, env, ...identi
   await fs.writeFile(policyPath, terminalPolicy({ ...identity, workspaceId: workspace.id }), { flag: 'wx', mode: 0o600 });
   // The Claude Code shim reads PHANTOM_AGENT_POLICY when the user starts it. The
   // OpenCode inline config stays only so already-running legacy sessions keep their policy.
-  return { OPENCODE_CONFIG_CONTENT: mergeAgentConfig(env.OPENCODE_CONFIG_CONTENT, policyPath), PHANTOM_AGENT_POLICY: policyPath, PHANTOM_AGENT_SHIMS: agentShims };
+  return { OPENCODE_CONFIG_CONTENT: mergeAgentConfig(env.OPENCODE_CONFIG_CONTENT, policyPath, { ...env, PHANTOM_TERMINAL_SESSION_ID: identity.sessionId }), PHANTOM_AGENT_POLICY: policyPath, PHANTOM_AGENT_SHIMS: agentShims };
 }
