@@ -90,7 +90,7 @@ export class AndroidGateway {
       workspaces: this.listWorkspaces().map(workspace => ({ id: workspace.id, name: workspace.name,
         nodes: (workspace.nodes ?? []).filter(node => node.type === 'terminal' || node.type === 'chat' || node.data?.chat)
           .map(node => ({ id: node.id, title: node.title, type: node.type, role: node.data?.role || null,
-            hasChat: node.type === 'chat' || (node.type === 'terminal' && Boolean(node.data?.chat)) })) })) };
+            hasChat: node.type === 'chat' || Boolean(node.data?.chat) })) })) };
   }
 
   async configure({ repoPath } = {}) {

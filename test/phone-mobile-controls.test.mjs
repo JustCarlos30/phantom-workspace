@@ -71,6 +71,18 @@ test('status del host conectado a nodeActions: terminal y chat con hasChat, sin 
   assert.deepEqual(caps(nodes[2]), ['chat.send', 'chat.stop', 'chat.question.answer', 'chat.permission.answer']);
 });
 
+test('status→nodeActions: nota con data.chat conserva hasChat true sin exponer configuración', async () => {
+  const nodes = await statusFor([
+    { id: 'note', title: 'Nota chat', type: 'note', data: { chat: { provider: 'claude', secret: 'no-exponer' } } },
+    { id: 'plain', title: 'Nota', type: 'note', data: {} },
+  ]);
+  assert.deepEqual(nodes.map(node => node.id), ['note']);
+  assert.equal(nodes[0].hasChat, true);
+  assert.deepEqual(Object.keys(nodes[0]).sort(), ['hasChat', 'id', 'role', 'title', 'type']);
+  assert.ok(!JSON.stringify(nodes).includes('no-exponer'));
+  assert.deepEqual(caps(nodes[0]), ['chat.send', 'chat.stop', 'chat.question.answer', 'chat.permission.answer']);
+});
+
 test('chat principal de la UI usa el catálogo de chat completo, igual que un nodo chat', () => {
   assert.deepEqual(chatActions().map(a => a.capability), ['chat.send', 'chat.stop', 'chat.question.answer', 'chat.permission.answer']);
   assert.deepEqual(chatActions().map(a => a.capability), caps({ type: 'chat' }));

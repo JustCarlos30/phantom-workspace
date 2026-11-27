@@ -134,7 +134,7 @@ test('status devuelve catálogo vivo filtrado y grants por proyecto', async t =>
   assert.equal(status.devices[0].acknowledgeAgentAuthority, true);
   assert.deepEqual(status.workspaces, [{ id: WORKSPACE, name: 'Uno', nodes: [
     { id: SESSION, title: 'Terminal', type: 'terminal', role: 'orchestrator', hasChat: false },
-    { id: DEVICE, title: 'Chat', type: 'note', role: null, hasChat: false },
+    { id: DEVICE, title: 'Chat', type: 'note', role: null, hasChat: true },
   ] }]);
   workspaces.push({ id: DEVICE, name: 'Dos', nodes: [] });
   status = await f.gateway.status();
