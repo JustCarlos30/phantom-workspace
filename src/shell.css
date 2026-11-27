@@ -158,6 +158,14 @@
   .app-shell .activity-dock .dock-main .dock-action.dock-primary { padding: 2px 18px; background-clip: border-box; }
   .app-shell .activity-dock:is([data-fit="compact"], [data-fit="tight"]) .dock-main button.dock-action.dock-hub { padding: 2px; background-clip: content-box; }
 }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes shell-slide-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  .toast-stack .toast { animation: shell-slide-in var(--dur-pop) var(--ease-spring) both; }
+}
 @media (prefers-reduced-motion: reduce) {
+  .toast-stack .toast { animation-duration: 0s !important; }
   .app-shell :is(.workspace-header, .canvas-navigation, .focus-return, .activity-dock, .control-segmented) button { transition: none !important; }
 }

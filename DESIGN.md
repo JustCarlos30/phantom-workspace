@@ -471,6 +471,12 @@ El acento de Apariencia (`--accent`, marfil por defecto) significa «tú y tu ac
 
 No se anima: altura del compositor, color de estado, rebotes/escala de botones, bucles decorativos. Movimiento reducido desactiva la entrada de mensajes.
 
+**Contrato ampliado (`src/motion.css`).** Tokens: `--ease-spring` (resorte suave, `cubic-bezier(.34, 1.36, .64, 1)`), `--ease-exit`, `--dur-pop` 180 ms, `--stagger` 30 ms. Utilidades: `.motion-pop-in`, `.motion-pop-out`, `.motion-pulse-slow`, `.motion-stagger` (retardo `--i` × `--stagger`).
+- Escala 0.97→1 y resorte solo en entrada y confirmación; la salida usa `--ease-exit`. Nunca en hover, foco ni controles en reposo.
+- Pulso lento (≥ 2 s, solo opacidad) únicamente para «te necesita».
+- Sigue prohibido todo bucle decorativo.
+- Todo `@keyframes` y `animation` vive bajo `prefers-reduced-motion: no-preference`; con movimiento reducido no hay animación. Concentración (`.studio-concentration`) detiene las utilidades.
+
 E3 sustituye el hundimiento y el resorte de controles por feedback tonal de 120 ms linear, sin escala ni desplazamiento. `--ease-spring`/`--dur-spring` quedan como aliases de asentamiento/320 ms para compatibilidad. Rail y controles del shell aplican cambios inmediatamente con movimiento reducido. Las transiciones espaciales del objeto siguen el contrato E2; los controles internos aún no migrados pertenecen a sus etapas respectivas.
 
 `Presence.jsx` conserva las entradas/salidas de otras superficies (200/120 ms); los paneles no compiten con FLIP al entrar y salen con opacidad durante 160 ms, sin blur ni escala. Con movimiento reducido, Presence aplica duración 0 ms. Los overlays salientes conservan `inert`. El paneo conserva su inercia.

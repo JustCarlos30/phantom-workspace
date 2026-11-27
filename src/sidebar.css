@@ -246,6 +246,18 @@
 .project-rail :is(.brand .icon-button, .rail-heading button, .rail-panel-focus, .rail-system > button):hover:not(:disabled) { background-color: var(--control-hover); }
 .project-rail :is(.brand .icon-button, .rail-heading button, .rail-panel-focus, .rail-system > button):active:not(:disabled) { background-color: var(--control-press); }
 .project-rail button:disabled { background-color: var(--control-fill); color: var(--ink-3); opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes rail-row-in {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: none; }
+  }
+  .project-rail :is(.rail-panel-row, .project-item, .space-row) { animation: rail-row-in var(--dur-pop) var(--ease-spring) both; }
+  .project-rail :is(.rail-panel-row, .project-item, .space-row):nth-child(2) { animation-delay: var(--stagger); }
+  .project-rail :is(.rail-panel-row, .project-item, .space-row):nth-child(3) { animation-delay: calc(2 * var(--stagger)); }
+  .project-rail :is(.rail-panel-row, .project-item, .space-row):nth-child(4) { animation-delay: calc(3 * var(--stagger)); }
+  .project-rail :is(.rail-panel-row, .project-item, .space-row):nth-child(n+5) { animation-delay: calc(4 * var(--stagger)); }
+}
 @media (prefers-reduced-motion: reduce) {
   .project-rail :is(button, summary, .rail-panel-row, .rail-agent-mark) { transition: none !important; }
+  .project-rail :is(.rail-panel-row, .project-item, .space-row) { animation-duration: 0s !important; animation-delay: 0s !important; }
 }

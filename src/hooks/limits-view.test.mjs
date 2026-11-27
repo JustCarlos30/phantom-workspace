@@ -1,6 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { peakWindow, toneOf, resetIn, summarize, queueNote, railWindows } from './limits-view.mjs';
+import { peakWindow, toneOf, resetIn, summarize, queueNote, railWindows, resetAbsolute, resetLabel, paceOf, freshness } from './limits-view.mjs';
+
+test('resetAbsolute/resetLabel: hora hoy y día+hora si es otro día', () => {
+  const now = new Date(2026, 10, 27, 10, 0).getTime();
+  const today = new Date(2026, 10, 27, 18, 40).getTime();
+  assert.equal(resetAbsolute(today, now), '18:40');
+  assert.equal(resetLabel(today, now), '18:40 · en 8 h 40 min');
+  const monday = new Date(2026, 10, 30, 9, 0).getTime();
+  assert.equal(resetAbsolute(monday, now), 'lun 09:00');
+  assert.equal(resetLabel(monday, now), 'lun 09:00 · en 2 d');
+  assert.equal(resetLabel(null, now), '');
+});
+
+test('paceOf calcula el tiempo transcurrido de la ventana o null', () => {
+  const now = 1_000_000_000_000;
+  assert.equal(paceOf(now + 9000 * 1000, 18000, now), 50);
+  assert.equal(paceOf(now + 18000 * 1000, 18000, now), 0);
+  assert.equal(paceOf(now - 1000, 18000, now), 100);
+  assert.equal(paceOf(now + 1000, undefined, now), null);
+  assert.equal(paceOf(null, 18000, now), null);
+});
+
+test('summarize añade reset absoluto/relativo y pace por ventana', () => {
+  const now = new Date(2026, 10, 27, 10, 0).getTime();
+  const resetsAt = new Date(2026, 10, 27, 12, 30).getTime();
+  const [row] = summarize({ providers: [{ id: 'c', label: 'C', available: true, windows: [{ label: 'Sesión · 5 h', percent: 40, resetsAt, windowSeconds: 18000 }] }] }, now);
+  assert.deepEqual([row.windows[0].resetAt, row.windows[0].resetLabel, row.windows[0].pace], ['12:30', '12:30 · en 2 h 30 min', 50]);
+});
+
+test('freshness usa el updatedAt más antiguo y marca viejo solo pasados 5 min', () => {
+  const now = 1_000_000_000_000;
+  const at = s => new Date(now - s * 1000).toISOString();
+  const fresh = freshness({ providers: [{ updatedAt: at(10) }, { updatedAt: at(40) }] }, now);
+  assert.deepEqual(fresh, { text: 'Actualizado hace 40 s', stale: false, reason: null });
+  assert.equal(freshness({ providers: [{ updatedAt: at(300) }] }, now).stale, false);
+  const old = freshness({ providers: [{ label: 'Claude', updatedAt: at(9 * 60), reason: 'límite 429', retryAt: new Date(now + 120000).toISOString() }, { updatedAt: at(5) }] }, now);
+  assert.equal(old.text, 'Actualizado hace 9 min');
+  assert.equal(old.stale, true);
+  assert.match(old.reason, /Claude: límite 429 · reintenta en 2 min/);
+  assert.deepEqual(freshness({ providers: [] }, now), { text: null, stale: false, reason: null });
+});
 
 test('railWindows elige Sesión 5 h y Semanal para Claude y Codex', () => {
   const claude = { windows: [{ label: 'Sesión · 5 h', percent: 18.4 }, { label: 'Semanal · Opus', percent: 95 }, { label: 'Semanal · todos los modelos', percent: 72 }] };
@@ -46,7 +86,7 @@ test('summarize cubre disponible, sin sesión y vacío', () => {
   ] }, now);
   assert.equal(rows[0].percent, 72);
   assert.equal(rows[0].tone, 'warn');
-  assert.deepEqual(rows[0].windows[0], { label: '5 h', percent: 72, tone: 'warn', reset: 'en 1 h' });
+  assert.deepEqual([rows[0].windows[0].label, rows[0].windows[0].percent, rows[0].windows[0].tone, rows[0].windows[0].reset, rows[0].windows[0].pace], ['5 h', 72, 'warn', 'en 1 h', null]);
   assert.equal(rows[0].windows[1].reset, 'ya');
   assert.equal(rows[1].available, false);
   assert.equal(rows[1].percent, null);
