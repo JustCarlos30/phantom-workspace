@@ -1122,8 +1122,20 @@ kbd { height: 19px; padding: 0 6px; border-radius: var(--r-ctl); background: var
 .canvas .canvas-node.focused { border-color: var(--hairline); outline-color: transparent; }
 .canvas .canvas-node.focused { animation: none; }
 .canvas-node { transform-origin: 0 0; }
+/* Panel motion uses `scale`, never `transform`: the focus FLIP owns transform
+   and left/top/width/height stay the single source of geometry. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes node-pop-in { from { opacity: 0; scale: .97; } to { opacity: 1; scale: 1; } }
+  @keyframes node-pop-out { from { scale: 1; } to { scale: .97; } }
+  @keyframes node-ring-in { from { opacity: .35; } to { opacity: 1; } }
+  .canvas-node.is-entering { transform-origin: 50% 50%; animation: node-pop-in var(--dur-pop) var(--ease-spring) backwards; }
+  .motion-presence[inert] > .canvas-node { transform-origin: 50% 50%; animation: node-pop-out var(--dur-pop) var(--ease-exit) both; }
+  .canvas-node.selected::before, .canvas-node.is-dragging::before { animation: node-ring-in var(--dur-enter) var(--ease-out); }
+  .canvas-node.is-dragging { --object-ring: linear-gradient(var(--selected-edge-top), var(--selected-edge-top)); }
+}
 @media (prefers-reduced-motion: reduce) {
   .canvas .canvas-node.map-flash::after { animation: none !important; }
+  .canvas-node, .canvas-node.is-entering, .motion-presence[inert] > .canvas-node, .canvas-node::before { animation: none !important; transition: none !important; }
 }
 
 /* Writing surfaces inside a card: the caret is the focus signal. A square

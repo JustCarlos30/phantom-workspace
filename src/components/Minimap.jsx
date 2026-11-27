@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import '../canvas-motion.css';
 
 const WIDTH = 188, HEIGHT = 124, PAD = 10;
 // Time constant of the camera glide toward the pointer (ms). Low enough to
@@ -30,6 +31,7 @@ export default function Minimap({ nodes, camera, cameraRef, frameRef, size, sele
   // them here directly or the viewport rectangle lags behind and then jumps.
   const [live, setLive] = useState(() => cameraRef?.current || camera);
   const [dragging, setDragging] = useState(false);
+  const [pulsing, setPulsing] = useState([]);
   const svg = useRef(null);
   const drag = useRef(null);      // { anchor } while the pointer is held
   const frozen = useRef(null);    // layout pinned during a drag/glide
@@ -45,6 +47,14 @@ export default function Minimap({ nodes, camera, cameraRef, frameRef, size, sele
   }, [frameRef]);
   useEffect(() => { setLive(cameraRef?.current || camera); }, [camera, cameraRef]);
   useEffect(() => () => cancelAnimationFrame(glide.current), []);
+  // Brief pulse on the panel the camera just jumped to (selection change).
+  const selectedKey = selected.join('|');
+  useEffect(() => {
+    if (!selectedKey || reducedMotion()) { setPulsing([]); return undefined; }
+    setPulsing(selectedKey.split('|'));
+    const t = setTimeout(() => setPulsing([]), 700);
+    return () => clearTimeout(t);
+  }, [selectedKey]);
 
   const stopGlide = useCallback(() => {
     cancelAnimationFrame(glide.current); glide.current = null;
@@ -103,7 +113,7 @@ export default function Minimap({ nodes, camera, cameraRef, frameRef, size, sele
     onPointerLeave={e => e.currentTarget.classList.remove('over-view')}
     onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
     <svg ref={svg} width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
-      {nodes.map(n => <rect key={n.id} className={`minimap-node type-${n.type} ${selected.includes(n.id) ? 'selected' : ''}`} x={ox + n.x * scale} y={oy + n.y * scale} width={Math.max(2, n.width * scale)} height={Math.max(2, n.height * scale)} rx={2} />)}
+      {nodes.map(n => <rect key={n.id} className={`minimap-node type-${n.type} ${selected.includes(n.id) ? 'selected' : ''}${pulsing.includes(n.id) ? ' pulse' : ''}`} x={ox + n.x * scale} y={oy + n.y * scale} width={Math.max(2, n.width * scale)} height={Math.max(2, n.height * scale)} rx={2} />)}
       <rect className="minimap-view" x={ox + view.x * scale} y={oy + view.y * scale} width={view.width * scale} height={view.height * scale} rx={3} />
     </svg>
   </div>;

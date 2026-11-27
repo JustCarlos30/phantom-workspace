@@ -15,14 +15,17 @@ export function Presence({ children, show = !!children, onExit }) {
       const backdrop = element.matches('.popover-dismiss,.rail-scrim,.app-modal-backdrop,.tw-overlay,.main-workspace,.project-rail,.canvas-region,.toast-stack');
       const panel = element.matches('.canvas-node');
       if (show && panel) return null;
-      // Ghost motion: surfaces condense out of a haze and disperse back into
-      // it. Nothing slides; position is where the thing is, not how it got there.
+      // Menus, sheets and toasts slide a few pixels while fading; timing comes
+      // from the motion.css tokens. Reduced motion collapses duration to 0.
       const still = reduced || backdrop || panel;
-      const rest = { opacity: 1, translate: '0 0', filter: 'blur(0px)', ...(!still && { scale: '1' }) };
-      const edge = { opacity: 0, translate: '0 0', filter: still ? 'blur(0px)' : show ? 'blur(8px)' : 'blur(12px)', ...(!still && { scale: show ? '.96' : '1.02' }) };
+      const style = getComputedStyle(document.documentElement);
+      const token = name => style.getPropertyValue(name).trim();
+      const pop = parseFloat(token('--dur-pop')) || 180;
+      const rest = { opacity: 1, translate: '0 0' };
+      const edge = { opacity: 0, translate: still ? '0 0' : show ? '0 8px' : '0 -4px' };
       return element.animate(show ? [edge, rest] : [rest, edge], {
-        duration: reduced ? 0 : show ? 200 : panel ? 160 : 120,
-        easing: reduced ? 'linear' : show ? 'linear(0, .36 12%, .72 25%, .94 40%, 1.05 58%, 1.025 75%, 1)' : 'cubic-bezier(.4,0,1,1)',
+        duration: reduced ? 0 : show ? pop : panel ? pop * .9 : pop * .65,
+        easing: reduced ? 'linear' : show ? token('--ease-spring') || 'ease-out' : token('--ease-exit') || 'ease-in',
         fill: 'both',
       });
     }).filter(Boolean);

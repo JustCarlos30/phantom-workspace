@@ -755,7 +755,17 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc.pc .pc-send:disabled { background: var(--control-fill); color: var(--ink-3); }
 .pc:has(.pc-session-new) > :is(.pc-composer, .pc-dock) { background: transparent; }
 @media (pointer: coarse) { .pc.pc .pc-composer :is(.pc-controls, .pc-composer-tools, .pc-composer-send, .voice-activity) > :is(.pc-icon, .phantom-chat-mic, .pc-send, .voice-discard, .voice-finish) { min-width: 44px; min-height: 44px; } }
-@media (prefers-reduced-motion: reduce) { .pc-session-row, .pc .spinning { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .pc-session-row, .pc .spinning { animation: none !important; transition: none !important; } .pc-session-badge { transition: none; } }
+/* Motion: badges ease their tone; list rows enter in a short stagger (tokens in motion.css). */
+.pc-session-badge { transition: background-color var(--dur-fast) var(--ease-out); }
+@media (prefers-reduced-motion: no-preference) {
+  .pc-providers > *, .pc-context-rows > * { animation: pop-in var(--dur-pop) var(--ease-spring) both; }
+  .pc-providers > :nth-child(2), .pc-context-rows > :nth-child(2) { animation-delay: calc(1 * var(--stagger)); }
+  .pc-providers > :nth-child(3), .pc-context-rows > :nth-child(3) { animation-delay: calc(2 * var(--stagger)); }
+  .pc-providers > :nth-child(4), .pc-context-rows > :nth-child(4) { animation-delay: calc(3 * var(--stagger)); }
+  .pc-providers > :nth-child(5), .pc-context-rows > :nth-child(5) { animation-delay: calc(4 * var(--stagger)); }
+  .pc-providers > :nth-child(6), .pc-context-rows > :nth-child(6) { animation-delay: calc(5 * var(--stagger)); }
+}
 
 /* Barra del compositor: una sola familia de píldoras (misma altura, relleno y radio), en una fila que
    envuelve sin romper la continuidad; acciones (nuevo, contexto · micro, enviar) en la fila de abajo. */
