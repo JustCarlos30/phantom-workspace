@@ -19,10 +19,14 @@ export function projectActions() {
   return toActions(PROJECT_ACTIONS);
 }
 
-// Solo usa tipo y data.chat reportados por el host; no infiere chat de otras señales.
+export function chatActions() {
+  return toActions(CHAT_ACTIONS);
+}
+
+// Usa hasChat, tipo y data.chat reportados por el host; no infiere chat de otras señales.
 export function nodeActions(node) {
   const isTerminal = node?.type === 'terminal';
-  const hasChat = node?.type === 'chat' || (isTerminal && Boolean(node?.data?.chat));
+  const hasChat = node?.hasChat === true || node?.type === 'chat' || (isTerminal && Boolean(node?.data?.chat));
   return toActions([...(isTerminal ? TERMINAL_ACTIONS : []), ...(hasChat ? CHAT_ACTIONS : [])]);
 }
 

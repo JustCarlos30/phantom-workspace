@@ -17,4 +17,5 @@ Catálogo en `src/phone-permissions.mjs` (`projectActions`, `nodeActions`), usad
 
 ## Limitaciones
 - Marcar una casilla solo concede el permiso en el host. **No basta para ejecutar**: el gateway y la app Android externos deben admitir cada método (`terminal.create`, `terminal.agent.handoff`, `limits.read`, `terminal.write`, `terminal.stop`, `chat.send`, `chat.stop`, `chat.question.answer`, `chat.permission.answer`) antes de poder usarlo. Esto no está verificado aquí.
-- Chat en terminales se detecta solo con el `type` y `data.chat` que informa el catálogo del host; si el host no lo informa, el nodo no ofrece acciones de chat (no se infiere).
+- Resuelto en el host: `status` informa `hasChat` (booleano) por nodo, para terminales con `data.chat` y nodos `chat`. `nodeActions` lo consume y conserva la compatibilidad con `data.chat` y `type chat`. No se expone configuración de chat ni otros datos del nodo. Esto no demuestra paridad con la app Android.
+- Chat principal de la UI: usa `chatActions()` del mismo catálogo que los nodos chat (`chat.send`, `chat.stop`, `chat.question.answer`, `chat.permission.answer`). El estándar no cambia.

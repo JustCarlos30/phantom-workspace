@@ -3,7 +3,7 @@ import { Group, Row, TextRow, Switch } from './PluginPrimitives.jsx';
 import PhoneQr from './PhoneQr.jsx';
 import MobileSettings from './MobileSettings.jsx';
 import { buildAppPairingPayload } from '../phone-pairing.mjs';
-import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement, nodeActions, projectActions } from '../phone-permissions.mjs';
+import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement, nodeActions, projectActions, chatActions } from '../phone-permissions.mjs';
 
 const validSas = device => typeof device?.sas === 'string' && /^\d{6}$/.test(device.sas) ? device.sas : '';
 
@@ -40,8 +40,7 @@ function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run,
     <Group><Row label="Todos los proyectos" hint="Chat principal: leer, enviar mensajes y parar turnos; herramientas: leer."><button className="st-btn" type="button" disabled={busy} onClick={() => edit({ ...selection, grants: standardGrants(workspaces) })}>Aplicar estándar</button></Row></Group>
     {workspaces.map(workspace => <details className="st-details" key={workspace.id}><summary>{workspace.name}</summary><Group>
       {checkbox(workspace.id, `phantom:${workspace.id}`, 'read', 'Chat principal: leer')}
-      {checkbox(workspace.id, `phantom:${workspace.id}`, 'chat.send', 'Chat principal: enviar mensajes')}
-      {checkbox(workspace.id, `phantom:${workspace.id}`, 'chat.stop', 'Chat principal: parar turnos')}
+      {chatActions().map(action => checkbox(workspace.id, `phantom:${workspace.id}`, action.capability, `Chat principal: ${action.label}`))}
       {checkbox(workspace.id, null, 'workspace.read', 'Herramientas del proyecto: leer')}
       {projectActions().map(action => checkbox(workspace.id, null, action.capability, `Proyecto: ${action.label}`))}
       {workspace.nodes.map(node => <React.Fragment key={node.id}>
