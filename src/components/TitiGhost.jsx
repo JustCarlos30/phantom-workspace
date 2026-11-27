@@ -19,11 +19,12 @@ export default function TitiGhost({ mood = 'calm', size = 30, still = false, cla
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return undefined;
-    const dpr = window.devicePixelRatio || 1;
-    const body = getComputedStyle(canvas).getPropertyValue('--identity-ink').trim() || '#ece6d8';
-    // 9u grid (ghost is 8u wide incl. arms, 7u tall) at a whole-pixel module so it stays crisp at any size.
-    const cssSize = canvas.clientWidth || size;
-    const u = Math.max(1, Math.round((cssSize * dpr) / 9));
+    const css = getComputedStyle(canvas);
+    const body = css.getPropertyValue('--identity-ink').trim() || '#ece6d8';
+    const dark = css.getPropertyValue('--identity-eye').trim() || '#020203';
+    const eye = mood === 'grin' ? (css.getPropertyValue('--attention').trim() || '#f5c04a') : dark;
+    // Canonical 9u grid at u=4 (36px buffer); CSS scales it with pixelated rendering.
+    const u = 4;
     const px = 9 * u;
     canvas.width = px;
     canvas.height = px;
@@ -40,7 +41,7 @@ export default function TitiGhost({ mood = 'calm', size = 30, still = false, cla
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, px, px);
-      drawGhost(ctx, Math.round(1.5 * u), u, u, rig.small || rig.G, { ...LOD[4], body }, P);
+      drawGhost(ctx, Math.round(1.5 * u), u, u, rig.small || rig.G, { ...LOD[4], body, eye }, P);
     };
     let raf = 0;
     if (moving) {
@@ -60,7 +61,7 @@ export default function TitiGhost({ mood = 'calm', size = 30, still = false, cla
       draw();
     }
     return () => { if (raf) cancelAnimationFrame(raf); };
-  }, [state, moving, size]);
+  }, [state, moving, mood]);
 
   return <canvas {...props} ref={canvasRef} width={36} height={36} style={{ width: size, height: size, ...props.style }} aria-hidden="true" className={className} data-motion={moving ? 'running' : 'stopped'} />;
 }
