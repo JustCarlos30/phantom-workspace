@@ -24,6 +24,7 @@ import { validateLaunch, createProcessLimit, processList, validateEnv, createEnv
 import { AndroidGateway } from './android-gateway.mjs';
 import { publicSettings, portableSettings } from './public-settings.mjs';
 import { stateView } from './state-view.mjs';
+import { createMobileProject } from './mobile-project.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
 import { wakeMessage, createWakeLimit, createRunWake, createQuotaFlow } from './run-wake.mjs';
@@ -464,6 +465,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='android.approve') return android.approve(p);
     if(method==='android.revoke') return android.revoke(p);
     if(method==='system.info') return {platform:process.platform,node:process.version,pid:process.pid,dataDir};
+    // Read-only and unauthenticated on this local socket: the external gateway must impose nodeIds from its grants.
+    if(method==='workspace.mobile.snapshot') return createMobileProject({store,terminals,chats}).snapshot(p);
     if(method==='state.get') return stateView(store.state,{workspaceId:p?.workspaceId});
     if(method==='settings.update') {
       object(p.patch);

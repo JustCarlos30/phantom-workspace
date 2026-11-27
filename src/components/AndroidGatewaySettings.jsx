@@ -3,7 +3,7 @@ import { Group, Row, TextRow, Switch } from './PluginPrimitives.jsx';
 import PhoneQr from './PhoneQr.jsx';
 import MobileSettings from './MobileSettings.jsx';
 import { buildAppPairingPayload } from '../phone-pairing.mjs';
-import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement } from '../phone-permissions.mjs';
+import { standardGrants, grantsFromSelection, selectionFromGrants, needsAcknowledgement, nodeActions, projectActions } from '../phone-permissions.mjs';
 
 const validSas = device => typeof device?.sas === 'string' && /^\d{6}$/.test(device.sas) ? device.sas : '';
 
@@ -43,9 +43,10 @@ function DevicePermissions({ device, workspaces, workspacesAvailable, busy, run,
       {checkbox(workspace.id, `phantom:${workspace.id}`, 'chat.send', 'Chat principal: enviar mensajes')}
       {checkbox(workspace.id, `phantom:${workspace.id}`, 'chat.stop', 'Chat principal: parar turnos')}
       {checkbox(workspace.id, null, 'workspace.read', 'Herramientas del proyecto: leer')}
+      {projectActions().map(action => checkbox(workspace.id, null, action.capability, `Proyecto: ${action.label}`))}
       {workspace.nodes.map(node => <React.Fragment key={node.id}>
         {checkbox(workspace.id, node.id, 'read', `${node.title || node.id}: leer`)}
-        {checkbox(workspace.id, node.id, node.type === 'terminal' ? 'terminal.write' : 'chat.send', `${node.title || node.id}: escribir`)}
+        {nodeActions(node).map(action => checkbox(workspace.id, node.id, action.capability, `${node.title || node.id}: ${action.label}`))}
       </React.Fragment>)}
     </Group></details>)}
     <Group>
