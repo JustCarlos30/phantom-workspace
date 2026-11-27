@@ -9,10 +9,14 @@ export function pulseState(node, session, chatPulse) {
   }
   const agent = String(session.agentState || session.agent?.status || node.data?.agent?.status || '').toLowerCase();
   const screen = session.screen || session.screenState;
+  const phase = node.data?.agent?.run?.phase;
   if (['failed', 'error'].includes(agent)) return 'pulse-error';
-  if (screen === 'awaiting_approval' || ['blocked', 'needs_input', 'awaiting_input', 'waiting_for_input', 'awaiting_approval', 'needs_approval'].includes(agent)) return 'pulse-attention';
-  if (screen === 'awaiting_input' || session.needsYou || ['review', 'waiting', 'done', 'completed', 'finished'].includes(agent)) return 'pulse-turn';
-  if (screen === 'working' || ['working', 'running', 'in_progress', 'busy', 'thinking'].includes(agent)) return 'pulse-working';
+  if (screen === 'awaiting_approval' || phase === 'blocked' || ['blocked', 'needs_input', 'awaiting_input', 'waiting_for_input', 'awaiting_approval', 'needs_approval'].includes(agent)) return 'pulse-attention';
+  if (screen === 'awaiting_input') return 'pulse-turn';
+  const working = screen === 'working' || ['working', 'running', 'in_progress', 'busy', 'thinking'].includes(agent);
+  if (!working && phase !== 'cancelled' && (phase === 'completed' || ['done', 'completed', 'finished'].includes(agent))) return 'pulse-success';
+  if (session.needsYou || ['review', 'waiting'].includes(agent)) return 'pulse-turn';
+  if (working) return 'pulse-working';
   return '';
 }
 

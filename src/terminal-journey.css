@@ -1,9 +1,10 @@
 /* Recorrido de la terminal: franja de fases, actividad y delegaciones. Solo tokens del sistema; sin bordes de caja. */
-.tj { position: relative; container-type: inline-size; display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 16px; }
-.tj-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; min-height: 24px; }
+.tj { position: relative; container-type: inline-size; display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; color: var(--muted); font: var(--t-support); }
+.tj-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); min-width: 0; min-height: 24px; }
 .tj-status { flex-shrink: 0; max-width: 100%; color: var(--ink); font-weight: 500; }
 .tj[data-tone="working"] .tj-status { color: var(--working); }
 .tj[data-tone="attention"] .tj-status { color: var(--attention); }
+.tj[data-tone="review"] .tj-status { color: var(--success); }
 .tj[data-tone="error"] .tj-status { color: var(--danger); }
 .tj[data-tone="unknown"] .tj-status { color: var(--ink-3); }
 .tj-now { display: flex; flex: 1 1 0; justify-content: flex-end; gap: 4px; min-width: 0; margin: 0; }
@@ -42,23 +43,24 @@
 .tj-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tj-toggle > svg { flex-shrink: 0; transition: transform var(--dur-fast) linear; }
 .tj-toggle[aria-expanded="true"] > svg { transform: rotate(90deg); }
-.tj-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; min-width: 0; margin: 0; padding: 4px 0 0; text-align: left; }
+.tj-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-1) var(--s-3); min-width: 0; margin: 0; padding: var(--s-1) 0 0; text-align: left; }
 .tj-fact { display: contents; }
 .tj-facts dt { color: var(--ink-3); }
 .tj-facts dd { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.tj-code { margin: 0; color: var(--muted); font-family: var(--mono); font-size: 12px; line-height: 16px; overflow-wrap: anywhere; user-select: text; }
+.tj-code { margin: 0; color: var(--muted); font: var(--t-code); overflow-wrap: anywhere; user-select: text; }
 
-.tj-delegates { min-width: 0; color: var(--muted); font-size: 12px; line-height: 16px; }
+.tj-delegates { min-width: 0; color: var(--muted); font: var(--t-support); }
 .tj-delegates > summary > svg:first-child { color: var(--ink-3); }
 .tj-delegates[data-running="true"] > summary > svg:first-child { color: var(--working); }
 .tj-delegates-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tj-delegate-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px 0 0; list-style: none; }
-.tj-delegate { display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.tj-delegate-list { display: flex; flex-direction: column; gap: var(--s-1); margin: 0; padding: var(--s-2) 0 0; list-style: none; }
+.tj-delegate { display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; align-items: baseline; gap: 2px var(--s-2); min-width: 0; }
 .tj-delegate-dot { width: 6px; height: 6px; border-radius: var(--r-mark); background: var(--ink-3); align-self: center; }
 .tj-delegate[data-status="running"] .tj-delegate-dot { background: var(--working); }
 .tj-delegate[data-status="done"] .tj-delegate-dot { background: var(--success); }
 .tj-delegate[data-status="error"] .tj-delegate-dot { background: var(--danger); }
-.tj-delegate[data-status="blocked"] .tj-delegate-dot { background: var(--ink); }
+/* Marca compacta: el punto toma la tinta ámbar del texto, sin superficie teñida. */
+.tj-delegate[data-status="blocked"] .tj-delegate-dot { color: var(--attention); background: currentColor; }
 .tj-delegate[data-status="blocked"] .tj-delegate-state { color: var(--attention); }
 .tj-delegate-main { display: flex; gap: 6px; min-width: 0; }
 .tj-delegate-main strong { min-width: 0; overflow: hidden; color: var(--ink); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
