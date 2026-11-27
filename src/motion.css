@@ -1,0 +1,29 @@
+:root {
+  --ease-spring: cubic-bezier(.34, 1.36, .64, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --dur-pop: 180ms;
+  --stagger: 30ms;
+  --dur-pulse-slow: 2.4s;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes pop-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(.97); }
+  }
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .55; }
+  }
+
+  .motion-pop-in { animation: pop-in var(--dur-pop) var(--ease-spring) both; }
+  .motion-pop-out { animation: pop-out var(--dur-pop) var(--ease-exit) both; }
+  .motion-pulse-slow { animation: pulse-slow var(--dur-pulse-slow) ease-in-out infinite; }
+  .motion-stagger > * { animation-delay: calc(var(--i, 0) * var(--stagger)); }
+
+  .studio-concentration :is(.motion-pop-in, .motion-pop-out, .motion-pulse-slow) { animation: none; }
+}

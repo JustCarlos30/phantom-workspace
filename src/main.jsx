@@ -7,7 +7,7 @@ async function mount() {
     const { default: MobileApp } = await import('./components/MobileApp.jsx');
     createRoot(document.getElementById('root')).render(<MobileApp />);
   } else {
-    const [{ default: App }] = await Promise.all([import('./App.jsx'), import('./styles.css'), import('./tools.css'), import('./empty-state.css')]);
+    const [{ default: App }] = await Promise.all([import('./App.jsx'), import('./styles.css'), import('./tools.css'), import('./empty-state.css'), import('./motion.css')]);
     createRoot(document.getElementById('root')).render(<App />);
   }
 }
