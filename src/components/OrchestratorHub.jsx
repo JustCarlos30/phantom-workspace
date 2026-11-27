@@ -152,6 +152,10 @@ function Composer({ inbox, target, name, onPick, send, api, connected, notify })
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [armed, setArmed] = useState(false);
+  // Sent log: only when the project's orchestrator has no chat thread to show the message in.
+  const [log, setLog] = useState([]);
+  const seq = useRef(0), thread = useRef(null);
+  useEffect(() => { const el = thread.current; if (el) el.scrollTop = el.scrollHeight; }, [log]);
   const input = useRef(null), armedRef = useRef(false), draftRef = useRef(draft), submitRef = useRef(null);
   draftRef.current = draft;
   const arm = value => { armedRef.current = value; setArmed(value); };
@@ -176,15 +180,36 @@ function Composer({ inbox, target, name, onPick, send, api, connected, notify })
     const text = value.trim();
     if (!text) return;
     setSending(true); setError('');
+    const id = ++seq.current;
+    const entry = { id, text, workspaceId: target.workspaceId, project: name, at: new Date().toISOString(), status: 'sending' };
+    setLog(list => [...list, entry]);
+    const patch = fields => setLog(list => list.map(item => item.id === id ? { ...item, ...fields } : item));
     try {
       if (send) await send(text); else await api('orchestrator.send', { workspaceId: target.workspaceId, text });
       setDraft('');
-      notify?.(`Enviado al orquestador de ${name}`, 'success');
-    } catch (err) { setError(err?.message || String(err)); }
+      patch({ status: 'sent' });
+    } catch (err) { const message = err?.message || String(err); setError(message); patch({ status: 'error', error: message }); }
     finally { setSending(false); }
   };
   submitRef.current = submit;
-  return <form className="oh-composer" aria-label="Hablar con el orquestador" data-dictating={voice.status !== 'idle' || undefined} onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
+  const retry = async entry => {
+    if (sending || !connected) return;
+    setSending(true); setError('');
+    const patch = fields => setLog(list => list.map(item => item.id === entry.id ? { ...item, ...fields } : item));
+    patch({ status: 'sending', error: '' });
+    try { await api('orchestrator.send', { workspaceId: entry.workspaceId, text: entry.text }); patch({ status: 'sent' }); }
+    catch (err) { const message = err?.message || String(err); setError(message); patch({ status: 'error', error: message }); }
+    finally { setSending(false); }
+  };
+  return <div className="oh-dock">
+    {!send && log.length > 0 && <div className="oh-sent" role="log" aria-live="polite" aria-label="Mensajes enviados al orquestador" ref={thread}>
+      {log.map(item => <div key={item.id} className="oh-msg" data-status={item.status}>
+        <p className="oh-msg-meta"><span className="oh-msg-to">Para {item.project}</span><time dateTime={item.at}>{clock(item.at)}</time><span className="oh-msg-state">{item.status === 'sending' ? 'Enviando…' : item.status === 'sent' ? 'Enviado' : 'No se envió'}</span></p>
+        <p className="oh-msg-text">{item.text}</p>
+        {item.status === 'error' && <p className="oh-msg-error">{item.error}<button type="button" className="oh-link" disabled={sending || !connected} onClick={() => retry(item)}>Reintentar</button></p>}
+      </div>)}
+    </div>}
+    <form className="oh-composer" aria-label="Hablar con el orquestador" data-dictating={voice.status !== 'idle' || undefined} onSubmit={e => { e.preventDefault(); submit(); }} onKeyDown={e => { if (e.key === 'Escape' && voice.status !== 'idle') { e.preventDefault(); e.stopPropagation(); voice.cancel(); } }}>
     {error && <p className="oh-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{error}</span></p>}
     {voice.error && <p className="oh-error" role="alert"><AlertCircle size={13} aria-hidden="true" /><span>{voice.error}</span><button type="button" className="oh-icon" aria-label="Descartar aviso de voz" onClick={voice.clearError}><X size={13} /></button></p>}
     <div className="oh-field">
@@ -202,7 +227,8 @@ function Composer({ inbox, target, name, onPick, send, api, connected, notify })
       </div>
       </div>
     </div>
-  </form>;
+    </form>
+  </div>;
 }
 
 // The global Orquestador section: what broke and what needs you, grouped by
@@ -239,6 +265,7 @@ export default function OrchestratorHub({ workspaces, selectedWorkspaceId, api, 
   return <section className="oh" aria-label="Orquestador" onKeyDown={onKeyDown}>
     <header className="oh-head">
       <div className="oh-head-text"><h2 className="oh-title">Orquestador</h2><p className="oh-summary" role="status">{summary}</p></div>
+      <div className="oh-head-counts" aria-hidden="true"><Counts pending={projects.reduce((n, p) => n + p.needsYou.length, 0)} broken={inbox.broken} /></div>
       <button type="button" className="oh-icon" aria-label="Actualizar" title="Actualizar" disabled={!connected} onClick={reload}><RefreshCw size={16} /></button>
       {onClose && <button type="button" className="oh-icon" aria-label="Cerrar orquestador" title="Cerrar · Esc" onClick={onClose}><X size={16} /></button>}
     </header>
