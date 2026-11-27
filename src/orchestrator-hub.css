@@ -60,6 +60,25 @@
 .oh-icon:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
 .oh :is(button, select, textarea):disabled { cursor: default; opacity: .5; }
 
+.oh-head { padding-bottom: 12px; }
+.oh-head-counts { flex: none; display: flex; gap: 4px; }
+.oh-group { gap: 12px; }
+.oh-group-title { padding-bottom: 4px; }
+.oh-group[data-tone="danger"] .oh-row .oh-state { color: var(--danger); }
+.oh-group[data-tone="attention"] .oh-row .oh-state { color: var(--attention); }
+.oh-project { gap: 8px; }
+.oh-rows { gap: 8px; }
+
+.oh-dock { flex: none; display: flex; flex-direction: column; min-width: 0; background: var(--well); }
+.oh-thread { display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; min-width: 0; padding: 12px 16px 0; }
+.oh-msg { display: flex; flex-direction: column; gap: 2px; align-self: flex-end; max-width: 90%; min-width: 0; padding: 8px 12px; border-radius: var(--r-row); background: var(--surface-2); }
+.oh-msg[data-status="error"] { box-shadow: inset 0 0 0 1px var(--danger); }
+.oh-msg[data-status="sending"] { opacity: .7; }
+.oh-msg-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font: var(--t-micro); color: var(--muted); min-width: 0; }
+.oh-msg-to { overflow-wrap: anywhere; min-width: 0; }
+.oh-msg-text { font: var(--t-body); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.oh-msg-error { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font: var(--t-support); color: var(--danger); overflow-wrap: anywhere; }
+
 .oh-composer { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 16px; background: var(--well); min-width: 0; }
 .oh-error { display: flex; align-items: center; gap: 8px; font: var(--t-support); color: var(--danger); overflow-wrap: anywhere; min-width: 0; }
 .oh-error > span { flex: 1 1 auto; min-width: 0; }
