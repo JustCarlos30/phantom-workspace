@@ -10,48 +10,58 @@ const STATUS_TEXT = { done: 'Hecha', current: 'En curso', blocked: 'Bloqueada', 
 const SOURCE_LABEL = { subagent: 'Subagente', child: 'Hijo', task: 'Encargo' };
 
 function PhaseIcon({ phase }) {
-  const Icon = phase.kind === 'end' ? END_ICON[phase.status] || CircleHelp : phase.status === 'unknown' ? CircleHelp : KIND_ICON[phase.kind] || CircleDot;
-  return <Icon size={14} strokeWidth={1.75} aria-hidden="true" />;
+  const Icon = phase.status === 'done' ? Check : phase.kind === 'end' ? END_ICON[phase.status] || CircleHelp : phase.status === 'unknown' ? CircleHelp : KIND_ICON[phase.kind] || CircleDot;
+  return <Icon size={12} strokeWidth={1.75} aria-hidden="true" />;
+}
+
+// Una sola vez: si el estado solo repite la fase actual no se muestra (queda para lectores); si la antecede, solo el resto.
+function statusText(statusLabel, phases, blocker) {
+  let label = statusLabel || '';
+  if (blocker?.kind === 'unknown' && blocker.title && label.endsWith(` · ${blocker.title}`)) label = label.slice(0, -(blocker.title.length + 3));
+  const current = phases.find(phase => phase.current)?.label;
+  if (!current) return label;
+  if (label === current || (label.startsWith(current) && /^\s*\d*$/.test(label.slice(current.length)))) return '';
+  return label.startsWith(`${current} · `) ? label.slice(current.length + 3) : label;
 }
 
 export default function TerminalJourney({ view, compact = false }) {
+  const [open, setOpen] = React.useState(false);
+  const bodyId = React.useId();
   if (!view) return null;
   const { tone, statusLabel, activity, phases = [], blocker } = view;
-  const detailed = phases.filter(phase => phase.detail);
-  const technical = activity?.detail && activity.detail !== activity.label;
-  const hasMore = Boolean(technical || blocker || (compact && detailed.length));
+  const shown = statusText(statusLabel, phases, blocker);
+  const technical = activity?.detail && activity.detail !== activity.label ? activity.detail : '';
+  const rows = [];
+  if (compact) for (const phase of phases) if (phase.detail) rows.push([phase.label, phase.detail]);
+  if (compact && blocker?.summary) rows.push(['Motivo', blocker.summary]);
+  if (blocker?.remedy) rows.push(['Remedio', blocker.remedy]);
+  if (blocker?.retryAt) rows.push(['Reintento', blocker.retryAt]);
+  if (blocker?.commands?.length) rows.push([blocker.commands.length === 1 ? 'Comando' : 'Comandos', blocker.commands, true]);
+  if (technical) rows.push(['Técnico', technical, true]);
   return <section className="tj" data-tone={tone} data-compact={compact ? 'true' : undefined} aria-label="Recorrido de la terminal">
-    <div className="tj-head">
-      <strong className="tj-status" role="status">{statusLabel}</strong>
+    <div className="tj-line">
+      <strong className={shown ? 'tj-status' : 'tj-status tj-sr'} role="status">{shown || statusLabel}</strong>
+      {phases.length > 0 && <ol className="tj-strip" aria-label="Fases">
+        {phases.map(phase => <li key={phase.key} className="tj-phase" data-status={phase.status} data-kind={phase.kind} aria-current={phase.current ? 'step' : undefined} title={phase.detail ? `${phase.label} · ${phase.detail}` : phase.label}>
+          <span className="tj-mark"><PhaseIcon phase={phase} /></span>
+          <span className="tj-phase-label">{phase.label}{!compact && phase.detail && <span className="tj-phase-detail"> · {phase.detail}</span>}</span>
+          <span className="tj-sr">{STATUS_TEXT[phase.status] || STATUS_TEXT.unknown}{phase.detail ? `: ${phase.detail}` : ''}</span>
+        </li>)}
+      </ol>}
       {activity && <p className="tj-now" title={activity.detail ? `${activity.label} · ${activity.detail}` : activity.label}>
         <span className="tj-now-label">{activity.label}</span>
-        {activity.age && <span className="tj-age">hace {activity.age}</span>}
+        {activity.age && <span className="tj-age">· hace {activity.age}</span>}
       </p>}
+      {rows.length > 0 && <button type="button" className="tj-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(value => !value)}>Detalles<ChevronRight size={14} strokeWidth={1.75} aria-hidden="true" /></button>}
     </div>
     {activity?.warning && <p className="tj-warning">{activity.warning}</p>}
-    {phases.length > 0 && <ol className="tj-strip" aria-label="Fases">
-      {phases.map(phase => <li key={phase.key} className="tj-phase" data-status={phase.status} data-kind={phase.kind} aria-current={phase.current ? 'step' : undefined}>
-        <span className="tj-mark"><PhaseIcon phase={phase} /></span>
-        <span className="tj-phase-label" title={phase.label}>{phase.label}</span>
-        {!compact && phase.detail && <span className="tj-phase-detail" title={phase.detail}>{phase.detail}</span>}
-        <span className="tj-sr">{STATUS_TEXT[phase.status] || STATUS_TEXT.unknown}{phase.detail ? `: ${phase.detail}` : ''}</span>
-      </li>)}
-    </ol>}
     {blocker && !compact && blocker.summary && <p className="tj-blocker-summary">{blocker.summary}</p>}
-    {hasMore && <details className="tj-more">
-      <summary><ChevronRight size={14} aria-hidden="true" />Detalles</summary>
-      <div className="tj-more-body">
-        {technical && <p className="tj-code" title="Texto técnico original">{activity.detail}</p>}
-        {compact && detailed.length > 0 && <ul className="tj-detail-list">{detailed.map(phase => <li key={phase.key}><span>{phase.label}</span><span>{phase.detail}</span></li>)}</ul>}
-        {blocker && <div className="tj-blocker">
-          <strong>{blocker.title}</strong>
-          {compact && blocker.summary && <p>{blocker.summary}</p>}
-          {blocker.remedy && <p>{blocker.remedy}</p>}
-          {blocker.retryAt && <p>Reintento: {blocker.retryAt}</p>}
-          {blocker.commands.map(command => <code key={command} className="tj-code">{command}</code>)}
-        </div>}
-      </div>
-    </details>}
+    {rows.length > 0 && open && <dl className="tj-facts" id={bodyId}>
+      {rows.map(([name, value, mono]) => <div key={name} className="tj-fact">
+        <dt>{name}</dt>
+        <dd>{Array.isArray(value) ? value.map(command => <code key={command} className="tj-code">{command}</code>) : mono ? <code className="tj-code">{value}</code> : value}</dd>
+      </div>)}
+    </dl>}
   </section>;
 }
 

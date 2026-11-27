@@ -114,23 +114,31 @@ function planPhases(plan, view) {
   });
 }
 
-// Solo etapas con evidencia: la fase real del run y las rondas de reparación contadas; nada más se da por hecho.
+// Solo lo que el orden del run prueba. Secuencia agent → checks → repair → judge: toda fase anterior a la actual está hecha
+// (en repair, Desarrollo y Checks; en judge, además Reparación si round > 0). En estado terminal se conserva el camino:
+// Desarrollo hecho, Checks hecho si round > 0 o si el log del run lo menciona, Reparación con sus rondas si round > 0 y, al final,
+// Bloqueado/Terminado/Cancelado. Juez y demás fases sin dato no se inventan como hechas.
 function runPhases(run, view) {
   const item = (key, label, kind, status, detail = '') => ({ key, label, kind, status, detail, current: status === 'current' || status === 'blocked', taskId: '' });
   const out = [], round = Math.max(0, Number(run.round) || 0), phase = view.phase;
+  const rounds = `${Math.max(1, round)} ${Math.max(1, round) === 1 ? 'ronda' : 'rondas'}`;
   if (!view.terminal) {
     if (phase === 'waiting') return [item('waiting', 'Espera', 'wait', 'current', 'Esperando eventos')];
-    out.push(item('agent', 'Desarrollo', 'develop', phase === 'agent' ? 'current' : 'pending'));
-    out.push(item('checks', 'Checks', 'checks', phase === 'checks' ? 'current' : 'pending'));
-    if (phase === 'repair' || round > 0) out.push(item('repair', 'Reparación', 'repair', phase === 'repair' ? 'current' : 'done', `${Math.max(1, round)} ${Math.max(1, round) === 1 ? 'ronda' : 'rondas'}`));
-    out.push(item('judge', 'Juez', 'judge', phase === 'judge' ? 'current' : 'pending'));
+    const order = ['agent', 'checks', 'repair', 'judge'], at = order.indexOf(phase);
+    const state = key => at < 0 ? 'pending' : order.indexOf(key) < at ? 'done' : order.indexOf(key) === at ? 'current' : 'pending';
+    out.push(item('agent', 'Desarrollo', 'develop', state('agent')));
+    out.push(item('checks', 'Checks', 'checks', state('checks')));
+    if (phase === 'repair' || round > 0) out.push(item('repair', 'Reparación', 'repair', phase === 'repair' ? 'current' : 'done', rounds));
+    out.push(item('judge', 'Juez', 'judge', state('judge')));
     if (phase === 'children' || view.children.total > 0) out.push(item('children', 'Hijos', 'children', phase === 'children' ? 'current' : 'pending', view.children.total ? `${view.children.done} de ${view.children.total}` : ''));
     return out;
   }
-  if (round > 0) out.push(item('repair', 'Reparación', 'repair', 'done', `${round} ${round === 1 ? 'ronda' : 'rondas'}`));
+  out.push(item('agent', 'Desarrollo', 'develop', 'done'));
+  if (round > 0 || list(run.log).some(entry => /check/i.test(String(entry?.text || '')))) out.push(item('checks', 'Checks', 'checks', 'done'));
+  if (round > 0) out.push(item('repair', 'Reparación', 'repair', 'done', rounds));
   if (view.children.total > 0) out.push(item('children', 'Hijos', 'children', 'pending', `${view.children.done} de ${view.children.total}`));
   if (phase === 'completed') out.push(item('completed', 'Terminado', 'end', 'done', 'Sin datos de integración'));
-  else if (phase === 'blocked') out.push(item('blocked', 'Bloqueado', 'end', 'blocked', view.blocker?.title || ''));
+  else if (phase === 'blocked') out.push(item('blocked', 'Bloqueado', 'end', 'blocked'));
   else out.push(item('cancelled', 'Cancelado', 'end', 'stopped'));
   return out;
 }
