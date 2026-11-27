@@ -5,7 +5,22 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire, registerHooks } from 'node:module';
 import { createHost } from '../host/server.mjs';
-import { detectAgent, tailLines, screenSignal, screenReason, nextScreenState } from '../host/terminals.mjs';
+import { detectAgent, tailLines, screenSignal, screenReason, nextScreenState, promptSignal } from '../host/terminals.mjs';
+
+test('screenSignal recognises agent selectors and questions', () => {
+  assert.equal(screenSignal(['Which option?','❯ 1. Alpha','  2. Beta','Enter to select · ↑/↓ to navigate · Esc to cancel']),'awaiting_approval');
+  assert.equal(screenSignal(['Ready to code?','❯ 1. Yes, proceed']),'awaiting_approval');
+  assert.equal(screenSignal(['plain output']),null);
+});
+
+test('nextScreenState hands the turn over on a visible prompt without prior working', () => {
+  assert.equal(nextScreenState(null,null,{},true),'awaiting_input');
+  assert.equal(nextScreenState(null,null,{},false),null);
+  assert.equal(nextScreenState(null,null,null,true),null);
+  assert.equal(nextScreenState('working',null,{}),'awaiting_input');
+  assert.equal(promptSignal(['done','╭──╮','│ > │']),false);
+  assert.equal(promptSignal(['done','│ >','']),true);
+});
 
 test('screenReason names only the Claude trust dialog', () => {
   assert.equal(screenReason(['Accessing workspace: /home/carlosj/project', '', 'Quick safety check: Is this a project you created or one you trust?', '', '❯ No, exit', '  Yes, I trust this folder', 'Enter to confirm · Esc to cancel']), 'trust');
@@ -143,4 +158,9 @@ test('nextScreenState hands the turn over only after the agent was active', () =
   assert.equal(nextScreenState('awaiting_approval', null, 'Codex'), 'awaiting_input');
   assert.equal(nextScreenState('working', null, null), null);
   assert.equal(nextScreenState('awaiting_input', 'working', 'Claude Code'), 'working');
+});
+
+test('a live working line outranks stale approval text, but a selector footer does not read as working', () => {
+  assert.equal(screenSignal(['Do you want to proceed?', 'Yes', '✻ Working… (3s · esc to interrupt)']), 'working');
+  assert.equal(screenSignal(['❯ 1. Alpha', '  2. Beta', 'Enter to select · ↑/↓ to navigate · Esc to cancel']), 'awaiting_approval');
 });
