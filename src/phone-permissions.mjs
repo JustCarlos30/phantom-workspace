@@ -1,3 +1,35 @@
+const TERMINAL_ACTIONS = [
+  ['terminal.write', 'escribir en la terminal'],
+  ['terminal.stop', 'detener la terminal'],
+];
+const CHAT_ACTIONS = [
+  ['chat.send', 'enviar mensajes'],
+  ['chat.stop', 'parar turnos'],
+  ['chat.question.answer', 'responder preguntas del agente'],
+  ['chat.permission.answer', 'responder permisos del agente'],
+];
+const PROJECT_ACTIONS = [
+  ['terminal.create', 'crear terminales'],
+  ['terminal.agent.handoff', 'transferir sesión a un agente'],
+  ['limits.read', 'leer límites de uso'],
+];
+const toActions = list => list.map(([capability, label]) => ({ capability, label }));
+
+export function projectActions() {
+  return toActions(PROJECT_ACTIONS);
+}
+
+export function chatActions() {
+  return toActions(CHAT_ACTIONS);
+}
+
+// Usa hasChat, tipo y data.chat reportados por el host; no infiere chat de otras señales.
+export function nodeActions(node) {
+  const isTerminal = node?.type === 'terminal';
+  const hasChat = node?.hasChat === true || node?.type === 'chat' || (isTerminal && Boolean(node?.data?.chat));
+  return toActions([...(isTerminal ? TERMINAL_ACTIONS : []), ...(hasChat ? CHAT_ACTIONS : [])]);
+}
+
 export function standardGrants(workspaces = []) {
   return workspaces.flatMap(({ id }) => [
     { workspaceId: id, nodeId: `phantom:${id}`, capabilities: ['read', 'chat.send', 'chat.stop'] },

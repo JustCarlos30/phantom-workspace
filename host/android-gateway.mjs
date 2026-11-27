@@ -88,8 +88,9 @@ export class AndroidGateway {
       starting: !!this.starting, stopping: !!this.stopping, lastError: this.lastError,
       devices: processAlive ? (gateway.devices ?? []) : [], workspaceId: null, scope: gateway.scope ?? 'all',
       workspaces: this.listWorkspaces().map(workspace => ({ id: workspace.id, name: workspace.name,
-        nodes: (workspace.nodes ?? []).filter(node => node.type === 'terminal' || node.data?.chat)
-          .map(node => ({ id: node.id, title: node.title, type: node.type, role: node.data?.role || null })) })) };
+        nodes: (workspace.nodes ?? []).filter(node => node.type === 'terminal' || node.type === 'chat' || node.data?.chat)
+          .map(node => ({ id: node.id, title: node.title, type: node.type, role: node.data?.role || null,
+            hasChat: node.type === 'chat' || Boolean(node.data?.chat) })) })) };
   }
 
   async configure({ repoPath } = {}) {
