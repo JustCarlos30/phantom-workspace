@@ -51,7 +51,7 @@ export function classifyBlocker(reason, task, now = Date.now()) {
   const rule = RULES.find(item => item.test.test(text));
   const category = rule?.category ?? 'unknown';
   const inspect = id ? [`phantom show ${id}`, `phantom events ${id}`] : [];
-  const out = ({ autonomy, summary, remedy, commands = [], retryAt }) => ({ category, autonomy, summary: clean(summary, 300), remedy: clean(remedy, 400), commands: commands.map(c => clean(c, 300)).slice(0, 4), ...(retryAt ? { retryAt } : {}) });
+  const out = ({ autonomy, summary, remedy, commands = [], retryAt }) => ({ category, autonomy, summary: clean(summary, 300), remedy: clean(remedy, 400), commands: commands.map(c => clean(c, 300)).slice(0, 4), ...(retryAt ? { retryAt, retryAtMs: Date.parse(retryAt) } : {}) });
   if (category === 'budget') {
     const budget = task?.contract?.budget ?? task?.raw?.contract?.budget;
     const kind = budgetKind(text);

@@ -75,3 +75,24 @@ export function summarize(data, now = Date.now()) {
     };
   });
 }
+
+const hhmm = value => {
+  const t = typeof value === 'number' ? value : Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+const accountName = (id, limits) => {
+  const providers = Array.isArray(limits?.providers) ? limits.providers : [];
+  return providers.find(p => p.id === id)?.label ?? id;
+};
+
+export function queueNote(entry, limits = null) {
+  if (entry?.state === 'waiting') {
+    const hora = hhmm(entry.notBefore);
+    return hora ? `en espera de cuota hasta ${hora}` : 'en espera de cuota';
+  }
+  if (entry?.state === 'moved' && entry.to) return `movida a cuenta ${accountName(entry.to, limits)}`;
+  return null;
+}
