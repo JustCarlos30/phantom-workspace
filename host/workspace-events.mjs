@@ -1,4 +1,6 @@
-import { createWorkspaceEvents, ENTITY, EVENTS_METHOD } from '../shared/workspace-events.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createWorkspaceEvents, ENTITY, EVENTS_METHOD, eventMatches } from '../shared/workspace-events.mjs';
 
 export { EVENTS_METHOD };
 
@@ -186,17 +188,53 @@ export function sanitizeTraceRecords(records, identity) {
   });
 }
 
-export function createHostEvents({ stallMs, unattendedMs, tickMs = 30000, broadcast = () => {}, now = Date.now } = {}) {
+const JOURNAL_FILE = 'workspace-events.json';
+const JOURNAL_MAX_BYTES = 4 * 1024 * 1024;
+
+export function createHostEvents({ stallMs, unattendedMs, tickMs = 30000, broadcast = () => {}, now = Date.now, dataDir } = {}) {
   const model = createWorkspaceEvents({ stallMs, unattendedMs, now });
   const owned = new Map();
   const calls = new Map();
+  const subscribers = new Set();
+  const journal = typeof dataDir === 'string' && dataDir ? path.join(dataDir, JOURNAL_FILE) : null;
+
+  function persist() {
+    if (!journal) return;
+    const tmp = `${journal}.${process.pid}.tmp`;
+    try {
+      const text = JSON.stringify(model.exportState());
+      if (Buffer.byteLength(text) > JOURNAL_MAX_BYTES) return;
+      fs.mkdirSync(dataDir, { recursive: true });
+      fs.writeFileSync(tmp, text, { mode: 0o600 });
+      fs.renameSync(tmp, journal);
+    } catch {
+      try { fs.rmSync(tmp, { force: true }); } catch { /* best effort */ }
+    }
+  }
+
+  if (journal) {
+    try {
+      if (fs.statSync(journal).size <= JOURNAL_MAX_BYTES) model.restoreState(JSON.parse(fs.readFileSync(journal, 'utf8')));
+    } catch { /* archivo ausente o corrupto: empezar vacío */ }
+  }
 
   const publish = (events) => {
     for (const event of events) {
       try { broadcast({ type: 'workspace.event', event }); } catch { /* the renderer must not break the host */ }
+      for (const sub of [...subscribers]) {
+        try { if (eventMatches(event, sub.filter)) sub.listener(event); } catch { /* a listener must not break the host */ }
+      }
     }
+    if (events.length) persist();
     return events;
   };
+
+  function subscribe(filter, listener) {
+    if (typeof listener !== 'function') return () => {};
+    const sub = { filter: filter && typeof filter === 'object' ? { ...filter } : {}, listener };
+    subscribers.add(sub);
+    return () => { subscribers.delete(sub); };
+  }
   const ownerKey = (w, n) => `${w}\u0000${n}`;
 
   function ingest(raw) {
@@ -268,7 +306,8 @@ export function createHostEvents({ stallMs, unattendedMs, tickMs = 30000, broadc
     query,
     tick,
     configure: model.configure,
-    snapshot: model.snapshot,
-    close() { clearInterval(timer); calls.clear(); owned.clear(); },
+    subscribe,
+    snapshot: () => ({ ...model.snapshot(), subscribers: subscribers.size }),
+    close() { clearInterval(timer); calls.clear(); owned.clear(); subscribers.clear(); },
   };
 }

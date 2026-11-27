@@ -110,6 +110,15 @@ Avisos intermedios al orquestador (marcados «[Aviso automático de Phantom Work
 
 El motivo del bloqueo es siempre dato: solo elige la categoría; los comandos sugeridos salen de plantillas propias con el ID de tarea validado, nunca del texto del motivo.
 
+## Eventos en tiempo real: fuente → bus → suscriptores
+
+Flujo único en el host: **fuente** (stream `phantom.task.activity` de `phantom mcp --workspace RAIZ`, avisos `tool.status` del controlador, terminales y la cola de Incorporaciones) → **bus** (`host/workspace-events.mjs`, durable en `dataDir/workspace-events.json`, cursor opaco que sobrevive a reinicios) → **suscriptores** (`workspace.events` para agentes, `subscribe` en el host, difusión al renderer y supervisor).
+
+- Por cada raíz de proyecto con Phantom disponible y no archivada hay un solo cliente del stream (no uno por worktree); su cursor y los `eventId` vistos viven en `dataDir/task-activity/`. Cada evento pasa por `registry.resolve` (`dataDir/task-registry.json`: taskId → dueño, padre, título) → proyección → bus. El registro aprende el dueño de `tool.status` de Phantom con `origin.nodeId` y del `bind` de una terminal; el objetivo, si falta, se lee una vez con `phantom.detail` sin bloquear la entrega.
+- Una tarea que el registro no conoce se publica con el `workspaceId` del cliente, solo en la audiencia `workspace`: nunca se asigna a una terminal o chat por suposición. Un fallo del proceso, `unsupported` o su ausencia no afectan al host.
+- Campos nuevos de las tarjetas: `phase` (`waiting|agent|checks|repair|judge|children`), `round`, `goal`, `blocker {category, autonomy}` (con `classifyBlocker`), `acceptance`, y el estado `cancelled`. Un cambio de `phase` o `round` con el mismo estado también emite. Nueva entidad `integration` (`queued|ready|conflict|rejected|integrated|failed`, `entityId` = id de la solicitud, `branch`, `ownerNodeId`) para cada transición de la cola; una solicitud retirada se publica como `rejected`.
+- `workspace.events.status` (solo lectura; `workspaceId` opcional): por workspace devuelve `client` (`status()` del cliente o `null`), `mapping` (stats de la proyección) y `bus` (snapshot sin entidades de otros workspaces). Con `sessionId` se limita a lo que esa sesión puede ver.
+
 ## Plan con fases
 
 Para trabajo de varias etapas, el agente declara su plan con `"$PHANTOM_AGENT_NODE" "$PHANTOM_AGENT_CLI" phases set ARCHIVO.json` y enlaza cada encargo con `phases start KEY ID`; el host marca la fase al cerrar el encargo. El plan se ve con datos reales del nodo (`node.data.plan`):
