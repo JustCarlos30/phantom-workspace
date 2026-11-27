@@ -280,7 +280,7 @@ pre.pc-phantom-reason { font: var(--t-code); }
 .pc-phantom-run .pc-subagent-more > summary { max-width: 100%; }
 .pc-phantom-run .pc-phantom-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Recorrido del run o plan arriba del hilo (solo con fases o bloqueo). */
-.pc-journey { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; min-width: 0; max-height: 40vh; overflow: auto; padding: 8px 14px; }
+.pc-journey { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; min-width: 0; max-height: 40vh; overflow: auto; padding: 4px 24px; }
 .pc-journey-plan > :not(summary) { margin-top: 8px; }
 .pc-working-agents { color: var(--ink); }
 

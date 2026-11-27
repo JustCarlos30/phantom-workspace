@@ -6,11 +6,17 @@ import { claudeModelCatalog, executionPolicy } from '../../shared/execution-poli
 // incorporation in conflict; Gamma: work in progress, nothing to review.
 const minutesAgo = minutes => new Date(Date.now() - minutes * 60000).toISOString();
 const hubTerminal = (id, title, sessionId) => ({ id, type: 'terminal', title, x: 0, y: 0, w: 480, h: 320, data: { sessionId } });
+// Alfa's orchestrator talks through a chat, Beta's runs as a plain terminal (PTY), Gamma has none.
+const hubOrchestrator = (id, sessionId, chat) => ({ ...hubTerminal(id, 'Orquestador', sessionId), data: { sessionId, role: 'orchestrator', ...(chat ? { chat: { provider: 'claude' } } : {}) } });
 export const orchestratorHubWorkspaces = [
-  { id: 'hub-alfa', name: 'Alfa · pagos', nodes: [hubTerminal('n-alfa-1', 'Migración de cobros', 's-alfa-1')] },
-  { id: 'hub-beta', name: 'Beta · web', nodes: [hubTerminal('n-beta-1', 'Landing nueva', 's-beta-1')] },
+  { id: 'hub-alfa', name: 'Alfa · pagos', nodes: [hubTerminal('n-alfa-1', 'Migración de cobros', 's-alfa-1'), hubOrchestrator('n-alfa-orch', 's-alfa-orch', true)] },
+  { id: 'hub-beta', name: 'Beta · web', nodes: [hubTerminal('n-beta-1', 'Landing nueva', 's-beta-1'), hubOrchestrator('n-beta-orch', 's-beta-orch', false)] },
   { id: 'hub-gamma', name: 'Gamma · docs', nodes: [] },
 ];
+const hubThread = () => ({ provider: 'claude', sessionId: 'hub-thread', running: false, queue: [], compactions: [], continuations: [], meta: {}, messages: [
+  { id: 'hub-m1', role: 'user', createdAt: minutesAgo(9), parts: [{ type: 'text', text: 'Revisa por qué se bloqueó la migración de facturas.' }] },
+  { id: 'hub-m2', role: 'assistant', createdAt: minutesAgo(8), status: 'done', parts: [{ type: 'text', text: 'La rama choca con main en el esquema de facturas. Preparo la resolución y necesito permiso para escribir en la base de cobros.' }, { id: 'hub-perm', type: 'permission', status: 'pending', tool: 'write', detail: 'db/cobros.sql', reason: 'Escribir en la base de cobros' }] },
+] });
 export function orchestratorHubData(workspaceId) {
   if (workspaceId === 'hub-alfa') return {
     sessions: [{ id: 's-alfa-1', nodeId: 'n-alfa-1', workspaceId, status: 'running', screenState: 'awaiting_approval', screenStateAt: Date.now() - 4 * 60000, createdAt: minutesAgo(40) }],
@@ -42,6 +48,9 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
   const emit = event => { if (!disposed) for (const listener of listeners) listener(structuredClone(event)); };
   const chat = { messages: scenario === 'empty' ? [] : structuredClone(messages), running: scenario === 'working', queue: [], meta: { model: 'Modelo sintético', inputTokens: 1200, outputTokens: 240 } };
   if (scenario === 'attention') chat.messages.push({ id: 'permission', role: 'assistant', parts: [{ id: 'permission-demo', type: 'permission', status: 'pending', tool: 'read', detail: 'src/example.jsx', reason: 'Lectura sintética' }] });
+  const hubChats = new Map();
+  const hubChat = nodeId => { if (!hubChats.has(nodeId)) hubChats.set(nodeId, hubThread()); return hubChats.get(nodeId); };
+  const hubUpdate = (p, chat, messages) => emit({ type: 'chat.update', workspaceId: p.workspaceId, nodeId: p.nodeId, provider: chat.provider, sessionId: chat.sessionId, running: chat.running, messages });
   const items = value => ({ available: true, items: scenario === 'empty' ? [] : value, observedAt: date });
   const responses = {
     'state.get': () => model,
@@ -132,6 +141,17 @@ export function createHost({ scenario = 'data', overrides = {}, workspaceId = wo
       'phantom.list': p => orchestratorHubData(p.workspaceId).tasks,
       'merge.status': p => orchestratorHubData(p.workspaceId).merges,
       'supervisor.read': p => orchestratorHubData(p.workspaceId).supervisor,
+      'chat.get': p => hubChat(p.nodeId),
+      'chat.send': p => {
+        const chat = hubChat(p.nodeId), at = chat.messages.length;
+        const sent = [{ id: `hub-u${at}`, role: 'user', createdAt: new Date().toISOString(), parts: [{ type: 'text', text: p.text }] }, { id: `hub-a${at}`, role: 'assistant', createdAt: new Date().toISOString(), status: 'done', parts: [{ type: 'text', text: `Recibido: ${p.text}` }] }];
+        chat.messages.push(...sent); hubUpdate(p, chat, sent); return chat;
+      },
+      'chat.permission.answer': p => {
+        const chat = hubChat(p.nodeId), changed = [];
+        for (const message of chat.messages) if (message.parts.some(part => part.id === p.requestId)) { for (const part of message.parts) if (part.id === p.requestId) part.status = p.decision === 'deny' ? 'denied' : 'allowed'; changed.push(structuredClone(message)); }
+        hubUpdate(p, chat, changed); return { ok: true };
+      },
     } : {}),
     ...overrides,
   };
