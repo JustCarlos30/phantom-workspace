@@ -65,8 +65,8 @@ export function pruneIntegrationQueue(integration) {
 }
 
 export class Merges {
-  constructor({ store, terminals, mutate, emit }) {
-    Object.assign(this, { store, terminals, mutate, emit });
+  constructor({ store, terminals, mutate, emit, onTransition }) {
+    Object.assign(this, { store, terminals, mutate, emit, onTransition });
     this.running = new Set(); this.bases = new Map(); this.draining = new Set();
     this.polling = new GitPolling();
     // A merge cannot outlive the host: Git either finished it or left it for the next attempt.
@@ -84,6 +84,11 @@ export class Merges {
       w.integration = { plan: '', ...this.of(w) };
       return fn(w.integration, w);
     });
+  }
+  // Observers (the event bus) never alter the queue: a failing callback is ignored.
+  transition(workspaceId, item, status, reason) {
+    try { this.onTransition?.({ workspaceId, id: item.id, status, branch: item.branch, ownerNodeId: item.nodeId, ...(reason ? { reason } : {}) }); } catch { /* Best effort. */ }
+    return item;
   }
   async base(w) {
     const source = canonicalFolder(w.canonicalPath || w.path);
@@ -302,13 +307,14 @@ export class Merges {
         target.data.agent = { ...target.data.agent, step: (summary || 'Listo para incorporar').slice(0, 1000), status: 'review', source: 'agent', updatedAt: now() };
         return { ...item, position: integration.queue.filter(item => OPEN.includes(item.status)).indexOf(item) + 1 };
       });
+      this.transition(w.id, submitted, 'queued');
       void this.drain(w.id);
       return submitted;
     }
     // Operator (renderer) actions: no session, addressed by workspace and item id; the orchestrator still integrates.
     if (method === 'merge.withdraw' && p.sessionId === undefined) {
       const w = this.store.getWorkspace(text(p.workspaceId, 'workspace ID', 128)); assert(this.of(w).enabled, 'Incorporaciones no está activo en este proyecto.');
-      return this.change(w.id, integration => Object.assign(this.item(integration, p.id, ['queued', 'failed', 'conflict', 'rejected', 'stale']), { status: 'withdrawn', by: 'operator', finishedAt: now(), updatedAt: now() }));
+      return this.transition(w.id, this.change(w.id, integration => Object.assign(this.item(integration, p.id, ['queued', 'failed', 'conflict', 'rejected', 'stale']), { status: 'withdrawn', by: 'operator', finishedAt: now(), updatedAt: now() })), 'withdrawn');
     }
     if (method === 'merge.retry') {
       const w = this.store.getWorkspace(text(p.workspaceId, 'workspace ID', 128)); assert(this.of(w).enabled, 'Incorporaciones no está activo en este proyecto.');
@@ -317,16 +323,17 @@ export class Merges {
         for (const key of ['conflicts', 'checks', 'failure', 'error']) delete item[key];
         return Object.assign(item, { status: 'queued', by: 'operator', updatedAt: now() });
       });
+      this.transition(w.id, item, 'ready');
       void this.drain(w.id);
       return item;
     }
     if (method === 'merge.withdraw') {
       const { w, node } = this.session(p.sessionId);
-      return this.change(w.id, integration => {
+      return this.transition(w.id, this.change(w.id, integration => {
         const item = integration.queue.find(item => item.nodeId === node.id && ['queued', 'conflict', 'failed'].includes(item.status));
         assert(item, 'Esta terminal no tiene una solicitud pendiente.');
         return Object.assign(item, { status: 'withdrawn', finishedAt: now(), updatedAt: now() });
-      });
+      }), 'withdrawn');
     }
     if (method === 'merge.plan') {
       const { w } = this.orchestrator(p); text(p.text, 'plan', 4000);
@@ -347,11 +354,11 @@ export class Merges {
     }
     if (method === 'merge.reject') {
       const { w } = this.orchestrator(p); const reason = line(p.reason, 'motivo', 1000); assert(reason, 'Indica el motivo del rechazo');
-      return this.change(w.id, (integration, current) => {
+      return this.transition(w.id, this.change(w.id, (integration, current) => {
         const item = Object.assign(this.item(integration, p.id, ['queued', 'conflict', 'failed']), { status: 'rejected', note: reason, finishedAt: now(), updatedAt: now() });
         this.returnToWorker(current, item, `Incorporación rechazada: ${reason}`);
         return item;
-      });
+      }), 'rejected', reason);
     }
     if (method === 'merge.run') return this.run(p);
     throw new Error(`Unknown method: ${method}`);
@@ -412,11 +419,11 @@ export class Merges {
           });
           throw new Error(`No se pudo incorporar ${queued.branch} en ${base.branch}: ${error.message}`);
         }
-        return this.change(w.id, (integration, current) => {
+        return this.transition(w.id, this.change(w.id, (integration, current) => {
           const item = Object.assign(this.item(integration, id, ['merging']), { status: 'conflict', failure: 'conflict', conflicts: conflicts.slice(0, 100), updatedAt: now() });
           this.returnToWorker(current, item, `Conflicto al incorporar en ${base.branch} (${conflicts.slice(0, 3).join(', ')}${conflicts.length > 3 ? '…' : ''}). Actualiza tu rama desde ${base.branch}, resuelve y vuelve a enviar.`);
           return item;
-        });
+        }), 'conflict', `Conflicto en ${conflicts.slice(0, 3).join(', ')}`);
       }
       let checkEvidence = null;
       if (command) {
@@ -426,23 +433,24 @@ export class Merges {
           // The merge does not stay; the worker gets the failing output.
           await git(source, ['reset', '--keep', base.oid], { env });
           const failed = { ...checkEvidence, timedOut: checks.timedOut, output: String(checks.output ?? '').slice(-8000) };
-          return this.change(w.id, (integration, current) => {
+          const result = this.change(w.id, (integration, current) => {
             const item = Object.assign(this.item(integration, id, ['merging']), { status: 'failed', failure: 'checks', checks: failed, note: `Checks fallidos (${command}, código ${checks.code}${checks.timedOut ? ', tiempo agotado' : ''})`.slice(0, 1000), updatedAt: now() });
             this.returnToWorker(current, item, `Los checks fallaron tras incorporar en ${base.branch} (${command}). Corrígelo en tu rama y vuelve a enviar.`);
             return { ...item, checks };
           });
+          return this.transition(w.id, result, 'failed', result.note);
         }
       }
       const mergedOid = await git(source, ['rev-parse', 'HEAD']);
       const fileCount = (await git(source, ['diff', '--name-only', '-z', `${base.oid}..${mergedOid}`])).split('\0').filter(Boolean).length;
-      return this.change(w.id, (integration, current) => {
+      return this.transition(w.id, this.change(w.id, (integration, current) => {
         delete integration.autoBlocked;
         const item = Object.assign(this.item(integration, id, ['merging']), { status: 'merged', mergedOid, fileCount, checks: checkEvidence, finishedAt: now(), updatedAt: now() });
         // The request is settled: its terminal no longer waits for review.
         const node = current.nodes.find(n => n.id === item.nodeId);
         if (node) node.data.agent = { ...node.data.agent, step: `Incorporada en ${base.branch}`, status: 'idle', source: 'agent', updatedAt: now() };
         return item;
-      });
+      }), 'integrated');
     } catch (error) {
       this.change(w.id, integration => {
         const item = integration.queue.find(item => item.id === requestId && item.status === 'merging');
