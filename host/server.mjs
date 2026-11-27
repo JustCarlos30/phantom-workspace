@@ -83,7 +83,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
   let store,terminals,chats,merges,branches,repo,server,mobile,android,providers,traces,supervisor,closingPromise,ownsSocket=false;
   const clients=new Set();
-  const limits=providerOptions?.limits??createLimits();
+  const limits=providerOptions?.limits??createLimits();let unsubscribeLimits;
   // Effective provider policy: read from settings on every use, never cached as a fallback.
   const policy=()=>executionPolicy(store.state.settings);
   const publishPolicy=()=>{try{setExecutionPolicy(policy());}catch{/* Invalid stored settings: execution throws on use; the hint keeps the last valid policy. */}};
@@ -724,7 +724,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   function close() {
     if(closingPromise)return closingPromise;
-    runWatch.stop();runWake.close();hostEvents.close();
+    runWatch.stop();runWake.close();hostEvents.close();unsubscribeLimits?.();limits.stop?.();
     // Cancels any summary in flight (its Claude Code process included) and every pending timer.
     for(const timer of snapshotTimers.values())clearTimeout(timer);snapshotTimers.clear();traceReads.clear();
     try{supervisor?.close();}catch{}
@@ -752,12 +752,13 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     store=new Store(dataDir);
     // Persistent under dataDir. The supervisor stays disabled per project until the operator enables it; its default
     // summarizer runs Claude Code only under the execution policy, and tests inject their own.
-    traces=createAgentTraceStore({dataDir,now:traceOptions?.now,limits:traceOptions?.limits,onChange:({workspaceId})=>{broadcast({type:'agent.traces.changed',workspaceId});scheduleSnapshot(workspaceId);}});
+    unsubscribeLimits=limits.subscribe?.(data=>broadcast({type:'limits.changed',data}));
+    traces=createAgentTraceStore({dataDir,now:traceOptions?.now,limits:traceOptions?.limits,onChange:({workspaceId})=>{broadcast({type:'agent.traces.changed',workspaceId});limits.poke?.()?.catch?.(()=>{});scheduleSnapshot(workspaceId);}});
     supervisor=createWorkspaceSupervisor({dataDir,...supervisorOptions,
       summarize:supervisorOptions?.summarize??createSupervisorSummarizer({settings:()=>store.state.settings,workspaceOf:id=>store.state.workspaces.find(w=>w.id===id)}),
       onChange:({workspaceId})=>broadcast({type:'supervisor.changed',workspaceId})});
     terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node),{onTrace:record=>traces.record(record)});
-    providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();
+    providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();limits.start?.();
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
     android=new AndroidGateway({hostDataDir:dataDir,listWorkspaces:()=>store.state.workspaces});
     server=net.createServer(socket=>{
