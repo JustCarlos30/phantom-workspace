@@ -46,6 +46,9 @@ export function effectiveStatus(agent, screenState) {
 }
 
 export function AgentState({ agent, status = agent?.status || 'idle', reason = null }) {
+  if (['done', 'completed', 'finished'].includes(status) || (agent?.run?.phase === 'completed' && !['approval', 'turn', 'working', 'blocked', 'failed', 'error'].includes(status))) {
+    return <span className="pt-state is-done"><i aria-hidden="true" />Terminó</span>;
+  }
   const label = status === 'approval' && reason === 'trust' ? 'Pide confiar en la carpeta' : SCREEN_LABELS[status] || AGENT_LABELS[status] || AGENT_LABELS.idle;
   return <span className={`pt-state is-${status}`}><i aria-hidden="true" />{label}</span>;
 }

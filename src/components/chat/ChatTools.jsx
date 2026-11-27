@@ -12,7 +12,7 @@ const toolKind = name => TOOL_KINDS.find(([pattern]) => pattern.test(String(name
 // Codex-style: each action is a sentence. The verb's tense carries the state
 // (gerund while it runs, past once done); only failures and stops add a word.
 const TOOL_VERBS = { read: ['Leyendo', 'Leyó'], edit: ['Editando', 'Editó'], shell: ['Ejecutando', 'Ejecutó'], search: ['Buscando', 'Buscó'], web: ['Consultando', 'Consultó'], agent: ['Delegando', 'Delegó'], todo: ['Actualizando el plan', 'Actualizó el plan'] };
-const TOOL_STATES = { error: 'Falló', stopped: 'Detenida' };
+const TOOL_STATES = { error: 'Falló', stopped: 'Detenida', pending: 'En espera' };
 
 // One action, one quiet line: a dot, what was done, and on what. The dot and the verb's tense say whether it is still running.
 export const ToolRow = React.memo(function ToolRow({ part }) {
@@ -153,7 +153,7 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel, onTone }) {
   ].filter(Boolean);
   const open_ = target => onOpenPanel('phantom-cards', { pluginId: 'phantom', panelId: 'cards', cardId: id, ...target }, state.title);
   const head = <div className="pc-phantom-head">
-    <div className="pc-phantom-bar"><span className="pc-phantom-brand"><PhantomGlyph size={14} />PHANTOM</span><span className="pc-delegate-state" role="status">{view.stateLabel}</span></div>
+    <div className="pc-phantom-bar"><span className="pc-phantom-brand"><PhantomGlyph size={14} />PHANTOM</span><span className="pc-delegate-state" role="status"><i className="pc-delegate-mark" aria-hidden="true" />{view.stateLabel}</span></div>
     <h4 className="pc-phantom-title">{view.title}</h4>
   </div>;
   const checked = state.total > 0 ? results ? `${state.passed} de ${state.total} checks pasados` : `${state.total} ${state.total === 1 ? 'check sin resultado' : 'checks sin resultado'}` : '';
@@ -208,6 +208,7 @@ function StepState({ status }) {
   if (status === 'running') return <LoaderCircle className="pc-tool-state is-running" size={14} aria-label="En curso" />;
   if (status === 'error') return <X className="pc-tool-state is-error" size={14} aria-label="Falló" />;
   if (status === 'stopped') return <span className="pc-tool-state">detenido</span>;
+  if (status === 'pending' || status === 'waiting') return <span className="pc-tool-state is-waiting">en espera</span>;
   return <Check className="pc-tool-state is-done" size={14} aria-label="Completado" />;
 }
 export const SubagentCard = React.memo(function SubagentCard({ part, onOpenAgent }) {

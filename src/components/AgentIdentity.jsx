@@ -5,7 +5,7 @@ import { runsOf } from '../hooks/phantom-desk.mjs';
 import { stateOf } from '../hooks/plugin-model.mjs';
 import './agent-identity.css';
 
-export const AGENT_LABELS = { idle: 'Sin iniciar', working: 'Trabajando', blocked: 'Bloqueado', review: 'Listo para revisión' };
+export const AGENT_LABELS = { idle: 'En reposo', working: 'Trabajando', blocked: 'Bloqueado', review: 'Listo para revisión' };
 
 // onRetry (opcional): solo lo pasa quien puede reintentar la Card; sin él no se muestra el botón.
 export function CardAgents({ cardId, workspace, onOpenPanel, onRetry }) {

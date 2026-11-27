@@ -71,12 +71,39 @@ test('raw host screen signals and actual activity projection preserve precedence
   assert.equal(resolve(project({ status: 'running', agent: { status: 'error' }, screenState: 'awaiting_approval' })), 'pulse-error');
 });
 
-test('turn completion and review never claim verified success', () => {
-  for (const agentState of ['review', 'waiting', 'done', 'completed', 'finished']) {
+test('review asks for a turn; finished agents yield to a working screen', () => {
+  for (const agentState of ['review', 'waiting']) {
     assert.equal(resolve({ status: 'running', agentState, screen: 'working', exitCode: 0 }), 'pulse-turn');
+  }
+  for (const agentState of ['done', 'completed', 'finished']) {
+    assert.equal(resolve({ status: 'running', agentState, screen: 'working' }), 'pulse-working');
+    assert.equal(resolve({ status: 'running', agentState, needsYou: true }), 'pulse-success');
   }
   assert.equal(resolve({ status: 'running', needsYou: true }), 'pulse-turn');
   assert.equal(resolve({ status: 'running', agentState: 'working' }), 'pulse-working');
+});
+
+const withRun = (phase, status) => ({ type: 'terminal', data: { agent: { status, run: { phase } } } });
+
+test('a completed Phantom run announces success while the screen is idle', () => {
+  assert.equal(pulseState(withRun('completed'), { status: 'running' }), 'pulse-success');
+  assert.equal(pulseState(withRun('completed', 'idle'), { status: 'running', needsYou: true }), 'pulse-success');
+  assert.equal(pulseState(withRun(undefined, 'done'), { status: 'running' }), 'pulse-success');
+});
+
+test('a completed run still yields to approval, input, errors and work in progress', () => {
+  assert.equal(pulseState(withRun('completed'), { status: 'running', screenState: 'awaiting_approval' }), 'pulse-attention');
+  assert.equal(pulseState(withRun('completed'), { status: 'running', screen: 'awaiting_input' }), 'pulse-turn');
+  assert.equal(pulseState(withRun('completed'), { status: 'running', agentState: 'needs_approval' }), 'pulse-attention');
+  assert.equal(pulseState(withRun('completed'), { status: 'running', agentState: 'failed' }), 'pulse-error');
+  assert.equal(pulseState(withRun('completed'), { status: 'running', screen: 'working' }), 'pulse-working');
+});
+
+test('a blocked run is attention and a cancelled run is not finished', () => {
+  assert.equal(pulseState(withRun('blocked'), { status: 'running' }), 'pulse-attention');
+  assert.equal(pulseState(withRun('blocked', 'done'), { status: 'running', screen: 'working' }), 'pulse-attention');
+  assert.equal(pulseState(withRun('cancelled'), { status: 'running' }), '');
+  assert.equal(pulseState(withRun('cancelled', 'done'), { status: 'running' }), '');
 });
 
 test('chat owns its signal independently of PTY completion; other panels stay neutral', () => {

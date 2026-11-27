@@ -401,6 +401,8 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .canvas-node.map-flash::after { animation: map-flash var(--map-flash-duration) var(--ease-settle); }
 @keyframes map-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
 .canvas-node > .node-header > .panel-state { flex: none; color: var(--muted); font: var(--t-support); white-space: nowrap; }
+.canvas-node > .node-header > .panel-state[data-state="working"] { color: var(--working); }
+.canvas-node > .node-header > .panel-state[data-state="finished"] { color: var(--success); }
 .canvas-node > .node-header > .panel-state[data-state="attention"] { color: var(--attention); }
 .canvas-node > .node-header > .panel-state[data-state="error"] { color: var(--danger); }
 .canvas-node.is-dragging { box-shadow: var(--shadow-float); border-color: var(--hairline); z-index: 6; }
