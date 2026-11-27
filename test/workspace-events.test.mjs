@@ -46,6 +46,84 @@ const W = 'ws1';
 const card = (entityId, status, extra = {}) => ({ workspaceId: W, kind: 'card', entityId, status, ...extra });
 const term = (entityId, status, extra = {}) => ({ workspaceId: W, kind: 'terminal', entityId, status, ...extra });
 
+test('bus: cancelled, campos de card saneados y cambio de phase o round con igual status emite', () => {
+  const { ev } = setup();
+  const [first] = ev.ingest(card('c', 'working', { phase: 'agent', round: 0, goal: 'Meta `x` <b>y</b>', blocker: { category: 'quota', autonomy: 'wait' }, acceptance: 'accepted' }));
+  assert.equal(first.phase, 'agent');
+  assert.equal(first.round, 0);
+  assert.equal(first.goal, 'Meta x y');
+  assert.deepEqual(first.blocker, { category: 'quota', autonomy: 'wait' });
+  assert.equal(first.acceptance, 'accepted');
+  assert.equal(ev.ingest(card('c', 'working', { phase: 'agent', round: 0 })).length, 0);
+  const [byPhase] = ev.ingest(card('c', 'working', { phase: 'checks' }));
+  assert.equal(byPhase.previous, 'working');
+  assert.equal(byPhase.phase, 'checks');
+  const [byRound] = ev.ingest(card('c', 'working', { round: 1 }));
+  assert.equal(byRound.round, 1);
+  const [bad] = ev.ingest(card('c', 'cancelled', { phase: 'nope', round: -1, acceptance: 'x', blocker: { category: '<>', autonomy: 'a' } }));
+  assert.equal(bad.status, 'cancelled');
+  assert.equal(bad.phase, 'checks');
+  assert.equal(bad.round, 1);
+  assert.deepEqual(bad.blocker, { category: 'quota', autonomy: 'wait' });
+});
+
+test('bus: integration emite a owner y workspace, o solo a workspace sin dueño', () => {
+  const { ev } = setup();
+  const integ = (id, status, extra = {}) => ({ workspaceId: W, kind: 'integration', entityId: id, status, branch: 'feat/x', ...extra });
+  const out = ev.ingest(integ('r1', 'queued', { ownerNodeId: 'n1' }));
+  assert.deepEqual(out.map((e) => e.audience).sort(), ['owner', 'workspace']);
+  assert.ok(out.every((e) => e.kind === 'integration' && e.branch === 'feat/x' && e.ownerNodeId === 'n1'));
+  assert.equal(ev.ingest(integ('r1', 'queued')).length, 0);
+  assert.equal(ev.ingest(integ('r2', 'conflict')).length, 1);
+  assert.equal(ev.ingest(integ('r3', 'bogus')).length, 0);
+  for (const s of ['ready', 'rejected', 'integrated', 'failed']) assert.ok(ev.ingest(integ('r1', s)).length > 0);
+});
+
+test('bus: hija sin dueño resoluble va a workspace conservando parentId y se ve solo con audiences workspace', () => {
+  const { ev } = setup();
+  const start = encodeStart(ev);
+  const [childEv] = ev.ingest(card('k', 'working', { parentId: 'p' }));
+  assert.equal(childEv.audience, AUDIENCE.workspace);
+  assert.equal(childEv.parentId, 'p');
+  assert.equal(childEv.ownerNodeId, undefined);
+  const seen = ev.since(start, { audiences: ['workspace'] }).events;
+  assert.ok(seen.some((e) => e.entityId === 'k' && e.parentId === 'p'));
+});
+
+test('bus: exportar y restaurar conserva seq, buffer y estado; los cursores siguen valiendo', () => {
+  const { ev } = setup();
+  const start = encodeStart(ev);
+  ev.ingest(card('a', 'working', { phase: 'agent' }));
+  const mid = ev.since(start).cursor;
+  ev.ingest(card('a', 'completed'));
+  const state = JSON.parse(JSON.stringify(ev.exportState()));
+  const { ev: other } = setup();
+  assert.equal(other.restoreState(state), true);
+  assert.equal(other.snapshot().seq, ev.snapshot().seq);
+  const r = other.since(mid);
+  assert.equal(r.truncated, false);
+  assert.deepEqual(r.events.map((e) => e.status), ['completed']);
+  assert.equal(other.ingest(card('a', 'completed')).length, 0);
+  assert.equal(other.ingest(card('a', 'failed'))[0].seq, state.seq + 1);
+  assert.equal(other.restoreState(null), false);
+  assert.equal(other.restoreState({ seq: 'x', buffer: [], entities: [] }), false);
+  assert.equal(other.snapshot().seq, state.seq + 1);
+});
+
+test('bus: una integration sin dueño no aparece con audiences owner pero sí con workspace', () => {
+  const { ev } = setup();
+  const start = encodeStart(ev);
+  ev.ingest({ workspaceId: W, kind: 'integration', entityId: 'r1', status: 'queued', branch: 'feat/x' });
+  assert.equal(ev.since(start, { audiences: ['owner'], ownerNodeIds: ['n1'] }).events.length, 0);
+  assert.equal(ev.since(start, { audiences: ['workspace'] }).events.length, 1);
+});
+
+test('bus: el goal de una card se recorta a 240 caracteres', () => {
+  const { ev } = setup();
+  const [e] = ev.ingest(card('g', 'working', { goal: 'x'.repeat(500) }));
+  assert.ok(e.goal.length <= 240);
+});
+
 test('constantes del protocolo', () => {
   assert.equal(EVENTS_METHOD, 'workspace.events');
   assert.equal(EVENT_NAME, 'phantom.workspace.activity');

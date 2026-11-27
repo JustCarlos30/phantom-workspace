@@ -160,6 +160,96 @@ test('query without a valid principal session is Forbidden', () => {
   }
 });
 
+const tmpDir = (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-events-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+};
+const card = (entityId, status, extra = {}) => ({ workspaceId: 'w1', kind: 'card', entityId, status, ...extra });
+
+test('journal: with dataDir the bus survives a restart and old cursors still work', (t) => {
+  const dir = tmpDir(t);
+  const a = make({ dataDir: dir });
+  a.host.ingest(card('T1', 'working'));
+  const mid = a.host.snapshot().cursor;
+  a.host.ingest(card('T1', 'failed'));
+  a.host.close();
+  const b = make({ dataDir: dir });
+  assert.equal(b.host.snapshot().seq, 2);
+  const r = b.host.query({ cursor: mid, principal: { sessionId: 's-w1' } }, world());
+  assert.deepEqual(r.events.map((e) => e.status), ['failed']);
+  assert.equal(r.truncated, false);
+  b.host.close();
+});
+
+test('journal: missing or corrupt file starts empty without throwing; no dataDir writes nothing', (t) => {
+  const dir = tmpDir(t);
+  const fresh = make({ dataDir: dir });
+  assert.equal(fresh.host.snapshot().seq, 0);
+  fresh.host.close();
+  const file = path.join(dir, 'workspace-events.json');
+  fs.writeFileSync(file, '{not json');
+  const bad = make({ dataDir: dir });
+  assert.equal(bad.host.snapshot().seq, 0);
+  bad.host.ingest(card('T1', 'working'));
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).seq, 1);
+  assert.deepEqual(fs.readdirSync(dir), ['workspace-events.json']);
+  bad.host.close();
+  const none = make();
+  none.host.ingest(card('T1', 'working'));
+  assert.equal(none.host.snapshot().subscribers, 0);
+  none.host.close();
+});
+
+test('subscribe: delivers in process what since() would let through and unsubscribes', () => {
+  const m = make();
+  const all = [];
+  const owner = [];
+  const wsOnly = [];
+  const off = m.host.subscribe({ workspaceIds: ['w1'], ownerNodeIds: ['wk1'], audiences: ['workspace', 'owner'] }, (e) => all.push(e));
+  m.host.subscribe({ ownerNodeIds: ['wk2'], audiences: ['owner'] }, (e) => owner.push(e));
+  m.host.subscribe({ audiences: ['workspace'] }, (e) => wsOnly.push(e));
+  m.host.subscribe({}, () => { throw new Error('boom'); });
+  assert.equal(m.host.snapshot().subscribers, 4);
+  m.host.ingest(card('P', 'working', { ownerNodeId: 'wk1' }));
+  m.host.ingest(card('K', 'working', { parentId: 'P' }));
+  m.host.ingest({ ...card('X', 'working'), workspaceId: 'w2' });
+  assert.deepEqual(all.map((e) => `${e.entityId}:${e.audience}`), ['P:workspace', 'K:owner']);
+  assert.deepEqual(owner, []);
+  assert.deepEqual(wsOnly.map((e) => e.entityId), ['P', 'X']);
+  off();
+  m.host.ingest(card('P', 'failed', { ownerNodeId: 'wk1' }));
+  assert.equal(all.length, 2);
+  assert.equal(m.host.snapshot().subscribers, 3);
+  m.host.close();
+});
+
+test('subscribe: an orphan child card reaches workspace subscribers and unsubscribing twice is harmless', () => {
+  const m = make();
+  const seen = [];
+  const off = m.host.subscribe({ audiences: ['workspace'] }, (e) => seen.push(e));
+  m.host.ingest(card('K', 'working', { parentId: 'unknown' }));
+  assert.deepEqual(seen.map((e) => `${e.entityId}:${e.audience}:${e.parentId}`), ['K:workspace:unknown']);
+  off();
+  off();
+  assert.equal(m.host.snapshot().subscribers, 0);
+  m.host.close();
+});
+
+test('journal: the persisted file keeps cancelled cards and integrations after a restart', (t) => {
+  const dir = tmpDir(t);
+  const a = make({ dataDir: dir });
+  a.host.ingest(card('T1', 'cancelled', { phase: 'agent', round: 2 }));
+  a.host.ingest({ workspaceId: 'w1', kind: 'integration', entityId: 'r1', status: 'queued', branch: 'feat/x' });
+  a.host.close();
+  const b = make({ dataDir: dir });
+  assert.equal(b.host.snapshot().seq, 2);
+  const ents = b.host.snapshot().entities;
+  assert.ok(JSON.stringify(ents).includes('cancelled'));
+  assert.ok(JSON.stringify(ents).includes('integration'));
+  b.host.close();
+});
+
 test('close stops the timer', () => {
   const { host } = make({ tickMs: 5 });
   host.close();
