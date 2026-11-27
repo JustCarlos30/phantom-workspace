@@ -48,6 +48,37 @@ function shellCommand(part) {
   return match ? { command, action: match[1] || match[2] } : null;
 }
 
+const CLI_CALL = /(?:\$\{?PHANTOM_AGENT_CLI\}?|[^\s"']*agent\.mjs|(?:^|\s)(?:[^\s"']*\/)?phantom)["']?\s+(\S[^;|&\n]*)/g;
+const ID_ANY = /\b(?:task|card)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+const argWords = text => text.split(/\s+/).map(word => word.replace(/^["']+|["']+$/g, '')).filter(Boolean);
+
+// Short readable summary of a Phantom call ("context · list", "run task_9eb4db96"); never exposes $PHANTOM_AGENT_* variables.
+export function phantomCallSummary(part) {
+  if (part?.type !== 'tool') return '';
+  let calls = [];
+  const structured = structuredCall(part);
+  if (structured || MCP_PHANTOM.test(part.name || '')) {
+    let input = part.input;
+    if (typeof input === 'string') { try { input = JSON.parse(input); } catch { input = null; } }
+    if (Array.isArray(input?.args)) calls = [input.args.filter(arg => typeof arg === 'string')];
+  } else if (SHELL_TOOL.test(part.name || '')) {
+    const command = textOf(commandOf(part));
+    calls = [...command.matchAll(CLI_CALL)].map(match => argWords(match[1]));
+  } else return '';
+  const seen = new Set(), parts = [];
+  for (const words of calls) {
+    const action = words.find(word => /^[a-z][a-z-]*$/.test(word));
+    if (!action) continue;
+    const rest = words.slice(words.indexOf(action) + 1).filter(word => !word.startsWith('-') && !word.startsWith('$'));
+    const id = rest.map(word => word.match(ID_ANY)?.[0]).find(Boolean);
+    const file = rest.find(word => /\.[A-Za-z0-9]{1,8}$/.test(word) && !ID_ANY.test(word));
+    const target = id ? id.slice(0, 13) : file ? file.split('/').pop() : '';
+    const text = target ? `${action} ${target}` : action;
+    if (!seen.has(text)) { seen.add(text); parts.push(text); }
+  }
+  return parts.slice(0, 3).join(' · ');
+}
+
 export function phantomRunIds(part) {
   if (part?.type !== 'tool') return [];
   const structured = structuredCall(part);
