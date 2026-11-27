@@ -357,7 +357,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
           want.set(n.id,{id:n.id,role:'orchestrator',workspaceId:w.id,...(assistantId?{parentId:assistantId}:{}),filter:{workspaceIds,ownerNodeIds:[n.id],audiences:['workspace','owner']}});
         }else{
           const parentId=orchestrator?.id??assistantId;
-          want.set(n.id,{id:n.id,role:'worker',workspaceId:w.id,...(parentId?{parentId}:{}),filter:{workspaceIds:[w.id],ownerNodeIds:[n.id],audiences:['owner']}});
+          want.set(n.id,{id:n.id,role:'worker',workspaceId:w.id,...(parentId?{parentId}:{}),filter:{workspaceIds:[w.id],ownerNodeIds:[n.id],audiences:['owner','workspace']}});
         }
       }
     }

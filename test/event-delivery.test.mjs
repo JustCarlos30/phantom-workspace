@@ -94,6 +94,15 @@ test('isMaterial: worker', () => {
   assert.equal(m({ kind: 'terminal', entityId: 't1', status: 'blocked' }), false);
 });
 
+test('isMaterial: worker con card raíz de audiencia workspace propia y ajena', () => {
+  const m = (o) => isMaterial(ev({ audience: 'workspace', parentId: undefined, ...o }), W);
+  assert.equal(m({ status: 'cancelled', ownerNodeId: 't1' }), true);
+  assert.equal(m({ status: 'blocked', ownerNodeId: 't1' }), true);
+  assert.equal(m({ status: 'cancelled', ownerNodeId: 'otro' }), false);
+  assert.equal(m({ status: 'blocked', ownerNodeId: 'otro' }), false);
+  assert.equal(m({ status: undefined, alert: 'unattended', ownerNodeId: 't1' }), false);
+});
+
 test('isMaterial: orchestrator', () => {
   const m = (o) => isMaterial(ev({ audience: 'workspace', ownerNodeId: undefined, ...o }), O);
   assert.equal(m({ status: 'blocked' }), true);

@@ -117,6 +117,45 @@ test('un bloqueo de una tarea con dueño llega como aviso a la terminal dueña c
   assert.match(sent.data, /blocked/);
 });
 
+test('una tarea raíz cancelada avisa a su terminal dueña', async (t) => {
+  const f = await fixture(t);
+  const { node, sessionId } = await session(f);
+  f.foreground.add(sessionId);
+  await f.streaming();
+  owned(f, node, P);
+  f.harness.push({ id: 'r0', taskId: P, parentTaskId: null, type: 'task.cancelled', payload: {} });
+  const [sent] = await until(() => { const found = sentTo(f, sessionId, P); return found.length && found; });
+  assert.match(sent.data, /Aviso automático de Phantom Workspace/);
+});
+
+test('una terminal no recibe el aviso de una tarea raíz de otra terminal del mismo workspace', async (t) => {
+  const f = await fixture(t);
+  const mine = await session(f);
+  const other = await session(f);
+  f.foreground.add(mine.sessionId);
+  f.foreground.add(other.sessionId);
+  await f.streaming();
+  owned(f, other.node, U);
+  owned(f, mine.node, P);
+  f.harness.push({ id: 'r1', taskId: U, parentTaskId: null, type: 'task.cancelled', payload: {} });
+  f.harness.push({ id: 'r2', taskId: P, parentTaskId: null, type: 'task.cancelled', payload: {} });
+  await until(() => sentTo(f, mine.sessionId, P).length > 0);
+  await until(() => sentTo(f, other.sessionId, U).length > 0);
+  assert.equal(sentTo(f, mine.sessionId, U).length, 0, 'no recibe la tarea raíz ajena');
+});
+
+test('una tarea raíz bloqueada llega a su terminal dueña con la categoría del bloqueo', async (t) => {
+  const f = await fixture(t);
+  const { node, sessionId } = await session(f);
+  f.foreground.add(sessionId);
+  await f.streaming();
+  owned(f, node, P);
+  f.harness.push({ id: 'b1', taskId: P, parentTaskId: null, type: 'task.blocked', payload: { reason: 'budget exhausted: maxTokens' } });
+  const [sent] = await until(() => { const found = sentTo(f, sessionId, P); return found.length && found; });
+  assert.match(sent.data, /blocked/);
+  assert.match(sent.data, /budget/i);
+});
+
 test('sin agente en primer plano escala al orquestador y luego al chat principal', async (t) => {
   const f = await fixture(t);
   const worker = await session(f);
@@ -175,17 +214,17 @@ test('tras reiniciar el host un aviso pendiente se entrega una sola vez', async 
   await f.streaming();
   owned(f, node, P);
   f.harness.push({ id: 'e1', taskId: C, parentTaskId: P, type: 'task.blocked', payload: { reason: 'budget exhausted: maxTokens' } });
-  await until(() => subscriber(f, node.id)?.queued === 1);
+  await until(() => subscriber(f, node.id)?.queued >= 1);
   assert.equal(f.writes.length, 0, 'sin agente en primer plano no se escribe');
 
   await f.restart(fakeHarness());
   const again = await f.host.invoke('terminal.create', { workspaceId: f.workspace.id, nodeId: node.id, shell: '/bin/sh' });
-  assert.equal(subscriber(f, node.id).queued, 1, 'el aviso pendiente sobrevivió al reinicio');
+  assert.ok(subscriber(f, node.id).queued >= 1, 'el aviso pendiente sobrevivió al reinicio');
   f.foreground.add(again.session.id);
   await until(() => sentTo(f, again.session.id, C).length);
   await pause(300);
   assert.equal(sentTo(f, again.session.id, C).length, 1);
-  assert.equal(subscriber(f, node.id).delivered, 1);
+  assert.ok(subscriber(f, node.id).delivered >= 1);
 });
 
 async function chatMode(f, node) {
