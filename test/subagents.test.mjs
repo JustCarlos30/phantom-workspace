@@ -5,7 +5,23 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
-import { subagentOp } from '../scripts/agent.mjs';
+import { subagentOp, hookStatusPatch } from '../scripts/agent.mjs';
+
+test('hookStatusPatch maps hook events to terminal status', () => {
+  const p=(hook_event_name,extra={})=>hookStatusPatch({hook_event_name,...extra});
+  assert.deepEqual(p('PermissionRequest'),{status:'blocked'});
+  for(const k of ['permission_prompt','elicitation_dialog','agent_needs_input'])assert.deepEqual(p('Notification',{notification_type:k}),{status:'blocked'});
+  assert.deepEqual(p('Notification',{notification_type:'idle_prompt'}),{status:'review'});
+  assert.equal(p('Notification',{notification_type:'auth_success'}),null);
+  assert.deepEqual(p('PreToolUse',{tool_name:'AskUserQuestion'}),{status:'blocked'});
+  assert.deepEqual(p('PreToolUse',{tool_name:'ExitPlanMode'}),{status:'blocked'});
+  assert.equal(p('PreToolUse',{tool_name:'Bash'}),null);
+  assert.deepEqual(p('Stop'),{status:'review'});
+  assert.deepEqual(p('StopFailure'),{status:'blocked'});
+  for(const e of ['UserPromptSubmit','PostToolUse','PostToolUseFailure'])assert.deepEqual(p(e),{status:'working'});
+  assert.equal(p('SessionStart'),null);
+  assert.equal(hookStatusPatch(null),null);
+});
 import { applySubagent, validateSubagentOp } from '../host/subagents.mjs';
 import { createAgentTraceStore, clipTrace, redactText } from '../host/agent-traces.mjs';
 import { adaptHookTrace, adaptTraceEvent, adaptTurnTrace, createTraceState, settleTraceAgents, traceRootId } from '../host/agent-trace-adapters.mjs';

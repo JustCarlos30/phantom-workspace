@@ -31,6 +31,15 @@ export function subagentOp(payload) {
   if(event==='PostToolUse')return payload.tool_response?.status==='async_launched'&&valid(payload.tool_response.agentId)?{op:'background',id,agentId:payload.tool_response.agentId}:{op:'end',id};
   return event==='PostToolUseFailure'?{op:'end',id}:null;
 }
+export function hookStatusPatch(payload) {
+  if(!payload || typeof payload!=='object' || Array.isArray(payload))return null;
+  const {hook_event_name:event,tool_name:tool,notification_type:kind}=payload;
+  if(event==='PermissionRequest'||event==='StopFailure')return {status:'blocked'};
+  if(event==='Notification')return ['permission_prompt','elicitation_dialog','agent_needs_input'].includes(kind)?{status:'blocked'}:kind==='idle_prompt'?{status:'review'}:null;
+  if(event==='PreToolUse')return tool==='AskUserQuestion'||tool==='ExitPlanMode'?{status:'blocked'}:null;
+  if(event==='Stop')return {status:'review'};
+  return ['UserPromptSubmit','PostToolUse','PostToolUseFailure'].includes(event)?{status:'working'}:null;
+}
 const USAGE='Uso: agent.mjs context | bind ID | report "Paso actual" [idle|working|blocked|review] | run ID [MODELO] | runs\n'
   +'Encargos: projects | handoff [--project ID|NOMBRE] [--title TÍTULO] [--agent claude|codex|opencode|none] (TEXTO | --file RUTA | -)\n'
   +'Procesos: launch [--title TÍTULO] "COMANDO" | processes | output ID [LÍNEAS] | stop ID\n'
@@ -81,6 +90,8 @@ export async function main(args=process.argv.slice(2), env=process.env) {
         const calls=[];
         if(op)calls.push(['terminal.agent.subagent',{sessionId,op}]);
         if(records.length)calls.push(['terminal.agent.trace',{sessionId,records}]);
+        const patch=hookStatusPatch(payload);
+        if(patch)calls.push(['terminal.agent.report',{sessionId,patch}]);
         const results=await Promise.allSettled(calls.map(([method,body])=>invokeAgent(method,body,socket,3000)));
         // Hooks never block the agent; failures stay observable in the file the operator names.
         const failed=results.flatMap((result,index)=>result.status==='rejected'?[{method:calls[index][0],error:String(result.reason?.message??result.reason).slice(0,300)}]:[]);

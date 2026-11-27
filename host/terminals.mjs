@@ -65,7 +65,11 @@ export function tailLines(terminal,count) {
 // they need approval; nothing is inferred beyond those visible signals.
 const TRUST_PROMPT=[/\bquick safety check\b/i,/\bis this a project you (created|trust)\b/i,/\byes, i trust this folder\b/i,/\baccessing workspace:/i];
 const WORKING=/\besc(ape)?\b.{0,4}\b(to )?(interrupt|cancel)\b/i;
-const APPROVAL=[/\bdo you want to (proceed|make|create|run|allow|continue|apply|overwrite|delete)\b/i,/\bwould you like to (run|proceed|allow|make|apply|continue)\b/i,/\ballow (once|always)\b/i,/\bpermission required\b/i,/\brequires? (your )?approval\b/i,/^\s*[❯›>]\s*1\.\s*(yes|allow|approve)\b/i,/\((y\/n|yes\/no)\)|\[(y\/n|Y\/n|y\/N)\]/,/\bpress enter to (continue|confirm)\b/i];
+const APPROVAL=[/\bdo you want to (proceed|make|create|run|allow|continue|apply|overwrite|delete)\b/i,/\bwould you like to (run|proceed|allow|make|apply|continue)\b/i,/\ballow (once|always)\b/i,/\bpermission required\b/i,/\brequires? (your )?approval\b/i,/^\s*[❯›>]\s*1\.\s*(yes|allow|approve)\b/i,/\((y\/n|yes\/no)\)|\[(y\/n|Y\/n|y\/N)\]/,/\bpress enter to (continue|confirm)\b/i,/\benter to select\b.*(navigate|↑|↓)/i,/^\s*❯\s*\d+\.\s+\S/,/\bready to code\?|\bwould you like to proceed\?|\bplan\b.*\bapprove\b/i];
+// A selector footer outranks 'esc to cancel', which would otherwise read as working.
+const SELECTOR=/\benter to (select|confirm)\b/i;
+const PROMPT=/^[\s│|]*[❯›>]\s*$/;
+export const promptSignal=lines=>recentLines(lines).slice(-4).some(l=>PROMPT.test(l));
 const recentLines=lines=>lines.filter(l=>l.trim()).slice(-14);
 // Why the screen asks for approval, when it is Claude's folder-trust dialog.
 export function screenReason(lines) {
@@ -74,15 +78,16 @@ export function screenReason(lines) {
 export function screenSignal(lines) {
   const recent=recentLines(lines);
   if(screenReason(lines)) return 'awaiting_approval';
+  if(recent.some(l=>SELECTOR.test(l))) return 'awaiting_approval';
   if(recent.some(l=>WORKING.test(l))) return 'working';
   if(recent.some(l=>APPROVAL.some(r=>r.test(l)))) return 'awaiting_approval';
   return null;
 }
 // Turn bookkeeping: an agent that was seen working and went quiet hands the turn to you.
-export function nextScreenState(previous,signal,agent) {
+export function nextScreenState(previous,signal,agent,prompt=false) {
   if(signal) return signal;
   if(!agent) return null;
-  return previous?'awaiting_input':null;
+  return previous||prompt?'awaiting_input':null;
 }
 const HIGH_WATER=256*1024,LOW_WATER=64*1024;
 // /proc reads are cheap but frequent: reuse one result per session for a second.
@@ -254,7 +259,7 @@ export class Terminals {
       const buffer=e.terminal.buffer.active,lines=[];
       for(let i=Math.max(0,buffer.viewportY);i<buffer.viewportY+e.terminal.rows;i++) lines.push(buffer.getLine(i)?.translateToString(true)??'');
       const agent=cachedForeground(e)?.agent??null;
-      this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent),screenReason(lines));
+      this.setScreenState(s,e,nextScreenState(e.screenState??null,screenSignal(lines),agent,promptSignal(lines)),screenReason(lines));
     },450);
     e.screenTimer.unref?.();
   }
