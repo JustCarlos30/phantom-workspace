@@ -438,7 +438,9 @@ pre.pc-phantom-reason { font: var(--t-code); }
 .pc-selectors > * { min-width: 0; max-width: 100%; }
 .pc-selectors > .pc-model-picker > .pc-model, .pc-selectors > .pc-effort > .pc-reasoning { width: 100%; height: 36px; padding-inline: 8px; }
 .pc-selectors > .pc-model-picker > .pc-model { flex-wrap: nowrap; align-items: center; }
-.pc-selectors > .pc-permission { height: 36px; max-width: 100%; }
+.pc-selectors > .pc-permission { height: 36px; max-width: 100%; flex: 0 0 auto; white-space: nowrap; }
+.pc-selectors > .pc-model-picker > .pc-model > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-selectors > .pc-model-picker > .pc-model { overflow: hidden; }
 .pc-selectors > .pc-effort .pc-reasoning-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pc-selectors > .pc-effort > .pc-reasoning > .pc-reasoning-label { display: none; }
 .pc-composer-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; padding-bottom: 24px; }
@@ -771,6 +773,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
   font: var(--t-support); font-weight: 500; line-height: 1; white-space: nowrap;
 }
 .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-permission[data-mode] { padding: 0 11px; }
+.pc.pc .pc-selectors > .pc-permission { flex: 0 0 auto; min-width: max-content; }
 :is(.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip, .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning):hover:not(:disabled):not([data-disabled]) { background: var(--control-hover); }
 .pc.pc .pc-selectors > .pc-session-settings { flex: 0 0 auto; }
 .pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip { width: 32px; padding: 0; justify-content: center; }
