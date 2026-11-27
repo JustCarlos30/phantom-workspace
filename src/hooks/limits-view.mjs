@@ -5,6 +5,17 @@ export function peakWindow(provider) {
   return peak;
 }
 
+const RAIL_WINDOWS = [['session', 'Sesión 5 h', ['Sesión · 5 h']], ['weekly', 'Semanal', ['Semanal · todos los modelos', 'Semanal']]];
+export function railWindows(provider) {
+  const windows = Array.isArray(provider?.windows) ? provider.windows : [];
+  const out = [];
+  for (const [key, short, labels] of RAIL_WINDOWS) {
+    const w = windows.find(x => labels.includes(x?.label) && Number.isFinite(x.percent));
+    if (w) { const percent = Math.round(w.percent); out.push({ key, label: short, percent, tone: toneOf(percent) }); }
+  }
+  return out;
+}
+
 export function toneOf(percent) {
   if (percent >= 90) return 'danger';
   if (percent >= 70) return 'warn';
@@ -55,6 +66,7 @@ export function summarize(data, now = Date.now()) {
       retryAt: p.retryAt ?? null,
       retry: p.retryAt ? retryText(p.retryAt, now) : null,
       percent,
+      rail: railWindows(p),
       tone: percent == null ? 'ok' : toneOf(percent),
       windows: (Array.isArray(p.windows) ? p.windows : []).map(w => {
         const pc = Math.round(Number.isFinite(w.percent) ? w.percent : 0);
@@ -62,4 +74,25 @@ export function summarize(data, now = Date.now()) {
       })
     };
   });
+}
+
+const hhmm = value => {
+  const t = typeof value === 'number' ? value : Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+const accountName = (id, limits) => {
+  const providers = Array.isArray(limits?.providers) ? limits.providers : [];
+  return providers.find(p => p.id === id)?.label ?? id;
+};
+
+export function queueNote(entry, limits = null) {
+  if (entry?.state === 'waiting') {
+    const hora = hhmm(entry.notBefore);
+    return hora ? `en espera de cuota hasta ${hora}` : 'en espera de cuota';
+  }
+  if (entry?.state === 'moved' && entry.to) return `movida a cuenta ${accountName(entry.to, limits)}`;
+  return null;
 }

@@ -105,6 +105,79 @@ test('error transitorio conserva datos y reintenta a ~60 s; TTL independiente po
   assert.deepEqual(calls, { claude: 3, codex: 2 });
 });
 
+const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test('subscribe notifica solo cuando cambia el contenido observable', async () => {
+  let t = 1_000_000, percent = 30;
+  const fetchImpl = async url => (url.includes('anthropic') ? reply(200, { limits: [{ kind: 'session', percent }] }) : okCodex);
+  const limits = createLimits({ home: setup(), env: {}, fetchImpl, ttlMs: 1000, now: () => t });
+  const seen = [];
+  limits.subscribe(data => seen.push(data));
+  await limits.read();
+  assert.equal(seen.length, 1);
+  t += 2000;
+  await limits.read();
+  assert.equal(seen.length, 1);
+  t += 2000; percent = 55;
+  await limits.read();
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1].providers[0].windows[0].percent, 55);
+});
+
+test('el vigilante no consulta a un proveedor con 429 antes de Retry-After', async () => {
+  let t = 1_000_000, calls = 0, limited = false;
+  const fetchImpl = async url => {
+    if (!url.includes('anthropic')) return okCodex;
+    calls++;
+    return limited ? { ok: false, status: 429, headers: { get: () => '600' }, json: async () => ({}) } : okClaude;
+  };
+  const limits = createLimits({ home: setup(), env: {}, fetchImpl, ttlMs: 1000, now: () => t });
+  await limits.read();
+  t += 2000; limited = true;
+  await limits.read();
+  const before = calls;
+  t += 60000;
+  limits.start();
+  await flush();
+  await limits.poke();
+  limits.stop();
+  assert.equal(calls, before);
+});
+
+test('poke respeta el mínimo de 30 s entre lecturas', async () => {
+  let t = 1_000_000, calls = 0;
+  const fetchImpl = async url => { if (url.includes('anthropic')) calls++; return url.includes('anthropic') ? okClaude : okCodex; };
+  const limits = createLimits({ home: setup(), env: {}, fetchImpl, now: () => t });
+  limits.start();
+  await flush();
+  limits.stop();
+  limits.start();
+  assert.equal(calls, 1);
+  await limits.poke();
+  assert.equal(calls, 1);
+  t += 29000;
+  await limits.poke();
+  assert.equal(calls, 1);
+  t += 2000;
+  await limits.poke();
+  assert.equal(calls, 2);
+  limits.stop();
+});
+
+test('stop detiene el temporizador', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let calls = 0;
+  const fetchImpl = async url => { calls++; return url.includes('anthropic') ? okClaude : okCodex; };
+  const limits = createLimits({ home: setup(), env: {}, fetchImpl, ttlMs: 1000 });
+  limits.start();
+  await flush();
+  const after = calls;
+  limits.stop();
+  t.mock.timers.tick(60 * 60000);
+  await flush();
+  assert.equal(calls, after);
+});
+
 test('Codex sin ventanas reconocibles: error de formato; sin datos previos no disponible', async () => {
   const fetchImpl = async url => (url.includes('anthropic') ? okClaude : reply(200, { plan_type: 'plus' }));
   const p = (await createLimits({ home: setup(), env: {}, fetchImpl }).read()).providers[1];

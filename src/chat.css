@@ -438,7 +438,9 @@ pre.pc-phantom-reason { font: var(--t-code); }
 .pc-selectors > * { min-width: 0; max-width: 100%; }
 .pc-selectors > .pc-model-picker > .pc-model, .pc-selectors > .pc-effort > .pc-reasoning { width: 100%; height: 36px; padding-inline: 8px; }
 .pc-selectors > .pc-model-picker > .pc-model { flex-wrap: nowrap; align-items: center; }
-.pc-selectors > .pc-permission { height: 36px; max-width: 100%; }
+.pc-selectors > .pc-permission { height: 36px; max-width: 100%; flex: 0 0 auto; white-space: nowrap; }
+.pc-selectors > .pc-model-picker > .pc-model > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-selectors > .pc-model-picker > .pc-model { overflow: hidden; }
 .pc-selectors > .pc-effort .pc-reasoning-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pc-selectors > .pc-effort > .pc-reasoning > .pc-reasoning-label { display: none; }
 .pc-composer-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; padding-bottom: 24px; }
@@ -615,8 +617,7 @@ button.pc-context:focus-visible { outline: 2px solid var(--focus, var(--ink)); o
 .pc-ask-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .pc-ask-actions button { min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 500; line-height: 1; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); }
 .pc-ask-actions button:hover:not(:disabled) { background: var(--row-hover); }
-.pc-ask-actions button.is-primary { background: var(--pc-solid); color: var(--pc-solid-ink); }
-.pc-ask-actions button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--pc-solid) 86%, var(--muted)); }
+.pc-ask-actions button.is-primary { font-weight: 600; }
 .pc-ask-actions button:disabled { opacity: .5; cursor: default; }
 .pc-ask-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pc-ask-state { flex-shrink: 0; color: var(--muted); font-size: 11px; }
@@ -721,8 +722,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
 .pc-thread { background: var(--well-terminal); }
 .pc-send:not(:disabled):not(.is-stop), .pc-send:not(:disabled):not(.is-stop):hover,
 .pc-question-actions button.is-primary,
-.pc-question-actions button.is-primary:hover:not(:disabled),
-.pc-ask-actions button.is-primary, .pc-ask-actions button.is-primary:hover:not(:disabled) {
+.pc-question-actions button.is-primary:hover:not(:disabled) {
   background: var(--primary); color: var(--primary-ink); box-shadow: var(--shadow-key);
 }
 /* In a menu the current value is a lit veil with its check, not a light key:
@@ -771,6 +771,7 @@ button.pc-reasoning:hover:not(:disabled), button.pc-reasoning.is-open { backgrou
   font: var(--t-support); font-weight: 500; line-height: 1; white-space: nowrap;
 }
 .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-permission[data-mode] { padding: 0 11px; }
+.pc.pc .pc-selectors > .pc-permission { flex: 0 0 auto; min-width: max-content; }
 :is(.pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip, .pc.pc .pc-selectors > .pc-permission, .pc.pc .pc-selectors > .pc-model-picker > .pc-model, .pc.pc .pc-selectors > .pc-effort > .pc-reasoning):hover:not(:disabled):not([data-disabled]) { background: var(--control-hover); }
 .pc.pc .pc-selectors > .pc-session-settings { flex: 0 0 auto; }
 .pc.pc .pc-selectors > .pc-session-settings > .pc-session-chip { width: 32px; padding: 0; justify-content: center; }

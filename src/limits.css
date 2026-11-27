@@ -12,6 +12,8 @@
 .usage-bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .2s ease; }
 .usage-bar[data-tone='warn'] i { background: #e0a43a; }
 .usage-bar[data-tone='danger'] i { background: var(--danger); }
+.usage-win { display: flex; align-items: center; gap: var(--s-1); flex: 1; min-width: 0; }
+.usage-wname { color: var(--ink-3); flex: none; }
 .usage-pct { width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 [data-tone='warn'].usage-pct, [data-tone='warn'].usage-mini, b[data-tone='warn'] { color: #e0a43a; }
 [data-tone='danger'].usage-pct, [data-tone='danger'].usage-mini, b[data-tone='danger'], .usage-extra[data-tone='danger'] { color: var(--danger); }

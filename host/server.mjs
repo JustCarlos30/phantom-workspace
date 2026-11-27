@@ -26,7 +26,9 @@ import { publicSettings, portableSettings } from './public-settings.mjs';
 import { stateView } from './state-view.mjs';
 import { setExecutionPolicy, POLICY_HINTS } from './agent-policy.mjs';
 import { createProviders } from './providers.mjs';
-import { wakeMessage, createWakeLimit, createRunWake } from './run-wake.mjs';
+import { wakeMessage, createWakeLimit, createRunWake, createQuotaFlow } from './run-wake.mjs';
+import { decideRoute, createQuotaQueue } from './quota-queue.mjs';
+import { createSleepInhibitor } from './sleep-inhibit.mjs';
 import { createHostEvents, EVENTS_METHOD, TRACE_RENDERER_METHODS, traceParams, publicTraceAgent, authorizeTraceRead, sanitizeTraceRecords } from './workspace-events.mjs';
 import { createAgentTraceStore, isTraceModel, clipTrace } from './agent-traces.mjs';
 import { traceRootId } from './agent-trace-adapters.mjs';
@@ -83,7 +85,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   try {fs.writeFileSync(lockPath,JSON.stringify({pid:process.pid}),{mode:0o600});}catch(e){arbitration.close();throw e;}
   let store,terminals,chats,merges,branches,repo,server,mobile,android,providers,traces,supervisor,closingPromise,ownsSocket=false;
   const clients=new Set();
-  const limits=providerOptions?.limits??createLimits();
+  const limits=providerOptions?.limits??createLimits();let unsubscribeLimits;
   // Effective provider policy: read from settings on every use, never cached as a fallback.
   const policy=()=>executionPolicy(store.state.settings);
   const publishPolicy=()=>{try{setExecutionPolicy(policy());}catch{/* Invalid stored settings: execution throws on use; the hint keeps the last valid policy. */}};
@@ -118,6 +120,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         if(event.status==='running')runWatch.track(target);
         else if(['completed','failed','stopped'].includes(event.status)){runWatch.untrack(r.id);finishCard(target,r).catch(()=>{});}
       }
+      if(store&&!closingPromise&&event.type==='tool.status'&&event.status==='failed'&&r?.source==='phantom'&&r.action==='run'&&typeof r.taskId==='string')quota.accept({id:r.id,taskId:r.taskId,workspaceId:event.workspaceId??r.workspaceId,nodeId:r.origin?.nodeId,via:r.origin?.via==='chat'?'chat':'terminal'},r);
       if(store&&!closingPromise)runWake.accept(event);
     }catch{}
     try{const step=store&&!closingPromise?planTarget(event):null;if(step)planChain(step).catch(()=>{});}catch{}
@@ -170,6 +173,30 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       mutate(w.id,()=>pushAttention(w,item));broadcast({type:'attention.new',workspaceId:w.id,item});
     },
   });
+  // Rate limit at the end of a run: reroute or queue it; neither counts as a failure nor spends budget.
+  const quotaEvent=event=>{broadcast(event);try{if(store&&!closingPromise)hostEvents.feed(event,()=>undefined);}catch{}};
+  const quotaTask=async target=>{try{const a=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});return a?.handled?a.result:undefined;}catch{return undefined;}};
+  const quota=createQuotaFlow({
+    decide:decideRoute,limits,emit:quotaEvent,fetchTask:quotaTask,
+    queue:providerOptions?.quotaQueue??createQuotaQueue({file:path.join(dataDir,'quota-queue.json')}),
+    inhibitor:providerOptions?.sleepInhibitor??createSleepInhibitor(),
+    enabledEngines:()=>{const p=policy();return [['claude','claude-code'],['codex','codex'],['opencode','opencode']].filter(([id])=>p?.providers?.[id]?.enabled===true).map(([,engine])=>engine);},
+    commitWip:async(target,task)=>{
+      const dir=task?.contract?.workspace,w=store.getWorkspace(target.workspaceId),node=w.nodes.find(n=>n.type==='terminal'&&n.data?.worktree?.path===dir);
+      if(!node?.data.worktree.branch)return;
+      try{await branches.handle('branch.commit',{workspaceId:w.id,branch:node.data.worktree.branch,message:`WIP: ${target.taskId} interrumpido por límite de cuota`});}catch{/* nothing to save */}
+    },
+    createContract:async(target,task,to)=>{
+      const c=task?.contract??{},input={goal:c.goal,scope:c.scope,checks:c.checks,budget:c.budget,lane:'coordinated',model:`${to.client}/${to.model}`};
+      const a=await routeIntegration('phantom.create',{workspaceId:target.workspaceId,kind:'card',input});assert(a?.handled,'Phantom no está disponible');return a.result;
+    },
+    run:async item=>{
+      const model=item.client&&item.model?`${item.client}/${item.model}`:undefined;
+      const a=await routeIntegration('phantom.control',{workspaceId:item.workspaceId,id:item.taskId,action:'run',...(model?{model}:{}),...(item.nodeId&&!item.nodeId.startsWith('phantom:')?{sessionId:terminals?.sessions.find(s=>s.nodeId===item.nodeId)?.id}:{})});
+      assert(a?.handled!==false,'Phantom no está disponible');
+    },
+  });
+  quota.sync();
   // End of a run: a terminal card still bound to that task shows review/blocked, whether it was told by chat or by PTY.
   const applyFinish=(workspaceId,nodeId,taskId,controller,task)=>{
     if(controller?.action!=='run')return;
@@ -724,7 +751,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   }
   function close() {
     if(closingPromise)return closingPromise;
-    runWatch.stop();runWake.close();hostEvents.close();
+    runWatch.stop();runWake.close();quota.close();hostEvents.close();unsubscribeLimits?.();limits.stop?.();
     // Cancels any summary in flight (its Claude Code process included) and every pending timer.
     for(const timer of snapshotTimers.values())clearTimeout(timer);snapshotTimers.clear();traceReads.clear();
     try{supervisor?.close();}catch{}
@@ -752,12 +779,13 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     store=new Store(dataDir);
     // Persistent under dataDir. The supervisor stays disabled per project until the operator enables it; its default
     // summarizer runs Claude Code only under the execution policy, and tests inject their own.
-    traces=createAgentTraceStore({dataDir,now:traceOptions?.now,limits:traceOptions?.limits,onChange:({workspaceId})=>{broadcast({type:'agent.traces.changed',workspaceId});scheduleSnapshot(workspaceId);}});
+    unsubscribeLimits=limits.subscribe?.(data=>broadcast({type:'limits.changed',data}));
+    traces=createAgentTraceStore({dataDir,now:traceOptions?.now,limits:traceOptions?.limits,onChange:({workspaceId})=>{broadcast({type:'agent.traces.changed',workspaceId});limits.poke?.()?.catch?.(()=>{});scheduleSnapshot(workspaceId);}});
     supervisor=createWorkspaceSupervisor({dataDir,...supervisorOptions,
       summarize:supervisorOptions?.summarize??createSupervisorSummarizer({settings:()=>store.state.settings,workspaceOf:id=>store.state.workspaces.find(w=>w.id===id)}),
       onChange:({workspaceId})=>broadcast({type:'supervisor.changed',workspaceId})});
     terminals=new Terminals(store,emit);merges=new Merges({store,terminals,mutate,emit});merges.resume();branches=new Branches({store,terminals,mutate,merges});repo=new Repo({store});terminals.integrationBase=w=>merges.baseName(w);chats=new Chats(store,emit,(w,node)=>node.data.main?{env:{...merges.agentContext(w,node).env,...mainEnv(w)},instructions:phantomInstructions(w)}:merges.agentContext(w,node),{onTrace:record=>traces.record(record)});
-    providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();
+    providers=createProviders({...providerOptions,limits,settings:()=>store.state.settings,cwd:()=>{try{return store.getWorkspace(store.state.activeWorkspaceId).canonicalPath;}catch{return dataDir;}}});publishPolicy();limits.start?.();
     mobile=new MobileAccess({...mobileOptions,dataDir,store,terminals,chats});
     android=new AndroidGateway({hostDataDir:dataDir,listWorkspaces:()=>store.state.workspaces});
     server=net.createServer(socket=>{

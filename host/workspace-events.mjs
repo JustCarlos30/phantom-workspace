@@ -36,6 +36,13 @@ export function adaptHostEvent(event, nodeOf = () => undefined) {
         reason: event.status === 'failed' ? str(r.error) ?? str(event.error) : undefined,
       });
     }
+  } else if (event.type === 'quota.queue') {
+    const status = { waiting: 'blocked', rerouted: 'working', resumed: 'working' }[event.state];
+    if (status && str(event.taskId)) {
+      const label = (v) => (typeof v === 'string' ? v : [v?.client, v?.model].filter(Boolean).join('/'));
+      const detail = { waiting: `En cola por cuota hasta ${str(event.notBefore) ?? 'nueva orden'}`, rerouted: `Redirigida a ${label(event.to) || 'otro motor'}`, resumed: 'Reanudada tras la cola de cuota' }[event.state];
+      out.raws.push({ workspaceId, kind: ENTITY.card, entityId: event.taskId, status, reason: detail });
+    }
   } else if (event.type === 'terminal.exit') {
     const nodeId = nodeOf(event.sessionId);
     if (nodeId) out.raws.push({ workspaceId, kind: ENTITY.terminal, entityId: nodeId, status: 'idle' });

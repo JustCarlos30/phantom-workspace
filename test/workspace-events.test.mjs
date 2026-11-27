@@ -7,7 +7,34 @@ import { EventEmitter } from 'node:events';
 import { createWorkspaceEvents, AUDIENCE, ALERTS, EVENTS_METHOD, EVENT_NAME } from '../shared/workspace-events.mjs';
 import { createWorkspaceSupervisor, LIMITS } from '../host/workspace-supervisor.mjs';
 import { createSupervisorSummarizer, PROVIDER_UNAVAILABLE } from '../host/supervisor-provider.mjs';
-import { traceParams, sanitizeTraceRecords, publicTraceAgent, TRACE_MAX_RECORDS } from '../host/workspace-events.mjs';
+import { traceParams, sanitizeTraceRecords, publicTraceAgent, TRACE_MAX_RECORDS, adaptHostEvent, createHostEvents } from '../host/workspace-events.mjs';
+
+test('quota.queue: waiting bloquea la card y rerouted/resumed la reanudan', () => {
+  const base = { type: 'quota.queue', workspaceId: 'w1', taskId: 't1', from: { client: 'claude-code', model: 'opus' }, to: { client: 'claude-code', model: 'sonnet' }, notBefore: '2026-11-23T19:50:00.000Z' };
+  const [waiting] = adaptHostEvent({ ...base, state: 'waiting' }).raws;
+  assert.equal(waiting.status, 'blocked');
+  assert.equal(waiting.entityId, 't1');
+  assert.match(waiting.reason, /2026-11-23T19:50:00.000Z/);
+  assert.equal(adaptHostEvent({ ...base, state: 'rerouted' }).raws[0].status, 'working');
+  assert.match(adaptHostEvent({ ...base, state: 'rerouted' }).raws[0].reason, /claude-code\/sonnet/);
+  assert.equal(adaptHostEvent({ ...base, state: 'resumed' }).raws[0].status, 'working');
+});
+
+test('quota.queue: estados o ids inválidos no producen eventos', () => {
+  assert.deepEqual(adaptHostEvent({ type: 'quota.queue', workspaceId: 'w1', taskId: 't1', state: 'bogus' }).raws, []);
+  assert.deepEqual(adaptHostEvent({ type: 'quota.queue', workspaceId: 'w1', state: 'waiting' }).raws, []);
+});
+
+test('quota.queue: feed publica el bloqueo y la reanudación al workspace', () => {
+  const sent = [];
+  const host = createHostEvents({ broadcast: (m) => sent.push(m.event), tickMs: 3600000 });
+  host.feed({ type: 'quota.queue', workspaceId: 'w1', taskId: 't1', state: 'waiting', notBefore: '2026-11-23T19:50:00.000Z' });
+  host.feed({ type: 'quota.queue', workspaceId: 'w1', taskId: 't1', state: 'resumed' });
+  host.close();
+  assert.deepEqual(sent.map((e) => e.status), ['blocked', 'working']);
+  assert.equal(sent[0].entityId, 't1');
+  assert.equal(sent[0].audience, AUDIENCE.workspace);
+});
 
 const MIN = 60000;
 function setup(opts = {}) {

@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wakeMessage, createWakeLimit, wakeTarget, createRunWake } from '../host/run-wake.mjs';
+import { wakeMessage, createWakeLimit, wakeTarget, createRunWake, createQuotaFlow } from '../host/run-wake.mjs';
 
 import { startPatch, finishPatch, cardNode } from '../host/run-binding.mjs';
 import { validateAgent } from '../host/agents.mjs';
 
-const HEAD = '[Aviso automático de Phantom Workspace; no es un mensaje del usuario]';
+test('quota flow: settled sin accept resuelve false', async () => {
+  const flow = createQuotaFlow({ queue: { list: () => [] }, inhibitor: { release() {} }, setTimer: () => ({}), clearTimer() {} });
+  assert.equal(await flow.settled('nada'), false);
+});
+
+const HEAD ='[Aviso automático de Phantom Workspace; no es un mensaje del usuario]';
 
 test('mensaje de bloqueo con motivo, estado real y controlador', () => {
   const text = wakeMessage({ taskId: 'task_1', controller: { status: 'failed', exitCode: 2 }, task: { status: 'blocked', blockedReason: 'Faltan pruebas' } });
