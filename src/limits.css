@@ -19,19 +19,29 @@
 [data-tone='danger'].usage-pct, [data-tone='danger'].usage-mini, b[data-tone='danger'], .usage-extra[data-tone='danger'] { color: var(--danger); }
 .usage-mini { display: none; font: var(--t-micro); }
 .usage-popover { position: absolute; left: var(--s-2, 8px); right: var(--s-2, 8px); bottom: 100%; z-index: 30; display: flex; flex-direction: column; gap: var(--s-2, 8px); padding: var(--row-px); border: 0; border-radius: var(--r-obj); background: var(--surface, #1a1a1a); color: var(--ink); font: var(--t-micro); box-shadow: var(--shadow-chrome); }
-.usage-detail h3 { margin: 0 0 var(--s-1); font: var(--t-micro); display: flex; justify-content: space-between; }
-.usage-detail h3 small { color: var(--ink-3); }
-.usage-window { display: grid; grid-template-columns: 1fr 48px 34px auto; align-items: center; gap: var(--s-2, 8px); min-height: 20px; }
+.usage-detail { display: flex; flex-direction: column; gap: var(--s-2, 8px); padding: var(--row-px); border-radius: var(--r-obj); background: var(--fill-2); }
+.usage-detail h3 { margin: 0; font: var(--t-micro); display: flex; align-items: center; justify-content: space-between; color: var(--ink); }
+.usage-plan { padding: 0 var(--s-2, 8px); border-radius: var(--r-pill); background: var(--surface, #1a1a1a); color: var(--ink-3); text-transform: capitalize; }
+.usage-window { display: flex; flex-direction: column; gap: var(--s-1); }
+.usage-window-head { display: flex; justify-content: space-between; align-items: baseline; }
+.usage-window-head span { color: var(--ink-3); }
 .usage-window em { color: var(--muted); font-style: normal; }
-.usage-window b { text-align: right; font-weight: 500; }
-.usage-reason, .usage-extra { margin: var(--s-1) 0 0; color: var(--muted); }
-.usage-stale { margin: var(--s-1) 0 0; }
-.usage-badge { display: inline-block; padding: 0 var(--s-1); background: var(--fill-2); border-radius: var(--r-pill); color: var(--muted); font-size: .85em; white-space: nowrap; }
-.usage-refresh { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: var(--s-1); min-height: 44px; border-radius: var(--r-pill); background: var(--fill-2); cursor: pointer; }
+.usage-window b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.usage-track { position: relative; display: block; height: 6px; border-radius: var(--r-pill); background: var(--surface, #1a1a1a); }
+.usage-track i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .2s ease; }
+.usage-track[data-tone='warn'] i { background: #e0a43a; }
+.usage-track[data-tone='danger'] i { background: var(--danger); }
+.usage-pace { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink); opacity: .7; border-radius: var(--r-mark); text-decoration: none; }
+.usage-reason, .usage-extra { margin: 0; color: var(--muted); }
+.usage-foot { display: flex; align-items: center; justify-content: space-between; color: var(--muted); }
+.usage-fresh { display: inline-flex; align-items: center; gap: var(--s-1); }
+.usage-dot { width: 6px; height: 6px; border-radius: 50%; background: #e0a43a; display: inline-block; }
+.usage-refresh { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border-radius: var(--r-pill); color: var(--ink-3); cursor: pointer; }
+.usage-refresh:hover { background: var(--fill-2); color: var(--ink); }
 .usage-refresh[disabled] { opacity: .5; cursor: default; }
 .usage-refresh .spin { animation: usage-spin 1s linear infinite; }
 @keyframes usage-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .usage-bar i { transition: none; } .usage-refresh .spin { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .usage-bar i, .usage-track i { transition: none; } .usage-refresh .spin { animation: none; } }
 .rail-collapsed .project-rail > .rail-usage { display: block; padding: 0; }
 .rail-collapsed .rail-usage-off { display: none; }
 .rail-collapsed .usage-rows, .rail-collapsed .usage-popover { display: none; }

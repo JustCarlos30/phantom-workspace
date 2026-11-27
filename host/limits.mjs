@@ -8,11 +8,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 const TIMEOUT_MS = 10000;
-export const LIMITS_TTL_MS = 4 * 60000;
+export const LIMITS_TTL_MS = 60000;
 export const TRANSIENT_RETRY_MS = 60000;
 const RATE_DEFAULT_MS = 5 * 60000;
 const RATE_MAX_MS = 30 * 60000;
-const POKE_MIN_MS = 30000;
+const POKE_MIN_MS = 60000;
+const WINDOW_SESSION_S = 18000;
+const WINDOW_WEEK_S = 604800;
 
 export function parseRetryAfter(value, now = Date.now()) {
   let ms = NaN;
@@ -58,12 +60,13 @@ export function claudeWindows(usage) {
       percent: limit.percent,
       resetsAt: iso(limit.resets_at),
       severity: typeof limit.severity === 'string' ? limit.severity : null,
+      windowSeconds: limit.kind === 'session' ? WINDOW_SESSION_S : String(limit.kind || '').startsWith('weekly') ? WINDOW_WEEK_S : null,
     }));
   }
   // Older responses carry only the named windows.
   return [['five_hour', 'Sesión · 5 h'], ['seven_day', 'Semanal · todos los modelos'], ['seven_day_opus', 'Semanal · Opus'], ['seven_day_sonnet', 'Semanal · Sonnet']]
     .filter(([key]) => Number.isFinite(usage?.[key]?.utilization))
-    .map(([key, label]) => ({ id: key, label, percent: usage[key].utilization, resetsAt: iso(usage[key].resets_at), severity: null }));
+    .map(([key, label]) => ({ id: key, label, percent: usage[key].utilization, resetsAt: iso(usage[key].resets_at), severity: null, windowSeconds: key === 'five_hour' ? WINDOW_SESSION_S : WINDOW_WEEK_S }));
 }
 
 async function readClaude({ home, env, fetchImpl }) {
@@ -88,7 +91,7 @@ export function codexWindows(usage) {
   const add = (id, window, prefix = '') => {
     if (!Number.isFinite(window?.used_percent)) return;
     const resetsAt = Number.isFinite(window.reset_at) ? iso(window.reset_at) : Number.isFinite(window.reset_after_seconds) ? new Date(Date.now() + window.reset_after_seconds * 1000).toISOString() : null;
-    windows.push({ id, label: prefix + windowLabel(window.limit_window_seconds), percent: window.used_percent, resetsAt, severity: null });
+    windows.push({ id, label: prefix + windowLabel(window.limit_window_seconds), percent: window.used_percent, resetsAt, severity: null, windowSeconds: finite(window.limit_window_seconds) });
   };
   add('primary', usage?.rate_limit?.primary_window);
   add('secondary', usage?.rate_limit?.secondary_window);
@@ -138,6 +141,7 @@ export function createLimits({ home = os.homedir(), env = process.env, fetchImpl
     s.loadedAt = t;
     const { retryAfterMs, ...value } = result;
     if (value.status === 'ok') {
+      value.updatedAt = new Date(t).toISOString();
       s.good = value; s.goodAt = t; s.nextAt = t + ttlMs; s.hardUntil = 0;
     } else {
       if (value.status === 'rate_limited') { s.hardUntil = t + retryAfterMs; s.nextAt = s.hardUntil; value.retryAt = new Date(s.hardUntil).toISOString(); }
@@ -154,7 +158,7 @@ export function createLimits({ home = os.homedir(), env = process.env, fetchImpl
   };
   const listeners = new Set();
   let lastKey = null, timer = null, running = false;
-  const keyOf = providers => JSON.stringify(providers.map(p => [p.id, p.available, p.status, p.stale === true, p.plan, p.limitReached === true, (p.windows || []).map(w => [w.id, w.label, w.percent, w.resetsAt])]));
+  const keyOf = providers => JSON.stringify(providers.map(p => [p.id, p.available, p.status, p.stale === true, p.plan, p.limitReached === true, p.updatedAt ?? null, (p.windows || []).map(w => [w.id, w.label, w.percent, w.resetsAt])]));
   const snapshot = () => ({ observedAt: new Date(now()).toISOString(), providers: Object.keys(readers).map(id => state[id].value).filter(Boolean) });
   const notify = () => {
     const data = snapshot();

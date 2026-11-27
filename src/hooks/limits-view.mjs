@@ -33,6 +33,49 @@ export function resetIn(resetsAt, now = Date.now()) {
   return `en ${Math.floor(h / 24)} d`;
 }
 
+const toMs = value => (typeof value === 'number' ? value : Date.parse(value));
+const DAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
+export function resetAbsolute(resetsAt, now = Date.now()) {
+  const t = toMs(resetsAt);
+  if (!Number.isFinite(t)) return '';
+  const d = new Date(t), n = new Date(now);
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return d.toDateString() === n.toDateString() ? hm : `${DAYS[d.getDay()]} ${hm}`;
+}
+
+export function resetLabel(resetsAt, now = Date.now()) {
+  const abs = resetAbsolute(resetsAt, now);
+  return abs ? `${abs} · ${resetIn(resetsAt, now)}` : '';
+}
+
+export function paceOf(resetsAt, windowSeconds, now = Date.now()) {
+  const t = toMs(resetsAt);
+  if (!Number.isFinite(t) || !Number.isFinite(windowSeconds) || windowSeconds <= 0) return null;
+  const total = windowSeconds * 1000;
+  return Math.round(Math.min(100, Math.max(0, ((now - (t - total)) / total) * 100)));
+}
+
+const STALE_AFTER_MS = 5 * 60000;
+const shortAge = ms => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `hace ${s} s`;
+  const min = Math.floor(s / 60);
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  return h < 24 ? `hace ${h} h` : `hace ${Math.floor(h / 24)} d`;
+};
+
+export function freshness(data, now = Date.now()) {
+  const providers = Array.isArray(data?.providers) ? data.providers : [];
+  const times = providers.map(p => Date.parse(p?.updatedAt)).filter(Number.isFinite);
+  if (!times.length) return { text: null, stale: false, reason: null };
+  const age = now - Math.min(...times);
+  const stale = age > STALE_AFTER_MS;
+  const reasons = providers.filter(p => p?.reason).map(p => `${p.label}: ${p.reason}${p.retryAt ? ` · ${retryText(p.retryAt, now)}` : ''}`);
+  return { text: `Actualizado ${shortAge(age)}`, stale, reason: stale ? (reasons.join(' ') || 'Sin lectura reciente de los proveedores') : null };
+}
+
 const agoText = (value, now) => {
   const t = Date.parse(value);
   if (!Number.isFinite(t)) return null;
@@ -70,7 +113,7 @@ export function summarize(data, now = Date.now()) {
       tone: percent == null ? 'ok' : toneOf(percent),
       windows: (Array.isArray(p.windows) ? p.windows : []).map(w => {
         const pc = Math.round(Number.isFinite(w.percent) ? w.percent : 0);
-        return { label: w.label, percent: pc, tone: toneOf(pc), reset: resetIn(w.resetsAt, now) };
+        return { label: w.label, percent: pc, tone: toneOf(pc), reset: resetIn(w.resetsAt, now), resetAt: resetAbsolute(w.resetsAt, now), resetLabel: resetLabel(w.resetsAt, now), pace: paceOf(w.resetsAt, w.windowSeconds, now) };
       })
     };
   });
