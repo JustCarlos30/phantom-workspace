@@ -32,6 +32,8 @@ import { decideRoute, createQuotaQueue } from './quota-queue.mjs';
 import { createSleepInhibitor } from './sleep-inhibit.mjs';
 import { createTaskRegistry } from './task-registry.mjs';
 import { createTaskActivityClient } from './task-activity-client.mjs';
+import { createEventDelivery } from './event-delivery.mjs';
+import { renderNotice } from './event-notice.mjs';
 import { createTaskProjection } from '../shared/task-activity.mjs';
 import { classifyBlocker } from '../integrations/run-blockers.mjs';
 import { createHostEvents, authorize as authorizeEvents, EVENTS_METHOD, TRACE_RENDERER_METHODS, traceParams, publicTraceAgent, authorizeTraceRead, sanitizeTraceRecords } from './workspace-events.mjs';
@@ -79,7 +81,7 @@ export function probeSocket(socketPath) { return new Promise(resolve => { const 
 async function bounded(promise,milliseconds,label) {
   let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}finally{clearTimeout(timer);}
 }
-export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions,traceOptions,supervisorOptions,activityOptions}={}) {
+export async function createHost({dataDir=dataHome(),handleIntegration,shutdownIntegrations,mobileOptions,handoffOptions,processOptions,providerOptions,traceOptions,supervisorOptions,activityOptions,deliveryOptions}={}) {
   assert(!process.versions.electron,'Run the host with system Node, never Electron');
   dataDir=path.resolve(dataDir); fs.mkdirSync(dataDir,{recursive:true,mode:0o700}); fs.chmodSync(dataDir,0o700);
   const socketPath=path.join(dataDir,'host.sock'), lockPath=path.join(dataDir,'host.lock');
@@ -161,7 +163,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(p.sessionId!==undefined||'principal' in p)ids=authorizeEvents('principal' in p?p.principal:{sessionId:p.sessionId},p,lookup).workspaceIds;
     else{if(p.workspaceId!==undefined){assert(typeof p.workspaceId==='string','Invalid workspace ID');store.getWorkspace(p.workspaceId);}ids=p.workspaceId!==undefined?[p.workspaceId]:store.state.workspaces.map(w=>w.id);}
     const snap=hostEvents.snapshot(),mapping=projection.stats();
-    return {workspaces:ids.map(workspaceId=>{
+    const d=eventDelivery.status(),visible=new Set(ids),subscribers=d.subscribers.filter(s=>visible.has(s.workspaceId)),totals={};
+    for(const key of ['queued','inflight','delivered','retried','coalesced','escalated','dropped'])totals[key]=subscribers.reduce((sum,s)=>sum+s[key],0);
+    return {delivery:{subscribers,totals},workspaces:ids.map(workspaceId=>{
       const found=[...activityClients.values()].find(item=>item.workspaceId===workspaceId);
       return {workspaceId,client:found?found.client.status():null,mapping,bus:{...snap,entities:snap.entities.filter(e=>e.workspaceId===workspaceId)}};
     })};
@@ -195,10 +199,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     try{const step=store&&!closingPromise?planTarget(event):null;if(step)planChain(step).catch(()=>{});}catch{}
     try{if(store&&traces&&!closingPromise){traceRun(event);traceExit(event);}}catch{}
     // The owner terminal left: its ephemeral services go with it. During shutdown they stay registered.
-    if(terminalExit&&store&&!closingPromise)envRelease(event.workspaceId,event.sessionId,null);
+    if(terminalExit&&store&&!closingPromise){envRelease(event.workspaceId,event.sessionId,null);try{reconcileDelivery();}catch{}}
   };
   // A chat that launched a Phantom run hears once when it ends; capped per node until the user writes again.
   const wakeLimit=createWakeLimit(4);
+  // While the project's activity stream is live the bus delivers these notices; otherwise the legacy ones are the fallback.
+  const streaming=workspaceId=>{for(const item of activityClients.values())if(item.workspaceId===workspaceId){try{if(item.client.status().state==='streaming')return true;}catch{}}return false;};
+  const foreground=id=>deliveryOptions?.foreground?deliveryOptions.foreground(id):terminals.foreground(id);
+  const ptyWrite=(id,data)=>deliveryOptions?.write?deliveryOptions.write(id,data):terminals.write(id,data);
   const wakeNode=target=>{
     const w=store.getWorkspace(target.workspaceId);
     return target.nodeId===Chats.mainId(w)?chats.mainNode(w):w.nodes.find(n=>n.id===target.nodeId&&n.type==='terminal');
@@ -207,13 +215,14 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     ready:(target,recipient)=>{
       if(closingPromise||recipient.cancelled)return false;
       if(target.via==='chat')return !chats.running(target.nodeId);
-      const s=terminals.get(recipient.sessionId);return s?.status==='running'&&Boolean(terminals.foreground(s.id)?.agent);
+      const s=terminals.get(recipient.sessionId);return s?.status==='running'&&Boolean(foreground(s.id)?.agent);
     },
     prepare:target=>{
       let node;try{node=wakeNode(target);}catch{}
       return {node,chat:JSON.stringify(node?.data.chat),thread:chats.nodes[target.nodeId]?.threads?.[node?.data.chat?.provider],sessionId:node?.data.sessionId};
     },
     deliver:async(target,controller,recipient)=>{
+      if(streaming(target.workspaceId))return {};
       let task;try{const answer=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});if(answer?.handled)task=answer.result;}catch{}
       if(closingPromise||recipient.cancelled)return {};
       const node=wakeNode(target),main=target.nodeId.startsWith('phantom:');
@@ -229,9 +238,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       }
       let session;try{session=terminals.get(node.data.sessionId);}catch{}
       if(!session||session.status!=='running'||session.nodeId!==node.id)return {reason:'El PTY no está disponible; no se puede continuar esta sesión'};
-      if(!terminals.foreground(session.id)?.agent)return {retry:true,reason:'No hay un agente en primer plano; aviso sin entregar'};
+      if(!foreground(session.id)?.agent)return {retry:true,reason:'No hay un agente en primer plano; aviso sin entregar'};
       if(!wakeLimit.available(node.id))return {reason:'Tope de avisos automáticos alcanzado'};
-      try{terminals.write(session.id,message+'\r');}catch(error){return {retry:true,reason:error.message};}
+      try{ptyWrite(session.id,message+'\r');}catch(error){return {retry:true,reason:error.message};}
       wakeLimit.allow(node.id);
       return {};
     },
@@ -296,10 +305,64 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       await chats.send(store.getWorkspace(target.workspaceId),node,message);return {delivered:true};
     }
     let session;try{session=terminals.get(node.data.sessionId);}catch{}
-    if(!session||session.status!=='running'||session.nodeId!==node.id||!terminals.foreground(session.id)?.agent)return {};
-    try{terminals.write(session.id,message+'\r');return {delivered:true};}catch{return {};}
+    if(!session||session.status!=='running'||session.nodeId!==node.id||!foreground(session.id)?.agent)return {};
+    try{ptyWrite(session.id,message+'\r');return {delivered:true};}catch{return {};}
   };
-  const runWatch=createRunWatch({fetchHealth,fetchTask:async target=>{const a=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});return a?.handled?a.result:undefined;},apply:applyLive,notify:deliverNotice,limit:noticeLimit,onTick:()=>runWake.flush()});
+  // --- Bus -> agents: the host subscribes on behalf of each live session and delivers text notices through the channel its CLI listens to. ---
+  const deliveryTarget=sub=>({workspaceId:sub.workspaceId,nodeId:sub.id,via:sub.via});
+  const deliveryReady=sub=>{
+    if(closingPromise)return false;
+    const node=wakeNode(deliveryTarget(sub));
+    if(!node)return false;
+    if(sub.via==='chat')return Boolean(node.data.chat?.provider)&&!chats.running(node.id)&&chats.turns.size+chats.operations.size<16&&!chats.get(node).queue.length;
+    const session=terminals.get(node.data.sessionId);
+    return session.status==='running'&&session.nodeId===node.id&&Boolean(foreground(session.id)?.agent);
+  };
+  const eventDelivery=createEventDelivery({
+    file:path.join(dataDir,'event-delivery.json'),
+    subscribe:(filter,listener)=>hostEvents.subscribe(filter,listener),
+    render:({sub,events})=>renderNotice({sub,events,lookup:id=>registry.get(id)}),
+    ready:async sub=>{try{return deliveryReady(sub);}catch{return false;}},
+    deliver:async({sub,message})=>{
+      if(closingPromise)return {retry:true,reason:'El host se cierra'};
+      let node;try{node=wakeNode(deliveryTarget(sub));}catch{}
+      if(!node)return {gone:true};
+      let ok=false;try{ok=deliveryReady(sub);}catch{}
+      if(!ok)return {retry:true,reason:'El destinatario no puede recibir ahora'};
+      if(sub.via==='chat'){await(deliveryOptions?.chatSend?deliveryOptions.chatSend(sub,message):chats.send(store.getWorkspace(sub.workspaceId),node,message));return {delivered:true};}
+      try{ptyWrite(node.data.sessionId,message+'\r');return {delivered:true};}catch(error){return {retry:true,reason:error.message};}
+    },
+    ...deliveryOptions?.delivery,
+  });
+  const deliverySubs=new Map();
+  // Desired subscribers derived from state: reconciled after any change instead of tracking each lifecycle event.
+  function reconcileDelivery(){
+    if(!store||!terminals||closingPromise)return;
+    const want=new Map();
+    const liveNode=(w,n)=>{const s=n.type==='terminal'&&n.data?.sessionId&&terminals.sessions.find(s=>s.id===n.data.sessionId);return Boolean(s&&s.status==='running'&&s.nodeId===n.id&&s.workspaceId===w.id);};
+    for(const w of store.state.workspaces){
+      if(w.archived)continue;
+      let assistantId;try{if(chats.mainNode(w).data.chat?.provider)assistantId=Chats.mainId(w);}catch{}
+      const live=w.nodes.filter(n=>liveNode(w,n)),orchestrator=live.find(n=>n.data.role==='orchestrator');
+      if(assistantId)want.set(assistantId,{id:assistantId,role:'assistant',workspaceId:w.id,via:'chat',filter:{workspaceIds:[w.id],audiences:['workspace']}});
+      for(const n of live){
+        if(n===orchestrator){
+          const workspaceIds=store.state.workspaces.filter(v=>v.id===w.id||(v.integration?.enabled&&!v.hidden&&!v.archived)).map(v=>v.id);
+          want.set(n.id,{id:n.id,role:'orchestrator',workspaceId:w.id,via:'terminal',...(assistantId?{parentId:assistantId}:{}),filter:{workspaceIds,ownerNodeIds:[n.id],audiences:['workspace','owner']}});
+        }else{
+          const parentId=orchestrator?.id??assistantId;
+          want.set(n.id,{id:n.id,role:'worker',workspaceId:w.id,via:'terminal',...(parentId?{parentId}:{}),filter:{workspaceIds:[w.id],ownerNodeIds:[n.id],audiences:['owner']}});
+        }
+      }
+    }
+    for(const id of [...deliverySubs.keys()])if(!want.has(id)){eventDelivery.removeSubscriber(id);deliverySubs.delete(id);}
+    for(const [id,sub] of want){
+      const signature=JSON.stringify(sub);
+      if(deliverySubs.get(id)===signature&&eventDelivery.has(id))continue;
+      if(eventDelivery.addSubscriber(sub))deliverySubs.set(id,signature);
+    }
+  }
+  const runWatch=createRunWatch({fetchHealth,fetchTask:async target=>{const a=await routeIntegration('phantom.detail',{workspaceId:target.workspaceId,topic:'tasks',id:target.taskId});return a?.handled?a.result:undefined;},apply:applyLive,notify:(target,kind,message)=>streaming(target.workspaceId)?{}:deliverNotice(target,kind,message),limit:noticeLimit,onTick:()=>runWake.flush()});
   runWatch.start();
   // The run ended: the card always gets its final state, whatever happens to the notice or its recipient.
   const finishCard=async(target,controller)=>{
@@ -365,7 +428,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
   const dirtyWorkspaces=new Set();let dirtyGlobal=false,dirtyTimer;
   const markChanged=workspaceId=>{
     if(workspaceId)dirtyWorkspaces.add(workspaceId);else dirtyGlobal=true;
-    dirtyTimer??=setImmediate(()=>{dirtyTimer=undefined;const ids=[...dirtyWorkspaces],global=dirtyGlobal;dirtyWorkspaces.clear();dirtyGlobal=false;for(const workspaceId of ids)broadcast({type:'state.changed',workspaceId});if(global)broadcast({type:'state.changed'});syncActivity();});
+    dirtyTimer??=setImmediate(()=>{dirtyTimer=undefined;const ids=[...dirtyWorkspaces],global=dirtyGlobal;dirtyWorkspaces.clear();dirtyGlobal=false;for(const workspaceId of ids)broadcast({type:'state.changed',workspaceId});if(global)broadcast({type:'state.changed'});syncActivity();try{reconcileDelivery();}catch{}});
   };
   const persist=workspaceId=>{store.persist();markChanged(workspaceId);};
   const mutate=(workspaceId,fn)=>{ const value=store.transaction(fn); merges?.polling.invalidate(); markChanged(workspaceId); return value; };
@@ -581,7 +644,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       let session;
       try { session=await terminals.create(w,node,p); }
       catch(error) { if(w.nodes.includes(node)) mutate(w.id,()=>{node.data={...node.data,launchState:'failed',launchError:error.message};}); throw error; }
-      node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id,launchState:'ready',launchError:''};return current;}); return {session,node};
+      node=mutate(w.id,()=>{const current=store.getWorkspace(w.id).nodes.find(n=>n.id===node.id);current.data={...current.data,sessionId:session.id,launchState:'ready',launchError:''};return current;});reconcileDelivery(); return {session,node};
     }
     if(method==='terminal.list') {store.getWorkspace(p.workspaceId);return terminals.sessions.filter(s=>s.workspaceId===p.workspaceId).map(s=>terminals.descriptor(s));}
     if(['terminal.agent.launch','terminal.agent.processes','terminal.agent.process.output','terminal.agent.process.stop'].includes(method)) {
@@ -715,7 +778,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(method==='terminal.tail') return terminals.tail(p.sessionId,p.lines);
     if(method==='terminal.write') {
       // Host-originated notices call terminals.write directly, so this RPC is user input: it restarts the notice cap.
-      try{const s=terminals.get(p.sessionId);wakeLimit.reset(s.nodeId);noticeLimit.reset(s.nodeId);runWake.reset(s.nodeId);}catch{}
+      try{const s=terminals.get(p.sessionId);wakeLimit.reset(s.nodeId);noticeLimit.reset(s.nodeId);runWake.reset(s.nodeId);eventDelivery.resetLimit(s.nodeId);}catch{}
       return terminals.write(p.sessionId,p.data);
     }
     if(method==='terminal.trust') return terminals.trust(p.sessionId);
@@ -744,9 +807,9 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
         return chats.compaction(w,node,method==='chat.compact'?'compact':'capabilities');
       }
       // The project's Phantom conversation keeps its settings in the chat store.
-      if(main&&method==='chat.configure') {const result=chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});if(p.provider!==undefined&&p.provider!==node.data.chat.provider)runWake.cancel(node.id,'El proveedor del chat cambió');return result;}
+      if(main&&method==='chat.configure') {const result=chats.configureMain(w,{provider:p.provider,autoApprove:p.autoApprove,permissionMode:p.permissionMode,model:p.model,reasoning:p.reasoning});if(p.provider!==undefined&&p.provider!==node.data.chat.provider)runWake.cancel(node.id,'El proveedor del chat cambió');reconcileDelivery();return result;}
       if(method==='chat.get') return chats.get(node);
-      if(method==='chat.send'){wakeLimit.reset(node.id);noticeLimit.reset(node.id);runWake.reset(node.id);return chats.send(w,node,p.text);}
+      if(method==='chat.send'){wakeLimit.reset(node.id);noticeLimit.reset(node.id);runWake.reset(node.id);eventDelivery.resetLimit(node.id);return chats.send(w,node,p.text);}
       if(method==='chat.stop') {runWake.cancel(node.id);return chats.stop(node.id);}
       if(method==='chat.clear') {const result=chats.clear(w,node);runWake.cancel(node.id,'La conversación se reinició');return result;}
       if(method==='chat.queue.remove') return chats.removeQueued(w,node,p.id);
@@ -828,7 +891,7 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
     if(closingPromise)return closingPromise;
     runWatch.stop();runWake.close();quota.close();
     for(const item of activityClients.values()){try{item.client.stop();}catch{}}activityClients.clear();
-    hostEvents.close();unsubscribeLimits?.();limits.stop?.();
+    eventDelivery.close();hostEvents.close();unsubscribeLimits?.();limits.stop?.();
     // Cancels any summary in flight (its Claude Code process included) and every pending timer.
     for(const timer of snapshotTimers.values())clearTimeout(timer);snapshotTimers.clear();traceReads.clear();
     try{supervisor?.close();}catch{}
@@ -884,8 +947,8 @@ export async function createHost({dataDir=dataHome(),handleIntegration,shutdownI
       send(socket,{event:{type:'connection',status:'connected'}});
     });
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(socketPath,()=>{ownsSocket=true;fs.chmodSync(socketPath,0o600);resolve();});});
-    syncActivity();
-    return {invoke,close,store,terminals,chats,merges,traces,supervisor,server,socketPath,emit,syncActivity};
+    reconcileDelivery();syncActivity();
+    return {invoke,eventDelivery,close,store,terminals,chats,merges,traces,supervisor,server,socketPath,emit,syncActivity};
   } catch(e) {await close();throw e;}
 }
 export const startHost=createHost;

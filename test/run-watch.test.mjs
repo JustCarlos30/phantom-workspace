@@ -144,6 +144,19 @@ test('aviso de bucle y de bloqueo con blocker clasificado', async () => {
   b.watch.stop();
 });
 
+test('durante el arranque (waiting o etiqueta de espera) un looping del health no es bucle', async () => {
+  const waiting = buildRun({ health: { phase: 'idle', looping: true, activity: 'read · a.mjs' }, taskId: 'task_1', now: start });
+  assert.equal(waiting.phase, 'waiting'); assert.equal(waiting.looping, false);
+  const label = buildRun({ health: { stage: 'agent', phase: 'running', looping: true, activity: 'esperando arranque' }, taskId: 'task_1', now: start });
+  assert.equal(label.looping, false);
+  const real = buildRun({ health: { stage: 'agent', phase: 'running', looping: true, activity: 'read · a.mjs' }, taskId: 'task_1', now: start });
+  assert.equal(real.looping, true);
+  const sent = [];
+  const watch = createRunWatch({ fetchHealth: async () => ({ phase: 'idle', looping: true, activity: 'esperando arranque' }), apply: () => true, notify: async (t, kind) => { sent.push(kind); return {}; }, now: () => start });
+  watch.track(target); await watch.tick(); watch.stop();
+  assert.deepEqual(sent, []);
+});
+
 test('sin agente en primer plano no se reintenta en bucle y la tarjeta ya lo refleja', async () => {
   let notifications = 0, applied = 0;
   const watch = createRunWatch({ fetchHealth: async now => summarizeRunHealth(repairing.slice(0, 3), start + 600_000), apply: () => { applied++; return true; }, notify: async () => { notifications++; return {}; }, now: () => start + 600_000 });

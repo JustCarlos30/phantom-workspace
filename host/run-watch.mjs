@@ -11,6 +11,7 @@ export const NOTICE_HEAD = '[Aviso automático de Phantom Workspace; no es un me
 const line = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const PHASES = ['waiting', 'agent', 'checks', 'repair', 'judge', 'children', 'completed', 'blocked', 'cancelled'];
 const LABEL = { waiting: 'en cola', agent: 'agente', checks: 'checks', repair: 'reparación', judge: 'juez', children: 'subtareas', completed: 'completado', blocked: 'bloqueado', cancelled: 'cancelado' };
+const WAIT_ACTIVITY = 'esperando arranque';
 const iso = ms => new Date(ms).toISOString();
 
 // Pure: health summary (integrations/run-health.mjs) -> node.data.agent.run.
@@ -19,12 +20,13 @@ export function buildRun({ health, taskId, startedAt, now = Date.now(), blocker 
   const ended = ['completed', 'blocked', 'cancelled'].includes(h.phase);
   const phase = h.phase === 'idle' || !h.stage ? ended ? h.phase : 'waiting' : PHASES.includes(h.stage) ? h.stage : 'agent';
   const first = h.startedAt ?? startedAt ?? iso(now);
+  const activity = line(h.activity || (phase === 'waiting' ? WAIT_ACTIVITY : LABEL[phase]), 240);
   return {
-    taskId: line(taskId, 200), phase, activity: line(h.activity || (phase === 'waiting' ? 'esperando arranque' : LABEL[phase]), 240),
+    taskId: line(taskId, 200), phase, activity,
     startedAt: first, lastEventAt: h.lastEventAt ?? null, elapsedMs: Math.max(0, Math.trunc(h.elapsedMs ?? 0)), idleMs: Math.max(0, Math.trunc(h.idleMs ?? 0)),
     round: Math.max(0, Math.trunc(h.round ?? 0)),
     children: { done: h.children?.done ?? 0, total: h.children?.total ?? 0, items: (h.childItems ?? []).slice(0, 16).map(item => ({ key: line(item.key, 200) || '-', status: line(item.status, 60) || '-', activity: line(item.activity, 240) })) },
-    stalled: Boolean(h.stalled), looping: Boolean(h.looping),
+    stalled: Boolean(h.stalled), looping: Boolean(h.looping) && phase !== 'waiting' && activity !== WAIT_ACTIVITY,
     log: (h.log ?? []).slice(-20).map(entry => ({ at: entry.at, text: line(entry.text, 200) })),
     blocker: phase === 'blocked' ? blocker : null, observedAt: iso(now),
   };
