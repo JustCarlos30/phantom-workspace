@@ -287,7 +287,7 @@ export default function ChatCard({ node, workspace, api, notify, overview = fals
   const provider = node.data.chat.provider, label = AGENT_MODES.find(mode => mode.id === provider)?.label || provider;
   const { chat, error, send, stop, clear, answer, reply, unqueue, resume, capabilities, compact, continueSession } = useChat({ workspaceId: workspace.id, nodeId: node.id, provider, api, connected });
   const [reveal, setReveal] = useState(0);
-  const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}:${provider}`);
+  const [draft, setDraft] = useVoiceDraft(`${workspace.id}:${node.id}`);
   const [sending, setSending] = useState(false);
   const [armed, setArmed] = useState(false);
   const armedRef = useRef(false), draftRef = useRef(draft), submitRef = useRef(null);
