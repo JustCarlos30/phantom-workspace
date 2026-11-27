@@ -155,3 +155,16 @@
   .oh-target select { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .oh *, .oh-field::after { transition: none !important; } }
+/* Motion: counters ease their tone; lists enter in a stagger; loading is a slow shimmer block, not text. */
+.oh-count { transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes oh-shimmer { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+  .oh-rows > * { animation: pop-in var(--dur-pop) var(--ease-spring) both; }
+  .oh-rows > :nth-child(2) { animation-delay: calc(1 * var(--stagger)); }
+  .oh-rows > :nth-child(3) { animation-delay: calc(2 * var(--stagger)); }
+  .oh-rows > :nth-child(4) { animation-delay: calc(3 * var(--stagger)); }
+  .oh-rows > :nth-child(5) { animation-delay: calc(4 * var(--stagger)); }
+  .oh-rows > :nth-child(6) { animation-delay: calc(5 * var(--stagger)); }
+  .oh-skeleton { background-color: var(--fill-2); background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 6%, transparent), transparent); background-size: 200% 100%; background-repeat: no-repeat; animation: oh-shimmer calc(var(--dur-pulse-slow) * 2) linear infinite; }
+  .oh-count[data-tone="attention"] { animation: pulse-slow var(--dur-pulse-slow) ease-in-out infinite; }
+}

@@ -1,0 +1,21 @@
+.minimap-view {
+  transition: x 120ms cubic-bezier(.2, 0, 0, 1), y 120ms cubic-bezier(.2, 0, 0, 1),
+    width 120ms cubic-bezier(.2, 0, 0, 1), height 120ms cubic-bezier(.2, 0, 0, 1), fill 120ms ease;
+}
+.canvas-minimap.dragging .minimap-view { transition: fill 120ms ease; }
+
+.minimap-node.pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: minimap-pulse 640ms cubic-bezier(.2, 0, 0, 1);
+}
+@keyframes minimap-pulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(1.35); filter: brightness(1.8); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .minimap-view { transition: none; }
+  .minimap-node.pulse { animation: none; }
+}
