@@ -142,6 +142,58 @@ test('una transición de la cola emite el evento integration', async (t) => {
   assert.ok(mine.every((e) => e.branch === 'feature/x' && e.ownerNodeId === node.id));
 });
 
+async function twoWorkspaces(t) {
+  const f = await fixture(t);
+  const root2 = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-activity-b-'));
+  t.after(() => fs.rmSync(root2, { recursive: true, force: true }));
+  const wb = await f.host.invoke('workspace.open', { path: root2 });
+  assert.notEqual(wb.id, f.workspace.id);
+  const a = await session(f);
+  const b = (await f.host.invoke('terminal.create', { workspaceId: wb.id, shell: '/bin/sh' }));
+  const status = (p) => f.host.invoke('workspace.events.status', p);
+  // Entidad del bus solo en el workspace B.
+  f.host.merges.transition(wb.id, { id: 'req-b', branch: 'feature/b', nodeId: b.node.id }, 'queued');
+  f.host.merges.transition(f.workspace.id, { id: 'req-a', branch: 'feature/a', nodeId: a.node.id }, 'queued');
+  return { f, wb, a, b, status };
+}
+
+test('status: una sesión worker solo ve su propio workspace', async (t) => {
+  const { f, a, status } = await twoWorkspaces(t);
+  const own = await status({ sessionId: a.sessionId });
+  assert.deepEqual(own.workspaces.map((w) => w.workspaceId), [f.workspace.id]);
+});
+
+test('status: una sesión pidiendo otro workspace recibe Forbidden', async (t) => {
+  const { a, wb, status } = await twoWorkspaces(t);
+  await assert.rejects(status({ sessionId: a.sessionId, workspaceId: wb.id }), { message: 'Forbidden' });
+});
+
+test('status: sesión inexistente o terminada recibe Forbidden', async (t) => {
+  const { f, b, status } = await twoWorkspaces(t);
+  await assert.rejects(status({ sessionId: 'nope' }), { message: 'Forbidden' });
+  await f.host.invoke('terminal.stop', { sessionId: b.session.id });
+  await until(() => f.host.terminals.get(b.session.id).status !== 'running');
+  await assert.rejects(status({ sessionId: b.session.id }), { message: 'Forbidden' });
+});
+
+test('status: el renderer con workspaceId ve solo ese workspace y uno inexistente falla', async (t) => {
+  const { wb, status } = await twoWorkspaces(t);
+  const only = await status({ workspaceId: wb.id });
+  assert.deepEqual(only.workspaces.map((w) => w.workspaceId), [wb.id]);
+  assert.ok(only.workspaces[0].bus.entities.every((e) => e.workspaceId === wb.id));
+  await assert.rejects(status({ workspaceId: 'inexistente' }));
+});
+
+test('status: la respuesta de una sesión no contiene entidades de otros workspaces', async (t) => {
+  const { f, a, status } = await twoWorkspaces(t);
+  const own = await status({ sessionId: a.sessionId });
+  const ids = own.workspaces[0].bus.entities.map((e) => e.entityId);
+  assert.ok(ids.includes('req-a'));
+  assert.ok(!ids.includes('req-b'));
+  assert.ok(own.workspaces[0].bus.entities.every((e) => e.workspaceId === f.workspace.id));
+  assert.ok(!JSON.stringify(own).includes('req-b'));
+});
+
 test('un harness sin la extensión queda visible como unsupported y el host sigue funcionando', async (t) => {
   const f = await fixture(t, { harness: fakeHarness({ extension: false }) });
   const s = await until(async () => { const v = await f.status(); return v.client?.state === 'unsupported' && v; });
