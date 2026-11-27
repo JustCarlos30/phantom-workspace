@@ -5,6 +5,9 @@
 .tf-badge > svg { flex-shrink: 0; }
 .tf-badge .tf-n { color: var(--ink); }
 .pc-composer-tools .tf-badge { height: var(--control-size); border-radius: var(--r-pill); }
+.pc-composer-tools .tf-badge { padding: 0 10px; gap: 4px; }
+.pc-composer-tools .tf-badge .tf-word { display: none; }
+@container pc-isle (max-width: 520px) { .pc-composer-tools .tf-badge .tf-stat { display: none; } }
 @media (pointer: coarse) { .tf-badge { min-height: 44px; } }
 .tf-stat { display: inline-flex; gap: 6px; font-variant-numeric: tabular-nums; }
 .tf-add { color: var(--success); }

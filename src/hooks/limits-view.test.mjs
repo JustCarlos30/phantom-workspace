@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { peakWindow, toneOf, resetIn, summarize, queueNote } from './limits-view.mjs';
+import { peakWindow, toneOf, resetIn, summarize, queueNote, railWindows } from './limits-view.mjs';
+
+test('railWindows elige Sesión 5 h y Semanal para Claude y Codex', () => {
+  const claude = { windows: [{ label: 'Sesión · 5 h', percent: 18.4 }, { label: 'Semanal · Opus', percent: 95 }, { label: 'Semanal · todos los modelos', percent: 72 }] };
+  assert.deepEqual(railWindows(claude).map(w => [w.key, w.percent, w.tone]), [['session', 18, 'ok'], ['weekly', 72, 'warn']]);
+  const codex = { windows: [{ label: 'Code review · Semanal', percent: 99 }, { label: 'Semanal', percent: 91 }, { label: 'Sesión · 5 h', percent: 5 }] };
+  assert.deepEqual(railWindows(codex).map(w => [w.key, w.percent, w.tone]), [['session', 5, 'ok'], ['weekly', 91, 'danger']]);
+  assert.deepEqual(railWindows({ windows: [] }), []);
+});
 
 test('toneOf respeta los límites', () => {
   assert.equal(toneOf(69), 'ok');
