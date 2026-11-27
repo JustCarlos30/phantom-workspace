@@ -28,6 +28,12 @@ test('agrupa por proyecto y ordena por urgencia', () => {
   assert.equal(inbox.updatedAt, new Date(now).toISOString());
 });
 
+test('sesión perdida no suma al badge ni a rotos', () => {
+  const inbox = buildInbox({ workspaces: [A], perWorkspace: { a: { sessions: [{ id: 's1', status: 'lost' }] } }, connected: true, now });
+  assert.equal(inbox.projects[0].needsYou.length, 0);
+  assert.equal(inbox.projects[0].broken.length, 0);
+});
+
 test('fila de sesión con permiso: acción y motivo', () => {
   const row = buildInbox({ workspaces: [A], perWorkspace: per, now }).projects[0].needsYou[0];
   assert.equal(row.kind, 'session');
