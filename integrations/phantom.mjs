@@ -69,13 +69,13 @@ function readCacheMs(context) {
 // In-flight dedupe plus a short TTL. Failures are never kept; invalidation drops pending entries so they are not stored.
 function cached(cache, key, ttl, load) {
   const now = Date.now(), hit = cache.get(key);
-  if (hit && hit.expires > now) return hit.promise;
+  if (hit && hit.expires > now) return hit.expires === Infinity ? hit.promise : hit.promise.then(r => ({ value: r.value, at: observedAt() }));
   if (cache.size >= READ_CACHE_MAX) {
     for (const [k, entry] of cache) if (entry.expires <= now) cache.delete(k);
     for (const k of cache.keys()) { if (cache.size < READ_CACHE_MAX) break; cache.delete(k); }
   }
   const entry = { expires: Infinity, promise: undefined };
-  entry.promise = Promise.resolve().then(load).then(value => { if (cache.get(key) === entry) entry.expires = Date.now() + ttl; return value; },
+  entry.promise = Promise.resolve().then(load).then(value => { if (cache.get(key) === entry) entry.expires = Date.now() + ttl; return { value, at: observedAt() }; },
     error => { if (cache.get(key) === entry) cache.delete(key); throw error; });
   cache.delete(key); cache.set(key, entry);
   return entry.promise;
@@ -100,9 +100,12 @@ async function client(payload, context) {
     }
     const ttl = readCacheMs(context);
     if (!ttl) return run(args);
-    return structuredClone(await cached(readCache, stable({ cli, flags, nativeHome, root, args }), ttl, () => run(args)));
+    const { value, at } = await cached(readCache, stable({ cli, flags, nativeHome, root, args }), ttl, () => run(args));
+    handle.readAt = at;
+    return structuredClone(value);
   };
-  return { root, workspace, cli, flags, call, config, nativeHome, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+  const handle = { root, workspace, cli, flags, call, config, nativeHome, backend: createHash('sha256').update(stable({ root, cli, nativeHome })).digest('hex') };
+  return handle;
 }
 function unavailableReason(error) {
   const reason = error.message.includes('maxBuffer') ? 'el catálogo de Phantom supera el límite de lectura de 64 MiB; archiva o cancela tareas antiguas' : error.killed === true || error.code === 'ETIMEDOUT' ? 'la CLI de Phantom no respondió a tiempo' : error.message;
@@ -124,7 +127,7 @@ export async function phantomStatus(payload, context) {
 async function family(client, context) {
   const ttl = readCacheMs(context);
   if (!ttl) return loadFamily(client, context);
-  const roots = await cached(familyCache, client.root, ttl === READ_CACHE_TTL ? FAMILY_CACHE_TTL : ttl, () => loadFamily(client, context));
+  const { value: roots } = await cached(familyCache, client.root, ttl === READ_CACHE_TTL ? FAMILY_CACHE_TTL : ttl, () => loadFamily(client, context));
   const copy = new Map([...roots].map(([k, v]) => [k, { ...v }]));
   if (roots.git) copy.git = true;
   return copy;
@@ -160,6 +163,7 @@ async function list(payload, context, c) {
   const roots = topic === 'tasks' ? await family(c, context) : undefined;
   let raw = await c.call(topic === 'tasks' ? roots.git ? ['list', '--workspace', c.root, '--scope', 'project'] : ['list'] : [topic === 'memories' ? 'memory-list' : 'skill-list', '--workspace', c.root, ...(topic === 'skills' && payload.allVersions ? ['--all-versions'] : [])]);
   if (!Array.isArray(raw)) throw new Error('Phantom returned an invalid catalog');
+  const readAt = c.readAt;
   const resolutions = new Map();
   if (topic === 'tasks') {
     const blocked = raw.filter(item => item.status === 'blocked');
@@ -191,7 +195,7 @@ async function list(payload, context, c) {
     raw = filtered;
   }
   const query = (payload.query ?? '').toLowerCase();
-  return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}), ...(resolutions.has(item) ? { resolution: resolutions.get(item) } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: observedAt() };
+  return { available: true, items: raw.map(item => ({ ...normalizePhantom(item, topic), ...(locations.has(item) ? { location: { ...locations.get(item) } } : {}), ...(resolutions.has(item) ? { resolution: resolutions.get(item) } : {}) })).filter(item => !query || `${item.title}\n${item.body ?? ''}\n${item.id}`.toLowerCase().includes(query)), ...(topic === 'tasks' ? { controllers: (c.workspace.phantomControllers || []).filter(controller => controller.backend === c.backend && raw.some(task => task.id === controller.taskId)).map(controller => ({ ...controller })) } : {}), observedAt: readAt ?? observedAt() };
 }
 function activityReason(raw) {
   if (!raw.startsWith('El motor reportó un error:')) return raw;

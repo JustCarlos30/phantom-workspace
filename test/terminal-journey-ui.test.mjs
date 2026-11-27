@@ -121,6 +121,26 @@ test('los pasos son contiguos y arrancan en el mismo borde izquierdo que el esta
   results.push('Checks a 880 px: pasos contiguos (≤ 200 px entre marcas), misma fila y alineados con el estado');
 });
 
+test('cada conector deja el mismo aire a ambos lados y queda centrado con las marcas a 880 px', async () => {
+  const page = await render('repair', 880);
+  const gaps = await page.locator('.tj-phase').evaluateAll(list => list.slice(1).map((li, index) => {
+    const pseudo = getComputedStyle(li, '::before'), rect = li.getBoundingClientRect(), mark = li.querySelector('.tj-mark').getBoundingClientRect();
+    const start = rect.left + parseFloat(pseudo.marginLeft), end = start + parseFloat(pseudo.width);
+    return { left: start - list[index].getBoundingClientRect().right, right: mark.left - end, width: parseFloat(pseudo.width), offset: Math.abs((rect.top + rect.height / 2) - (mark.top + mark.height / 2)) };
+  }));
+  assert.equal(gaps.length, 3);
+  for (const gap of gaps) {
+    assert.equal(gap.width, 12);
+    assert.ok(Math.abs(gap.left - gap.right) <= 2, `hueco ${gap.left} / ${gap.right}`);
+    assert.ok(gap.left >= 4 && gap.right >= 4, `hueco mínimo ${gap.left} / ${gap.right}`);
+    assert.ok(gap.offset <= 0.5, `centrado vertical ${gap.offset}`);
+  }
+  await page.screenshot({ path: `${artifacts}/conectores-880.png` });
+  page.check();
+  await page.close();
+  results.push('Conectores a 880 px: hueco izquierdo y derecho simétricos (≥ 4 px, diferencia ≤ 2 px) y centrados con las marcas');
+});
+
 test('bloqueado conserva el camino recorrido y muestra el motivo una sola vez', async () => {
   const page = await render('blocked', 880);
   const steps = await page.locator('.tj-phase').evaluateAll(list => list.map(el => [el.querySelector('.tj-phase-label').textContent, el.dataset.status]));

@@ -96,14 +96,15 @@
 
 /* Thread: the orchestrator's conversation on an opaque well, 720 px column (hilo classes live in chat.css). */
 .oh-thread, .oh-thread-line { flex: none; min-width: 0; }
-.oh-thread { display: flex; flex-direction: column; max-height: 40%; overflow-y: auto; background: var(--well-terminal); }
+.oh-thread { display: flex; flex-direction: column; max-height: 40%; overflow-y: auto; padding-inline: 24px; background: var(--well-terminal); }
 .oh-thread > * { width: 100%; max-width: var(--composer-max); margin-inline: auto; }
-.oh-thread-toggle { flex: none; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 0 24px; border: 0; background: transparent; color: var(--muted); font: var(--t-control); text-align: left; cursor: pointer; }
+.oh-thread-toggle { flex: none; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 0; border: 0; background: transparent; color: var(--muted); font: var(--t-control); text-align: left; cursor: pointer; }
 .oh-thread-toggle:hover { color: var(--ink); }
 .oh-thread-count, .oh-thread-state { font: var(--t-support); color: var(--ink-3); }
-.oh-thread > .pc-thread { flex: 1 1 auto; min-height: 0; max-width: none; }
-.oh-thread .pc-column { min-height: 0; }
-.oh-thread > .pc-error { flex: none; padding-inline: 24px; }
+.oh-thread > .pc-thread { flex: 1 1 auto; min-height: 160px; max-width: none; }
+.oh-thread .pc-column { min-height: 0; padding-inline: 0; }
+.oh-thread .pc-dock { padding-inline: 0; }
+.oh-thread > .pc-error { flex: none; }
 .oh-thread-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; max-width: var(--composer-max); margin-inline: auto; width: 100%; padding: 8px 24px; font: var(--t-support); color: var(--muted); overflow-wrap: anywhere; }
 .oh-thread-line > p { flex: 1 1 200px; min-width: 0; margin: 0; }
 
@@ -145,8 +146,8 @@
   .oh-head { padding: 8px 12px; }
   .oh-body { padding: 4px 12px 12px; }
   .oh-composer { padding: 0 12px 12px; }
-  .oh-thread { max-height: 160px; }
-  .oh-thread-toggle, .oh-thread-line { padding-inline: 12px; }
+  .oh-thread { max-height: 240px; padding-inline: 12px; }
+  .oh-thread-line { padding-inline: 12px; }
   .oh-action { flex: 1 1 100%; }
 }
 @media (pointer: coarse) {

@@ -14,7 +14,7 @@
 
 .tj-strip { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; min-width: 0; margin: 0; padding: 0; list-style: none; }
 .tj-phase { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; }
-.tj-phase + .tj-phase::before { content: ""; flex-shrink: 0; width: 12px; height: 1px; margin-right: 4px; background: var(--hairline); }
+.tj-phase + .tj-phase::before { content: ""; flex-shrink: 0; width: 12px; height: 1px; margin: 0 2px 0 6px; background: var(--hairline); }
 .tj-phase[data-status="done"] + .tj-phase::before { background: var(--ink-3); }
 .tj-mark { display: grid; flex-shrink: 0; place-items: center; width: 16px; height: 16px; color: var(--ink-3); transition: color var(--dur-fast) linear; }
 .tj-phase[data-status="done"] .tj-mark { color: var(--muted); }

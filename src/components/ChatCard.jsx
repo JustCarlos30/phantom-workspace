@@ -76,6 +76,17 @@ export const Message = React.memo(function Message({ message, label, provider, m
   return <AgentMessage message={message} label={label} provider={provider} model={model} onAnswer={onAnswer} onReply={onReply} api={api} workspaceId={workspaceId} onOpenPanel={onOpenPanel} onOpenAgent={onOpenAgent} />;
 });
 
+// The full command of a Phantom call, with the same well, mono face, own scroll and copy button as a tool's output.
+function PhantomCommand({ part }) {
+  const command = typeof part.input === 'string' ? part.input : part.input?.command || part.input?.cmd || part.detail;
+  if (!command) return null;
+  return <details className="pc-phantom-command">
+    <summary><ChevronRight size={14} aria-hidden="true" />Comando</summary>
+    <div className="pc-tool-output tv"><header className="tv-head"><span className="tv-label">Comando</span><CopyButton value={command} label="Copiar comando" /></header>
+      <div className="tv-scroll"><pre className="tv-body">{command}</pre></div></div>
+  </details>;
+}
+
 function AgentMessage({ message, label, provider, model, onAnswer, onReply, api, workspaceId, onOpenPanel, onOpenAgent }) {
   const streaming = message.status === 'streaming', usage = message.usage;
   const elapsed = useElapsed(message.createdAt, streaming);
@@ -97,7 +108,7 @@ function AgentMessage({ message, label, provider, model, onAnswer, onReply, api,
     {groups.map((group, i) => group.type === 'tools'
       ? <ToolGroup key={i} items={group.items} />
       : group.type === 'phantom'
-        ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><details className="pc-phantom-command"><summary>Comando original</summary><pre className="pc-subagent-prompt">{typeof group.part.input === 'string' ? group.part.input : group.part.input?.command || group.part.input?.cmd || group.part.detail}</pre></details></div>
+        ? <div key={group.part.id} className="pc-phantom-link"><ToolGroup items={[group.part]} /><PhantomCommand part={group.part} /></div>
       : group.type === 'subagent'
         ? <SubagentCard key={group.part.id} part={group.part} onOpenAgent={onOpenAgent} />
       : group.type === 'permission'

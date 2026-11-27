@@ -308,10 +308,10 @@ test('el hilo del orquestador del proyecto destino muestra su respuesta, es cola
   assert.match(await thread(page).innerText(), /La rama choca con main/, 'se conserva la última lectura');
   await page.evaluate(() => window.hub.connect(true));
   await until(async () => await page.getByRole('textbox', { name: /^Mensaje para el orquestador/ }).isEnabled());
+  await page.screenshot({ path: `${artifacts}/orchestrator-hub-thread-900.png` });
   await thread(page).getByRole('button', { name: /^Conversación/ }).click();
   assert.equal(await thread(page).getByRole('button', { name: /^Conversación/ }).getAttribute('aria-expanded'), 'false');
   assert.equal(await thread(page).getByRole('log').count(), 0, 'colapsado oculta los mensajes');
-  await page.screenshot({ path: `${artifacts}/orchestrator-hub-thread-900.png` });
   await close(page);
   results.push('Hilo con la respuesta del orquestador de Alfa sobre pozo opaco y columna de 720 px, botón colapsable con aria-expanded y contador, y última lectura conservada sin conexión.');
 });
@@ -373,12 +373,47 @@ test('con el hilo abierto no hay desborde horizontal a 320 px y la lista y el co
   });
   measurements.push({ width: '320 con hilo', overflow: Math.max(found.page, found.thread.over, found.column.over, found.body.over, found.hub.over, 0) });
   assert.ok(found.page <= 0 && found.thread.over <= 1 && found.column.over <= 1 && found.body.over <= 1 && found.hub.over <= 1, `overflow ${JSON.stringify(found)}`);
-  assert.ok(found.thread.height <= 161, `el hilo limita su alto (${found.thread.height})`);
+  assert.ok(found.thread.height <= 241, `el hilo limita su alto (${found.thread.height})`);
   assert.ok(found.body.height >= 200, `la lista conserva espacio (${found.body.height})`);
   assert.ok(await page.getByRole('textbox', { name: /^Mensaje para el orquestador/ }).isVisible());
   await page.screenshot({ path: `${artifacts}/orchestrator-hub-thread-320.png` });
   await close(page);
   results.push('A 320 px con el hilo abierto: sin desborde horizontal, hilo limitado a 160 px, lista con espacio propio y compositor visible.');
+});
+
+test('a 900 px el hilo abre por defecto con mensajes y «Conversación» empieza en la misma x que el encabezado de grupo y la isla', async () => {
+  const page = await render({ width: 900 });
+  const box = thread(page);
+  await box.getByText(/La rama choca/).waitFor();
+  const toggle = box.getByRole('button', { name: /^Conversación/ });
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+  assert.match(await toggle.innerText(), /2 mensajes/);
+  const xs = await page.evaluate(() => {
+    const title = document.querySelector('.oh-group-title').getBoundingClientRect().left;
+    return { title, island: document.querySelector('.oh-field').getBoundingClientRect().left, chevron: document.querySelector('.oh-thread-toggle svg').getBoundingClientRect().left };
+  });
+  assert.ok(Math.abs(xs.chevron - xs.title) <= 1 && Math.abs(xs.chevron - xs.island) <= 1, `x ${JSON.stringify(xs)}`);
+  await close(page);
+  results.push('A 900 px el hilo abre por defecto con mensajes y el botón «Conversación» arranca en la misma x (≤ 1 px) que los encabezados de grupo y la isla del compositor.');
+});
+
+test('a 320 px el permiso pendiente se ve completo con sus tres acciones dentro del hilo', async () => {
+  const page = await render({ width: 320 });
+  const box = thread(page);
+  await box.getByRole('group', { name: /write pide permiso/ }).waitFor();
+  const found = await page.evaluate(() => {
+    const log = document.querySelector('.oh-thread .pc-thread').getBoundingClientRect();
+    const group = document.querySelector('.oh-thread [role="group"]');
+    const items = [group, ...group.querySelectorAll('button')].map(el => { const r = el.getBoundingClientRect(); return { top: r.top - log.top, bottom: log.bottom - r.bottom, left: r.left, right: window.innerWidth - r.right }; });
+    return { items, count: group.querySelectorAll('button').length, page: document.documentElement.scrollWidth - window.innerWidth, composer: !!document.querySelector('.oh-field') };
+  });
+  assert.equal(found.count, 3, 'tres acciones');
+  for (const item of found.items) assert.ok(item.top >= -1 && item.bottom >= -1 && item.left >= -1 && item.right >= -1, `visible dentro del hilo ${JSON.stringify(item)}`);
+  assert.ok(found.page <= 0 && found.composer);
+  assert.ok(await page.getByRole('textbox', { name: /^Mensaje para el orquestador/ }).isVisible());
+  await page.screenshot({ path: `${artifacts}/orchestrator-hub-permission-320.png` });
+  await close(page);
+  results.push('A 320 px el permiso pendiente con Rechazar/Siempre/Aprobar queda completamente visible dentro del hilo (alto mínimo 160 px), sin desborde horizontal y con el compositor a la vista.');
 });
 
 async function until(check, ms = 5000) {

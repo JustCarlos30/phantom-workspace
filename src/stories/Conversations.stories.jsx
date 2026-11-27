@@ -1,8 +1,8 @@
 import React from 'react';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import TerminalPanel from '../components/TerminalPanel';
 import TerminalCard from '../components/TerminalCard';
-import ChatCard, { PermissionSwitch, ContextMeter, QueuedMessages, PhantomRunCard } from '../components/ChatCard';
+import ChatCard, { Message, PermissionSwitch, ContextMeter, QueuedMessages, PhantomRunCard } from '../components/ChatCard';
 import PhantomChat from '../components/PhantomChat';
 import PhantomOrchestrator from '../components/PhantomOrchestrator';
 import { demo, Panel } from './decorators';
@@ -138,6 +138,55 @@ export const EncargoPhantomEstrecha = { render: () => <RunExample kind="complete
   await toggleDetails(canvasElement);
 } };
 
-export const PermisosProyectoGuardados = { ...Compositor320, args: { ...Compositor320.args, saved: 'auto' }, play: async ({ canvasElement }) => {
+// Pie de terminal: la píldora de cambios y «Abrir» deben caber en la card a 620, 440 y 340 px. Archivos sintéticos.
+const changedFiles = count => Array.from({ length: count }, (_, i) => ({ path: `src/componentes/seccion-${i % 4}/archivo-con-nombre-largo-${i + 1}.jsx`, status: ['M', 'A', 'D', 'M'][i % 4], added: 12 + i, removed: 3 + i % 5, uncommitted: true }));
+const footerApi = count => (method, params) => method === 'repo.changes' ? Promise.resolve({ files: changedFiles(count), base: 'main', truncated: false }) : demo.api(method, params);
+function FooterExample({ count, width }) {
+  const api = React.useMemo(() => footerApi(count), [count]);
+  const node = React.useMemo(() => ({ ...terminalNode, id: `terminal-pie-${count}-${width}`, data: { ...terminalNode.data, worktree: { path: `/synthetic/worktree-${count}-${width}`, branch: 'phantom/pie-demo' } } }), [count, width]);
+  return <div className="node-body" data-width={width} data-count={count} style={{ width, height: 230, marginBottom: 16, flex: 'none', overflow: 'hidden' }}>
+    <TerminalCard {...demo} api={api} node={node} onOpen={noop} />
+  </div>;
+}
+export const PieTerminalCambios = { render: () => <div style={{ display: 'grid', gap: 16, justifyItems: 'start' }}>
+  {[620, 440, 340].flatMap(width => [3, 20].map(count => <FooterExample key={`${width}-${count}`} count={count} width={width} />))}
+</div>, play: async ({ canvasElement }) => {
+  for (const box of canvasElement.querySelectorAll('[data-width]')) {
+    const inside = (el, card) => { const a = el.getBoundingClientRect(), b = card.getBoundingClientRect(); return a.width > 0 && a.left >= b.left - 0.5 && a.right <= b.right + 0.5; };
+    await waitFor(() => expect(box.querySelector('.tf-badge')).not.toBeNull());
+    const card = box.querySelector('.pt-card'), open = box.querySelector('.pt-card-action.is-primary'), badge = box.querySelector('.tf-badge');
+    await expect(inside(open, card)).toBe(true);
+    await expect(inside(badge, card)).toBe(true);
+    await expect(badge.getBoundingClientRect().right <= open.getBoundingClientRect().left + 0.5).toBe(true);
+  }
+} };
+
+// Pasos del ejecutor: partes de herramienta sintéticas con la receta de actividad (chip, marca-nodo, resumen plegado, comando de Phantom).
+const PHANTOM_ID = 'task_00000000-0000-4000-8000-000000000002';
+const step = (id, name, status, extra = {}) => ({ type: 'tool', id, name, status, ...extra });
+const STEPS_MESSAGE = { id: 'pasos-1', role: 'assistant', status: 'streaming', createdAt: '2026-11-26T10:00:00.000Z', parts: [
+  step('p1', 'Bash', 'done', { detail: `phantom show ${PHANTOM_ID}`, input: { command: `phantom show ${PHANTOM_ID}` }, output: 'estado: running' }),
+  step('p2', 'Read', 'done', { detail: 'src/components/chat/ChatTools.jsx', output: 'contenido sintético' }),
+  step('p3', 'Edit', 'done', { detail: 'src/chat.css', diff: { added: 14, removed: 3 }, output: '+ .pc-tool-mark { }' }),
+  step('p4', 'Bash', 'error', { detail: 'node --test test/inexistente.test.mjs', input: { command: 'node --test test/inexistente.test.mjs' }, output: 'Error: no se encontró el archivo' }),
+  step('p5', 'Bash', 'done', { detail: 'phantom create "Tarea sintética"', input: { command: 'phantom create "Tarea sintética"' }, output: 'creada' }),
+  step('p6', 'Grep', 'running', { detail: 'pc-tool-mark' }),
+] };
+const FEW_STEPS_MESSAGE = { id: 'pasos-2', role: 'assistant', status: 'done', createdAt: '2026-11-26T10:05:00.000Z', parts: [
+  step('q1', 'Read', 'done', { detail: 'DESIGN.md', output: 'contenido sintético' }),
+  step('q2', 'Edit', 'done', { detail: 'src/terminal.css', diff: { added: 4, removed: 1 }, output: '+ .pt-card-footer { }' }),
+  step('q3', 'Grep', 'done', { detail: 'pt-card-footer' }),
+] };
+export const PasosEjecutor = { render: () => <Panel><div className="pc" style={{ width: 560, maxWidth: '100%' }}>
+  <Message message={STEPS_MESSAGE} label="Claude" provider="claude" model="claude-code/sonnet" api={runApi('running')} workspaceId="ws-sintetico" onOpenPanel={noop} />
+  <Message message={FEW_STEPS_MESSAGE} label="Claude" provider="claude" model="claude-code/sonnet" api={runApi('running')} workspaceId="ws-sintetico" onOpenPanel={noop} />
+</div></Panel>, play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await expect(await canvas.findByText('Consulta a Phantom')).toBeVisible();
+  await expect(canvas.getByText('Creación en Phantom')).toBeVisible();
+  await expect(canvas.getAllByLabelText('Herramientas usadas').length).toBeGreaterThanOrEqual(2);
+} };
+
+export const PermisosProyectoGuardados ={ ...Compositor320, args: { ...Compositor320.args, saved: 'auto' }, play: async ({ canvasElement }) => {
   await userEvent.click(await within(canvasElement).findByText('worktree-con-nombre-largo'));
 } };

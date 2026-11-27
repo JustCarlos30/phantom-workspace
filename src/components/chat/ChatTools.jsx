@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Check, ChevronRight, Cpu, FileText, Globe, ListChecks, LoaderCircle, MessageCircleQuestion, Pencil, Search, SquareTerminal, Wrench, X } from 'lucide-react';
 import ToolOutput from '../ToolOutput';
 import { PhantomGlyph } from '../Glyphs';
-import { phantomCallKind, PHANTOM_CALL_LABEL, summarizePhantomRun, summarizePhantomActivity } from '../../hooks/phantom-run-link.mjs';
+import { phantomCallKind, PHANTOM_CALL_LABEL, phantomCallSummary, summarizePhantomRun, summarizePhantomActivity } from '../../hooks/phantom-run-link.mjs';
 import { itemsOf } from '../../hooks/plugin-model.mjs';
 import { livePollDelay } from '../../hooks/poll-schedule.mjs';
 import { delegateView } from '../../hooks/delegation-model.mjs';
@@ -22,11 +22,14 @@ export const ToolRow = React.memo(function ToolRow({ part }) {
   const expandable = Boolean(part.output || (kind === 'edit' && part.change));
   const [doing, did] = TOOL_VERBS[kind] || ['Usando', 'Usó'];
   const codeDetail = ['read', 'edit', 'shell', 'search', 'web'].includes(kind);
+  const objectText = phantom ? phantomCallSummary(part) : part.detail;
+  const slash = typeof objectText === 'string' && (kind === 'read' || kind === 'edit') ? objectText.lastIndexOf('/') : -1;
+  const path = slash > 0 ? [objectText.slice(0, slash + 1), objectText.slice(slash + 1)] : null;
   const summary = <>
     <span className="pc-tool-mark" aria-hidden="true">{phantom ? <PhantomGlyph size={16} /> : <Icon size={16} />}</span>
     <span className="pc-tool-label" title={part.name}>{phantom ? PHANTOM_CALL_LABEL[call] : part.status === 'running' ? doing : did}</span>
     {!phantom && !TOOL_VERBS[kind] && <span className="pc-tool-name">{part.name}</span>}
-    <span className={`pc-tool-detail${codeDetail ? ' is-code' : ''}`} title={part.detail || undefined}>{part.detail}</span>
+    {objectText && <span className={`pc-tool-detail${codeDetail || phantom ? ' is-code' : ''}`} title={objectText}>{path ? <><span className="pc-path-dir">{path[0]}</span><span className="pc-path-base">{path[1]}</span></> : objectText}</span>}
     {part.diff && <span className="pc-tool-diff" aria-label={`${part.diff.added} líneas añadidas, ${part.diff.removed} quitadas`}><b>+{part.diff.added}</b><i>−{part.diff.removed}</i></span>}
     {TOOL_STATES[part.status] && <span className={`pc-tool-state is-${part.status}`}>
       {part.status === 'error' && <X size={14} aria-hidden="true" />}
@@ -170,15 +173,16 @@ export function PhantomRunCard({ id, api, workspaceId, onOpenPanel, onTone }) {
     ] : []} />;
 }
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// Each kind is a segment: a figure and a noun ("3 comandos", "1 archivo leído").
+const count = (n, one, many) => [n, n === 1 ? one : many];
 const KIND_PHRASE = {
-  read: items => `leyó ${plural(new Set(items.map(part => part.detail || part.id)).size, 'archivo', 'archivos')}`,
-  edit: items => `hizo ${plural(items.length, 'cambio', 'cambios')}`,
-  shell: items => `ejecutó ${plural(items.length, 'comando', 'comandos')}`,
-  search: items => `hizo ${plural(items.length, 'búsqueda', 'búsquedas')}`,
-  web: items => `consultó ${plural(items.length, 'página', 'páginas')}`,
-  todo: () => 'actualizó el plan',
-  other: items => `usó ${plural(items.length, 'herramienta', 'herramientas')}`,
+  read: items => count(new Set(items.map(part => part.detail || part.id)).size, 'archivo leído', 'archivos leídos'),
+  edit: items => count(items.length, 'cambio', 'cambios'),
+  shell: items => count(items.length, 'comando', 'comandos'),
+  search: items => count(items.length, 'búsqueda', 'búsquedas'),
+  web: items => count(items.length, 'página consultada', 'páginas consultadas'),
+  todo: () => [null, 'plan actualizado'],
+  other: items => count(items.length, 'herramienta', 'herramientas'),
 };
 // A run of actions. Up to three stay in view; a longer run folds into one
 // sentence of what was done (open while it is still working).
@@ -189,13 +193,12 @@ export const ToolGroup = React.memo(function ToolGroup({ items }) {
   if (items.length < 4) return list;
   const open = chosen ?? live, kinds = new Map();
   for (const part of items) { const [, , kind] = toolKind(part.name), key = KIND_PHRASE[kind] ? kind : 'other'; if (!kinds.has(key)) kinds.set(key, []); kinds.get(key).push(part); }
-  const text = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group)).join(' · ');
+  const segments = [...kinds].map(([kind, group]) => KIND_PHRASE[kind](group));
   return <details className={`pc-steps${live ? ' is-live' : ''}${failed ? ' is-error' : ''}`} open={open} onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open !== open) setChosen(e.currentTarget.open); }}>
     <summary>
       <span className="pc-tool-mark" aria-hidden="true"><ChevronRight size={16} /></span>
-      <span className="pc-steps-text">{text.charAt(0).toUpperCase() + text.slice(1)}</span>
+      <span className="pc-steps-text">{segments.map(([n, noun], i) => <React.Fragment key={i}>{i > 0 && <span className="pc-steps-sep" aria-hidden="true"> · </span>}{n !== null && <b>{n}</b>}{n !== null && ' '}{noun}</React.Fragment>)}</span>
       {failed && <span className="pc-tool-state is-error">con fallos</span>}
-      <ChevronRight className="pc-tool-caret" size={14} aria-hidden="true" />
     </summary>
     {list}
   </details>;

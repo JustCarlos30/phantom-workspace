@@ -371,7 +371,7 @@ export default function TouchedFiles({ node, workspace, api, enabled = true, onC
   return <span ref={root} className="tf" onDoubleClick={e => e.stopPropagation()}>
     {(hadFiles.current || error || open) && <button ref={button} type="button" className="tf-badge" aria-haspopup="dialog" aria-expanded={open} title="Archivos tocados en esta sesión" onClick={() => open ? close() : canvas ? canvas.open(node.id) : setLocalOpen(true)}>
       <FileDiff size={14} aria-hidden="true" />
-      <span>{files ? plural(total.count) : 'Cambios'}{error ? ' · error' : ''}</span>
+      <span className="tf-label">{files ? <><span className="tf-n">{total.count}</span> <span className="tf-word">{total.count === 1 ? 'archivo' : 'archivos'}</span></> : 'Cambios'}{error ? ' · error' : ''}</span>
       {(total.added > 0 || total.removed > 0) && <span className="tf-stat"><span className="tf-add">+{total.added}</span><span className="tf-del">−{total.removed}</span></span>}
     </button>}
     {ready && portal && createPortal(<div ref={pop} className={`tf-panel${canvas ? ' is-canvas' : ' is-fallback'}${compact ? ' is-compact' : ''}${expanded ? ' is-expanded' : ''}`} role="dialog" aria-modal="false" aria-label="Archivos tocados" tabIndex={-1} style={{ ...panelStyle, '--tf-list-width': `${listWidth}px` }} onScrollCapture={e => { if (e.target.dataset.tfScroll) (expanded ? expandedScrollPositions.current : scrollPositions.current).set(e.target, { top: e.target.scrollTop, left: e.target.scrollLeft }); }} onKeyDown={onKeyDown} onKeyUp={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onWheel={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
