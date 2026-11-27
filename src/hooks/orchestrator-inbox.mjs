@@ -8,7 +8,7 @@ const obj = value => value && typeof value === 'object' && !Array.isArray(value)
 const iso = ms => Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null;
 const ms = at => at ? Date.parse(at) : NaN;
 const STUCK = ['blocked', 'failed', 'error'];
-const BROKEN_NEED = ['conflict', 'checks', 'blocked', 'failed', 'lost'];
+const BROKEN_NEED = ['conflict', 'checks', 'blocked', 'failed'];
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 function actionOf(need) {

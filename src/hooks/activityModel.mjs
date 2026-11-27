@@ -25,7 +25,7 @@ export const isRead = item => !!(item.acknowledgedAt || item.ackedAt || item.ack
 // Acknowledgement only clears process-end notices; Phantom tasks remain authoritative.
 export function classifyNotice(item) {
   const read = isRead(item), processEnd = text(item.eventKey).startsWith('tool:') || text(item.eventKey).startsWith('terminal:');
-  return { read, approved: item.approved === true || !!item.approvedAt, needsYou: classifyTask(item).needsYou && (!processEnd || (item.source !== 'phantom' && !read)) };
+  return { read, approved: item.approved === true || !!item.approvedAt, needsYou: !read && classifyTask(item).needsYou && (!processEnd || (item.source !== 'phantom' && !read)) };
 }
 export function taskLinks(task, sessions, nodes) {
   const raw = task.raw || task;
@@ -39,7 +39,7 @@ export function taskLinks(task, sessions, nodes) {
 export function sessionState(session, connected = true, linkedTasks = []) {
   if (!connected) return { label: 'Sin conexión', needsYou: false, tone: 'unknown' };
   if (session?.status === 'exited') return { label: session.exitCode ? `Cerrada · código ${session.exitCode}` : 'Cerrada', needsYou: false, tone: 'unknown' };
-  if (session?.status === 'lost') return { label: 'Sesión perdida', needsYou: true, tone: 'warning' };
+  if (session?.status === 'lost') return { label: 'Sesión perdida', needsYou: false, tone: 'unknown' };
   const agent = text(session?.agentState) || text(session?.agent?.status);
   const explicit = agent ? classifyTask({ status: agent }) : null;
   const stuck = status => ['blocked', 'failed', 'error'].includes(status);
@@ -76,7 +76,7 @@ const STUCK_STEP = { baseline: 0, 'baseline-dirty': 0, snapshot: 0, 'git-dirty':
 export function integrationGroups(merges) {
   if (merges?.available !== true) return { ready: [], decisions: [], active: [] };
   const queue = itemsOf(merges.queue);
-  return { ready: queue.filter(item => item.status === 'queued'), decisions: [...queue.filter(item => ['conflict', 'failed'].includes(item.status)), ...itemsOf(merges.active).filter(item => item.status === 'blocked')], active: [...queue.filter(item => item.status === 'merging'), ...itemsOf(merges.active).filter(item => item.status !== 'blocked')] };
+  return { ready: queue.filter(item => item.status === 'queued'), decisions: [...queue.filter(item => ['conflict', 'failed'].includes(item.status) && item.integrated !== true), ...itemsOf(merges.active).filter(item => item.status === 'blocked')], active: [...queue.filter(item => item.status === 'merging'), ...itemsOf(merges.active).filter(item => item.status !== 'blocked')] };
 }
 // When something last changed, from whichever timestamp its source records.
 export function timeOf(item) {
@@ -189,7 +189,10 @@ export function buildActivity({ workspace, sessions = [], tasks = [], git = null
     sessionRows.push({ id: `node:${node.id}`, nodeId: node.id, title: node.title, hidden: !!node.data?.hidden, ...sessionState(null, connected), ...chatState(node), linkedTasks: [] });
   }
   const taskRows = itemsOf(tasks).map(t => ({ ...t, cardId: t.id, title: activityTitle(t), ...classifyTask(t), at: timeOf(t), sessions: taskLinks(t, sessionRows, nodes) }));
-  const notices = byRecent((workspace?.attention || []).map(n => ({ ...n, ...classifyNotice(n), at: timeOf(n) })));
+  // The Phantom task is the authority: a notice whose task already left blocked/failed/error is resolved.
+  const taskById = new Map(taskRows.map(t => [text(t.id), t]));
+  const noticeResolved = n => { const t = taskById.get(cardIdOf(n)); return !!t && !['blocked', 'failed', 'error'].includes(t.status); };
+  const notices = byRecent((workspace?.attention || []).map(n => { const c = classifyNotice(n); return { ...n, ...c, needsYou: c.needsYou && !noticeResolved(n), at: timeOf(n) }; }));
   const branches = (git?.branches || []).map(b => ({ ...b, label: branchState(b, git), sessions: sessionRows.filter(s => {
     const node = nodes.find(n => n.id === s.nodeId);
     // The host's worktree allocation supplies a real branch association.
