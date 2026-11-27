@@ -60,12 +60,12 @@
 .oh-icon:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
 .oh :is(button, select, textarea):disabled { cursor: default; opacity: .5; }
 
-.oh-head { border-bottom: 1px solid var(--fill-2); padding-bottom: 12px; }
+.oh-head { padding-bottom: 12px; }
 .oh-head-counts { flex: none; display: flex; gap: 4px; }
 .oh-group { gap: 12px; }
-.oh-group-title { padding-bottom: 4px; border-bottom: 1px solid var(--fill-2); }
-.oh-group[data-tone="danger"] .oh-row { box-shadow: inset 3px 0 0 var(--danger); }
-.oh-group[data-tone="attention"] .oh-row { box-shadow: inset 3px 0 0 var(--attention); }
+.oh-group-title { padding-bottom: 4px; }
+.oh-group[data-tone="danger"] .oh-row .oh-state { color: var(--danger); }
+.oh-group[data-tone="attention"] .oh-row .oh-state { color: var(--attention); }
 .oh-project { gap: 8px; }
 .oh-rows { gap: 8px; }
 
